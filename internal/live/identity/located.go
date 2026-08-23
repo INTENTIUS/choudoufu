@@ -10,6 +10,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -141,27 +142,40 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 		return false
 	}
 	schema, ok := schemas[resourceType]
-	if !ok || schema.Block == nil {
+	if !ok {
+		return false
+	}
+	return recordableIdentitySchema(resourceType, schema)
+}
+
+// recordableIdentitySchema is [LocatedType] and [RecordFallbackType]'s
+// shared tail: the three schema-read conditions that decide whether a
+// record can hold resourceType's identity in full, once each has settled
+// the one condition that differs between them (type absent from the table
+// versus type present in it).
+//
+// Condition 2 asks whether the RECORD would carry a secret, not whether
+// the type has one anywhere in its schema - those are different
+// questions. [credentialMaterial]'s whole-schema sweep answers the
+// second, which is [CredentialMaterial]'s job for internal/live/projection's
+// residue (a value-preservation promise this route makes no claim
+// about). This route's promise is narrower: it records
+// locatedImportIDAttr or plan's own components, nothing else, so the
+// only sensitive material it can leak is a secret that IS one of those
+// attributes. Measured 2026-08-22 (issue #365 population 2): of the
+// types [credentialMaterial] excludes, nine of eleven carry their secret
+// on an attribute the plan never reads, and refusing them bought nothing
+// - the record it would have written never touched the secret either
+// way. [sensitiveIdentityAttr] is that narrower question, already
+// written for the operator-selected "markers record" route.
+func recordableIdentitySchema(resourceType string, schema providers.Schema) bool {
+	if schema.Block == nil {
 		return false
 	}
 	plan, recordable := LocatedIdentityPlanFor(resourceType, schema)
 	if !recordable {
 		return false
 	}
-	// Condition 2 asks whether the RECORD would carry a secret, not whether
-	// the type has one anywhere in its schema - those are different
-	// questions. [credentialMaterial]'s whole-schema sweep answers the
-	// second, which is [CredentialMaterial]'s job for internal/live/projection's
-	// residue (a value-preservation promise this route makes no claim
-	// about). This route's promise is narrower: it records
-	// locatedImportIDAttr or plan's own components, nothing else, so the
-	// only sensitive material it can leak is a secret that IS one of those
-	// attributes. Measured 2026-08-22 (issue #365 population 2): of the
-	// types [credentialMaterial] excludes, nine of eleven carry their secret
-	// on an attribute the plan never reads, and refusing them bought nothing
-	// - the record it would have written never touched the secret either
-	// way. [sensitiveIdentityAttr] is that narrower question, already
-	// written for the operator-selected "markers record" route.
 	if sensitiveIdentityAttr(plan, schema) != "" {
 		return false
 	}
@@ -169,6 +183,77 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 		return false
 	}
 	return true
+}
+
+// RecordFallbackType reports whether resourceType may use the record store
+// as an INSTANCE-level identity fallback when the type's own admission row
+// could not resolve one of its identity components from configuration.
+//
+// It is [LocatedType] answered through the opposite door. LocatedType
+// serves a type [MarkerlessTypes] refused a table row to in the first
+// place, because the whole type is server-minted AND untaggable
+// ([MarkerlessReason]). This serves a type WITH a ratified row - an
+// ordinary component-based identity path exists and is used for every
+// instance whose configuration states it - whose schema is untaggable in
+// exactly the same sense [MarkerlessReason] measures (no settable
+// top-level tags map), so the one instance in front of it that could not
+// fold its identity from configuration this run (a name_prefix sibling, an
+// omitted server-assigned name, a cloud property this run was not given)
+// has no marker to fall back on either. aws_autoscaling_group is the type
+// that exposed the gap: its row resolves every instance that states `name`
+// literally, and [MarkerlessTypes]'s generator never considered it,
+// because the rule it applies is about types that are server-assigned at
+// the WHOLE-TYPE level, which aws_autoscaling_group is not - most of its
+// instances resolve from configuration alone.
+//
+// live/survey-full.json's taggable signal is a looser measurement than
+// [markers.Taggable] (the schema check this function actually applies), so
+// a candidate list built from the survey alone overstates the reach: of
+// the four other ratified rows whose identity argument follows the
+// name/name_prefix or server-assigned-if-absent convention and whose
+// survey entry reads taggable=false (aws_iam_role_policy, aws_kms_alias,
+// aws_launch_configuration, aws_scheduler_schedule), measuring against a
+// real hashicorp/aws 6.59.0 schema shows only aws_launch_configuration
+// sharing aws_autoscaling_group's shape; the other three carry a real
+// settable top-level tags map and take the ordinary marker-fallback path
+// instead. This function's own schema check is the source of truth here,
+// not the count in this comment - re-measure with
+// [pluginschema.ResourceTypes] before quoting a number.
+//
+// Every other condition is [LocatedType]'s own - importable, and the
+// identity fully recordable with nothing sensitive in it - because the
+// promise this route makes ("the record can be read back as a whole,
+// correct import identity") does not change depending on which door let
+// the type in. [resolver.recordFallback] is the sole caller: it never
+// runs ahead of an instance's own component resolution, only after that
+// resolution has already concluded it needs discovery, so a configuration
+// that states `name` literally never reaches this predicate at all.
+func RecordFallbackType(resourceType string, schemas map[string]providers.Schema) bool {
+	if NotImportable(resourceType) {
+		return false
+	}
+	if _, ok := LookupType(resourceType); !ok {
+		// No table row: this is [LocatedType]'s population, not this
+		// route's. The two stay disjoint the same way [MarkerlessTypes] and
+		// the table itself do (live/admission_coverage_test.go), and this
+		// condition is what holds that disjointness from the other
+		// direction.
+		return false
+	}
+	schema, ok := schemas[resourceType]
+	if !ok || schema.Block == nil {
+		return false
+	}
+	if markers.Taggable(schema.Block) {
+		// Has somewhere to carry a marker. The instance in front of
+		// [resolver.recordFallback] reached it because ITS OWN
+		// configuration could not fold an identity component - not because
+		// the type has no marker - so the honest answer is still
+		// discovery, the same answer every taggable type in this position
+		// has always gotten.
+		return false
+	}
+	return recordableIdentitySchema(resourceType, schema)
 }
 
 // sanctionedCredentialExclusion is the maintainer's 2026-08-15 parity ruling

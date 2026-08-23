@@ -330,7 +330,14 @@ var identityGoldenPin = map[string]int{
 	// instances, swept both from the fixture root (module.attach.aws_iam_role.target)
 	// and again from its own child module directory (aws_iam_role.target),
 	// plus its two aws_iam_user.tag instances.
-	"CONCRETE": 808,
+	// 808 -> 809 for [RecordFallbackType] (corpus-autoscaling-complete's
+	// marker-only aws_autoscaling_group instances, HANDOFF's first table
+	// row): one ADDED row,
+	// internal/live/identity/testdata/record-fallback-untaggable's
+	// aws_autoscaling_group.named, which states a literal `name` and stays
+	// CONCRETE precisely to prove the new fallback does not shadow the
+	// ordinary path. See identityGoldenPinBodyDigest.
+	"CONCRETE": 809,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -533,7 +540,16 @@ var identityGoldenPin = map[string]int{
 	// two aws_iam_policy instances (imagebuilder, other), whose arn is what
 	// every poisoned leaf in the fixture reads and which nothing here can
 	// discover without the cloud.
-	"NEEDS_DISCOVERY": 705,
+	// 705 -> 706 for [RecordFallbackType]: one ADDED row,
+	// internal/live/identity/testdata/record-fallback-untaggable's
+	// aws_autoscaling_group.prefixed. This sweep resolves with no provider
+	// schemas, so [RecordFallbackType] fails closed exactly as it is
+	// documented to - the row stays NEEDS_DISCOVERY here, and only becomes
+	// RECORD_LOCATED in a run holding a real schema and a declared
+	// record_store (see TestRecordFallbackClassifiesUntaggableNamePrefix in
+	// internal/live/identity/recordfallback_test.go for that assertion, by
+	// value).
+	"NEEDS_DISCOVERY": 706,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -1084,7 +1100,15 @@ var identityGoldenPin = map[string]int{
 // with a sibling's). TestModuleForeachFilterOverPoisonedValueResolves
 // (internal/live/identity) pins the same three shapes by value; this
 // digest is the confirmation that nothing else in the fixture corpus moved.
-const identityGoldenPinBodyDigest = "f8676745a455902cd0148fce6a5357519d8f5750fc3fc23466359aa799de7436"
+//
+// f8676745... -> 7903413d... for [RecordFallbackType]: two ADDED rows in
+// the new internal/live/identity/testdata/record-fallback-untaggable -
+// aws_autoscaling_group.named (CONCRETE, "web-static", proving the
+// fallback does not shadow the ordinary literal-name path) and
+// aws_autoscaling_group.prefixed (NEEDS_DISCOVERY here, since this sweep
+// holds no provider schemas and the fallback fails closed without one).
+// No pre-existing row moved, in class or in value.
+const identityGoldenPinBodyDigest = "7903413dc973cce6712487a3bd20c328c5f3142719fdaf6eecb0880a81be86ca"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1602,7 +1626,9 @@ const (
 	// Then 1660 -> 1672 for corpus-alb-complete's Family A wall: twelve
 	// added rows, none changed, none removed. See identityGoldenPinBodyDigest's
 	// own note for the fixture and which rows are which.
-	identityGoldenPinInstances = 1672
+	// Then 1672 -> 1674 for [RecordFallbackType]: two added rows, none
+	// changed, none removed. See identityGoldenPinBodyDigest's own note.
+	identityGoldenPinInstances = 1674
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1769,7 +1795,9 @@ const (
 	// and its ./attach child module - one fixture, two directories, the
 	// child swept as a root of its own the same way tolerant-module-output's
 	// submodules are.
-	identityGoldenPinDirs = 573
+	// Then 573 -> 574 for [RecordFallbackType]: one new fixture,
+	// internal/live/identity/testdata/record-fallback-untaggable.
+	identityGoldenPinDirs = 574
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

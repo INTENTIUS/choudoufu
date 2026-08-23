@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=573 instances=1672
-# shape: class CONCRETE=808
-# shape: class NEEDS_DISCOVERY=705
+# shape: dirs=574 instances=1674
+# shape: class CONCRETE=809
+# shape: class NEEDS_DISCOVERY=706
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=f8676745a455902cd0148fce6a5357519d8f5750fc3fc23466359aa799de7436
+# shape: body-sha256=7903413dc973cce6712487a3bd20c328c5f3142719fdaf6eecb0880a81be86ca
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -511,6 +511,8 @@ internal/live/identity/testdata/record-backed-parent-attr	null_resource.gate	REC
 internal/live/identity/testdata/record-backed-parent-attr	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr	terraform_data.seed	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr-unknown	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.named	CONCRETE	web-static	name=web-static
+internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/route53-record-set-identifier	aws_route53_record.unweighted	CONCRETE	Z4KAPRWWNC7JR_dev.example.com_NS	name=dev.example.com,type=NS,zone_id=Z4KAPRWWNC7JR
 internal/live/identity/testdata/route53-record-set-identifier	aws_route53_record.weighted	CONCRETE	Z4KAPRWWNC7JR_dev.example.com_NS_dev	name=dev.example.com,set_identifier=dev,type=NS,zone_id=Z4KAPRWWNC7JR
 internal/live/identity/testdata/route53-zone-association-vpc-region	aws_route53_zone_association.cross_region	CONCRETE	Z123456ABCDEFG:vpc-12345678:us-east-2	vpc_id=vpc-12345678,vpc_region=us-east-2,zone_id=Z123456ABCDEFG

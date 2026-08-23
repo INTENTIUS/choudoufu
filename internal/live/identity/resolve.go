@@ -1052,6 +1052,30 @@ func (r *resolver) instance(addr addrs.AbsResourceInstance, rng hcl.Range) (Reso
 	return res, true
 }
 
+// recordFallback is [resolver.resolveInstance]'s second chance for an
+// instance whose own identity component could not be folded from
+// configuration this run: converting what would otherwise be a
+// [ClassNeedsDiscovery] resolution into [ClassRecordLocated] when the type
+// has nowhere to carry a marker either, so a discovery sweep would never
+// bind the instance and a record is the only identity source left that is
+// not a guess. See [RecordFallbackType] for the conditions and for why
+// this is the type-admitted door into the class GitHub issue #270 opened
+// for markerless types.
+//
+// Every call site calls this ahead of building its own ClassNeedsDiscovery
+// resolution, and only takes the fallback when it returns true - a run
+// with no record_store, or a type this predicate does not clear, falls
+// through to the discovery answer exactly as it always has.
+func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType string) (Resolution, bool) {
+	if !r.recordStore {
+		return Resolution{}, false
+	}
+	if !RecordFallbackType(resourceType, r.schemas) {
+		return Resolution{}, false
+	}
+	return Resolution{Addr: addr, Class: ClassRecordLocated}, true
+}
+
 func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range) (Resolution, bool) {
 	resAddr := addr.Resource.Resource
 
@@ -1181,6 +1205,10 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			res.Cause = DiscoveryUniqueName
 			res.CauseArgs = append([]string(nil), entry.UniqueName.Attrs...)
 			res.UniqueName = name
+			return res, true
+		}
+		if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+			return fb, true
 		}
 		return res, true
 	}
@@ -1245,6 +1273,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// answered by the configuration instead: see [Component.Attrs] on a
 	// cloud-bearing component, and cloudComponentAttr below.
 	if comp, ok := r.missingCloudComponent(entry, attrs, scope, addr, cloudScope); ok {
+		if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+			return fb, true
+		}
 		return Resolution{
 			Addr:   addr,
 			Class:  ClassNeedsDiscovery,
@@ -1370,6 +1401,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				// below handles for a different spelling of the same
 				// convention: not a missing argument, but a name this run
 				// cannot compute before the object exists.
+				if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+					return fb, true
+				}
 				return Resolution{
 					Addr:  addr,
 					Class: ClassNeedsDiscovery,
@@ -1391,6 +1425,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				// compute before the object exists, the identical situation
 				// [TypeIdentity.ServerAssigned] already gives its own
 				// resolution class to at the whole-type level. See #190.
+				if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+					return fb, true
+				}
 				return Resolution{
 					Addr:  addr,
 					Class: ClassNeedsDiscovery,
@@ -1428,6 +1465,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		// as it always has. Only a clean, wholly-known null redirects here.
 		if prefixAttr, ok := attrs[attr.Name+"_prefix"]; ok {
 			if peekVal, peekDiags := r.evalPure(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range)); !peekDiags.HasErrors() && peekVal.IsNull() {
+				if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+					return fb, true
+				}
 				return Resolution{
 					Addr:  addr,
 					Class: ClassNeedsDiscovery,
