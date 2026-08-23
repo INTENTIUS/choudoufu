@@ -395,14 +395,64 @@ func unreadableMarkerProblem(req Request, decl *declared, typeName, escaped stri
 // identity IS their ARN, and the ARN's resource-id segment for every other
 // type - which is what [resolveCloudControlImportID] composes an import ID
 // from, and for a single-part identifier is the import ID unchanged.
+//
+// A third key is added for IAM: an IAM ARN's resource field is
+// "type/PATH/NAME" whenever the entity has a non-default Path
+// ([cloudcontrol.ARN]'s own doc comment names this shape), so ResourceID
+// above is "PATH/NAME" - but every IAM entity type that carries a Path
+// (aws_iam_role, aws_iam_user, aws_iam_group, aws_iam_instance_profile,
+// aws_iam_server_certificate; verified against the cached provider docs at
+// 6.59.0) is documented to import by the bare NAME alone, with the path
+// never part of the identifier. corpus-autoscaling-complete's own
+// module.complete built an aws_iam_role and an aws_iam_instance_profile
+// under path "/ec2/" through name_prefix - live-import stamped both, but a
+// stateless replan's discovery re-listed each with no tags (iam:ListRoles
+// and iam:ListInstanceProfiles return none), and the ResourceID join key
+// above ("ec2/complete-...") never matched either object's own bare-name
+// import ID ("complete-..."), so the join silently found nothing
+// (joinNone) and the plan proposed creating an object that already
+// existed - HANDOFF.md's "plans differ" row, not an emulator gap: floci's
+// List/Describe responses matched real AWS's own documented shape byte for
+// byte (confirmed directly against the emulator with the AWS CLI, no
+// Terraform in the loop).
+//
+// This is safe to add unconditionally rather than gating it on the type
+// being scanned: [join] already requires markerType == typeName and the
+// estate to match before this key is ever consulted, so the extra key is
+// inert for every ARN whose type does not end up importing by that bare
+// trailing segment. It could only produce a wrong bind if two live IAM
+// entities of the SAME type, owned by the SAME estate, shared the same
+// trailing name at different paths - and IAM enforces name uniqueness for
+// each of these entity kinds account-wide, independent of Path, so that
+// case cannot arise.
 func markerJoinKeys(arn string) []string {
 	keys := []string{markerJoinKey(arn)}
-	if a, ok := cloudcontrol.ParseARN(arn); ok && a.ResourceID != "" {
-		if k := markerJoinKey(a.ResourceID); k != keys[0] {
-			keys = append(keys, k)
+	a, ok := cloudcontrol.ParseARN(arn)
+	if !ok || a.ResourceID == "" {
+		return keys
+	}
+	if k := markerJoinKey(a.ResourceID); k != keys[0] {
+		keys = append(keys, k)
+	}
+	if a.Service == "iam" {
+		if i := strings.LastIndexByte(a.ResourceID, '/'); i >= 0 {
+			if k := markerJoinKey(a.ResourceID[i+1:]); !containsString(keys, k) {
+				keys = append(keys, k)
+			}
 		}
 	}
 	return keys
+}
+
+// containsString reports whether s is already one of keys, so
+// [markerJoinKeys] never indexes the same string twice for one ARN.
+func containsString(keys []string, s string) bool {
+	for _, k := range keys {
+		if k == s {
+			return true
+		}
+	}
+	return false
 }
 
 // markerJoinKey normalizes one identifier so that the two spellings AWS
