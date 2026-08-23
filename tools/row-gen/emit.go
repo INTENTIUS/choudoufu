@@ -232,12 +232,20 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	contentMatchRows := contentMatchRoster(proposals, grammar, schemaFacts)
 	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatchSet(contentMatchRows))
 	notImportable := notImportableRoster(survey)
-	// emittedRows' vetoed set is the union of both rules (issue #331):
-	// either one alone is enough to keep a type out of the table, and the
-	// two are still rendered into their own separate generated rosters below
-	// so each keeps its own reason. A type can be in both; setOf collapses
-	// the duplicate harmlessly.
-	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, setOf(append(append([]string(nil), vetoed...), notImportable...)))
+	// Ruling 2 of rfc/20260823-foundation-order-ruling.md (#387): a row the
+	// provider's own identity schema already reproduces leaves the emitted
+	// table the same way a vetoed or not-importable row does, though for the
+	// opposite reason - not because nothing can resolve it, but because
+	// [identity.SynthesizeTypeIdentity] already will, at resolution time,
+	// from the real schemas. See schemafirst.go for what "reproduces" means.
+	schemaReproduced := schemaFirstReproduced(ratified, grammar)
+	// emittedRows' excluded set is the union of all three rules: any one of
+	// them alone is enough to keep a type out of the table, and each is
+	// still rendered into (or recorded in) its own roster below so it keeps
+	// its own reason. A type can be in more than one; setOf collapses the
+	// duplicate harmlessly.
+	excluded := setOf(append(append(append([]string(nil), vetoed...), notImportable...), schemaReproduced...))
+	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, excluded)
 
 	// The convergence comparison runs over the rows about to be written, not
 	// over the ones last written: a row that is ratified but not yet in the

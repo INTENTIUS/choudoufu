@@ -236,7 +236,25 @@ func runConvergence(out, errOut *os.File) error {
 		return err
 	}
 
+	// Ruling 2 (#387): named here too, so the written artifact records which
+	// rows -emit itself would already have dropped from the table before
+	// buildConvergence ever sees them (loadEmittedTable, ratified.go,
+	// already excludes them from emitted itself). ratified and grammar are
+	// loaded again rather than threaded out of loadEmittedTable, matching
+	// this file's own existing style of reloading an artifact at each call
+	// site that needs it rather than widening a helper's return.
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
+	schemaReproduced := schemaFirstReproduced(ratified, grammar)
+
 	art := buildConvergence(emitted, proposals, annotations)
+	art.SchemaReproduces = schemaReproducesBucket{Count: len(schemaReproduced), Types: schemaReproduced}
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
 		for _, p := range problems {

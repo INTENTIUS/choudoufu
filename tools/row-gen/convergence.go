@@ -104,7 +104,29 @@ type convergenceArtifact struct {
 	GeneratedBy string                    `json:"generated_by"`
 	Summary     convergenceSummary        `json:"summary"`
 	ByService   map[string]serviceSummary `json:"by_service"`
-	Types       []convergenceRow          `json:"types"`
+
+	// SchemaReproduces is ruling 2 of rfc/20260823-foundation-order-ruling.md
+	// (#387): the config-identified ratified rows this run's own
+	// schemaFirstReproduced (schemafirst.go) found the provider's identity
+	// schema already reproduces, and so are held out of Types/Summary
+	// entirely - [buildConvergence] never sees them, the same way a
+	// RecordBacked or veto-excluded type never reaches it. Recorded here
+	// rather than only in the shrunk admitted_total, so the drop is an
+	// artifact fact and not a sentence in a PR description: the count is
+	// len(Types), always, and TestConvergenceArtifactMatchesCommitted holds
+	// the whole struct - this field included - to a fresh regeneration.
+	SchemaReproduces schemaReproducesBucket `json:"schema_reproduces"`
+
+	Types []convergenceRow `json:"types"`
+}
+
+// schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape:
+// the count named explicitly rather than left to the reader to compute from
+// len(Types), because the whole point of naming it here is that a reader
+// should not have to.
+type schemaReproducesBucket struct {
+	Count int      `json:"count"`
+	Types []string `json:"types"`
 }
 
 // buildConvergence runs the comparison over emitted - every row -emit would
