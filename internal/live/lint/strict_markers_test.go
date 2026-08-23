@@ -199,6 +199,46 @@ func TestStrictMarkersLiftsIgnoreChangesOnlyForTheSelected(t *testing.T) {
 	}
 }
 
+// TestStrictMarkersLiftsIgnoreChangesPerKeyOnlyForTheSelected is GitHub
+// issue #380's shape of the same join point: internal/live/stamp now
+// synthesizes ignore_changes on exactly the two marker keys
+// (tags["tofu-address"], tags["tofu-estate"]) for a selected resource
+// rather than the whole tags argument, so this rule's decline must reach
+// that shape too, and must still refuse it - whole-tags or per-key alike -
+// for a resource the selection does not cover.
+//
+// The fixture is TestStrictMarkersLiftsIgnoreChangesOnlyForTheSelected's
+// with ignore_changes = [tags] replaced by the two per-key entries on both
+// resources. Unlike that test the unselected resource's refusal count is
+// two rather than one: checkIgnoreChanges's loop reports one issue per
+// ignore_changes ENTRY, and the per-key form is two entries where [tags]
+// was one - so aws_vpc.main (selected) still contributes zero and
+// aws_subnet.private (not selected) contributes both.
+func TestStrictMarkersLiftsIgnoreChangesPerKeyOnlyForTheSelected(t *testing.T) {
+	cfg := loadConfigDir(t, "testdata/strict-markers-ignore-changes-per-key")
+
+	schemas := map[string]providers.Schema{
+		"aws_vpc":    markersRecordTestSchema(),
+		"aws_subnet": markersRecordTestSchema(),
+	}
+	issues := CheckWith(t.Context(), cfg, Context{Schemas: schemas})
+
+	if len(issues) != 2 {
+		t.Fatalf("got %d issues, want exactly 2 (one per ignored marker key on the unselected resource): %v", len(issues), issues)
+	}
+	for _, issue := range issues {
+		if issue.Rule != RuleIgnoreChanges {
+			t.Errorf("got rule %q, want %q: %s", issue.Rule, RuleIgnoreChanges, issue)
+		}
+		if !strings.Contains(issue.Construct, "aws_subnet.private") {
+			t.Errorf("a surviving refusal is on %s; it must be the UNSELECTED resource, aws_subnet.private: %s", issue.Construct, issue)
+		}
+		if strings.Contains(issue.Construct, "aws_vpc.main") {
+			t.Errorf("the SELECTED resource was refused despite marker_repair = \"never\" and the selection covering it: %s", issue)
+		}
+	}
+}
+
 // TestStrictMarkersIgnoreChangesNeedsBothHalves is the other side of the
 // same join: neither toggle alone lifts the refusal.
 //
