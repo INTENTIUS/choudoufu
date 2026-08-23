@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "7d7d7cc29c8680625f97f2dd41f5f34f6026fba3",
+  "commit": "91c1f10fc7f0b37dd79ca9b4d3ad2bc27b3fa4c0",
   "emulator": "ghcr.io/lex00/floci@sha256:78262a598550703a53da9a856099c0421307bbccd942aa53e12d3758eff2a4bb",
-  "generated": "2026-08-23T19:38:32Z",
+  "generated": "2026-08-23T19:54:14Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1046,13 +1046,13 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:49:11Z",
+        "commit": "91c1f10fc7f0b37dd79ca9b4d3ad2bc27b3fa4c0",
+        "date": "2026-08-23T19:57:31Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
-          "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed; markers survived the residue-classification apply",
+          "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4",
           "test_plan": "no resource action proposed; 29 rendered identity occurrences (10 distinct), all naming known roots"
         }
@@ -1087,13 +1087,13 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1bc96a888023d5ee7c7d145910b576198cd773f6",
-        "date": "2026-08-23T05:50:13Z",
+        "commit": "91c1f10fc7f0b37dd79ca9b4d3ad2bc27b3fa4c0",
+        "date": "2026-08-23T19:55:07Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
-          "migrate": "58 of 67 stamped",
+          "migrate": "58 of 67 stamped, 58 identities recorded (#364 unit A2)",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 58 objects, read through resourcegroupstaggingapi",
           "test_plan": "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
         }
