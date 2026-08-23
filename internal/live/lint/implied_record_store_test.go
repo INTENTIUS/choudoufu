@@ -176,10 +176,13 @@ func TestImpliedRecordStoreFilesRecordsUnderTheExactKeys(t *testing.T) {
 	}
 
 	// The record-located type: admitted by the implied store, and its
-	// located record filed under the located namespace rather than the
-	// record one. The two namespaces staying disjoint is what keeps orphan
-	// discovery from listing a located key and proposing to destroy the
-	// resource it names.
+	// identity filed at the SAME key a record-backed instance's object
+	// would use - GitHub issue #364 folded the located namespace into the
+	// one record envelope, distinguished by the envelope's "kind" rather
+	// than by which root a key lives under. Kind is what now keeps orphan
+	// discovery from treating a lost or stale identity as delete authority
+	// for the object it names (recordKindIdentity is never enumerated for
+	// destruction the way recordKindObject is).
 	thing, ok := byAddr[impliedStoreLocatableType+".thing"]
 	if !ok {
 		t.Fatalf("%s.thing did not resolve; the implied store did not admit it. Addresses present: %v", impliedStoreLocatableType, addrKeys(byAddr))
@@ -187,9 +190,9 @@ func TestImpliedRecordStoreFilesRecordsUnderTheExactKeys(t *testing.T) {
 	if got, want := string(thing.Class), "RECORD_LOCATED"; got != want {
 		t.Errorf("%s.thing class = %q, want %q", impliedStoreLocatableType, got, want)
 	}
-	if got, want := projection.LocatedKey(impliedStoreEstate, mustParseInstance(t, impliedStoreLocatableType+".thing")),
-		"tofu-located/implied-store-estate/aws_acmpca_certificate/YXdzX2FjbXBjYV9jZXJ0aWZpY2F0ZS50aGluZw"; got != want {
-		t.Errorf("%s.thing's located key = %q, want %q", impliedStoreLocatableType, got, want)
+	if got, want := projection.RecordKey(projection.RecordKeyPrefix(impliedStoreEstate), mustParseInstance(t, impliedStoreLocatableType+".thing")),
+		"tofu-records/implied-store-estate/aws_acmpca_certificate/YXdzX2FjbXBjYV9jZXJ0aWZpY2F0ZS50aGluZw"; got != want {
+		t.Errorf("%s.thing's record key = %q, want %q", impliedStoreLocatableType, got, want)
 	}
 
 	// The implied store's own resolved shape, by value. An empty Path is
