@@ -576,15 +576,7 @@ var identityGoldenPin = map[string]int{
 	// measuring that a bare resolve's MARKER_FALLBACK verdict is not always
 	// what a real live-plan's two-pass resolution settles on - see that
 	// function's doc comment in internal/live/liveimport/slot.go.
-	// 710 -> 714 for corpus-alb-complete's Family B fix: four ADDED rows,
-	// the four new aws_acm_certificate instances identityGoldenPinInstances'
-	// own note names - see there for why they resolve NEEDS_DISCOVERY
-	// through the ordinary server-assigned path rather than through
-	// anything this fix added. Reconciled onto #372's own +5 (705->710)
-	// above rather than against this branch's stale base (705->709), by
-	// regenerating on the rebased tree and diffing - only these four rows
-	// moved.
-	"NEEDS_DISCOVERY": 714,
+	"NEEDS_DISCOVERY": 710,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -1171,31 +1163,7 @@ var identityGoldenPin = map[string]int{
 // recomputing deltas by hand: regenerated with -update on the merged tree
 // and diffed, confirming exactly these six rows added and nothing else
 // moved.
-//
-// Then corpus-alb-complete's Family B fix (GitHub issue #364's shape: a
-// server-minted attribute, aws_acm_certificate's domain_validation_options,
-// consumed by an untaggable child's identity through a LOCAL and
-// count.index rather than a direct reference or an each.value scope): dirs
-// 577 -> 581, instances 1680 -> 1684, four new rows, one per new fixture's
-// bare aws_acm_certificate instance (identityGoldenPinInstances' own note
-// names all four); zero changed, zero removed. Every one resolves
-// NEEDS_DISCOVERY through the ordinary server-assigned-ID path this sweep
-// already gives every OTHER bare aws_acm_certificate fixture in the
-// corpus - this sweep supplies no Context.ManagedResults, so the fix's own
-// mechanism (managedFromExpr's chase through a local's or a module
-// variable's own defining expression, namesAnUnprovenVariable, the
-// ambiguous-multi-resource decline, and selectReferencedValue's
-// per-attribute isolation of a covered value from an unrelated sensitive
-// sibling attribute) never activates here at all;
-// TestManagedResultThroughCountLocalElement,
-// TestManagedResultThroughCountModuleElement and
-// TestManagedFromDeclinesAmbiguousMultiResourceLocal (internal/live/identity)
-// are what pin THAT shape, by value, with ManagedResults actually supplied.
-// Reconciled onto corpus-ecs-fargate's own base (577/1680,
-// c83a29c6...) by rebasing rather than by recomputing deltas by hand:
-// regenerated with -update on the rebased tree and diffed, confirming
-// exactly these four rows added and nothing else moved.
-const identityGoldenPinBodyDigest = "7d41efb16b6088c62ff6b01071dcd080294a0eb00c2ab0ea11783d3ae972d68c"
+const identityGoldenPinBodyDigest = "c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1722,28 +1690,7 @@ const (
 	// Then 1678 -> 1680, same issue, a second pass: two more added rows,
 	// slot-markerfallback-config's aws_iam_role.this[0..1] - see
 	// identityGoldenPinBodyDigest's own note.
-	// Then 1680 -> 1684 for corpus-alb-complete's Family B fix (the
-	// ACM/Route53 validation shape - see identityGoldenPinBodyDigest's own
-	// note): four added rows, none changed, none removed, one per new
-	// fixture's aws_acm_certificate instance
-	// (managed-read-ambiguous-local's aws_acm_certificate.cert,
-	// managed-read-count-local's aws_acm_certificate.cert,
-	// managed-read-count-module's module.acm.aws_acm_certificate.this[0]
-	// and its own child module directory's aws_acm_certificate.this[0]).
-	// This sweep never supplies Context.ManagedResults, so none of the
-	// fixtures' aws_route53_record.validation instances - the ones the fix
-	// itself is about - appear here at all; each cert resolves
-	// NEEDS_DISCOVERY through the same server-assigned-ID path every other
-	// bare aws_acm_certificate in this corpus already does, unrelated to
-	// the fix's own mechanism. TestManagedResultThroughCountLocalElement,
-	// TestManagedResultThroughCountModuleElement and
-	// TestManagedFromDeclinesAmbiguousMultiResourceLocal (internal/live/identity)
-	// pin the WITH-managed-results shape these fixtures exist for.
-	// Reconciled onto corpus-ecs-fargate's own base (1680) by rebasing
-	// rather than by recomputing deltas by hand: regenerated with -update
-	// on the rebased tree and diffed, confirming exactly these four rows
-	// added and nothing else moved.
-	identityGoldenPinInstances = 1684
+	identityGoldenPinInstances = 1680
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1919,14 +1866,7 @@ const (
 	// Then 576 -> 577, same issue, a second pass:
 	// internal/live/liveimport/testdata/slot-markerfallback-config, one more
 	// new fixture, its own directory.
-	// Then 577 -> 581 for corpus-alb-complete's Family B fix: three new
-	// fixtures - managed-read-ambiguous-local, managed-read-count-local and
-	// managed-read-count-module - the last swept twice, once at its own
-	// root and once for its ./modules/acm child, the same way
-	// tolerant-module-output's submodules are. Reconciled onto
-	// corpus-ecs-fargate's own base (577) by rebasing rather than by
-	// recomputing deltas by hand.
-	identityGoldenPinDirs = 581
+	identityGoldenPinDirs = 577
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

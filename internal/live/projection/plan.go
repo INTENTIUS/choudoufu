@@ -9,13 +9,10 @@ import (
 	"context"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -168,24 +165,9 @@ func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, 
 		return
 	}
 	for _, res := range cfg.Module.ManagedResources {
-		if res.ForEach != nil {
+		if res.Count != nil || res.ForEach != nil {
 			// See PlanInstances' doc comment: one planned value cannot stand
-			// for a set of instances whose key set is the thing in question -
-			// a for_each's key set is exactly what a computed source leaves
-			// in doubt, so there is no "the" instance to plan.
-			continue
-		}
-		if res.Count != nil {
-			// A count expression is a different claim: `count = var.enabled
-			// ? 1 : 0` is the ordinary optional-resource idiom, and its
-			// value does not depend on anything this pass exists to
-			// unblock - a count computed from a SIBLING's own attribute
-			// would be the identical "key set in doubt" problem count.
-			// index shares with each.value, and planCounted's own static
-			// evaluation (no [Context.ManagedResults], no tolerance) is
-			// what keeps that case declining exactly as before. See
-			// planCounted.
-			planCounted(ctx, eval, cfg, res, provs, out)
+			// for a set of instances whose key set is the thing in question.
 			continue
 		}
 		// The block's OWN provider configuration, not the root default one:
@@ -225,90 +207,6 @@ func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, 
 // every other outcome leaves the resource out of the result, because a
 // resolution that refuses for want of this value is the status quo and is
 // safe, while a fabricated value is not.
-// maxPlanCountedInstances bounds how many instances of one count-driven
-// resource this pass will ask a provider to plan. It exists for the same
-// reason [maxTolerantModuleDepth] does: a cost bound on a mechanism that is
-// otherwise unbounded, past every real count observed for the ACM/Route53
-// pattern this exists for (one certificate resource per module call, so
-// 0 or 1 every time it has been measured), not a claim about what count a
-// configuration may legitimately use elsewhere.
-const maxPlanCountedInstances = 64
-
-// planCounted is [planModule]'s count-aware half: a resource whose OWN count
-// expression evaluates statically to a known, non-negative whole number has
-// a key set that is not in doubt at all - `count = local.create_certificate
-// ? 1 : 0` names exactly one instance or none, out of the caller's own
-// literals and variables, with no managed resource anywhere in it. That is
-// the one thing [PlanInstances]' doc comment says a for_each's computed
-// source can never promise, so excluding every counted resource on principle
-// excluded this population by mistake: measured against
-// corpus-alb-complete, aws_acm_certificate.this (both the module's own
-// certificate and the wildcard_cert instance beside it) uses exactly this
-// idiom, and PlanInstances' blanket count exclusion is why
-// aws_route53_record.validation's own name/type - the ACM/Route53 pattern
-// this whole file exists for - never reached identity.Context.ManagedResults
-// at all: the resource whose computed attribute a for_each or an
-// element()/count.index expression reads was never planned in the first
-// place, so [identity.resolver.managedFrom] had nothing to attribute an
-// unknown to no matter how far it could see through a local's own
-// definition.
-//
-// A count expression that reads anything this evaluator cannot answer
-// staticaly - a managed resource's own attribute, most of all - declines
-// exactly as it always has: eval carries no [Context.ManagedResults] or
-// [configs.StaticEvaluator.WithUnknownForRefusedReferences] tolerance here,
-// so an expression naming one refuses with an ordinary diagnostic and this
-// function returns without planning anything. That is deliberate: a count
-// genuinely in doubt is the identical "key set unknown" hazard a for_each's
-// computed source already declines for, and nothing about a resource being
-// singular rather than keyed makes that hazard go away.
-func planCounted(ctx context.Context, eval *configs.StaticEvaluator, cfg *configs.Config, res *configs.Resource, provs *planProviders, out map[string]cty.Value) {
-	modPath := cfg.Path
-	ident := configs.StaticIdentifier{
-		Module:    modPath,
-		Subject:   res.Addr().String() + " count",
-		DeclRange: res.DeclRange,
-	}
-	countVal, hclDiags := eval.Evaluate(ctx, res.Count, ident)
-	if hclDiags.HasErrors() || countVal == cty.NilVal || countVal.IsNull() || countVal.IsMarked() || !countVal.IsWhollyKnown() {
-		return
-	}
-	numVal, convErr := convert.Convert(countVal, cty.Number)
-	if convErr != nil {
-		return
-	}
-	var count int
-	if err := gocty.FromCtyValue(numVal, &count); err != nil || count < 0 || count > maxPlanCountedInstances {
-		return
-	}
-	if count == 0 {
-		return
-	}
-
-	// The block's OWN provider configuration, not the root default one -
-	// PlanInstances' doc comment on the wrong-region hazard, unchanged by
-	// this being a counted resource rather than a bare one.
-	entry := provs.get(ctx, providerscope.ResolveResource(cfg, res))
-	if !entry.ok {
-		return
-	}
-	schema, ok := entry.schemas[res.Type]
-	if !ok || schema.Block == nil {
-		return
-	}
-	absAddr := res.Addr().Absolute(modPath.UnkeyedInstanceShim())
-	for i := 0; i < count; i++ {
-		instEval := eval.WithRepetitionData(instances.RepetitionData{
-			CountIndex: cty.NumberIntVal(int64(i)),
-		})
-		val, ok := planOne(ctx, instEval, modPath, res, schema, entry.provider)
-		if !ok {
-			continue
-		}
-		out[absAddr.Instance(addrs.IntKey(i)).String()] = val
-	}
-}
-
 func planOne(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, res *configs.Resource, schema providers.Schema, prov providers.Configured) (val cty.Value, ok bool) {
 	// A provider plugin is a subprocess doing arbitrary work on a value this
 	// package built. dataread's own decode guards the same way, for the same

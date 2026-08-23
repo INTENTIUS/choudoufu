@@ -8,7 +8,6 @@ package projection
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	version "github.com/hashicorp/go-version"
@@ -125,78 +124,22 @@ func TestPlanInstancesReturnsWhatTheProviderDerives(t *testing.T) {
 	}
 }
 
-// TestPlanInstancesPlansEachInstanceOfAStaticCount is the corrected half of
-// what this test used to pin. A for_each's computed source leaves the key
-// set itself in doubt, and that is the hazard [PlanInstances]' doc comment
-// warns about - but a count expression is a different claim: `count = 2`
-// (or, the ACM/Route53 carrier, `count = local.create_certificate ? 1 : 0`)
-// names its key set - {0, 1}, or {0}, or {} - out of the caller's own
-// literals and variables, with nothing left to learn. Refusing to plan such
-// a resource traded a real answer for a false safety margin: measured
-// against corpus-alb-complete, aws_acm_certificate.this uses exactly this
-// idiom in both the module's own certificate and its wildcard_cert
-// sibling, and excluding every counted resource on principle is why
-// aws_route53_record.validation's name/type - the ACM/Route53 pattern this
-// whole mechanism exists for - never reached
-// [identity.Context.ManagedResults] at all.
-//
-// Each instance gets its own PlanResourceChange call and its own keyed
-// address, exactly as [TestPlanInstancesReturnsWhatTheProviderDerives]
-// already expects of the unrepeated resource - a repeated resource is not a
-// special case, it is the same question asked once per instance.
-func TestPlanInstancesPlansEachInstanceOfAStaticCount(t *testing.T) {
+// TestPlanInstancesSkipsRepeatedResources pins the refusal that keeps this
+// honest. A counted resource has one planned value PER INSTANCE, and the key
+// set is exactly what a caller is trying to learn; answering with one
+// instance's values for all of them is a wrong value, not a missing one.
+func TestPlanInstancesSkipsRepeatedResources(t *testing.T) {
 	cfg := loadConfig(t, "testdata/plan-computed")
 	stub := derivingStub()
 
-	got, diags := PlanInstances(context.Background(), cfg, anyProvider(stub))
-	if diags.HasErrors() {
-		t.Fatalf("PlanInstances: %s", diags.Err())
-	}
+	got, _ := PlanInstances(context.Background(), cfg, anyProvider(stub))
 
-	for _, key := range []string{"stub_cert.repeated[0]", "stub_cert.repeated[1]"} {
-		val, ok := got[key]
-		if !ok {
-			t.Fatalf("%s absent; got keys %v", key, keysOf(got))
-		}
-		derived := val.GetAttr("derived")
-		if derived.LengthInt() != 1 || derived.AsValueSlice()[0].AsString() != "_validation.a.example.com" {
-			t.Errorf("%s derived = %#v, want one element, _validation.a.example.com", key, derived)
-		}
-	}
 	if _, ok := got["stub_cert.repeated"]; ok {
-		t.Error("stub_cert.repeated (unkeyed) was planned; a counted resource's instances are addressed by key, " +
-			"never by the bare block address that would name all of them at once")
+		t.Error("stub_cert.repeated was planned; a repeated resource has one value per instance " +
+			"and planning \"the\" resource answers for all of them with one instance's values")
 	}
-	// cert (1) + repeated[0], repeated[1] (2) = 3. dynamic_count's own count
-	// expression never evaluates, so the provider is never asked about it at
-	// all - see TestPlanInstancesSkipsAResourceWithADynamicCount.
-	if stub.calls != 3 {
-		t.Errorf("provider was asked %d times, want 3 - cert once, repeated once per instance", stub.calls)
-	}
-}
-
-// TestPlanInstancesSkipsAResourceWithADynamicCount is the refusal
-// TestPlanInstancesPlansEachInstanceOfAStaticCount's widening must not
-// touch: a count expression that itself reads a managed resource's own
-// computed attribute leaves its key set exactly as much in doubt as a
-// for_each built from the identical reference would, and this evaluator
-// carries no [identity.Context.ManagedResults] or
-// [configs.StaticEvaluator.WithUnknownForRefusedReferences] tolerance to
-// resolve it with - it declines with an ordinary diagnostic, and this pass
-// never surfaces that diagnostic to its caller (PlanInstances' own "never
-// fails the caller" promise), so the resource is simply absent.
-func TestPlanInstancesSkipsAResourceWithADynamicCount(t *testing.T) {
-	cfg := loadConfig(t, "testdata/plan-computed")
-	stub := derivingStub()
-
-	got, diags := PlanInstances(context.Background(), cfg, anyProvider(stub))
-	if diags.HasErrors() {
-		t.Fatalf("PlanInstances: %s", diags.Err())
-	}
-	for key := range got {
-		if strings.HasPrefix(key, "stub_cert.dynamic_count") {
-			t.Errorf("stub_cert.dynamic_count was planned as %s; its count reads a managed resource's own computed attribute and cannot be resolved statically", key)
-		}
+	if stub.calls != 1 {
+		t.Errorf("provider was asked %d times, want 1 - only the unrepeated resource is plannable", stub.calls)
 	}
 }
 

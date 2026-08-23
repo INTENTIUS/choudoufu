@@ -192,9 +192,8 @@ set -uo pipefail
 #   var.target_groups as aws_lb_target_group_attachment.this at line 565 and
 #   is silent, because it carries the tofu-address stage 2 wrote.
 #
-#   Two independent root causes, A (FIXED for 11 of its 12 sites - 10 on
-#   2026-08-22, one more on 2026-08-23 as B's own side effect, see below)
-#   and B (FIXED 2026-08-23):
+#   Two independent root causes, A (FIXED for 10 of its 12 sites,
+#   2026-08-22) and B (untouched):
 #
 #     A. A resource or module-output reference nested inside a module
 #        INPUT's object or list literal. 12 of the original 20, across
@@ -263,29 +262,27 @@ set -uo pipefail
 #        the same resource's "ex-instance" key, whose target_type is not
 #        "lambda"), target_group_arn and port (both,
 #        aws_lb_target_group_attachment.additional) all stopped refusing.
-#        Two of the twelve stood after this pass; one is gone now, as a side
-#        effect of B's own fix rather than a widening of the three above -
-#        see B's closing paragraph. var.listeners's
-#        additional_certificate_arns (module.wildcard_cert.acm_certificate_arn,
-#        a MODULE OUTPUT reference rather than a resource reference) used to
-#        refuse aws_lb_listener_certificate.this's certificate_arn because
-#        the module output itself is
-#        `try(aws_acm_certificate_validation.this[0].certificate_arn,
-#        aws_acm_certificate.this[0].arn, "")`
-#        (terraform-aws-modules/acm's own outputs.tf), and
-#        aws_acm_certificate.this[0] - the try()'s resolvable second
-#        candidate - was invisible to identity.Context.ManagedResults before
-#        B's fix made it plannable and attributable. It resolves to
-#        ClassNeedsDiscovery now, through the identical, unmodified
-#        each.value/module-output machinery; nothing about ITS OWN handling
-#        changed, and the try()'s first candidate
-#        (aws_acm_certificate_validation, a type this fork's identity
-#        resolution does not model at all - "admitted by the provider's own
-#        identity schema" per the warning below, not by this fork's own
-#        table) is still never reached, which no longer matters because the
-#        second candidate now resolves. One of the twelve remains, for a
-#        reason distinct from all four fixes above and NOT attempted here:
+#        Two of the twelve remain, for reasons distinct from all three
+#        fixes above and NOT attempted here:
 #
+#          - var.listeners's additional_certificate_arns
+#            (module.wildcard_cert.acm_certificate_arn, a MODULE OUTPUT
+#            reference rather than a resource reference) still refuses
+#            aws_lb_listener_certificate.this's certificate_arn. The module
+#            output itself is
+#            `try(aws_acm_certificate_validation.this[0].certificate_arn,
+#            aws_acm_certificate.this[0].arn, "")`
+#            (terraform-aws-modules/acm's own outputs.tf) - a try() whose
+#            FIRST candidate names aws_acm_certificate_validation, a type
+#            this fork's identity resolution does not model at all (it is
+#            "admitted by the provider's own identity schema" per the
+#            warning below, not by this fork's own table), so the try()
+#            never reaches its second, resolvable candidate. Whether an
+#            arm naming an unmodeled type should be treated as absent
+#            (fall through) or unresolvable (refuse, the current and
+#            conservative answer, which eachvalue.go's own doc explains the
+#            hazard of getting backwards) is its own design question, not a
+#            widening of the three fixes above.
 #          - local.lambda_target_groups's value clause
 #            (`merge(v, { lambda_function_name = split(":", v.target_id)[6]
 #            })`, feeding aws_lambda_permission.this's function_name) is not
@@ -302,109 +299,27 @@ set -uo pipefail
 #
 #     B. A server-produced attribute driving an untaggable child's identity.
 #        8 of the original 20, 4 for each of the two certificate module
-#        instances. FIXED 2026-08-23. terraform-aws-modules/acm's
+#        instances, untouched by this pass. terraform-aws-modules/acm's
 #        local.validation_domains is built from
 #        aws_acm_certificate.this[0].domain_validation_options, and
 #        aws_route53_record.validation[0]'s name and type are elements of
 #        it. domain_validation_options is minted by ACM; no static
-#        evaluation can produce its VALUE, and stock only manages because it
-#        reads it back out of the state file this stage deliberately
-#        deleted. But the identity argument does not need the value - it
-#        needs to know THAT it is waiting on the certificate, which is a
-#        provenance question the live plan can answer without ever reading
-#        stock's state:
+#        evaluation can produce it, and stock only manages because it reads
+#        it back out of the state file this stage deliberately deleted. The
+#        answer for this shape is the record rung (HANDOFF's fourth row,
+#        issue #364), not a cleverer evaluator: live-import currently SKIPS
+#        every untaggable instance rather than recording one, so replanning
+#        from nothing has nothing to bind these records to.
 #
-#          1. internal/live/projection's PlanInstances used to plan only a
-#             resource with no count and no for_each at all, on the theory
-#             that a repeated resource's key set is the thing in doubt - true
-#             for a computed count, false for `count = local.create_certificate
-#             ? 1 : 0`, whose key set is exactly {0} or {} out of the
-#             caller's own literals. planCounted (plan.go) evaluates a
-#             count expression statically first and plans each instance only
-#             when it resolves to a known, bounded, non-negative integer;
-#             a count that itself reads a managed resource still declines,
-#             unchanged. Without this, aws_acm_certificate.this[0] never
-#             reached identity.Context.ManagedResults at all, so nothing
-#             downstream had anything to attribute an unknown to.
-#          2. identity.resolver.managedFromExpr used to see only a DIRECT
-#             reference to a covered resource. local.validation_domains
-#             names the certificate through a local
-#             (`try(aws_acm_certificate.this[0].domain_validation_options,
-#             var.acm_certificate_domain_validation_options)`), so
-#             managedFromExprAt now chases through a local's or a module
-#             variable's own defining expression when the identity argument
-#             does not name the resource directly - hcl.Expression.Variables
-#             walks the whole tree regardless of how many for/merge/distinct
-#             calls sit in between, so the chase needs no structural
-#             decomposition of its own. Two safety refinements this chase
-#             needed that a direct reference never did:
-#             namesAnUnprovenVariable narrows condition 2's "any var
-#             anywhere" rule to a var this run cannot rule out being the
-#             offline loader's synthetic unknown (no default) - the ACM
-#             module's own var.acm_certificate_domain_validation_options,
-#             which DOES have a default, must not veto the chase the way an
-#             unset required variable correctly would; and the found-address
-#             set is collected across every candidate a chased expression
-#             names rather than returned on the first hit, declining instead
-#             of guessing when a local legitimately names more than one
-#             covered-but-unknown resource (measured against this exact
-#             estate's own local.name, which combines an ACM certificate ARN
-#             with an unrelated Cognito user pool's - attributing to
-#             whichever Variables() listed first would have been a wrong
-#             claim, not a wrong marker, but still wrong).
-#          3. Even attributed, the identity argument still had to EVALUATE
-#             to a clean unknown rather than the strict static evaluator's
-#             own hard refusal - element()/distinct()/merge() are function
-#             calls, not the traversal selectStatic's literal-shape chase
-#             already handles. resolver.tolerantManagedValue is
-#             resolveExpr's true last resort: it retries the whole argument
-#             through the same tolerant evaluator a module OUTPUT reference
-#             already gets (configs.StaticEvaluator.WithUnknownForRefusedReferences),
-#             gated on managedFromExpr's own attribution succeeding first -
-#             never on cty.DynamicVal alone, which is exactly what an unset,
-#             uncovered variable produces too and must not be softened
-#             (TestDataReferenceRefusesWithoutResults pins this).
-#          4. The attributed resource turned out to carry an unrelated
-#             SENSITIVE field (aws_acm_certificate.this[0].private_key,
-#             marked on every planned instance whether or not a
-#             certificate has been created yet), and
-#             identity.resolver.managedUnknownAt asked ContainsMarked/
-#             IsWhollyKnown of the WHOLE planned object, so the certificate
-#             was rejected as attributable for a field domain_validation_options
-#             has nothing to do with. selectReferencedValue now walks the
-#             SAME steps managedCovered already proved present - the
-#             instance key, then the reference's own remaining attribute
-#             path - down to the one leaf a reference actually names, never
-#             calling a cty operation on a value that is itself marked, so
-#             the unrelated private_key leaf is never touched and the
-#             knownness/sensitivity questions are asked of
-#             domain_validation_options alone.
-#
-#        None of the four names a concrete aws_* type in control flow: (1)
-#        is a property of a count expression, (2) and (3) are properties of
-#        an identity argument's own expression shape, (4) is a property of
-#        a covered value's own reference path. (1) and (2) together reach
-#        every table-admitted type whose identity depends on a sibling
-#        resource through a local rather than a direct reference or an
-#        each.value scope - unmeasured beyond this estate, but the carrier
-#        (ACM/Route53 validation) is documented on HashiCorp's own pages as
-#        a common pattern, not an ALB-specific one. (4) reaches every
-#        managed resource this file attributes from whose schema carries an
-#        unrelated Sensitive attribute.
-#
-#        A side effect, not a second unit: module.alb's
-#        aws_lb_listener_certificate.this["ex-https/0"].certificate_arn (one
-#        of family A's two remaining sites, below) reads
-#        aws_acm_certificate_validation.this[0].certificate_arn falling back
-#        to aws_acm_certificate.this[0].arn - the SAME certificate (1) now
-#        plans and (2)-(4) now attribute - so it resolves to
-#        ClassNeedsDiscovery through the identical, unmodified mechanism.
-#        Nothing about this site's own handling changed; the certificate it
-#        depends on simply stopped being invisible.
+#   B is not attempted in this pass: it touches live-import's skip/record
+#   split, a different load-bearing surface from A's, and cannot satisfy
+#   HANDOFF's safety rule from this script alone - the run never gets far
+#   enough to render the affected identities, so there is no value to
+#   assert. It is its own unit.
 #
 #   Checked against #313 (corpus-security-group-complete's
 #   data.aws_availability_zones-feeding-a-nested-module-for_each wall):
-#   none of the remaining diagnostics mentions data.aws_availability_zones.
+#   none of the 12 remaining diagnostics mentions data.aws_availability_zones.
 #   Different wall; #313 does not reach this estate.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
@@ -429,14 +344,13 @@ set -uo pipefail
 #                          than skipped) and correctly skips 28. Asserted
 #                          against live-import's own report AND confirmed
 #                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at 3 diagnostics (was 20; 11
-#                          of family A's 12 sites fixed - 10 on 2026-08-22,
-#                          one more as family B's own side effect; family B
-#                          FIXED, 8 of 8, 2026-08-23) in the config-language
-#                          subset, all of them on untaggable resources.
-#                          #309's markerless-type site is GONE and stage 3
-#                          asserts that by count. Specific counts, summaries
-#                          and resource addresses asserted against a real
+#   stage 3  test plan     BLOCKED, for real, at 12 diagnostics (was 20; 10
+#                          of family A's 12 sites fixed 2026-08-22) in the
+#                          config-language subset, all of them on untaggable
+#                          resources, in the two families above. #309's
+#                          markerless-type site is GONE and stage 3 asserts
+#                          that by count. Specific counts, summaries and
+#                          resource addresses asserted against a real
 #                          live-plan run on the really-migrated estate, state
 #                          file deleted first, BREAK=1 negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
@@ -803,50 +717,43 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 # ── 3b. what the cleared wall was masking, and what's fixed since ─────────
 # internal/command/live_plan.go runs lint.CheckWith first and returns on the
 # first error-severity issue, so while that one refusal stood it was the only
-# diagnostic this estate could print. Measured against the same migrated
-# estate and the same live floci: the pre-fix binary (80666bc1c0^) printed 1
-# diagnostic and nothing else; the markerless-type fix alone printed 20 more
-# (2026-08-22); family A's three each.value widenings brought that to 12
-# (2026-08-22); family B's four fixes plus family A's own side effect (see
-# header) bring it to these 3 (2026-08-23).
+# diagnostic this estate could print. Measured 2026-08-22 against the same
+# migrated estate and the same live floci: the pre-fix binary (80666bc1c0^)
+# printed 1 diagnostic and nothing else; the markerless-type fix alone
+# printed 20 more; this pass's own fix (below) is down to these 12.
 #
-# All 3 are still HANDOFF's first or fifth row and every resource they BLOCK
-# is UNTAGGABLE, whose identity has to come from configuration because there
-# is no tag to recover it from:
-#
-#   - local.lambda_target_groups's function_name (family A's one remaining
-#     site - a merge(v, {...}) value clause needing v's own structural
-#     expression substituted into the call, a genuinely new piece of
-#     machinery; see header) is HANDOFF's first row, choudoufu refuses where
-#     stock proceeds, and is not attempted here.
-#   - the two aws_lb_target_group_attachment.this ports are HANDOFF's fifth
-#     row read the other way: a lambda-type target genuinely has no port in
-#     real AWS, so "Null identity argument" is the honest answer, not a
-#     defect this pass's fixes reach or should. THIS IS A RATIFICATION
-#     QUESTION, NOT AN OPEN BUG: whether aws_lb_target_group_attachment's
-#     port component should be reclassified OmitIfAbsent (or similar) for a
-#     target_type=lambda instance is a maintainer decision about the
-#     identity table row, the same kind #190's ServerAssignedIfAbsent/
-#     name_prefix conventions already required a ruling for - not something
-#     a worker should chase by widening family A or B, and not evidence
-#     that stage 3 is blocked on a defect. Until that ruling lands, this
-#     script's own WANT_SITES/WANT_DIAG_N below expect exactly these two
-#     nulls to keep refusing, on purpose.
-WANT_DIAG_N=3
+# All 12 are still HANDOFF's first row - choudoufu refuses where stock
+# proceeds, which is a defect - and every resource they BLOCK is UNTAGGABLE,
+# whose identity has to come from configuration because there is no tag to
+# recover it from.
+# Two independent root causes, A (a resource or module-output reference
+# nested inside a module input's object/list literal - 10 of its original 12
+# sites FIXED 2026-08-22, 2 remaining) and B (a server-produced attribute
+# driving an untaggable child's identity, 8, untouched). The header carries
+# the full trace of both, including what the three general fixes for A were
+# and why the remaining 2 are distinct from them.
+WANT_DIAG_N=12
 declare -a WANT_SITES=(
-  # A's one remaining site - see header for what fixed the other 11 (three
-  # each.value widenings for 10, family B's own side effect for the
-  # eleventh) and for what is different about this one.
+  # A, still refused - 2 of the original 12; see header for what fixed the
+  # other 10 (a for-expression filter clause, a conditional's own condition,
+  # and an indexed reference into another resource, all three widening
+  # each.value's existing #260/#301/#354 machinery, none naming a concrete
+  # aws_* type) and for what is different about these two.
+  'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
   'module.alb.aws_lambda_permission.this["ex-lambda-without-trigger"].function_name'
-  # Adjacent to A, exposed only once the fixes above stopped refusing the
+  # Adjacent to A, exposed only once the fix above stopped refusing the
   # WHOLE resource outright: a genuinely null port for a lambda-type target,
-  # which AWS's own API has none of. Not a poisoned-leaf collapse. This is a
-  # RATIFICATION QUESTION for the identity table row (OmitIfAbsent for
-  # target_type=lambda, or similar), not an open bug this script's own
-  # counts are waiting on - see the paragraph above for why. Expected to
-  # keep appearing here until a maintainer rules on it.
+  # which AWS's own API has none of. Not a poisoned-leaf collapse and not
+  # attempted here - see whether this should be an omittable identity
+  # component rather than a hard refusal is its own question.
   'module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"].port'
   'module.alb.aws_lb_target_group_attachment.this["ex-lambda-without-trigger"].port'
+  # B: the ACM DNS-validation records, once per certificate module instance
+  'Unable to use aws_acm_certificate.this[0] in static context'
+  'module.acm.aws_route53_record.validation[0].name'
+  'module.acm.aws_route53_record.validation[0].type'
+  'module.wildcard_cert.aws_route53_record.validation[0].name'
+  'module.wildcard_cert.aws_route53_record.validation[0].type'
 )
 # The break GAUNTLET.md asks stage 3 for is a corrupted expected string, and
 # this one is chosen so that a grep which "always matches" is what it
@@ -881,8 +788,10 @@ while read -r want summary; do
   got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
   [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
 done <<'SUMMARIES'
-1 Non-static identity argument
+4 Dynamic value in static context
+2 Non-static identity argument
 2 Null identity argument
+4 Unable to compute static value
 SUMMARIES
 
 # The asymmetry that says this is the untaggable family and not a
@@ -902,7 +811,7 @@ log "diagnostics on untaggable resources (families A and B, see header). The"
 log "markerless-type wall that used to be the only thing this estate could"
 log "print is gone, and these were behind it."
 log ""
-gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output), family A's module-input-poisoning wall is down from 20 to 12 diagnostics (2026-08-22, three each.value widenings, none naming a concrete aws_* type), and family B - aws_acm_certificate.this[0].domain_validation_options minted by ACM and driving aws_route53_record.validation[0]'s name and type in both certificate module instances - is now fixed (2026-08-23), down to these 3: internal/live/projection's PlanInstances now plans a resource whose count expression resolves statically to a known integer (planCounted), not only an uncounted one; identity.resolver.managedFromExpr now chases a local's or a module variable's own defining expression for a covered-but-unknown managed reference, guarded by namesAnUnprovenVariable (a var with its own default cannot be issue #183's synthetic-unknown hazard) and by declining outright when more than one distinct resource is found rather than guessing; resolver.tolerantManagedValue evaluates the whole identity argument through the same tolerant evaluator a module output already gets, gated on that attribution succeeding first; and managedUnknownAt's own selectReferencedValue isolates the one attribute a reference names before asking ContainsMarked/IsWhollyKnown, so aws_acm_certificate's unrelated sensitive private_key no longer vetoes attribution to domain_validation_options. None names a concrete aws_* type. A side effect, not a fifth fix: module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn (family A's own remaining site) reads the same certificate through aws_acm_certificate_validation's fallback and now resolves too, through unmodified machinery, because the certificate it depends on stopped being invisible - family A is down to 1 of its original 12. The 3 that remain: local.lambda_target_groups's function_name (family A, a merge(v, {...}) value clause needing v's own structural expression substituted into the call, a genuinely new piece of machinery, not attempted here) and the two aws_lb_target_group_attachment ports (HANDOFF's fifth row read the other way - a lambda target genuinely has no port in real AWS, so the null is the honest answer, not a defect these fixes reach or should)"
+gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output) and family A's module-input-poisoning wall is down from 20 to 12 diagnostics: measured against the same migrated estate and the same live floci, the pre-fix binary printed 1 diagnostic, the markerless-type fix alone printed 20 more, and this pass's own generic widening of internal/live/identity's each.value machinery (resolver.forCondIncludesTolerant for a for-expression's own filter clause, resolver.eachValueCondTolerant for a conditional's own condition, resolver.resolveIndexedTraversal's reuse of the same fallback for an indexed reference into another resource - none names a concrete aws_* type, composed by ordinary three-valued/Kleene logic, verified by TestModuleForeachFilterOverPoisonedValueResolves and by this real run) is down to these 12: target_id (x3), the additional resource's target_group_arn and port, and the this resource's port for a non-lambda target all stopped refusing. 2 of family A's original 12 sites remain, for two DISTINCT reasons neither of the three fixes reaches - var.listeners's certificate_arn refuses because the module OUTPUT it reads (terraform-aws-modules/acm's own try(aws_acm_certificate_validation.this[0].certificate_arn, aws_acm_certificate.this[0].arn, \"\")) tries a type (aws_acm_certificate_validation) this fork's identity resolution does not model before its resolvable second candidate, and local.lambda_target_groups's function_name is dropped because its value clause is merge(v, {...}), a function call over v rather than v itself, which needs a not-yet-built substitution of v's own structural expression into the call. Family B, 8, untouched: aws_acm_certificate.this[0].domain_validation_options is minted by ACM and drives aws_route53_record.validation[0]'s name and type in both certificate module instances; no evaluator can produce it, so the answer is the record rung (#364) and live-import's SKIP-every-untaggable behaviour is what has to change. Neither of the 2 remaining family-A sites nor family B is attempted here; each is its own unit"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
