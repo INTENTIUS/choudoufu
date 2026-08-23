@@ -96,3 +96,59 @@ func TestSecretsForReadsOnlyTheRootModule(t *testing.T) {
 		t.Errorf("SecretsFor read a child module's live block: got %q, want %q", got, want)
 	}
 }
+
+// TestNoSourceCreateFor is [TestSecretsFor]'s twin for GitHub issue #365's
+// ruling-4 toggle, pinning the same "every way to omit it means the same
+// thing" contract.
+func TestNoSourceCreateFor(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  *configs.Config
+		want strict.NoSourceCreate
+	}{
+		{"nil configuration", nil, strict.DefaultNoSourceCreate},
+		{"no live block", cfgWithStrict(nil, false), strict.DefaultNoSourceCreate},
+		{"live block, no strict block", cfgWithStrict(nil, true), strict.DefaultNoSourceCreate},
+		{"strict block, argument omitted", cfgWithStrict(&configs.LiveStrict{}, true), strict.DefaultNoSourceCreate},
+		{
+			"argument present but undecodable",
+			cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "", NoSourceCreateSet: false}, true),
+			strict.DefaultNoSourceCreate,
+		},
+		{
+			"the default written out by hand",
+			cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "refuse", NoSourceCreateSet: true}, true),
+			strict.NoSourceRefuse,
+		},
+		{
+			"the toggle turned on",
+			cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "create", NoSourceCreateSet: true}, true),
+			strict.NoSourceCreateOn,
+		},
+		{
+			"a spelling outside the vocabulary",
+			cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "maybe", NoSourceCreateSet: true}, true),
+			strict.DefaultNoSourceCreate,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NoSourceCreateFor(tc.cfg); got != tc.want {
+				t.Errorf("NoSourceCreateFor = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNoSourceCreateForReadsOnlyTheRootModule mirrors
+// TestSecretsForReadsOnlyTheRootModule: a live block in a child module is
+// refused outright by internal/live/lint's RuleChildLiveConfig, and this
+// setting reads only the root's, the same as every other strict toggle.
+func TestNoSourceCreateForReadsOnlyTheRootModule(t *testing.T) {
+	root := cfgWithStrict(nil, true)
+	root.Children = map[string]*configs.Config{
+		"child": cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "create", NoSourceCreateSet: true}, true),
+	}
+	if got, want := NoSourceCreateFor(root), strict.DefaultNoSourceCreate; got != want {
+		t.Errorf("NoSourceCreateFor read a child module's live block: got %q, want %q", got, want)
+	}
+}
