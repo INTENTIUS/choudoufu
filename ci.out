@@ -1,6 +1,6 @@
 ok  	github.com/intentius/choudoufu/internal/live/identity	(cached)
 ok  	github.com/intentius/choudoufu/internal/live/lint	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/check	6.927s
+ok  	github.com/intentius/choudoufu/internal/live/check	(cached)
 ok  	github.com/intentius/choudoufu/tools/row-gen	(cached)
-ok  	github.com/intentius/choudoufu/live	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/marksafe	3.137s
+ok  	github.com/intentius/choudoufu/live	2.150s
+ok  	github.com/intentius/choudoufu/internal/live/marksafe	(cached)

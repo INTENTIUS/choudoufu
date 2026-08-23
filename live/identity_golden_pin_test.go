@@ -347,7 +347,9 @@ var identityGoldenPin = map[string]int{
 	// statically computable. Its name_prefix'd sibling fixture
 	// (slot-clientnamed-config) resolves NEEDS_DISCOVERY instead; see that
 	// class's own count below.
-	"CONCRETE": 811,
+	// 811 -> 815 (issue #387): the four new schema-precedence rows are all
+	// CONCRETE - see identityGoldenPinBodyDigest's own 2026-08-23 note.
+	"CONCRETE": 815,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -1163,7 +1165,20 @@ var identityGoldenPin = map[string]int{
 // recomputing deltas by hand: regenerated with -update on the merged tree
 // and diffed, confirming exactly these six rows added and nothing else
 // moved.
-const identityGoldenPinBodyDigest = "c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084"
+//
+// 2026-08-23 (issue #387, ruling 2's runtime precedence inversion): dirs
+// 578 -> 580, instances 1680 -> 1684, "0 identities changed, 4 added, 0
+// removed". Two new fixtures under internal/live/identity/testdata,
+// written for TestSchemaPrecedenceMatchesRowByValue and its disagreement
+// counterpart: schema-precedence (aws_iam_role.example, aws_s3_bucket.example,
+// aws_iam_role_policy_attachment.example - three CONCRETE rows) and
+// schema-precedence-disagree (aws_route.example, one CONCRETE row). This
+// sweep passes no provider schemas at all, so every one of the four rows
+// resolves through DefaultTable's own row exactly as it always would have -
+// the runtime inversion itself never fires here, which is the point:
+// nothing about a schema-less analysis changes. Confirmed by diff: four
+// added rows, nothing changed, nothing removed.
+const identityGoldenPinBodyDigest = "769db87d4852234c64bc7a9daf491eed48f8f8c1cd01f8bdf4ab3f821e3fc769"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1690,7 +1705,10 @@ const (
 	// Then 1678 -> 1680, same issue, a second pass: two more added rows,
 	// slot-markerfallback-config's aws_iam_role.this[0..1] - see
 	// identityGoldenPinBodyDigest's own note.
-	identityGoldenPinInstances = 1680
+	// Then 1680 -> 1684 (issue #387): four added rows across two new
+	// schema-precedence fixtures - see identityGoldenPinBodyDigest's own
+	// 2026-08-23 note.
+	identityGoldenPinInstances = 1684
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1879,7 +1897,9 @@ const (
 	// one and identityGoldenPinInstances/identityGoldenPinBodyDigest below
 	// are unchanged - confirmed by diffing testdata/identity-golden.txt
 	// before and after regenerating: only the header's dirs count differs.
-	identityGoldenPinDirs = 578
+	// 578 -> 580 (issue #387): two new schema-precedence fixture
+	// directories - see identityGoldenPinBodyDigest's own 2026-08-23 note.
+	identityGoldenPinDirs = 580
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

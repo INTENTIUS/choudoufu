@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=578 instances=1680
-# shape: class CONCRETE=811
+# shape: dirs=580 instances=1684
+# shape: class CONCRETE=815
 # shape: class NEEDS_DISCOVERY=710
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084
+# shape: body-sha256=769db87d4852234c64bc7a9daf491eed48f8f8c1cd01f8bdf4ab3f821e3fc769
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -518,6 +518,10 @@ internal/live/identity/testdata/route53-record-set-identifier	aws_route53_record
 internal/live/identity/testdata/route53-zone-association-vpc-region	aws_route53_zone_association.cross_region	CONCRETE	Z123456ABCDEFG:vpc-12345678:us-east-2	vpc_id=vpc-12345678,vpc_region=us-east-2,zone_id=Z123456ABCDEFG
 internal/live/identity/testdata/route53-zone-association-vpc-region	aws_route53_zone_association.same_region	CONCRETE	Z123456ABCDEFG:vpc-12345678	vpc_id=vpc-12345678,zone_id=Z123456ABCDEFG
 internal/live/identity/testdata/schema-fallback-route	aws_route.r	CONCRETE	rtb-0123456789abcdef0_10.0.0.0/16	destination_cidr_block=10.0.0.0/16,route_table_id=rtb-0123456789abcdef0
+internal/live/identity/testdata/schema-precedence	aws_iam_role.example	CONCRETE	example-role	name=example-role
+internal/live/identity/testdata/schema-precedence	aws_iam_role_policy_attachment.example	CONCRETE	example-role/arn:aws:iam::aws:policy/ReadOnlyAccess	policy_arn=arn:aws:iam::aws:policy/ReadOnlyAccess,role=example-role
+internal/live/identity/testdata/schema-precedence	aws_s3_bucket.example	CONCRETE	example-bucket	bucket=example-bucket
+internal/live/identity/testdata/schema-precedence-disagree	aws_route.example	CONCRETE	rtb-0123456789abcdef0_10.0.0.0/16	destination_cidr_block=10.0.0.0/16,route_table_id=rtb-0123456789abcdef0
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.named	CONCRETE	example-role:explicit-policy-name	name=explicit-policy-name,role=example-role
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.omitted	NEEDS_DISCOVERY		
 internal/live/identity/testdata/server-assigned-if-absent	aws_lambda_permission.omitted	NEEDS_DISCOVERY		

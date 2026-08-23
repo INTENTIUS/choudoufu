@@ -854,9 +854,17 @@ type resolver struct {
 	// nothing.
 	signal *ConfigSignal
 
-	// synth memoizes the schema fallback per type, including its refusals: a
-	// nil entry means "asked, and the schemas do not describe this type well
-	// enough". See [SynthesizeTypeIdentity].
+	// synth memoizes [resolver.lookupType]'s schema-side verdict per type: a
+	// non-nil entry is the synthesized identity to use INSTEAD of the hand
+	// table's row, either because there is no row (the schema fallback's
+	// original job) or because there is one and the schema reproduces it
+	// (ruling 2, #387, [schemaReproducesRow]). A nil entry means "asked, and
+	// the schema does not win here" - the schemas do not describe the type
+	// well enough for [SynthesizeTypeIdentity] to try (its own doc
+	// comment's refusals), or they describe something the table's row
+	// already says differently - and [resolver.lookupType] falls back to
+	// [LookupType] itself on every such call rather than caching the
+	// negative answer's VALUE, since the row is [DefaultTable]'s to own.
 	synth map[string]*TypeIdentity
 
 	// scopeCtx memoizes, per type, which of the provider identity schema's
@@ -985,28 +993,44 @@ func (r *resolver) expKey(rc *configs.Resource) string {
 	return r.modInst.String() + "\x00" + rc.Addr().String()
 }
 
-// lookupType is [LookupType] with the schema fallback behind it: a type the
-// hand table does not cover still resolves when the provider's own identity
-// schema describes it completely and the caller supplied the schemas. A
-// caller that supplied none gets [LookupType] exactly.
+// lookupType is [LookupType] with the schema fallback ahead of it, not just
+// behind it: ruling 2 of rfc/20260823-foundation-order-ruling.md (#387).
+// When the caller supplied provider schemas AND [SynthesizeTypeIdentity]
+// reproduces what the hand table already says for typeName -
+// [schemaReproducesRow]'s own comparison, the same one
+// tools/row-gen/schemafirst.go makes offline to decide what to MEASURE -
+// the synthesized entry is used instead of the row. It already carries
+// Synthesized and Admits (synthesizeTypeIdentity sets both on every entry
+// it returns), so nothing further has to mark it.
+//
+// A type the table does not cover at all still resolves through the schema
+// fallback exactly as before ([SynthesizeTypeIdentity]'s own answer is used
+// with no comparison, because there is no row to compare it against), and a
+// caller that supplied no schemas gets [LookupType] exactly, because
+// [SynthesizeTypeIdentity] refuses outright the moment it is handed none -
+// so this changes nothing for a schema-less analysis
+// (internal/live/check's identity golden, refusal-probe's default sweep).
 func (r *resolver) lookupType(typeName string) (TypeIdentity, bool) {
-	if entry, ok := LookupType(typeName); ok {
-		return entry, true
-	}
 	if memo, asked := r.synth[typeName]; asked {
-		if memo == nil {
-			return TypeIdentity{}, false
+		if memo != nil {
+			return *memo, true
 		}
-		return *memo, true
+		return LookupType(typeName)
 	}
 
-	entry, ok := SynthesizeTypeIdentity(typeName, r.schemas, r.signal)
-	if !ok {
-		r.synth[typeName] = nil
-		return TypeIdentity{}, false
+	row, hasRow := LookupType(typeName)
+
+	if len(r.schemas) > 0 {
+		if synthesized, ok := SynthesizeTypeIdentity(typeName, r.schemas, r.signal); ok {
+			if !hasRow || schemaReproducesRow(row, synthesized) {
+				r.synth[typeName] = &synthesized
+				return synthesized, true
+			}
+		}
 	}
-	r.synth[typeName] = &entry
-	return entry, true
+
+	r.synth[typeName] = nil
+	return row, hasRow
 }
 
 // instance resolves one managed resource instance, memoizing the result.
