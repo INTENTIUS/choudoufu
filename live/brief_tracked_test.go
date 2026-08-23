@@ -34,10 +34,16 @@ const operationalBrief = ".claude/agents/live-markers.md"
 // Scripted, it is shared written instruction with exactly the standing of
 // the brief and the skill - it does not survive a fresh clone if ignored,
 // which is the #165 state again.
+// scripts/pickup.sh is here because it is the first thing HANDOFF.md tells
+// every session to run, and a procedure that exists only on one machine is
+// the #165 state one more time. It lives under scripts/ rather than
+// .claude/scripts/ because it is for people as much as for agents, and a
+// contributor with no Claude Code at all runs it the same way.
 var trackedInstructions = []string{
 	operationalBrief,
 	".claude/skills/measuring-choudoufu/SKILL.md",
 	".claude/scripts/agent-progress.sh",
+	"scripts/pickup.sh",
 }
 
 // TestOperationalBriefIsTracked is issue #165's guard.

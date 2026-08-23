@@ -3,7 +3,11 @@ name: live-markers
 description: Use for work on choudoufu's live-marker path — admission, identity resolution, lint refusals, discovery, and the generators behind them (row-gen, importdocs-gen, estate-gen, survey-gen, mapping-gen). Carries the product frame and the measurement traps that have repeatedly derailed this repo.
 ---
 
-You are working on choudoufu. Read this before your first tool call.
+You are working on choudoufu. Read this before your first tool call. If you
+are the session's first agent, or picking up after another session, run
+`bash scripts/pickup.sh` first and read `HANDOFF.md` "Pick up here" for what
+its output means; a worker spawned into a named worktree may skip that and
+read its branch's last commits, `ci.rc` and `ci.out` instead.
 
 ## What the product is
 
@@ -76,12 +80,18 @@ experiences. Three sessions were organised around raising that number. Do not
 quote it, rank work by it, or report progress in it.
 
 The gate users hit is **admission** (a type absent from `DefaultTable` is a hard
-resolve error at `table.go:244`), and above that the **config-language
-subset**: every `count`, `for_each`, and identity-bearing argument must be
-statically evaluable from `var`/`local`/`path`/`terraform` alone. Type coverage
-is not the binding constraint; a user at 100% type coverage still fails on
+resolve error at `table.go:244`; `#364` removes it, landing such a type on
+the record rung), and above that the **config-language subset**: every
+`count`, `for_each`, and identity-bearing argument must be statically
+evaluable from `var`/`local`/`path`/`terraform` alone. Type coverage is not
+the binding constraint; a user at 100% type coverage still fails on
 `backend "s3"`, `-out` plus `apply <planfile>`, workspaces, a CIDR-keyed
-`for_each`, or `count.index` in a name.
+`for_each`, or `count.index` in a name. The subset is a property of the
+static evaluator, not of the mode: HANDOFF's "The order" item 1 takes the
+migrated population off that path and item 3 retires the evaluator. Measured
+2026-08-23: 97 of the 206 enumerable refusal kinds are the static-evaluation
+stage, and about 40% of the migrated gauntlet population is re-derived from
+configuration on every plan (`rfc/20260823-foundation-order-ruling.md`).
 
 ## How to work
 
@@ -236,6 +246,11 @@ must build concurrently work in isolated worktrees.
   a concurrent agent's file into an unrelated commit.
 - Small commits, each independently revertable. Do not push unless asked.
 - When stopping an agent mid-flight, commit its work to its own branch first.
+- Name branches so `scripts/pickup.sh` can read them: `gauntlet/<estate>-<stage>`
+  for a unit, `live/<topic>` for anything else. Commit early with the unit
+  ID; a branch with commits is resumed, a branch with none is deleted.
+- Leave `ci.rc` and `ci.out` in the worktree. They are the gate the
+  orchestrator reads, and what a successor reads after a crash.
 
 ## Run an adversarial audit after each substantial change
 
@@ -290,7 +305,16 @@ things here:
   use it rather than copy it. (`survey-gen` renders its own tables and does
   not go through mdspan, despite what this file used to claim.)
 - Provider identity schemas are plumbed and load-bearing: `admission.go` admits
-  a type the generated table does not cover when the schema settles it.
+  a type the generated table does not cover when the schema settles it. The
+  ratified row still wins over the schema where both exist; "The order" item
+  2 inverts that where the schema reproduces the row (136 of 575
+  config-identified rows at provider 6.59.0).
+- The record rung exists for a type with no marker surface:
+  `identity.LocatedType` (`internal/live/identity/located.go`) routes it to
+  the record store, which a `live` block implies locally when none is
+  declared (`internal/configs/live.go`, `impliedRecordStore`). Ten of the
+  twelve record-only types the corpus actually uses are on it; two are
+  behind `unadmitted-type` until `#364`.
 - Effects already work. `null_resource` and friends are admitted the moment a
   `live` block declares a `record_store`.
 - `live-plan`, `live-mv`, `live-import`, plain `plan`/`apply` under a `live`
@@ -508,9 +532,11 @@ is a success and should lead your report, not be buried in it.
 ## Where the work lives
 
 `HANDOFF.md` carries the order and the reason; the tracker carries the
-evidence and the figures. `gh issue list -R INTENTIUS/choudoufu` - a bare `gh`
-in this clone resolves to `opentofu/opentofu`, silently.
+evidence and the figures; `bash scripts/pickup.sh` prints the state of the
+work. `gh issue list -R INTENTIUS/choudoufu` - a bare `gh` in this clone
+resolves to `opentofu/opentofu`, silently.
 
-The current goal state: `tools/estate-gen` produces properly marked estates of
-varying complexity, all of which plan exact, apply, replan empty, and put
-their markers on the right objects.
+The goal state is the gauntlet's: every estate in `live/gauntlet/estates.json`
+clears every active stage (`live/GAUNTLET.md`). Underneath the units,
+HANDOFF's "The order" is the foundation sequence, ruled 2026-08-23; do not
+reorder it.

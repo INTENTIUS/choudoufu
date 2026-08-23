@@ -3,6 +3,50 @@
 One page. Everything longer than this is generated from code or lives in the
 tracker, and the tests say which.
 
+## Pick up here
+
+Every session, new or resumed or picking up after a crash, starts with one
+read-only command and reads all of it before touching anything:
+
+```
+bash scripts/pickup.sh
+```
+
+It prints, from git, `gh` and the tree rather than from anyone's memory: the
+checkout and whether `main` has diverged from `origin/main`; the artifact's
+commit, the two bars and which estates are not clear; the next units; open
+pull requests with their CI state; every `gauntlet/*` and `live/*` branch
+with its worktree, commits ahead of `main`, last commit, the gate file
+(`ci.rc`) and last `GAUNTLET stage=` line found in that worktree, and a
+disposition; leftover Agent-tool worktrees; running workers and emulator
+containers; and the open foundation and ruling issues.
+
+The dispositions are rules, not suggestions, and they are the whole answer
+to "where was the last session":
+
+| pickup says | it means | do |
+|---|---|---|
+| `ACTIVE?` | files in that worktree were written in the last 15 minutes; an Agent-tool worker shows no process of its own, so this is the only liveness signal | leave it alone; `.claude/scripts/agent-progress.sh` or wait |
+| `UNCOMMITTED` | changed paths in the worktree and no recent write: a worker stopped before committing | read the diff, commit it on that branch with the unit ID, then treat as `COMMITS, NO PR` |
+| `MERGED/EMPTY` | the branch is an ancestor of `main` with nothing ahead, nothing uncommitted, no recent write: landed, or a worker that never committed | delete the branch and its worktree |
+| `PR OPEN #N` | a worker finished and reported | the orchestrator verifies (reads `ci.rc`, the `GAUNTLET` lines, the artifact diff) and merges on green |
+| `COMMITS, NO PR` | a worker was mid-unit when its session ended | resume in that worktree from the last commit; never start the unit over in a new branch |
+| Agent-tool worktree, ahead > 0 | an agent's unreported work | read the commits before pruning |
+| `dirty` paths in the primary checkout | someone worked in the main tree | read them first; the main tree is never where work happens |
+
+Branches are named `gauntlet/<estate>-<stage>` for a unit (what `next`
+prints) and `live/<topic>` for anything else, so a branch name alone says
+what it was for; a worker commits early and often on its branch with the
+unit ID in the message, so a crash loses minutes, not the unit. The state
+of the work is the artifact, the tracker, the branches and the pull
+requests. Nothing about it lives in chat or in a session's memory.
+
+Then read the rest of this page, and the brief for your role:
+`.claude/agents/gauntlet-orchestrator.md` to run the loop,
+`.claude/agents/gauntlet-worker.md` to do one unit,
+`.claude/agents/live-markers.md` for the mechanics and traps of this
+checkout.
+
 ## The promise
 
 **If OpenTofu runs an estate, choudoufu runs it too.** Migration from a stock
@@ -45,6 +89,15 @@ type, the inventory any cloud tool can list, the attribute IAM conditions on.
 Binding reads the record and verifies it against the marker; a lost record is
 rebuilt from tags where tags exist, and where they do not, the estate is
 exactly where stock is.
+
+Ruled 2026-08-23 (`rfc/20260823-foundation-order-ruling.md`): the record
+holds the identity of **every** instance, written by `live-import` and by
+every apply, and a plan reads it first. The marker sweep and derivation
+from configuration are the recovery paths, for when there is no record or
+the record and the marker disagree. Nothing about ownership moves: a record
+is never read as permission to delete, and the marker decides. What it
+changes is that the path a migrated estate takes on every plan no longer
+depends on re-deriving what the state file already said.
 
 So every type stock supports is admitted. What varies per instance is its
 **rung**: tag-governable, derived from configuration, or record-only. That
@@ -116,9 +169,13 @@ a regression; the estate usually got better and the script did not.
 
 ## The loop
 
+0. `bash scripts/pickup.sh`, always, and act on its dispositions first.
 1. `go run ./tools/gauntlet next` names the unit: the core estate closest to
    clear and the first active stage it does not pass, else the next growing
-   one. New estates enter with `go run ./tools/gauntlet add` (the procedure is
+   one. The first act on a unit is to re-read its recorded failure against
+   the service API directly, on the current emulator image, with no tofu in
+   the loop; the recorded detail is a lead. Say which of the five rows it
+   is before fixing anything. New estates enter with `go run ./tools/gauntlet add` (the procedure is
    `site/content/docs/progress/add-an-estate.md`; `live/GAUNTLET.md` is the
    definition). `just contribute` runs one unit unattended under
    your own key, in a worktree, and opens the PR; that is also what
@@ -138,6 +195,42 @@ a regression; the estate usually got better and the script did not.
    its status to active in `tools/gauntlet/stages.go`. The bars drop; that is
    the point.
 
+## The order
+
+Units continue from `next` at all times. Underneath them, the foundation
+lands in a fixed order, ruled 2026-08-23 in
+`rfc/20260823-foundation-order-ruling.md`, which carries the measurements
+each item rests on and the commits they were computed at:
+
+1. **#364 and record-primary identity**: every instance's identity in the
+   record, written by `live-import` and apply (the write half), read first by
+   the plan and verified against the marker (the read half). Moves the
+   migrated population off the static path.
+2. **Schema-first table (#387)**: the provider's identity schema wins over a
+   ratified row wherever it reproduces it; the ledger keeps the exceptions.
+   Independent; may run alongside 1.
+3. **The plan-node seam (#388)**: identity resolved, and markers stamped, at the
+   plan-instance node from stock's own evaluated values: record, then marker
+   index, then identity schema over the evaluated configuration. One hook
+   inside the engine. The static evaluator and the HCL-rewriting stamp
+   retire when the gauntlet holds without them. After 1 holds.
+4. **Toggles (#365)**: a no-source instance (no record, no marker, nothing
+   derivable) refuses by default and plans a create under a toggle;
+   `aws_iam_access_key` is stored by default and refused under
+   `strict { secrets }`.
+
+A foundation item is a design pass until its issue names files and changes;
+then it is a unit like any other and a worker lands it. "This is foundation
+work" describes scope, never a reason to stop.
+
+Evidence for the order, in one line each: 97 of 206 refusal kinds are the
+static-evaluation stage; about 40% of the migrated gauntlet population is
+re-derived from configuration every plan and five of six open failures sit
+on that path; the schema reproduces 136 of 575 config-identified rows today;
+696 of 1699 types can be held only by a record, and the corpus names twelve
+of them people actually write. Re-derive these before quoting them; the
+ruling document says how each was computed.
+
 ## What is enforced
 
 Rules are tests. The ones that hold this document to the tree:
@@ -149,6 +242,7 @@ Rules are tests. The ones that hold this document to the tree:
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
 | `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 1680 rendered identities across 578 configuration directories, pinned by value; if your change moves a line, explain it, and `-update` alone cannot silence it |
 | `live/ci_coverage_test.go` | every fork-owned test package is in CI's glob |
+| `live/brief_tracked_test.go` | the briefs, the skill, `scripts/pickup.sh` and `.claude/scripts/agent-progress.sh` are tracked, so a fresh clone has the procedure |
 | `internal/live/harness` | every ratchet pins its denominator |
 | `live/flociimage_test.go`, `live/pins_drift_test.go` | the emulator and provider pins are current |
 | `internal/live/lifecycle/marker_tag_merge_live_test.go` | markers survive an incremental tag update through a real emulator |
@@ -156,7 +250,8 @@ Rules are tests. The ones that hold this document to the tree:
 ## Working here
 
 - Worktree off **local** `main` (`git worktree add ../wt/<name> -b
-  live/<name> main`); `origin/main` goes stale.
+  live/<name> main`); `origin/main` goes stale. A unit's branch is the one
+  `next` prints; commit early with the unit ID in the message.
 - `env -u PWD` on every go command; read exit codes from a file; never
   `git stash`; never prune a worktree by whether its branch merged.
 - `just ci` is the gate; a full-module `go test ./...` is a periodic
@@ -174,3 +269,9 @@ refusal-site counts as progress instruments (`live-check` stays as a user
 tool), the wall taxonomy, the rulings list. Their history is in git before
 this file's rewrite on 2026-08-21; the reasoning for retiring them is in the
 tracker's design thread of the same date.
+
+Retired 2026-08-23: "the engine is unmodified" as a rule (it stays a
+measured cost: `rfc/20260814-projection-nativeness-audit.md`); the hand
+exclusion of `aws_iam_access_key` outside the toggles; the config-language
+subset as a permanent property of the mode rather than of the static
+evaluator. Reasoning in `rfc/20260823-foundation-order-ruling.md`.
