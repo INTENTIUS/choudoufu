@@ -4,12 +4,18 @@
 # terraform-aws-modules/security-group's egress_rules = ["all-all"] produces,
 # because the module defaults both egress_cidr_blocks and
 # egress_ipv6_cidr_blocks and AWS creates two live rule objects for the one
-# declared instance. This fixture is only used with a SYNTHETIC schema
-# (TestRecordFallbackClassifiesSoleElementConflict) that makes the type's
-# whole documented import grammar resolvable as top-level strings, so the
-# record rung's OWN wiring can be asserted independent of whether
-# aws_security_group_rule's real hashicorp/aws schema (numeric from_port/
-# to_port) currently qualifies - see that test's doc comment.
+# declared instance.
+#
+# TestSoleElementConflictNeverBindsAConcreteIdentity resolves this fixture
+# with no schemas at all, proving the instance never binds a concrete
+# identity. TestSecurityGroupRuleSourceSegmentStaysRefused resolves it again
+# against aws_security_group_rule's REAL hashicorp/aws 6.59.0 schema (numeric
+# from_port/to_port included) with a record_store declared, and proves the
+# SAME refusal holds even though the type's identity CAN now be partly
+# corroborated (issue #384's follow-up): the "cidr_block" segment of its
+# documented import string has no safe resolution, so the record rung is not
+# reached - see that test's doc comment for why, and for the deeper gap
+# (a variadic trailing-source segment) left standing.
 terraform {
   live {
     estate = "record-fallback-solelement-conflict"
