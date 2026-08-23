@@ -62,7 +62,11 @@ also asserted by value; an exit code is not a verdict.
    Lower the bound in
    `tools/gauntlet/gauntlet_test.go`'s `TestLegacyScriptsOnlyGoDown` by one.
 2. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
-   binary you built (`go build -o "$TMPDIR/choudoufu" ./cmd/choudoufu`). Read
+   binary you built. Build it to a path private to your worktree, never the
+   shared `$TMPDIR/choudoufu`: several workers run at once, and one clobbering
+   another's binary mid-session produces runs that do not reproduce and cost
+   hours to diagnose. `go build -o "$(git rev-parse --show-toplevel)/.bin/choudoufu" ./cmd/choudoufu`
+   is enough. Read
    `live/gauntlet/logs/<estate>.log`. Docker, the AWS CLI and a stock
    `terraform` on PATH are required; if one is missing, stop and say which.
 3. **Classify** what stops the stage, using HANDOFF's table:
