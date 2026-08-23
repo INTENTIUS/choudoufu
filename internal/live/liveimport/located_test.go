@@ -237,10 +237,22 @@ func TestApprove_SelectedInstanceIsLocatedNotStamped(t *testing.T) {
 
 // TestApprove_UnselectedInstanceIsStampedNotLocated is the mutation check:
 // the identical resource, provider and state, with no selection at all,
-// must be tag-stamped exactly as it always was and must write no located
-// record. Without this, TestApprove_SelectedInstanceIsLocatedNotStamped
-// could pass merely because located instances are never stamped for some
-// unrelated reason - this proves the selection is what moved the behavior.
+// must be tag-stamped exactly as it always was - and, since GitHub issue
+// #364 unit A2, ALSO carries its identity in the record store, alongside
+// the marker rather than instead of it. Without the STAMPED half of this
+// assertion, TestApprove_SelectedInstanceIsLocatedNotStamped could pass
+// merely because located instances are never stamped for some unrelated
+// reason - this proves the selection, not the record write, is what keeps
+// the two routes apart.
+//
+// Before unit A2 this test asserted the OPPOSITE of its record half - that
+// no located record was written for a stamped instance - which was true
+// under the ruling that only an untaggable instance's identity belonged in
+// the store. The 2026-08-23 foundation-order ruling widened that to every
+// instance, precisely so a migrated estate's next plan can read a record
+// first instead of re-deriving every taggable instance's identity from
+// configuration; HANDOFF.md's safety rule is why the assertion below reads
+// the RENDERED identity by value rather than trusting the outcome alone.
 func TestApprove_UnselectedInstanceIsStampedNotLocated(t *testing.T) {
 	const liveID = "vpc-unselected000001"
 	addr := mustAddr(t, "aws_vpc.main")
@@ -275,10 +287,27 @@ func TestApprove_UnselectedInstanceIsStampedNotLocated(t *testing.T) {
 	if p.applyCount != 1 {
 		t.Errorf("ApplyResourceChange was called %d time(s), want exactly 1 (the tag write)", p.applyCount)
 	}
-	if _, _, _, exists, err := locatedStore.GetIdentity(context.Background(), addr); err != nil {
-		t.Fatalf("reading the located store: %s", err)
-	} else if exists {
-		t.Errorf("an unselected instance wrote a located record; it must be tag-stamped only")
+	if rep.IdentitiesRecorded != 1 {
+		t.Errorf("StampReport.IdentitiesRecorded = %d, want 1", rep.IdentitiesRecorded)
+	}
+
+	// The RENDERED IDENTITY, read straight back out of the store: the live
+	// object's own id, exactly what a located instance's own record would
+	// carry for the same object - the marker and the record now agree
+	// about which object this is, and this assertion is at the value, not
+	// merely "something was written".
+	rec, _, _, exists, err := locatedStore.GetIdentity(context.Background(), addr)
+	if err != nil {
+		t.Fatalf("reading the located record: %s", err)
+	}
+	if !exists {
+		t.Fatalf("no identity record was written for a stamped instance; GitHub issue #364 unit A2 records every instance's identity, not only an untaggable one's")
+	}
+	if rec.ImportID != liveID {
+		t.Errorf("identity record ImportID = %q, want %q (the live object's own id)", rec.ImportID, liveID)
+	}
+	if len(rec.Components) != 0 {
+		t.Errorf("identity record carries components %v; aws_vpc's identity here is a single string", rec.Components)
 	}
 }
 

@@ -311,6 +311,36 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return recordEnvelope{}, fmt.Errorf("the stored record is not valid JSON: %w", err)
 	}
+
+	// Normalize an Identity/Residue/Provisioned pointer json.Unmarshal
+	// allocated because the raw JSON happened to carry a same-named key,
+	// but which carries none of ITS OWN fields, back to nil.
+	//
+	// This is what closes a retired pre-#364 payload's own hole: the old
+	// locatedPayload's "identity" member was `map[string]string` keyed by
+	// identity-schema attribute name (locatedFormatVersion, choudoufu
+	// before 0be41c03ef), a completely different shape from today's
+	// identityPayload{ImportID, Attrs}. None of its keys are "import_id"
+	// or "attrs", so json.Unmarshal leaves both of THIS struct's own
+	// fields at their zero value - but it still allocates the pointer,
+	// because the JSON value at "identity" is a non-null object. Left
+	// unnormalized, that non-nil-but-vacuous pointer defeats the
+	// all-four-nil check below, and this function fell through to
+	// resolving Kind as [recordKindObject] with Object still nil - a
+	// shape [RecordStore.mergeEnvelope] never writes and this package must
+	// never hand a caller either. Found by 2026-08-23's adversarial audit
+	// of this file's own #364 unit A1; TestDecodeEnvelopeRefusesARetiredLocatedPayload
+	// pins it with the literal old bytes.
+	if env.Identity.empty() {
+		env.Identity = nil
+	}
+	if env.Residue.empty() {
+		env.Residue = nil
+	}
+	if env.Provisioned.empty() {
+		env.Provisioned = nil
+	}
+
 	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil {
 		if len(env.LegacyValueType) == 0 {
 			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
@@ -344,6 +374,35 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	if env.Kind == "" {
 		env.Kind = recordKindObject
 	}
+
+	// The retired residuePayload's own hole: unlike locatedPayload's
+	// "identity", its "attributes" member ([residueAttrValue]'s own
+	// "attrType"/"attrValue" tags never changed) decodes into
+	// [recordEnvelope.Residue] as REAL, non-empty data - so the
+	// normalization above cannot tell it apart from a genuine v2
+	// residue-only envelope, and the all-four-nil check just above never
+	// fires. What both a retired residuePayload and a corrupted or
+	// hand-edited "kind" value share is the same defect: Kind resolves to
+	// something that disagrees with what the envelope actually carries.
+	// Validating the resolved shape here, once, for every reader, is what
+	// [SeedRecordForInstance]'s and [WriteBack]'s own nil-checks were
+	// papering over rather than preventing.
+	switch env.Kind {
+	case recordKindObject:
+		if env.Object == nil {
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries no object - not a payload this package ever wrote", recordKindObject)
+		}
+	case recordKindIdentity:
+		if env.Object != nil {
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it also carries an object, which only %q ever carries", recordKindIdentity, recordKindObject)
+		}
+		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil {
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification or a provisioner taint - not a payload this package ever wrote", recordKindIdentity)
+		}
+	default:
+		return recordEnvelope{}, fmt.Errorf("the stored record names kind %q, which this version of choudoufu does not understand", env.Kind)
+	}
+
 	return env, nil
 }
 

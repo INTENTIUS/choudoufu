@@ -45,6 +45,16 @@ type StatelessImportOutcome struct {
 type StatelessImportStamped struct {
 	Estate   string
 	Outcomes []StatelessImportOutcome
+
+	// IdentitiesRecorded is [liveimport.StampReport.IdentitiesRecorded]:
+	// GitHub issue #364 unit A2's count of instances that now carry a
+	// kind=identity record, across every carrier that can hold one -
+	// stamped, untaggable, and markers=record selected - and never a
+	// record-backed instance's own kind=object value. Rendered as its own
+	// sentence rather than folded into the outcome line below, so every
+	// crossing script's existing grep against that exact line keeps
+	// matching byte for byte.
+	IdentitiesRecorded int
 }
 
 // StatelessImport renders what "choudoufu live-import" produces: the
@@ -155,6 +165,16 @@ var statelessImportOutcomeHeadline = map[string]string{
 	"FAILED":               "a write was attempted and refused, or failed",
 }
 
+// pluralIdentitySuffix is "y" for exactly one identity and "ies" otherwise,
+// so the sentence it feeds reads "1 identity recorded." rather than
+// "1 identities recorded.".
+func pluralIdentitySuffix(n int) string {
+	if n == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
 func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 	var b strings.Builder
 
@@ -186,6 +206,12 @@ func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 	// been recorded for weeks must not print that number as new work.
 	fmt.Fprintf(&b, "%d resource(s) newly stamped, %d already stamped, %d newly recorded, %d re-recorded for sensitivity only, %d already recorded, %d failed, %d skipped.\n",
 		stamped, len(byOutcome["ALREADY_STAMPED"]), len(byOutcome["RECORDED"]), len(byOutcome["SENSITIVITY_RECORDED"]), len(byOutcome["ALREADY_RECORDED"]), failed, len(byOutcome["SKIPPED"]))
+	// GitHub issue #364 unit A2. A separate sentence, deliberately: the line
+	// above is what every live/e2e crossing script's own grep matches by
+	// exact substring, and appending a clause to it - even after its own
+	// final period - would still risk a script anchored on "... skipped."
+	// meaning "and nothing after". This line is new territory instead.
+	fmt.Fprintf(&b, "%d identit%s recorded.\n", rep.IdentitiesRecorded, pluralIdentitySuffix(rep.IdentitiesRecorded))
 	b.WriteString("The tfstate file was not touched: it was read once, at the start of this run, and never opened again.\n")
 	if failed > 0 {
 		b.WriteString("Nothing about a FAILED resource's live tags was changed; it is exactly as it was before this run. Re-running live-import is safe: STAMPED and ALREADY_STAMPED resources are no-ops the second time.\n")

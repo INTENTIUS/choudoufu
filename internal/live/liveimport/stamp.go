@@ -100,6 +100,19 @@ type StampOutcome struct {
 type StampReport struct {
 	Estate   string
 	Outcomes []StampOutcome
+
+	// IdentitiesRecorded is GitHub issue #364 unit A2's own count: how many
+	// instances Approve gave a kind=identity record this run, across every
+	// carrier that can hold one - stamped (in addition to its marker),
+	// untaggable, and markers=record selected. It deliberately excludes
+	// record-backed instances (kind=object; see [recordOne]) and any
+	// instance already counted through OutcomeRecorded/
+	// OutcomeAlreadyRecorded for a DIFFERENT reason (a record-backed
+	// object's own value). It is not one of the per-Outcome counts on
+	// purpose: a stamped instance's identity write rides alongside its
+	// STAMPED outcome rather than displacing it, so this axis needs its own
+	// counter or it would have nowhere to be seen at all.
+	IdentitiesRecorded int
 }
 
 // notATagsOnlyPlan is the whole of what stands between a planned tag write
@@ -197,7 +210,10 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 		if rec, ok := r.recordable[entry.Addr.String()]; ok {
 			// Issue #340. A record-backed instance is never also eligible
 			// (see [recordable]), so this branch and the ones below are
-			// alternatives, not a sequence.
+			// alternatives, not a sequence. Its whole record is kind=object -
+			// the record IS the instance - so it never adds to
+			// rep.IdentitiesRecorded, which counts kind=identity records
+			// only.
 			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, entry.Addr, rec))
 			continue
 		}
@@ -207,7 +223,11 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// estate's record store's located namespace and no tag is
 			// written. Residue is still recorded exactly as it is for an
 			// ordinary eligible instance - see [located]'s doc comment.
-			rep.Outcomes = append(rep.Outcomes, locateOne(ctx, r.recordStore, entry.Addr, loc))
+			locOut := locateOne(ctx, r.recordStore, entry.Addr, loc)
+			rep.Outcomes = append(rep.Outcomes, locOut)
+			if locOut.Outcome == OutcomeRecorded || locOut.Outcome == OutcomeAlreadyRecorded {
+				rep.IdentitiesRecorded++
+			}
 			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &loc.residuable))
 			continue
 		}
@@ -228,15 +248,54 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// this run prints moves.
 			res := r.residuable[entry.Addr.String()]
 			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, res))
-			var providerAddr addrs.AbsProviderConfig
+			// GitHub issue #364 unit A2: an untaggable instance's identity -
+			// composite where the provider's own identity schema says so,
+			// else the import ID [identity.LocatedIdentityPlanFor] names -
+			// goes into the record store the same way a markers=record
+			// selected instance's does, from the same object issue #341's
+			// residue classifier above already reads (res.applied, decoded
+			// against the provider's current schema). res is nil for an
+			// instance ratifyOne never built a carrier for at all -
+			// UNADMITTED_TYPE, MISSING, or a record-backed secret this
+			// configuration's strict { secrets } refused to seed - and
+			// there is nothing to derive an identity from for any of those.
 			if res != nil {
-				providerAddr = res.providerAddr
+				if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, res.providerAddr, res.typeName, res.schema, res.applied); err != nil {
+					diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
+						"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
+						entry.Addr, err,
+					)))
+				} else if recorded {
+					rep.IdentitiesRecorded++
+				}
 			}
-			diags = diags.Append(recordLocatedFor(ctx, r.recordStore, entry.Addr, providerAddr, entry.LiveID))
 			continue
 		}
-		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()]))
+		stampOut := approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()])
+		rep.Outcomes = append(rep.Outcomes, stampOut)
 		diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
+		// GitHub issue #364 unit A2: a stamped instance's marker answers
+		// "may I delete this"; it is not an identity a later plan can read
+		// the record store for, which is why every taggable instance was
+		// off the record entirely before this. Only once ownership of the
+		// live object is actually confirmed for THIS estate - the write
+		// landed (STAMPED) or the object already carried this estate's own
+		// markers (ALREADY_STAMPED) - is it safe to also write its identity
+		// here: any other outcome (owned by another estate, a corrupt or
+		// mismatched tofu-address, a plan that would replace it) means this
+		// run never established that the object is this instance's, and
+		// recording an identity for it would be exactly the wrong-marker
+		// failure HANDOFF.md's safety rule forbids.
+		if stampOut.Outcome == OutcomeStamped || stampOut.Outcome == OutcomeAlreadyStamped {
+			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied); err != nil {
+				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
+					"The identity read for %s was not recorded alongside its marker: %s.",
+					entry.Addr, err,
+				)))
+			} else if recorded {
+				rep.IdentitiesRecorded++
+			}
+		}
 	}
 
 	// GitHub issue #349: carry the state file's root output values across
@@ -249,6 +308,38 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 	projection.WriteRootOutputValues(ctx, r.rootOutputStore, r.rootOutputs)
 
 	return rep, diags
+}
+
+// seedIdentityFor derives and writes one instance's kind=identity record
+// from its applied object and schema - GitHub issue #364 unit A2's shared
+// tail, the exact rule [projection.LocatedRecordFrom] already gave
+// [locateOne] for a markers=record selected instance, now given to every
+// stamped and untaggable instance too so a migration leaves a record for
+// every entry the state file held, not only the ones a marker cannot carry.
+//
+// recorded is false, with a nil error, when store is nil (no record_store,
+// an immediate no-op) or the type's identity cannot be recorded in full -
+// [projection.LocatedRecordFrom]'s own refusal, which folds in the
+// sensitivity check a record must never leak a secret past. Callers treat
+// that as "nothing to write", never as a problem: the instance stays exactly
+// where it was before this existed, findable through its marker or the
+// discovery sweep. A non-nil error is a real store conflict - an existing
+// DIFFERENT identity, or a write that lost a race - and is always worth a
+// warning, because it means a later plan may not find this instance from
+// the record alone.
+func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, providerAddr addrs.AbsProviderConfig, typeName string, schema providers.Schema, applied cty.Value) (recorded bool, err error) {
+	if store == nil {
+		return false, nil
+	}
+	rec, ok := projection.LocatedRecordFrom(typeName, schema, applied)
+	if !ok {
+		return false, nil
+	}
+	_, err = projection.SeedLocatedForInstance(ctx, store, addr, providerAddr, rec)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // recordOne is Approve's GitHub issue #340 half: the migration of one
@@ -398,48 +489,6 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.providerAddr, e.schema, e.applied, secrets, read); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
-			addr, err,
-		)))
-	}
-	return diags
-}
-
-// recordLocatedFor is Approve's own half of a fix that spans three files:
-// internal/live/discovery/locatedfallback.go reads what this writes, and
-// this writes what [ratifyUntaggable] already read. See that discovery
-// file's doc comment for the whole shape; this is only the write.
-//
-// entry.LiveID is [liveIDFrom]'s answer, already computed by Ratify for
-// every untaggable instance from the same object issue #341's residue
-// classifier reads - the state's own recorded object, decoded against the
-// provider's current schema. Nothing here reads the tfstate or the live
-// system a second time; the only new call is the store write itself, the
-// same discipline [recordResidueFor] and [recordOne] both follow.
-//
-// A type this fork can still find some other way (a native list resource,
-// content-match, Cloud Control) never needs what this writes -
-// [internal/live/discovery]'s scanTypeLocatedFallback is reached only after
-// all three have already failed - so writing it unconditionally for every
-// untaggable instance costs a few unread bytes for those types and nothing
-// else. Restricting the write to the narrower "no list route either"
-// population would need this package to carry list-route knowledge
-// (listclient.Schemas, the Cloud Control roster) it has no other reason to
-// import; the untaggable gate alone is enough to be safe; discovery's own
-// read-side gate is what decides whether a given type's record is ever
-// consulted.
-//
-// A nil store (no record_store block, implied or declared - #364 means one
-// almost always exists) or an entry with no LiveID (nothing could be read,
-// or the type has no identity attribute this table knows) makes this an
-// immediate no-op via [SeedLocatedForInstance]/its own nil-store guard.
-func recordLocatedFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, liveID string) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-	if store == nil || liveID == "" {
-		return diags
-	}
-	if _, err := projection.SeedLocatedForInstance(ctx, store, addr, provider, projection.LocatedRecord{ImportID: liveID}); err != nil {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
-			"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
 			addr, err,
 		)))
 	}

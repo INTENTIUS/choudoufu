@@ -521,7 +521,21 @@ APPROVE_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" live-import -state="$PL
   printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
 grep -qF "6 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 23 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 6 resources and record random_pet cleanly (23 skipped: the untaggable, parent-derived S3 sub-resources; 1 recorded: random_pet, issue #340)"; }
-log "  6 stamped, 1 recorded (random_pet, issue #340)"
+# GitHub issue #364 unit A2: every stamped instance, plus every untaggable
+# instance whose identity is a plain, non-composite, non-sensitive
+# server-minted id, now also gets a kind=identity record - not only its
+# marker (stamped) or nothing at all (untaggable, before this unit).
+# Measured for real against this estate (26), not derived: the 6 stamped
+# instances all qualify, and so do 20 of the 23 skipped (untaggable) ones -
+# the parent-derived S3 sub-resources whose identity is their own plain,
+# server-minted id. The remaining 3 skipped instances' identity is not
+# fully recordable by this mechanism (a composite identity, or no usable
+# id attribute at all) and get none. random_pet (RECORDED above) is
+# kind=object, not kind=identity, and is correctly excluded from this
+# count either way.
+grep -qF "26 identities recorded." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly 26 identities recorded (GitHub issue #364 unit A2)"; }
+log "  6 stamped, 1 recorded (random_pet, issue #340), 26 identities recorded (#364 unit A2)"
 
 for b in "${BUCKETS[@]}"; do
   ADDR="$(awsl s3api get-bucket-tagging --bucket "$b" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null)"
@@ -560,7 +574,7 @@ for b in "${BUCKETS[@]}"; do
   [ "$EST" = "$ESTATE_NAME" ] || fail "bucket $b lost its tofu-estate marker during the residue-classification apply (got \"$EST\") - this is issue #306, which the header says is fixed and re-verified; if this fires, the fix has regressed or the pinned floci image has moved backward"
 done
 log "  all four buckets' markers survived the classification apply"
-gauntlet_stage migrate pass "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed; markers survived the residue-classification apply"
+gauntlet_stage migrate pass "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - no state file, live-plan, empty, and the identities

@@ -146,7 +146,21 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 // the type is not recordable at all, or the specific object carries an
 // empty or missing identity attribute - and obj is then not written
 // anywhere; every caller treats false as its own "cannot record" error.
+//
+// GitHub issue #364 unit A2 widened this function's callers past the
+// located and markers-record-selected routes, both of which were already
+// gated by [identity.LocatedType] / [identity.SelectedLocatedType] before
+// reaching here, to every stamped and untaggable instance a migration or an
+// apply writes back - populations neither of those gates ever screened. So
+// the sensitivity half of that gate, [identity.RecordableIdentitySchema],
+// is checked here directly rather than trusted to every caller: a record
+// must never carry a secret, and folding the check into the one function
+// every writer already calls is what keeps that true without each new call
+// site having to remember to ask a second question.
 func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
+	if !identity.RecordableIdentitySchema(resourceType, schema) {
+		return LocatedRecord{}, false
+	}
 	plan, recordable := identity.LocatedIdentityPlanFor(resourceType, schema)
 	rec := LocatedRecord{}
 	if recordable {

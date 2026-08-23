@@ -252,14 +252,24 @@ func TestSucceedingProvisionerLeavesNoRecord(t *testing.T) {
 		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
+	if _, _, exists, err := provisioned.Get(ctx, addr); err != nil || exists {
 		t.Fatalf("a successful provisioner left a record behind: exists=%v err=%v", exists, err)
 	}
 
 	// Direction two: a previous run's failure is on record, this run's
 	// provisioner succeeds, and the record has to go - or the estate
 	// proposes replacing this resource on every plan from here on.
-	version, err := provisioned.Put(ctx, addr, "")
+	//
+	// GitHub issue #364 unit A2: direction one's WriteBack already gave
+	// this address a kind=identity envelope (an ordinary aws_instance now
+	// gets one too), so seeding the stale taint has to start from THAT
+	// version rather than from "" (no record yet) - the same conditional
+	// write every other writer in this package makes.
+	_, seedVersion, _, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr))
+	if err != nil {
+		t.Fatalf("reading the identity envelope's version before seeding the stale taint: %s", err)
+	}
+	version, err := provisioned.Put(ctx, addr, seedVersion)
 	if err != nil {
 		t.Fatalf("seeding the stale record: %s", err)
 	}
@@ -271,7 +281,7 @@ func TestSucceedingProvisionerLeavesNoRecord(t *testing.T) {
 		Schemas:          provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
+	if _, _, exists, err := provisioned.Get(ctx, addr); err != nil || exists {
 		t.Errorf("a stale taint record survived a successful re-run: exists=%v err=%v.\n"+
 			"The resource would be proposed for replacement on every plan from now on.", exists, err)
 	}
@@ -337,7 +347,7 @@ func TestNoProvisionerDeclaredFabricatesNoRecord(t *testing.T) {
 		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); exists {
+	if _, _, exists, _ := provisioned.Get(ctx, addr); exists {
 		t.Error("a taint record was fabricated for a resource whose configuration declares no create-time provisioner")
 	}
 }
@@ -401,7 +411,7 @@ resource "` + provisionedTestType + `" "web" {
 		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); exists {
+	if _, _, exists, _ := provisioned.Get(ctx, addr); exists {
 		t.Error("a destroy-time provisioner caused a taint record to be written; the marker is already the signal")
 	}
 }
@@ -722,7 +732,7 @@ func TestStaleTaintDoesNotSurviveAHealthyRecreate(t *testing.T) {
 		Schemas:          provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
+	if _, _, exists, err := provisioned.Get(ctx, addr); err != nil || exists {
 		t.Errorf("the taint record survived a successful re-provision: exists=%v err=%v.\n"+
 			"The provisioner ran and succeeded on a freshly created object. Nothing about that resource is tainted, and the record now says otherwise.", exists, err)
 	}
@@ -794,7 +804,7 @@ func TestStaleTaintIsClearedWhenTheBlockComesBackAndSucceeds(t *testing.T) {
 		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
+	if _, _, exists, err := provisioned.Get(ctx, addr); err != nil || exists {
 		t.Errorf("a record from before the block was removed survived the block's return and a clean provision: exists=%v err=%v", exists, err)
 	}
 }
