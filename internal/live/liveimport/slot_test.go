@@ -10,6 +10,12 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
@@ -383,6 +389,192 @@ func TestApprove_SlotsAreScopedToOneModuleInstance(t *testing.T) {
 	} {
 		if got := f.tagsWrittenTo(t, addr)[discovery.TagSlot]; got != want {
 			t.Errorf("%s: tofu-slot = %q, want %q", addr, got, want)
+		}
+	}
+}
+
+// loadSlotTestConfig is a minimal [configs.NewParser]/[configs.BuildConfig]
+// load for a single-module, module-call-free fixture, the same shape
+// internal/live/identity's own loadConfig test helper uses. It exists here
+// too rather than being exported from there because these fixtures are
+// deliberately root-module-only: nothing under testdata/slot-* calls a
+// child module.
+func loadSlotTestConfig(t *testing.T, dir string) *configs.Config {
+	t.Helper()
+
+	parser := configs.NewParser(nil)
+	call := configs.NewStaticModuleCall(
+		addrs.RootModule,
+		hcl.Range{},
+		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) {
+			return v.Default, nil
+		},
+		dir,
+		"default",
+	)
+	mod, diags := parser.LoadConfigDir(dir, call)
+	if diags.HasErrors() {
+		t.Fatalf("loading %s: %s", dir, diags.Error())
+	}
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			t.Fatalf("test fixture %s unexpectedly calls module %q", dir, req.Name)
+			return nil, nil, nil
+		},
+	))
+	if cfgDiags.HasErrors() {
+		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
+	}
+	return cfg
+}
+
+// TestApprove_WritesSlotForANamePrefixedClientNamedInstance is GitHub issue
+// #372's remainder: gate 4's Config-driven half. aws_iam_role is a
+// client-named type (ServerAssigned is false), so [serverAssignedType]
+// alone leaves it blocked exactly as
+// TestApprove_WritesNoSlotForAClientNamedType proves for aws_s3_bucket. This
+// declaration names both instances through name_prefix, so the ACTUAL
+// question gate 4 asks - does THIS instance's own configuration resolve
+// ClassNeedsDiscovery - has a different answer than the type-level one, and
+// [Ratification.resolved] (set here exactly as [Ratify] would set it from a
+// real Request.Config) is what lets gate 4 see it.
+func TestApprove_WritesSlotForANamePrefixedClientNamedInstance(t *testing.T) {
+	if ti, ok := identity.LookupType("aws_iam_role"); !ok || ti.ServerAssigned {
+		t.Fatalf("test premise: aws_iam_role must be an admitted, NOT server-assigned type (ok=%v serverAssigned=%v)", ok, ti.ServerAssigned)
+	}
+
+	cfg := loadSlotTestConfig(t, "testdata/slot-clientnamed-config")
+	resolved, diags := identity.ResolveWith(context.Background(), cfg, identity.Context{})
+	if diags.HasErrors() {
+		t.Fatalf("resolving testdata/slot-clientnamed-config: %s", diags.Err())
+	}
+	for _, s := range []string{"aws_iam_role.this[0]", "aws_iam_role.this[1]"} {
+		res, ok := resolved.Get(mustAddr(t, s))
+		// Cause is deliberately not asserted: aws_iam_role's component sets
+		// ServerAssignedIfAbsent, so the resolver reports DiscoveryNameOmitted
+		// for a bare, unset "name" ahead of ever inspecting name_prefix (see
+		// resolve.go's identityArgs, the ServerAssignedIfAbsent branch above
+		// the *_prefix one) - a different label for the same class this
+		// fixture is written to exercise, and instanceNeedsDiscovery reads
+		// Class only, not Cause.
+		if !ok || res.Class != identity.ClassNeedsDiscovery {
+			t.Fatalf("test premise: %s must resolve ClassNeedsDiscovery, got ok=%v class=%v cause=%v", s, ok, res.Class, res.Cause)
+		}
+	}
+
+	f := newSlotFixture(t, "acme", map[string]map[string]string{
+		"aws_iam_role.this[0]": nil,
+		"aws_iam_role.this[1]": nil,
+	})
+	for i := range f.rat.Entries {
+		f.rat.Entries[i].TypeName = "aws_iam_role"
+		f.rat.eligible[f.rat.Entries[i].Addr.String()].typeName = "aws_iam_role"
+	}
+	f.rat.resolved = resolved
+
+	got := f.outcomes(t)
+	for addr, wantSlot := range map[string]string{
+		"aws_iam_role.this[0]": "0",
+		"aws_iam_role.this[1]": "1",
+	} {
+		if got[addr] != OutcomeStamped {
+			t.Fatalf("%s: outcome %s, want STAMPED", addr, got[addr])
+		}
+		tags := f.tagsWrittenTo(t, addr)
+		if slot := tags[discovery.TagSlot]; slot != wantSlot {
+			t.Errorf("%s: tofu-slot = %q, want %q", addr, slot, wantSlot)
+		}
+		if tags[discovery.TagEstate] != "acme" {
+			t.Errorf("%s: tofu-estate = %q, want acme", addr, tags[discovery.TagEstate])
+		}
+	}
+}
+
+// TestApprove_WritesNoSlotForALiteralNamedClientNamedInstance is the negative
+// control: the identical type and shape as the test above, but named through
+// a static literal instead of name_prefix, so per-instance resolution is
+// ClassConcrete rather than ClassNeedsDiscovery. Gate 4's Config-driven half
+// must not unblock it - proving the mechanism reads the resolved class
+// rather than admitting every client-named type once Config is present.
+func TestApprove_WritesNoSlotForALiteralNamedClientNamedInstance(t *testing.T) {
+	cfg := loadSlotTestConfig(t, "testdata/slot-clientnamed-literal-config")
+	resolved, diags := identity.ResolveWith(context.Background(), cfg, identity.Context{})
+	if diags.HasErrors() {
+		t.Fatalf("resolving testdata/slot-clientnamed-literal-config: %s", diags.Err())
+	}
+	for _, s := range []string{"aws_iam_role.this[0]", "aws_iam_role.this[1]"} {
+		res, ok := resolved.Get(mustAddr(t, s))
+		if !ok || res.Class != identity.ClassConcrete {
+			t.Fatalf("test premise: %s must resolve ClassConcrete, got ok=%v class=%v", s, ok, res.Class)
+		}
+	}
+
+	f := newSlotFixture(t, "acme", map[string]map[string]string{
+		"aws_iam_role.this[0]": nil,
+		"aws_iam_role.this[1]": nil,
+	})
+	for i := range f.rat.Entries {
+		f.rat.Entries[i].TypeName = "aws_iam_role"
+		f.rat.eligible[f.rat.Entries[i].Addr.String()].typeName = "aws_iam_role"
+	}
+	f.rat.resolved = resolved
+
+	got := f.outcomes(t)
+	for _, addr := range []string{"aws_iam_role.this[0]", "aws_iam_role.this[1]"} {
+		if got[addr] != OutcomeStamped {
+			t.Fatalf("%s: outcome %s, want STAMPED", addr, got[addr])
+		}
+		tags := f.tagsWrittenTo(t, addr)
+		if slot, present := tags[discovery.TagSlot]; present {
+			t.Errorf("%s: tofu-slot = %q was written for a statically-named instance, want none", addr, slot)
+		}
+	}
+}
+
+// TestApprove_WritesNoSlotForAMarkerFallbackInstance is the safeguard found
+// while verifying the test above against corpus-ecs-fargate for real: a bare
+// [identity.ResolveWith] call - what Ratify makes, per [Request.Config]'s doc
+// comment - is not always what a real live-plan's own two-pass resolution
+// settles on. This fixture's aws_iam_role.this[0..1] resolve
+// ClassNeedsDiscovery/DiscoveryMarkerFallback from a bare call (its "name" is
+// present but impure, uuid()), the same cause and class
+// module.ecs_service.aws_ecs_service.this[0] resolved to in that estate
+// before causeStableWithoutManagedResults existed - and there, the tofu-slot
+// gate 4 wrote was exactly what the very next live-plan proposed removing,
+// because ManagedResults (a value only a real provider PLAN call supplies)
+// let the second pass settle it a different way. See
+// causeStableWithoutManagedResults's own doc comment for the full argument.
+func TestApprove_WritesNoSlotForAMarkerFallbackInstance(t *testing.T) {
+	cfg := loadSlotTestConfig(t, "testdata/slot-markerfallback-config")
+	resolved, diags := identity.ResolveWith(context.Background(), cfg, identity.Context{})
+	if diags.HasErrors() {
+		t.Fatalf("resolving testdata/slot-markerfallback-config: %s", diags.Err())
+	}
+	for _, s := range []string{"aws_iam_role.this[0]", "aws_iam_role.this[1]"} {
+		res, ok := resolved.Get(mustAddr(t, s))
+		if !ok || res.Class != identity.ClassNeedsDiscovery || res.Cause != identity.DiscoveryMarkerFallback {
+			t.Fatalf("test premise: %s must resolve ClassNeedsDiscovery/DiscoveryMarkerFallback, got ok=%v class=%v cause=%v", s, ok, res.Class, res.Cause)
+		}
+	}
+
+	f := newSlotFixture(t, "acme", map[string]map[string]string{
+		"aws_iam_role.this[0]": nil,
+		"aws_iam_role.this[1]": nil,
+	})
+	for i := range f.rat.Entries {
+		f.rat.Entries[i].TypeName = "aws_iam_role"
+		f.rat.eligible[f.rat.Entries[i].Addr.String()].typeName = "aws_iam_role"
+	}
+	f.rat.resolved = resolved
+
+	got := f.outcomes(t)
+	for _, addr := range []string{"aws_iam_role.this[0]", "aws_iam_role.this[1]"} {
+		if got[addr] != OutcomeStamped {
+			t.Fatalf("%s: outcome %s, want STAMPED", addr, got[addr])
+		}
+		tags := f.tagsWrittenTo(t, addr)
+		if slot, present := tags[discovery.TagSlot]; present {
+			t.Errorf("%s: tofu-slot = %q was written for a MARKER_FALLBACK instance, want none", addr, slot)
 		}
 	}
 }

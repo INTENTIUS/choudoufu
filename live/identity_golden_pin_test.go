@@ -337,7 +337,17 @@ var identityGoldenPin = map[string]int{
 	// aws_autoscaling_group.named, which states a literal `name` and stays
 	// CONCRETE precisely to prove the new fallback does not shadow the
 	// ordinary path. See identityGoldenPinBodyDigest.
-	"CONCRETE": 809,
+	// 809 -> 811 for GitHub issue #372's remainder (a per-instance
+	// ClassNeedsDiscovery check settling a client-named count instance's
+	// tofu-slot at migrate time): two ADDED rows,
+	// internal/live/liveimport/testdata/slot-clientnamed-literal-config's
+	// aws_iam_role.this[0] and .this[1], the negative-control fixture whose
+	// static "name = \"task-${count.index}\"" resolves CONCRETE - proving the
+	// new gate does not fire on a client-named instance whose name IS
+	// statically computable. Its name_prefix'd sibling fixture
+	// (slot-clientnamed-config) resolves NEEDS_DISCOVERY instead; see that
+	// class's own count below.
+	"CONCRETE": 811,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -549,7 +559,24 @@ var identityGoldenPin = map[string]int{
 	// record_store (see TestRecordFallbackClassifiesUntaggableNamePrefix in
 	// internal/live/identity/recordfallback_test.go for that assertion, by
 	// value).
-	"NEEDS_DISCOVERY": 706,
+	// 706 -> 708 for GitHub issue #372's remainder: two ADDED rows,
+	// internal/live/liveimport/testdata/slot-clientnamed-config's
+	// aws_iam_role.this[0] and .this[1] - a count-expanded, client-named
+	// type named through name_prefix, resolving NEEDS_DISCOVERY
+	// (DiscoveryNameOmitted; aws_iam_role's component is
+	// ServerAssignedIfAbsent, checked ahead of the name_prefix branch in
+	// resolve.go's identityArgs) rather than the CONCRETE its literal-named
+	// sibling fixture gets. See "CONCRETE"'s own note on that sibling.
+	// 708 -> 710, same issue, a second pass: two ADDED rows,
+	// internal/live/liveimport/testdata/slot-markerfallback-config's
+	// aws_iam_role.this[0] and .this[1] - named through uuid(), an impure
+	// function, so resolution is NEEDS_DISCOVERY/DiscoveryMarkerFallback
+	// rather than DiscoveryNameOmitted. This is the fixture for
+	// causeStableWithoutManagedResults's exclusion list, written after
+	// measuring that a bare resolve's MARKER_FALLBACK verdict is not always
+	// what a real live-plan's two-pass resolution settles on - see that
+	// function's doc comment in internal/live/liveimport/slot.go.
+	"NEEDS_DISCOVERY": 710,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -1108,7 +1135,35 @@ var identityGoldenPin = map[string]int{
 // aws_autoscaling_group.prefixed (NEEDS_DISCOVERY here, since this sweep
 // holds no provider schemas and the fallback fails closed without one).
 // No pre-existing row moved, in class or in value.
-const identityGoldenPinBodyDigest = "7903413dc973cce6712487a3bd20c328c5f3142719fdaf6eecb0880a81be86ca"
+//
+// 2026-08-22 (GitHub issue #372's remainder): dirs 574 -> 576, instances
+// 1674 -> 1678, "0 identities changed, 4 added, 0 removed" read off the
+// -update run's own report. Two new root-module-only fixtures under
+// internal/live/liveimport/testdata, written for
+// TestApprove_WritesSlotForANamePrefixedClientNamedInstance and its negative
+// control: slot-clientnamed-config (aws_iam_role.this[0..1], named through
+// name_prefix, NEEDS_DISCOVERY) and slot-clientnamed-literal-config (the
+// same shape named through a static literal instead, CONCRETE). Nothing in
+// internal/live/identity changed; the four rows are new fixtures being swept
+// for the first time, not an existing row moving.
+//
+// 2026-08-22, same issue, a second pass found by re-verifying the fix
+// against corpus-ecs-fargate for real: dirs 576 -> 577, instances
+// 1678 -> 1680, "0 identities changed, 2 added, 0 removed". One more new
+// root-module-only fixture, slot-markerfallback-config
+// (aws_iam_role.this[0..1], named through uuid(), NEEDS_DISCOVERY/
+// DiscoveryMarkerFallback) - the fixture for
+// causeStableWithoutManagedResults, added after the estate's real
+// aws_ecs_service.this[0] proved a bare resolve's MARKER_FALLBACK verdict
+// is not always the one a real live-plan settles on. See that function's
+// doc comment.
+//
+// Both of the above are reconciled onto [RecordFallbackType]'s own base
+// (574/1674, f8676745...->7903413d...) by rebasing rather than by
+// recomputing deltas by hand: regenerated with -update on the merged tree
+// and diffed, confirming exactly these six rows added and nothing else
+// moved.
+const identityGoldenPinBodyDigest = "c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1628,7 +1683,14 @@ const (
 	// own note for the fixture and which rows are which.
 	// Then 1672 -> 1674 for [RecordFallbackType]: two added rows, none
 	// changed, none removed. See identityGoldenPinBodyDigest's own note.
-	identityGoldenPinInstances = 1674
+	// Then 1674 -> 1678 for GitHub issue #372's remainder: four added rows
+	// across the two new liveimport fixtures (two NEEDS_DISCOVERY, two
+	// CONCRETE - see the "NEEDS_DISCOVERY" and "CONCRETE" class notes above),
+	// none changed, none removed.
+	// Then 1678 -> 1680, same issue, a second pass: two more added rows,
+	// slot-markerfallback-config's aws_iam_role.this[0..1] - see
+	// identityGoldenPinBodyDigest's own note.
+	identityGoldenPinInstances = 1680
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1797,7 +1859,14 @@ const (
 	// submodules are.
 	// Then 573 -> 574 for [RecordFallbackType]: one new fixture,
 	// internal/live/identity/testdata/record-fallback-untaggable.
-	identityGoldenPinDirs = 574
+	// Then 574 -> 576 for GitHub issue #372's remainder:
+	// internal/live/liveimport/testdata/slot-clientnamed-config and its
+	// literal-named negative-control sibling, slot-clientnamed-literal-config
+	// - two new fixtures, each its own directory, no module tree.
+	// Then 576 -> 577, same issue, a second pass:
+	// internal/live/liveimport/testdata/slot-markerfallback-config, one more
+	// new fixture, its own directory.
+	identityGoldenPinDirs = 577
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
