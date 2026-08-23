@@ -164,3 +164,115 @@ func TestRecordFirst_untaggableRecordStillBinds(t *testing.T) {
 		}
 	}
 }
+
+// TestRecordFirst_absentRecordFallsBackRatherThanProposingACreate: a record
+// points at an identity that no longer exists (deleted, or simply wrong),
+// while the configuration's own ClassConcrete identity finds a real,
+// correctly-tagged live object. Concluding "absent" from the record alone
+// and proposing a CREATE would duplicate a resource that already exists -
+// exactly the failure mode HANDOFF.md's safety rule ranks worst. The
+// correct answer is the fallback binding, identical in shape to the
+// stale-address test above but reached through a different provider
+// response (no ImportedResources at all, not a live object with the wrong
+// marker).
+func TestRecordFirst_absentRecordFallsBackRatherThanProposingACreate(t *testing.T) {
+	ctx := context.Background()
+	const estate = ownershipEstate
+	appAddr := mustAddr(t, `aws_cloudwatch_log_group.app`)
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "log-correct",
+		map[string]string{"id": "log-correct", "name": "/ours/correct"},
+		map[string]string{
+			markers.TagEstate:  estate,
+			markers.TagAddress: markers.EscapeAddress(appAddr.String()),
+		})
+	// The record's own identity: nothing answers to it at all.
+	cloud.emptyImports["aws_cloudwatch_log_group/log-deleted"] = true
+
+	store := localHintStore(t)
+	located := newTestLocatedStore(store, estate)
+	if _, err := located.Put(ctx, appAddr, LocatedRecord{ImportID: "log-deleted"}, ""); err != nil {
+		t.Fatalf("seeding the absent record: %s", err)
+	}
+
+	cfg := loadConfig(t, "testdata/named")
+	res, diags := BuildWith(ctx, cfg,
+		[]identity.Resolution{{Addr: appAddr, Class: identity.ClassConcrete, ImportID: "log-correct"}},
+		cloud.providers(t),
+		Options{
+			RecordStore: located.rs,
+			Ownership:   &Ownership{Estate: estate},
+		})
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{"aws_cloudwatch_log_group.app"})
+	if len(res.Omitted) != 0 {
+		t.Fatalf("Omitted = %v, want empty: a stale record's absence must not be the last word when the configuration's own identity finds the real object", res.Omitted)
+	}
+	inst := res.State.ResourceInstance(appAddr)
+	if inst == nil || inst.Current == nil {
+		t.Fatal("no current object for app")
+	}
+	obj, err := inst.Current.Decode(fakeSchemas()["aws_cloudwatch_log_group"].Block.ImpliedType())
+	if err != nil {
+		t.Fatalf("decoding the materialized object: %s", err)
+	}
+	if got := obj.Value.GetAttr("id").AsString(); got != "log-correct" {
+		t.Fatalf("app materialized from id %q, want %q: an absent record must fall back rather than propose a duplicate create", got, "log-correct")
+	}
+}
+
+// TestRecordFirst_erroringRecordFallsBackRatherThanAbortingThePlan: the
+// record's own identity errors when the provider tries to read it (the
+// exact shape found live in corpus-ecs-fargate under this unit: a stale
+// written identity the provider's ImportResourceState rejects outright,
+// which - before this fallback existed - aborted the WHOLE plan with a
+// fatal "Cannot import for projection" even though the configuration's own
+// identity resolves this instance cleanly). The fallback must both bind the
+// correct object AND produce no error diagnostics: an aborted plan is worse
+// than a merely stale one, because it stops a run identity.Class alone
+// could have completed.
+func TestRecordFirst_erroringRecordFallsBackRatherThanAbortingThePlan(t *testing.T) {
+	ctx := context.Background()
+	const estate = ownershipEstate
+	appAddr := mustAddr(t, `aws_cloudwatch_log_group.app`)
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "log-correct",
+		map[string]string{"id": "log-correct", "name": "/ours/correct"},
+		map[string]string{
+			markers.TagEstate:  estate,
+			markers.TagAddress: markers.EscapeAddress(appAddr.String()),
+		})
+	cloud.importErrors["aws_cloudwatch_log_group/log-erroring"] = "arn: invalid prefix"
+
+	store := localHintStore(t)
+	located := newTestLocatedStore(store, estate)
+	if _, err := located.Put(ctx, appAddr, LocatedRecord{ImportID: "log-erroring"}, ""); err != nil {
+		t.Fatalf("seeding the erroring record: %s", err)
+	}
+
+	cfg := loadConfig(t, "testdata/named")
+	res, diags := BuildWith(ctx, cfg,
+		[]identity.Resolution{{Addr: appAddr, Class: identity.ClassConcrete, ImportID: "log-correct"}},
+		cloud.providers(t),
+		Options{
+			RecordStore: located.rs,
+			Ownership:   &Ownership{Estate: estate},
+		})
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{"aws_cloudwatch_log_group.app"})
+	inst := res.State.ResourceInstance(appAddr)
+	if inst == nil || inst.Current == nil {
+		t.Fatal("no current object for app")
+	}
+	obj, err := inst.Current.Decode(fakeSchemas()["aws_cloudwatch_log_group"].Block.ImpliedType())
+	if err != nil {
+		t.Fatalf("decoding the materialized object: %s", err)
+	}
+	if got := obj.Value.GetAttr("id").AsString(); got != "log-correct" {
+		t.Fatalf("app materialized from id %q, want %q: an erroring record must fall back rather than abort the plan", got, "log-correct")
+	}
+}

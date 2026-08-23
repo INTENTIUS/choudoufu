@@ -1319,6 +1319,39 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
 
 	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
+
+	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
+		// The record's binding did not pan out - the provider found
+		// nothing at that identity, or erred trying to read it - and for a
+		// recordFirst attempt that is not proof of anything: unlike
+		// [builder.materializeLocated]'s genuinely markerless types, this
+		// instance's identity.Class has an ordinary, proven path (a marker
+		// sweep or static derivation) that never needed this record to
+		// begin with. Reporting "absent" here as a final answer would
+		// propose a CREATE the moment a stale record merely pointed at the
+		// wrong id while the real, correctly-tagged object sits
+		// unexamined - a duplicate, not a recovery. Reporting "failed" as
+		// a hard error would abort the whole plan over an identity this
+		// run no longer trusts, when the classic path might resolve the
+		// same instance cleanly. Either way the fix is the same one
+		// ownershipStale already uses: fall back to whatever
+		// [builder.applyRecordFirst]'s caller would have done with no
+		// record in play, and say nothing terminal about it here. matDiags
+		// is deliberately dropped rather than appended - it describes what
+		// this abandoned identity did, not a fact about the estate - so a
+		// caller reading [tfdiags.Diagnostics.HasErrors] does not see this
+		// run as failed over an attempt that is about to be retried.
+		reason := "no live object"
+		if status == statusFailed {
+			reason = "an error"
+			if len(matDiags) > 0 {
+				reason = matDiags[0].Description().Summary
+			}
+		}
+		log.Printf("[TRACE] projection: %s's record-first identity %q for %s came back %q; falling back to identity.Class's own path",
+			addr, importID, typeName, reason)
+		return false
+	}
 	b.diags = b.diags.Append(matDiags)
 
 	switch status {
