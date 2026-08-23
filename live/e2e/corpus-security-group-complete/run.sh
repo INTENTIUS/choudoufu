@@ -401,6 +401,19 @@ REGION="eu-west-1"
 INSTANCES=67
 ELIGIBLE=58
 SKIPPED=9
+# GitHub issue #364 unit A2: every stamped instance now also gets its
+# identity recorded (in addition to its marker), so a later plan can read
+# the record before falling back to the marker sweep or the static
+# evaluator. Measured for real against this estate, not derived: all 58
+# STAMPED instances get one (their identity is a plain server-minted "id",
+# recordable in full and not sensitive); none of the 9 SKIPPED (untaggable)
+# ones do - aws_route_table_association's identity is the composite
+# (route_table_id, subnet_id) pair, which LocatedIdentityPlanFor cannot
+# derive from a bare top-level "id" attribute, and
+# aws_vpc_security_group_rules_exclusive carries no importable identity at
+# all. So IDENTITIES_RECORDED is exactly ELIGIBLE here, not
+# ELIGIBLE+SKIPPED - a real, estate-specific number, not a guess.
+IDENTITIES_RECORDED=58
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -700,7 +713,10 @@ APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
 grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, $SKIPPED skipped." <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly"; }
+grep -qF "$IDENTITIES_RECORDED identit" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $IDENTITIES_RECORDED identities recorded (GitHub issue #364 unit A2)"; }
 log "  $ELIGIBLE stamped, 0 failed, $SKIPPED skipped - matches the dry run exactly"
+log "  $IDENTITIES_RECORDED identities recorded (#364 unit A2: every stamped instance's identity, not only a marker)"
 
 log "=== 2c. the main security group's marker, read through the AWS CLI directly ==="
 WANT_SG_ADDR="module.security_group.aws_security_group.this:0"
@@ -714,7 +730,7 @@ log "  confirmed independently through the AWS CLI, never through choudoufu's ow
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
-gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped"
+gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped, $IDENTITIES_RECORDED identities recorded (#364 unit A2)"
 CURRENT_STAGE=test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
