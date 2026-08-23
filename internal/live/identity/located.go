@@ -609,3 +609,88 @@ func locatedAttrString(obj cty.Value, name string) (string, bool) {
 	}
 	return s, true
 }
+
+// locatedAttrSegment reads one top-level DOCUMENTED IMPORT-STRING SEGMENT
+// off an applied object - [locatedAttrString]'s guards for a string
+// attribute, or a number attribute rendered into the plain decimal form the
+// provider's own import strings use, for [LocatedComposedImportID]. It is
+// not used by the wire-identity Components branch ([LocatedIdentity]),
+// which is a different mechanism the provider's own identity schema already
+// requires to be a top-level string.
+//
+// [attrsByDocName] is what let a number attribute reach here in the first
+// place - see its doc comment for why aws_security_group_rule's
+// from_port/to_port needed it. This is the write-back half: the segment
+// resolved by NAME there is rendered by VALUE here, and a number that
+// cannot be rendered with confidence is refused rather than guessed at,
+// same as every other refusal in this file.
+func locatedAttrSegment(obj cty.Value, name string) (string, bool) {
+	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() {
+		return "", false
+	}
+	if !obj.Type().HasAttribute(name) {
+		return "", false
+	}
+	v := obj.GetAttr(name)
+	if v.IsNull() || !v.IsKnown() {
+		return "", false
+	}
+	if v.IsMarked() {
+		// See locatedAttrString's doc comment: refused, never unmarked.
+		return "", false
+	}
+	switch v.Type() {
+	case cty.String:
+		s := v.AsString()
+		if s == "" {
+			return "", false
+		}
+		return s, true
+	case cty.Number:
+		return renderIntegralNumber(v)
+	default:
+		return "", false
+	}
+}
+
+// renderIntegralNumber renders v - a known, unmarked cty.Number - into the
+// plain decimal digits [cty/convert]'s own Number-to-String conversion
+// produces (big.Float.Text('f', -1), the same conversion an implicit
+// "${...}" string interpolation of a number applies): no exponent and no
+// trailing ".0" - "443", never "443.0" or "4.43e2".
+//
+// That form is confirmed against the provider's own documentation, not
+// inferred: hashicorp/aws's security_group_rule.html.markdown Import
+// section shows import IDs like
+// "sg-6e616f6d69_ingress_tcp_8000_8000_10.0.3.0/24" and
+// "..._92_0_65536_10.0.3.0/24_10.0.4.0/24" - plain decimal port and
+// protocol numbers, including a bare "0", never a decimal point.
+//
+// ok is false when v is not integral. A [DocumentedImportIDPart] segment
+// names an identifier or a port, and every real schema this route reaches
+// today carries those as whole numbers; a fractional value is a shape
+// nothing here has verified the provider ever echoes back through an
+// import round-trip, so rendering it would be a guess, not a reading -
+// exactly the risk HANDOFF's safety rule forbids. There is no separate
+// "out of range" refusal to make: the rendering never narrows through a
+// fixed-width integer type, so there is no width for a value to overflow.
+// [(*big.Float).IsInt] is the sole gate, and it is also what keeps a
+// negative zero - which AWS never emits and Text would otherwise render as
+// "-0" - from reaching the caller as anything but "0".
+func renderIntegralNumber(v cty.Value) (string, bool) {
+	if v.IsMarked() {
+		// [locatedAttrSegment] already checks this before calling here, but
+		// internal/live/marksafe proves each mark-unsafe call site within
+		// its OWN function - nothing crosses a function boundary - so the
+		// guard is repeated rather than trusted from the caller.
+		return "", false
+	}
+	f := v.AsBigFloat()
+	if !f.IsInt() {
+		return "", false
+	}
+	if f.Sign() == 0 {
+		return "0", true
+	}
+	return f.Text('f', -1), true
+}

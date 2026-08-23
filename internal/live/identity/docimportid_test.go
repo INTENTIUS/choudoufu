@@ -53,6 +53,16 @@ func docStringBlock(names ...string) *configschema.Block {
 	return b
 }
 
+// docTypedBlock builds a block from an explicit name-to-type map, for a case
+// docStringBlock cannot express: a number attribute, or a collection one.
+func docTypedBlock(attrs map[string]cty.Type) *configschema.Block {
+	b := &configschema.Block{Attributes: map[string]*configschema.Attribute{}}
+	for n, t := range attrs {
+		b.Attributes[n] = &configschema.Attribute{Type: t, Computed: true}
+	}
+	return b
+}
+
 // TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema is the
 // rule, one shape per case.
 //
@@ -154,6 +164,50 @@ func TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema(t *testi
 			grammar: DocumentedImportID{Parts: []DocumentedImportIDPart{part("apiid", true), part("routeid", false)}},
 			block:   docStringBlock("id", "api_id", "route_id"),
 			why:     "there is no character to join the segments with, so no string can be composed",
+		},
+		{
+			name:    "a segment resolves to a number attribute",
+			grammar: DocumentedImportID{Separator: "_", Parts: []DocumentedImportIDPart{part("fromport", true), part("toport", true)}},
+			block:   docTypedBlock(map[string]cty.Type{"id": cty.String, "from_port": cty.Number, "to_port": cty.Number}),
+			want:    []string{"from_port", "to_port"},
+			wantSep: "_",
+			why: "a documented segment is exactly as readable off a top-level number as off a top-level string - " +
+				"aws_security_group_rule's from_port/to_port are cty.Number on the real hashicorp/aws schema (issue " +
+				"#384's regression), and a route that only ever matched strings could never resolve them",
+		},
+		{
+			name:    "two attributes of different admitted types reduce to one name",
+			grammar: DocumentedImportID{Separator: "/", Parts: []DocumentedImportIDPart{part("apiid", true), part("routeid", false)}},
+			block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+				"id":       {Type: cty.String, Computed: true},
+				"api_id":   {Type: cty.String, Required: true},
+				"apiid":    {Type: cty.Number, Required: true},
+				"route_id": {Type: cty.String, Computed: true},
+			}},
+			why: "api_id (string) and apiid (number) both reduce to \"apiid\"; the reduction has lost which one " +
+				"the segment means regardless of which types are admitted, so it means neither",
+		},
+		{
+			name:    "the inferred segment collides with a real plural collection attribute",
+			grammar: DocumentedImportID{Separator: "_", Parts: []DocumentedImportIDPart{part("widget", true), part("source", false)}},
+			block:   docTypedBlock(map[string]cty.Type{"id": cty.String, "widget": cty.String, "sources": cty.List(cty.String)}),
+			why: "the unresolved segment \"source\", pluralized, names a real top-level LIST attribute (\"sources\") " +
+				"on this very block. The schema is saying the concept is multi-valued, not a single scalar `id` " +
+				"could ever stand in for - aws_security_group_rule's own \"cidr_block\" segment against its real " +
+				"cidr_blocks list is exactly this shape, and its `id` is confirmed (from the provider's own " +
+				"securityGroupRuleCreateID) to be an unrelated hash, not any one source. Composing `id` into this " +
+				"segment's place would be a guess this package's own schema already disproves.",
+		},
+		{
+			name:    "the inferred segment's plural does not collide with anything",
+			grammar: DocumentedImportID{Separator: "_", Parts: []DocumentedImportIDPart{part("widget", true), part("source", false)}},
+			block:   docTypedBlock(map[string]cty.Type{"id": cty.String, "widget": cty.String}),
+			want:    []string{"widget", "id"},
+			wantSep: "_",
+			why: "the same shape as the case above, minus the colliding \"sources\" list: with nothing on the " +
+				"schema contradicting the inference, `id` is read as the minted leaf exactly as the population's " +
+				"own shape says it should be. This is what proves the guard above is doing the narrow job it " +
+				"claims - refusing only where a real collision exists, not this whole population of inferences.",
 		},
 	}
 
@@ -276,6 +330,72 @@ func TestLocatedComposedImportIDIsAllOrNothing(t *testing.T) {
 	}
 	if _, ok := LocatedComposedImportID(obj(cty.StringVal("a"), cty.StringVal("b")), parts, ""); ok {
 		t.Error("composed with no separator, which concatenates two identities into one unsplittable string")
+	}
+}
+
+// TestLocatedComposedImportIDRendersNumberSegmentsAsPlainDecimal is the
+// write-back half of the number gap [attrsByDocName] closes: a resolved
+// number segment has to be RENDERED, and the only assertion that can tell a
+// right rendering from a plausible one is the exact string, byte for byte -
+// same posture as TestLocatedComposedImportIDIsAllOrNothing above.
+//
+// The form asserted here - "443", never "443.0" or "4.43e2" - is not
+// invented: hashicorp/aws's security_group_rule.html.markdown Import section
+// shows import IDs built from plain decimal port numbers
+// ("...tcp_8000_8000_10.0.3.0/24", "..._92_0_65536_..."), including a bare
+// "0", and never a decimal point. cty.Number is backed by big.Float, whose
+// default %v/GoString form is not this form, which is exactly the failure
+// mode a formatter reached for convenience rather than derived from the
+// provider's own documentation would produce silently.
+func TestLocatedComposedImportIDRendersNumberSegmentsAsPlainDecimal(t *testing.T) {
+	parts := []string{"security_group_id", "from_port", "to_port"}
+	obj := func(sg, from, to cty.Value) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{
+			"security_group_id": sg,
+			"from_port":         from,
+			"to_port":           to,
+		})
+	}
+
+	cases := []struct {
+		name string
+		from cty.Value
+		to   cty.Value
+		want string
+	}{
+		{"ordinary ports", cty.NumberIntVal(443), cty.NumberIntVal(443), "sg-123_443_443"},
+		{"a zero port, not a hole in the string", cty.NumberIntVal(0), cty.NumberIntVal(65536), "sg-123_0_65536"},
+		{"a number parsed from a decimal literal renders the same as one built as an int", cty.MustParseNumberVal("443.0"), cty.NumberIntVal(8000), "sg-123_443_8000"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, tc.to), parts, "_")
+			if !ok {
+				t.Fatalf("refused an object carrying every segment (from_port=%s, to_port=%s)", tc.from.GoString(), tc.to.GoString())
+			}
+			if got != tc.want {
+				t.Errorf("composed = %q, want %q - a number segment must render as plain decimal digits matching "+
+					"the provider's own documented import strings, never a decimal point or an exponent", got, tc.want)
+			}
+		})
+	}
+
+	refusals := []struct {
+		name string
+		from cty.Value
+		why  string
+	}{
+		{"a non-integral port", cty.MustParseNumberVal("443.5"), "no real port number is fractional, and nothing here has verified how the provider would render one that was - guessing is refused"},
+		{"an unknown port", cty.UnknownVal(cty.Number), "a value read from a plan rather than a finished apply"},
+		{"a null port", cty.NullVal(cty.Number), "a segment that is not there cannot be composed around"},
+		{"a marked port", cty.NumberIntVal(443).Mark("secret"), "an identity derived from a sensitive value would be written to the store in clear"},
+	}
+	for _, tc := range refusals {
+		t.Run(tc.name, func(t *testing.T) {
+			if got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, cty.NumberIntVal(443)), parts, "_"); ok {
+				t.Errorf("composed %q, want a refusal.\n%s", got, tc.why)
+			}
+		})
 	}
 }
 

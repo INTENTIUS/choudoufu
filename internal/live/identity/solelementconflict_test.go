@@ -62,35 +62,57 @@ func TestSoleElementConflictNeverBindsAConcreteIdentity(t *testing.T) {
 	}
 }
 
-// TestSoleElementConflictDropsToRecordRung is the record-rung half of issue
-// #384: HANDOFF's safety rule says a construct this package cannot yet
-// resolve without risking a wrong marker must drop the instance to the
-// record rung and let the run proceed, not merely refuse it - and
-// [resolver.recordFallback]/[RecordFallbackType] already exist to do exactly
-// that for a type with a ratified row whose schema has nowhere to carry a
-// marker (aws_autoscaling_group's name_prefix case,
-// TestRecordFallbackClassifiesUntaggableNamePrefix). This proves the SAME
-// wiring now fires for a [Component.SoleElement] conflict too, wherever the
-// type's identity can be recorded in full.
+// TestSecurityGroupRuleSourceSegmentStaysRefused is the record-rung
+// investigation issue #384's own regression opened, resolved honestly rather
+// than rushed.
 //
-// The schema below is synthetic, not aws_security_group_rule's real
-// hashicorp/aws one, and that is the point being measured, not an
-// oversight: aws_security_group_rule is unconditionally in
-// [IDNotProvenWholeTypes], so [LocatedIdentityPlanFor] can only recover a
-// recordable identity for it through [resolveDocumentedImportID], which
-// requires every documented segment ("securitygroupid", "type", "protocol",
-// "fromport", "toport") to be a top-level STRING attribute -
-// stringAttrsByDocName only indexes strings. The real provider schema types
-// from_port/to_port as cty.Number (confirmed against a live schema dump),
-// so RecordFallbackType("aws_security_group_rule", real schemas) is false
-// today: the record path this test proves exists does not yet reach
-// aws_security_group_rule's actual shape, only a hypothetical schema of the
-// identical type whose ports happen to be strings. Extending
-// resolveDocumentedImportID to corroborate non-string segments (and to
-// render them back exactly the way the provider's own import string does)
-// is follow-up work, not done here - see this package's own doc comment on
-// [RecordFallbackType] and the PR this test shipped with.
-func TestSoleElementConflictDropsToRecordRung(t *testing.T) {
+// HANDOFF's safety rule says a construct this package cannot yet resolve
+// without risking a wrong marker must drop the instance to the record rung,
+// not merely refuse it - and [resolver.recordFallback]/[RecordFallbackType]
+// already do exactly that for a type with a ratified row whose schema has
+// nowhere to carry a marker (aws_autoscaling_group's name_prefix case,
+// TestRecordFallbackClassifiesUntaggableNamePrefix). An earlier pass of this
+// test asserted the SAME wiring fires for this [Component.SoleElement]
+// conflict too, using a schema that stringified from_port/to_port to dodge
+// the real gap ([attrsByDocName] not yet admitting cty.Number) - and never
+// checked the resulting identity STRING, only the resolved CLASS.
+//
+// Fixing the number gap (this file's own change) uncovers a second,
+// unrelated problem that the earlier test's synthetic schema was
+// accidentally exercising, unchecked, the whole time: with
+// security_group_id/type/protocol/from_port/to_port all resolved, the
+// documented import string's sixth segment - "cidr_block" - is STILL
+// unresolved (the real schema carries only the LIST cidr_blocks, never a
+// scalar cidr_block), which makes it the type's one "id"-inferred segment.
+// But aws_security_group_rule's `id` is confirmed, from the provider's own
+// source (securityGroupRuleCreateID: `"sgrule-" + hash(sgID, ports,
+// protocol, type, ALL sources)`), to be a hash of the WHOLE rule, not any
+// one source - so recording it in the source's place would be a wrong
+// identity the provider's own importer refuses to parse
+// (resourceSecurityGroupRuleImport's source-format check), not a working
+// one. [pluralCollectionCollision] is the guard this file adds to stop that
+// substitution generically (see [resolveDocumentedImportID]'s doc comment
+// and TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema's
+// "collides with a real plural collection attribute" case for the guard on
+// its own), and this test is its by-value proof against the type that forced
+// it: the schema is aws_security_group_rule's REAL 6.59.0 shape (confirmed
+// via `terraform providers schema -json` against the pinned provider), not a
+// hypothetical.
+//
+// The deeper fact this leaves standing: aws_security_group_rule's
+// documented "SOURCE[_SOURCE]*" import grammar is variadic - the Import
+// section's own second example joins FOUR source tokens after one
+// FROMPORT_TOPORT pair - and [DocumentedImportIDPart]'s model is a fixed
+// one-attribute-per-segment list with no way to express "the rest of the
+// string is every element of these list arguments, in some order". Building
+// that safely means knowing the provider's importer is order-insensitive
+// over the trailing tokens, which needs its own verification and its own
+// review; it is not a corroboration gap and is not done here. Until it
+// exists, this conflict correctly stays a refusal - the same
+// "Ambiguous list-valued identity argument" diagnostic
+// TestSoleElementConflictNeverBindsAConcreteIdentity already asserts,
+// unchanged by anything in this file.
+func TestSecurityGroupRuleSourceSegmentStaysRefused(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "record-fallback-solelement-conflict"), nil)
 
 	stringAttr := func(required bool) *configschema.Attribute {
@@ -99,32 +121,59 @@ func TestSoleElementConflictDropsToRecordRung(t *testing.T) {
 		}
 		return &configschema.Attribute{Type: cty.String, Optional: true}
 	}
-	schema := providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+	numberAttr := func() *configschema.Attribute {
+		return &configschema.Attribute{Type: cty.Number, Required: true}
+	}
+	block := &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"id":                       {Type: cty.String, Computed: true},
 		"security_group_id":        stringAttr(true),
 		"type":                     stringAttr(true),
 		"protocol":                 stringAttr(true),
-		"from_port":                stringAttr(true),
-		"to_port":                  stringAttr(true),
+		"from_port":                numberAttr(),
+		"to_port":                  numberAttr(),
 		"cidr_blocks":              {Type: cty.List(cty.String), Optional: true},
 		"ipv6_cidr_blocks":         {Type: cty.List(cty.String), Optional: true},
 		"prefix_list_ids":          {Type: cty.List(cty.String), Optional: true},
 		"source_security_group_id": {Type: cty.String, Optional: true, Computed: true},
-	}}}
-	schemas := map[string]providers.Schema{"aws_security_group_rule": schema}
+	}}
+	schemas := map[string]providers.Schema{"aws_security_group_rule": {Block: block}}
 
-	if !RecordFallbackType("aws_security_group_rule", schemas) {
-		t.Fatalf("RecordFallbackType(synthetic all-string aws_security_group_rule schema) = false, want true - the fixture is built so every documented import segment resolves as a top-level string, which is exactly the condition this route requires; if this is false the test below is not exercising the route it claims to")
+	// The mechanics, asserted directly: every Argument segment now resolves
+	// (proving the number fix reached this type at all), and the grammar as
+	// a whole is still refused (proving the plural-collision guard, not
+	// some unrelated failure, is what stops it - if this were true for the
+	// wrong reason, e.g. a typo in the schema above, the case below would
+	// pass vacuously).
+	if parts, _, ok := resolveDocumentedImportID("aws_security_group_rule", block); ok {
+		t.Fatalf("resolveDocumentedImportID(real aws_security_group_rule schema) = %v, ok=true; want a refusal - "+
+			"the \"cidr_block\" segment has no safe resolution and must not be filled by inferring `id`", parts)
+	}
+	if RecordFallbackType("aws_security_group_rule", schemas) {
+		t.Fatal("RecordFallbackType(real aws_security_group_rule schema) = true, want false: the type's " +
+			"identity cannot be recorded in full while its \"cidr_block\" segment has no safe resolution, so " +
+			"the record-rung promise (\"the record can be read back as a whole, correct import identity\") " +
+			"cannot be kept for it yet")
 	}
 
+	// The end-to-end behavior, unchanged from before this file's fix: the
+	// conflicting instance still resolves to no concrete identity and still
+	// raises the same operator-facing diagnostic, record_store declared or
+	// not.
 	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
-	assertNoErrors(t, diags)
 
-	res := resolutionAt(t, result, "aws_security_group_rule.egress_all_all")
-	if res.Class != ClassRecordLocated {
-		t.Fatalf("egress_all_all resolved %s, want %s: cidr_blocks and ipv6_cidr_blocks are both genuinely non-empty (a SoleElement conflict), a record_store is declared, and the type's identity is now fully recordable, so it must drop to the record rung rather than refuse or guess", res.Class, ClassRecordLocated)
+	if res, ok := result.Get(mustAddr(t, "aws_security_group_rule.egress_all_all")); ok {
+		t.Fatalf("egress_all_all resolved to Class=%s ImportID=%q; the source segment has no safe resolution, "+
+			"so it must resolve to no concrete value rather than a guessed one", res.Class, res.ImportID)
 	}
-	if res.ImportID != "" {
-		t.Errorf("egress_all_all carries ImportID %q; ClassRecordLocated's identity comes from the store, never from this package, and a non-empty value here would be a wrong identity nothing verified", res.ImportID)
+	var found bool
+	for _, d := range diags {
+		if d.Description().Summary == "Ambiguous list-valued identity argument" &&
+			strings.Contains(d.Description().Detail, "egress_all_all") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the %q diagnostic naming egress_all_all even with a record_store declared and the "+
+			"number gap fixed, got: %v", "Ambiguous list-valued identity argument", diags)
 	}
 }

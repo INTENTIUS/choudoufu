@@ -144,7 +144,7 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 		return nil, "", false
 	}
 
-	byName := stringAttrsByDocName(b)
+	byName := attrsByDocName(b)
 
 	resolved := make([]string, len(g.Parts))
 	claimed := make(map[string]bool, len(g.Parts))
@@ -156,6 +156,32 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 				// See this function's doc comment: a named configuration
 				// argument the schema does not carry is a disagreement,
 				// and a second unresolved segment is a coin toss.
+				return nil, "", false
+			}
+			if pluralCollectionCollision(b, p.Name) {
+				// The segment's own name, pluralized, names a real
+				// COLLECTION attribute on this very block - the schema is
+				// telling us the concept it names is multi-valued, not a
+				// single scalar `id` could ever stand in for. Inferring
+				// `id` here would be a guess this package can already
+				// disprove from its own schema, so it is refused instead -
+				// see this function's doc comment on the "id" inference
+				// and [pluralCollectionCollision] for the case that forced
+				// this: aws_security_group_rule's documented "cidr_block"
+				// segment names one element of the block's real
+				// cidr_blocks LIST, and the provider's own `id` is a hash
+				// of the whole rule (security_group_id + ports + protocol
+				// + every source), not any one source - confirmed against
+				// the provider's own securityGroupRuleCreateID and
+				// resourceSecurityGroupRuleImport, not inferred. Recording
+				// `id` in the source's place would compose a string the
+				// provider's own importer refuses to parse, and the
+				// concept the segment actually names - one element of a
+				// list the configuration may set several of at once - has
+				// no single-attribute representation this package's
+				// grammar can read at all; that is new machinery, not a
+				// corroboration gap, and is refused here rather than
+				// guessed at.
 				return nil, "", false
 			}
 			inferred = i
@@ -179,17 +205,32 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 	return resolved, g.Separator, true
 }
 
-// stringAttrsByDocName indexes b's top-level string attributes by
+// attrsByDocName indexes b's top-level string and number attributes by
 // [normalizeDocName], dropping any name two attributes reduce to.
+//
+// Number is admitted alongside string because a documented import segment
+// is exactly as readable off a top-level number as off a top-level string:
+// [locatedAttrSegment] renders a resolved number attribute back into the
+// plain decimal form the provider's own import string uses at write-back
+// time (issue #384's regression - aws_security_group_rule's from_port and
+// to_port are cty.Number on the real hashicorp/aws schema, and a segment
+// this index cannot see is a segment [resolveDocumentedImportID] can never
+// resolve, which is exactly what left that type unable to reach the record
+// rung). No other cty type is admitted: a bool or a collection is not a
+// single token an import string could hold, and there is no established
+// rendering to check against.
 //
 // Dropping rather than picking is the same posture the rest of this package
 // takes towards an ambiguous reading: a name that could mean two attributes
-// means neither, and the caller treats it as unresolved.
-func stringAttrsByDocName(b *configschema.Block) map[string]string {
+// means neither, and the caller treats it as unresolved. Two attributes of
+// DIFFERENT admitted types that reduce to the same name are ambiguous the
+// same way - the reduction has already lost which one the segment means, so
+// which type it would render as is not decidable either.
+func attrsByDocName(b *configschema.Block) map[string]string {
 	out := make(map[string]string, len(b.Attributes))
 	ambiguous := make(map[string]bool)
 	for name, a := range b.Attributes {
-		if a == nil || a.Type != cty.String {
+		if a == nil || (a.Type != cty.String && a.Type != cty.Number) {
 			continue
 		}
 		n := normalizeDocName(name)
@@ -208,6 +249,40 @@ func stringAttrsByDocName(b *configschema.Block) map[string]string {
 	return out
 }
 
+// pluralCollectionCollision reports whether b carries a top-level LIST, SET
+// or MAP attribute whose [normalizeDocName] equals segmentName's own
+// reduction with a trailing "s" appended - the ordinary AWS provider
+// pluralization of a singular concept name (cidr_block -> cidr_blocks,
+// subnet_id -> subnet_ids, and so on across dozens of schemas).
+//
+// It exists purely to make [resolveDocumentedImportID]'s "id" inference
+// MORE conservative, never less: it only ever turns a would-be inference
+// into a refusal, and only for the one segment already about to be
+// inferred, so it cannot make anything this package accepts today less
+// safe - see [TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema]'s
+// containment cases. A segment whose reduced name has no such collision is
+// unaffected.
+//
+// The English-pluralization check is deliberately narrow rather than
+// clever: it is exactly the relationship the case that forced this
+// (aws_security_group_rule's "cidr_block" segment against its real
+// cidr_blocks list) exhibits, it is common across the provider's own
+// naming (see the doc comment where this is called), and a narrower net
+// than this would still catch that case while a cleverer one would be
+// harder to trust without more of them to measure against.
+func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
+	plural := segmentName + "s"
+	for name, a := range b.Attributes {
+		if a == nil || !a.Type.IsCollectionType() {
+			continue
+		}
+		if normalizeDocName(name) == plural {
+			return true
+		}
+	}
+	return false
+}
+
 // LocatedComposedImportID composes an applied object's documented import
 // string out of the attributes [resolveDocumentedImportID] named, in the
 // order it named them.
@@ -223,13 +298,17 @@ func stringAttrsByDocName(b *configschema.Block) map[string]string {
 // than the object has - so a value like that is refused rather than joined.
 // That is a check the documentation cannot make and the values can, which is
 // why it lives at write-back rather than in the roster.
+//
+// A segment [attrsByDocName] resolved against a number attribute is rendered
+// by [locatedAttrSegment], not read as a string directly - see that
+// function's doc comment for what "rendered" means and what it refuses.
 func LocatedComposedImportID(obj cty.Value, parts []string, separator string) (string, bool) {
 	if len(parts) < 2 || separator == "" {
 		return "", false
 	}
 	segments := make([]string, 0, len(parts))
 	for _, name := range parts {
-		v, ok := locatedAttrString(obj, name)
+		v, ok := locatedAttrSegment(obj, name)
 		if !ok || strings.Contains(v, separator) {
 			return "", false
 		}
