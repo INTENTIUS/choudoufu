@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -261,6 +262,36 @@ type Request struct {
 	// Like the record and residue stores it is used by Approve and not by
 	// Ratify: writing is what Approve is for.
 	RootOutputStore *projection.RootOutputStore
+
+	// Config is the configuration this estate's live block declares,
+	// loaded by the caller exactly as a stateless plan loads it
+	// (Meta.loadConfig). Nil is the ordinary answer for a caller with no
+	// configuration in hand - the [migrationSlots] doc comment's "there
+	// being no configuration in hand during a migration" - and every
+	// consumer below already treats that as "resolve nothing extra",
+	// unchanged from every migrate before this field existed.
+	//
+	// It exists for one purpose: GitHub issue #372's remainder.
+	// [Ratification.migrationSlots]'s gate 4 could previously settle a
+	// slotless count set's tofu-slot only for a SERVER-ASSIGNED type,
+	// because whether a CLIENT-NAMED instance needs one at all is a
+	// question about its own declaration, and a migration reading a state
+	// file has none. With Config in hand, [identity.ResolveWith] - the
+	// exact function a stateless replan's own [identity.Result] comes
+	// from - can be asked the identical question here, and its answer is
+	// consulted rather than guessed at.
+	//
+	// Deliberately resolved with a zero [identity.Context]: no real
+	// command populates identity.Context.Cloud today (grep confirms it),
+	// so the zero value is not a degraded case here, it is the SAME input
+	// the subsequent live-plan's own resolution runs with. Schemas is left
+	// nil too - the population this is used for below is restricted to
+	// types [identity.LookupType] already admits from the hand table, and
+	// that lookup never consults Schemas, so omitting it changes nothing
+	// for them and only ever makes an unrelated, schema-only-admitted type
+	// resolve to nothing, which [migrationSlots] already treats as "stay
+	// blocked". See that function's "gate 4" doc for the full argument.
+	Config *configs.Config
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -300,10 +331,18 @@ type Ratification struct {
 	// rootOutputs is the whole state rather than the values, because
 	// [projection.WriteRootOutputValues] takes a state and reads the
 	// sensitivity flag off each [states.OutputValue] itself - and the state
-	// is the only place that flag exists here, there being no configuration
-	// in hand during a migration.
+	// is the only place that flag exists here, regardless of whether
+	// Config is also in hand: a state's OutputValue carries the flag a
+	// configuration's `output` block does not restate at read time.
 	rootOutputStore *projection.RootOutputStore
 	rootOutputs     *states.State
+
+	// resolved is [Request.Config] resolved through [identity.ResolveWith],
+	// when Config was given; nil otherwise, which [migrationSlots] already
+	// treats as "nothing more is known than the type table says". See
+	// [Request.Config]'s doc comment for why a zero [identity.Context] is
+	// the right input here rather than a gap.
+	resolved *identity.Result
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -346,6 +385,20 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		recordKeyPrefix: req.RecordKeyPrefix,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
+	}
+
+	if req.Config != nil {
+		// Diagnostics are deliberately dropped: this is a best-effort
+		// second opinion for [migrationSlots] alone, never a gate on the
+		// migration itself. A configuration this run cannot fully resolve
+		// - a type resolution refuses, a module instance error - still
+		// yields a *Result with every instance that DID resolve, because
+		// [identity.ResolveWith]'s own walk continues past a failed
+		// instance rather than aborting (see resolve.go's walkModule); the
+		// rest simply have no entry, and [migrationSlots] already treats
+		// "not found" as "stay blocked", its safe default.
+		resolved, _ := identity.ResolveWith(ctx, req.Config, identity.Context{})
+		rat.resolved = resolved
 	}
 
 	for _, mod := range sortedModules(req.State) {

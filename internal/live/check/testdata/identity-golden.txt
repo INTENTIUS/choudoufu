@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=574 instances=1674
-# shape: class CONCRETE=809
-# shape: class NEEDS_DISCOVERY=706
+# shape: dirs=577 instances=1680
+# shape: class CONCRETE=811
+# shape: class NEEDS_DISCOVERY=710
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=7903413dc973cce6712487a3bd20c328c5f3142719fdaf6eecb0880a81be86ca
+# shape: body-sha256=c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -803,6 +803,12 @@ internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.east	CONCRET
 internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	lint-undeclared-alias-stray	bucket=lint-undeclared-alias-stray
 internal/live/lint/testdata/undeclared-provider-alias-declared	aws_s3_bucket.west	CONCRETE	lint-declared-alias-west	bucket=lint-declared-alias-west
 internal/live/lint/testdata/undeclared-provider-alias-two-names	aws_s3_bucket.cross	CONCRETE	lint-two-names-cross	bucket=lint-two-names-cross
+internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[0]	NEEDS_DISCOVERY		
+internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[1]	NEEDS_DISCOVERY		
+internal/live/liveimport/testdata/slot-clientnamed-literal-config	aws_iam_role.this[0]	CONCRETE	task-0	name=task-0
+internal/live/liveimport/testdata/slot-clientnamed-literal-config	aws_iam_role.this[1]	CONCRETE	task-1	name=task-1
+internal/live/liveimport/testdata/slot-markerfallback-config	aws_iam_role.this[0]	NEEDS_DISCOVERY		
+internal/live/liveimport/testdata/slot-markerfallback-config	aws_iam_role.this[1]	NEEDS_DISCOVERY		
 internal/live/marksafe/testdata/foreach-comprehension-sensitive-if	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/marksafe/testdata/foreach-comprehension-sensitive-if	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/marksafe/testdata/foreach-comprehension-sensitive-if	aws_subnet.this["c"]	NEEDS_DISCOVERY		

@@ -214,6 +214,12 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		RecordStore:     recordStore,
 		RecordKeyPrefix: recordKeyPrefix,
 		RootOutputStore: rootOutputStore,
+		// GitHub issue #372's remainder: the same configuration this
+		// command already loaded above to find the record_store block, now
+		// also handed to Ratify so migrationSlots can settle a client-named
+		// count instance's slot from its own declaration instead of
+		// leaving it unsettled. See [liveimport.Request.Config].
+		Config: config,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags
