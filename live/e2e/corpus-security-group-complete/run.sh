@@ -406,14 +406,33 @@ SKIPPED=9
 # the record before falling back to the marker sweep or the static
 # evaluator. Measured for real against this estate, not derived: all 58
 # STAMPED instances get one (their identity is a plain server-minted "id",
-# recordable in full and not sensitive); none of the 9 SKIPPED (untaggable)
-# ones do - aws_route_table_association's identity is the composite
-# (route_table_id, subnet_id) pair, which LocatedIdentityPlanFor cannot
-# derive from a bare top-level "id" attribute, and
-# aws_vpc_security_group_rules_exclusive carries no importable identity at
-# all. So IDENTITIES_RECORDED is exactly ELIGIBLE here, not
-# ELIGIBLE+SKIPPED - a real, estate-specific number, not a guess.
-IDENTITIES_RECORDED=58
+# recordable in full and not sensitive). Of the 9 SKIPPED (untaggable)
+# ones, aws_route_table_association's identity is still the composite
+# (route_table_id, subnet_id) pair that LocatedIdentityPlanFor cannot
+# derive from a bare top-level "id" attribute - those 6 stay unrecorded.
+#
+# The other 3 SKIPPED - the estate's aws_vpc_security_group_rules_exclusive
+# instances (module.consul, module.postgresql, module.security_group) - DO
+# now get one: unit B's read-first work (#364) found that
+# LocatedIdentityPlanFor's default branch always fell back to the bare "id"
+# attribute even when a ratified TypeIdentity.IdentityAttrs row named a
+# different, single attribute the wire identity schema said nothing about -
+# the same defect issue #332 already fixed one layer out, for the classic
+# discovery/plan-time path, for aws_default_route_table specifically
+# (identity_attrs ["vpc_id"]; this estate's two aws_default_route_table
+# instances were ALREADY counted as recorded before this fix - they just
+# held the wrong value, rtb-... instead of vpc-..., so fixing them moves no
+# count here, only a value). aws_vpc_security_group_rules_exclusive's own
+# ratified row (identity_attrs ["security_group_id"]) hits the identical
+# gap on the WRITE side this issue is about, and the fix that closes it for
+# one closes it for both: LocatedIdentityPlanFor now prefers a ratified
+# single-attribute row over the bare "id" default whenever the wire schema
+# itself says nothing (internal/live/identity/located.go's namedIdentityAttr).
+#
+# So IDENTITIES_RECORDED is ELIGIBLE plus these 3, not ELIGIBLE+SKIPPED -
+# still a real, estate-specific number, not a guess: aws_route_table_association's
+# 6 instances remain unrecorded.
+IDENTITIES_RECORDED=61
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
