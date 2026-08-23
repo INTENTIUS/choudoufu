@@ -39,6 +39,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -266,6 +267,22 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	coreOpts.Hooks = view.Hooks()
 	coreOpts.Encryption = enc
 
+	// GitHub issue #388's plan-node seam, behind CHOUDOUFU_NODE_RESOLVE=1
+	// (see internal/command/live_mode.go's nodeResolveEnabled, which this
+	// command shares - the flag is a build-migration switch, not a
+	// property of one pipeline). This is the "-estate" flag form's own
+	// seam: it never goes through statelessBegin/backend_local.go's
+	// StatelessRun at all (see this file's own doc comment), so it needs
+	// the identical construct-empty-then-populate wiring live_mode.go
+	// uses, independently. Constructed here, before tofu.NewContext, for
+	// the same reason: this is the last point coreOpts can still be
+	// mutated.
+	var resolver *projection.NodeResolver
+	if nodeResolveEnabled() {
+		resolver = &projection.NodeResolver{}
+		coreOpts.ResourceIdentityResolver = resolver
+	}
+
 	// Built here rather than just before the plan, where it used to be,
 	// because the targeting scope below is read off the plan graph and the
 	// plan graph is this object's to build. Constructing it starts nothing:
@@ -338,6 +355,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// A first pass that refuses is no longer fatal on its own: see
 	// [statelessResolve] for the second pass and the bound on it.
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
+	if resolver != nil {
+		// #364 unit B's landing note (item 3), mirrored from
+		// live_mode.go's PriorState: a per-instance static refusal
+		// becomes a warning under the flag, and the instance - still
+		// absent from resolutions - reaches the node resolver instead of
+		// aborting the run. See identity.DowngradeForNodeResolution.
+		idDiags = identity.DowngradeForNodeResolution(idDiags)
+	}
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
@@ -404,6 +429,20 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	}
 	if disco != nil {
 		merged = disco.Resolutions
+	}
+
+	// GitHub issue #388's plan-node seam: populate the resolver constructed
+	// empty above, now that both its data sources exist. hintStore/estate
+	// give it the same record store the projection below reads (nil for
+	// this command's own "-estate" form whenever the configuration
+	// declares no live block at all - see hintStore's own doc comment a
+	// few lines up - which is the ordinary case for this flag-only form
+	// and simply means step (a) never has anything to find); merged is
+	// the marker sweep's own resolutions, snapshotted into an index.
+	if resolver != nil {
+		resolver.RecordStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
