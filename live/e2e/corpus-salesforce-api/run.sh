@@ -238,9 +238,15 @@ APPLY2="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
   printf '%s\n' "$APPLY2" | grep -E '^Error|^│' | head -20; fail "the phase 2 apply failed"; }
 log "  $(grep -E 'Apply complete' <<< "$APPLY2" | head -1)"
 
+# GitHub issue #364 unit A1 collapsed the once-separate "tofu-residue" root
+# into the single per-instance envelope every record now lives in
+# (internal/live/projection/record.go's RecordKeyPrefix); a directory glob
+# can no longer tell a residue-carrying key apart from any other kind
+# sharing the same root, so the residue member itself is checked instead.
 for who in update-salesforce-daily salesforce-api; do
-  RESKEY="$(find "$RECORDS" -type f -path '*tofu-residue*' -exec grep -l "\"aws_lambda_function.$who\"" {} \; | head -1)"
-  [ -n "$RESKEY" ] || { find "$RECORDS" -type f; fail "no residue record was written for aws_lambda_function.$who"; }
+  RESKEY="$(find "$RECORDS" -type f -exec grep -l "\"aws_lambda_function.$who\"" {} \; | head -1)"
+  [ -n "$RESKEY" ] || { find "$RECORDS" -type f; fail "no record was written for aws_lambda_function.$who"; }
+  grep -qF '"residue":{' "$RESKEY" || { cat "$RESKEY"; fail "the record for aws_lambda_function.$who carries no residue member"; }
   for arg in filename source_code_hash publish; do
     grep -q "\"$arg\"" "$RESKEY" || { cat "$RESKEY"; fail "the residue record for $who does not carry $arg"; }
   done

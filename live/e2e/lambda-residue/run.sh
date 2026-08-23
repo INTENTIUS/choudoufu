@@ -266,12 +266,15 @@ if [ -n "${KEEP_LOGS:-}" ]; then
 fi
 log "  $(grep -E 'Apply complete' <<< "$APPLY2" | head -1)"
 
-# What landed in the store, read as a file and not through choudoufu. Note
-# the namespace: "tofu-residue", a fifth root disjoint from "tofu-records",
-# so that the listing which proposes destroying undeclared records can never
-# reach it.
-RESKEY="$(find "$RECORDS" -type f -path '*tofu-residue*' | head -1)"
-[ -n "$RESKEY" ] || { find "$RECORDS" -type f | head -20; fail "no residue record was written under tofu-residue/"; }
+# What landed in the store, read as a file and not through choudoufu.
+# GitHub issue #364 unit A1 collapsed the once-separate "tofu-residue" root
+# into the single per-instance envelope every record now lives in
+# (internal/live/projection/record.go's RecordKeyPrefix); it is the
+# envelope's own "kind" field, not which literal a key starts with, that
+# now keeps a residue-carrying key out of the listing which proposes
+# destroying undeclared records - see record.go's recordKindIdentity.
+RESKEY="$(find "$RECORDS" -type f -path '*tofu-records*' -exec grep -l '"residue":{' {} \; | head -1)"
+[ -n "$RESKEY" ] || { find "$RECORDS" -type f | head -20; fail "no record carrying a residue member was written under tofu-records/"; }
 log "  residue recorded at ${RESKEY#$RECORDS/}"
 for arg in filename source_code_hash publish; do
   grep -q "\"$arg\"" "$RESKEY" || { cat "$RESKEY"; fail "the residue record does not carry $arg"; }

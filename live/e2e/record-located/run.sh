@@ -126,9 +126,15 @@ MAIN="$WORK/estate"
 mkdir -p "$MAIN"
 cp "$FIXTURE/main.tf" "$MAIN/main.tf"
 RECORDS="$MAIN/.tofu-records"
-LOCATED="$RECORDS/tofu-located/$ESTATE"
+# GitHub issue #364 unit A1 folded the once-separate "tofu-located"
+# namespace into the single "tofu-records" root every record now lives
+# under (internal/live/projection/record.go's RecordKeyPrefix/RecordKey);
+# what used to be a directory a located key could never share with a
+# record-backed one is now the envelope's own "kind" field - see step 4
+# below.
+LOCATED="$RECORDS/tofu-records/$ESTATE"
 
-# located_key reproduces internal/live/projection's LocatedKey encoding for
+# located_key reproduces internal/live/projection's RecordKey encoding for
 # one instance address: the base64url of the address string, unpadded. It is
 # spelled out rather than discovered by listing the directory on purpose -
 # a step that globbed would still pass if the addresses were wrong.
@@ -137,15 +143,35 @@ located_key() { printf '%s' "$1" | base64 | tr -d '=\n' | tr '+/' '-_'; }
 ALPHA_ADDR='aws_cloudfront_public_key.signers["rl-e2e-alpha"]'
 BRAVO_ADDR='aws_cloudfront_public_key.signers["rl-e2e-bravo"]'
 POLICY_ADDR='aws_ecr_registry_policy.registry'
+VPC_ADDR='aws_vpc.control'
 
 ALPHA_REC="$LOCATED/aws_cloudfront_public_key/$(located_key "$ALPHA_ADDR")"
 BRAVO_REC="$LOCATED/aws_cloudfront_public_key/$(located_key "$BRAVO_ADDR")"
 POLICY_REC="$LOCATED/aws_ecr_registry_policy/$(located_key "$POLICY_ADDR")"
+# GitHub issue #364 unit A2's foundation-order ruling (writeback.go's
+# writeBackRecordEnvelopes): every recordable instance now gets its
+# identity recorded best-effort, not only a located route's - so the
+# taggable, marker-tracked aws_vpc.control gets a kind=identity record
+# alongside the three genuinely located ones, even though its marker
+# remains its real ownership carrier. See step 4 below.
+VPC_REC="$LOCATED/aws_vpc/$(located_key "$VPC_ADDR")"
 
-# record_id reads the importID out of one located record file.
+# record_id reads identity.import_id out of one located record file's
+# merged envelope (record.go's identityPayload; "importID" was the retired
+# locatedPayload's field name before GitHub issue #364 unit A1).
 record_id() {
   [ -f "$1" ] || fail "no located record at $1"
-  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["importID"])' "$1"
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity"]["import_id"])' "$1"
+}
+
+# kind_of reads the merged envelope's own "kind" field - recordKindObject
+# is the only kind builder.discoverOrphanedRecords ever proposes destroying
+# for; recordKindIdentity is what a located identity, having no cloud
+# object the record authorizes, always carries (record.go's own comment on
+# recordKindIdentity).
+kind_of() {
+  [ -f "$1" ] || fail "no located record at $1"
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["kind"])' "$1"
 }
 
 # ── 2. stand the estate up ──────────────────────────────────────────────────
@@ -214,22 +240,33 @@ log "=== 4. the record store ==="
   || fail "the record for $POLICY_ADDR holds $(record_id "$POLICY_REC"), but the emulator says the registry is $POLICY_LIVE"
 log "  3 located records, each holding the id the emulator agrees with"
 
-# The namespace split, observed rather than assumed. A located key must not
-# live under tofu-records/, because builder.discoverOrphanedRecords LISTS
-# that root and proposes destroying every key the configuration no longer
-# declares. For a record-BACKED resource the record is the object and that is
-# correct; for a located one it would drive a cloud deletion from a stale
-# file. See internal/live/projection/located.go's locatedNamespaceRoot.
+# The namespace split, observed rather than assumed. GitHub issue #364
+# unit A1 merged the once-separate tofu-records/tofu-located roots into
+# one per-instance envelope (internal/live/projection/record.go), so
+# "which directory is this key under" is no longer a question that can be
+# asked - what used to be answered by a directory is now answered by the
+# envelope's own "kind" field. recordKindObject is the only kind
+# builder.discoverOrphanedRecords ever proposes destroying for; a located
+# key must carry recordKindIdentity, because for a record-BACKED resource
+# the record IS the object (destroying it is correct) but for a located
+# one it would drive a cloud deletion from a stale file. See record.go's
+# own comment on recordKindIdentity.
 > "$WORK/record-ns"
 count_ns() { find "$RECORDS/$1" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null > "$WORK/record-ns" || true
              wc -l < "$WORK/record-ns" | tr -d ' '; }
+# 4, not 3: GitHub issue #364 unit A2's ruling means aws_vpc.control gets
+# an identity record too now, alongside the three genuinely located
+# instances - see VPC_REC's own comment above. That is fine precisely
+# because the count that matters is not "how many files" but "how many
+# carry kind=object", checked below as zero.
 RECORD_NS_FILES="$(count_ns tofu-records)"
-[ "$RECORD_NS_FILES" = "0" ] \
-  || fail "$RECORD_NS_FILES file(s) exist under tofu-records/, the namespace orphan discovery enumerates. Nothing in this fixture is record-BACKED, so a located identity has leaked into the destroy path's namespace."
-LOCATED_NS_FILES="$(count_ns tofu-located)"
-[ "$LOCATED_NS_FILES" = "3" ] \
-  || fail "expected 3 files under tofu-located/, found $LOCATED_NS_FILES"
-log "  3 keys under tofu-located/, 0 under tofu-records/: the split holds on disk"
+[ "$RECORD_NS_FILES" = "4" ] \
+  || fail "expected 4 files under the merged tofu-records/ tree, found $RECORD_NS_FILES"
+for rec in "$ALPHA_REC" "$BRAVO_REC" "$POLICY_REC" "$VPC_REC"; do
+  [ "$(kind_of "$rec")" = "identity" ] \
+    || fail "$rec carries kind=$(kind_of "$rec"), not identity - a located identity has become delete authority"
+done
+log "  4 keys under the merged tofu-records/ tree, each carrying kind=identity: nothing here is delete authority"
 
 # ── 5. delete the state file, and find the objects again ────────────────────
 log "=== 5. delete the state file ==="
@@ -303,7 +340,7 @@ log "  every located instance bound to the live object the emulator names"
 # ── 8. the check is not vacuous ─────────────────────────────────────────────
 # Break the identity and require the check to fail. One field in one file:
 # bravo's record is pointed at ALPHA's live object, with its "address" field
-# left correct - so LocatedStore.Get's key/payload cross-check still passes
+# left correct - so RecordStore.getRaw's key/payload cross-check still passes
 # and the only thing wrong is which object the id names.
 log "=== 8. break the identity, and require step 7's check to catch it ==="
 cp "$BRAVO_REC" "$WORK/bravo.record.bak"
@@ -311,7 +348,7 @@ python3 - "$BRAVO_REC" "$ALPHA_LIVE" <<'PY'
 import json, sys
 p, wrong = sys.argv[1], sys.argv[2]
 rec = json.load(open(p))
-rec["importID"] = wrong
+rec["identity"]["import_id"] = wrong
 open(p, "w").write(json.dumps(rec, separators=(",", ":")))
 PY
 [ "$(record_id "$BRAVO_REC")" = "$ALPHA_LIVE" ] || fail "the mutation did not take"

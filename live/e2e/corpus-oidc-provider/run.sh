@@ -275,13 +275,18 @@ APPLY_R="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)
   printf '%s\n' "$APPLY_R" | grep -E '^Error|^│' | head -20; fail "the apply through the record store failed"; }
 RESKEY="$(grep -rl 'force_detach_policies' "$EST/.tofu-records" 2>/dev/null | head -1)"
 [ -n "$RESKEY" ] || { find "$EST/.tofu-records" -type f 2>/dev/null | head -20; fail "no residue record carrying force_detach_policies was written"; }
-case "$RESKEY" in *tofu-residue*) ;; *) fail "the force_detach_policies record landed outside the tofu-residue namespace: $RESKEY";; esac
+# GitHub issue #364 unit A1 collapsed the once-separate "tofu-residue" root
+# into the single per-instance envelope every record now lives in
+# (internal/live/projection/record.go's RecordKeyPrefix), so a directory
+# name can no longer say this key is a residue key - the envelope's own
+# "residue" member does.
+grep -qF '"residue":{' "$RESKEY" || { cat "$RESKEY"; fail "the force_detach_policies record carries no residue member: $RESKEY"; }
 # It must not carry what IAM does answer. A stored copy of a live answer is a
 # second opinion that would make the plan go empty over real drift.
 for forbidden in '"name"' '"arn"' '"assume_role_policy"' '"path"'; do
   grep -q "$forbidden" "$RESKEY" && { cat "$RESKEY"; fail "the residue record carries $forbidden, which IAM answers"; }
 done
-log "  residue recorded under tofu-residue/, carrying force_detach_policies and nothing IAM answers"
+log "  residue recorded in the merged tofu-records envelope, carrying force_detach_policies and nothing IAM answers"
 
 # ── 5b. THE VALUE, not the verdict ──────────────────────────────────────────
 log "=== 5b. no state file, and the rendered identities read out of the run ==="
