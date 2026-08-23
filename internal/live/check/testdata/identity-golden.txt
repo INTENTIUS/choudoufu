@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=583 instances=1685
+# shape: dirs=587 instances=1689
 # shape: class CONCRETE=815
-# shape: class NEEDS_DISCOVERY=711
+# shape: class NEEDS_DISCOVERY=715
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=ff2bcef17b77a9fde38765565aeda7d1cd4eef9514b81aac1d763a129da9ae40
+# shape: body-sha256=ee82b073d159cb767b023a2d2e60c1195f95a87edf78c141b9129290a04eeff5
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -345,10 +345,14 @@ internal/live/identity/testdata/local-attr-selected	aws_route53_record.static	CO
 internal/live/identity/testdata/local-attr-selected	aws_route53_zone.public	NEEDS_DISCOVERY		
 internal/live/identity/testdata/local-attr-value	aws_route53_record.www	PARENT_DERIVED	${aws_route53_zone.public.zone_id}_www_A	name=www,type=A,zone_id=${aws_route53_zone.public.zone_id}
 internal/live/identity/testdata/local-attr-value	aws_route53_zone.public	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-ambiguous-local	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-bare	aws_route_table_association.this["a"]	PARENT_DERIVED	${aws_subnet.this["a"].id}/rtb-1	
 internal/live/identity/testdata/managed-read-bare	aws_route_table_association.this["b"]	PARENT_DERIVED	${aws_subnet.this["b"].id}/rtb-1	
 internal/live/identity/testdata/managed-read-bare	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-bare	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-count-local	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-count-module	module.acm.aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-count-module/modules/acm	aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-direct-arg	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-direct-arg	aws_cloudwatch_log_group.app	PARENT_DERIVED	${aws_acm_certificate.cert.arn}	name=${aws_acm_certificate.cert.arn}
 internal/live/identity/testdata/managed-read-foreach	aws_acm_certificate.cert	NEEDS_DISCOVERY		

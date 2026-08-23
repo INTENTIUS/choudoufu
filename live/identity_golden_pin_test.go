@@ -1190,7 +1190,18 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against main's copy,
 // which shows exactly five added lines and nothing else changed except the
 // header's shape line. See identityGoldenPinInstances's own note.
-const identityGoldenPinBodyDigest = "ff2bcef17b77a9fde38765565aeda7d1cd4eef9514b81aac1d763a129da9ae40"
+// Then ff2bcef1... -> ee82b073... for alb family B on top of #313 and
+// #384, rebased onto main's actual current base (583/1685, ff2bcef1...):
+// four added rows for the three new managed-read-* fixtures
+// (managed-read-ambiguous-local, managed-read-count-local and
+// managed-read-count-module, the last swept twice, once at its own root
+// and once for its ./modules/acm child) change the hash of a file whose
+// rows they now join; no existing row's bytes moved, confirmed by
+// regenerating with -update on the rebased tree and diffing
+// internal/live/check/testdata/identity-golden.txt against main's copy,
+// which shows exactly four added lines and nothing else changed except
+// the header's shape line.
+const identityGoldenPinBodyDigest = "ee82b073d159cb767b023a2d2e60c1195f95a87edf78c141b9129290a04eeff5"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1757,7 +1768,17 @@ const (
 	// testdata/identity-golden.txt before and after regenerating, rebased
 	// onto GitHub issue #372's own two-pass total directly above (577/1680)
 	// rather than measured against a stale 574/1674 base.
-	identityGoldenPinInstances = 1685
+	//
+	// Then 1685 -> 1689 for alb family B on top of #313 and #384, rebased
+	// onto #313's own base directly above (583/1685): four new instances
+	// across the four new managed-read-* directories from
+	// identityGoldenPinDirs's own note - one aws_acm_certificate row per
+	// directory, each NEEDS_DISCOVERY with no rendered value, the same
+	// shape every managed-read-* sibling fixture already contributes.
+	// "0 identities changed, 4 added, 0 removed" confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating on the
+	// rebased tree.
+	identityGoldenPinInstances = 1689
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1954,7 +1975,16 @@ const (
 	// dependency-order wall. Rebased onto #384's 578 rather than #313's own
 	// original base of 574. See identityGoldenPinInstances's own note for
 	// detail.
-	identityGoldenPinDirs = 583
+	//
+	// 583 -> 587 for alb family B on top of #313 and #384: four new
+	// fixture directories - managed-read-ambiguous-local,
+	// managed-read-count-local, managed-read-count-module and
+	// managed-read-count-module/modules/acm (the last swept twice, once at
+	// its own root and once for its ./modules/acm child, the same way
+	// tolerant-module-output's submodules are) - for corpus-alb-complete's
+	// Family B fix (server-minted ACM domain_validation_options). Rebased
+	// onto #313's 583 rather than this branch's own original base of 577.
+	identityGoldenPinDirs = 587
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
