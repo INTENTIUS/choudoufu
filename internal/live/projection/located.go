@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -158,6 +160,55 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 	})
 }
 
+// LocatedRecordFrom derives the [LocatedRecord] one applied object of
+// resourceType would be written as, from the same evidence
+// [identity.LocatedIdentityPlanFor] already uses to decide whether the type
+// is recordable at all: a composite identity comes back as components, a
+// composed one as the documented import ID string, and every other
+// recordable type as its own "id" attribute.
+//
+// It exists so that every writer of a located record - [writeBackLocated]
+// after an apply, and liveimport's Approve at migrate time (GitHub issue
+// #365 slice 2) - derives one from the identical rule instead of each
+// carrying its own copy that can drift from the other. Nothing here names a
+// resource type; the three-way switch is on the SHAPE
+// [identity.LocatedIdentityPlanFor] reports for resourceType, which is
+// itself read from schema, not from a list.
+//
+// The second return is false whenever no usable identity could be derived -
+// the type is not recordable at all, or the specific object carries an
+// empty or missing identity attribute - and obj is then not written
+// anywhere; every caller treats false as its own "cannot record" error.
+func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
+	plan, recordable := identity.LocatedIdentityPlanFor(resourceType, schema)
+	rec := LocatedRecord{}
+	if recordable {
+		switch {
+		case plan.Composite():
+			// A composite identity is recorded as an OBJECT and with no
+			// string at all. "id" holds the bare leaf for such a type, so
+			// recording it as the import ID would store a fragment that
+			// reads back as a whole identity - the exact defect this
+			// branch exists to close.
+			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
+		case plan.Composed():
+			// The provider serves no identity object for this type, so
+			// there is no object to record - but its own Import section
+			// states the string's grammar, and issue #337's
+			// [identity.DocumentedImportIDs] resolved every segment
+			// against this very schema. The string composed here is the
+			// documented import ID, read rather than invented.
+			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDSeparator)
+		default:
+			rec.ImportID, recordable = identity.LocatedImportID(obj)
+		}
+	}
+	if !recordable || rec.Empty() {
+		return LocatedRecord{}, false
+	}
+	return rec, true
+}
+
 // writeBackLocated is [WriteBack]'s located half: after an apply, every
 // record-located instance's import identity is written to the store, and
 // every located record whose instance the apply removed is deleted.
@@ -268,31 +319,13 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 			// provider's own account of it, re-asked here rather than
 			// remembered, for the same reason LocatedType is above: one
 			// function answering one question is what keeps the set that
-			// gets written identical to the set that gets read.
-			plan, recordable := identity.LocatedIdentityPlanFor(typeName, *schema)
-			rec := LocatedRecord{}
-			if recordable {
-				switch {
-				case plan.Composite():
-					// A composite identity is recorded as an OBJECT and with
-					// no string at all. "id" holds the bare leaf for such a
-					// type, so recording it as the import ID would store a
-					// fragment that reads back as a whole identity - the
-					// exact defect this branch exists to close.
-					rec.Components, recordable = identity.LocatedIdentity(obj.Value, plan.Components)
-				case plan.Composed():
-					// The provider serves no identity object for this type,
-					// so there is no object to record - but its own Import
-					// section states the string's grammar, and issue #337's
-					// [identity.DocumentedImportIDs] resolved every segment
-					// against this very schema. The string composed here is
-					// the documented import ID, read rather than invented.
-					rec.ImportID, recordable = identity.LocatedComposedImportID(obj.Value, plan.ImportIDParts, plan.ImportIDSeparator)
-				default:
-					rec.ImportID, recordable = identity.LocatedImportID(obj.Value)
-				}
-			}
-			if !recordable || rec.Empty() {
+			// gets written identical to the set that gets read. [LocatedRecordFrom]
+			// is this same three-way switch, factored out so a second
+			// caller - liveimport's migrate-time write, GitHub issue #365
+			// slice 2 - derives a located identity exactly the same way
+			// rather than a second, driftable copy of it.
+			rec, recordable := LocatedRecordFrom(typeName, *schema, obj.Value)
+			if !recordable {
 				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 					fmt.Sprintf(
 						"Recording which live %s %s owns failed: the applied object carries no usable identity to record. A %s carries no ownership marker, so without this record no later run can find the object again, and the next plan would propose creating a second one.",

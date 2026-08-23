@@ -1146,17 +1146,28 @@ func sgLikeRead(prior cty.Value) (cty.Value, error) {
 // candidate list non-empty, and only the exact object the apply sent is a
 // pass.
 //
-// The set-nested blocks in the same schema are the negative control, and
-// they are what keeps this from being a rule about a block named
-// "timeouts": ingress is real cloud data the provider does read back, and
-// it must stay out of the record whatever this rule does to its neighbour.
+// ingress is the negative control, and what it proves moved when
+// residueEligibleBlock widened past NestingSingle (GitHub issue #365
+// slice 2's own crossing needed NestingList and NestingSet too - see that
+// function's doc comment): ingress is now a CANDIDATE, because nothing
+// about its own schema (no sensitive or write-only argument, a nesting mode
+// whose absence [carriesNoInformation] can tell from "empty") disqualifies
+// it any more than timeouts's does. It must still never be RECORDED,
+// because it is real cloud data the provider reads back - and asserting
+// that split (candidate, yet excluded by classifyResidue) is a stronger
+// claim than the old one ("never even a candidate"), not a weaker one: it
+// is the proof that safety here comes from the two-read discriminator and
+// not from which nesting modes reach it. egress stays out of the candidate
+// list too, but for an unrelated, unchanged reason - this fixture's own
+// egress is null, and a null applied block is filtered before nesting mode
+// is ever asked, in either the old rule or this one.
 //
 // Both `strict { secrets = ... }` settings are run, and the assertion is
 // that the answer does not move between them. The two populations residue
 // now carries were built for different questions - the secrets setting
 // decides whether a SENSITIVE flat attribute may be recorded, and this
-// block rule decides whether a config-only single-nested block may be - and
-// this schema holds nothing sensitive at all, so the setting has nothing to
+// block rule decides whether a config-only nested block may be - and this
+// schema holds nothing sensitive at all, so the setting has nothing to
 // reach here. A future change that threads the setting into the block half
 // fails this test rather than passing quietly.
 func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
@@ -1166,9 +1177,9 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 			applied := sgApplied()
 
 			candidates := residueCandidates(schema, applied, secrets)
-			want := []string{"name", "revoke_rules_on_delete", "timeouts"}
+			want := []string{"ingress", "name", "revoke_rules_on_delete", "timeouts"}
 			if !reflect.DeepEqual(candidates, want) {
-				t.Fatalf("residueCandidates = %v, want %v - a NestingSingle block is in scope and a NestingSet one is not, whatever either is called", candidates, want)
+				t.Fatalf("residueCandidates = %v, want %v - ingress (NestingSet, non-null applied value) is now a structural candidate; egress (null applied value) is not, for its own unrelated reason", candidates, want)
 			}
 
 			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), sgLikeRead)
@@ -1253,8 +1264,8 @@ func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
 						t.Fatalf("timeouts is a residue candidate under secrets=%q even though it holds a %s", secrets, tc.name)
 					}
 				}
-				if singleNestedResidueBlock(schema.Block, "timeouts") {
-					t.Fatalf("singleNestedResidueBlock admitted a block with a %s", tc.name)
+				if residueEligibleBlock(schema.Block, "timeouts") {
+					t.Fatalf("residueEligibleBlock admitted a block with a %s", tc.name)
 				}
 				// fillResidue must refuse it too, from the same predicate, so a
 				// record written before the schema grew the secret stops being
@@ -1308,7 +1319,7 @@ func TestResidueRefusesASingleNestedBlockCarryingAVariableMark(t *testing.T) {
 			// The block schema says nothing is sensitive - it is the VALUE
 			// that carries the mark, which is what a sensitive variable
 			// feeding one of the block's arguments produces.
-			if !singleNestedResidueBlock(schema.Block, "timeouts") {
+			if !residueEligibleBlock(schema.Block, "timeouts") {
 				t.Fatal("the fixture's block is refused on the schema alone, so this test cannot see the mark rule")
 			}
 
@@ -1331,22 +1342,289 @@ func TestResidueRefusesASingleNestedBlockCarryingAVariableMark(t *testing.T) {
 	}
 }
 
-// TestResidueRefusesACollectionNestedBlock is the stated bound, asserted so
-// that widening it later is a deliberate act rather than a side effect.
-// NestingList, NestingSet, NestingMap and NestingGroup all stay out: the
-// classifier's discriminator compares one whole value before and after, and
-// only NestingSingle has one.
-func TestResidueRefusesACollectionNestedBlock(t *testing.T) {
-	for _, nesting := range []configschema.NestingMode{
-		configschema.NestingList,
-		configschema.NestingSet,
-		configschema.NestingMap,
-		configschema.NestingGroup,
+// TestResidueAdmitsEveryCollectionNestingModeExceptGroup is the widened
+// bound, asserted the same deliberate way [TestResidueRefusesACollectionNestedBlock]
+// (this test's own former name and shape) pinned the narrower one: a
+// boundary is worth a test whichever direction it was last moved, so that
+// widening it further, or narrowing it back, is a deliberate act and not a
+// side effect either way.
+//
+// NestingList, NestingSet and NestingMap are now admitted (GitHub issue
+// #365 slice 2's corpus-sumaform-aws crossing: aws_instance's
+// ephemeral_block_device is NestingSet and its root_block_device is
+// NestingList), because none of the three shares NestingGroup's real
+// ambiguity - see [residueEligibleBlock]'s own doc comment for exactly
+// which question separates the four. NestingGroup is the one mode this
+// still refuses, and the sole surviving member of what used to be a
+// four-mode list.
+func TestResidueAdmitsEveryCollectionNestingModeExceptGroup(t *testing.T) {
+	for _, tc := range []struct {
+		nesting configschema.NestingMode
+		want    bool
+	}{
+		{configschema.NestingList, true},
+		{configschema.NestingSet, true},
+		{configschema.NestingMap, true},
+		{configschema.NestingGroup, false},
 	} {
 		schema := sgLikeSchema()
-		schema.Block.BlockTypes["timeouts"].Nesting = nesting
-		if singleNestedResidueBlock(schema.Block, "timeouts") {
-			t.Fatalf("singleNestedResidueBlock admitted nesting mode %v", nesting)
+		schema.Block.BlockTypes["timeouts"].Nesting = tc.nesting
+		got := residueEligibleBlock(schema.Block, "timeouts")
+		if got != tc.want {
+			t.Fatalf("residueEligibleBlock(%v) = %v, want %v", tc.nesting, got, tc.want)
+		}
+	}
+}
+
+// hostLikeSchema is aws_instance's own shape for the two block types that
+// motivated widening residueEligibleBlock past NestingSingle, reduced to
+// what this test needs, taken from hashicorp/aws 6.59.0's own schema rather
+// than invented:
+//
+//	root_block_device      a NestingList block (one element), config-only,
+//	                        never read back on a bare import - see this
+//	                        provider's own Import section
+//	ephemeral_block_device a NestingSet block, config-only, never read back
+//	                        on a bare import, for the identical reason
+//
+// Neither block's name appears in any production control-flow branch this
+// change touches - residueEligibleBlock is asked with the SCHEMA's block
+// name generically, whatever it is called, which is what this fixture is
+// here to prove: renaming either block below would not change the outcome.
+func hostLikeSchema() providers.Schema {
+	rootBlockDevice := configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"device_name": {Type: cty.String, Optional: true, Computed: true},
+		"volume_size": {Type: cty.Number, Optional: true, Computed: true},
+		"volume_type": {Type: cty.String, Optional: true, Computed: true},
+	}}
+	ephemeralBlockDevice := configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"device_name":  {Type: cty.String, Optional: true},
+		"virtual_name": {Type: cty.String, Optional: true},
+	}}
+	return providers.Schema{
+		Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":            {Type: cty.String, Optional: true, Computed: true},
+				"ami":           {Type: cty.String, Required: true},
+				"instance_type": {Type: cty.String, Optional: true, Computed: true},
+			},
+			BlockTypes: map[string]*configschema.NestedBlock{
+				"root_block_device":      {Nesting: configschema.NestingList, Block: rootBlockDevice},
+				"ephemeral_block_device": {Nesting: configschema.NestingSet, Block: ephemeralBlockDevice},
+			},
+		},
+	}
+}
+
+func hostRootBlockDeviceType() cty.Type {
+	return cty.List(cty.Object(map[string]cty.Type{
+		"device_name": cty.String, "volume_size": cty.Number, "volume_type": cty.String,
+	}))
+}
+
+func hostEphemeralBlockDeviceType() cty.Type {
+	return cty.Set(cty.Object(map[string]cty.Type{
+		"device_name": cty.String, "virtual_name": cty.String,
+	}))
+}
+
+func hostApplied() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":            cty.StringVal("i-0123456789abcdef0"),
+		"ami":           cty.StringVal("ami-ubuntu2204"),
+		"instance_type": cty.StringVal("m5.large"),
+		"root_block_device": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+			"device_name": cty.StringVal("/dev/xvda"),
+			"volume_size": cty.NumberIntVal(200),
+			"volume_type": cty.StringVal("gp3"),
+		})}),
+		"ephemeral_block_device": cty.SetVal([]cty.Value{
+			cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdb"), "virtual_name": cty.StringVal("ephemeral0")}),
+			cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdc"), "virtual_name": cty.StringVal("ephemeral1")}),
+		}),
+	})
+}
+
+// hostBareImportRead is aws_instance's own documented behavior on a bare
+// import (no full prior state): the provider reads ami/instance_type/id
+// from the live object and never touches root_block_device or
+// ephemeral_block_device at all, so whatever the prior held for them
+// passes straight through unchanged - including a null identity-only
+// prior, which is why both read null from a bare import today.
+func hostBareImportRead(prior cty.Value) (cty.Value, error) {
+	out := map[string]cty.Value{}
+	for name, v := range prior.AsValueMap() {
+		out[name] = v
+	}
+	out["id"] = cty.StringVal("i-0123456789abcdef0")
+	out["ami"] = cty.StringVal("ami-ubuntu2204")
+	out["instance_type"] = cty.StringVal("m5.large")
+	return cty.ObjectVal(out), nil
+}
+
+// TestResidueCarriesListAndSetNestedBlocksByValue is corpus-sumaform-aws's
+// own crossing in one assertion, over the exact two nesting modes
+// [TestResidueAdmitsEveryCollectionNestingModeExceptGroup] proved
+// residueEligibleBlock now accepts: aws_instance's root_block_device
+// (NestingList) and ephemeral_block_device (NestingSet) are both
+// documented, creation-only arguments the provider never repopulates on a
+// bare import - the recovery a record-located identity gives an instance
+// with no full prior state. Before this rule, a migrate-and-replan lost
+// both, and the replan proposed replacing the instance
+// ("+ ephemeral_block_device { # forces replacement }") against a stock
+// plan that would show the same blocks unchanged if it had a full state to
+// read them from.
+//
+// Asserted BY VALUE, per HANDOFF.md's safety rule: an empty record and one
+// holding the wrong device names both leave the candidate list non-empty,
+// and only the exact list/set the apply produced is a pass. The list's
+// ORDER and the set's ELEMENT order are both asserted exactly as recorded -
+// RawEquals for a cty.Set does not care about element order (verified
+// independently: two cty.SetVals built from the same elements in opposite
+// orders are RawEquals), so recording and filling a set is not a promise
+// about any particular iteration order surviving, only about the recorded
+// set being the same set.
+func TestResidueCarriesListAndSetNestedBlocksByValue(t *testing.T) {
+	for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+		t.Run(string(secrets), func(t *testing.T) {
+			schema := hostLikeSchema()
+			applied := hostApplied()
+
+			// ami and instance_type are structural candidates too (ordinary,
+			// non-identity, non-null flat attributes) and are exactly what
+			// proves the split this test is about: candidate is a STRUCTURAL
+			// question, and classifyResidue below is what tells "the
+			// provider reads this back" (ami, instance_type) apart from
+			// "the provider never touches this" (both blocks) - the same
+			// split TestResidueCarriesASingleNestedBlockByValue's own
+			// ingress proves for a NestingSet block already in this file.
+			candidates := residueCandidates(schema, applied, secrets)
+			want := []string{"ami", "ephemeral_block_device", "instance_type", "root_block_device"}
+			if !reflect.DeepEqual(candidates, want) {
+				t.Fatalf("residueCandidates = %v, want %v - both a NestingList and a NestingSet block should now be structural candidates alongside the ordinary flat ones", candidates, want)
+			}
+
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), hostBareImportRead)
+			if !ok {
+				t.Fatal("classifyResidue recorded nothing")
+			}
+
+			wantRoot := applied.GetAttr("root_block_device")
+			gotRoot, held := attrs["root_block_device"]
+			if !held {
+				t.Fatalf("root_block_device was not recorded; recorded %v", attrs)
+			}
+			if !gotRoot.RawEquals(wantRoot) {
+				t.Fatalf("recorded root_block_device = %#v, want %#v", gotRoot, wantRoot)
+			}
+
+			wantEphemeral := applied.GetAttr("ephemeral_block_device")
+			gotEphemeral, held := attrs["ephemeral_block_device"]
+			if !held {
+				t.Fatalf("ephemeral_block_device was not recorded; recorded %v", attrs)
+			}
+			if !gotEphemeral.RawEquals(wantEphemeral) {
+				t.Fatalf("recorded ephemeral_block_device = %#v, want %#v", gotEphemeral, wantEphemeral)
+			}
+
+			// The round trip: a bare-import cold read carries neither block
+			// at all (both empty, exactly as hostBareImportRead's own doc
+			// comment says a real bare import answers today), and fillResidue
+			// must restore both to the exact applied value - not an
+			// equivalent one, the same cty.Value RawEquals proves it.
+			cold := cty.ObjectVal(map[string]cty.Value{
+				"id":                     cty.StringVal("i-0123456789abcdef0"),
+				"ami":                    cty.StringVal("ami-ubuntu2204"),
+				"instance_type":          cty.StringVal("m5.large"),
+				"root_block_device":      cty.ListValEmpty(hostRootBlockDeviceType().ElementType()),
+				"ephemeral_block_device": cty.SetValEmpty(hostEphemeralBlockDeviceType().ElementType()),
+			})
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			if n != 2 {
+				t.Fatalf("fillResidue filled %d, want 2 (root_block_device and ephemeral_block_device)", n)
+			}
+			if !filled.GetAttr("root_block_device").RawEquals(wantRoot) {
+				t.Fatalf("filled root_block_device = %#v, want %#v", filled.GetAttr("root_block_device"), wantRoot)
+			}
+			if !filled.GetAttr("ephemeral_block_device").RawEquals(wantEphemeral) {
+				t.Fatalf("filled ephemeral_block_device = %#v, want %#v", filled.GetAttr("ephemeral_block_device"), wantEphemeral)
+			}
+		})
+	}
+}
+
+// TestResidueSetOrderDoesNotAffectClassification is the independent RawEquals
+// check the previous test's doc comment cites, pinned as its own test so a
+// future cty upgrade that changed set-equality semantics would fail here
+// rather than inside a larger, harder-to-read failure.
+func TestResidueSetOrderDoesNotAffectClassification(t *testing.T) {
+	a := cty.SetVal([]cty.Value{
+		cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdb"), "virtual_name": cty.StringVal("ephemeral0")}),
+		cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdc"), "virtual_name": cty.StringVal("ephemeral1")}),
+	})
+	b := cty.SetVal([]cty.Value{
+		cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdc"), "virtual_name": cty.StringVal("ephemeral1")}),
+		cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdb"), "virtual_name": cty.StringVal("ephemeral0")}),
+	})
+	if !a.RawEquals(b) {
+		t.Fatal("two cty.Sets built from the same elements in opposite orders are not RawEquals - classifyResidue's whole-value comparison would then depend on element order, which residueEligibleBlock's doc comment claims it does not")
+	}
+}
+
+// TestClassifyResidueLeavesAnEmptyCollectionBlockUnrecorded is the
+// corpus-mastino-dns regression: NestingList/NestingSet/NestingMap's own
+// widening (residueEligibleBlock, above) made every collection-nested block
+// on a schema a structural candidate, including one an instance never
+// configures at all. aws_route53_record's six routing-policy blocks
+// (alias, cidr_routing_policy, failover_routing_policy,
+// geolocation_routing_policy, geoproximity_routing_policy,
+// latency_routing_policy, weighted_routing_policy - all NestingList) are
+// exactly this on a plain MX or CNAME record: applied holds an empty list
+// for every one of them because none is declared, hashicorp/aws's read
+// answers null from the identity-only stub (an SDKv2 resource that never
+// touches an untouched list leaves it at whatever the prior held, and the
+// stub's prior is null there), and the full-prior read echoes the prior's
+// own empty list straight back - which is precisely the two-read pattern
+// classifyResidue records as residue. The corpus-mastino-dns crossing
+// caught it live: migrate went from 14 residue records (the ones that
+// actually mean something - wp-prod-staging's ten allow_overwrite = true
+// plus DELTA 5's four apex NS blocks) to 59 (every record in the estate),
+// each one recording six empty lists that a bare read already reproduces.
+//
+// Reusing hostLikeSchema's own root_block_device (NestingList) fixture
+// rather than declaring a sixth aws_route53_record-shaped one: the rule
+// under test does not know or care what the block is called, only that its
+// applied value is empty, which is the same property
+// TestResidueAdmitsEveryCollectionNestingModeExceptGroup already isolates
+// for admission and this test isolates for classification.
+func TestClassifyResidueLeavesAnEmptyCollectionBlockUnrecorded(t *testing.T) {
+	schema := hostLikeSchema()
+	applied := cty.ObjectVal(map[string]cty.Value{
+		"id":                     cty.StringVal("i-0123456789abcdef0"),
+		"ami":                    cty.StringVal("ami-ubuntu2204"),
+		"instance_type":          cty.StringVal("m5.large"),
+		"root_block_device":      cty.ListValEmpty(hostRootBlockDeviceType().ElementType()),
+		"ephemeral_block_device": cty.SetValEmpty(hostEphemeralBlockDeviceType().ElementType()),
+	})
+
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
+	want := []string{"ami", "ephemeral_block_device", "instance_type", "root_block_device"}
+	if !reflect.DeepEqual(candidates, want) {
+		t.Fatalf("residueCandidates = %v, want %v - an empty collection block is still a STRUCTURAL candidate (eligibility is about the block's shape, not this instance's value); classifyResidue is what must exclude it", candidates, want)
+	}
+
+	// hostBareImportRead is the SDKv2-untouched-prior shape both reads take
+	// here: read A (the identity-only stub) passes its own null through
+	// unchanged, and read B (the full applied prior) passes applied's own
+	// empty collections through unchanged - the exact pattern that made
+	// this recordable before this test's fix.
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), hostBareImportRead)
+	if ok {
+		if _, bad := attrs["root_block_device"]; bad {
+			t.Error("root_block_device (empty, never configured) was recorded as residue. Nothing was ever configured here - filling it back reproduces exactly what a bare read already gives - and recording it anyway is the corpus-mastino-dns regression: 14 real residue records became 59, six empty routing-policy blocks per record, none of them carrying any information a plain read did not already have.")
+		}
+		if _, bad := attrs["ephemeral_block_device"]; bad {
+			t.Error("ephemeral_block_device (empty, never configured) was recorded as residue for the same reason root_block_device should not have been")
 		}
 	}
 }

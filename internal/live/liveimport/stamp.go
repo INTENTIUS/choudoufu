@@ -197,9 +197,19 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 	for _, entry := range r.Entries {
 		if rec, ok := r.recordable[entry.Addr.String()]; ok {
 			// Issue #340. A record-backed instance is never also eligible
-			// (see [recordable]), so this branch and the one below are
+			// (see [recordable]), so this branch and the ones below are
 			// alternatives, not a sequence.
 			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, r.recordKeyPrefix, entry.Addr, rec))
+			continue
+		}
+		if loc, ok := r.located[entry.Addr.String()]; ok {
+			// Issue #365 slice 2's migrate-time half: this instance is
+			// [Config]'s selection's, so its identity goes into the
+			// estate's record store's located namespace and no tag is
+			// written. Residue is still recorded exactly as it is for an
+			// ordinary eligible instance - see [located]'s doc comment.
+			rep.Outcomes = append(rep.Outcomes, locateOne(ctx, r.locatedStore, entry.Addr, loc))
+			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, &loc.residuable))
 			continue
 		}
 		elig, ok := r.eligible[entry.Addr.String()]
@@ -280,6 +290,61 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 	default:
 		out.Outcome = OutcomeAlreadyRecorded
 		out.Detail = "The record store already holds exactly this object; nothing written."
+	}
+	return out
+}
+
+// locateOne is Approve's GitHub issue #365 slice 2 migrate-time half: the
+// migration of one instance an operator's `markers "record"` selection
+// covers, whose identity goes into the estate's record store's located
+// namespace (identity.SelectedLocatedType) instead of onto a tag.
+//
+// It is [locateOne]'s reuse of [OutcomeRecorded] and [OutcomeAlreadyRecorded]
+// deliberately, not a new pair of outcomes: those two already mean "this
+// instance's identity was seeded into the estate's record store rather than
+// tagged", and every consumer of the -approve summary line (this run's own
+// script assertions among them) counts by outcome. A selected instance and a
+// record-backed one reach the store through different derivations
+// ([projection.LocatedRecordFrom] here, [projection.SeedRecordForInstance]
+// there) but report the same thing to an operator reading the summary: a
+// record was written and no tag was.
+//
+// The derivation itself is [projection.LocatedRecordFrom] - the same
+// three-way switch on [identity.LocatedIdentityPlanFor] that
+// [projection.writeBackLocated] already uses after an apply - so a type
+// admitted for the selection by [identity.SelectedLocatedType] is read for
+// its identity exactly the way the apply path would read it. Neither
+// function names a resource type.
+func locateOne(ctx context.Context, store *projection.LocatedStore, addr addrs.AbsResourceInstance, loc *located) StampOutcome {
+	out := StampOutcome{Addr: addr, TypeName: loc.typeName}
+	if store == nil {
+		out.Outcome = OutcomeSkipped
+		out.Detail = fmt.Sprintf(
+			"Not recorded: %s is covered by strict { markers \"record\" }, so its identity belongs in the estate's record store, and this configuration declares no record_store. Nothing was written; the object's live tags are untouched.",
+			loc.typeName)
+		return out
+	}
+
+	rec, ok := projection.LocatedRecordFrom(loc.typeName, loc.schema, loc.applied)
+	if !ok {
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf(
+			"The live object read for this %s carries no usable identity to record. Nothing was written, and the first live-plan after this migration will propose creating it.",
+			loc.typeName)
+		return out
+	}
+
+	seeded, err := projection.SeedLocatedForInstance(ctx, store, addr, rec)
+	switch {
+	case err != nil:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The record store could not be seeded with this %s's located identity: %s. Nothing was written.", loc.typeName, err)
+	case seeded.Wrote():
+		out.Outcome = OutcomeRecorded
+		out.Detail = "Wrote this markers = record selected resource's identity to the estate's record store; no ownership marker was written."
+	default:
+		out.Outcome = OutcomeAlreadyRecorded
+		out.Detail = "The record store already holds this resource's located identity; nothing written."
 	}
 	return out
 }

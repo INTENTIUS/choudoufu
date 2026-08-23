@@ -1176,8 +1176,8 @@ if [ "$CHANGED_N" -eq 0 ]; then
   DRIFT_N_CHANGED="$(printf '%s\n' "$DRIFT_CHANGED_ADDRS" | grep -c . || true)"
   [ "$DRIFT_N_CHANGED" = "1" ] \
     || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix after the out-of-band mutation, got $DRIFT_N_CHANGED"; }
-  [ "$DRIFT_CHANGED_ADDRS" = "module.security_group.aws_security_group.this" ] \
-    || fail "the drift plan proposes fixing $DRIFT_CHANGED_ADDRS, not module.security_group.aws_security_group.this"
+  [ "$DRIFT_CHANGED_ADDRS" = "module.security_group.aws_security_group.this[0]" ] \
+    || fail "the drift plan proposes fixing $DRIFT_CHANGED_ADDRS, not module.security_group.aws_security_group.this[0]"
   log "  live-plan proposes fixing exactly one object: $DRIFT_CHANGED_ADDRS"
 
   RECONVERGE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
@@ -1192,7 +1192,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log ""
   log "STAGE 5 (drift_reconverge): PASS"
   log ""
-  gauntlet_stage drift_reconverge pass "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI"
+  gauntlet_stage drift_reconverge pass "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI"
   CURRENT_STAGE=""
 else
   log ""

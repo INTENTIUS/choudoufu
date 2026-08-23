@@ -99,10 +99,16 @@ set -uo pipefail
 #
 # All four aws_sqs_queue resources declare `count = var.create ? 1 : 0`
 # (module default), the same shape corpus-iam-policy's "THE TOFU-SLOT
-# FINDING" documents: live-import -approve writes only tofu-estate and
-# tofu-address, and a follow-up ordinary `choudoufu apply` is required to
-# converge tofu-slot before a replan is genuinely empty. That convergence
-# step is folded into STAGE 2 below, same as corpus-iam-policy.
+# FINDING" documents - but unlike an IAM policy (ServerAssigned, so gate 4's
+# unconditional half already covered it), a queue is client-named and used
+# to be the OTHER half: whether it needs discovery is a question about its
+# own declaration, which a migration reading a bare state file could not
+# ask. GitHub issue #372's remainder (gauntlet/sumaform-record) closed that
+# gap by threading Request.Config through to Ratify, so as of this crossing
+# live-import -approve writes tofu-slot in the SAME stamp as tofu-estate and
+# tofu-address - no separate convergence apply is needed any more. STAGE 2
+# below asserts tofu-slot by value right after the stamp, then runs one more
+# ordinary apply as a POSITIVE no-op check that nothing was left to converge.
 #
 # STAGE-BY-STAGE SHAPE (issue #274's five-stage pipeline; see
 # live/corpus-crossing-manifest.json):
@@ -111,9 +117,10 @@ set -uo pipefail
 #                     choudoufu), no live block anywhere.
 #   2. MIGRATE        `choudoufu live-import -approve` against the cold
 #                     state (4 of 6 eligible; the two redrive resources are
-#                     untaggable and resolve by provider identity schema),
-#                     then one ordinary `choudoufu apply` to converge
-#                     tofu-slot on the four count-based queues.
+#                     untaggable and resolve by provider identity schema);
+#                     tofu-slot is written on all four count-based queues by
+#                     this same stamp (issue #372's remainder), confirmed by
+#                     value and by one more apply staying a genuine no-op.
 #   3. TEST PLAN      delete the state file, `choudoufu live-plan`, assert
 #                     the plan proposes no resource action and re-assert the
 #                     rendered queue identities against the AWS CLI's own
@@ -452,19 +459,49 @@ log "    $FIFO_QUEUE_URL -> tofu-address=$GOT_FIFO_ADDR"
 log "    $FIFO_DLQ_URL -> tofu-address=$GOT_FIFO_DLQ_ADDR"
 log "    $UNENCRYPTED_QUEUE_URL -> tofu-address=$GOT_UNENCRYPTED_ADDR"
 
-# The tofu-slot convergence apply (see this script's header). All four
-# aws_sqs_queue resources declare count = var.create ? 1 : 0, so all four
-# need it. Both redrive resources are untaggable and carry no slot, which is
-# why this is 4 changed and not 6.
+# GitHub issue #372's remainder (this script's header, "THE TOFU-SLOT
+# FINDING"): all four aws_sqs_queue resources declare
+# count = var.create ? 1 : 0, and a queue's full identity (its URL) carries
+# the account id, so it is ClassNeedsDiscovery even though `name` itself is
+# a static string - the exact "client-named type whose name happens NOT to
+# be statically computable" case internal/live/liveimport/slot.go's gate 4
+# names. Before that remainder landed, live-import -approve wrote only
+# tofu-estate and tofu-address, and a separate ordinary apply was required
+# to converge tofu-slot before a replan was genuinely empty (4 changed,
+# below, used to be the assertion). With Request.Config now threaded
+# through from the command layer to Ratify (gauntlet/sumaform-record),
+# [Ratification.instanceNeedsDiscovery] resolves the same identity a
+# stateless replan would and gate 4 admits these four queues at STAMP TIME
+# - tofu-slot=0 is written by the same live-import -approve above, asserted
+# here BY VALUE and not inferred from the plan staying empty, per HANDOFF's
+# safety rule.
+GOT_DEFAULT_SLOT="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query "Tags.\"tofu-slot\"" --output text)"
+[ "$GOT_DEFAULT_SLOT" = "0" ] || fail "$DEFAULT_QUEUE_URL carries tofu-slot=$GOT_DEFAULT_SLOT after migrate, want 0 (written at stamp time, issue #372's remainder)"
+GOT_FIFO_SLOT="$(awsl sqs list-queue-tags --queue-url "$FIFO_QUEUE_URL" --query "Tags.\"tofu-slot\"" --output text)"
+[ "$GOT_FIFO_SLOT" = "0" ] || fail "$FIFO_QUEUE_URL carries tofu-slot=$GOT_FIFO_SLOT after migrate, want 0 (written at stamp time, issue #372's remainder)"
+GOT_FIFO_DLQ_SLOT="$(awsl sqs list-queue-tags --queue-url "$FIFO_DLQ_URL" --query "Tags.\"tofu-slot\"" --output text)"
+[ "$GOT_FIFO_DLQ_SLOT" = "0" ] || fail "$FIFO_DLQ_URL carries tofu-slot=$GOT_FIFO_DLQ_SLOT after migrate, want 0 (written at stamp time, issue #372's remainder)"
+GOT_UNENCRYPTED_SLOT="$(awsl sqs list-queue-tags --queue-url "$UNENCRYPTED_QUEUE_URL" --query "Tags.\"tofu-slot\"" --output text)"
+[ "$GOT_UNENCRYPTED_SLOT" = "0" ] || fail "$UNENCRYPTED_QUEUE_URL carries tofu-slot=$GOT_UNENCRYPTED_SLOT after migrate, want 0 (written at stamp time, issue #372's remainder)"
+log "  tofu-slot=0 already on all four queues right after migrate (issue #372's"
+log "  remainder: a client-named type whose full identity still needs discovery"
+log "  no longer needs a separate convergence apply)"
+
+# The follow-up ordinary apply is now a genuine, empty no-op: nothing is
+# left to converge, because tofu-slot was written by the stamp above rather
+# than by this apply. Kept as a positive assertion (0 added, 0 changed, 0
+# destroyed) rather than removed outright, so a future regression that made
+# THIS apply start proposing changes again - the pre-#372-remainder shape -
+# still fails loudly here.
 CONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
-[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the tofu-slot convergence apply failed"; }
-grep -qE 'Resources: 0 added, 4 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
-  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not change exactly 4 resources (expected: all four queues gaining tofu-slot)"; }
-log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written on all four queues)"
-[ ! -f "$EST/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
+[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the post-migrate apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
+  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; fail "the post-migrate apply was not a genuine no-op - tofu-slot should already be converged from the stamp above"; }
+log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (genuine no-op, confirming nothing was left to converge)"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the post-migrate apply wrote a state file"
 
 log ""
-gauntlet_stage migrate pass "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot converged on 4 queues"
+gauntlet_stage migrate pass "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply"
 log "STAGE 2 (migrate): PASS"
 log ""
 

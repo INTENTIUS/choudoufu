@@ -178,6 +178,12 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	var rootOutputStore *projection.RootOutputStore
 	var recordStore staterecord.Store
 	var recordKeyPrefix string
+	// locatedStore is GitHub issue #365 slice 2's migrate-time half: the
+	// same store, wrapped as the located-record view [liveimport.Ratify]
+	// needs to honour the live block's `markers "record"` selection - see
+	// that package's own [liveimport.Request.LocatedStore] doc comment for
+	// the gap a nil value here used to leave open.
+	var locatedStore *projection.LocatedStore
 	if recordStoreCfg != nil {
 		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, args.Estate, ".")
 		if storeErr != nil {
@@ -198,10 +204,17 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// names nothing at all, so that would be a destroy proposal for a
 		// resource that never existed.
 		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
+		locatedStore = projection.NewLocatedStore(store, args.Estate)
 	}
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
-		Estate:    args.Estate,
+		Estate: args.Estate,
+		// GitHub issue #372's remainder: the same configuration this
+		// command already loaded above to find the record_store block, now
+		// also handed to Ratify so migrationSlots can settle a client-named
+		// count instance's slot from its own declaration instead of
+		// leaving it unsettled. See [liveimport.Request.Config].
+		Config:    config,
 		State:     stateFile.State,
 		Providers: provs,
 		// GitHub issue #365: the strict block's secrets setting, resolved
@@ -214,12 +227,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		RecordStore:     recordStore,
 		RecordKeyPrefix: recordKeyPrefix,
 		RootOutputStore: rootOutputStore,
-		// GitHub issue #372's remainder: the same configuration this
-		// command already loaded above to find the record_store block, now
-		// also handed to Ratify so migrationSlots can settle a client-named
-		// count instance's slot from its own declaration instead of
-		// leaving it unsettled. See [liveimport.Request.Config].
-		Config: config,
+		LocatedStore:    locatedStore,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags

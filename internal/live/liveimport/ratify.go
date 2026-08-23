@@ -181,12 +181,69 @@ type recordable struct {
 	status   states.ObjectStatus
 }
 
+// located is [eligible]'s sibling for an instance an operator's
+// `strict { markers "record" }` selection covers (GitHub issue #365,
+// HANDOFF.md's third principle): the live object exists and can carry a
+// marker, but the operator has chosen to hold its identity in the estate's
+// record store's LOCATED namespace instead - the same choice
+// internal/live/stamp honours at plan/apply time and
+// internal/live/projection's writeBackLocated honours after an apply.
+//
+// It embeds [residuable] for the reason [eligible] does: a record-located
+// instance is still a residue subject (issue #341 does not care which
+// carrier holds the identity), and Approve reaches this instance's residue
+// through the exact same call it makes for an ordinary [eligible] one.
+//
+// Before this existed, ratifyOne never produced it: every instance the
+// selection covered still went through the ordinary taggable path and was
+// tag-stamped like any other, because this package's stamping
+// implementation never consulted identity.SelectionFor at all. That is
+// GitHub issue #365 slice 2's own incompleteness - the plan/apply side
+// honoured the selection and the migrate side did not - found for real by
+// live/e2e/corpus-sumaform-aws's own crossing: a clean migrate of an
+// aws_instance and an aws_ebs_volume the estate selected still tag-stamped
+// both, wrote no located record for either, and the first live-plan after
+// the migration read them ABSENT.
+type located struct {
+	residuable
+}
+
 // Request is one ratification pass.
 type Request struct {
 	// Estate is the estate this run would stamp, matching the tofu-estate
 	// marker grammar. Required: unlike live-plan and live-mv, there is no
 	// configuration here to derive it from if it is left empty.
 	Estate string
+
+	// Config is the configuration this estate would be planned or applied
+	// from, read only for its root module's `strict { markers "record" }`
+	// selection (identity.SelectionFor) - the same and only thing every
+	// other consumer of a live block reads it for at this layer. Nil
+	// selects nothing, which is the correct behavior for every migration
+	// before this field existed: every instance is tag-stamped exactly as
+	// it always was.
+	//
+	// It also serves GitHub issue #372's remainder: [Ratification.
+	// migrationSlots]'s gate 4 could previously settle a slotless count
+	// set's tofu-slot only for a SERVER-ASSIGNED type, because whether a
+	// CLIENT-NAMED instance needs one at all is a question about its own
+	// declaration, and a migration reading a state file has none. With
+	// Config in hand, [identity.ResolveWith] - the exact function a
+	// stateless replan's own [identity.Result] comes from - can be asked
+	// the identical question here, and its answer is consulted rather than
+	// guessed at.
+	//
+	// Deliberately resolved with a zero [identity.Context]: no real
+	// command populates identity.Context.Cloud today (grep confirms it),
+	// so the zero value is not a degraded case here, it is the SAME input
+	// the subsequent live-plan's own resolution runs with. Schemas is left
+	// nil too - the population this is used for below is restricted to
+	// types [identity.LookupType] already admits from the hand table, and
+	// that lookup never consults Schemas, so omitting it changes nothing
+	// for them and only ever makes an unrelated, schema-only-admitted type
+	// resolve to nothing, which [migrationSlots] already treats as "stay
+	// blocked". See that function's "gate 4" doc for the full argument.
+	Config *configs.Config
 
 	// State is the state to read, already parsed by the caller - through
 	// [github.com/intentius/choudoufu/internal/states/statefile] - and never
@@ -263,35 +320,18 @@ type Request struct {
 	// Ratify: writing is what Approve is for.
 	RootOutputStore *projection.RootOutputStore
 
-	// Config is the configuration this estate's live block declares,
-	// loaded by the caller exactly as a stateless plan loads it
-	// (Meta.loadConfig). Nil is the ordinary answer for a caller with no
-	// configuration in hand - the [migrationSlots] doc comment's "there
-	// being no configuration in hand during a migration" - and every
-	// consumer below already treats that as "resolve nothing extra",
-	// unchanged from every migrate before this field existed.
+	// LocatedStore is GitHub issue #270's record-located namespace, wrapping
+	// the same store the record, residue and root-output views layer over -
+	// opened by the same caller from the same record_store block, the way
+	// live-plan and a stateless apply both open theirs.
 	//
-	// It exists for one purpose: GitHub issue #372's remainder.
-	// [Ratification.migrationSlots]'s gate 4 could previously settle a
-	// slotless count set's tofu-slot only for a SERVER-ASSIGNED type,
-	// because whether a CLIENT-NAMED instance needs one at all is a
-	// question about its own declaration, and a migration reading a state
-	// file has none. With Config in hand, [identity.ResolveWith] - the
-	// exact function a stateless replan's own [identity.Result] comes
-	// from - can be asked the identical question here, and its answer is
-	// consulted rather than guessed at.
-	//
-	// Deliberately resolved with a zero [identity.Context]: no real
-	// command populates identity.Context.Cloud today (grep confirms it),
-	// so the zero value is not a degraded case here, it is the SAME input
-	// the subsequent live-plan's own resolution runs with. Schemas is left
-	// nil too - the population this is used for below is restricted to
-	// types [identity.LookupType] already admits from the hand table, and
-	// that lookup never consults Schemas, so omitting it changes nothing
-	// for them and only ever makes an unrelated, schema-only-admitted type
-	// resolve to nothing, which [migrationSlots] already treats as "stay
-	// blocked". See that function's "gate 4" doc for the full argument.
-	Config *configs.Config
+	// This is what [located] needed and never had: without it, an instance
+	// [Config]'s selection covers has nowhere for Approve to write its
+	// identity, so it falls back to being tag-stamped exactly as it was
+	// before this field existed - the same fail-safe every other nil store
+	// in this package takes. See [located]'s doc comment for the gap this
+	// closes.
+	LocatedStore *projection.LocatedStore
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -305,10 +345,15 @@ type Ratification struct {
 	eligible   map[string]*eligible
 	recordable map[string]*recordable
 
+	// located holds the instances [Request.Config]'s `markers "record"`
+	// selection covers and can honour - see [located]'s doc comment. Approve
+	// writes these to locatedStore instead of stamping a tag.
+	located map[string]*located
+
 	// residuable holds the instances that are NOT stampable but still have
 	// arguments worth recording - GitHub issue #341. A stampable instance is
-	// deliberately not in here: its carrier is its *eligible, which embeds
-	// the same thing.
+	// deliberately not in here: its carrier is its *eligible or *located,
+	// both of which embed the same thing.
 	residuable map[string]*residuable
 
 	residueStore *projection.ResidueStore
@@ -343,6 +388,11 @@ type Ratification struct {
 	// [Request.Config]'s doc comment for why a zero [identity.Context] is
 	// the right input here rather than a gap.
 	resolved *identity.Result
+
+	// locatedStore is [Request.LocatedStore], carried through because that
+	// is where a [located] instance's identity is written - Approve, not
+	// Ratify, is where every write in this package happens.
+	locatedStore *projection.LocatedStore
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -378,6 +428,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		Estate:          req.Estate,
 		eligible:        make(map[string]*eligible),
 		recordable:      make(map[string]*recordable),
+		located:         make(map[string]*located),
 		residuable:      make(map[string]*residuable),
 		residueStore:    req.ResidueStore,
 		secrets:         req.Secrets,
@@ -385,6 +436,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		recordKeyPrefix: req.RecordKeyPrefix,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
+		locatedStore:    req.LocatedStore,
 	}
 
 	if req.Config != nil {
@@ -401,6 +453,14 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		rat.resolved = resolved
 	}
 
+	// The root module's `markers "record"` selection, read once for the
+	// whole pass rather than once per instance - identity.SelectionFor does
+	// its own parsing, and every instance in this state asks the same
+	// question of the same configuration. A nil req.Config (every call site
+	// before this field existed) selects nothing, so every instance below
+	// takes exactly the path it always took.
+	selection := identity.SelectionFor(req.Config)
+
 	for _, mod := range sortedModules(req.State) {
 		for _, res := range sortedResources(mod) {
 			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
@@ -408,13 +468,16 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 			for _, key := range sortedInstanceKeys(res) {
 				addr := res.Addr.Instance(key)
-				entry, car := ratifyOne(ctx, req, res, addr, res.Instances[key])
+				entry, car := ratifyOne(ctx, req, res, addr, res.Instances[key], selection)
 				rat.Entries = append(rat.Entries, entry)
 				if car.eligible != nil {
 					rat.eligible[addr.String()] = car.eligible
 				}
 				if car.recordable != nil {
 					rat.recordable[addr.String()] = car.recordable
+				}
+				if car.located != nil {
+					rat.located[addr.String()] = car.located
 				}
 				if car.residuable != nil {
 					rat.residuable[addr.String()] = car.residuable
@@ -428,7 +491,9 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 
 // carriers is what one instance hands Approve beyond its Entry. At most one
 // field is ever set, and which one is the whole of what a migration means for
-// that instance: stamp a marker onto it ([eligible]), seed a record for it
+// that instance: stamp a marker onto it ([eligible]), record its identity in
+// the estate's record store because an operator selected it there
+// ([located]), seed a record for it because its value IS its identity
 // ([recordable]), or record only what its arguments sent ([residuable]).
 //
 // A struct rather than a widening list of return values, so that a new
@@ -437,13 +502,17 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 type carriers struct {
 	eligible   *eligible
 	recordable *recordable
+	located    *located
 	residuable *residuable
 }
 
 // ratifyOne is the whole verdict for one resource instance: admission, the
 // schema, the state's own recorded object, and - past every gate that would
 // make a live call meaningless - one ReadResource call.
-func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance) (Entry, carriers) {
+//
+// selection is [Request.Config]'s root-module `markers "record"` selection,
+// resolved once by [Ratify] rather than re-parsed per instance.
+func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance, selection *strict.Selection) (Entry, carriers) {
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
@@ -516,7 +585,24 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return ratifyRecordBacked(entry, typeName, schema, inst)
 	}
 
-	if !taggable(schema.Block) {
+	// GitHub issue #365 slice 2's migrate-time half. Checked ahead of the
+	// taggability test below, the same order internal/live/stamp's
+	// resource() checks it in and for the same reason: a selection is the
+	// operator's own choice, not a fact this pass discovers about the type,
+	// and [identity.SelectedLocatedRefusal]'s own conditions name nothing
+	// about taggability - a selection could in principle cover an
+	// untaggable type too. selected is false whenever the selection cannot
+	// be honoured (no schema evidence here, a composite identity a record
+	// cannot hold whole, a sensitive identity attribute), and in that case
+	// this falls through to the ordinary taggable/untaggable branches below
+	// exactly as it always has: the marker is written, never a
+	// half-applied selection. See [located]'s doc comment for the gap this
+	// closes and internal/live/projection's writeBackLocated for the
+	// apply-time half this now matches.
+	selected := selection.Selects(addr.ConfigResource()) &&
+		identity.SelectedLocatedType(typeName, map[string]providers.Schema{typeName: schema})
+
+	if !selected && !taggable(schema.Block) {
 		return ratifyUntaggable(entry, provider, schema, typeName, inst)
 	}
 
@@ -556,14 +642,22 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		entry.Detail = "The live object matches the state's recorded attributes."
 	}
 
-	return entry, carriers{eligible: &eligible{residuable{
+	sub := residuable{
 		provider: provider,
 		schema:   schema,
 		typeName: typeName,
 		applied:  readResp.NewState,
 		identity: readResp.NewIdentity,
 		private:  readResp.Private,
-	}}}
+	}
+	if selected {
+		// The identity lives in the estate's record store, not in a marker:
+		// Approve writes sub's applied object there through [located]
+		// rather than tag-stamping it. Residue is unaffected either way -
+		// see [located]'s doc comment.
+		return entry, carriers{located: &located{sub}}
+	}
+	return entry, carriers{eligible: &eligible{sub}}
 }
 
 // ratifyUntaggable is ratifyOne's verdict for an ADMITTED instance whose
