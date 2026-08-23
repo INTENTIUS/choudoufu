@@ -765,7 +765,14 @@ SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fa
 [ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
 WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
 WANT_ADD_N=2
-WANT_CHANGE_N=3
+# Was 3 before GitHub issue #365 slice 2's residue widening
+# (internal/live/projection's residueEligibleBlock, landed after this
+# estate's own previous unit): the ECS cluster's own spurious in-place
+# change and the default network ACL's egress/ingress both converge to a
+# genuine no-op on this estate now (see 3a2 and 3d below), leaving only
+# the ECS service's service_connect_configuration/deployment_configuration
+# gap (lex00/floci#110, still unfixed on the emulator).
+WANT_CHANGE_N=1
 WANT_DESTROY_N=2
 # How many of the in-place changes are the tofu-slot tag and nothing else.
 # Was 25 before choudoufu #372, then 5 once #372's first landing settled
@@ -871,6 +878,49 @@ plan_attr() {
     }' <<< "$PLAN_OUT"
 }
 GOT_CLUSTER_PRIOR="$(plan_attr '# module.ecs_cluster.aws_ecs_cluster.this[0] ' 'id')"
+if [ -z "$GOT_CLUSTER_PRIOR" ] && ! grep -qF '# module.ecs_cluster.aws_ecs_cluster.this[0] ' <<< "$PLAN_OUT"; then
+  # The cluster's own block prints NO diff at all now - not merely one
+  # plan_attr() failed to parse. GitHub issue #365 slice 2's residue
+  # widening (internal/live/projection's residueEligibleBlock, landed
+  # between this estate's own previous unit and this one) resolves what
+  # used to be a spurious in-place change here, converging the cluster to a
+  # genuine no-op; a fully unchanged resource is never printed by tofu's
+  # plan renderer, in any version of it, by design. plan_attr() can only
+  # read a value a block prints, so a converged resource is structurally
+  # invisible to it - that is a stale ASSERTION (it assumed this block would
+  # always render), not evidence the binding moved. See HANDOFF.md: "the
+  # estate usually got better and the script did not."
+  #
+  # The stage's own bar still applies (live/GAUNTLET.md: "An empty plan
+  # alone is not enough - a wrong identity can converge"), from a source
+  # that is not the rendered diff. This is the same fallback
+  # corpus-mastino-dns's own stage 3 already established for a plan with
+  # nothing to render at all: TF_LOG=trace's own "[TRACE] projection:
+  # materialized ADDR from import identity ID" line
+  # (internal/live/projection/build.go), printed unconditionally by
+  # materialize regardless of whether the resulting object matched the
+  # desired configuration, plus the AWS SDK's own request/response log
+  # underneath it - read directly, never through choudoufu's report.
+  log "  the cluster's own block carries no diff at all - genuinely converged,"
+  log "  not merely omitted - so its prior id is confirmed from a traced replan"
+  log "  instead of the (empty) rendered plan."
+  TRACE_OUT="$(cd "$ADOPTED_EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color 2>&1)"
+  MATERIALIZE_N="$(grep -cF 'materialized module.ecs_cluster.aws_ecs_cluster.this[0] from import identity' <<< "$TRACE_OUT")"
+  [ "$MATERIALIZE_N" = "1" ] \
+    || fail "expected exactly one materialize for module.ecs_cluster.aws_ecs_cluster.this[0] in a traced replan, found $MATERIALIZE_N"
+  grep -qF "\"clusterArn\":\"${CLUSTER_ARN_ASSERT}\"" <<< "$TRACE_OUT" \
+    || fail "the plan's prior state for the ECS cluster is \"\", not the live cluster ARN \"$CLUSTER_ARN_ASSERT\" - the projection bound something else, or nothing"
+  # And the create side, by absence: a wrongly-bound (or unbound) cluster
+  # would show up as its own "+ resource" block, among the 2 adds - which
+  # are both fully accounted for by the two task-definition replacements
+  # (3d, below), never by the cluster.
+  grep -qF 'module.ecs_cluster.aws_ecs_cluster.this[0] will be created' <<< "$PLAN_OUT" \
+    && { grep -E '^  # module\.ecs_cluster\.aws_ecs_cluster' -A 4 <<< "$PLAN_OUT"; fail "#371 (or a fresh regression) is back: the cluster is proposed for creation, not read as an existing object"; }
+  GOT_CLUSTER_PRIOR="$CLUSTER_ARN_ASSERT"
+  log "  confirmed by a traced replan: exactly one materialize for the cluster,"
+  log "  its DescribeClusters response carries clusterArn=$CLUSTER_ARN_ASSERT,"
+  log "  and it is not among the 2 adds."
+fi
 [ "$GOT_CLUSTER_PRIOR" = "$CLUSTER_ARN_ASSERT" ] \
   || { grep -E '^  # module\.ecs_cluster\.aws_ecs_cluster' -A 4 <<< "$PLAN_OUT"; fail "the plan's prior state for the ECS cluster is \"$GOT_CLUSTER_PRIOR\", not the live cluster ARN \"$CLUSTER_ARN_ASSERT\" - the projection bound something else, or nothing"; }
 GOT_TD_SVC_PRIOR="$(plan_attr '# module.ecs_service.aws_ecs_task_definition.this[0] ' 'arn')"
@@ -944,28 +994,37 @@ log "  AWS CLI after the replan."
 
 # ── 3d. what stage 3 is blocked on NOW, pinned exactly ────────────────────
 #
-# "2 to add, 3 to change, 2 to destroy" (was 2/8/2 before #372's remainder
-# landed here), every line of it accounted for. See the header for the full
-# reasoning; the assertions are the summary:
+# "2 to add, 1 to change, 2 to destroy" (was 2/3/2 after #372's remainder
+# landed here, 2/8/2 before it), every line of it accounted for. See the
+# header for the full reasoning; the assertions are the summary:
 #
 #   2 add + 2 destroy   one replacement each of the two
 #              aws_ecs_task_definition instances, forced by
 #              container_definitions. STOCK DOES THE SAME - asserted in
 #              stage 1c against a state file with no marker in it - so this
 #              is HANDOFF.md's third row, not a choudoufu difference.
-#   0 of 3     a bare tofu-slot tag addition on a count-expanded instance of
+#   0 of 1     a bare tofu-slot tag addition on a count-expanded instance of
 #              a CLIENT-NAMED type - was 5 of 8 before #372's remainder,
 #              25 of 29 before #372 landed at all. Every one of them now
 #              carries its slot from migrate time; see the header's item 1.
-#   3 of 3     emulator read fidelity, also in stock's own replan, each
-#              confirmed independently against the AWS CLI on this pinned
-#              floci image and filed rather than fixed here: the ECS
-#              cluster's `configuration` block and the ECS service's
-#              `deployment_configuration`/`service_connect_configuration`
-#              blocks (lex00/floci#110), and the default network ACL's
-#              egress/ingress rules, whose IPv6 entry loses its CIDR type on
-#              read while every entry gains a spurious icmp_code/icmp_type
-#              (lex00/floci#111).
+#   1 of 1     emulator read fidelity, also in stock's own replan, confirmed
+#              independently against the AWS CLI on this pinned floci image
+#              and filed rather than fixed here: the ECS service's
+#              `service_connect_configuration` block (lex00/floci#110,
+#              still open). GitHub issue #365 slice 2's residue widening
+#              (internal/live/projection's residueEligibleBlock, landed
+#              after this estate's own previous unit) converged two of the
+#              three read-fidelity diffs that unit last recorded to a
+#              genuine no-op ON THIS ESTATE - the ECS cluster's own
+#              `configuration` block (3a2 above proves its prior state is
+#              still bound to the live ARN by value, from a traced replan
+#              since the block no longer renders at all) and the default
+#              network ACL's egress/ingress - without either floci#110 or
+#              floci#111 being fixed: this estate's own applied values for
+#              those two blocks happen to be empty, so residue now trusts
+#              the recorded empty value instead of diffing against the
+#              live read. Neither filed emulator bug is closed; only this
+#              estate's shape of them stopped producing a plan diff.
 #   0 of 29    the two log groups inside for_each'd module calls, which
 #              carried the previous two entries here. #378 is fixed: their
 #              desired tags now equal the live ones, so they are absent
@@ -985,6 +1044,13 @@ do
   grep -qF "$want_replaced" <<< "$PLAN_OUT" \
     || { grep -E '^  # ' <<< "$PLAN_OUT"; fail "expected '$want_replaced' - stock replans the same replacement (stage 1c), so this is the shape stage 3 is waiting on, not a new one"; }
 done
+# The cluster's own block must not appear at all - a real diff on it (from
+# a future floci fix reversing course, or a real regression) would mean
+# WANT_CHANGE_N is stale again, the same way it was stale coming into this
+# unit; asserting its absence here, by name, makes that loud instead of
+# read from a count that moved for an unexplained reason.
+grep -qF '# module.ecs_cluster.aws_ecs_cluster.this[0] ' <<< "$PLAN_OUT" \
+  && { grep -E '^  # module\.ecs_cluster\.aws_ecs_cluster' -A 6 <<< "$PLAN_OUT"; fail "the ECS cluster's own block is back in the plan; WANT_CHANGE_N=$WANT_CHANGE_N and 3a2's converged-block fallback are both stale"; }
 # How many of the in-place changes are the tofu-slot tag and nothing else.
 # Counted per resource block, not per line: the tag shows up twice in every
 # block (tags and tags_all), and "is this change only the marker" is a
@@ -1036,30 +1102,38 @@ log "  BLOCKED, and no longer on #371, #378 or #372: $ADD_N to add, $CHANGE_N to
 log "  change, $DESTROY_N to destroy, $SLOT_N of them the tofu-slot tag alone"
 log "  (was 5; #372's remainder settles the rest at migrate time). The 2 adds"
 log "  and 2 destroys are the two task definitions stock itself replaces"
-log "  (stage 1c); the 3 changes are emulator read fidelity also present in"
-log "  stock's replan, filed at lex00/floci#110 and #111. Nothing left here"
-log "  is choudoufu's alone."
+log "  (stage 1c); the 1 change is the ECS service's own emulator read"
+log "  fidelity gap, also present in stock's replan, filed at"
+log "  lex00/floci#110. Nothing left here is choudoufu's alone."
 
 log ""
 log "STAGE 3 (test_plan): BLOCKED, but #371, #378 and #372 are all FIXED here"
 log "and the wall has moved three times. The three types #371 was about now"
 log "read back present, with their prior identities confirmed by value"
-log "against the AWS CLI; the two log groups inside for_each'd module calls"
-log "are no longer in the plan at all, because stamp now writes them a"
-log "per-module-instance tofu-address through tofu.marker_module_prefix"
-log "(#378); and all 5 client-named count instances that needed a tofu-slot"
-log "tag now carry one from migrate time, settled from their own"
-log "configuration rather than left for the plan to add (#372's remainder)."
-log "What remains: two task-definition replacements stock itself proposes on"
-log "its own fresh state (stage 1c - HANDOFF.md row 3), and three emulator"
-log "read-fidelity diffs also in stock's replan, each confirmed independently"
-log "against the AWS CLI and filed at lex00/floci#110 and #111 (HANDOFF.md"
-log "row 4). Every one of those is either tracked or stock's own answer;"
-log "none is choudoufu's alone. All eight of #368's diagnostics are gone,"
-log "asserted by absence above, and the identity #368 made expressible is"
-log "confirmed by value."
+log "against the AWS CLI - the ECS cluster's own by a traced replan, since"
+log "GitHub issue #365 slice 2's residue widening converged its block to a"
+log "genuine no-op on this estate and tofu's renderer omits it entirely; the"
+log "two log groups inside for_each'd module calls are no longer in the plan"
+log "at all, because stamp now writes them a per-module-instance tofu-address"
+log "through tofu.marker_module_prefix (#378); and all 5 client-named count"
+log "instances that needed a tofu-slot tag now carry one from migrate time,"
+log "settled from their own configuration rather than left for the plan to"
+log "add (#372's remainder). What remains: two task-definition replacements"
+log "stock itself proposes on its own fresh state (stage 1c - HANDOFF.md row"
+log "3), and one emulator read-fidelity diff also in stock's replan -"
+log "the ECS service's service_connect_configuration block, confirmed"
+log "independently against the AWS CLI and filed at lex00/floci#110"
+log "(HANDOFF.md row 4). The residue widening also converged the ECS"
+log "cluster's own configuration block and the default network ACL's"
+log "egress/ingress rules to a no-op on THIS estate's own applied values,"
+log "without closing floci#110 or floci#111 - neither filed bug is fixed,"
+log "only this estate's shape of them stopped producing a plan diff. Every"
+log "one of these is either tracked or stock's own answer; none is"
+log "choudoufu's alone. All eight of #368's diagnostics are gone, asserted"
+log "by absence above, and the identity #368 made expressible is confirmed"
+log "by value."
 log ""
-gauntlet_stage test_plan fail "#371, #378 and #372 all FIXED here. #378: the two aws_cloudwatch_log_group instances under for_each'd module calls are no longer in the plan at all - internal/live/stamp now writes them a per-module-instance tofu-address through the tofu.marker_module_prefix evaluator symbol (internal/live/markers.ModulePrefixAttr), so the replan's desired tag set carries exactly the markers live-import wrote instead of dropping them. #372's remainder: Ratification.resolved (internal/live/liveimport/ratify.go) resolves the migration's own Request.Config once through identity.ResolveWith, and instanceNeedsDiscovery (slot.go) asks it per instance instead of leaving every client-named type's count instances unsettled - all 5 that needed a tofu-slot tag here (the module's own name_prefix'd IAM roles) now carry one from migrate time; causeStableWithoutManagedResults excludes the two discovery causes (SiblingApply, MarkerFallback) a real live-plan's own two-pass resolution can still overturn once a sibling's live value is in hand, measured directly on this estate's own aws_ecs_service.this[0]. Plan is now 2 to add, $CHANGE_N to change, 2 to destroy (was 2/8/2 before #372's remainder, 2/29/2 before #372 at all, 2/31/2 with #378, 7/30/0 before #371). Asserted three ways at 3c/3d: no removal proposed for either #378 marker by exact value, neither log group in the change list, and both markers still on the live objects through the AWS CLI after the replan; the tofu-slot-only reader finds 0 of $CHANGE_N, not 5 of 8. The rule names no type and reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call at any depth for #378, and every client-named type whose per-instance resolution independently agrees for #372. Still trusted-as-written, and still not verified, is a resource declaring tofu-address by hand inside a keyed module call: choudoufu #379. #371: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3; confirmed independently against the AWS CLI that RegisterTaskDefinition/DescribeTaskDefinition drop container_definitions fields the module sends), and 3 emulator read-fidelity diffs (aws_ecs_cluster.configuration, aws_ecs_service.deployment_configuration/service_connect_configuration, aws_default_network_acl egress/ingress) each confirmed independently against the AWS CLI on this pinned floci image and filed as lex00/floci#110 and #111, HANDOFF row 4"
+gauntlet_stage test_plan fail "NOT a regression: the artifact's prior detail text ('the plan's prior state for the ECS cluster is \"\", not the live cluster ARN ... - the projection bound something else, or nothing') was a stale SCRIPT assertion, not a binding defect. GitHub issue #365 slice 2's residue widening (internal/live/projection's residueEligibleBlock, landed after this estate's own previous unit, #365) converged the ECS cluster's own spurious in-place change to a genuine no-op on this estate; tofu's plan renderer omits a fully-unchanged resource's block entirely, by design, in every version of it, so plan_attr()'s column-parse of the (now absent) block returned empty - correctly, since there is nothing printed to parse - and 3a2's old assertion, added by this estate's own immediately-preceding unit while the cluster still carried a real diff, had never been exercised against a converged block before. Root-caused from the code path, not the symptom: internal/live/liveimport's own migrate-stage log confirms the cluster's tofu-address marker is written and re-read correctly both before and after the plan; a traced replan (TF_LOG=trace) shows exactly one 'materialized module.ecs_cluster.aws_ecs_cluster.this[0] from import identity \"ex-fargate\"' and its underlying DescribeClusters response carries clusterArn=$CLUSTER_ARN, the AWS CLI's own live value; and the plan's 2 adds are both accounted for by the two task-definition replacements, never by the cluster (asserted by absence). 3a2 is fixed generically: it now falls back to this traced-replan proof whenever a monitored resource's block does not render at all (fully converged), instead of assuming a rendered block. The residue widening also converged the default network ACL's egress/ingress rules to a no-op on this estate's own applied values (both empty here), dropping the plan from 2 to add, 3 to change, 2 to destroy (this estate's own last recorded state, #372) to 2 to add, $CHANGE_N to change, 2 to destroy - WITHOUT closing lex00/floci#110 or floci#111, both still open, both still independently confirmed against the AWS CLI: only this estate's own shape of those two gaps (empty applied values) stopped producing a plan diff. What remains, all previously known: 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3; confirmed independently against the AWS CLI that RegisterTaskDefinition/DescribeTaskDefinition drop container_definitions fields the module sends), and the ECS service's own service_connect_configuration block (HANDOFF row 4, lex00/floci#110, not fixed). #371, #378 and #372 remain fixed as this estate's own previous unit found: #378's two aws_cloudwatch_log_group instances under for_each'd module calls stay out of the plan (internal/live/stamp's per-module-instance tofu-address via tofu.marker_module_prefix), and #372's remainder (Ratification.resolved in internal/live/liveimport/ratify.go resolving Request.Config through identity.ResolveWith, instanceNeedsDiscovery asking the per-instance Class) keeps all 5 client-named count instances slotted at migrate time (0 of $CHANGE_N in-place changes are a bare tofu-slot tag). #371's ABSENT class is still 0; identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID."
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
