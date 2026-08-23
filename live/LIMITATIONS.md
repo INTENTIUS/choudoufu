@@ -1715,6 +1715,63 @@ thing standing between `"refuse"` and a stock state file's generated password
 landing in the record store, and what that path writes is the instance's
 whole prior object rather than an identity.
 
+### strict-no-source-create
+
+**Construct.** A `strict { no_source_create = "..." }` argument naming
+something outside this fork's vocabulary. The two settings are:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    strict {
+      no_source_create = "create" # default "refuse"
+    }
+  }
+}
+```
+
+`"refuse"`, the default, is what an instance with no record, no live
+marker, and an identity nothing - neither the static evaluator nor GitHub
+issue #388's plan-node seam - can derive from its own configuration gets
+today: named, blocked, and told to run `choudoufu live-import` from the
+stock state that already holds it. `"create"` selects stock OpenTofu's own
+behavior for a resource with no prior state instead: plan a create.
+
+**Why bounded.** GitHub issue #365, ruling 4
+(`rfc/20260823-foundation-order-ruling.md`). The two settings are opposites
+for the same reason `strict-secrets`'s are - a spelling that is neither is
+a question this package cannot answer - and the default refuses rather
+than creates because HANDOFF.md's safety rule outranks convenience here: a
+no-source instance is indistinguishable, from where this toggle is read,
+between "genuinely new" and "real, and this run simply cannot see it yet",
+and creating a second copy of a real object is the "wrong marker" failure
+the rule exists to prevent, wearing a create's clothes instead of a
+marker's. Writing the default out by hand is clean and means exactly what
+omitting it means.
+
+**Forwarding address.** Correct the spelling, run `choudoufu live-import`
+from the stock state that already holds the instance (which is what makes
+`"refuse"` resolve on the next run, with no toggle needed), or set
+`no_source_create = "create"` to accept stock's own risk for this instance.
+
+**Enforcement.** `RuleStrictNoSourceCreate`, `internal/live/lint/strict.go`
+(`checkStrictNoSourceCreate`), against `internal/live/strict`'s
+`NoSourceCreateValid`. Fixture at
+`live/e2e/limits/strict-no-source-create/`; the two valid spellings and the
+default written out are in `internal/live/lint/testdata`.
+
+The *setting* itself is read where GitHub issue #388's plan-node seam
+resolver ([`internal/live/projection.NodeResolver`]) finds no record, no
+marker, and no identity the table can derive from the instance's real,
+evaluated configuration value:
+`internal/live/projection/noderesolver.go`'s `NodeResolver.NoSourceCreate`
+field, populated from this setting by the live-mode wiring that constructs
+the resolver. `internal/live/lint`'s check above is the gate a
+configuration meets before a plan ever runs; `NodeResolver` asks the same
+question again at the layer that acts, so a caller that skipped lint still
+gets the refusal rather than a silent duplicate create.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity
@@ -2128,6 +2185,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
 | - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
 | - | - | lint | strict-markers-unrecordable | error | `internal/live/lint` | "strict-markers-unrecordable" |
+| - | - | lint | strict-no-source-create | error | `internal/live/lint` | "strict-no-source-create" |
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
@@ -2175,7 +2233,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**207 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**208 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

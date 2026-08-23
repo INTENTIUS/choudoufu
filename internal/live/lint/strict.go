@@ -69,6 +69,7 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	st := mod.Live.Strict
 
 	checkStrictSecrets(st, path, issues)
+	checkStrictNoSourceCreate(st, path, issues)
 
 	if !st.MarkerRepairSet {
 		// An omitted argument resolves to strict.DefaultMarkerRepair, which
@@ -165,6 +166,34 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 			st.Secrets, strict.SecretsNames(), strict.DefaultSecrets, strict.Refuse,
 		),
 		Subject: st.SecretsRange,
+	})
+}
+
+// checkStrictNoSourceCreate validates the strict block's no_source_create
+// argument (GitHub issue #365, ruling 4): the same shape [checkStrictSecrets]
+// checks, since both settings the vocabulary defines are implemented and
+// there is nothing here beyond a typo to catch.
+func checkStrictNoSourceCreate(st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
+	if !st.NoSourceCreateSet {
+		// An omitted argument resolves to strict.DefaultNoSourceCreate.
+		// Nothing to check.
+		return
+	}
+	if strict.NoSourceCreateValid(strict.NoSourceCreate(st.NoSourceCreate)) {
+		return
+	}
+	*issues = append(*issues, Issue{
+		Rule:      RuleStrictNoSourceCreate,
+		Construct: fmt.Sprintf("strict.no_source_create = %q", st.NoSourceCreate),
+		Module:    path,
+		Detail: fmt.Sprintf(
+			"%q is not a no_source_create setting. Valid settings: %s. %q, which is what omitting the argument "+
+				"means, refuses an instance with no record, no live marker and no derivable identity - the safe "+
+				"default, since nothing can tell such an instance apart from a real object this run simply cannot "+
+				"see yet. %q selects stock OpenTofu's own behavior instead: plan a create.",
+			st.NoSourceCreate, strict.NoSourceCreateNames(), strict.DefaultNoSourceCreate, strict.NoSourceCreateOn,
+		),
+		Subject: st.NoSourceCreateRange,
 	})
 }
 

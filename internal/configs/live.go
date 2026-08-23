@@ -161,6 +161,23 @@ type LiveStrict struct {
 	SecretsSet   bool
 	SecretsRange hcl.Range
 
+	// NoSourceCreate is the literal string an author wrote for the
+	// "no_source_create" argument - "refuse", "create", or whatever they
+	// typed, valid or not. GitHub issue #365's ruling-4 toggle
+	// (rfc/20260823-foundation-order-ruling.md): a no-source instance (no
+	// record, no marker, and an identity nothing - neither the static
+	// evaluator nor #388's plan-node seam - can derive) refuses by default;
+	// this selects stock's own behavior of planning a create instead. Read
+	// the same way [LiveStrict.Secrets] is, by the same decoder;
+	// internal/live/strict says what the spellings mean.
+	//
+	// NoSourceCreateSet distinguishes an omitted argument, which resolves
+	// to internal/live/strict.DefaultNoSourceCreate, from one written out,
+	// the same reason [LiveStrict.SecretsSet] exists.
+	NoSourceCreate      string
+	NoSourceCreateSet   bool
+	NoSourceCreateRange hcl.Range
+
 	// MarkersRecord is the optional nested `markers "record"` block: which
 	// resources hold their identity in the estate's record store instead of
 	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
@@ -449,6 +466,7 @@ var liveStrictSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
 		{Name: "marker_repair"},
 		{Name: "secrets"},
+		{Name: "no_source_create"},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "markers", LabelNames: []string{"kind"}},
@@ -645,6 +663,7 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 	}{
 		{"marker_repair", &st.MarkerRepair, &st.MarkerRepairSet, &st.MarkerRepairRange},
 		{"secrets", &st.Secrets, &st.SecretsSet, &st.SecretsRange},
+		{"no_source_create", &st.NoSourceCreate, &st.NoSourceCreateSet, &st.NoSourceCreateRange},
 	} {
 		attr, exists := content.Attributes[f.name]
 		if !exists {
