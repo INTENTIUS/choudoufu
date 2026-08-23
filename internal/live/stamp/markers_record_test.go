@@ -7,8 +7,13 @@ package stamp
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
@@ -18,8 +23,8 @@ import (
 // leaves behind rather than by a Skip reason - a skip is a report, and the
 // tags are the product.
 //
-// The three claims below are the three ways this can go wrong, and the
-// second and third are the ones that would be silent:
+// The four claims below are the four ways this can go wrong, and the
+// second, third and fourth are the ones that would be silent:
 //
 //  1. A selected resource gains no marker.
 //  2. Every OTHER resource in the same configuration gains its markers
@@ -31,6 +36,17 @@ import (
 //     marker is written exactly as it always was. Honouring it would leave
 //     a live object with neither a marker nor a usable record, which is the
 //     "created unfindable" failure the safety rule exists to prevent.
+//  4. GitHub issue #380: gaining no marker is not the same as losing one a
+//     live object already carries. A selected resource's own lifecycle
+//     ignore_changes gains exactly the two marker tag keys - never the
+//     whole tags argument, so any OTHER tag the resource sets still gets
+//     its ordinary diff - so a marker discovered before the selection
+//     existed survives instead of being planned away as a removal. Proven
+//     end to end (a real plan with a live object carrying tags and no
+//     record) in internal/command's
+//     TestLivePlan_markersRecordPreservesExistingMarker; this package can
+//     only see the configuration side, so it asserts the synthesized
+//     ignore_changes by value instead.
 
 // markersRecordSource renders a two-resource configuration whose live block
 // selects whatever the caller names. Both resources are taggable types with
@@ -98,11 +114,21 @@ func TestStamp_markersRecordWithholdsOnlyTheSelectedMarker(t *testing.T) {
 			})
 
 			// Claim 2, by value: the unselected sibling is stamped exactly as
-			// it would be with no strict block at all.
+			// it would be with no strict block at all, and carries no
+			// synthesized ignore_changes of its own - claim 4's mechanism
+			// must not leak past the resource it was built for.
 			assertTags(t, evalTags(t, cfg, "aws_subnet.private", nil), map[string]string{
 				"tofu-estate":  "stamp-unit",
 				"tofu-address": "aws_subnet.private",
 			})
+			assertIgnoreChangesTagKeys(t, cfg, "aws_subnet.private", nil)
+
+			// Claim 4, by value: the selected resource's lifecycle gained
+			// ignore_changes on exactly the two marker keys - not the whole
+			// tags argument, and not zero (which is today's bug: the marker
+			// is withheld from tags but nothing protects a live object's
+			// EXISTING one, so the plan proposes removing it).
+			assertIgnoreChangesTagKeys(t, cfg, "aws_vpc.main", []string{TagAddress, TagEstate})
 
 			// And the report says what happened, so an operator reading a
 			// plan is not left to infer a withheld marker from its absence.
@@ -144,6 +170,11 @@ func TestStamp_markersRecordIsNotHonouredWithoutASchema(t *testing.T) {
 	if _, marked := tags["tofu-address"]; marked {
 		t.Errorf("aws_vpc.main was stamped with no schema for its type: %v", tags)
 	}
+	// No ignore_changes either: this selection was never honoured (the
+	// SkipNoSchema branch returned before the selection check ever ran), so
+	// there is no withheld marker for GitHub issue #380's synthesis to
+	// protect. The marker was written exactly as it always was.
+	assertIgnoreChangesTagKeys(t, cfg, "aws_vpc.main", nil)
 	assertTags(t, evalTags(t, cfg, "aws_subnet.private", nil), map[string]string{
 		"tofu-estate":  "stamp-unit",
 		"tofu-address": "aws_subnet.private",
@@ -220,4 +251,61 @@ resource %q "app" {
 		"tofu-estate":  "stamp-unit",
 		"tofu-address": typeName + ".app",
 	})
+	// And, again, no ignore_changes: an unhonoured selection has no
+	// withheld marker for GitHub issue #380's synthesis to protect.
+	assertIgnoreChangesTagKeys(t, cfg, typeName+".app", nil)
+}
+
+// assertIgnoreChangesTagKeys reads addr's lifecycle { ignore_changes }
+// traversals out of the loaded configuration and asserts they name exactly
+// the tags[key] entries in want - GitHub issue #380's synthesis, which is
+// the only thing that ever writes one here. want may be nil for "none".
+//
+// It fails loudly on any traversal shape this package did not itself write
+// (a bare "tags", a non-index second step, more than two steps) rather than
+// silently ignoring it, because the one thing worth pinning here is that
+// nothing this pass adds ever reaches for the whole tags argument - the
+// per-key narrowness is the point, not an accident of what happens to be
+// present today.
+func assertIgnoreChangesTagKeys(t *testing.T, cfg *configs.Config, addr string, want []string) {
+	t.Helper()
+
+	rc, ok := cfg.Module.ManagedResources[addr]
+	if !ok {
+		t.Fatalf("no resource %s in the configuration", addr)
+	}
+
+	var got []string
+	for _, trav := range rc.Managed.IgnoreChanges {
+		if len(trav) != 2 {
+			t.Fatalf("%s: ignore_changes traversal has %d steps, want 2: %#v", addr, len(trav), trav)
+		}
+		root, ok := trav[0].(hcl.TraverseAttr)
+		if !ok || root.Name != tagsArgument {
+			t.Fatalf("%s: ignore_changes traversal is not rooted at %q: %#v", addr, tagsArgument, trav)
+		}
+		idx, ok := trav[1].(hcl.TraverseIndex)
+		if !ok {
+			t.Fatalf("%s: ignore_changes traversal's second step is not an index: %#v", addr, trav)
+		}
+		if idx.Key.Type() != cty.String {
+			t.Fatalf("%s: ignore_changes index key is not a string: %#v", addr, idx.Key)
+		}
+		got = append(got, idx.Key.AsString())
+	}
+	sort.Strings(got)
+
+	wantSorted := append([]string(nil), want...)
+	sort.Strings(wantSorted)
+
+	if len(got) != len(wantSorted) {
+		t.Errorf("%s: ignore_changes tag keys = %v, want %v", addr, got, wantSorted)
+		return
+	}
+	for i := range got {
+		if got[i] != wantSorted[i] {
+			t.Errorf("%s: ignore_changes tag keys = %v, want %v", addr, got, wantSorted)
+			return
+		}
+	}
 }
