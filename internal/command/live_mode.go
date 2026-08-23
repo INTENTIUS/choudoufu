@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -22,10 +23,12 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/untag"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -185,12 +188,61 @@ func statelessBegin(
 	}
 	local.Stateless = runner
 
+	// GitHub issue #388's plan-node seam, behind its migration flag (see
+	// [nodeResolveEnabled]). The resolver is constructed HERE, empty, and
+	// handed to ContextOpts before tofu.NewContext is ever called - the
+	// only point in the whole call chain where that field can still be
+	// set (backend_local.go's localRunDirect takes a *copy* of
+	// local.ContextOpts before calling NewContext, so this write has to
+	// land before that copy is taken, and PriorState - the step that
+	// actually knows the record store and the marker sweep's index - does
+	// not run until well after NewContext has returned). runner.resolver
+	// is populated a few steps later, at the end of PriorState, once both
+	// of those exist; managedResourceExecute never calls into it before
+	// then, because Plan()'s own graph walk is later still. When the flag
+	// is off (the default), ContextOpts.ResourceIdentityResolver is never
+	// touched and stays nil, which is the scaffold's own proven nil
+	// contract (TestContext2Plan_resourceIdentityResolverNilContract) -
+	// every existing estate's plan is unaffected byte for byte.
+	if nodeResolveEnabled() {
+		runner.nodeResolve = true
+		runner.resolver = &projection.NodeResolver{}
+		local.ContextOpts.ResourceIdentityResolver = runner.resolver
+	}
+
 	// The manager's Lock is already a no-op, so this is redundant on purpose.
 	// It also spares the operator the "Acquiring state lock" message for a
 	// lock that does not exist.
 	opReq.StateLocker = clistate.NewNoopLocker()
 
 	return diags
+}
+
+// nodeResolveEnabled reports whether GitHub issue #388's plan-node seam
+// (rfc/20260823-foundation-order-ruling.md, ruling 3) routes identity
+// resolution through the node - internal/live/projection.NodeResolver,
+// installed as the run's tofu.ResourceIdentityResolver - instead of, or
+// alongside, the pre-walk static path.
+//
+// This is the migration flag HANDOFF.md's foundation item 3 names: the
+// static evaluator and the HCL-rewriting stamp retire when the gauntlet
+// holds without them, and until that day the default (this function
+// returning false) has to keep every existing estate's plan byte-identical
+// to what it is today. CHOUDOUFU_NODE_RESOLVE=1 is the whole switch, read
+// once per statelessBegin so a single CLI invocation cannot see the flag
+// change mid-run.
+//
+// It is an environment variable and not a live-block toggle for the same
+// reason [Live] itself is a configuration block and everything else here is
+// not: this one is not a property of an estate's configuration, reviewed
+// and checked in with it, but a property of the BUILD an operator is
+// running - "does this binary's engine resolve identity the new way yet" -
+// which is a fact about migration progress, not about ownership. Every
+// toggle that IS a property of an estate (marker_repair, secrets,
+// no_source_create) stays in the live block's strict { } schema exactly as
+// #365 defines it.
+func nodeResolveEnabled() bool {
+	return os.Getenv("CHOUDOUFU_NODE_RESOLVE") == "1"
 }
 
 // testStatelessRunner, when set, is handed every runner as it is built. It
@@ -399,6 +451,15 @@ type statelessRunner struct {
 	// runs on the single goroutine backend_local.go's localRunDirect calls it
 	// from, never concurrently with itself.
 	priorStateCalls int
+
+	// nodeResolve and resolver are GitHub issue #388's plan-node seam,
+	// set once in statelessBegin from [nodeResolveEnabled] and populated
+	// at the end of PriorState. resolver is nil whenever nodeResolve is
+	// false (the default), which is also when it is never installed on
+	// ContextOpts at all - see statelessBegin's own comment on why the
+	// two are set together, in that order, before tofu.NewContext runs.
+	nodeResolve bool
+	resolver    *projection.NodeResolver
 }
 
 var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
@@ -569,6 +630,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// The same two-pass resolution live-plan runs, through the same helper:
 	// see [statelessResolve].
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
+	if r.nodeResolve {
+		// GitHub issue #388's plan-node seam, #364 unit B's own landing
+		// note (item 3): a per-instance refusal here is the static
+		// evaluator giving up, not proof the instance has no identity -
+		// see identity.DowngradeForNodeResolution's own doc comment for
+		// why only an InstanceFailure-tagged diagnostic is touched. The
+		// instance stays absent from resolutions (Resolve's contract:
+		// "an instance that could not be classified is absent from the
+		// Result"), so it reaches the node with no prior state and
+		// r.resolver gets the chance the static path never had.
+		idDiags = identity.DowngradeForNodeResolution(idDiags)
+	}
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
@@ -589,6 +662,21 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 	if disco != nil {
 		merged = disco.Resolutions
+	}
+
+	// GitHub issue #388's plan-node seam: the resolver was constructed
+	// empty in statelessBegin (before tofu.NewContext existed to be handed
+	// it) and is populated now, the first moment both of its data sources
+	// exist - r.recordStore (open or nil a few lines above) and the
+	// marker sweep's own resolutions, snapshotted into an address-keyed
+	// index because the sweep itself has already finished by the time
+	// anything calls the resolver. r.resolver is nil whenever
+	// r.nodeResolve is false, so this whole block is a no-op for every run
+	// that has not opted into the migration flag.
+	if r.nodeResolve {
+		r.resolver.RecordStore = r.recordStore
+		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
