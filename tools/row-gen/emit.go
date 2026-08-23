@@ -166,8 +166,12 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
 	}
+	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
+	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts, goldenExercised)
 	if err != nil {
 		return err
 	}
@@ -217,7 +221,15 @@ var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, ma
 // ratified is the ratified corpus - tools/row-gen/ratified.json, an input no
 // generator writes. Everything below derives from it rather than from
 // [identity.DefaultTable]; see this file's own doc comment and issue #263.
-func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas, schemaFacts map[string]schemaFactEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+//
+// goldenExercised is [goldenExercisedTypes]' own set - internal/live/check's
+// identity golden, read as data - and it is schemaFirstReproduced's own
+// safety net (schemafirst.go, goldenexercised.go): a candidate the golden
+// exercises anywhere stays in the table regardless of what the offline
+// same-name comparison says, because dropping it would make the golden's
+// own schema-less analysis lose the instance outright rather than merely
+// disagree with it.
+func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas, schemaFacts map[string]schemaFactEntry, goldenExercised map[string]bool) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	recordBacked, secretMaterial, err := recordBackedRows(ratified, logical)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
@@ -237,14 +249,15 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	// table the same way a vetoed or not-importable row does, though for the
 	// opposite reason - not because nothing can resolve it, but because
 	// [identity.SynthesizeTypeIdentity] already will, at resolution time,
-	// from the real schemas. See schemafirst.go for what "reproduces" means.
-	schemaReproduced := schemaFirstReproduced(ratified, grammar)
+	// from the real schemas. See schemafirst.go and goldenexercised.go for
+	// what "reproduces" means and why goldenExercised narrows it.
+	_, schemaReproducedDropped := schemaFirstDrop(ratified, grammar, goldenExercised)
 	// emittedRows' excluded set is the union of all three rules: any one of
 	// them alone is enough to keep a type out of the table, and each is
 	// still rendered into (or recorded in) its own roster below so it keeps
 	// its own reason. A type can be in more than one; setOf collapses the
 	// duplicate harmlessly.
-	excluded := setOf(append(append(append([]string(nil), vetoed...), notImportable...), schemaReproduced...))
+	excluded := setOf(append(append(append([]string(nil), vetoed...), notImportable...), schemaReproducedDropped...))
 	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, excluded)
 
 	// The convergence comparison runs over the rows about to be written, not

@@ -223,8 +223,20 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 		t.Fatalf("loadAnnotations: %v", err)
 	}
 	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
-	schemaReproduced := schemaFirstReproduced(loadRatifiedForTest(t), loadImportGrammarForTest(t))
-	fresh.SchemaReproduces = schemaReproducesBucket{Count: len(schemaReproduced), Types: schemaReproduced}
+	goldenExercised := loadGoldenExercisedForTest(t)
+	candidates, dropped := schemaFirstDrop(loadRatifiedForTest(t), loadImportGrammarForTest(t), goldenExercised)
+	var heldByGolden []string
+	for _, tf := range candidates {
+		if goldenExercised[tf] {
+			heldByGolden = append(heldByGolden, tf)
+		}
+	}
+	fresh.SchemaReproduces = schemaReproducesBucket{
+		Count:          len(dropped),
+		Types:          dropped,
+		CandidateCount: len(candidates),
+		HeldByGolden:   heldByGolden,
+	}
 
 	committed := loadCommittedConvergence(t)
 

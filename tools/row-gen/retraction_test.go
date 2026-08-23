@@ -162,7 +162,7 @@ func TestEmitAddsNoRowTheTableDoesNotAlreadyHold(t *testing.T) {
 // are exactly emittedRows' key set.
 func emitPartitionForTest(t *testing.T, survey map[string]surveyEntry) emitPartition {
 	t.Helper()
-	_, identityPart, _, err := buildEmitFiles(loadRatifiedForTest(t), loadAllForTest(t), loadAnnotationsForTest(t), loadImportGrammarForTest(t), survey, loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t))
+	_, identityPart, _, err := buildEmitFiles(loadRatifiedForTest(t), loadAllForTest(t), loadAnnotationsForTest(t), loadImportGrammarForTest(t), survey, loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t), loadGoldenExercisedForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

@@ -87,6 +87,25 @@ import (
 // boundary the rule above draws - re-run -convergence's own summary
 // whenever the true source of that difference is found, rather than
 // treating either number as fixed.
+// schemaFirstDrop is [schemaFirstReproduced] narrowed by
+// [goldenExercisedTypes]: candidates is the full offline-reproducible set,
+// dropped is the subset actually safe to remove from the emitted table
+// today - every candidate goldenExercised does not name. See
+// goldenexercised.go's own doc comment for why the narrowing exists: a
+// candidate the golden exercises would not merely render differently if
+// dropped, it would disappear from that schema-less instrument's output
+// entirely, which the golden's own byte-identical acceptance bar treats as
+// evidence the row was not reproducible after all.
+func schemaFirstDrop(ratified map[string]identity.TypeIdentity, grammar map[string]importGrammarRow, goldenExercised map[string]bool) (candidates, dropped []string) {
+	candidates = schemaFirstReproduced(ratified, grammar)
+	for _, t := range candidates {
+		if !goldenExercised[t] {
+			dropped = append(dropped, t)
+		}
+	}
+	return candidates, dropped
+}
+
 func schemaFirstReproduced(ratified map[string]identity.TypeIdentity, grammar map[string]importGrammarRow) []string {
 	var out []string
 	for t, e := range ratified {

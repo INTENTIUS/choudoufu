@@ -373,9 +373,13 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch)
 	// Ruling 2 (#387): the same schema-first exclusion -emit itself applies
 	// (emit.go), so a mode that measures what -emit would ship never sees a
-	// row -emit itself would drop. See schemafirst.go.
-	schemaReproduced := schemaFirstReproduced(ratified, grammar)
-	excluded := setOf(append(append([]string(nil), vetoed...), schemaReproduced...))
+	// row -emit itself would drop. See schemafirst.go and goldenexercised.go.
+	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+	}
+	_, schemaReproducedDropped := schemaFirstDrop(ratified, grammar, goldenExercised)
+	excluded := setOf(append(append([]string(nil), vetoed...), schemaReproducedDropped...))
 	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), setOf(secretMaterialTypes(logical)), uniqueName, grammar, survey, excluded)
 	return rows, nil
 }

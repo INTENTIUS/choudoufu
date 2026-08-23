@@ -251,10 +251,25 @@ func runConvergence(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
 	}
-	schemaReproduced := schemaFirstReproduced(ratified, grammar)
+	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+	}
+	candidates, dropped := schemaFirstDrop(ratified, grammar, goldenExercised)
+	var heldByGolden []string
+	for _, t := range candidates {
+		if goldenExercised[t] {
+			heldByGolden = append(heldByGolden, t)
+		}
+	}
 
 	art := buildConvergence(emitted, proposals, annotations)
-	art.SchemaReproduces = schemaReproducesBucket{Count: len(schemaReproduced), Types: schemaReproduced}
+	art.SchemaReproduces = schemaReproducesBucket{
+		Count:          len(dropped),
+		Types:          dropped,
+		CandidateCount: len(candidates),
+		HeldByGolden:   heldByGolden,
+	}
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
 		for _, p := range problems {
