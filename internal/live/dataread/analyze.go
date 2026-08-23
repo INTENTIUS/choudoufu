@@ -71,6 +71,24 @@ type Options struct {
 	// that provider" and skips the cross-check for it rather than refusing
 	// on it. See [LiveProviders].
 	ProviderManagedTypes map[addrs.Provider]map[string]bool
+
+	// LiveManagedResults is a real, narrow live read of specific managed
+	// resource instances - [projection.ReadInstances]'s own output shape,
+	// keyed by absolute instance address - that a caller performed AHEAD of
+	// this call, after a first, plain analysis named which instances it
+	// needed. It answers a managed-resource reference [managedProj] cannot
+	// project from the block's own literal arguments (an attribute the body
+	// does not set, such as an "id" that only the provider assigns), for
+	// the one instance a caller actually read and no other. See
+	// [managedProjector.liveManaged].
+	//
+	// Nil is the default, and every existing caller gets it: a managed
+	// reference this cannot answer keeps refusing exactly as it always has,
+	// carrying the same [configs.RefusedReference] a caller can read to
+	// learn what a live read would need to name (see
+	// [identity.DemandedManagedReads], which reads any [tfdiags.Diagnostics]
+	// this package's own evaluation raises, not only identity's own).
+	LiveManagedResults map[string]cty.Value
 }
 
 // Source is one data resource block the analysis classified: demanded by an
@@ -206,6 +224,40 @@ type Analysis struct {
 	// the same one. See outputs.go's header for why the two demand classes
 	// have opposite contracts.
 	scoped bool
+
+	// liveManaged carries [Options.LiveManagedResults] from classification
+	// through to [read], the same way [projectManaged] does: the read phase
+	// reads it off the analysis rather than taking its own option, so the
+	// two can never disagree about which live values a managed reference
+	// may answer from.
+	liveManaged map[string]cty.Value
+
+	// managedRefusals is every diagnostic [analyzer.classify] raised over a
+	// managed-resource reference this analysis could not project, in the
+	// same [configs.RefusedReference]-carrying shape identity's own
+	// resolution raises one in. See [Analysis.ManagedRefusals].
+	managedRefusals tfdiags.Diagnostics
+}
+
+// ManagedRefusals returns every diagnostic this analysis raised over a
+// managed-resource reference [managedProjector] could not answer from a
+// block's own literal arguments - the [configs.RefusedReference]-carrying
+// diagnostics [identity.DemandedManagedReads] already knows how to read,
+// regardless of which resolution pass raised them.
+//
+// This is the seam a caller uses to close issue #187's fixpoint one layer
+// higher than identity's own second pass: analyze once, hand any managed
+// refusals here to [identity.DemandedManagedReads] alongside a resolution
+// that has already settled the demanded instances' own identities,
+// [projection.ReadInstances] the few instances actually named, supply the
+// result as [Options.LiveManagedResults], and analyze again. Nil when
+// nothing here was blocked on a managed resource, which is every
+// configuration this package classified before this method existed.
+func (a *Analysis) ManagedRefusals() tfdiags.Diagnostics {
+	if a == nil {
+		return nil
+	}
+	return a.managedRefusals
 }
 
 // Scoped reports that this analysis's demand is scoped rather than fatal -
@@ -436,13 +488,13 @@ func (an *analyzer) forEachDataRefs(mod *configs.Module, expr hcl.Expression, de
 // repeats until resolution demands nothing new. The probe's diagnostics are
 // discarded - the real resolution runs later, with real values.
 func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
-	a := &Analysis{sources: make(map[string]*Source), projectManaged: !opts.SkipManagedProjection}
+	a := &Analysis{sources: make(map[string]*Source), projectManaged: !opts.SkipManagedProjection, liveManaged: opts.LiveManagedResults}
 	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil {
 		return a
 	}
 	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, scope: opts.Scope, visiting: make(map[string]bool)}
 	if a.projectManaged {
-		an.proj = newManagedProjector(ctx, cfg, false)
+		an.proj = newManagedProjector(ctx, cfg, false, opts.LiveManagedResults)
 	}
 
 	// #209: a data source reference nested inside a for_each meta-argument's
@@ -503,6 +555,25 @@ type analyzer struct {
 	// or nil when [Options.SkipManagedProjection] turned it off. See
 	// managedproj.go.
 	proj *managedProjector
+}
+
+// recordManagedRefusal appends a managed-resource-category refusal to this
+// analyzer's own [Analysis.managedRefusals], and does nothing for any other
+// diagnostic. It is [liveModuleEvaluator]'s recordManagedRefusal callback
+// for the one construction site (evalRecorded, below) that has an
+// [*Analysis] to write into; [managedProjector] and [reader] build their
+// own evaluators with a nil callback, because a refusal at their layer
+// either surfaces at [evalRecorded]'s own layer already (a managed
+// reference named directly by a data source's own argument) or costs
+// nothing this package tracks (the read phase never classifies).
+func (an *analyzer) recordManagedRefusal(d *hcl.Diagnostic) {
+	if an == nil || an.analysis == nil || d == nil {
+		return
+	}
+	if ref, isRef := d.Extra.(configs.RefusedReference); !isRef || ref.Category != configs.CategoryManagedResource {
+		return
+	}
+	an.analysis.managedRefusals = an.analysis.managedRefusals.Append(d)
 }
 
 type demandRoot struct {
@@ -743,7 +814,7 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		deps[d.key()] = d
 	}
 	for _, ne := range an.sourceExpressions(rc) {
-		errDetail, category, usedSelf, ok := an.evalRecorded(module, res, rc, ne, record)
+		errDetail, category, refused, usedSelf, ok := an.evalRecorded(module, res, rc, ne, record)
 		if ok {
 			if usedSelf {
 				src.PerInstance = true
@@ -753,6 +824,16 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		switch category {
 		case configs.CategoryManagedResource:
 			refuse(fmt.Sprintf("its %s depends on a managed resource: %s", ne.label, errDetail))
+			// Recorded in the analysis's own diagnostics, in the same
+			// Extra shape identity's own resolution raises it in, so a
+			// caller that already knows how to turn a resolution's
+			// refusals into a live-read demand
+			// ([identity.DemandedManagedReads]) can be handed this
+			// package's refusals too, with no new demand-extraction code
+			// of its own. See [Analysis.ManagedRefusals].
+			if refused != nil {
+				an.analysis.managedRefusals = an.analysis.managedRefusals.Append(refused)
+			}
 		case configs.CategoryRemoteState:
 			refuse(fmt.Sprintf("its %s reads a cross-stack data source, which this stage does not read: %s", ne.label, errDetail))
 		default:
@@ -1022,14 +1103,14 @@ func selfRepetitionRoots(rc *configs.Resource, label string) map[string]bool {
 // its own data lookup, its own ancestor chain, and nothing borrowed from
 // any other module's coverage (issue #212 - see that function's doc for
 // the adversarial case this guards against).
-func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *configs.Resource, ne namedExpr, record func(addrs.Module, addrs.Resource)) (errDetail string, category configs.ReferenceCategory, usedSelf bool, ok bool) {
+func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *configs.Resource, ne namedExpr, record func(addrs.Module, addrs.Resource)) (errDetail string, category configs.ReferenceCategory, refused *hcl.Diagnostic, usedSelf bool, ok bool) {
 	if ne.expr == nil {
 		// A namedExpr with no expression is always a sentinel: either the
 		// whole block is not written in native syntax ([sourceExpressions]),
 		// or a "dynamic" block this phase found was malformed in a way
 		// OpenTofu's own schema decode would refuse anyway
 		// ([collectDynamicBlockExpressions]). ne.label already names which.
-		return fmt.Sprintf("%s cannot be analyzed", ne.label), configs.CategoryOther, false, false
+		return fmt.Sprintf("%s cannot be analyzed", ne.label), configs.CategoryOther, nil, false, false
 	}
 	defer func() {
 		// The same guard identity's evalPure carries: static evaluation can
@@ -1039,14 +1120,15 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 		if rec := recover(); rec != nil {
 			errDetail = fmt.Sprintf("evaluation failed: %v", rec)
 			category = configs.CategoryOther
+			refused = nil
 			usedSelf = false
 			ok = false
 		}
 	}()
 
-	eval := liveModuleEvaluator(an.ctx, an.cfg, module, an.lookupFactory(record))
+	eval := liveModuleEvaluator(an.ctx, an.cfg, module, an.lookupFactory(record), false, an.recordManagedRefusal)
 	if eval == nil {
-		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, false, false
+		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, nil, false, false
 	}
 	ident := configs.StaticIdentifier{
 		Module:    module,
@@ -1070,14 +1152,14 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 
 	refs, refDiags := lang.References(addrs.ParseRef, travs)
 	if refDiags.HasErrors() {
-		detail, cat := firstHCLError(refDiags.ToHCL())
-		return detail, cat, false, false
+		detail, cat, raw := firstHCLError(refDiags.ToHCL())
+		return detail, cat, raw, false, false
 	}
 
 	hclCtx, ctxDiags := eval.EvalContextWithParent(an.ctx, nil, ident, refs)
 	if ctxDiags.HasErrors() {
-		detail, cat := firstHCLError(ctxDiags)
-		return detail, cat, false, false
+		detail, cat, raw := firstHCLError(ctxDiags)
+		return detail, cat, raw, false, false
 	}
 	if hclCtx == nil {
 		hclCtx = &hcl.EvalContext{}
@@ -1088,10 +1170,10 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 
 	_, valDiags := ne.expr.Value(hclCtx)
 	if valDiags.HasErrors() {
-		detail, cat := firstHCLError(valDiags)
-		return detail, cat, false, false
+		detail, cat, raw := firstHCLError(valDiags)
+		return detail, cat, raw, false, false
 	}
-	return "", "", usedSelf, true
+	return "", "", nil, usedSelf, true
 }
 
 // withPlaceholders returns a child of hclCtx with "each"/"count" bound to
@@ -1132,7 +1214,7 @@ func withPlaceholders(hclCtx *hcl.EvalContext, selfRoots, iterators map[string]b
 // first diagnostic carrying a [configs.RefusedReference] wins outright (its
 // category names what was actually refused), and only when none does does
 // the first error's plain detail stand in, categoryless.
-func firstHCLError(diags hcl.Diagnostics) (detail string, category configs.ReferenceCategory) {
+func firstHCLError(diags hcl.Diagnostics) (detail string, category configs.ReferenceCategory, refused *hcl.Diagnostic) {
 	var fallback string
 	for _, d := range diags {
 		if d.Severity != hcl.DiagError {
@@ -1143,7 +1225,7 @@ func firstHCLError(diags hcl.Diagnostics) (detail string, category configs.Refer
 			dDetail = d.Summary
 		}
 		if ref, isRef := d.Extra.(configs.RefusedReference); isRef {
-			return dDetail, ref.Category
+			return dDetail, ref.Category, d
 		}
 		if fallback == "" {
 			fallback = dDetail
@@ -1152,7 +1234,7 @@ func firstHCLError(diags hcl.Diagnostics) (detail string, category configs.Refer
 	if fallback == "" {
 		fallback = diags.Error()
 	}
-	return fallback, configs.CategoryOther
+	return fallback, configs.CategoryOther, nil
 }
 
 // findProviderConfig locates the root-module provider block a data source

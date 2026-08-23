@@ -8,6 +8,8 @@ package dataread
 import (
 	"context"
 
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 )
@@ -54,7 +56,7 @@ import (
 // resource's own projection, so attaching it unconditionally - root or
 // descendant, analysis or read - costs nothing and cannot disagree with
 // itself between modules or between [Analyze] and [Read].
-func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup) *configs.StaticEvaluator {
+func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup, materialize bool, recordManagedRefusal func(*hcl.Diagnostic)) *configs.StaticEvaluator {
 	node := cfg.Descendent(module)
 	if node == nil || node.Module == nil || node.Module.StaticEvaluator == nil {
 		return nil
@@ -63,7 +65,7 @@ func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.
 
 	if len(module) > 0 {
 		parentPath := module[:len(module)-1]
-		parentEval := liveModuleEvaluator(ctx, cfg, parentPath, lookup)
+		parentEval := liveModuleEvaluator(ctx, cfg, parentPath, lookup, materialize, recordManagedRefusal)
 		if parentEval == nil {
 			return nil
 		}
@@ -79,5 +81,8 @@ func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.
 		base = base.WithVariables(mc.VariablesUsing(ctx, parentEval))
 	}
 
-	return base.Pure().WithDataResults(lookup(module)).WithFunctionOverrides(arityGuardedFunctions())
+	return base.Pure().
+		WithDataResults(lookup(module)).
+		WithModuleOutputResults(moduleOutputLookup(ctx, cfg, module, lookup, materialize, recordManagedRefusal)).
+		WithFunctionOverrides(arityGuardedFunctions())
 }

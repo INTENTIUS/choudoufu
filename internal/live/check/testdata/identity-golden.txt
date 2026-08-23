@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=578 instances=1680
-# shape: class CONCRETE=811
-# shape: class NEEDS_DISCOVERY=710
+# shape: dirs=583 instances=1685
+# shape: class CONCRETE=815
+# shape: class NEEDS_DISCOVERY=711
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084
+# shape: body-sha256=ff2bcef17b77a9fde38765565aeda7d1cd4eef9514b81aac1d763a129da9ae40
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -45,9 +45,14 @@ internal/live/dataread/testdata/managed-projection-chain	aws_instance.web	NEEDS_
 internal/live/dataread/testdata/managed-projection-expanded	aws_instance.fleet[0]	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-expanded	aws_instance.fleet[1]	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-expanded	aws_instance.fleet[2]	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-live	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-nested	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-read	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-whole	aws_instance.web	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/module-output-hop	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/module-output-hop/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.this	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/zz-audit-arity	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.east	CONCRETE	tofu-alias-e2e-east	bucket=tofu-alias-e2e-east

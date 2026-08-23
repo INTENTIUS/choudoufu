@@ -347,6 +347,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
+	// GitHub issue #313's provider-configuration dependency-order fixpoint,
+	// now that resolution has settled: a provider block whose own arguments
+	// read a data source - which may itself read a managed resource this
+	// estate already owns - gets exactly the same value stock OpenTofu's
+	// ordinary plan graph would supply once prior state exists. Free when
+	// no provider block names a data source at all, which is every estate
+	// before this existed. Never fatal on its own: the same "Provider
+	// unavailable" diagnostic providerConfigValue has always raised for
+	// what this cannot resolve fires unchanged, later, when something
+	// actually tries to configure that provider.
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions)
+
 	// The estate name, read from the same two sources discovery and stamping
 	// read it from. Their diagnostics about it are raised below, in their own
 	// voices; this call is for the ownership rule the projection needs, which
@@ -2167,6 +2179,95 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 	return ""
 }
 
+// statelessProviderDataReads is GitHub issue #313's provider-configuration
+// dependency-order fixpoint: whatever a PROVIDER BLOCK's own arguments need
+// - `provider "kubernetes" { host = data.aws_eks_cluster.cluster.endpoint }`
+// is the corpus-eks-basic shape this exists for - read ahead of time, so
+// [statelessProviders.providerConfigValue] can configure a provider whose
+// configuration reads another provider's already-existing live object, the
+// same value stock OpenTofu's ordinary plan graph would supply once prior
+// state exists.
+//
+// It is [statelessResolve]'s own two-pass shape run one layer over, and it
+// reuses that fixpoint's exact machinery rather than a new one:
+// [dataread.AnalyzeProviderConfigs] classifies (a demand class of its own,
+// never probed by identity resolution because a provider block is not an
+// identity-bearing position); [identity.DemandedManagedReads] - already
+// built for identity's own refusals - reads [dataread.Analysis.
+// ManagedRefusals] just as well, because both raise the identical
+// [configs.RefusedReference]-tagged diagnostic; [projection.ReadInstances] -
+// #187's read half, built and tested, never wired to a production caller
+// until this one - performs the one narrow live read the demand names,
+// using resolutions' own already-settled identity for it; a second analyze-
+// and-read pass with that value supplied closes the loop.
+//
+// A source neither pass can read costs nothing new: [dataread.
+// AnalyzeProviderConfigs] is SCOPED, so an unreadable one is simply absent
+// from the result, and providerConfigValue sees exactly the same "Provider
+// unavailable" diagnostic it always has for that provider configuration -
+// unchanged, not a new refusal. Bounded to one retry, never a loop, for the
+// same reason [statelessResolve] never loops: a second pass that reads
+// nothing new has nothing left to gain from a third.
+//
+// provs is confined through [liveProviderReads] for the data-read half,
+// exactly as [statelessDataReads] confines its own - the 2026-08-21 audit's
+// finding was that this package's OWN wiring, not internal/live/dataread's
+// classification, is where an unconfined seam let an ordinary configuration
+// run a local-execution provider from an identity-bearing position, and a
+// second demand class built the same way inherits the same duty to draw
+// the line again at this call site rather than trust classification alone.
+// [projection.ReadInstances]'s own call is not similarly wrapped, matching
+// [statelessResolve]'s identical, already-audited call to
+// [projection.PlanInstances]: a managed resource's provider comes from its
+// own declared block, never from this phase's data-source boundary.
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result) map[string]cty.Value {
+	managedTypes := provs.managedTypesByProvider(ctx)
+	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
+	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
+	confined := func(a *dataread.Analysis) dataread.Providers {
+		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
+	}
+	results, diags := dataread.ReadProviderConfigs(ctx, config, analysis, confined(analysis))
+	for _, d := range diags {
+		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
+	}
+
+	demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
+	var instances []identity.Resolution
+	for _, d := range demand {
+		if !d.Complete {
+			continue
+		}
+		instances = append(instances, d.Instances...)
+	}
+	if len(instances) == 0 {
+		return results
+	}
+
+	read, readDiags := projection.ReadInstances(ctx, config, instances, provs, projection.Options{})
+	for _, d := range readDiags {
+		log.Printf("[TRACE] live: reading managed values for provider-configuration data reads: %s", d.Description().Summary)
+	}
+	if read == nil || len(read.Values) == 0 {
+		return results
+	}
+
+	opts.LiveManagedResults = read.Values
+	second := dataread.AnalyzeProviderConfigs(ctx, config, opts)
+	secondResults, secondDiags := dataread.ReadProviderConfigs(ctx, config, second, confined(second))
+	for _, d := range secondDiags {
+		log.Printf("[TRACE] live: provider-configuration data reads, second pass: %s", d.Description().Summary)
+	}
+	if len(secondResults) < len(results) {
+		// The retry answered fewer sources than the first pass somehow;
+		// never regress on the strength of a second attempt. See
+		// [statelessResolve]'s own errorCount comparison for the same rule
+		// applied to its own two passes.
+		return results
+	}
+	return secondResults
+}
+
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
@@ -2203,6 +2304,22 @@ type statelessProviders struct {
 	// with, so that discovery can ask what region a list should go to
 	// without evaluating the block a second time.
 	configVals map[string]cty.Value
+
+	// providerDataResults is GitHub issue #313's provider-configuration
+	// dependency-order fixpoint's own answer: the data-source values a
+	// provider block's own arguments need, read by
+	// [statelessProviderDataReads] once resolution has settled, keyed by
+	// absolute instance address exactly as [dataread.Read]'s own result is.
+	// providerConfigValue consults it the same way [liveModuleEvaluator]
+	// consults [dataread]'s own results for a data source's own argument.
+	//
+	// Nil until [statelessProviderDataReads] runs (every provider
+	// configuration behaves exactly as before until then), and nil is also
+	// what most estates keep it at: a provider block whose arguments are
+	// var/local/literal - the overwhelming common case - never has an
+	// entry here to consult, so this field costs nothing when it is not
+	// needed.
+	providerDataResults map[string]cty.Value
 }
 
 var _ projection.Providers = (*statelessProviders)(nil)
@@ -2587,7 +2704,24 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 		return cty.NilVal, diags
 	}
 
-	val, hclDiags := mod.StaticEvaluator.DecodeBlock(ctx, body, spec, ident)
+	// GitHub issue #313: a data-resource reference this provider block's own
+	// arguments make - `host = data.aws_eks_cluster.cluster.endpoint` - is
+	// answered from [statelessProviderDataReads]'s own read, exactly the
+	// seam [liveModuleEvaluator] already gives a data source's own
+	// arguments in internal/live/dataread. addr.Module is the block's own
+	// declaring module (see this function's doc comment on which module's
+	// blocks apply), matching [identity.DataLookupFor]'s own "provider
+	// blocks are almost always root, and #201 already restricts a non-root
+	// one to a shape with no repeated call chain" assumption. Nil
+	// providerDataResults - every estate before this fixpoint existed, and
+	// every provider block whose arguments name no data source - leaves
+	// this evaluator byte-identical to the bare one.
+	eval := mod.StaticEvaluator
+	if lookup, _ := identity.DataLookupFor(p.providerDataResults, addr.Module); lookup != nil {
+		eval = eval.WithDataResults(lookup)
+	}
+
+	val, hclDiags := eval.DecodeBlock(ctx, body, spec, ident)
 	diags = diags.Append(hclDiags)
 	return val, diags
 }

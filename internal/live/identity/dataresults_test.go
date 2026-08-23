@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 // These tests are issue #179 stage 1's resolution seam, held to the same
@@ -183,5 +185,46 @@ func TestAggregateShapes(t *testing.T) {
 	}
 	if _, ok := aggregateGroup(nil, map[int]cty.Value{1: two}, nil); ok {
 		t.Errorf("a count sequence with a hole aggregated")
+	}
+}
+
+// TestDataLookupForAnswersAnAbsoluteInstanceKeyedResult is issue #313's
+// seam: a caller outside this package's own resolution pipeline
+// (internal/command's own provider-configuration dependency-order
+// fixpoint) turns a flat, absolute-instance-keyed result map into a
+// [configs.StaticDataLookup] scoped to one module. Asserted by value, and
+// asserted absent for a module the map carries nothing under.
+func TestDataLookupForAnswersAnAbsoluteInstanceKeyedResult(t *testing.T) {
+	results := map[string]cty.Value{
+		"data.aws_eks_cluster.cluster": cty.ObjectVal(map[string]cty.Value{
+			"endpoint": cty.StringVal("https://cluster.example.com"),
+		}),
+		"module.eks.data.aws_ami.worker": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("ami-0123456789"),
+		}),
+	}
+
+	lookup, bad := DataLookupFor(results, addrs.RootModule)
+	if len(bad) != 0 {
+		t.Fatalf("unexpected bad keys: %v", bad)
+	}
+	if lookup == nil {
+		t.Fatalf("DataLookupFor returned a nil lookup for a module the results map does carry an entry under")
+	}
+	val, ok := lookup(addrs.Resource{Mode: addrs.DataResourceMode, Type: "aws_eks_cluster", Name: "cluster"})
+	if !ok {
+		t.Fatalf("lookup did not cover data.aws_eks_cluster.cluster")
+	}
+	want := cty.StringVal("https://cluster.example.com")
+	if endpoint := val.GetAttr("endpoint"); !endpoint.RawEquals(want) {
+		t.Fatalf("endpoint = %#v, want %#v", endpoint, want)
+	}
+
+	// A module the map carries nothing under gets a nil lookup, the same
+	// "an evaluator without results behaves exactly as it always has"
+	// property dataLookupFor's own doc names.
+	childLookup, _ := DataLookupFor(results, addrs.Module{"unrelated"})
+	if childLookup != nil {
+		t.Fatalf("expected a nil lookup for a module with no entries in the results map")
 	}
 }

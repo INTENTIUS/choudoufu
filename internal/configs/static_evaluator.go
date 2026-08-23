@@ -96,6 +96,12 @@ type StaticEvaluator struct {
 	// [StaticEvaluator.WithDataResults].
 	dataLookup StaticDataLookup
 
+	// moduleOutputLookup, when non-nil, answers a module-call reference
+	// (module.foo, the whole call; module.foo.bar, one named output) with a
+	// value a caller can derive without waiting for the module to be
+	// evaluated. See [StaticEvaluator.WithModuleOutputResults].
+	moduleOutputLookup StaticModuleOutputLookup
+
 	// repetition holds the each.key/each.value/count.index values the
 	// single resource instance whose arguments are being evaluated actually
 	// has. See [StaticEvaluator.WithRepetitionData].
@@ -240,6 +246,40 @@ func (s *StaticEvaluator) WithDataResults(lookup StaticDataLookup) *StaticEvalua
 	}
 	dup := *s
 	dup.dataLookup = lookup
+	return &dup
+}
+
+// WithModuleOutputResults returns a copy of the evaluator whose scopes
+// answer a module-call reference through the given lookup instead of
+// refusing it as unsupported in a static context, when the lookup covers
+// that call.
+//
+// This is [WithDataResults]'s exact counterpart for the one referenceable
+// kind that seam does not cover: a data source's own argument, or a
+// provider block's, can equally well read a child module's output
+// (`name = module.eks.cluster_id`), and that reference is refused by a
+// dedicated case in [staticScopeData.StaticValidateReferences], never
+// reaching [staticScopeData.GetResource] or [StaticEvaluator.dataLookup] at
+// all. A caller that can evaluate the child module's own output expression
+// - internal/live/dataread, through the same live evaluator it already
+// builds for that module's data sources and managed-resource projections -
+// hands the result in through this seam.
+//
+// Deliberately independent of [WithUnknownForRefusedReferences]: that seam
+// turns EVERY uncovered managed, data or module-output reference into an
+// unknown, which would make an uncovered managed reference stop raising the
+// [RefusedReference]-tagged diagnostic [identity.DemandedManagedReads] reads
+// - silently discarding the one signal a caller needs to know a live read
+// would settle it. This seam keeps that discipline: only a call the lookup
+// actually covers passes, in the same "covered or still refused" shape
+// [dataLookup] already uses, and it changes nothing about how any other
+// reference kind is handled.
+func (s *StaticEvaluator) WithModuleOutputResults(lookup StaticModuleOutputLookup) *StaticEvaluator {
+	if s == nil || lookup == nil {
+		return s
+	}
+	dup := *s
+	dup.moduleOutputLookup = lookup
 	return &dup
 }
 

@@ -56,6 +56,18 @@ func testProviderSchema() *providers.GetProviderSchemaResponse {
 					"zone_id": {Type: cty.String, Computed: true},
 				},
 			}},
+			// aws_zone is test_zone's own shape under an "aws_" prefix, for
+			// a fixture that needs its data source classified under the
+			// same implied provider as a managed resource the fixture also
+			// declares - the [LiveProviders] boundary tier 2 check
+			// providerdemand_test.go's TestProviderConfigDemand* fixture
+			// needs to clear.
+			"aws_zone": {Block: &configschema.Block{
+				Attributes: map[string]*configschema.Attribute{
+					"name":    {Type: cty.String, Optional: true},
+					"zone_id": {Type: cty.String, Computed: true},
+				},
+			}},
 			"test_record": {Block: &configschema.Block{
 				Attributes: map[string]*configschema.Attribute{
 					"zone":   {Type: cty.String, Optional: true},

@@ -137,7 +137,7 @@ func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 		// in its value-returning mode. Built only when the analysis itself
 		// projected, so the two halves can never disagree about whether a
 		// managed reference is answerable.
-		r.proj = newManagedProjector(ctx, cfg, true)
+		r.proj = newManagedProjector(ctx, cfg, true, analysis.liveManaged)
 	}
 	for _, src := range analysis.Demanded() {
 		if analysis.Scoped() {
@@ -273,7 +273,7 @@ func (r *reader) readSource(src *Source) bool {
 	// (see its own doc), so passing it straight through keeps every
 	// module's coverage bounded to that module's own reads, at every level
 	// of the chain.
-	eval := liveModuleEvaluator(r.ctx, r.cfg, src.Module, r.lookupFor)
+	eval := liveModuleEvaluator(r.ctx, r.cfg, src.Module, r.lookupFor, true, nil)
 	if eval == nil {
 		return r.refuse(src, SummaryReadFailed, "%s's module is no longer in the configuration tree; this is a defect in the calling code.", src.Resource.String())
 	}
@@ -622,9 +622,23 @@ func numToInt(num cty.Value, out *int) error {
 // returned detail is a sentence fragment naming the failure, for a caller to
 // prefix with whatever it calls the block; it is empty on success.
 func staticEvalExpr(ctx context.Context, module addrs.Module, subject, label string, expr hcl.Expression, eval *configs.StaticEvaluator) (val cty.Value, detail string, ok bool) {
+	val, detail, _, ok = staticEvalExprRefused(ctx, module, subject, label, expr, eval)
+	return val, detail, ok
+}
+
+// staticEvalExprRefused is [staticEvalExpr] with the underlying
+// [configs.RefusedReference]-tagged diagnostic preserved rather than
+// flattened into detail's plain text, for a caller that needs to know WHAT
+// blocked the expression and not only that something did - moduleoutput.go's
+// [moduleOutputLookup] is the one caller today, closing the same gap
+// [firstHCLError] closes for [analyzer.evalRecorded] one layer further in:
+// a module output's own expression can refuse on an uncovered managed
+// reference exactly as a data source's own argument can, and that refusal
+// must reach [Analysis.ManagedRefusals] the same way.
+func staticEvalExprRefused(ctx context.Context, module addrs.Module, subject, label string, expr hcl.Expression, eval *configs.StaticEvaluator) (val cty.Value, detail string, refused *hcl.Diagnostic, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			val, detail, ok = cty.NilVal, fmt.Sprintf("%s could not be evaluated: %v.", label, rec), false
+			val, detail, refused, ok = cty.NilVal, fmt.Sprintf("%s could not be evaluated: %v.", label, rec), nil, false
 		}
 	}()
 	ident := configs.StaticIdentifier{
@@ -634,9 +648,10 @@ func staticEvalExpr(ctx context.Context, module addrs.Module, subject, label str
 	}
 	v, hclDiags := eval.Evaluate(ctx, expr, ident)
 	if hclDiags.HasErrors() {
-		return cty.NilVal, fmt.Sprintf("%s is not statically evaluable: %s.", label, hclDiags.Error()), false
+		_, _, raw := firstHCLError(hclDiags)
+		return cty.NilVal, fmt.Sprintf("%s is not statically evaluable: %s.", label, hclDiags.Error()), raw, false
 	}
-	return v, "", true
+	return v, "", nil, true
 }
 
 // decodeConfig evaluates the block's arguments against the provider's own

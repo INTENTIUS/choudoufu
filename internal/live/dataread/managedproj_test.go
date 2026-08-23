@@ -305,3 +305,152 @@ func TestManagedProjectionRefusesAnUnexpandableBlock(t *testing.T) {
 		t.Fatalf("the managed block's own count is not statically knowable; nothing about it is projectable")
 	}
 }
+
+// TestManagedProjectionLiveFallbackAnswersAComputedAttribute is issue #313's
+// provider-configuration wall, reduced to its narrowest reproducible shape:
+// a data source's argument reads a managed resource attribute the block's
+// own body does not set (aws_instance.web declares no private_dns, the same
+// gap TestManagedProjectionRefusesAProviderAssignedAttribute proves this
+// file refuses on its own). Without a live read, that stays refused - this
+// asserts the baseline has not moved. With Options.LiveManagedResults
+// supplying one real, already-read live object for that exact instance, the
+// same reference becomes eligible and Read materializes the SAME value the
+// live object carried, asserted by cty equality rather than by an absence
+// of errors - the value instrument this whole package exists to satisfy.
+func TestManagedProjectionLiveFallbackAnswersAComputedAttribute(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-projection-live"), nil)
+
+	baseline := Analyze(context.Background(), cfg, Options{})
+	src, ok := baseline.SourceFor(addrs.RootModule, dataAddr("test_zone", "of_instance"))
+	if !ok {
+		t.Fatalf("data.test_zone.of_instance was not classified at all")
+	}
+	if src.Eligible {
+		t.Fatalf("private_dns is provider-assigned and no live values were supplied; the baseline must still refuse")
+	}
+
+	live := map[string]cty.Value{
+		"aws_instance.web": cty.ObjectVal(map[string]cty.Value{
+			"private_dns": cty.StringVal("ip-10-0-1-23.ec2.internal"),
+		}),
+	}
+
+	analysis := Analyze(context.Background(), cfg, Options{LiveManagedResults: live})
+	src, ok = analysis.SourceFor(addrs.RootModule, dataAddr("test_zone", "of_instance"))
+	if !ok {
+		t.Fatalf("data.test_zone.of_instance was not classified at all with live values supplied")
+	}
+	if !src.Eligible {
+		t.Fatalf("a real live read of aws_instance.web covers private_dns; refused: %s", src.ReasonDetail)
+	}
+
+	var sawNames []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			name := req.Config.GetAttr("name")
+			if name.IsNull() || !name.IsKnown() {
+				t.Fatalf("test_zone was read with an unknown name: %#v", name)
+			}
+			sawNames = append(sawNames, name.AsString())
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"name":    name,
+				"zone_id": cty.StringVal("Z-" + name.AsString()),
+			})}
+		},
+	}
+
+	results, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+	if len(sawNames) != 1 || sawNames[0] != "ip-10-0-1-23.ec2.internal" {
+		t.Fatalf("the provider was read with names %v, want [ip-10-0-1-23.ec2.internal] - the live value the fallback supplied, not a guess", sawNames)
+	}
+	got, ok := results["data.test_zone.of_instance"]
+	if !ok {
+		t.Fatalf("no result under data.test_zone.of_instance; keys: %v", keysOf(results))
+	}
+	want := cty.StringVal("Z-ip-10-0-1-23.ec2.internal")
+	if zoneID := got.GetAttr("zone_id"); !zoneID.RawEquals(want) {
+		t.Fatalf("zone_id is %#v, want %#v - the value the live fallback fed through, not a different one", zoneID, want)
+	}
+}
+
+// TestModuleOutputHopReadsThroughAChildModulesOwnOutput is issue #313's
+// dependency chain in full, reduced to a synthetic provider: a data
+// source's own argument reads a CHILD module's output
+// (module.child.cluster_id, the [configs.StaticEvaluator.
+// WithModuleOutputResults] seam), and that output's own expression reads a
+// managed resource attribute the block does not literally set
+// (aws_eks_cluster.this.id, [managedProjector.liveManaged]'s seam) - the
+// same two hops "provider.kubernetes { host = data.aws_eks_cluster.
+// cluster.endpoint }" needs, with data.aws_eks_cluster.cluster's own
+// "name = module.eks.cluster_id" in between.
+//
+// Without a live read of the managed resource, the module-output hop must
+// still refuse - crossing the module boundary is not license to invent a
+// value for what is on the other side of it. With one supplied, both hops
+// resolve and the value that comes out the far end is exactly the live
+// value that went in, asserted by cty equality.
+func TestModuleOutputHopReadsThroughAChildModulesOwnOutput(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "module-output-hop"), nil)
+
+	baseline := Analyze(context.Background(), cfg, Options{})
+	src, ok := baseline.SourceFor(addrs.RootModule, dataAddr("test_zone", "of_cluster"))
+	if !ok {
+		t.Fatalf("data.test_zone.of_cluster was not classified at all")
+	}
+	if src.Eligible {
+		t.Fatalf("aws_eks_cluster.this.id is provider-assigned and no live values were supplied; the baseline must still refuse")
+	}
+
+	live := map[string]cty.Value{
+		"module.child.aws_eks_cluster.this": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("prod-cluster"),
+		}),
+	}
+
+	analysis := Analyze(context.Background(), cfg, Options{LiveManagedResults: live})
+	src, ok = analysis.SourceFor(addrs.RootModule, dataAddr("test_zone", "of_cluster"))
+	if !ok {
+		t.Fatalf("data.test_zone.of_cluster was not classified at all with live values supplied")
+	}
+	if !src.Eligible {
+		t.Fatalf("a real live read of module.child.aws_eks_cluster.this covers id, which covers module.child.cluster_id; refused: %s", src.ReasonDetail)
+	}
+
+	var sawNames []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			name := req.Config.GetAttr("name")
+			if name.IsNull() || !name.IsKnown() {
+				t.Fatalf("test_zone was read with an unknown name: %#v", name)
+			}
+			sawNames = append(sawNames, name.AsString())
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"name":    name,
+				"zone_id": cty.StringVal("Z-" + name.AsString()),
+			})}
+		},
+	}
+
+	results, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+	if len(sawNames) != 1 || sawNames[0] != "prod-cluster" {
+		t.Fatalf("the provider was read with names %v, want [prod-cluster] - module.child.cluster_id's real value, carried through both hops", sawNames)
+	}
+	got, ok := results["data.test_zone.of_cluster"]
+	if !ok {
+		t.Fatalf("no result under data.test_zone.of_cluster; keys: %v", keysOf(results))
+	}
+	want := cty.StringVal("Z-prod-cluster")
+	if zoneID := got.GetAttr("zone_id"); !zoneID.RawEquals(want) {
+		t.Fatalf("zone_id is %#v, want %#v - the value that crossed both hops, not a different one", zoneID, want)
+	}
+}
