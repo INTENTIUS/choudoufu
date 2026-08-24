@@ -421,6 +421,50 @@ log "  confirmed unmarked: s3-bucket-$PET carries no tofu-address tag (${UNMARKE
 gauntlet_stage cold_deploy pass "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two of the estate's six taggable roots, both outside every module call:
+# a `moved` block renames aws_kms_key.objects, and "choudoufu live-mv"
+# (below, after drift_reconverge) renames aws_iam_role.this with no moved
+# block at all. The stock oracle runs the same two renames, through moved
+# blocks only, on a copy of cold_deploy's own state - before choudoufu or
+# live-import ever touch these objects. BREAK=1 exercises this stage's own
+# break control instead (see the real leg below): renaming aws_iam_role.this
+# WITHOUT a moved block, which must make choudoufu propose destroying the
+# old address and creating the new one.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock terraform, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/resource "aws_kms_key" "objects" {/resource "aws_kms_key" "objects_renamed" {/' "$PLAIN_ORACLE/examples/complete/main.tf"
+sed -i.bak 's/aws_kms_key\.objects\.arn/aws_kms_key.objects_renamed.arn/g' "$PLAIN_ORACLE/examples/complete/main.tf"
+sed -i.bak 's/resource "aws_iam_role" "this" {/resource "aws_iam_role" "this_renamed" {/' "$PLAIN_ORACLE/examples/complete/main.tf"
+sed -i.bak 's/aws_iam_role\.this\.arn/aws_iam_role.this_renamed.arn/g' "$PLAIN_ORACLE/examples/complete/main.tf"
+rm -f "$PLAIN_ORACLE/examples/complete/main.tf.bak"
+cat >> "$PLAIN_ORACLE/examples/complete/main.tf" <<'EOF'
+
+moved {
+  from = aws_kms_key.objects
+  to   = aws_kms_key.objects_renamed
+}
+
+moved {
+  from = aws_iam_role.this
+  to   = aws_iam_role.this_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE/examples/complete" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE/examples/complete" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE/examples/complete" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -727,6 +771,102 @@ if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-final-notr
 fi
 log "  final plan: no resource action proposed"
 gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+KMS_KEY_ARN_D="$(awsl kms describe-key --key-id "$KMS_KEY_ID" --query 'KeyMetadata.Arn' --output text)"
+[ -n "$KMS_KEY_ARN_D" ] && [ "$KMS_KEY_ARN_D" != "None" ] || fail "could not read the KMS key's ARN"
+ROLE_ARN_D="$(awsl iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)"
+[ -n "$ROLE_ARN_D" ] && [ "$ROLE_ARN_D" != "None" ] || fail "could not read the IAM role's ARN"
+log "  KMS key $KMS_KEY_ID ($KMS_KEY_ARN_D), IAM role $ROLE_NAME ($ROLE_ARN_D)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_iam_role.this -> .this_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_iam_role" "this" {/resource "aws_iam_role" "this_renamed" {/' "$ESTATE/examples/complete/main.tf"
+  sed -i.bak 's/aws_iam_role\.this\.arn/aws_iam_role.this_renamed.arn/g' "$ESTATE/examples/complete/main.tf"
+  rm -f "$ESTATE/examples/complete/main.tf.bak"
+  plan_into "$WORK/plan-break.log"; BREAK_PLAN_RC=$?
+  BREAK_PLAN_OUT="$(grep -vE '^[0-9]{4}-' "$WORK/plan-break.log")"
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_iam_role\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_iam_role.this - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_iam_role\.this_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_iam_role.this_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_iam_role.this and creating aws_iam_role.this_renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_kms_key.objects -> .objects_renamed ==="
+  sed -i.bak 's/resource "aws_kms_key" "objects" {/resource "aws_kms_key" "objects_renamed" {/' "$ESTATE/examples/complete/main.tf"
+  sed -i.bak 's/aws_kms_key\.objects\.arn/aws_kms_key.objects_renamed.arn/g' "$ESTATE/examples/complete/main.tf"
+  rm -f "$ESTATE/examples/complete/main.tf.bak"
+  cat >> "$ESTATE/examples/complete/main.tf" <<'EOF'
+
+moved {
+  from = aws_kms_key.objects
+  to   = aws_kms_key.objects_renamed
+}
+EOF
+  plan_into "$WORK/plan-d1.log"; MOVED_PLAN_RC=$?
+  MOVED_PLAN_OUT="$(grep -vE '^[0-9]{4}-' "$WORK/plan-d1.log")"
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # aws_kms_key\.objects_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to aws_kms_key.objects_renamed"; }
+  grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"aws_kms_key\.objects" +-> +"aws_kms_key\.objects_renamed"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the KMS key's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  KMS_KEY_ARN_D_AFTER="$(awsl kms describe-key --key-id "$KMS_KEY_ID" --query 'KeyMetadata.Arn' --output text 2>/dev/null || true)"
+  [ "$KMS_KEY_ARN_D_AFTER" = "$KMS_KEY_ARN_D" ] || fail "the KMS key's arn changed across the rename ($KMS_KEY_ARN_D -> $KMS_KEY_ARN_D_AFTER) - it was destroyed and recreated, not renamed"
+  KMS_ADDR_D_AFTER="$(awsl kms list-resource-tags --key-id "$KMS_KEY_ID" --query "Tags[?TagKey=='tofu-address'].TagValue | [0]" --output text)"
+  [ "$KMS_ADDR_D_AFTER" = "aws_kms_key.objects_renamed" ] \
+    || fail "the KMS key carries tofu-address=$KMS_ADDR_D_AFTER after the rename, not aws_kms_key.objects_renamed"
+  log "  $KMS_KEY_ID unchanged, tofu-address now aws_kms_key.objects_renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_iam_role.this -> .this_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_iam_role" "this" {/resource "aws_iam_role" "this_renamed" {/' "$ESTATE/examples/complete/main.tf"
+  sed -i.bak 's/aws_iam_role\.this\.arn/aws_iam_role.this_renamed.arn/g' "$ESTATE/examples/complete/main.tf"
+  rm -f "$ESTATE/examples/complete/main.tf.bak"
+  MV_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" live-mv -estate="$ESTATE_NAME" aws_iam_role.this aws_iam_role.this_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_iam_role.this" -> "aws_iam_role.this_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  ROLE_ARN_D_AFTER="$(awsl iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text 2>/dev/null || true)"
+  [ "$ROLE_ARN_D_AFTER" = "$ROLE_ARN_D" ] || fail "the IAM role's arn changed across live-mv ($ROLE_ARN_D -> $ROLE_ARN_D_AFTER) - it was destroyed and recreated, not renamed"
+  ROLE_ADDR_D_AFTER="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ROLE_ADDR_D_AFTER" = "aws_iam_role.this_renamed" ] \
+    || fail "the IAM role carries tofu-address=$ROLE_ADDR_D_AFTER after live-mv, not aws_iam_role.this_renamed"
+  log "  $ROLE_NAME unchanged, tofu-address now aws_iam_role.this_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  plan_into "$WORK/plan-d3.log"; FINAL_PLAN_D_RC=$?
+  FINAL_PLAN_D_OUT="$(grep -vE '^[0-9]{4}-' "$WORK/plan-d3.log")"
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  # THE OUTPUTS QUIRK again (see STAGE 3/5): no "No changes."/"Plan:" line
+  # to grep for under live-plan with no prior baseline; the real check is
+  # the absence of a resource action header.
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$FINAL_PLAN_D_OUT"; then
+    grep -E '^  # .+ will be' <<< "$FINAL_PLAN_D_OUT"
+    fail "the post-rename plan proposes a resource change"
+  fi
+  log "  no resource action proposed. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_kms_key.objects renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_iam_role.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
