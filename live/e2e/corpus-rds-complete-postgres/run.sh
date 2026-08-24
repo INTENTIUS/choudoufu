@@ -581,9 +581,30 @@ ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
   && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
-grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
-  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -60; fail "stock's rename plan is not a true no-op"; }
-log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+# module.db's own parameter group (not module.security_group or module.db_default -
+# neither leg of this rename touches module.db at all) is a KNOWN, already-documented
+# quirk of stock's own apply-time state fidelity for this estate (see stage 3's own
+# gauntlet_stage detail above: "Stock's own replan against its own never-deleted state
+# file still shows tag noise plus the two parameter blocks... HANDOFF row 3, a property
+# of that one state file's own apply-time fidelity" - lex00/floci#120's apply_method
+# echo, confirmed correct on the LIVE object by a direct describe-db-parameters probe
+# elsewhere in this script). It is not a rename artifact - the same "+ parameter"
+# noise appears on ANY bare stock replan of this state, rename or not - so it is
+# normalised out of the zero-churn assertion by name, the same way drift_reconverge's
+# own oracle normalises marker tags out of both plans.
+UPDATED_HEADERS="$(grep -E '^  # .+ will be updated in-place$' <<< "$ORACLE_PLAN_OUT")"
+UNEXPECTED_UPDATES="$(grep -vF 'module.db.module.db_parameter_group.aws_db_parameter_group.this[0]' <<< "$UPDATED_HEADERS" | grep -c . || true)"
+[ "$UNEXPECTED_UPDATES" = "0" ] \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes an in-place update outside the known module.db parameter-group noise - the oracle itself is not zero-churn"; }
+if grep -qF 'module.db.module.db_parameter_group.aws_db_parameter_group.this[0]' <<< "$UPDATED_HEADERS"; then
+  log "  (module.db's own parameter group also shows the known apply_method-echo noise on this bare replan - HANDOFF row 3, unrelated to either rename, normalised out below)"
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -60; fail "stock's rename plan changes more than the known module.db parameter-group noise - not a true rename no-op"; }
+else
+  grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -60; fail "stock's rename plan is not a true no-op"; }
+fi
+log "  stock: zero churn from the rename itself on cold_deploy's own state - both moves report only their move, no attribute diff at all (module.db's own known apply_method-echo noise, unrelated to either rename, excluded)"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────

@@ -625,8 +625,18 @@ fi
 CURRENT_STAGE=day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 SQS_URL="$(awsl sqs get-queue-url --queue-name "$(cd "$ADOPTED" && "$TOFU" output -raw 2>/dev/null || true)" 2>/dev/null || true)"
-ASG_SG_ID="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.asg_sg.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
-[ -n "$ASG_SG_ID" ] && [ "$ASG_SG_ID" != "None" ] || fail "no live asg_sg security group found by its tofu-address marker"
+# The exact escaped form of the marker (":0" vs no index at all) depends on
+# how the external security-group module's own count/for_each resolves, so
+# this scans every security group this estate marked and matches by prefix
+# in bash rather than guessing the address's exact suffix in a server-side
+# filter.
+ASG_SG_ALL="$(awsl ec2 describe-security-groups \
+  --filters "Name=tag:tofu-estate,Values=$ESTATE" \
+  --query "SecurityGroups[].[GroupId,Tags[?Key=='tofu-address']|[0].Value]" --output text)"
+ASG_SG_LINE="$(grep -E '	module\.asg_sg\.' <<< "$ASG_SG_ALL" | head -1)"
+[ -n "$ASG_SG_LINE" ] || { printf '%s\n' "$ASG_SG_ALL"; fail "no live asg_sg security group found by its tofu-address marker"; }
+ASG_SG_ID="$(awk -F'\t' '{print $1}' <<< "$ASG_SG_LINE")"
+ASG_SG_ADDR_BEFORE="$(awk -F'\t' '{print $2}' <<< "$ASG_SG_LINE")"
 SQS_ARN="$(awsl sqs list-queues --query "QueueUrls[0]" --output text)"
 [ -n "$SQS_ARN" ] && [ "$SQS_ARN" != "None" ] || fail "no live sqs queue found"
 log "  $ASG_SG_ID (module.asg_sg), $SQS_ARN (aws_sqs_queue.this)"
@@ -667,7 +677,8 @@ EOF
   [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
   grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
-  grep -qE '~ +"tofu-address" = "module\.asg_sg\.aws_security_group\.this:0" -> "module\.asg_sg_renamed\.aws_security_group\.this:0"' <<< "$MOVED_PLAN_OUT" \
+  ASG_SG_ADDR_AFTER_RENAME="${ASG_SG_ADDR_BEFORE/module.asg_sg./module.asg_sg_renamed.}"
+  grep -qF "~   \"tofu-address\" = \"$ASG_SG_ADDR_BEFORE\" -> \"$ASG_SG_ADDR_AFTER_RENAME\"" <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
   log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
 
@@ -679,9 +690,9 @@ EOF
   ASG_SG_ID_AFTER="$(awsl ec2 describe-security-groups --group-ids "$ASG_SG_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
   [ "$ASG_SG_ID_AFTER" = "$ASG_SG_ID" ] || fail "the asg_sg security group's id changed across the rename ($ASG_SG_ID -> $ASG_SG_ID_AFTER) - it was destroyed and recreated, not renamed"
   ASG_SG_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$ASG_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-  [ "$ASG_SG_ADDR_AFTER" = "module.asg_sg_renamed.aws_security_group.this:0" ] \
-    || fail "the asg_sg security group carries tofu-address=$ASG_SG_ADDR_AFTER after the rename, not module.asg_sg_renamed.aws_security_group.this:0"
-  log "  $ASG_SG_ID unchanged, tofu-address now module.asg_sg_renamed.aws_security_group.this:0 - read via the AWS CLI"
+  [ "$ASG_SG_ADDR_AFTER" = "$ASG_SG_ADDR_AFTER_RENAME" ] \
+    || fail "the asg_sg security group carries tofu-address=$ASG_SG_ADDR_AFTER after the rename, not $ASG_SG_ADDR_AFTER_RENAME"
+  log "  $ASG_SG_ID unchanged, tofu-address now $ASG_SG_ADDR_AFTER_RENAME - read via the AWS CLI"
 
   log "=== D2. choudoufu, live-mv: aws_sqs_queue.this -> .this_renamed, no moved block at all ==="
   sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$ADOPTED/main.tf"
