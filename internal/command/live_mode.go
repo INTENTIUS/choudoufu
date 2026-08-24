@@ -642,7 +642,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// See [identity.SynthesizeTypeIdentity].
 	// The same two-pass resolution live-plan runs, through the same helper:
 	// see [statelessResolve].
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope, r.recordStore)
 	if r.nodeResolve {
 		// GitHub issue #388's plan-node seam, #364 unit B's own landing
 		// note (item 3): a per-instance refusal here is the static

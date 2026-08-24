@@ -337,6 +337,37 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// than gating on it. See [lint.CheckResidueAttributes].
 	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
 
+	// The estate name, read from the same two sources discovery and stamping
+	// read it from, and the estate's record store, when the live block names
+	// one. Both moved ahead of resolution (they used to sit between
+	// discovery and the final projection, far below) because
+	// [statelessResolve]'s own record-rung pass needs the store before
+	// resolution runs, not after - see recordStoreForResolve's own comment.
+	// A store that will not open is not this command's error to fail on:
+	// the run proceeds hintless (guided discovery and the record-rung pass
+	// both stay off) and everything below behaves exactly as it always has.
+	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
+	var hintStore staterecord.Store
+	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
+		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
+		if storeErr != nil {
+			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
+		} else {
+			hintStore = store
+		}
+	}
+	// recordStoreForResolve is the same wrapper [statelessDiscover] gets
+	// below as recordShrinkStore, built once here and unconditionally
+	// (unlike recordShrinkStore, never gated on GitHub issue #388's
+	// migration flag): [statelessResolve]'s record-rung pass reads only
+	// GitHub issue #364's already-resolved ClassRecordBacked instances by
+	// their own address, which costs nothing when the store holds none and
+	// changes nothing about ordinary marker discovery's own demand either
+	// way, so there is no byte-identical-flag-off property here to
+	// preserve. NewRecordEnvelopeStore(nil, ...) is nil, so a hintStore
+	// that would not open leaves this nil and the pass below is a no-op.
+	recordStoreForResolve := projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+
 	// GitHub issue #179's data-read phase, between the subset check and
 	// resolution: when an identity, a count or a for_each needs a data
 	// source's value, read it now, from the same configured provider
@@ -359,7 +390,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	//
 	// A first pass that refuses is no longer fatal on its own: see
 	// [statelessResolve] for the second pass and the bound on it.
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope, recordStoreForResolve)
 	if resolver != nil {
 		// #364 unit B's landing note (item 3), mirrored from
 		// live_mode.go's PriorState: a per-instance static refusal
@@ -389,34 +420,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// actually tries to configure that provider.
 	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions)
 
-	// The estate name, read from the same two sources discovery and stamping
-	// read it from. Their diagnostics about it are raised below, in their own
-	// voices; this call is for the ownership rule the projection needs, which
-	// has to know the estate before anything is materialized.
-	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
-
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
-	// internal/live/lint's checkLivePolicy).
+	// internal/live/lint's checkLivePolicy). estate and hintStore themselves
+	// are computed earlier now, ahead of [statelessResolve] - see
+	// recordStoreForResolve's own comment above for why.
 	var pol *policy.Policy
 	if config.Module != nil {
 		pol = statelessPolicy(config.Module.Live, estate)
 		log.Printf("[TRACE] live: ownership policy: %s", pol)
-	}
-
-	// The estate's record store, when the live block names one - opened
-	// here only as guided discovery's hint source (issue #109). A store
-	// that will not open is not this command's error to fail on: the hint
-	// is a plan-cost cache, so the run proceeds hintless (guided discovery
-	// stays off) and the projection below behaves exactly as it always has.
-	var hintStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
-		if storeErr != nil {
-			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
-		} else {
-			hintStore = store
-		}
 	}
 
 	// GitHub issue #388's plan-node seam, edge 3: the same record-store
@@ -426,12 +438,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// Gated on resolver != nil (the migration flag) rather than just on
 	// hintStore being non-nil: a flag-off run must see a byte-identical
 	// demand no matter what the record store holds, so this stays nil
-	// whenever the flag itself is off. NewRecordEnvelopeStore is a
-	// nil-safe, no-I/O wrapper construction (see its own doc comment), so
-	// building it once here and reusing it below costs nothing extra.
+	// whenever the flag itself is off. recordStoreForResolve is the
+	// identical wrapper - built once, above, ahead of [statelessResolve] -
+	// so this is a reuse, not a second construction.
 	var recordShrinkStore *projection.RecordStore
 	if resolver != nil {
-		recordShrinkStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+		recordShrinkStore = recordStoreForResolve
 	}
 
 	// Marker discovery, when anything is waiting on it. Its output is a
@@ -2226,7 +2238,7 @@ func statelessTargetScope(ctx context.Context, tfCtx *tofu.Context, config *conf
 // provs is the interface rather than [*statelessProviders] on purpose: the
 // second pass's whole hazard is which provider answers, and a test that
 // cannot substitute one cannot see that.
-func statelessResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value, scope identity.Scope) (*identity.Result, tfdiags.Diagnostics) {
+func statelessResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value, scope identity.Scope, recordStore *projection.RecordStore) (*identity.Result, tfdiags.Diagnostics) {
 	ictx := identity.Context{
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
@@ -2234,42 +2246,163 @@ func statelessResolve(ctx context.Context, config *configs.Config, provs project
 		// [statelessTargetScope] and [identity.Scope].
 		Scope: scope,
 	}
-	first, firstDiags := identity.ResolveWith(ctx, config, ictx)
-	if !firstDiags.HasErrors() {
-		return first, firstDiags
+	best, bestDiags := identity.ResolveWith(ctx, config, ictx)
+
+	switch {
+	case !bestDiags.HasErrors():
+		// Nothing refused, so the demand-driven pass below has nothing to
+		// chase - see its own comment for why a clean NEEDS_DISCOVERY
+		// classification does not count as a refusal here. The record-rung
+		// pass at the end of this function still runs: it is driven by
+		// [identity.ClassNeedsDiscovery] itself, not by an error diagnostic,
+		// which is exactly the gap a dynamic-but-taggable type's identity
+		// leaves.
+	case len(identity.DemandedManagedReads(best, bestDiags)) == 0:
+		// Offline, and free: this reads the first pass's own refusals.
+		// Nothing demanded means this pass has nothing new to work from, so
+		// no provider is configured and no plan call is made.
+	default:
+		planned, planDiags := projection.PlanInstances(ctx, config, provs)
+		// PlanInstances never fails its caller - a resource it cannot plan
+		// is simply absent - so these are logged rather than raised.
+		// Raising them would turn a run that refuses today into a run that
+		// refuses today plus an aside about a provider.
+		for _, d := range planDiags {
+			log.Printf("[TRACE] live: planning managed values for the second resolution pass: %s", d.Description().Summary)
+		}
+		if len(planned) > 0 {
+			ictx.ManagedResults = planned
+			second, secondDiags := identity.ResolveWith(ctx, config, ictx)
+			switch {
+			case errorCount(secondDiags) >= errorCount(bestDiags):
+				log.Printf("[TRACE] live: the second resolution pass refused %d site(s) against the first pass's %d; keeping the first pass",
+					errorCount(secondDiags), errorCount(bestDiags))
+			case downgradedToDiscovery(best, second) != "":
+				log.Printf("[TRACE] live: the second resolution pass downgraded %s to needs-discovery; keeping the first pass", downgradedToDiscovery(best, second))
+			default:
+				best, bestDiags = second, secondDiags
+			}
+		}
 	}
 
-	// Offline, and free: this reads the first pass's own refusals. Nothing
-	// demanded means a second pass has nothing new to work from, so no
-	// provider is configured and no plan call is made.
-	if len(identity.DemandedManagedReads(first, firstDiags)) == 0 {
-		return first, firstDiags
+	return statelessResolveRecordBacked(ctx, config, recordStore, resourceSchemas, ictx, best, bestDiags)
+}
+
+// statelessResolveRecordBacked is issue #391's own bounded fixpoint over
+// [identity.Context.ManagedResults]' record-rung half, run as a final step
+// of [statelessResolve] regardless of which branch above produced best/
+// bestDiags.
+//
+// A sibling's identity FORMULA may name a GitHub issue #364 record-backed
+// instance (identity.ClassRecordBacked - a logical resource whose value IS
+// its identity, with no live object anywhere: random_string.suffix.result is
+// the corpus-eks-basic shape this exists for, feeding a cluster's own `name`
+// argument through a local). That reference never touches
+// [projection.PlanInstances]'s static plan - a Computed-only attribute like
+// random_string's own `result` has no configuration value and no prior
+// state for a plan to echo back, so PlanInstances leaves it Unknown and the
+// formula stays unresolved - and a dynamic-but-taggable type does not raise
+// an ERROR for this, it falls to [identity.ClassNeedsDiscovery] cleanly, so
+// [statelessResolve]'s own errorCount-driven pass above cannot see the gap
+// either. This is the second, narrower source [identity.Context.
+// ManagedResults] needs: an already-resolved record-backed instance's real
+// value, read once from the estate's record store - no provider, no plan,
+// offline and cheap - handed in exactly the way a live-read value already
+// is.
+//
+// Guarded on recordStore != nil and on best actually holding a
+// ClassNeedsDiscovery entry, so an estate with no record store, or one
+// where nothing is stuck needing discovery, pays nothing extra.
+//
+// Bounded to maxRecordBackedPasses passes: one record-backed value can gate
+// a resolution whose own identity then feeds a THIRD instance's formula (a
+// chain, not only one hop), so this iterates rather than retrying once, but
+// never without a cap. Progress is measured by the count of
+// ClassNeedsDiscovery entries shrinking - the one signal errorCount cannot
+// see for this class - with an error-count regression or a
+// downgradedToDiscovery finding stopping the loop exactly as the
+// errorCount-driven pass above stops on its own case, and a pass that moves
+// nothing stopping it too, so the loop always terminates on its own even
+// before the cap.
+func statelessResolveRecordBacked(ctx context.Context, config *configs.Config, recordStore *projection.RecordStore, resourceSchemas map[string]providers.Schema, ictx identity.Context, best *identity.Result, bestDiags tfdiags.Diagnostics) (*identity.Result, tfdiags.Diagnostics) {
+	if recordStore == nil || needsDiscoveryCount(best) == 0 {
+		return best, bestDiags
 	}
 
-	planned, planDiags := projection.PlanInstances(ctx, config, provs)
-	// PlanInstances never fails its caller - a resource it cannot plan is
-	// simply absent - so these are logged rather than raised. Raising them
-	// would turn a run that refuses today into a run that refuses today plus
-	// an aside about a provider.
-	for _, d := range planDiags {
-		log.Printf("[TRACE] live: planning managed values for the second resolution pass: %s", d.Description().Summary)
-	}
-	if len(planned) == 0 {
-		return first, firstDiags
+	managed := make(map[string]cty.Value, len(ictx.ManagedResults))
+	for k, v := range ictx.ManagedResults {
+		managed[k] = v
 	}
 
-	ictx.ManagedResults = planned
-	second, secondDiags := identity.ResolveWith(ctx, config, ictx)
-	if errorCount(secondDiags) >= errorCount(firstDiags) {
-		log.Printf("[TRACE] live: the second resolution pass refused %d site(s) against the first pass's %d; keeping the first pass",
-			errorCount(secondDiags), errorCount(firstDiags))
-		return first, firstDiags
+	const maxRecordBackedPasses = 5
+	for pass := 0; pass < maxRecordBackedPasses; pass++ {
+		gained := false
+		for _, r := range best.All() {
+			if r.Class != identity.ClassRecordBacked {
+				continue
+			}
+			key := r.Addr.String()
+			if _, already := managed[key]; already {
+				continue
+			}
+			schema, ok := resourceSchemas[r.Addr.Resource.Resource.Type]
+			if !ok {
+				continue
+			}
+			val, _, _, found, err := recordStore.GetObject(ctx, r.Addr, schema)
+			if err != nil {
+				log.Printf("[TRACE] live: record-rung managed read for %s failed: %s", r.Addr, err)
+				continue
+			}
+			if !found {
+				continue
+			}
+			managed[key] = val
+			gained = true
+		}
+		if !gained {
+			break
+		}
+
+		ictx.ManagedResults = managed
+		next, nextDiags := identity.ResolveWith(ctx, config, ictx)
+		if errorCount(nextDiags) > errorCount(bestDiags) {
+			log.Printf("[TRACE] live: the record-rung resolution pass raised %d error(s) against the prior %d; keeping the prior pass",
+				errorCount(nextDiags), errorCount(bestDiags))
+			break
+		}
+		if downgraded := downgradedToDiscovery(best, next); downgraded != "" {
+			log.Printf("[TRACE] live: the record-rung resolution pass downgraded %s to needs-discovery; keeping the prior pass", downgraded)
+			break
+		}
+		if needsDiscoveryCount(next) >= needsDiscoveryCount(best) {
+			// No progress on the one thing this loop exists to move; stop
+			// rather than iterate on a chain that never closes.
+			break
+		}
+		best, bestDiags = next, nextDiags
+		if needsDiscoveryCount(best) == 0 {
+			break
+		}
 	}
-	if downgraded := downgradedToDiscovery(first, second); downgraded != "" {
-		log.Printf("[TRACE] live: the second resolution pass downgraded %s to needs-discovery; keeping the first pass", downgraded)
-		return first, firstDiags
+	return best, bestDiags
+}
+
+// needsDiscoveryCount is how many instances a resolution left at
+// [identity.ClassNeedsDiscovery] - the one class [errorCount] cannot see
+// move, because a dynamic-but-taggable type falling to discovery raises no
+// diagnostic. See [statelessResolveRecordBacked].
+func needsDiscoveryCount(r *identity.Result) int {
+	if r == nil {
+		return 0
 	}
-	return second, secondDiags
+	n := 0
+	for _, res := range r.All() {
+		if res.Class == identity.ClassNeedsDiscovery {
+			n++
+		}
+	}
+	return n
 }
 
 // errorCount is the number of error-severity diagnostics, which is what
@@ -2353,9 +2486,24 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // AnalyzeProviderConfigs] is SCOPED, so an unreadable one is simply absent
 // from the result, and providerConfigValue sees exactly the same "Provider
 // unavailable" diagnostic it always has for that provider configuration -
-// unchanged, not a new refusal. Bounded to one retry, never a loop, for the
-// same reason [statelessResolve] never loops: a second pass that reads
-// nothing new has nothing left to gain from a third.
+// unchanged, not a new refusal. Bounded to maxProviderDataReadPasses passes,
+// never unbounded: a pass that reads nothing new than the pass before it
+// has nothing left to gain from another, so the loop always stops itself,
+// and the cap is a backstop for a demand chain nobody has measured yet
+// rather than the thing that is expected to fire.
+//
+// A pass beyond the first exists for a chain deeper than one hop:
+// corpus-eks-basic's own provider "kubernetes" block reads
+// data.aws_eks_cluster.cluster, which reads module.eks.cluster_id (a module
+// output), which reads aws_eks_cluster.this[0].id - the one hop the
+// original single retry closed - but that instance's own identity argument
+// (name = local.cluster_name = "test-eks-${random_string.suffix.result}")
+// needed a SECOND managed reference, resolved by [statelessResolve]'s own
+// record-rung pass before this function ever runs (see
+// [statelessResolveRecordBacked]) rather than by this loop; what THIS loop
+// gains from iterating is a live-read chain more than one instance deep on
+// its own read side - instance A's value unblocking a read of instance B,
+// whose value the provider block's data source then needs.
 //
 // provs is confined through [liveProviderReads] for the data-read half,
 // exactly as [statelessDataReads] confines its own - the 2026-08-21 audit's
@@ -2371,49 +2519,75 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
 	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
-	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
 	confined := func(a *dataread.Analysis) dataread.Providers {
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
+
+	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
 	results, diags := dataread.ReadProviderConfigs(ctx, config, analysis, confined(analysis))
 	for _, d := range diags {
 		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
 	}
 
-	demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
-	var instances []identity.Resolution
-	for _, d := range demand {
-		if !d.Complete {
-			continue
+	live := map[string]cty.Value{}
+	const maxProviderDataReadPasses = 5
+	for pass := 1; pass < maxProviderDataReadPasses; pass++ {
+		demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
+		var instances []identity.Resolution
+		for _, d := range demand {
+			if !d.Complete {
+				continue
+			}
+			for _, inst := range d.Instances {
+				if _, already := live[inst.Addr.String()]; !already {
+					instances = append(instances, inst)
+				}
+			}
 		}
-		instances = append(instances, d.Instances...)
-	}
-	if len(instances) == 0 {
-		return results
-	}
+		if len(instances) == 0 {
+			// Nothing new demanded that a prior pass has not already read;
+			// see [projection.ReadInstances]'s own completeness rule for
+			// why a block already fully read never re-appears here.
+			break
+		}
 
-	read, readDiags := projection.ReadInstances(ctx, config, instances, provs, projection.Options{})
-	for _, d := range readDiags {
-		log.Printf("[TRACE] live: reading managed values for provider-configuration data reads: %s", d.Description().Summary)
-	}
-	if read == nil || len(read.Values) == 0 {
-		return results
-	}
+		read, readDiags := projection.ReadInstances(ctx, config, instances, provs, projection.Options{})
+		for _, d := range readDiags {
+			log.Printf("[TRACE] live: reading managed values for provider-configuration data reads (pass %d): %s", pass, d.Description().Summary)
+		}
+		if read == nil || len(read.Values) == 0 {
+			break
+		}
+		gained := false
+		for k, v := range read.Values {
+			if _, already := live[k]; !already {
+				live[k] = v
+				gained = true
+			}
+		}
+		if !gained {
+			// Every value this pass could name was already known; another
+			// pass would ask the identical question and get the identical
+			// answer.
+			break
+		}
 
-	opts.LiveManagedResults = read.Values
-	second := dataread.AnalyzeProviderConfigs(ctx, config, opts)
-	secondResults, secondDiags := dataread.ReadProviderConfigs(ctx, config, second, confined(second))
-	for _, d := range secondDiags {
-		log.Printf("[TRACE] live: provider-configuration data reads, second pass: %s", d.Description().Summary)
+		opts.LiveManagedResults = live
+		nextAnalysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
+		nextResults, nextDiags := dataread.ReadProviderConfigs(ctx, config, nextAnalysis, confined(nextAnalysis))
+		for _, d := range nextDiags {
+			log.Printf("[TRACE] live: provider-configuration data reads, pass %d: %s", pass+1, d.Description().Summary)
+		}
+		if len(nextResults) < len(results) {
+			// This pass answered fewer sources than the pass before it
+			// somehow; never regress on the strength of a later attempt.
+			// See [statelessResolve]'s own errorCount comparison for the
+			// same rule applied to its own passes.
+			break
+		}
+		analysis, results = nextAnalysis, nextResults
 	}
-	if len(secondResults) < len(results) {
-		// The retry answered fewer sources than the first pass somehow;
-		// never regress on the strength of a second attempt. See
-		// [statelessResolve]'s own errorCount comparison for the same rule
-		// applied to its own two passes.
-		return results
-	}
-	return secondResults
+	return results
 }
 
 // ---------------------------------------------------------------------------
