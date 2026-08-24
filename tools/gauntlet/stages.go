@@ -67,7 +67,7 @@ func Stages() []Stage {
 			Break:  "Mutate a second object as well; the single-object assertion must fail.",
 		},
 		{
-			ID: "day2_rename", Order: 6, Title: "Rename", Status: StatusPlanned,
+			ID: "day2_rename", Order: 6, Title: "Rename", Status: StatusActive,
 			Proves: "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
 			Oracle: "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
 			Break:  "Rename without the `moved` block; the plan must show a destroy and a create.",

@@ -601,6 +601,38 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 gauntlet_stage cold_deploy pass "$INSTANCES resources from stock terraform; 4 live zones confirmed unmarked"
 
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two zone renames, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/resource "aws_route53_zone" "production" {/resource "aws_route53_zone" "production_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/aws_route53_zone\.production\./aws_route53_zone.production_renamed./g' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/resource "aws_route53_zone" "internal" {/resource "aws_route53_zone" "internal_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/aws_route53_zone\.internal\./aws_route53_zone.internal_renamed./g' "$PLAIN_ORACLE/main.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = aws_route53_zone.production
+  to   = aws_route53_zone.production_renamed
+}
+
+moved {
+  from = aws_route53_zone.internal
+  to   = aws_route53_zone.internal_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both zone moves report only their move, no attribute diff at all"
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state
 # ══════════════════════════════════════════════════════════════════════════
@@ -993,6 +1025,113 @@ fi
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (stages 2-5) is still marked and still converged, which
+# is exactly the state a rename needs to start from. Two mechanisms, on the
+# two smaller of the estate's four zones so a gap in either is visible: a
+# `moved` block renames aws_route53_zone.production (53 references across
+# main.tf, all rewritten by one substitution - the zone itself, not any of
+# the 45 records under it, since Route 53 record sets carry no tags at all
+# and derive their identity from the parent zone's marker, unaffected by the
+# zone's OWN address), and "choudoufu live-mv" renames
+# aws_route53_zone.internal with no moved block at all. The stock oracle for
+# both runs on a copy of cold_deploy's own state, before choudoufu or
+# live-import ever touched these objects.
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming aws_route53_zone.internal WITHOUT a moved block, which
+# must make choudoufu propose destroying the old address and creating the
+# new one - the opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the two live zone ids a rename must not disturb ==="
+log "  $PROD_ZONE (aws_route53_zone.production), $INT_ZONE (aws_route53_zone.internal)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_route53_zone.internal -> .internal_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_route53_zone" "internal" {/resource "aws_route53_zone" "internal_renamed" {/' "$EST/main.tf"
+  sed -i.bak 's/aws_route53_zone\.internal\./aws_route53_zone.internal_renamed./g' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_route53_zone\.internal will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_route53_zone.internal - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_route53_zone\.internal_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_route53_zone.internal_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_route53_zone.internal and creating aws_route53_zone.internal_renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_route53_zone.production -> .production_renamed ==="
+  sed -i.bak 's/resource "aws_route53_zone" "production" {/resource "aws_route53_zone" "production_renamed" {/' "$EST/main.tf"
+  sed -i.bak 's/aws_route53_zone\.production\./aws_route53_zone.production_renamed./g' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  cat >> "$EST/main.tf" <<'EOF'
+
+moved {
+  from = aws_route53_zone.production
+  to   = aws_route53_zone.production_renamed
+}
+EOF
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # aws_route53_zone\.production_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to aws_route53_zone.production_renamed"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn (a record deriving its identity from the zone's marker must not move)"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change - only the zone itself carries a marker to rewrite"; }
+  grep -qE '~ +"tofu-address" = "aws_route53_zone\.production" -> "aws_route53_zone\.production_renamed"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the zone's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update on the zone itself - none of its 45 record children move at all"
+
+  MOVED_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  PROD_ZONE_AFTER="$(zone_id_of 'datacite.org.' false)"
+  [ "$PROD_ZONE_AFTER" = "$PROD_ZONE" ] || fail "the production zone's id changed across the rename ($PROD_ZONE -> $PROD_ZONE_AFTER) - it was destroyed and recreated, not renamed"
+  PROD_ADDR_AFTER="$(marker_of "$PROD_ZONE" tofu-address)"
+  [ "$PROD_ADDR_AFTER" = "aws_route53_zone.production_renamed" ] || fail "the production zone carries tofu-address=$PROD_ADDR_AFTER after the rename, not aws_route53_zone.production_renamed"
+  log "  $PROD_ZONE unchanged, tofu-address now aws_route53_zone.production_renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_route53_zone.internal -> .internal_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_route53_zone" "internal" {/resource "aws_route53_zone" "internal_renamed" {/' "$EST/main.tf"
+  sed -i.bak 's/aws_route53_zone\.internal\./aws_route53_zone.internal_renamed./g' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE_NAME" aws_route53_zone.internal aws_route53_zone.internal_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_route53_zone.internal" -> "aws_route53_zone.internal_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  INT_ZONE_AFTER="$(zone_id_of 'datacite.org.' true)"
+  [ "$INT_ZONE_AFTER" = "$INT_ZONE" ] || fail "the internal zone's id changed across live-mv ($INT_ZONE -> $INT_ZONE_AFTER) - it was destroyed and recreated, not renamed"
+  INT_ADDR_AFTER="$(marker_of "$INT_ZONE" tofu-address)"
+  [ "$INT_ADDR_AFTER" = "aws_route53_zone.internal_renamed" ] || fail "the internal zone carries tofu-address=$INT_ADDR_AFTER after live-mv, not aws_route53_zone.internal_renamed"
+  log "  $INT_ZONE unchanged, tofu-address now aws_route53_zone.internal_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both zone renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 CURRENT_STAGE=""
 gauntlet_end
 

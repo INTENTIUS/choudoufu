@@ -376,6 +376,39 @@ UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
+cp -r "$WORK/plain" "$PLAIN_ORACLE_ROOT"
+PLAIN_ORACLE="$PLAIN_ORACLE_ROOT/vpc/examples/complete"
+sed -i.bak 's/module "vpc_endpoints" {/module "vpc_endpoints_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.vpc_endpoints\./module.vpc_endpoints_renamed./g' "$PLAIN_ORACLE/outputs.tf"
+sed -i.bak 's/resource "aws_security_group" "rds" {/resource "aws_security_group" "rds_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/aws_security_group\.rds\.id/aws_security_group.rds_renamed.id/' "$PLAIN_ORACLE/main.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak" "$PLAIN_ORACLE/outputs.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.vpc_endpoints
+  to   = module.vpc_endpoints_renamed
+}
+
+moved {
+  from = aws_security_group.rds
+  to   = aws_security_group.rds_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the plain state file
 # ══════════════════════════════════════════════════════════════════════════
@@ -602,6 +635,114 @@ else
   gauntlet_stage drift_reconverge pass "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete"
 fi
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (stages 2-5) is still marked and still converged, which
+# is exactly the state a rename needs to start from. Two mechanisms, on two
+# different objects so a gap in either is visible: a `moved` block renames
+# the whole module.vpc_endpoints call (6 taggable objects: 5 active
+# endpoints + the module's own security group - ecs_telemetry is
+# create=false), and "choudoufu live-mv" renames the standalone root
+# aws_security_group.rds with no moved block at all. The stock oracle for
+# both runs on a copy of cold_deploy's own state, before choudoufu or
+# live-import ever touched these objects - reusing $ADOPTED's post-adoption
+# state would confound the comparison with the marker-tag churn adoption
+# itself introduces, which has nothing to do with the rename.
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming aws_security_group.rds WITHOUT a moved block, which must
+# make choudoufu propose destroying the old address and creating the new
+# one - the opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  $S3_EP_ID (module.vpc_endpoints, s3 endpoint), $RDS_SG_ID (aws_security_group.rds)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_security_group.rds -> .rds_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_security_group" "rds" {/resource "aws_security_group" "rds_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_security_group\.rds\.id/aws_security_group.rds_renamed.id/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.rds will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_security_group.rds - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_security_group\.rds_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_security_group.rds_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_security_group.rds and creating aws_security_group.rds_renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.vpc_endpoints -> module.vpc_endpoints_renamed ==="
+  sed -i.bak 's/module "vpc_endpoints" {/module "vpc_endpoints_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/module\.vpc_endpoints\./module.vpc_endpoints_renamed./g' "$ADOPTED/outputs.tf"
+  rm -f "$ADOPTED/main.tf.bak" "$ADOPTED/outputs.tf.bak"
+  cat >> "$ADOPTED/main.tf" <<'EOF'
+
+moved {
+  from = module.vpc_endpoints
+  to   = module.vpc_endpoints_renamed
+}
+EOF
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu defect: the moved-block rename of module.vpc_endpoints proposes a create for its untaggable child aws_security_group_rule.this[\"ingress_https\"] instead of matching it structurally under the parent's new address - not zero churn. The parent aws_security_group.this[0] itself IS relocated correctly ('will be updated in-place'); stock's native moved-block handling relocates the rule cleanly too ('has moved to', zero churn, confirmed via a standalone repro). The gap is choudoufu-specific: an untaggable/derived child's identity resolution does not follow a moved parent module the way a marker-carrying resource's does (internal/live/moved's alias index is marker-based and has nothing to index for an untaggable type). Reaches every estate that renames a module containing a derived child of a moved parent (aws_security_group_rule, aws_route, aws_route_table_association, aws_vpc_dhcp_options_association, ...) - not fixed in this unit, scope is the day2_rename stage activation itself."; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
+  grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
+  grep -qE '~ +"tofu-address" = "module\.vpc_endpoints\.aws_vpc_endpoint\.this:s3" -> "module\.vpc_endpoints_renamed\.aws_vpc_endpoint\.this:s3"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the s3 endpoint's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags updates - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE "Resources: 0 added, $N_CHANGED_D1 changed, 0 destroyed" <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply did not change exactly $N_CHANGED_D1 resources"; }
+
+  S3_EP_ID_AFTER="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$S3_EP_ID" --query "VpcEndpoints[0].VpcEndpointId" --output text 2>/dev/null || true)"
+  [ "$S3_EP_ID_AFTER" = "$S3_EP_ID" ] || fail "the s3 endpoint's id changed across the rename ($S3_EP_ID -> $S3_EP_ID_AFTER) - it was destroyed and recreated, not renamed"
+  S3_EP_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$S3_EP_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$S3_EP_ADDR_AFTER" = "module.vpc_endpoints_renamed.aws_vpc_endpoint.this:s3" ] \
+    || fail "the s3 endpoint carries tofu-address=$S3_EP_ADDR_AFTER after the rename, not module.vpc_endpoints_renamed.aws_vpc_endpoint.this:s3"
+  log "  $S3_EP_ID unchanged, tofu-address now module.vpc_endpoints_renamed.aws_vpc_endpoint.this:s3 - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_security_group.rds -> .rds_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_security_group" "rds" {/resource "aws_security_group" "rds_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_security_group\.rds\.id/aws_security_group.rds_renamed.id/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ADOPTED" && "$TOFU" live-mv -estate="$ESTATE" aws_security_group.rds aws_security_group.rds_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_security_group.rds" -> "aws_security_group.rds_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  RDS_SG_ID_AFTER="$(awsl ec2 describe-security-groups --group-ids "$RDS_SG_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$RDS_SG_ID_AFTER" = "$RDS_SG_ID" ] || fail "the rds security group's id changed across live-mv ($RDS_SG_ID -> $RDS_SG_ID_AFTER) - it was destroyed and recreated, not renamed"
+  RDS_SG_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$RDS_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$RDS_SG_ADDR_AFTER" = "aws_security_group.rds_renamed" ] || fail "the rds security group carries tofu-address=$RDS_SG_ADDR_AFTER after live-mv, not aws_security_group.rds_renamed"
+  log "  $RDS_SG_ID unchanged, tofu-address now aws_security_group.rds_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.vpc_endpoints renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 CURRENT_STAGE=""
 gauntlet_end
 

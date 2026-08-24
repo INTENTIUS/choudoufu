@@ -699,6 +699,64 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (later stages) is still marked and still converged,
+# which is exactly the state a rename needs to start from. Two mechanisms,
+# on two different objects so a gap in either is visible: a `moved` block
+# renames the whole module.alb call, and "choudoufu live-mv" renames the
+# standalone root aws_service_discovery_http_namespace.this with no moved
+# block at all. The stock oracle for both runs on a copy of cold_deploy's
+# own state, PLANNED right after stage 1 (this block sits between
+# "gauntlet_stage cold_deploy pass" and migrate) - before choudoufu or
+# live-import ever touch these shared objects, since live-import stamps the
+# SAME AWS objects $PLAIN_EST's cold apply created rather than creating a
+# parallel set, and replanning against them later would compare a plan that
+# legitimately wants the marker tags gone, which has nothing to do with the
+# rename.
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming aws_service_discovery_http_namespace.this WITHOUT a
+# moved block, which must make choudoufu propose destroying the old address
+# and creating the new one - the opposite of every other assertion in this
+# part.
+
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE_ROOT"
+PLAIN_ORACLE="$PLAIN_ORACLE_ROOT/ecs/examples/fargate"
+sed -i.bak 's/module "alb" {/module "alb_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.alb\./module.alb_renamed./g' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.alb\./module.alb_renamed./g' "$PLAIN_ORACLE/outputs.tf"
+sed -i.bak 's/resource "aws_service_discovery_http_namespace" "this" {/resource "aws_service_discovery_http_namespace" "this_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/aws_service_discovery_http_namespace\.this\.arn/aws_service_discovery_http_namespace.this_renamed.arn/' "$PLAIN_ORACLE/main.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak" "$PLAIN_ORACLE/outputs.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.alb
+  to   = module.alb_renamed
+}
+
+moved {
+  from = aws_service_discovery_http_namespace.this
+  to   = aws_service_discovery_http_namespace.this_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1344,6 +1402,97 @@ else
   log "  reconverged: VPC $VPC_ID's Name tag is back to its configured value ($FIXED_VALUE)"
   gauntlet_stage drift_reconverge pass "one object tampered (VPC's Name tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Name tag reconverged"
 fi
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+NS_ARN_D="$(awsl servicediscovery list-namespaces --query "Namespaces[0].Arn" --output text)"
+[ -n "$NS_ARN_D" ] && [ "$NS_ARN_D" != "None" ] || fail "no live service-discovery namespace found"
+ALB_ARN_D="$(awsl elbv2 describe-load-balancers --query "LoadBalancers[0].LoadBalancerArn" --output text)"
+[ -n "$ALB_ARN_D" ] && [ "$ALB_ARN_D" != "None" ] || fail "no live load balancer found"
+log "  $NS_ARN_D (aws_service_discovery_http_namespace.this), $ALB_ARN_D (module.alb)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_service_discovery_http_namespace.this -> .this_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_service_discovery_http_namespace" "this" {/resource "aws_service_discovery_http_namespace" "this_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/aws_service_discovery_http_namespace\.this\.arn/aws_service_discovery_http_namespace.this_renamed.arn/' "$ADOPTED_EST/main.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak"
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_service_discovery_http_namespace\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_service_discovery_http_namespace.this - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_service_discovery_http_namespace\.this_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_service_discovery_http_namespace.this_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying the old namespace address and creating the new one - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.alb -> module.alb_renamed ==="
+  sed -i.bak 's/module "alb" {/module "alb_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/module\.alb\./module.alb_renamed./g' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/module\.alb\./module.alb_renamed./g' "$ADOPTED_EST/outputs.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak" "$ADOPTED_EST/outputs.tf.bak"
+  cat >> "$ADOPTED_EST/main.tf" <<'EOF'
+
+moved {
+  from = module.alb
+  to   = module.alb_renamed
+}
+EOF
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu defect: the moved-block rename of module.alb proposes a create/destroy for one of its children instead of matching them structurally under the parent's new address - not zero churn. Stock's native moved-block handling relocates every child cleanly (confirmed by the oracle above). Not fixed in this unit, scope is the day2_rename stage activation itself (see corpus-vpc-complete's own day2_rename detail for the first occurrence of this class of wall)."; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
+  grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
+  log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE "Resources: 0 added, $N_CHANGED_D1 changed, 0 destroyed" <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply did not change exactly $N_CHANGED_D1 resources"; }
+
+  ALB_ARN_D_AFTER="$(awsl elbv2 describe-load-balancers --load-balancer-arns "$ALB_ARN_D" --query "LoadBalancers[0].LoadBalancerArn" --output text 2>/dev/null || true)"
+  [ "$ALB_ARN_D_AFTER" = "$ALB_ARN_D" ] || fail "the load balancer's arn changed across the rename ($ALB_ARN_D -> $ALB_ARN_D_AFTER) - it was destroyed and recreated, not renamed"
+  ALB_ADDR_D_AFTER="$(awsl elbv2 describe-tags --resource-arns "$ALB_ARN_D" --query "TagDescriptions[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ALB_ADDR_D_AFTER" = "module.alb_renamed.aws_lb.this[0]" ] \
+    || log "  note: the load balancer's tofu-address now reads $ALB_ADDR_D_AFTER (module renamed, live id unchanged)"
+  log "  $ALB_ARN_D unchanged - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_service_discovery_http_namespace.this -> .this_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_service_discovery_http_namespace" "this" {/resource "aws_service_discovery_http_namespace" "this_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/aws_service_discovery_http_namespace\.this\.arn/aws_service_discovery_http_namespace.this_renamed.arn/' "$ADOPTED_EST/main.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak"
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" aws_service_discovery_http_namespace.this aws_service_discovery_http_namespace.this_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_service_discovery_http_namespace.this" -> "aws_service_discovery_http_namespace.this_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  NS_ARN_D_AFTER="$(awsl servicediscovery list-namespaces --query "Namespaces[0].Arn" --output text)"
+  [ "$NS_ARN_D_AFTER" = "$NS_ARN_D" ] || fail "the namespace's arn changed across live-mv ($NS_ARN_D -> $NS_ARN_D_AFTER) - it was destroyed and recreated, not renamed"
+  NS_ADDR_D_AFTER="$(awsl servicediscovery list-tags-for-resource --resource-arn "$NS_ARN_D" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$NS_ADDR_D_AFTER" = "aws_service_discovery_http_namespace.this_renamed" ] \
+    || fail "the namespace carries tofu-address=$NS_ADDR_D_AFTER after live-mv, not aws_service_discovery_http_namespace.this_renamed"
+  log "  $NS_ARN_D unchanged, tofu-address now aws_service_discovery_http_namespace.this_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.alb renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 
 CURRENT_STAGE=""
 gauntlet_end

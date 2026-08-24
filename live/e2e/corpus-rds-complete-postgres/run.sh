@@ -529,6 +529,61 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Neither leg touches a root resource - this estate declares none - so both
+# rename a module call. A `moved` block renames the whole
+# module.security_group call (an external registry module, several
+# resources); "choudoufu live-mv" renames module.db_default, whose single
+# live resource - module.db_default's own nested module.db_instance call is
+# unconditional and its aws_db_instance.this is the only resource created
+# under create_db_option_group=false/create_db_parameter_group=false - has a
+# fully known, stable address, so its full instance address is
+# module.db_default.module.db_instance.aws_db_instance.this[0]. The stock
+# oracle for both runs on a copy of cold_deploy's own state, PLANNED right
+# after stage 1 - before choudoufu or live-import ever touch these shared
+# objects.
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming module.db_default's instance WITHOUT a moved block, which
+# must make choudoufu propose destroying the old address and creating the
+# new one - the opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE_ROOT"
+PLAIN_ORACLE="$PLAIN_ORACLE_ROOT/rds/examples/complete-postgres"
+sed -i.bak 's/module "security_group" {/module "security_group_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.security_group\./module.security_group_renamed./g' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module "db_default" {/module "db_default_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.db_default\./module.db_default_renamed./g' "$PLAIN_ORACLE/outputs.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak" "$PLAIN_ORACLE/outputs.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.security_group
+  to   = module.security_group_renamed
+}
+
+moved {
+  from = module.db_default
+  to   = module.db_default_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1177,6 +1232,96 @@ else
   log "  \"$FIXED_VALUE\", its pre-tamper, config-matching value"
   gauntlet_stage drift_reconverge pass "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
 fi
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+SG_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.security_group.aws_security_group.this[0]"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$SG_ID_D" ] && [ "$SG_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker"
+DB_ARN_D="$(awsl rds describe-db-instances --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this[0]\`)].DBInstanceArn | [0]" --output text)"
+[ -n "$DB_ARN_D" ] && [ "$DB_ARN_D" != "None" ] || fail "no live db instance found by its tofu-address marker"
+log "  $SG_ID_D (module.security_group), $DB_ARN_D (module.db_default)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename module.db_default -> module.db_default_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "db_default" {/module "db_default_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/module\.db_default\./module.db_default_renamed./g' "$ADOPTED_EST/outputs.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak" "$ADOPTED_EST/outputs.tf.bak"
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.db_default\.module\.db_instance\.aws_db_instance\.this\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying module.db_default's db instance - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.aws_db_instance\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating module.db_default_renamed's db instance - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying the old db instance address and creating the new one - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.security_group -> module.security_group_renamed ==="
+  sed -i.bak 's/module "security_group" {/module "security_group_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/module\.security_group\./module.security_group_renamed./g' "$ADOPTED_EST/main.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak"
+  cat >> "$ADOPTED_EST/main.tf" <<'EOF'
+
+moved {
+  from = module.security_group
+  to   = module.security_group_renamed
+}
+EOF
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu defect: the moved-block rename of module.security_group proposes a create/destroy for one of its children instead of matching them structurally under the parent's new address - not zero churn. Stock's native moved-block handling relocates every child cleanly (confirmed by the oracle above). Not fixed in this unit, scope is the day2_rename stage activation itself (see corpus-vpc-complete's own day2_rename detail for the first occurrence of this class of wall)."; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
+  grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
+  grep -qE '~ +"tofu-address" = "module\.security_group\.aws_security_group\.this\[0\]" -> "module\.security_group_renamed\.aws_security_group\.this\[0\]"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE "Resources: 0 added, $N_CHANGED_D1 changed, 0 destroyed" <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply did not change exactly $N_CHANGED_D1 resources"; }
+
+  SG_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SG_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$SG_ID_D_AFTER" = "$SG_ID_D" ] || fail "the security group's id changed across the rename ($SG_ID_D -> $SG_ID_D_AFTER) - it was destroyed and recreated, not renamed"
+  SG_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$SG_ADDR_D_AFTER" = "module.security_group_renamed.aws_security_group.this[0]" ] \
+    || fail "the security group carries tofu-address=$SG_ADDR_D_AFTER after the rename, not module.security_group_renamed.aws_security_group.this[0]"
+  log "  $SG_ID_D unchanged, tofu-address now module.security_group_renamed.aws_security_group.this[0] - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module.db_default -> module.db_default_renamed, no moved block at all ==="
+  sed -i.bak 's/module "db_default" {/module "db_default_renamed" {/' "$ADOPTED_EST/main.tf"
+  sed -i.bak 's/module\.db_default\./module.db_default_renamed./g' "$ADOPTED_EST/outputs.tf"
+  rm -f "$ADOPTED_EST/main.tf.bak" "$ADOPTED_EST/outputs.tf.bak"
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.db_default.module.db_instance.aws_db_instance.this[0]' 'module.db_default_renamed.module.db_instance.aws_db_instance.this[0]' 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.db_default.module.db_instance.aws_db_instance.this:0" -> "module.db_default_renamed.module.db_instance.aws_db_instance.this:0"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  DB_ARN_D_AFTER="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN_D" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$DB_ARN_D_AFTER" = "module.db_default_renamed.module.db_instance.aws_db_instance.this[0]" ] \
+    || fail "the db instance carries tofu-address=$DB_ARN_D_AFTER after live-mv, not module.db_default_renamed.module.db_instance.aws_db_instance.this[0]"
+  log "  $DB_ARN_D unchanged, tofu-address now module.db_default_renamed.module.db_instance.aws_db_instance.this[0] - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.security_group renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 
 CURRENT_STAGE=""
 gauntlet_end

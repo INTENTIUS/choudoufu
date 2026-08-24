@@ -264,6 +264,56 @@ UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (stages 2-5) is still marked and still converged, which
+# is exactly the state a rename needs to start from. Two mechanisms, on two
+# different objects so a gap in either is visible: a `moved` block renames
+# the whole module.asg_sg call (a security group plus its computed ingress
+# rule), and "choudoufu live-mv" renames the standalone root
+# aws_sqs_queue.this with no moved block at all. The stock oracle for both
+# runs on a copy of cold_deploy's own state, before choudoufu or live-import
+# ever touched these objects.
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming aws_sqs_queue.this WITHOUT a moved block, which must make
+# choudoufu propose destroying the old address and creating the new one -
+# the opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
+cp -r "$WORK/plain" "$PLAIN_ORACLE_ROOT"
+PLAIN_ORACLE="$PLAIN_ORACLE_ROOT/autoscaling/examples/complete"
+sed -i.bak 's/module "asg_sg" {/module "asg_sg_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module\.asg_sg\./module.asg_sg_renamed./g' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$PLAIN_ORACLE/main.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.asg_sg
+  to   = module.asg_sg_renamed
+}
+
+moved {
+  from = aws_sqs_queue.this
+  to   = aws_sqs_queue.this_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the plain state file
 # ══════════════════════════════════════════════════════════════════════════
@@ -570,6 +620,96 @@ else
   log "  reconverged: SQS queue 'complete's Example tag is back to \"complete\""
   gauntlet_stage drift_reconverge pass "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
 fi
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+SQS_URL="$(awsl sqs get-queue-url --queue-name "$(cd "$ADOPTED" && "$TOFU" output -raw 2>/dev/null || true)" 2>/dev/null || true)"
+ASG_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-address,Values=module.asg_sg.aws_security_group.this[0]" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$ASG_SG_ID" ] && [ "$ASG_SG_ID" != "None" ] || fail "no live asg_sg security group found by its tofu-address marker"
+SQS_ARN="$(awsl sqs list-queues --query "QueueUrls[0]" --output text)"
+[ -n "$SQS_ARN" ] && [ "$SQS_ARN" != "None" ] || fail "no live sqs queue found"
+log "  $ASG_SG_ID (module.asg_sg), $SQS_ARN (aws_sqs_queue.this)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_sqs_queue.this -> .this_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_sqs_queue\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_sqs_queue.this - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_sqs_queue\.this_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_sqs_queue.this_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_sqs_queue.this and creating aws_sqs_queue.this_renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.asg_sg -> module.asg_sg_renamed ==="
+  sed -i.bak 's/module "asg_sg" {/module "asg_sg_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/module\.asg_sg\./module.asg_sg_renamed./g' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  cat >> "$ADOPTED/main.tf" <<'EOF'
+
+moved {
+  from = module.asg_sg
+  to   = module.asg_sg_renamed
+}
+EOF
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
+  grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
+  grep -qE '~ +"tofu-address" = "module\.asg_sg\.aws_security_group\.this\[0\]" -> "module\.asg_sg_renamed\.aws_security_group\.this\[0\]"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE "Resources: 0 added, $N_CHANGED_D1 changed, 0 destroyed" <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply did not change exactly $N_CHANGED_D1 resources"; }
+
+  ASG_SG_ID_AFTER="$(awsl ec2 describe-security-groups --group-ids "$ASG_SG_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$ASG_SG_ID_AFTER" = "$ASG_SG_ID" ] || fail "the asg_sg security group's id changed across the rename ($ASG_SG_ID -> $ASG_SG_ID_AFTER) - it was destroyed and recreated, not renamed"
+  ASG_SG_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$ASG_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$ASG_SG_ADDR_AFTER" = "module.asg_sg_renamed.aws_security_group.this[0]" ] \
+    || fail "the asg_sg security group carries tofu-address=$ASG_SG_ADDR_AFTER after the rename, not module.asg_sg_renamed.aws_security_group.this[0]"
+  log "  $ASG_SG_ID unchanged, tofu-address now module.asg_sg_renamed.aws_security_group.this[0] - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_sqs_queue.this -> .this_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ADOPTED" && "$TOFU" live-mv -estate="$ESTATE" aws_sqs_queue.this aws_sqs_queue.this_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_sqs_queue.this" -> "aws_sqs_queue.this_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  SQS_URL_AFTER="$(awsl sqs list-queues --query "QueueUrls[0]" --output text)"
+  [ "$SQS_URL_AFTER" = "$SQS_ARN" ] || fail "the sqs queue's url changed across live-mv ($SQS_ARN -> $SQS_URL_AFTER) - it was destroyed and recreated, not renamed"
+  SQS_ADDR_AFTER="$(awsl sqs list-queue-tags --queue-url "$SQS_ARN" --query "Tags.\"tofu-address\"" --output text)"
+  [ "$SQS_ADDR_AFTER" = "aws_sqs_queue.this_renamed" ] || fail "the sqs queue carries tofu-address=$SQS_ADDR_AFTER after live-mv, not aws_sqs_queue.this_renamed"
+  log "  $SQS_ARN unchanged, tofu-address now aws_sqs_queue.this_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.asg_sg renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 
 CURRENT_STAGE=""
 gauntlet_end
