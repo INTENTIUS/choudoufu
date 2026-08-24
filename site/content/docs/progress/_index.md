@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `1a2702d53e` against `ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57`, 2026-08-24T19:46:39Z.
+Measured at commit `bb42656508` against `ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57`, 2026-08-24T20:38:24Z.
 
 ## The stages
 
@@ -44,7 +44,7 @@ answer is and how each check is proven non-vacuous, is
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass FAIL not run not run not run |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL |
@@ -65,7 +65,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | no | pass pass pass pass pass not run |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass not run |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | no | pass pass pass pass pass not run |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | no | pass pass pass pass pass not run |
