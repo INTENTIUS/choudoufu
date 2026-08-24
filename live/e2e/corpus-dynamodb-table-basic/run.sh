@@ -281,6 +281,49 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# module.dynamodb_table is this estate's only real module, and it holds the
+# estate's only two managed resources left in scope after the #314 DELTA
+# (random_pet.this is pinned to a literal ahead of migrate, below, and never
+# reaches the adopted config at all - see "DELTA random_pet pinned" - so it
+# cannot be a second, independent rename target the way another estate's
+# second module or standalone resource is). Both real day2_rename mechanisms
+# therefore run on the SAME module, one after the other: a `moved` block
+# first (module.dynamodb_table -> module.dynamodb_table_moved), then
+# "choudoufu live-mv" second (module.dynamodb_table_moved ->
+# module.dynamodb_table_final, no moved block for that hop at all). The
+# stock oracle below plans the NET rename (original name straight to the
+# final name) on a copy of cold_deploy's own state, before choudoufu or
+# live-import ever touch it.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
+ORACLE_ROOT="$WORK/oracle"
+cp -r "$EST" "$ORACLE_ROOT"
+ORACLE="$ORACLE_ROOT/examples/basic"
+rm -rf "$ORACLE/.terraform" "$ORACLE/.terraform.lock.hcl"
+sed -i.bak 's/module "dynamodb_table" {/module "dynamodb_table_final" {/' "$ORACLE/main.tf"
+sed -i.bak 's/module\.dynamodb_table\./module.dynamodb_table_final./g' "$ORACLE/outputs.tf"
+rm -f "$ORACLE/main.tf.bak" "$ORACLE/outputs.tf.bak"
+cat >> "$ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.dynamodb_table
+  to   = module.dynamodb_table_final
+}
+EOF
+( cd "$ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by a moved block - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - the module move reports only its move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
@@ -456,6 +499,119 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   gauntlet_stage drift_reconverge pass "one object tampered ($TABLE_ARN's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
   log ""
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # module.dynamodb_table is this estate's only real module and the table is
+  # its only marker-bearing object (see the D-ORACLE comment above stage 2 -
+  # random_pet.this never reaches the adopted config at all, pinned to a
+  # literal ahead of migrate by the #314 DELTA). Both mechanisms therefore
+  # run on the SAME module, one right after the other: a `moved` block first
+  # (module.dynamodb_table -> module.dynamodb_table_moved), then "choudoufu
+  # live-mv" second (module.dynamodb_table_moved -> module.dynamodb_
+  # table_final, no moved block for that hop at all). The resource policy
+  # (module.dynamodb_table.aws_dynamodb_resource_policy.this[0]) carries no
+  # tags and no marker of its own - its identity is derived entirely from
+  # the table's own name argument, which neither rename touches - so it is
+  # expected to show no diff of any kind across either hop.
+  #
+  # BREAK=6 (not 1: this script's own stage 3 and stage 5 already corrupt
+  # their assertions under BREAK=1 and exit through fail() long before this
+  # point, the same collision issue corpus-eks-basic's own header documents
+  # for its stage 2 vs stage 3 - see "the stage-3-only value exists" there)
+  # exercises this stage's own break control instead of the real checks:
+  # renaming module.dynamodb_table WITHOUT a moved block, which must make
+  # choudoufu propose destroying the old address's table and creating the
+  # new one - the opposite of every other assertion in this part.
+  CURRENT_STAGE=day2_rename
+  log "=== D0. capture the live table this rename must not disturb ==="
+  log "  $TABLE_ARN (module.dynamodb_table.aws_dynamodb_table.this[0])"
+
+  if [ "${BREAK:-}" = "6" ]; then
+    log "=== D1 (BREAK=6). rename module.dynamodb_table -> module.dynamodb_table_final WITHOUT a moved block ==="
+    sed -i.bak 's/module "dynamodb_table" {/module "dynamodb_table_final" {/' "$EX/main.tf"
+    sed -i.bak 's/module\.dynamodb_table\./module.dynamodb_table_final./g' "$EX/outputs.tf"
+    rm -f "$EX/main.tf.bak" "$EX/outputs.tf.bak"
+    ( cd "$EX" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=6 rename's reinit failed"; }
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=6 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+    grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=6: renaming without a moved block did not propose destroying module.dynamodb_table.aws_dynamodb_table.this[0] - this stage's check is not load-bearing"; }
+    grep -qE '^  # module\.dynamodb_table_final\.aws_dynamodb_table\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=6: renaming without a moved block did not propose creating module.dynamodb_table_final.aws_dynamodb_table.this[0] - this stage's check is not load-bearing"; }
+    log "  BREAK=6: correctly proposes destroying module.dynamodb_table.aws_dynamodb_table.this[0] and creating module.dynamodb_table_final.aws_dynamodb_table.this[0] - the moved-block and live-mv checks below are skipped"
+  else
+    log "=== D1. choudoufu, moved block: module.dynamodb_table -> module.dynamodb_table_moved ==="
+    sed -i.bak 's/module "dynamodb_table" {/module "dynamodb_table_moved" {/' "$EX/main.tf"
+    sed -i.bak 's/module\.dynamodb_table\./module.dynamodb_table_moved./g' "$EX/outputs.tf"
+    rm -f "$EX/main.tf.bak" "$EX/outputs.tf.bak"
+    cat >> "$EX/main.tf" <<'EOF'
+
+moved {
+  from = module.dynamodb_table
+  to   = module.dynamodb_table_moved
+}
+EOF
+    ( cd "$EX" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+    MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+    [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+    grep -qE '^  # module\.dynamodb_table_moved\.aws_dynamodb_table\.this\[0\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.dynamodb_table_moved.aws_dynamodb_table.this[0]"; }
+    grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change - the resource policy's identity does not depend on the table's own address and must show no diff at all"; }
+    grep -qE '~ +"tofu-address" = "module\.dynamodb_table\.aws_dynamodb_table\.this:0" -> "module\.dynamodb_table_moved\.aws_dynamodb_table\.this:0"' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the table's tofu-address marker being rewritten from the old address to the new one"; }
+    log "  choudoufu: zero churn, one in-place tags update - the resource policy's own identity is unaffected by the table's address"
+
+    MOVED_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+    [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+    TABLE_ARN_D1_AFTER="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" --query 'Table.TableArn' --output text)"
+    [ "$TABLE_ARN_D1_AFTER" = "$TABLE_ARN" ] || fail "the table's ARN changed across the rename ($TABLE_ARN -> $TABLE_ARN_D1_AFTER) - it was destroyed and recreated, not renamed"
+    ADDR_D1_AFTER="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$ADDR_D1_AFTER" = "module.dynamodb_table_moved.aws_dynamodb_table.this:0" ] \
+      || fail "the table carries tofu-address=$ADDR_D1_AFTER after the rename, not module.dynamodb_table_moved.aws_dynamodb_table.this:0"
+    log "  $TABLE_ARN unchanged, tofu-address now module.dynamodb_table_moved.aws_dynamodb_table.this:0 - read via the AWS CLI"
+
+    log "=== D2. choudoufu, live-mv: module.dynamodb_table_moved -> module.dynamodb_table_final, no moved block at all ==="
+    sed -i.bak 's/module "dynamodb_table_moved" {/module "dynamodb_table_final" {/' "$EX/main.tf"
+    sed -i.bak 's/module\.dynamodb_table_moved\./module.dynamodb_table_final./g' "$EX/outputs.tf"
+    rm -f "$EX/main.tf.bak" "$EX/outputs.tf.bak"
+    ( cd "$EX" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    MV_OUT="$(cd "$EX" && "$TOFU" live-mv -estate="$ESTATE" 'module.dynamodb_table_moved.aws_dynamodb_table.this[0]' 'module.dynamodb_table_final.aws_dynamodb_table.this[0]' 2>&1)"; MV_RC=$?
+    [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+    grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+    grep -qF '"module.dynamodb_table_moved.aws_dynamodb_table.this:0" -> "module.dynamodb_table_final.aws_dynamodb_table.this:0"' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+    log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+    TABLE_ARN_D2_AFTER="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" --query 'Table.TableArn' --output text)"
+    [ "$TABLE_ARN_D2_AFTER" = "$TABLE_ARN" ] || fail "the table's ARN changed across live-mv ($TABLE_ARN -> $TABLE_ARN_D2_AFTER) - it was destroyed and recreated, not renamed"
+    ADDR_D2_AFTER="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$ADDR_D2_AFTER" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
+      || fail "the table carries tofu-address=$ADDR_D2_AFTER after live-mv, not module.dynamodb_table_final.aws_dynamodb_table.this:0"
+    log "  $TABLE_ARN unchanged, tofu-address now module.dynamodb_table_final.aws_dynamodb_table.this:0 - read via the AWS CLI"
+
+    log "=== D3. one more plan: config and marker agree on both renames, nothing proposed ==="
+    FINAL_PLAN_OUT="$(plan_into 2>&1)"; FINAL_PLAN_RC=$?
+    [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be' <<< "$FINAL_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+    log "  no resource change proposed. Both renames are complete and invisible to the next plan."
+
+    gauntlet_stage day2_rename pass "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI"
+  fi
+  CURRENT_STAGE=""
 
   CURRENT_STAGE=""
   gauntlet_end
