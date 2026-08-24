@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+# UPDATE 2026-08-24 (round-8 repin, lex00/floci PR #128, ff815779,
+# ghcr.io/lex00/floci:main-20260824d sha256:25fc9687): lex00/floci#110 is
+# CONFIRMED FIXED. Re-probed directly against the pinned digest with no
+# tofu in the loop (raw `aws ecs create-service --service-connect-
+# configuration ...` + `describe-services`): serviceConnectConfiguration
+# now round-trips only on deployments[status=PRIMARY], matching botocore's
+# own ECS service-2.json shape (Service has no top-level
+# serviceConnectConfiguration member at all - only Deployment does) and
+# exactly where terraform-provider-aws's own service.go reads it from. The
+# block is confirmed ABSENT from this estate's own replan by name (3d-pre
+# below), not merely inferred from an unmoved count. test_plan does NOT
+# clear this round, though: the single in-place change WANT_CHANGE_N=1 was
+# already pinning stays at 1, but for a different, already-known reason -
+# see 3d below. Row 4 (the emulator gap) is gone; only row 3 (stock's own
+# container_definitions round-trip, cascading into the service's
+# task_definition attribute) remains, confirmed identical in stock's own
+# replan.
+#
 # terraform-aws-modules/terraform-aws-ecs's flagship "fargate" example
 # (.corpus/ecs/examples/fargate, pinned in live/corpus-manifest.json at tag
 # v7.6.0, commit c83279b39). Fargate is the most common modern way people
@@ -1007,30 +1025,54 @@ log "  AWS CLI after the replan."
 #              a CLIENT-NAMED type - was 5 of 8 before #372's remainder,
 #              25 of 29 before #372 landed at all. Every one of them now
 #              carries its slot from migrate time; see the header's item 1.
-#   1 of 1     emulator read fidelity, also in stock's own replan, confirmed
-#              independently against the AWS CLI on this pinned floci image
-#              and filed rather than fixed here: the ECS service's
-#              `service_connect_configuration` block (lex00/floci#110,
-#              still open). GitHub issue #365 slice 2's residue widening
-#              (internal/live/projection's residueEligibleBlock, landed
-#              after this estate's own previous unit) converged two of the
-#              three read-fidelity diffs that unit last recorded to a
-#              genuine no-op ON THIS ESTATE - the ECS cluster's own
-#              `configuration` block (3a2 above proves its prior state is
-#              still bound to the live ARN by value, from a traced replan
-#              since the block no longer renders at all) and the default
-#              network ACL's egress/ingress - without either floci#110 or
-#              floci#111 being fixed: this estate's own applied values for
-#              those two blocks happen to be empty, so residue now trusts
-#              the recorded empty value instead of diffing against the
-#              live read. Neither filed emulator bug is closed; only this
-#              estate's shape of them stopped producing a plan diff.
+#   1 of 1     lex00/floci#110 IS NOW FIXED (round 8, PR #128, ff815779):
+#              re-probed directly against the pinned digest with no tofu in
+#              the loop (raw `aws ecs create-service --service-connect-
+#              configuration ...` + `describe-services`) - floci now
+#              echoes serviceConnectConfiguration only on
+#              deployments[status=PRIMARY], never on the top-level Service
+#              object, matching botocore's own ECS service-2.json shape
+#              (Service has no such member at all) and exactly where
+#              terraform-provider-aws's own flattenServiceRead reads it
+#              from (internal/service/ecs/service.go: `for _, deployment
+#              := range service.Deployments { if
+#              aws.ToString(deployment.Status) == "PRIMARY" { ...
+#              deployment.ServiceConnectConfiguration ... }`). The
+#              service_connect_configuration block is confirmed ABSENT
+#              from this estate's own replan (3d-pre below, by absence,
+#              not by count). What remains in its place: the SAME single
+#              in-place change as before #110's fix, but now for a
+#              DIFFERENT, already-known reason - `task_definition = ... ->
+#              (known after apply)` on module.ecs_service.aws_ecs_service.
+#              this[0], a pure Terraform-core dependency cascade forced by
+#              the two aws_ecs_task_definition replacements directly
+#              above (the service references the task definition's own
+#              computed arn/family:revision, which becomes unknown the
+#              moment its own resource is replaced). Confirmed identical
+#              in stock's own fresh replan too (stage 1c's own dump,
+#              instrumented and read directly): stock shows exactly
+#              `~ task_definition = "arn:...task-definition/ex-fargate:1"
+#              -> (known after apply)` on the same resource, same count
+#              (2/1/2). This is not a new choudoufu-only defect and not a
+#              new emulator gap; it is the pre-existing HANDOFF row-3 wall
+#              (container_definitions round-trip forcing the task-def
+#              replacement) rippling one hop further through the
+#              dependency graph - present in both binaries' plans, not
+#              choudoufu's alone. #111 (the default network ACL's IPv6/
+#              icmp read-fidelity gap) remains open but, as before,
+#              produces no diff on this estate's own empty applied values.
 #   0 of 29    the two log groups inside for_each'd module calls, which
 #              carried the previous two entries here. #378 is fixed: their
 #              desired tags now equal the live ones, so they are absent
 #              from the plan altogether. Pinned by absence, by value, in
 #              3b above - deliberately before this block, so it is 3b that
 #              fails against a pre-fix binary rather than these counts.
+
+# ── 3d-pre. lock in #110's fix by absence, so a regression is loud ────────
+grep -qF 'service_connect_configuration' <<< "$PLAN_OUT" \
+  && { grep -E '^  # module\.ecs_service\.aws_ecs_service' -A 20 <<< "$PLAN_OUT" | grep -B2 -A2 service_connect_configuration; fail "lex00/floci#110 is back: service_connect_configuration appears in the replan again"; }
+log "  lex00/floci#110 CONFIRMED FIXED: no service_connect_configuration"
+log "  diff anywhere in the replan (was the sole stage-3 emulator gap)."
 ADD_N="$(sed -nE 's/^Plan: ([0-9]+) to add.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 CHANGE_N="$(sed -nE 's/^Plan: [0-9]+ to add, ([0-9]+) to change.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 DESTROY_N="$(sed -nE 's/^Plan: [0-9]+ to add, [0-9]+ to change, ([0-9]+) to destroy.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
@@ -1051,6 +1093,19 @@ done
 # read from a count that moved for an unexplained reason.
 grep -qF '# module.ecs_cluster.aws_ecs_cluster.this[0] ' <<< "$PLAN_OUT" \
   && { grep -E '^  # module\.ecs_cluster\.aws_ecs_cluster' -A 6 <<< "$PLAN_OUT"; fail "the ECS cluster's own block is back in the plan; WANT_CHANGE_N=$WANT_CHANGE_N and 3a2's converged-block fallback are both stale"; }
+# The sole remaining in-place change is pinned by name, not merely by
+# count: with #110 fixed (3d-pre above), WANT_CHANGE_N=1 could otherwise
+# pass silently against an unrelated single-attribute diff and nobody
+# would notice the wall had moved to a different cause. It must be
+# module.ecs_service.aws_ecs_service.this[0]'s own task_definition
+# attribute, cascading to "known after apply" because the task definition
+# it references is one of the two being replaced two blocks above - the
+# same shape confirmed, byte-for-byte, in stock's own stage-1c replan.
+grep -qF '~ task_definition                    = "ex-fargate:1" -> (known after apply)' <<< "$PLAN_OUT" \
+  || { grep -E '^  # module\.ecs_service\.aws_ecs_service' -A 15 <<< "$PLAN_OUT"; fail "expected the ECS service's own task_definition to be the sole in-place change (cascading from the task-def replacement) - a different single change is now hiding behind WANT_CHANGE_N=1"; }
+log "  the sole in-place change is module.ecs_service.aws_ecs_service.this[0]'s"
+log "  own task_definition, cascading from the task-def replacement two"
+log "  blocks above - not service_connect_configuration, and not new."
 # How many of the in-place changes are the tofu-slot tag and nothing else.
 # Counted per resource block, not per line: the tag shows up twice in every
 # block (tags and tags_all), and "is this change only the marker" is a
@@ -1098,42 +1153,50 @@ non_slot_blocks() {
 SLOT_N="$(slot_only_blocks)"
 [ "$SLOT_N" = "$WANT_SLOT_N" ] \
   || { log "  blocks changing MORE than the tofu-slot tag:"; non_slot_blocks; fail "expected $WANT_SLOT_N of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone (#372), found $SLOT_N"; }
-log "  BLOCKED, and no longer on #371, #378 or #372: $ADD_N to add, $CHANGE_N to"
-log "  change, $DESTROY_N to destroy, $SLOT_N of them the tofu-slot tag alone"
-log "  (was 5; #372's remainder settles the rest at migrate time). The 2 adds"
-log "  and 2 destroys are the two task definitions stock itself replaces"
-log "  (stage 1c); the 1 change is the ECS service's own emulator read"
-log "  fidelity gap, also present in stock's replan, filed at"
-log "  lex00/floci#110. Nothing left here is choudoufu's alone."
+log "  BLOCKED, and no longer on #371, #378, #372 or #110: $ADD_N to add,"
+log "  $CHANGE_N to change, $DESTROY_N to destroy, $SLOT_N of them the"
+log "  tofu-slot tag alone (was 5; #372's remainder settles the rest at"
+log "  migrate time). The 2 adds and 2 destroys are the two task"
+log "  definitions stock itself replaces (stage 1c); the 1 change is that"
+log "  same replacement cascading into the service's own task_definition"
+log "  attribute - also present, byte-for-byte, in stock's own replan."
+log "  Nothing left here is choudoufu's alone; row 4 (lex00/floci#110) is"
+log "  gone, row 3 (the task-def round trip) is all that remains."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED, but #371, #378 and #372 are all FIXED here"
-log "and the wall has moved three times. The three types #371 was about now"
-log "read back present, with their prior identities confirmed by value"
-log "against the AWS CLI - the ECS cluster's own by a traced replan, since"
-log "GitHub issue #365 slice 2's residue widening converged its block to a"
-log "genuine no-op on this estate and tofu's renderer omits it entirely; the"
-log "two log groups inside for_each'd module calls are no longer in the plan"
-log "at all, because stamp now writes them a per-module-instance tofu-address"
-log "through tofu.marker_module_prefix (#378); and all 5 client-named count"
-log "instances that needed a tofu-slot tag now carry one from migrate time,"
-log "settled from their own configuration rather than left for the plan to"
-log "add (#372's remainder). What remains: two task-definition replacements"
-log "stock itself proposes on its own fresh state (stage 1c - HANDOFF.md row"
-log "3), and one emulator read-fidelity diff also in stock's replan -"
-log "the ECS service's service_connect_configuration block, confirmed"
-log "independently against the AWS CLI and filed at lex00/floci#110"
-log "(HANDOFF.md row 4). The residue widening also converged the ECS"
-log "cluster's own configuration block and the default network ACL's"
-log "egress/ingress rules to a no-op on THIS estate's own applied values,"
-log "without closing floci#110 or floci#111 - neither filed bug is fixed,"
-log "only this estate's shape of them stopped producing a plan diff. Every"
-log "one of these is either tracked or stock's own answer; none is"
-log "choudoufu's alone. All eight of #368's diagnostics are gone, asserted"
-log "by absence above, and the identity #368 made expressible is confirmed"
-log "by value."
+log "STAGE 3 (test_plan): BLOCKED, but #371, #378, #372 and now #110 are ALL"
+log "FIXED here and the wall has moved four times. The three types #371 was"
+log "about now read back present, with their prior identities confirmed by"
+log "value against the AWS CLI - the ECS cluster's own by a traced replan,"
+log "since GitHub issue #365 slice 2's residue widening converged its block"
+log "to a genuine no-op on this estate and tofu's renderer omits it"
+log "entirely; the two log groups inside for_each'd module calls are no"
+log "longer in the plan at all, because stamp now writes them a"
+log "per-module-instance tofu-address through tofu.marker_module_prefix"
+log "(#378); all 5 client-named count instances that needed a tofu-slot tag"
+log "now carry one from migrate time (#372's remainder); and lex00/floci#110"
+log "is CONFIRMED FIXED (round 8, PR #128, ff815779) - re-probed directly"
+log "against the pinned digest (raw create-service/describe-services, no"
+log "tofu in the loop): serviceConnectConfiguration now round-trips only on"
+log "deployments[status=PRIMARY], matching both botocore's ECS model (which"
+log "has no top-level Service.serviceConnectConfiguration member at all)"
+log "and exactly where terraform-provider-aws's own service.go reads it"
+log "from. The service_connect_configuration block is confirmed ABSENT"
+log "from this estate's replan (3d-pre, by absence). What remains: two"
+log "task-definition replacements stock itself proposes on its own fresh"
+log "state (stage 1c - HANDOFF.md row 3), plus that SAME replacement now"
+log "cascading one hop further - the service's own task_definition"
+log "attribute going to (known after apply) because the task definition it"
+log "references is being replaced - confirmed byte-for-byte identical in"
+log "stock's own stage-1c replan, dumped and compared directly (not merely"
+log "count-matched). This is HANDOFF row 3 alone now, not row 3 plus row 4:"
+log "#110 no longer contributes anything to this estate's wall. #111 (the"
+log "default network ACL's IPv6/icmp read-fidelity gap) remains open but,"
+log "as before, produces no diff on this estate's own empty applied values."
+log "All eight of #368's diagnostics are gone, asserted by absence above,"
+log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "NOT a regression: the artifact's prior detail text ('the plan's prior state for the ECS cluster is \"\", not the live cluster ARN ... - the projection bound something else, or nothing') was a stale SCRIPT assertion, not a binding defect. GitHub issue #365 slice 2's residue widening (internal/live/projection's residueEligibleBlock, landed after this estate's own previous unit, #365) converged the ECS cluster's own spurious in-place change to a genuine no-op on this estate; tofu's plan renderer omits a fully-unchanged resource's block entirely, by design, in every version of it, so plan_attr()'s column-parse of the (now absent) block returned empty - correctly, since there is nothing printed to parse - and 3a2's old assertion, added by this estate's own immediately-preceding unit while the cluster still carried a real diff, had never been exercised against a converged block before. Root-caused from the code path, not the symptom: internal/live/liveimport's own migrate-stage log confirms the cluster's tofu-address marker is written and re-read correctly both before and after the plan; a traced replan (TF_LOG=trace) shows exactly one 'materialized module.ecs_cluster.aws_ecs_cluster.this[0] from import identity \"ex-fargate\"' and its underlying DescribeClusters response carries clusterArn=$CLUSTER_ARN, the AWS CLI's own live value; and the plan's 2 adds are both accounted for by the two task-definition replacements, never by the cluster (asserted by absence). 3a2 is fixed generically: it now falls back to this traced-replan proof whenever a monitored resource's block does not render at all (fully converged), instead of assuming a rendered block. The residue widening also converged the default network ACL's egress/ingress rules to a no-op on this estate's own applied values (both empty here), dropping the plan from 2 to add, 3 to change, 2 to destroy (this estate's own last recorded state, #372) to 2 to add, $CHANGE_N to change, 2 to destroy - WITHOUT closing lex00/floci#110 or floci#111, both still open, both still independently confirmed against the AWS CLI: only this estate's own shape of those two gaps (empty applied values) stopped producing a plan diff. What remains, all previously known: 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3; confirmed independently against the AWS CLI that RegisterTaskDefinition/DescribeTaskDefinition drop container_definitions fields the module sends), and the ECS service's own service_connect_configuration block (HANDOFF row 4, lex00/floci#110, not fixed). #371, #378 and #372 remain fixed as this estate's own previous unit found: #378's two aws_cloudwatch_log_group instances under for_each'd module calls stay out of the plan (internal/live/stamp's per-module-instance tofu-address via tofu.marker_module_prefix), and #372's remainder (Ratification.resolved in internal/live/liveimport/ratify.go resolving Request.Config through identity.ResolveWith, instanceNeedsDiscovery asking the per-instance Class) keeps all 5 client-named count instances slotted at migrate time (0 of $CHANGE_N in-place changes are a bare tofu-slot tag). #371's ABSENT class is still 0; identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID."
+gauntlet_stage test_plan fail "lex00/floci#110 CONFIRMED FIXED this round (PR #128, ff815779, ghcr.io/lex00/floci:main-20260824d sha256:25fc9687): re-probed directly against the pinned digest with no tofu in the loop (raw \`aws ecs create-service --service-connect-configuration ...\` + \`describe-services\`) - serviceConnectConfiguration now round-trips only on deployments[status=PRIMARY], matching botocore's own ECS service-2.json (Service has no top-level serviceConnectConfiguration member) and exactly where terraform-provider-aws's service.go reads it from (deployment.Status==PRIMARY). The service_connect_configuration block is confirmed absent from this estate's own replan by name (3d-pre), not merely by an unmoved count. What remains is the SAME single in-place change as before #110's fix, now confirmed to be a DIFFERENT, already-known cause: module.ecs_service.aws_ecs_service.this[0]'s own task_definition attribute going to (known after apply), a pure Terraform-core dependency cascade forced by the two aws_ecs_task_definition replacements directly above (the service references the task definition's own computed arn/family:revision, which becomes unknown the moment that resource is replaced). Confirmed identical in stock's own fresh replan too - dumped directly (not inferred from the count alone) and compared: stock shows the exact same \$CHANGE_N change, same 2/1/2 shape, on the same resource, for the same task_definition attribute. Not a new choudoufu-only defect and not a new emulator gap: it is HANDOFF's row 3 (the pre-existing container_definitions round-trip forcing the task-def replacement) rippling one hop further through the dependency graph, present in both binaries' plans, not choudoufu's alone. #371, #378 and #372 remain fixed as this estate's own previous unit found: #378's two aws_cloudwatch_log_group instances under for_each'd module calls stay out of the plan (internal/live/stamp's per-module-instance tofu-address via tofu.marker_module_prefix), and #372's remainder (Ratification.resolved in internal/live/liveimport/ratify.go resolving Request.Config through identity.ResolveWith, instanceNeedsDiscovery asking the per-instance Class) keeps all 5 client-named count instances slotted at migrate time (0 of \$CHANGE_N in-place changes are a bare tofu-slot tag). #371's ABSENT class is still 0; identities confirmed by value against the AWS CLI: \$CLUSTER_ARN, \$TD_SVC_ARN, \$TD_STANDALONE_ARN, and #368's scalable target \$GOT_TARGET_RID."
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -1146,21 +1209,23 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #371, #378 and #372 all FIXED here (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value; both for_each'd-module log groups out of the plan with their markers intact; 0 of $CHANGE_N in-place changes are a bare tofu-slot tag, was 5 of 8); blocked now on two task-definition replacements stock proposes too (row 3), and 3 emulator read-fidelity diffs confirmed against the AWS CLI and filed at lex00/floci#110 and #111 (row 4)"
+log "  stage 3  test_plan          BLOCKED - #371, #378, #372 and now #110 all FIXED here (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value; both for_each'd-module log groups out of the plan with their markers intact; 0 of $CHANGE_N in-place changes are a bare tofu-slot tag, was 5 of 8; service_connect_configuration confirmed absent by name); blocked now on row 3 alone - two task-definition replacements stock proposes too, plus that same replacement cascading into the service's own task_definition attribute, confirmed identical in stock's own replan"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
 log "62 real resources, real emulator, real unmarked infrastructure, real"
 log "migration. Every assertion above reads live-import's or live-plan's own"
 log "output, or a tag read straight through the AWS CLI - never choudoufu's"
-log "own self-report. Two earlier floci gaps found and fixed along the way"
-log "(lex00/floci#59, #60) no longer block this script. Two more, found"
-log "tonight and confirmed independently against the AWS CLI on this pinned"
-log "image, DO block stage 3 directly and are filed, not fixed here:"
-log "lex00/floci#110 (aws_ecs_cluster.configuration and aws_ecs_service."
-log "deployment_configuration/service_connect_configuration never round-trip)"
-log "and #111 (the default network ACL's IPv6 rule loses its CIDR type on"
-log "read, and non-ICMP rules gain a spurious icmp_code/icmp_type). Run"
-log "again with BREAK=1: stage 1 still passes and stage 2's own"
+log "own self-report. Three earlier floci gaps found and fixed along the way"
+log "(lex00/floci#59, #60, #110) no longer block this script. #110 (ECS"
+log "service_connect_configuration echoed at an unmodeled top-level Service"
+log "location instead of deployments[].serviceConnectConfiguration) was"
+log "CONFIRMED FIXED this round (PR #128, ff815779) by re-probing the pinned"
+log "digest directly, with no tofu in the loop. One remains open and filed,"
+log "not fixed here: #111 (the default network ACL's IPv6 rule loses its"
+log "CIDR type on read, and non-ICMP rules gain a spurious icmp_code/"
+log "icmp_type) - it produces no diff on this estate's own empty applied"
+log "values, so it does not block stage 3 here even though it is still open."
+log "Run again with BREAK=1: stage 1 still passes and stage 2's own"
 log "identity-by-value assertion, 2d's marker on the fluent-bit log group"
 log "(#378), is the first one that fails."
