@@ -223,10 +223,10 @@ A foundation item is a design pass until its issue names files and changes;
 then it is a unit like any other and a worker lands it. "This is foundation
 work" describes scope, never a reason to stop.
 
-Evidence for the order, in one line each: 97 of 206 refusal kinds are the
+Evidence for the order, in one line each: 97 of 212 refusal kinds are the
 static-evaluation stage; about 40% of the migrated gauntlet population is
 re-derived from configuration every plan and five of six open failures sit
-on that path; the schema reproduces 136 of 575 config-identified rows today;
+on that path; the schema reproduces 134 of 575 config-identified rows today;
 696 of 1699 types can be held only by a record, and the corpus names twelve
 of them people actually write. Re-derive these before quoting them; the
 ruling document says how each was computed.
