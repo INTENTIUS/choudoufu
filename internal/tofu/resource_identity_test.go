@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -301,5 +302,237 @@ resource "test_object" "a" {
 	// of the rest of the configuration.
 	if elems["other"].AsString() != "from config" {
 		t.Errorf("test_map[\"other\"] = %q, want %q (the adjuster must not have disturbed an unrelated key)", elems["other"].AsString(), "from config")
+	}
+}
+
+// TestContext2Plan_resourceIdentityResolverAbsentTargetPlansCreate is edge 2
+// of the plan-node seam (rfc/20260823-foundation-order-ruling.md, ruling 3;
+// issue #388): a resolver-supplied target, unlike an import block, is a
+// guess about a not-yet-applied instance's identity, not a promise that the
+// object exists. When the provider answers ImportResourceState with an
+// empty ImportedResources list - the ordinary shape for "no such object",
+// exercised directly rather than through any one provider's diagnostic
+// wording - the node must fall through to an ordinary no-prior-state plan
+// (a Create, no import, no error), not abort with "Import returned no
+// resources".
+func TestContext2Plan_resourceIdentityResolverAbsentTargetPlansCreate(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		return providers.ImportResourceStateResponse{
+			ImportedResources: nil,
+		}
+	}
+
+	resolver := &stubResourceIdentityResolver{
+		addr:   addr,
+		target: providers.ImportTarget{ID: "guessed-but-absent"},
+	}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ResourceIdentityResolver: resolver,
+	})
+
+	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: an absent resolver target must fall through to an ordinary create, not abort the plan\n%s", diags.Err())
+	}
+
+	instPlan := plan.Changes.ResourceInstance(addr)
+	if instPlan == nil {
+		t.Fatalf("no plan for %s at all", addr)
+	}
+	if instPlan.Action != plans.Create {
+		t.Errorf("wrong action: got %s, want %s", instPlan.Action, plans.Create)
+	}
+	if instPlan.Importing != nil {
+		t.Errorf("unexpected import: an absent target must not produce an import, got %#v", instPlan.Importing)
+	}
+
+	if len(resolver.calls) != 1 || !resolver.calls[0].Equal(addr) {
+		t.Errorf("expected the resolver to be asked once for %s, got calls %v", addr, resolver.calls)
+	}
+}
+
+// TestContext2Plan_resourceIdentityResolverAbsentTargetViaNotFoundDiagnostic
+// is the same edge, exercised through the OTHER shape a provider reports
+// absence in: an error-severity diagnostic out of ImportResourceState
+// itself rather than an empty list, the aws_lambda_permission /
+// ResourceNotFoundException shape issue #297 and
+// internal/live/projection/build.go's notFoundDiagnostics document. This
+// must ALSO fall through to an ordinary create.
+func TestContext2Plan_resourceIdentityResolverAbsentTargetViaNotFoundDiagnostic(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		var diags tfdiags.Diagnostics
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"couldn't find resource",
+			"no such object",
+		))
+		return providers.ImportResourceStateResponse{Diagnostics: diags}
+	}
+
+	resolver := &stubResourceIdentityResolver{
+		addr:   addr,
+		target: providers.ImportTarget{ID: "guessed-but-absent"},
+	}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ResourceIdentityResolver: resolver,
+	})
+
+	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: a not-found-shaped diagnostic must fall through to an ordinary create, not abort the plan\n%s", diags.Err())
+	}
+
+	instPlan := plan.Changes.ResourceInstance(addr)
+	if instPlan == nil {
+		t.Fatalf("no plan for %s at all", addr)
+	}
+	if instPlan.Action != plans.Create {
+		t.Errorf("wrong action: got %s, want %s", instPlan.Action, plans.Create)
+	}
+	if instPlan.Importing != nil {
+		t.Errorf("unexpected import: an absent target must not produce an import, got %#v", instPlan.Importing)
+	}
+}
+
+// TestContext2Plan_resourceIdentityResolverGenuineErrorStaysFatal is edge
+//2's other half: a provider error that is NOT shaped like an ordinary
+// absence - a credentials failure, a malformed request, an actual failure
+// to answer - must still abort the plan exactly as it did before this
+// edge's fix. Tolerating absence must never widen into tolerating an
+// arbitrary provider failure.
+func TestContext2Plan_resourceIdentityResolverGenuineErrorStaysFatal(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		var diags tfdiags.Diagnostics
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"AccessDenied",
+			"the caller is not authorized to perform this operation",
+		))
+		return providers.ImportResourceStateResponse{Diagnostics: diags}
+	}
+
+	resolver := &stubResourceIdentityResolver{
+		addr:   addr,
+		target: providers.ImportTarget{ID: "guessed"},
+	}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ResourceIdentityResolver: resolver,
+	})
+
+	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if !diags.HasErrors() {
+		t.Fatalf("expected a genuine provider error to abort the plan, got none")
+	}
+	if !strings.Contains(diags.Err().Error(), "AccessDenied") {
+		t.Errorf("expected the genuine provider error to surface, got:\n%s", diags.Err())
+	}
+}
+
+// TestResolverImportAbsentDiagnostics is a direct, mutation-checkable test
+// of the classifier edge 2 relies on: it must accept exactly the shapes
+// documented on resolverImportAbsentDiagnostics and reject everything else,
+// including a mix of an absent-shaped diagnostic and a genuine one.
+func TestResolverImportAbsentDiagnostics(t *testing.T) {
+	notFound := func(summary, detail string) *tfdiags.Diagnostic {
+		d := tfdiags.Sourceless(tfdiags.Error, summary, detail)
+		return &d
+	}
+
+	tests := map[string]struct {
+		diags tfdiags.Diagnostics
+		want  bool
+	}{
+		"no diagnostics at all": {
+			diags: nil,
+			want:  false,
+		},
+		"only a warning": {
+			diags: tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Warning, "something", "minor")),
+			want:  false,
+		},
+		"importState's own no-resources summary": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("Import returned no resources", "detail")),
+			want:  true,
+		},
+		"importState's own null-resource summary": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("Import returned null resource", "detail")),
+			want:  true,
+		},
+		"importState's own post-refresh absence summary": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("Cannot import non-existent remote object", "detail")),
+			want:  true,
+		},
+		"provider not-found signal in the summary": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("couldn't find resource", "no such object")),
+			want:  true,
+		},
+		"provider not-found signal in the detail": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("Error", "aws returned ResourceNotFoundException for this lookup")),
+			want:  true,
+		},
+		"a genuine provider error": {
+			diags: tfdiags.Diagnostics{}.Append(*notFound("AccessDenied", "the caller is not authorized")),
+			want:  false,
+		},
+		"absence mixed with a genuine error must not be treated as absence": {
+			diags: tfdiags.Diagnostics{}.
+				Append(*notFound("Import returned no resources", "detail")).
+				Append(*notFound("AccessDenied", "the caller is not authorized")),
+			want: false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := resolverImportAbsentDiagnostics(test.diags)
+			if got != test.want {
+				t.Errorf("resolverImportAbsentDiagnostics(...) = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
