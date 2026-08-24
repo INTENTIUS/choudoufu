@@ -58,7 +58,7 @@ func TestConfiguredAttrsSeedSeedsStaticNonTagAttributes(t *testing.T) {
 		if rc == nil {
 			t.Fatalf("fixture does not declare stub_lc.main; it declares %v", keysOfResources(cfg))
 		}
-		seed := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema)
+		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
 		if seed == nil {
 			t.Fatal("no seed at all for a resource with a statically-set user_data_base64")
 		}
@@ -93,7 +93,7 @@ func TestConfiguredAttrsSeedSeedsStaticNonTagAttributes(t *testing.T) {
 		if rc == nil {
 			t.Fatalf("fixture does not declare stub_lc.dynamic; it declares %v", keysOfResources(cfg))
 		}
-		seed := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema)
+		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
 		if _, ok := seed["user_data_base64"]; ok {
 			t.Errorf("seed = %v, want no user_data_base64: it reads a sibling resource's own Computed "+
 				"attribute here, which the static evaluator cannot resolve", seedKeys(seed))
