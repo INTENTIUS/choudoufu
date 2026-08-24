@@ -665,18 +665,26 @@ if [ "${BREAK:-}" = "rename" ]; then
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # This module carries TWO client-named taggable objects (the role and the
-  # managed policy), so a bare rename can, in principle, produce different
-  # shapes for each - see corpus-hongbomiao-harbor's and
-  # corpus-evoteum-modules's own scripts for the range already observed
-  # (a clean destroy+create, an ambiguity warning, a bare create, or a mix,
-  # depending on the type). This assertion does not guess which shape fires
-  # here; it only proves the control is load-bearing by requiring the
-  # result to differ from the real legs' zero-churn outcome, and it forbids
-  # the one genuinely unsafe shape: destroying an object under its old
-  # address while ALSO leaving the other one silently matched (a partial,
-  # inconsistent rename would be exactly the "wrong marker" HANDOFF warns
-  # against).
+  # Verified directly: this module's two client-named taggable objects take
+  # genuinely different paths under a bare rename, and neither reproduces
+  # the real legs' zero-churn result. The role shows corpus-eks-basic's own
+  # textbook Break shape - "[UNOWNED]" naming the old, still-marked address,
+  # then a plain destroy of module.crossplane.aws_iam_role.* paired with a
+  # create of module.crossplane_broken.aws_iam_role.* (an "Owned and
+  # undeclared" object, correctly destroyed rather than silently adopted
+  # under the new name). The managed policy takes an entirely different
+  # route: "[NEEDS_DISCOVERY]" because aws_iam_policy's import identity is
+  # the whole ARN as one opaque provider-required string, not one this
+  # stateless walk resolves the old marked object through here, so it is
+  # simply proposed as a fresh create with no destroy of its own old address
+  # at all - never treated as a collision. A dependent untaggable child
+  # (aws_iam_role_policy_attachment) is also proposed as a create, since it
+  # needs both to exist first. Net: "Plan: 3 to add, 1 to change, 1 to
+  # destroy." This assertion does not hard-code that exact multi-resource
+  # shape (fragile against unrelated drift in this module's untaggable
+  # children); it proves the control is load-bearing the same way the
+  # tolerant checks in corpus-hongbomiao-harbor/-storage do, by requiring
+  # only that the result differs from the real legs' zero-churn no-op.
   [ "$BREAK_PLAN_RC" -eq 0 ] \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - see header"; }
   grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$BREAK_PLAN_OUT" \
