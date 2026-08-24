@@ -16,12 +16,14 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/genconfig"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -747,6 +749,53 @@ func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
 	return sawError
 }
 
+// resolvedIdentityValues extracts a resolved providers.ImportTarget's own
+// identity object as one string per attribute, keyed by the provider's own
+// name for it - the shape [noimporter.SynthesizeStub] needs to place a
+// no-classic-Importer stub, and the same shape
+// internal/live/projection/build.go's own identityValues parameter to
+// importAndRead carries for the pre-walk projection path.
+//
+// Only IsIdentityBased reports anything: an ID-based-only target is an
+// opaque string with no attribute breakdown to recover one from, and
+// inventing an attribute name for it (an "id" attribute, say) would be a
+// guess this run has no basis for - HANDOFF's safety rule names exactly
+// this shape of fabrication as the one thing worse than a refusal.
+// [providers.ImportTarget.IsIdentityBased] is only ever true for an
+// object this run itself resolved - an import block's own literal
+// identity, or a resolver's answer built from a real record, marker or
+// evaluated configuration value (see internal/live/projection/
+// noderesolver.go's ResolveResourceIdentity) - never a default, so every
+// value this returns is one the resolution path already stands behind.
+//
+// A null, unknown or unconvertible attribute is silently skipped rather
+// than forced to a string: [noimporter.SynthesizeStub] already leaves an
+// unnamed attribute null on the stub, the same place ImportResourceState's
+// own stub would have left it, so skipping here is not a loss of
+// information, only a refusal to fabricate one.
+func resolvedIdentityValues(target providers.ImportTarget) map[string]string {
+	if !target.IsIdentityBased() {
+		return nil
+	}
+	ty := target.Identity.Type()
+	if !ty.IsObjectType() {
+		return nil
+	}
+	values := make(map[string]string, len(ty.AttributeTypes()))
+	for name := range ty.AttributeTypes() {
+		v := target.Identity.GetAttr(name)
+		if v.IsNull() || !v.IsKnown() {
+			continue
+		}
+		s, err := convert.Convert(v, cty.String)
+		if err != nil {
+			continue
+		}
+		values[name] = s.AsString()
+	}
+	return values
+}
+
 func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance, importTarget providers.ImportTarget, provider providers.Interface, providerSchema providers.ProviderSchema) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	absAddr := addr.Resource.Absolute(evalCtx.Path())
@@ -762,6 +811,51 @@ func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx
 		TypeName: addr.Resource.Resource.Type,
 		Target:   importTarget,
 	})
+	if resp.Diagnostics.HasErrors() {
+		if ok, detail := noimporter.Diagnostics(resp.Diagnostics); ok {
+			// Not the provider erroring - the opposite. It is correctly
+			// answering that ImportResourceState is not implemented for
+			// this type at all, a fact fixed in the provider's own Go code
+			// that no identity or retry changes - see noimporter.Diagnostics'
+			// own doc comment. internal/live/projection/build.go's
+			// importAndRead reaches the identical fact through the
+			// pre-walk projection path and, rather than stop there,
+			// builds the stub ImportResourceState itself would have
+			// returned from an identity this run already resolved. This
+			// mirrors that: a target with a resolved identity OBJECT
+			// (providers.ImportTarget.Identity, set only when this run
+			// resolved a real value, never a default) has real,
+			// attribute-named values to place; noimporter.SynthesizeStub
+			// places what it can and leaves the rest null, exactly as
+			// ImportResourceState's own stub would. A target carrying
+			// only an opaque ID string has no such breakdown - nothing
+			// here invents one - so the refusal below stands for it.
+			var stubbed bool
+			if resourceSchema, _ := providerSchema.SchemaForResourceAddr(addr.Resource.Resource); resourceSchema != nil {
+				if stub, stubOK := noimporter.SynthesizeStub(*resourceSchema, resolvedIdentityValues(importTarget)); stubOK {
+					log.Printf("[TRACE] importState: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", addr.Resource.Resource.Type)
+					resp = providers.ImportResourceStateResponse{
+						ImportedResources: []providers.ImportedResource{{
+							TypeName: addr.Resource.Resource.Type,
+							State:    stub,
+						}},
+					}
+					stubbed = true
+				}
+			}
+			if !stubbed {
+				diags = diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"Resource type has no classic Importer",
+					fmt.Sprintf(
+						"The %s with %s cannot be imported: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes.",
+						addr, importTarget.String(), detail,
+					),
+				))
+				return nil, diags
+			}
+		}
+	}
 	diags = diags.Append(resp.Diagnostics)
 	if diags.HasErrors() {
 		return nil, diags

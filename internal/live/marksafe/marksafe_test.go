@@ -47,6 +47,12 @@ var guardedPackages = []string{
 	"markerkey",
 	"mdspan",
 	"moved",
+	// Places a resolved identity's own already-computed string values onto
+	// a provider schema for a no-classic-Importer stub (see the package's
+	// own doc comment). It never touches a cty.Value that could itself
+	// carry a mark - every value it handles is already a Go string or a
+	// freshly-built cty.StringVal - so it has nothing to defer either.
+	"noimporter",
 	// Rewrites a module's source text and touches no cty.Value at all, so
 	// it is held to zero rather than deferred: it has nothing to defer.
 	"onboard",

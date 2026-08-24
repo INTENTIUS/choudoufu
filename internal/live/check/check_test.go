@@ -105,6 +105,15 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"marksafe":     true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
 		"mdspan":       true, // rewrites generated regions of a markdown doc
 		"mv":           true, // the rename command's engine
+		// A no-classic-Importer provider response classified, and a stub
+		// synthesized from a resolved identity in its place - shared by
+		// internal/live/projection's pre-walk import and #388's plan-node
+		// seam (internal/tofu, which cannot import any other internal/live
+		// package). A pure function over a providers.Schema and a
+		// diagnostics list; it refuses nothing itself, and every refusal
+		// it can still produce is internal/live/projection's own "Resource
+		// type has no classic Importer", already classified there.
+		"noimporter": true,
 		// Computes the source edit that turns a state-backed module into a
 		// live one, so the ONBOARDED form of a configuration can be
 		// measured (tools/refusal-probe -onboarded). It rewrites text and

@@ -695,10 +695,19 @@ resource "test_object" "a" {
 	if !diags.HasErrors() {
 		t.Fatalf("expected the refusal to stand with no identity values to synthesize from, got none")
 	}
-	if !strings.Contains(diags.Err().Error(), "Resource type has no classic Importer") {
-		t.Errorf("expected the accurate \"Resource type has no classic Importer\" refusal, got:\n%s", diags.Err())
+	var found *string
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		s := d.Description().Summary
+		found = &s
 	}
-	if strings.Contains(diags.Err().Error(), "doesn't support import") {
-		t.Errorf("the raw provider diagnostic leaked through instead of the accurate refusal:\n%s", diags.Err())
+	if found == nil || *found != "Resource type has no classic Importer" {
+		// build.go's own accurate wording, mirrored here rather than the
+		// provider's raw "Error" summary this test's ImportResourceStateFn
+		// returns - proving the reclassification happened rather than the
+		// raw diagnostic merely passing through unchanged.
+		t.Errorf("refusal summary = %v, want %q", found, "Resource type has no classic Importer")
 	}
 }
