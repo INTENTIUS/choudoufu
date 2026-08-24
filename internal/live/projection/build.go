@@ -1804,6 +1804,73 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 	return sawError, detail
 }
 
+// noImporterDiagnosticSignals is the same substring pair
+// tools/survey-gen/schemas.go's probeImportability already uses to answer
+// [identity.NotImportable]'s question offline, one extra ImportResourceState
+// RPC per type: "resource ... doesn't support import" is
+// terraform-plugin-sdk/v2's helper/schema.Provider.ImportState's own
+// hardcoded text when a resource's Importer field is nil, checked before any
+// API call; "Resource Import Not Implemented" is terraform-plugin-framework's
+// equivalent for a Resource that implements no ImportState method. Both are
+// static properties of the provider's own Go code - Importer is nil or it
+// is not - never a fact about the account, the region or which object was
+// asked for, so a live floci and real AWS answer it identically and a run
+// against either learns nothing new by asking again with a different
+// identity.
+var noImporterDiagnosticSignals = []string{
+	"doesn't support import",
+	"Import Not Implemented",
+}
+
+// noImporterDiagnostics reports whether every error-severity diagnostic in
+// diags matches one of [noImporterDiagnosticSignals], the same one-strike
+// shape [notFoundDiagnostics] uses for its own signal list. detail is the
+// first matching diagnostic's rendered text.
+//
+// Issue #331's own audit named the population this answers for: a type
+// admitted on nameability alone (identity.Derivable resolves it straight
+// from configuration, with no discovery and no Importer ever in THAT path)
+// can still reach this function as a PARENT_DERIVED projection target once
+// something else - #388's plan-node seam downgrading a sibling instance's
+// static refusal to a warning, for the estate this was found against - lets
+// the run reach far enough to try. tools/row-gen/notimportable.go's own
+// notImportableExempt map is the ratified list of such types today
+// (aws_acm_certificate_validation, admitted on nameability by classify.go's
+// 2026-08-17 ruling, is the one this diagnostic shape was found against);
+// aws_iam_policy_attachment, aws_iot_ca_certificate and aws_lightsail_domain
+// are the same file's own account of who else has no classic Importer
+// either, reached by three different admission routes (a ratified table
+// row, the untaggable-but-enumerable path, and nameability again) - which is
+// why this checks the PROVIDER'S OWN ANSWER rather than any one of those
+// rosters: whichever route admitted the type, the provider's diagnostic
+// names the same underlying fact once asked.
+func noImporterDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
+	sawError := false
+	detail := ""
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		sawError = true
+		desc := d.Description()
+		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
+		matched := false
+		for _, signal := range noImporterDiagnosticSignals {
+			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, ""
+		}
+		if detail == "" {
+			detail = text
+		}
+	}
+	return sawError, detail
+}
+
 // configuredTagsSeed statically evaluates a taggable resource's own,
 // AS-WRITTEN "tags" argument - before [stamp.Stamp] ever touches it - for
 // GitHub issue #287 item 8: a stamped resource with a provider-level
@@ -2077,6 +2144,28 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 				),
 			))
 			return nil, cty.NilVal, statusAbsent, diags
+		}
+		if ok, detail := noImporterDiagnostics(importResp.Diagnostics); ok {
+			// Not a provider erroring - the opposite. The provider is
+			// correctly answering that ImportResourceState is not
+			// implemented for this type at all, a fact fixed in the
+			// provider's own Go code and never going to change no matter
+			// what identity this run asks with or how many times. Reusing
+			// "Cannot import for projection"'s wording here would claim
+			// a transient failure this run could retry past; refusing with
+			// an accurate cause instead, at the same severity, so the plan
+			// still stops rather than risk proposing a create for an object
+			// this run genuinely cannot verify one way or the other. See
+			// [noImporterDiagnostics] for the population this reaches.
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Resource type has no classic Importer",
+				fmt.Sprintf(
+					"%s cannot be projected: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes. A type in this position is admitted for naming and reference purposes only (see identity.Derivable and issue #331); it cannot be read back through a live plan, so this run refuses rather than propose a create for an object it cannot verify one way or the other.",
+					typeName, detail,
+				),
+			))
+			return nil, statusFailed, diags
 		}
 		// The provider could not answer the question. That is different
 		// from answering "there is no such object", which is either an

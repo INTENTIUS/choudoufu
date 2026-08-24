@@ -206,6 +206,10 @@ var refusals = []Refusal{
 		What:    "Projection was handed a resolution for an address the configuration does not declare. The resolutions and the configuration came from different runs; a bug in whatever assembled them.",
 	},
 	{
+		Summary: "Resource type has no classic Importer",
+		What:    "A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.",
+	},
+	{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
 	},
