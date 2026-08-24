@@ -158,6 +158,13 @@ func sortedNames(m map[string]cty.Value) []string {
 // It is called AFTER the ownership check, which is a rule and not an
 // ordering accident - see the call site.
 //
+// importStub is the object [importAndRead] handed ReadResource as
+// PriorState, before any live read happened - GitHub issue #393's
+// provenance signal. See [fillResidue]'s doc comment for what it is used
+// for; it is passed through unread whenever obj did not come from
+// [importAndRead] at all, which fillResidue treats the same as never
+// having it.
+//
 // Every failure here is a WARNING and never an error, and the run continues
 // with the object exactly as the provider returned it. That is the whole
 // difference in stakes between this store and the other two: a located
@@ -166,7 +173,7 @@ func sortedNames(m map[string]cty.Value) []string {
 // means the estate proposes an update it has proposed on every run since it
 // was written. The second is annoying and completely visible. Stopping a
 // run over it would be trading a visible nuisance for an outage.
-func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema, obj *states.ResourceInstanceObject) {
+func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema, obj *states.ResourceInstanceObject, importStub cty.Value) {
 	if b.opts.RecordStore == nil || obj == nil || schema.Block == nil {
 		return
 	}
@@ -185,7 +192,7 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 		return
 	}
 
-	filled, n := fillResidue(obj.Value, schema.Block, attrs, identity.SecretsFor(b.cfg))
+	filled, n := fillResidue(obj.Value, schema.Block, attrs, identity.SecretsFor(b.cfg), importStub)
 	if n == 0 {
 		return
 	}
@@ -1096,11 +1103,57 @@ func identityOnly(obj cty.Value, identityAttrs map[string]bool) (cty.Value, erro
 // returns. This function deliberately deals in unmarked values on both
 // sides, which is why rec.IsMarked() is still a refusal: a marked value in
 // the record store is a record this package did not write.
-func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value, secrets strict.Secrets) (cty.Value, int) {
+//
+// # importStub, and GitHub issue #393
+//
+// importStub is [importAndRead]'s PriorState going INTO ReadResource -
+// before any live read happened - or cty.NilVal when obj did not come from
+// an import at all (the write-back path has no such call). It exists to
+// answer one narrow question the schema cannot: for a legacy-SDK provider,
+// is cur the value ReadResource actually produced, or is it merely the SDK's
+// own internal schema Default that ImportResourceState seeded and
+// ReadResource never touched?
+//
+// aws_db_instance.skip_final_snapshot is the confirmed case. It is Optional,
+// not Computed, and AWS's DescribeDBInstances genuinely never returns it -
+// exactly the shape [residueCandidates] exists to admit. But SDKv2's own
+// schema carries `Default: true`, the opposite of the type's zero value that
+// [carriesNoInformation]'s legacy-SDK convention treats as "nothing", so
+// ImportResourceState's stub answers `true` before any read runs.
+// [carriesNoInformation] correctly refuses to call that "nothing" on its
+// own - a real, configured `true` must never be treated as absent - and
+// with no provenance signal the record this estate correctly wrote (`false`)
+// is outranked forever by a value the provider never actually spoke.
+//
+// The schema itself has nothing to say here: the plugin protocol's
+// [configschema.Block] carries no Default field at all, so there is no
+// third population to ask instead of the value. The one thing that IS
+// available is provenance - what importAndRead handed ReadResource before
+// the call, compared against what came back - and a legacy-SDK Read that
+// does not source an attribute from the remote leaves the prior state's
+// value for it completely alone, which means the two are bit-for-bit
+// identical. A Read that DOES source the attribute has no reason to
+// reproduce its input by coincidence on every single instance of the type,
+// which is the population [classifyResidue] already proved this attribute
+// belongs to before a record for it could exist at all - see
+// [residueCandidates]'s note on why this only ever matters for a name a
+// record already speaks for.
+//
+// This is deliberately not folded into [carriesNoInformation] itself:
+// that function is also [classifyResidue]'s read-A/read-B test, whose own
+// priors are two independently constructed reads with no import stub in
+// the loop at all, and weakening its general zero-value rule would blur a
+// case it already gets right - a genuinely-read, non-default bool must
+// keep outranking a stored record. The check below is scoped to exactly
+// the population this file already trusts: a name [attrs] has a record
+// for, which only exists because [classifyResidue] separately proved the
+// provider does not source it from the remote.
+func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value, secrets strict.Secrets, importStub cty.Value) (cty.Value, int) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || block == nil || len(attrs) == 0 {
 		return obj, 0
 	}
 	refusesSecrets := !strict.StoresSecrets(secrets)
+	stubUsable := importStub != cty.NilVal && !importStub.IsNull() && importStub.Type().IsObjectType()
 	attrTypes := obj.Type().AttributeTypes()
 	out := make(map[string]cty.Value, len(attrTypes))
 	filled := 0
@@ -1138,8 +1191,20 @@ func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.
 		// wrote it: a record written when a name was in scope must stop
 		// being filled the day the schema moves it out of scope.
 		fillableBlock := schemaAttr == nil && residueEligibleBlock(block, name)
+		// noInfo starts as the general zero-value/null rule and is widened,
+		// ONLY for a name a record already exists for, by the provenance
+		// check above - see this function's own doc comment for why the
+		// widening is safe precisely because it never reaches an attribute
+		// [recorded] is false for.
+		noInfo := carriesNoInformation(curPlain)
+		if !noInfo && recorded && stubUsable && importStub.Type().HasAttribute(name) {
+			stubPlain, _ := importStub.GetAttr(name).UnmarkDeep()
+			if !stubPlain.IsNull() && stubPlain.IsWhollyKnown() && stubPlain.RawEquals(curPlain) {
+				noInfo = true
+			}
+		}
 		switch {
-		case !recorded, !carriesNoInformation(curPlain),
+		case !recorded, !noInfo,
 			schemaAttr == nil && !fillableBlock,
 			schemaAttr != nil && ((schemaAttr.Sensitive && refusesSecrets) || schemaAttr.WriteOnly),
 			rec.IsNull(), !rec.IsWhollyKnown(), rec.IsMarked(),

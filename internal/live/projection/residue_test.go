@@ -479,7 +479,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 		t.Fatalf("cold read: %s", err)
 	}
 
-	filled, n := fillResidue(cold, schema.Block, back, strict.Store)
+	filled, n := fillResidue(cold, schema.Block, back, strict.Store, cty.NilVal)
 	if n == 0 {
 		t.Fatal("filled nothing from a record written under secrets=store")
 	}
@@ -499,7 +499,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 	// same record while still filling the ordinary ones beside it. Asserted
 	// per attribute rather than as a count, because "filled nothing" would
 	// pass for the wrong reason if the record were empty.
-	strictFilled, _ := fillResidue(cold, schema.Block, back, strict.Refuse)
+	strictFilled, _ := fillResidue(cold, schema.Block, back, strict.Refuse, cty.NilVal)
 	if !strictFilled.GetAttr("filename").IsNull() {
 		t.Fatalf("secrets=refuse filled filename = %#v from a record; that setting is \"sensitive settable arguments never recorded\", and never read back either", strictFilled.GetAttr("filename"))
 	}
@@ -605,7 +605,7 @@ func TestFillResidueNeverOverwritesTheCloud(t *testing.T) {
 		"description": cty.StringVal("what the record says"),
 	}
 
-	got, n := fillResidue(read, block, rec, strict.DefaultSecrets)
+	got, n := fillResidue(read, block, rec, strict.DefaultSecrets, cty.NilVal)
 	if n != 2 {
 		t.Fatalf("filled %d attributes, want 2 (filename and publish; description was answered by the provider)", n)
 	}
@@ -637,7 +637,7 @@ func TestFillResidueRefusesAMismatchedType(t *testing.T) {
 	})
 	got, n := fillResidue(read, block, map[string]cty.Value{
 		"filename": cty.ListVal([]cty.Value{cty.StringVal("a.zip")}),
-	}, strict.DefaultSecrets)
+	}, strict.DefaultSecrets, cty.NilVal)
 	if n != 0 || !got.GetAttr("filename").IsNull() {
 		t.Fatalf("filled %d attributes from a record whose recorded type no longer fits the schema", n)
 	}
@@ -680,7 +680,7 @@ func TestFillResidueRefusesASensitiveOrWriteOnlyTarget(t *testing.T) {
 				"description":      cty.NullVal(cty.String),
 				"arn":              cty.NullVal(cty.String),
 			})
-			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, tc.secrets)
+			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, tc.secrets, cty.NilVal)
 			if n != 0 {
 				t.Fatalf("filled filename from a record even though the current schema says %s", tc.name)
 			}
@@ -707,7 +707,7 @@ func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
 		"description":      cty.NullVal(cty.String),
 		"arn":              cty.NullVal(cty.String),
 	})
-	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, strict.DefaultSecrets)
+	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, strict.DefaultSecrets, cty.NilVal)
 	if n != 1 {
 		t.Fatalf("filled %d attributes, want 1 - a Computed-only attribute whose read carries no information must be fillable from its record", n)
 	}
@@ -812,7 +812,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 		}
 	}
 
-	filled, n := fillResidue(cold, schema.Block, back, strict.DefaultSecrets)
+	filled, n := fillResidue(cold, schema.Block, back, strict.DefaultSecrets, cty.NilVal)
 	if n != 3 {
 		t.Fatalf("filled %d attributes, want 3", n)
 	}
@@ -1119,7 +1119,7 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 				"ingress":                sgApplied().GetAttr("ingress"),
 				"egress":                 cty.NullVal(sgRuleSetType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 2 {
 				t.Fatalf("fillResidue filled %d, want 2 (revoke_rules_on_delete and timeouts)", n)
 			}
@@ -1186,7 +1186,7 @@ func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
 						"create": cty.StringVal("10m"),
 						"delete": cty.StringVal("15m"),
 					}),
-				}, secrets)
+				}, secrets, cty.NilVal)
 				if n != 0 {
 					t.Fatalf("fillResidue filled a block holding a %s under secrets=%q", tc.name, secrets)
 				}
@@ -1442,7 +1442,7 @@ func TestResidueCarriesListAndSetNestedBlocksByValue(t *testing.T) {
 				"root_block_device":      cty.ListValEmpty(hostRootBlockDeviceType().ElementType()),
 				"ephemeral_block_device": cty.SetValEmpty(hostEphemeralBlockDeviceType().ElementType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 2 {
 				t.Fatalf("fillResidue filled %d, want 2 (root_block_device and ephemeral_block_device)", n)
 			}
@@ -1572,7 +1572,7 @@ func TestFillResidueSeesThroughASensitivityMark(t *testing.T) {
 	}
 
 	record := map[string]cty.Value{"filename": cty.StringVal("check_links.py.zip")}
-	filled, n := fillResidue(cold, schema.Block, record, strict.Store)
+	filled, n := fillResidue(cold, schema.Block, record, strict.Store, cty.NilVal)
 	if n != 1 {
 		t.Fatalf("filled %d attributes, want 1.\nA sensitive attribute whose cold read is the legacy SDK's empty "+
 			"string carries no information, marked or not - and refusing to fill it leaves the estate proposing "+
@@ -1954,7 +1954,7 @@ func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
 				"min_size":               cty.NumberIntVal(1),
 				"initial_lifecycle_hook": cty.SetValEmpty(asgHookType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 1 {
 				t.Fatalf("fillResidue filled %d, want 1 (initial_lifecycle_hook)", n)
 			}

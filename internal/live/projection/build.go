@@ -2050,7 +2050,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			"Empty import identity",
 			fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and no import ID. For a type identified by several attributes with no separator between them, the identity object is the only form there is (see internal/live/identity's IdentityObjectOnly), so an identity the provider's schema would not accept leaves nothing to import by - which is refused here rather than approximated with a string.", typeName),
 		))
-		return nil, statusFailed, diags
+		return nil, cty.NilVal, statusFailed, diags
 	}
 
 	importResp := provider.ImportResourceState(ctx, providers.ImportResourceStateRequest{
@@ -2076,7 +2076,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 					typeName, importID, detail,
 				),
 			))
-			return nil, statusAbsent, diags
+			return nil, cty.NilVal, statusAbsent, diags
 		}
 		// The provider could not answer the question. That is different
 		// from answering "there is no such object", which is either an
@@ -2089,7 +2089,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 				typeName, importID,
 			),
 		)))
-		return nil, statusFailed, diags
+		return nil, cty.NilVal, statusFailed, diags
 	}
 	diags = diags.Append(importResp.Diagnostics)
 
@@ -2098,7 +2098,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		// The provider returned nothing at all for this identity, which is
 		// how several resource types report "no such object" without an
 		// error.
-		return nil, statusAbsent, diags
+		return nil, cty.NilVal, statusAbsent, diags
 	}
 	for _, extra := range extras {
 		diags = diags.Append(tfdiags.Sourceless(
@@ -2113,7 +2113,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 
 	obj := imported.AsInstanceObject()
 	if obj.Value == cty.NilVal || obj.Value.IsNull() {
-		return nil, statusAbsent, diags
+		return nil, cty.NilVal, statusAbsent, diags
 	}
 
 	// GitHub issue #287 item 8. ImportResourceState commonly leaves "tags"
@@ -2170,7 +2170,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 				typeName, importID,
 			),
 		)))
-		return nil, statusFailed, diags
+		return nil, cty.NilVal, statusFailed, diags
 	}
 	diags = diags.Append(readResp.Diagnostics)
 
@@ -2183,11 +2183,11 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			"No state returned by the provider",
 			fmt.Sprintf("Reading the %s imported with identity %q produced no object at all, not even a null one. This is a bug in the provider.", typeName, importID),
 		))
-		return nil, statusFailed, diags
+		return nil, cty.NilVal, statusFailed, diags
 	}
 	if readResp.NewState.IsNull() {
 		// The ordinary "it does not exist" answer.
-		return nil, statusAbsent, diags
+		return nil, cty.NilVal, statusAbsent, diags
 	}
 
 	if errs := readResp.NewState.Type().TestConformance(schema.Block.ImpliedType()); len(errs) > 0 {
@@ -2201,7 +2201,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 				),
 			))
 		}
-		return nil, statusFailed, diags
+		return nil, cty.NilVal, statusFailed, diags
 	}
 
 	newVal := objchange.NormalizeObjectFromLegacySDK(readResp.NewState, schema.Block)
