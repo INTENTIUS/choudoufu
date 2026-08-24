@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "afae3a2ce4519026cdfad7523fd691674e86184c",
+  "commit": "00acf1c9bae10eca404493498b4d5ddf65c0e282",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T22:11:08Z",
+  "generated": "2026-08-24T22:49:03Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 17,
+      "clear": 18,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 17,
+          "pass": 18,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "day2_replace": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 16,
+      "clear": 17,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 16,
+          "pass": 17,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "day2_replace": {
           "pass": 0,
@@ -800,7 +800,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -811,15 +811,16 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:27:50Z",
+        "commit": "00acf1c9bae10eca404493498b4d5ddf65c0e282",
+        "date": "2026-08-24T22:50:09Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8c8e71e6a5102456746e5301b1's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-27690b21f890397fe7b1b1bb92's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"

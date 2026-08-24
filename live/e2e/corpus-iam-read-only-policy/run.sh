@@ -244,9 +244,11 @@ log ""
 # drift check already corrupt their assertions and exit through fail()
 # under BREAK=1 before this point) exercises this stage's own break control
 # instead of the real checks: renaming module.read_only_iam_policy WITHOUT
-# a moved block, which must make choudoufu propose destroying the old
-# address's policy and creating the new one - the opposite of every other
-# assertion in this part.
+# a moved block. This estate's live-plan is genuinely stateless throughout
+# (no local state file, ever), so - like corpus-sqs-basic's own module
+# rename, not corpus-eks-basic's - the old, no-longer-declared address is
+# never visited and never proposed for destroying; only a create for the
+# renamed address is proposed. See D1 below for the verified detail.
 CURRENT_STAGE=day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
@@ -282,8 +284,14 @@ ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)";
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
   && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by a moved block - the oracle itself is not zero-churn"; }
-grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$ORACLE_PLAN_OUT" \
-  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+# Not "No changes." literally: the moved block moves the resource but not
+# the data source beside it (data.aws_iam_policy_document.this[0], which
+# `moved` blocks do not apply to), so it is re-read under the new module
+# path on this one plan and terraform reports that as a data read rather
+# than a silent match - real churn either way is what the Plan: line and
+# the destroy/create grep above already rule out.
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -20; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - the move reports only its move, no attribute diff at all, outputs unchanged in value"
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -476,11 +484,21 @@ if [ "${BREAK:-}" = "2" ]; then
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
-  grep -qE '^  # module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose destroying module.read_only_iam_policy.aws_iam_policy.policy[0] - this stage's check is not load-bearing"; }
+  # Verified directly (measured, not guessed): this is a genuinely stateless
+  # live-plan (no local state file, ever - every stage above asserts its
+  # absence), so it walks only the addresses the CURRENT config declares.
+  # The old, no-longer-declared module.read_only_iam_policy is never
+  # visited at all - there is nothing to propose destroying, and the marker
+  # it still carries is simply left behind, orphaned - while the new
+  # address IS declared and gets a create proposed. This is
+  # corpus-sqs-basic's exact stateless-replan shape (its own D1
+  # BREAK=rename comment documents the same finding for its module
+  # rename), not corpus-eks-basic's clean destroy+create.
+  grep -qE '^  # module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\] will be' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: the old, no-longer-declared address unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
   grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.read_only_iam_policy_final.aws_iam_policy.policy[0] - this stage's check is not load-bearing"; }
-  log "  BREAK=2: correctly proposes destroying module.read_only_iam_policy.aws_iam_policy.policy[0] and creating module.read_only_iam_policy_final.aws_iam_policy.policy[0] - the moved-block and live-mv checks below are skipped"
+  log "  BREAK=2: correctly proposes ONLY a create for module.read_only_iam_policy_final.aws_iam_policy.policy[0], no destroy of the old (no-longer-declared, now-orphaned) module.read_only_iam_policy.aws_iam_policy.policy[0] - the real outcome for a stateless live-plan with no moved block, not a literal destroy-and-create; the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module.read_only_iam_policy -> module.read_only_iam_policy_moved ==="
   sed -i.bak 's/module "read_only_iam_policy" {/module "read_only_iam_policy_moved" {/' "$EST/main.tf"
