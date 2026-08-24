@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "620e4a3bb06654dfef4d74c561fb46fe4c2a90d1",
-  "emulator": "ghcr.io/lex00/floci@sha256:52b819326e712c791261685ce46a03ab5f2a47fa1f221dcc91c8dad9b5f09b00",
-  "generated": "2026-08-23T23:17:26Z",
+  "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+  "emulator": "ghcr.io/lex00/floci@sha256:a9dc5342c8f1ade656cd1c0cbd258dcadffda953fd1e33ecd345f1217085c79d",
+  "generated": "2026-08-23T23:58:23Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -357,8 +357,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1bb746d9a4534b71413a7a208607e8d857a9feb8",
-        "date": "2026-08-23T22:30:40Z",
+        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+        "date": "2026-08-23T23:50:10Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
@@ -437,8 +437,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
-        "date": "2026-08-23T20:40:31Z",
+        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+        "date": "2026-08-23T23:53:12Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
@@ -926,8 +926,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "d7d1faaade96a4f50f2c522e51837815b2173ed5",
-        "date": "2026-08-23T21:38:19Z",
+        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+        "date": "2026-08-23T23:57:57Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "63 resources from stock terraform; 4 live zones confirmed unmarked",
@@ -1170,8 +1170,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
-        "date": "2026-08-23T20:43:34Z",
+        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+        "date": "2026-08-23T23:59:38Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
@@ -1332,8 +1332,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "d63619b9684c37f425203a2f6351b1814f062431",
-        "date": "2026-08-23T22:21:54Z",
+        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
+        "date": "2026-08-23T23:55:07Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
