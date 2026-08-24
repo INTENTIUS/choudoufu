@@ -166,3 +166,117 @@ func TestManagedRefusalsFeedIdentityDemandedManagedReads(t *testing.T) {
 		t.Fatalf("demand names %d instances, want exactly 1 (aws_eks_cluster.this has no count/for_each): %#v", len(d.Instances), d.Instances)
 	}
 }
+
+// TestProviderConfigDemandReadsThroughALegacySplat is
+// TestProviderConfigDemandReadsThroughBothHops's own shape with one change:
+// the child module's cluster_id output reads aws_eks_cluster.this.id
+// through a legacy 0.11-style splat over a count-expanded resource -
+// `element(concat(aws_eks_cluster.this.*.id, tolist([""])), 0)` - the exact
+// idiom terraform-aws-eks's real "basic" example uses and corpus-eks-basic's
+// own gauntlet wall (test_plan) is pinned to.
+//
+// Before the splat-visibility fix (internal/lang/references.go's
+// splatEachTraversals, internal/configs/static_scope.go's
+// lookupCoversTraversal), a SplatExpr's "Each" relative traversal (the
+// ".id" after the "*") was structurally invisible to
+// hclsyntax.Expression.Variables(), so the reference classifier saw only
+// the bare "aws_eks_cluster.this" reference with an EMPTY remaining
+// traversal, defaulted it to "covered", and the splat's own per-element
+// ".id" access then failed evaluation as an ordinary, uncategorized cty
+// "no such attribute" error - carrying no configs.RefusedReference at all,
+// so AnalyzeProviderConfigs's own ManagedRefusals() came back empty and
+// identity.DemandedManagedReads had nothing to retry.
+func TestProviderConfigDemandReadsThroughALegacySplat(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "provider-config-demand-splat"), nil)
+
+	baseline := AnalyzeProviderConfigs(context.Background(), cfg, Options{})
+	src, ok := baseline.SourceFor(addrs.RootModule, dataAddr("aws_zone", "of_cluster"))
+	if !ok {
+		t.Fatalf("data.aws_zone.of_cluster was not classified at all")
+	}
+	if src.Eligible {
+		t.Fatalf("aws_eks_cluster.this.id is provider-assigned and no live values were supplied; the baseline must still refuse")
+	}
+
+	// The load-bearing assertion: the splat's own demand must be VISIBLE as
+	// a classified managed-resource refusal, by value, naming the resource
+	// and attribute the fixpoint needs to read - not merely "the baseline
+	// refused for some reason". Before the fix this is empty, which is
+	// exactly why identity.DemandedManagedReads (issue #313's fixpoint)
+	// never retried this shape.
+	refusals := baseline.ManagedRefusals()
+	if len(refusals) == 0 {
+		t.Fatalf("AnalyzeProviderConfigs recorded no managed refusal for a source that needs aws_eks_cluster.this.id through a legacy splat - the splat's Each demand is invisible to classification")
+	}
+
+	resolutions, _ := identity.ResolveWith(context.Background(), cfg, identity.Context{})
+	demand := identity.DemandedManagedReads(resolutions, refusals)
+	if len(demand) != 1 {
+		t.Fatalf("identity.DemandedManagedReads(resolutions, baseline.ManagedRefusals()) = %d entries, want exactly 1: %#v", len(demand), demand)
+	}
+	d := demand[0]
+	if d.Resource.Type != "aws_eks_cluster" || d.Resource.Name != "this" {
+		t.Fatalf("demanded resource = %s, want aws_eks_cluster.this", d.Resource.String())
+	}
+	if !d.Module.Equal(addrs.Module{"child"}) {
+		t.Fatalf("demanded module = %s, want module.child", d.Module.String())
+	}
+	if !d.Complete {
+		t.Fatalf("demand not marked complete: %#v", d)
+	}
+	if len(d.Instances) != 1 {
+		t.Fatalf("demand names %d instances, want exactly 1 (aws_eks_cluster.this has count = 1): %#v", len(d.Instances), d.Instances)
+	}
+
+	// Now resolve it the way statelessProviderDataReads's second pass does:
+	// supply the live read the demand named, keyed by the resource
+	// INSTANCE (count = 1, so index [0]), and confirm the splat's own value
+	// resolves through both hops.
+	live := map[string]cty.Value{
+		"module.child.aws_eks_cluster.this[0]": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("prod-cluster"),
+		}),
+	}
+
+	analysis := AnalyzeProviderConfigs(context.Background(), cfg, Options{LiveManagedResults: live})
+	src, ok = analysis.SourceFor(addrs.RootModule, dataAddr("aws_zone", "of_cluster"))
+	if !ok {
+		t.Fatalf("data.aws_zone.of_cluster was not classified at all with live values supplied")
+	}
+	if !src.Eligible {
+		t.Fatalf("a real live read of module.child.aws_eks_cluster.this[0] covers id, which covers module.child.cluster_id through the splat; refused: %s", src.ReasonDetail)
+	}
+
+	var sawNames []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			name := req.Config.GetAttr("name")
+			if name.IsNull() || !name.IsKnown() {
+				t.Fatalf("aws_zone was read with an unknown name: %#v", name)
+			}
+			sawNames = append(sawNames, name.AsString())
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"name":    name,
+				"zone_id": cty.StringVal("Z-" + name.AsString()),
+			})}
+		},
+	}
+
+	results, diags := ReadProviderConfigs(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+	if len(sawNames) != 1 || sawNames[0] != "prod-cluster" {
+		t.Fatalf("the provider was read with names %v, want [prod-cluster] - the value the splat's own element(concat(...)) idiom must resolve to", sawNames)
+	}
+	got, ok := results["data.aws_zone.of_cluster"]
+	if !ok {
+		t.Fatalf("no result under data.aws_zone.of_cluster; keys: %v", keysOf(results))
+	}
+	want := cty.StringVal("Z-prod-cluster")
+	if zoneID := got.GetAttr("zone_id"); !zoneID.RawEquals(want) {
+		t.Fatalf("zone_id is %#v, want %#v - the value that fed the provider block's own argument through the splat", zoneID, want)
+	}
+}
