@@ -197,7 +197,12 @@ func sensitiveIdentityAttr(plan LocatedIdentityPlan, schema providers.Schema) st
 	names := []string{locatedImportIDAttr}
 	switch {
 	case plan.Composite():
-		names = plan.Components
+		// OptionalComponents is swept too, not only Components: an optional
+		// attribute [LocatedIdentityOptional] would opportunistically
+		// record whenever an instance carries one is exactly as much a
+		// record write as a required one, and a record must never carry a
+		// secret regardless of which bucket named it.
+		names = append(append([]string(nil), plan.Components...), plan.OptionalComponents...)
 	case plan.Composed():
 		names = append(append([]string(nil), plan.ImportIDParts...), plan.ImportIDVariadicGroup...)
 		for _, alt := range plan.ImportIDAlternatives {

@@ -172,6 +172,25 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// reads back as a whole identity - the exact defect this
 			// branch exists to close.
 			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
+			if recordable {
+				// GitHub issue #397 sibling wall (corpus-alb-complete's
+				// aws_lb_target_group_attachment lambda-target ports): the
+				// required components alone already name the object per the
+				// provider's own wire identity schema, but an OPTIONAL one
+				// this instance happens to carry - port, for an
+				// instance-target attachment - is what disambiguates it
+				// from a sibling that shares the same required components
+				// at a different port. Recording it whenever it is there
+				// costs nothing (identityFromValues already leaves an
+				// unsupplied optional attribute null rather than refusing)
+				// and closes the collision a required-only record would
+				// otherwise risk; recording NOTHING for it when the object
+				// genuinely has none - a lambda target's port - is the
+				// whole point of this unit rather than a gap in it.
+				for name, v := range identity.LocatedIdentityOptional(obj, plan.OptionalComponents) {
+					rec.Components[name] = v
+				}
+			}
 		case plan.Composed():
 			// The provider serves no identity object for this type, so
 			// there is no object to record - but its own Import section
