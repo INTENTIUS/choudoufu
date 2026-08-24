@@ -11,6 +11,7 @@ import (
 	"log"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -321,7 +322,37 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 	if importing {
 		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, providers.ImportTarget{ID: n.importTarget.ID, Identity: n.importTarget.Identity}, provider, providerSchema)
 	} else if resolvedImport != nil {
-		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, *resolvedImport, provider, providerSchema)
+		// Edge 2 of the plan-node seam (rfc/20260823-foundation-order-ruling.md,
+		// ruling 3; issue #388): unlike an import block, which is the
+		// operator's own promise that the object exists, a RESOLVER-supplied
+		// target is this run's best guess at what a not-yet-applied
+		// instance's identity would be. n.importState's hard-fail-on-absence
+		// behavior is correct for the promise; it is wrong for the guess.
+		// When the provider reports absence, that just means there is
+		// nothing to import yet, so this falls through to the ordinary
+		// no-prior-state path - the same one a resolver that found nothing
+		// at all would take - instead of aborting the plan. A genuine
+		// provider error (credentials, a malformed request, an actual
+		// failure to answer) is not absence-shaped and stays fatal.
+		var importDiags tfdiags.Diagnostics
+		instanceRefreshState, importDiags = n.importState(ctx, evalCtx, addr, *resolvedImport, provider, providerSchema)
+		if importDiags.HasErrors() && resolverImportAbsentDiagnostics(importDiags) {
+			// Absent: this is no longer an import. Clear resolvedImport too
+			// (not just instanceRefreshState), since the later "if importing
+			// / else if resolvedImport != nil" block below - which sets
+			// change.Importing on the plan - reads resolvedImport again and
+			// would otherwise still record an import for an object that was
+			// just found not to exist.
+			resolvedImport = nil
+			var readDiags tfdiags.Diagnostics
+			instanceRefreshState, readDiags = n.readResourceInstanceState(ctx, evalCtx, addr)
+			diags = diags.Append(readDiags)
+			if diags.HasErrors() {
+				return diags
+			}
+		} else {
+			diags = importDiags
+		}
 	} else {
 		var readDiags tfdiags.Diagnostics
 		instanceRefreshState, readDiags = n.readResourceInstanceState(ctx, evalCtx, addr)
@@ -643,6 +674,77 @@ func (n *NodePlannableResourceInstance) replaceTriggered(ctx context.Context, ev
 	}
 
 	return diags
+}
+
+// resolverImportAbsentSignals are substrings of a provider's own
+// ImportResourceState diagnostic that mean "no such object" rather than
+// "the provider failed to answer" - the same pair
+// internal/live/projection/build.go's notFoundDiagnostics checks for the
+// pre-walk projection path (aws_lambda_permission, issue #297, is the
+// confirmed instance: GetPolicy on the *function* returns
+// ResourceNotFoundException when the function itself does not exist
+// either). Duplicated here rather than imported: this package must never
+// import the fork's live-mode package (see ResourceIdentityResolver's doc
+// comment in resource_identity.go - the dependency runs the other way),
+// so the two lists are kept in sync by hand.
+var resolverImportAbsentSignals = []string{
+	"couldn't find resource",
+	"ResourceNotFoundException",
+}
+
+// resolverImportSyntheticAbsentSummaries are importState's OWN
+// diagnostics - not the provider's - that already mean "there is nothing
+// here": an empty ImportedResources list, an imported object with a null
+// value, or a post-import refresh that comes back null (the object
+// existed a moment ago as far as ImportResourceState was concerned, but is
+// gone by the time refresh asks again). Matched on Summary, since
+// importState constructs these itself with fixed text rather than
+// forwarding a provider's free-form diagnostic.
+var resolverImportSyntheticAbsentSummaries = map[string]bool{
+	"Import returned no resources":             true,
+	"Import returned null resource":            true,
+	"Cannot import non-existent remote object": true,
+}
+
+// resolverImportAbsentDiagnostics reports whether every error-severity
+// diagnostic in diags describes an ordinary absence - either one of
+// importState's own synthetic "there is nothing here" diagnostics or a
+// provider's not-found-shaped error - rather than a genuine failure to
+// answer. It is edge 2 of the plan-node seam
+// (rfc/20260823-foundation-order-ruling.md, ruling 3; issue #388): a
+// resolver-supplied target is a guess, not a promise the way an import
+// block's is, so an absent object here means the guess was wrong about
+// there being anything to import, not a reason to abort the plan.
+//
+// A single diagnostic that does not match either shape - a credentials
+// problem, a malformed request, a genuine provider failure - makes this
+// report false, and the caller's existing hard stop applies untouched.
+// diags with no errors at all (only warnings, or empty) also reports
+// false, since the caller only consults this after confirming
+// HasErrors().
+func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
+	sawError := false
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		sawError = true
+		desc := d.Description()
+		if resolverImportSyntheticAbsentSummaries[desc.Summary] {
+			continue
+		}
+		matched := false
+		for _, signal := range resolverImportAbsentSignals {
+			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return sawError
 }
 
 func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance, importTarget providers.ImportTarget, provider providers.Interface, providerSchema providers.ProviderSchema) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {

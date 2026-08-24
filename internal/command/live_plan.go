@@ -419,11 +419,26 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		}
 	}
 
+	// GitHub issue #388's plan-node seam, edge 3: the same record-store
+	// wrapper resolver.RecordStore is populated with below, built here
+	// instead so [statelessDiscover] can also use it to shrink the marker
+	// sweep's per-instance binding demand (statelessRecordBackedNeedsDiscoveryAddrs).
+	// Gated on resolver != nil (the migration flag) rather than just on
+	// hintStore being non-nil: a flag-off run must see a byte-identical
+	// demand no matter what the record store holds, so this stays nil
+	// whenever the flag itself is off. NewRecordEnvelopeStore is a
+	// nil-safe, no-I/O wrapper construction (see its own doc comment), so
+	// building it once here and reusing it below costs nothing extra.
+	var recordShrinkStore *projection.RecordStore
+	if resolver != nil {
+		recordShrinkStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+	}
+
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -445,7 +460,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// and simply means step (a) never has anything to find); merged is
 	// the marker sweep's own resolutions, snapshotted into an index.
 	if resolver != nil {
-		resolver.RecordStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+		resolver.RecordStore = recordShrinkStore
 		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 		// GitHub issue #388's stamp half: the same estate name and
@@ -669,6 +684,58 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // Discovery and foreign classification
 // ---------------------------------------------------------------------------
 
+// statelessRecordBackedNeedsDiscoveryAddrs is edge 3 of the plan-node seam
+// (rfc/20260823-foundation-order-ruling.md, ruling 3; GitHub issue #388):
+// among needs (a ClassNeedsDiscovery resolution list, ordinarily
+// resolutions.NeedsDiscovery()), the subset whose estate record already
+// holds an identity - read the same way
+// [projection.NodeResolver.ResolveResourceIdentity]'s own step (a) reads
+// it - no longer needs the marker sweep to bind it: under
+// CHOUDOUFU_NODE_RESOLVE=1, the node resolver answers that instance's
+// identity directly from the same record, at plan time, so a scan-and-match
+// attempt for it here is wasted work. The returned set is
+// [discovery.Request.RecordBackedAddrs]; see that field's own doc comment
+// for what it does and does not skip (never the estate-wide sweep).
+//
+// store is nil whenever the caller has not both opened a record store AND
+// turned the migration flag on - see this function's two call sites in
+// statelessDiscover's own callers - which is what keeps a flag-off run's
+// demand byte-identical: this returns (nil, nil) immediately, without
+// reading anything, exactly as if edge 3 did not exist. needs empty is the
+// same shortcut for a configuration with nothing waiting on discovery at
+// all.
+//
+// A read error is fatal, the same severity
+// [projection.NodeResolver.ResolveResourceIdentity] gives a corrupted
+// record: a demand this pass cannot safely shrink is not something to
+// guess about, and continuing with a stale or partial exclusion set risks
+// skipping the sweep for an instance whose record turns out unusable,
+// which would leave it with neither a marker binding nor a resolved
+// identity.
+func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) (map[string]bool, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if store == nil || len(needs) == 0 {
+		return nil, diags
+	}
+	var out map[string]bool
+	for _, r := range needs {
+		_, _, _, found, err := store.GetIdentity(ctx, r.Addr)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", fmt.Sprintf(
+				"Reading the record for %s failed: %s.", r.Addr, err,
+			)))
+			continue
+		}
+		if found {
+			if out == nil {
+				out = make(map[string]bool)
+			}
+			out[r.Addr.String()] = true
+		}
+	}
+	return out, diags
+}
+
 // statelessDiscover runs the marker discovery pass, wide enough to see the
 // resources nobody owns, and returns its result. It returns a nil result
 // with no error diagnostics in the two cases where discovery is not run at
@@ -719,7 +786,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -728,6 +795,20 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
 	diags = diags.Append(estateDiags)
 	if estate == "" {
+		return nil, noProvider, nil, diags
+	}
+
+	// Edge 3 of the plan-node seam (rfc/20260823-foundation-order-ruling.md,
+	// ruling 3; issue #388): recordShrinkStore is nil unless the caller has
+	// both opened a record store AND turned CHOUDOUFU_NODE_RESOLVE=1 on -
+	// see [statelessRecordBackedNeedsDiscoveryAddrs]'s own doc comment for
+	// why the flag has to gate it here, at the call site, rather than
+	// inside this function: a byte-identical demand with the flag off is
+	// the migration contract, and a nil store is what keeps this call a
+	// no-op whenever that contract applies.
+	recordBacked, recordDiags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, recordShrinkStore, needs)
+	diags = diags.Append(recordDiags)
+	if recordDiags.HasErrors() {
 		return nil, noProvider, nil, diags
 	}
 
@@ -750,7 +831,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -773,7 +854,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -822,7 +903,7 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 	return projection.RecordStoreKeyPrefix(config.Module.Live.RecordStore, estate)
 }
 
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -835,16 +916,17 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	}
 
 	req := discovery.Request{
-		Estate:           estate,
-		Config:           config,
-		Resolutions:      resolutions,
-		Provider:         provider,
-		Region:           provs.region(providerAddr),
-		CollectUnclaimed: true,
-		Sweep:            true,
-		Policy:           pol,
-		ScopeProvider:    scopeProvider,
-		Progress:         statelessProgress(statelessView),
+		Estate:            estate,
+		Config:            config,
+		RecordBackedAddrs: recordBacked,
+		Resolutions:       resolutions,
+		Provider:          provider,
+		Region:            provs.region(providerAddr),
+		CollectUnclaimed:  true,
+		Sweep:             true,
+		Policy:            pol,
+		ScopeProvider:     scopeProvider,
+		Progress:          statelessProgress(statelessView),
 		// Independent of the Guided cost decision below: HintStore also
 		// backs discovery's per-instance located-record fallback for a type
 		// with no tags argument and no list route at all

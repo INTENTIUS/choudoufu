@@ -44,6 +44,33 @@ type Request struct {
 	// an error rather than a binding onto nothing.
 	Config *configs.Config
 
+	// RecordBackedAddrs is edge 3 of the plan-node seam
+	// (rfc/20260823-foundation-order-ruling.md, ruling 3; GitHub issue
+	// #388), keyed by [addrs.AbsResourceInstance.String]. An address listed
+	// here is excluded from the per-instance binding demand
+	// [declaredInstances] builds from a ClassNeedsDiscovery resolution -
+	// this pass will neither try to match it against a scanned marker nor
+	// raise a "declared but no marker found" problem for it - because
+	// something else already answered its identity for this run: under
+	// CHOUDOUFU_NODE_RESOLVE=1, [projection.NodeResolver]'s own record step
+	// answers it directly, at plan-node time, from the same estate record
+	// this set is built from (see internal/command's
+	// statelessRecordBackedNeedsDiscoveryAddrs). The instance still
+	// contributes to [declared.declares] - see the first loop in
+	// [declaredInstances] - so it is never misread as an orphan by this or
+	// any other pass; only the wasted binding ATTEMPT is skipped.
+	//
+	// It does not touch the estate-wide sweep (Sweep, SweepTypes) at all:
+	// that pass still lists every admitted type looking for markers nobody
+	// declares, exactly as before, because an address can only appear here
+	// once identity resolution has already classified it as
+	// ClassNeedsDiscovery for a DECLARED resource - the sweep's job is
+	// finding what nothing declares.
+	//
+	// Nil (the default) matches every caller before this field existed:
+	// nothing is excluded, and the demand this pass builds is unchanged.
+	RecordBackedAddrs map[string]bool
+
 	// Resolutions is the identity package's output for the whole
 	// configuration, needs-discovery instances included. The
 	// needs-discovery ones drive the scan; the rest ride through untouched
@@ -807,6 +834,20 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 
 	for _, r := range sorted {
 		if r.Class != identity.ClassNeedsDiscovery {
+			continue
+		}
+		if req.RecordBackedAddrs[r.Addr.String()] {
+			// Edge 3 (see [Request.RecordBackedAddrs]'s own doc comment):
+			// this instance's identity is already answered from the
+			// estate's record, so it never joins the binding demand below.
+			// It was already recorded as declared in the loop above, so
+			// this skip cannot make it look like an orphan.
+			//
+			// Logged rather than silent so a real run's TF_LOG=debug output
+			// is how the shrink is measured against a migrated estate,
+			// the same way the two DEBUG lines a few hundred lines below
+			// already narrate this pass's other per-instance decisions.
+			log.Printf("[DEBUG] stateless/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
 			continue
 		}
 		typeName := r.Type()

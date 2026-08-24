@@ -665,7 +665,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view)
+	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened
+	// unconditionally above whenever the live block names a record_store,
+	// regardless of the migration flag, so it is gated here rather than at
+	// that assignment - only a flag-on run passes it to statelessDiscover
+	// at all, which is what keeps a flag-off run's sweep demand
+	// byte-identical no matter what the record store holds. See
+	// statelessRecordBackedNeedsDiscoveryAddrs's own doc comment.
+	var recordShrinkStore *projection.RecordStore
+	if r.nodeResolve {
+		recordShrinkStore = r.recordStore
+	}
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
