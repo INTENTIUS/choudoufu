@@ -1895,12 +1895,41 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // why. This package's own behavior, wording and every test below are
 // unchanged - only the two functions' bodies moved.
 
-// configuredAttrsSeed generalizes what this function used to do for "tags"
-// alone (GitHub issue #287 item 8) to every attribute sharing the one
-// property that made tags safe to seed: NOT Computed. See this function's
-// own reasoning below for why that property, not the attribute's name, is
-// what makes seeding sound - GitHub issues #395 and #376 are the two
-// confirmed instances that were still broken with the tags-only version.
+// configuredAttrsSeed generalizes [configuredTagsSeed]'s mechanism (GitHub
+// issue #287 item 8) from "tags" specifically to every OTHER flat,
+// non-identity, non-Computed attribute the resource's own configuration
+// statically sets: whatever the configuration declares there is exactly
+// what a genuinely persisted state file would already hold, and seeding
+// the import stub with it before ReadResource closes the same class of
+// ambiguity "tags" closes, for any provider whose Read branches on "was
+// this argument already present in prior state" rather than reading it
+// from the remote at all.
+//
+// # Two units, reconciled onto one implementation
+//
+// corpus-eks-basic/test_plan and corpus-ecs-fargate/test_plan each hit a
+// member of this same class independently (aws_launch_configuration.
+// user_data_base64 and aws_ecs_service.task_definition /
+// aws_ecs_task_definition.track_latest+skip_destroy, respectively) and
+// each generalized configuredTagsSeed's mechanism on its own branch.
+// Reconciled 2026-08-24 (rebased corpus-ecs-fargate's branch onto main
+// after corpus-eks-basic's landed first): both kept "tags" on its own,
+// separately gated [configuredTagsSeed] rather than folding it in here -
+// seeding it twice from two independent paths is exactly the drift a
+// single mechanism is supposed to prevent, and eks-basic's own test
+// (TestConfiguredAttrsSeedSeedsStaticNonTagAttributes) asserts this
+// function's own map never carries "tags". Where the two branches'
+// PROTOCOL TEST differed - eks-basic's excluded only WriteOnly, NestedType
+// and identity attributes, with no Computed check at all, against
+// ecs-fargate's own "Required, or Optional and never Computed" - the
+// reconciliation took the STRICTER of the two (this function's own
+// Computed check, below), the safer intersection: every attribute either
+// branch's own tests actually assert gets seeded (user_data_base64, name,
+// task_definition, track_latest, skip_destroy) is Required or
+// Optional-and-not-Computed, so both branches' test suites pass unmodified
+// under the narrower rule, and an Optional+Computed attribute - one the
+// PROVIDER, not only configuration, may still answer for - is never
+// seeded by either.
 //
 // # The original case, generalized
 //
@@ -2015,6 +2044,7 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 	if eval == nil || rc == nil || schema.Block == nil {
 		return nil
 	}
+	identityAttrs := residueIdentityAttrs(schema)
 
 	ident := configs.StaticIdentifier{
 		Module:    modPath,
@@ -2024,7 +2054,22 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 
 	var out map[string]cty.Value
 	for name, attr := range schema.Block.Attributes {
-		if attr == nil || attr.Computed || attr.WriteOnly || attr.NestedType != nil {
+		if attr == nil || name == "tags" || identityAttrs[name] {
+			// "tags" stays configuredTagsSeed's own name, with its own
+			// default_tags-aware, tags_all-gated reasoning - seeding it
+			// twice from two independent paths is exactly the drift a
+			// single mechanism is supposed to prevent. Every identity
+			// attribute ([residueIdentityAttrs]) is refused regardless of
+			// its own Required/Optional/Computed shape (most identity
+			// attributes are Computed and would already be excluded below,
+			// but a client-named identity component need not be): seeding
+			// one would put this mechanism in a position to influence
+			// WHICH object a plan binds to, which is the one thing
+			// HANDOFF.md's safety rule reserves for the record and the
+			// marker alone.
+			continue
+		}
+		if attr.Computed || attr.WriteOnly || attr.NestedType != nil {
 			continue
 		}
 		if !attr.Required && !attr.Optional {
