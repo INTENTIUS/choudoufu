@@ -135,11 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-<<<<<<< HEAD
-      "clear": 6,
-=======
-      "clear": 7,
->>>>>>> gauntlet/day2-moved-child
+      "clear": 8,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -162,13 +158,8 @@
           "not_run": 26
         },
         "day2_rename": {
-<<<<<<< HEAD
-          "pass": 6,
-          "fail": 3,
-=======
-          "pass": 7,
-          "fail": 2,
->>>>>>> gauntlet/day2-moved-child
+          "pass": 8,
+          "fail": 1,
           "not_run": 17
         },
         "day2_replace": {
@@ -221,11 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-<<<<<<< HEAD
-      "clear": 6,
-=======
-      "clear": 7,
->>>>>>> gauntlet/day2-moved-child
+      "clear": 8,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -248,13 +235,8 @@
           "not_run": 25
         },
         "day2_rename": {
-<<<<<<< HEAD
-          "pass": 6,
-          "fail": 3,
-=======
-          "pass": 7,
-          "fail": 2,
->>>>>>> gauntlet/day2-moved-child
+          "pass": 8,
+          "fail": 1,
           "not_run": 16
         },
         "day2_replace": {
