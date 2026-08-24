@@ -1339,6 +1339,62 @@ func TestLivePlan_markersRecordPreservesExistingMarker(t *testing.T) {
 	}
 }
 
+// TestLivePlan_markersRecordPreservesExistingMarker_NodeResolve is
+// TestLivePlan_markersRecordPreservesExistingMarker with
+// CHOUDOUFU_NODE_RESOLVE=1: the identical #380 scenario - a
+// markers-record-selected VPC whose live object already carries both
+// marker tags from before the selection existed - replanned with GitHub
+// issue #388's node seam active in BOTH halves at once: NodeResolver
+// resolves the instance's identity from the record store (step (a)) rather
+// than the pre-walk static path, and its AdjustConfigValue sets nothing on
+// this resource's evaluated configuration value (the record-selection
+// branch nodestamp.go documents). The existing marker's survival still
+// rests entirely on internal/live/stamp's own #380 fix - the HCL rewrite
+// that synthesizes lifecycle { ignore_changes = [...] } runs before the
+// graph walk regardless of the flag, and the adjuster's whole obligation is
+// to stay out of its way - so this is that composition proven end to end
+// rather than assumed.
+func TestLivePlan_markersRecordPreservesExistingMarker_NodeResolve(t *testing.T) {
+	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "1")
+
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-markers-record"), td)
+	t.Chdir(td)
+
+	const estate = "markers-record-unit"
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_vpc", "vpc-existing", estate, "aws_vpc.main", map[string]string{
+		"id": "vpc-existing", "cidr_block": "10.42.0.0/16",
+	})
+
+	store, err := staterecord.NewLocalStore(filepath.Join(td, ".tofu-records"))
+	if err != nil {
+		t.Fatalf("opening the record store: %s", err)
+	}
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr("aws_vpc.main")
+	if addrDiags.HasErrors() {
+		t.Fatalf("parsing the address: %s", addrDiags.Err())
+	}
+	identityRecord := []byte(`{"format_version":2,"address":"` + addr.String() + `","kind":"identity","identity":{"import_id":"vpc-existing"}}`)
+	if _, err := store.PutIfAbsent(t.Context(), projection.RecordKey(projection.RecordKeyPrefix(estate), addr), identityRecord); err != nil {
+		t.Fatalf("seeding the located record: %s", err)
+	}
+
+	c, done := newLivePlanCommand(t, cloud)
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	stdout := output.Stdout()
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0 (no changes: the existing marker must be left alone, not planned away)\nstdout:\n%s\nstderr:\n%s", code, stdout, output.Stderr())
+	}
+	if !strings.Contains(stdout, "No changes") {
+		t.Errorf("plan is not a no-op with the node seam active; the withheld marker was planned as a removal:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "tofu-address") || strings.Contains(stdout, "tofu-estate") {
+		t.Errorf("the plan mentions a marker tag at all, so something still proposes to touch it:\n%s", stdout)
+	}
+}
+
 // withLocalExecProvisioner gives a live-plan command a "local-exec"
 // provisioner to load a schema for. Schema loading is all it is ever asked
 // for here: live-plan never applies, so nothing in this file can run a
