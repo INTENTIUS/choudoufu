@@ -384,11 +384,33 @@ func hasLocatedImportID(b *configschema.Block) bool {
 type LocatedIdentityPlan struct {
 	// Components is the provider's own identity OBJECT, one attribute per
 	// component, UNORDERED - which is what an identity object is. Set only
-	// where the provider serves a wire identity schema requiring
-	// [locatedImportIDAttr] plus at least one other attribute (issue
-	// #329). Nothing joins these into a string; see
+	// where the provider serves a wire identity schema requiring two or
+	// more attributes: [locatedImportIDAttr] plus at least one other
+	// (issue #329), or two or more attributes that do not include
+	// [locatedImportIDAttr] at all (the 2026-08-24 widening -
+	// [compositeIdentity]'s own doc comment has the measurement). Every
+	// name here is REQUIRED for import; [LocatedIdentity]'s reading of them
+	// is all-or-nothing. Nothing joins these into a string; see
 	// [LocatedIdentityPlanFor].
 	Components []string
+
+	// OptionalComponents names every attribute the same wire identity
+	// schema marks optional for import, alongside Components' required
+	// ones - set only when Components is. [LocatedIdentityOptional] reads
+	// whichever of them the applied object genuinely carries a value for
+	// and silently leaves the rest out: the same "include when present,
+	// omit when genuinely absent" rule [Component.OmitIfAbsent] already
+	// gives the documented-import-string route, extended to the identity
+	// OBJECT route so a type whose optional attribute can disambiguate two
+	// otherwise-identical required components - aws_lb_target_group_attachment's
+	// port: the same target_group_arn/target_id pair registered at two
+	// different ports is two distinct live objects - still records that
+	// disambiguator whenever this run can see it, and drops only what the
+	// object genuinely does not have, such as a lambda target's port, which
+	// AWS never assigns one. Never consulted by [LocatedIdentity]'s
+	// all-or-nothing rule: an optional component with no value is not a
+	// reason to refuse the record.
+	OptionalComponents []string
 
 	// ImportIDParts are the attributes whose values compose the documented
 	// import STRING, in the documented order, joined by ImportIDSeparator.
@@ -490,14 +512,24 @@ func (p LocatedIdentityPlan) Named() bool { return p.Attr != "" }
 // the provider's own identity object, and importTarget already ranks that
 // above the string.
 //
-// # Why the composite branch requires "id" to be one of the components
+// # Which types the composite branch reaches
 //
-// A type whose identity schema requires something OTHER than "id" and not
-// "id" itself - an ARN, say - is a shape today's rule already serves
-// correctly, because the provider's own d.SetId put that value in "id".
-// Reclassifying it here would change what a working population records for
-// no defect. The population this is about is the one where "id" is present
-// AND insufficient, and that is the population this branch selects.
+// Two populations, both routed here by [compositeIdentity]: a type whose
+// identity schema requires "id" alongside a parent (issue #329 -
+// aws_default_route_table's own shape, "id" present AND insufficient), and
+// a type whose identity schema requires two or more attributes that do NOT
+// include "id" at all (aws_lb_target_group_attachment - target_group_arn
+// and target_id, neither of which the provider's d.SetId ever wrote to
+// "id"). A single REQUIRED, non-"id" attribute is neither: the provider's
+// own d.SetId already put that one value into "id", so today's bare-string
+// rule already serves it correctly, and reclassifying it here would change
+// what a working population records for no defect - see
+// [compositeIdentity]'s own doc comment for the len(required)<2 case this
+// leaves alone.
+//
+// Optional attributes ride along as [LocatedIdentityPlan.OptionalComponents],
+// read separately by [LocatedIdentityOptional] with its own,
+// never-refuses-the-whole-record rule - see that type's doc comment.
 //
 // # The second source, for the types the wire schema cannot settle
 //
@@ -549,7 +581,7 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	if schema.Block == nil {
 		return LocatedIdentityPlan{}, false
 	}
-	required, _ := identityAttrs(schema.IdentitySchema)
+	required, optional := identityAttrs(schema.IdentitySchema)
 	if !compositeIdentity(required) {
 		// Either the provider serves no identity schema at all, or the one
 		// it serves is answered by the string this mechanism already
@@ -575,7 +607,15 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 			return LocatedIdentityPlan{}, false
 		}
 	}
-	return LocatedIdentityPlan{Components: required}, true
+	// optional rides along verbatim, with no per-attribute check here: an
+	// optional component that turns out not to be a plain string or number
+	// on the resource's own block, or not present on obj at all, is exactly
+	// what [locatedAttrSegment] - [LocatedIdentityOptional]'s own reader -
+	// already answers false for, and answering false for one optional
+	// component is never a reason to refuse the whole identity the way it
+	// is for a required one. Filtering here would only duplicate that
+	// check, at the cost of a second place it could drift from it.
+	return LocatedIdentityPlan{Components: required, OptionalComponents: optional}, true
 }
 
 // namedIdentityAttr reports the single, non-"id" attribute a ratified
@@ -616,18 +656,42 @@ func namedIdentityAttr(resourceType string, b *configschema.Block) (string, bool
 }
 
 // compositeIdentity reports whether required - a type's required identity
-// attributes - describes an identity that [locatedImportIDAttr] alone cannot
-// carry: "id" is one of the components and it is not the only one.
+// attributes - describes an identity that [locatedImportIDAttr] alone
+// cannot be trusted to carry: two or more attributes the provider's own
+// wire identity schema requires to name the object.
+//
+// It no longer also requires "id" to be one of them. That was this
+// function's whole rule until the 2026-08-24 measurement of
+// aws_lb_target_group_attachment (corpus-alb-complete's remaining
+// test_plan wall, a lambda-target attachment whose port argument is
+// genuinely null): the type's real hashicorp/aws 6.59.0 wire identity
+// schema requires target_group_arn and target_id, neither of which is
+// "id", and the old rule routed it past this branch entirely into the
+// weaker documented-import-string fallback below, which has no grammar
+// for this type and refused it outright - not because the identity could
+// not be built, but because this predicate never let the branch that
+// could build it run.
+//
+// The single-required-attribute case is unchanged: len(required) < 2 still
+// answers false unconditionally, because there the provider's own d.SetId
+// already put that one value into "id" and nothing about a second,
+// unrelated attribute changes that (see [LocatedIdentityPlanFor]'s "identity
+// schema requiring something other than id" case). What widens is only the
+// len>=2 case, where no single string - "id" included - can already hold
+// two independently-required values, so reading the identity OBJECT
+// component by component is the only account of it that is not a bet.
+//
+// Measured against live/survey-full.json (hashicorp/aws 6.59.0): 80 types
+// carry a wire identity schema whose required set has two or more members
+// and does not include "id" - aws_lb_target_group_attachment among them -
+// none of which this branch could ever admit before this change. Every one
+// of them still goes through the identical per-attribute string check in
+// [LocatedIdentityPlanFor] that already refuses a component the resource's
+// own block cannot supply as a plain top-level string, so nothing here
+// admits a type whose identity cannot actually be read off the applied
+// object.
 func compositeIdentity(required []string) bool {
-	if len(required) < 2 {
-		return false
-	}
-	for _, name := range required {
-		if name == locatedImportIDAttr {
-			return true
-		}
-	}
-	return false
+	return len(required) >= 2
 }
 
 // credentialMaterial reports whether b describes a resource that holds
@@ -758,6 +822,43 @@ func LocatedIdentity(obj cty.Value, components []string) (map[string]string, boo
 		out[name] = v
 	}
 	return out, true
+}
+
+// LocatedIdentityOptional reads [LocatedIdentityPlan.OptionalComponents]'
+// values off an applied located object, for [LocatedRecordFrom]'s
+// Composite() branch: the same per-attribute guards [locatedAttrSegment]
+// already gives a documented import-string segment - a plain string, or a
+// number rendered to the same decimal form [renderIntegralNumber] uses for
+// the composed-string route (aws_lb_target_group_attachment's port is a
+// number in the resource's own block, same as
+// aws_security_group_rule's from_port/to_port); null, unknown, marked or
+// empty all excluded - applied here to the wire identity object's own
+// optional attributes instead of a documented string's segments.
+//
+// Unlike [LocatedIdentity], this never refuses the whole identity. An
+// optional component this instance genuinely has no value for - a lambda
+// target's port, which AWS never assigns one - is left out of the returned
+// map rather than treated as a reason to withhold the record, because
+// [Component.OmitIfAbsent] already establishes that "the provider's own
+// grammar marks this segment optional" and "this instance has nothing
+// here" are the same fact, not a different one from "unresolvable." A nil
+// or empty optional yields a nil map, never an error.
+func LocatedIdentityOptional(obj cty.Value, optional []string) map[string]string {
+	if len(optional) == 0 {
+		return nil
+	}
+	var out map[string]string
+	for _, name := range optional {
+		v, ok := locatedAttrSegment(obj, name)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(optional))
+		}
+		out[name] = v
+	}
+	return out
 }
 
 // locatedAttrString reads one top-level string attribute off an applied
