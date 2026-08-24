@@ -645,10 +645,18 @@ type taggedCandidate struct {
 // candidate - GetResources returns them inline - so there is no
 // GetResource-style refinement step here at all; [TypeScan.Refined] stays
 // zero for every scan this produces.
-func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Result) tfdiags.Diagnostics {
+//
+// universe is [sweepTypes]' answer with one further cut ([partitionSweepTypes],
+// issue #394): a type [typeNeedsResourceObjectToRecompose] answers true for
+// is excluded, because a GetResources candidate carries only the joined
+// ARN's own importID and the object's tags, never the schema-typed resource
+// [importIdentityFromResource] needs to recompose a mismatched-identity
+// companion's identity (aws_default_route_table's vpc_id, issue #332). The
+// caller sweeps those types the native way instead
+// ([scanTypeReporting]), which does have that resource object.
+func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Result, universe []string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	universe := sweepTypes(req, decl)
 	if len(universe) == 0 {
 		return diags
 	}
@@ -809,16 +817,37 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		}))
 	}
 
+	// bindType is the type every declared-set lookup and reported record
+	// below uses to find where this object belongs. It starts as typeName -
+	// the ARN join's own wire-shape answer - and is corrected to the
+	// marker's own type only for the cases [sweepBindType] knows safe: see
+	// its own doc comment for the three-way answer and issue #394 for the
+	// bug this closes (aws_default_route_table/aws_default_security_group
+	// reported malformed when this estate-wide sweep, rather than the
+	// config-driven scan, found the shared object first).
+	bindType := typeName
 	if markerType := markerTypeOf(escaped); markerType != typeName {
-		return diags.Append(problemDiag(res, Problem{
-			Kind:     ProblemMalformedMarker,
-			TypeName: typeName,
-			Marker:   raw,
-			LiveIDs:  liveIDs(c.importID),
-			Detail: fmt.Sprintf(
-				"A live %s (via the tag sweep) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-				typeName, req.Estate, raw, markerType, typeName),
-		}))
+		corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+		if skip {
+			// The marker's own type is declared and was already visited,
+			// correctly, by its own config-driven scan pass before this
+			// sweep ran - this is the same live object surfacing a second
+			// time under the ARN join's generic type name, not a second
+			// object. Nothing to file.
+			return diags
+		}
+		if corrected == typeName {
+			return diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: typeName,
+				Marker:   raw,
+				LiveIDs:  liveIDs(c.importID),
+				Detail: fmt.Sprintf(
+					"A live %s (via the tag sweep) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+					typeName, req.Estate, raw, markerType, typeName),
+			}))
+		}
+		bindType = corrected
 	}
 
 	claim := claimant{
@@ -833,29 +862,29 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		noIdentity:   c.importID == "",
 	}
 
-	if entry, ok := decl.entryFor(typeName, escaped); ok {
+	if entry, ok := decl.entryFor(bindType, escaped); ok {
 		entry.claimants = append(entry.claimants, claim)
 		return diags
 	}
-	if decl.declares(typeName, escaped) {
+	if decl.declares(bindType, escaped) {
 		// GitHub issue #244, half 2 - the same check discovery.go's own scan
 		// loop makes at the same point, for the same reason. See
 		// displaced.go.
-		if want, displaced := decl.displacedFrom(typeName, escaped, claim); displaced {
-			return diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))
+		if want, displaced := decl.displacedFrom(bindType, escaped, claim); displaced {
+			return diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, claim)))
 		}
 		return diags
 	}
-	if cb := decl.countBlockFor(typeName, escaped); cb != nil {
+	if cb := decl.countBlockFor(bindType, escaped); cb != nil {
 		cb.extra = append(cb.extra, claim)
 		return diags
 	}
-	if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+	if blk, ok := decl.blocks[bindType][escaped]; ok && blk.keyed {
 		blk.claimants = append(blk.claimants, claim)
 		return diags
 	}
 	res.Orphans = append(res.Orphans, OwnedResource{
-		TypeName:     typeName,
+		TypeName:     bindType,
 		ImportID:     c.importID,
 		IdentityAttr: c.identityAttr,
 		Marker:       raw,

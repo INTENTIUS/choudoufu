@@ -119,8 +119,13 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"imports by bare role name; aws_iam_service_linked_role's documented import ID is the role's ARN), so no " +
 			"prefix-plus-table derivation covers it generically the way defaultAdopterSiblings covers #305's family. " +
 			"tagging.go's iamRoleEntry already hand-curates the identical fact one join stage earlier, for the ARN-shape " +
-			"leg rather than this native-list leg.",
-		Data: 0, Code: 2,
+			"leg rather than this native-list leg. Issue #394 added a second reader of the same one fact " +
+			"(typeNeedsResourceObjectToRecompose, which asks the sweep-partition question 'is typeName either side of " +
+			"this pair' from outside iamServiceLinkedRoleSibling) and moved both literals from a local const inside " +
+			"the function to the two package-level consts iamRoleTypeName/iamServiceLinkedRoleTypeName so the second " +
+			"reader could name the pair by identifier rather than retyping it - Code fell to 0 and Data rose to 2 " +
+			"with no new literal surface.",
+		Data: 2, Code: 0,
 	},
 	"internal/live/foreign/classify.go": {
 		Reason: "foreign-resource matchTable: which argument makes a live resource the one a declared block means. Each entry's " +
@@ -376,8 +381,17 @@ const (
 	// provider's own source, to classify its documented import grammar's
 	// variadic trailing tokens by content rather than by position. One
 	// Data literal added, no Code, nothing moved.
-	typeLiteralDataTotal = 436
-	typeLiteralCodeTotal = 128
+	// 436 -> 438 data, 128 -> 126 code, 2026-08-23 (issue #394): internal/live/discovery/
+	// discovery.go's iamServiceLinkedRoleSibling loses its two-literal
+	// function-body const; iamRoleTypeName and iamServiceLinkedRoleTypeName
+	// carry the same pair as package-level consts instead, so
+	// typeNeedsResourceObjectToRecompose (issue #394's sweep-partition
+	// helper, which needs to ask "is typeName either side of this pair"
+	// from outside iamServiceLinkedRoleSibling) can name it by identifier
+	// rather than retyping the two literals a second time. Two literals
+	// moved from Code to Data, none added or deleted.
+	typeLiteralDataTotal = 438
+	typeLiteralCodeTotal = 126
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and

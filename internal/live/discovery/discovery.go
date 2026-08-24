@@ -395,11 +395,22 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if req.Sweep {
 		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
 			// Issue #51: one estate-wide GetResources call replaces the
-			// per-type loop below. See [sweepViaTagging] and
+			// per-type loop below, for every type [partitionSweepTypes]
+			// doesn't carve out. See [sweepViaTagging] and
 			// [Request.TaggingSweep]. It is one round trip rather than one
 			// per type, so it gets no progress events of its own - there is
 			// nothing to report between, only before and after.
-			diags = diags.Append(sweepViaTagging(ctx, req, decl, res))
+			taggingUniverse, nativeUniverse := partitionSweepTypes(req, decl)
+			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
+			// Issue #394: a companion pair whose identities diverge
+			// ([typeNeedsResourceObjectToRecompose]) can only ever bind
+			// through a native list call's own resource object, which the
+			// tag sweep's ARN-joined candidate never carries - so these few
+			// types still go through the per-type loop even though
+			// TaggingSweep is set.
+			for _, typeName := range nativeUniverse {
+				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, &typesScanned, &resourcesFound))
+			}
 		} else {
 			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
 			// decl) unmodified (and an empty fallback reason) whenever
@@ -1940,9 +1951,21 @@ func sameRatifiedIdentity(a, b string) bool {
 // match here with [importIdentityFromResource] to recompose the identity
 // under bindType's own scheme instead of reusing typeName's.
 func iamServiceLinkedRoleSibling(a, b string) bool {
-	const role, serviceLinked = "aws_iam_role", "aws_iam_service_linked_role"
-	return (a == role && b == serviceLinked) || (a == serviceLinked && b == role)
+	return (a == iamRoleTypeName && b == iamServiceLinkedRoleTypeName) || (a == iamServiceLinkedRoleTypeName && b == iamRoleTypeName)
 }
+
+// iamRoleTypeName and iamServiceLinkedRoleTypeName are
+// [iamServiceLinkedRoleSibling]'s one admitted pair, named once so
+// [typeNeedsResourceObjectToRecompose] can ask "is typeName either side of
+// it" by identifier rather than retyping the two literals a second time -
+// the derivation guard (live/derivation_guard_test.go) counts a literal
+// occurrence, not a call site, so a second hand-typed copy would read as a
+// second hand-wired surface for the same one fact this const pair already
+// carries a reason for.
+const (
+	iamRoleTypeName              = "aws_iam_role"
+	iamServiceLinkedRoleTypeName = "aws_iam_service_linked_role"
+)
 
 // importIdentityFromResource composes bindType's own import identity from a
 // listed object's full resource attributes, for the overlapping-list-call
@@ -1975,6 +1998,119 @@ func iamServiceLinkedRoleSibling(a, b string) bool {
 // unreadable leading attribute returns false rather than guessing, and the
 // caller's existing malformed-marker refusal stands.
 //
+// sweepBindType is [scanType]'s markerType/typeName correction
+// (defaultAdopterSiblings, iamServiceLinkedRoleSibling, sameRatifiedIdentity),
+// asked from a whole-estate sweep instead: [fileTaggingCandidate] (the ARN-
+// join tag sweep, issue #51) and [scanTypeCloudControl]'s own sweep leg both
+// hit the identical "one AWS list call, two registered types" shape
+// scanType's own per-type list call does (issue #394), but neither carries
+// the listed object's schema-typed attributes the way scanType's own
+// [Resource.Resource] does - only the joined ARN's own importID and the
+// object's tags. So this can only ever carry markerType's identity forward
+// UNCHANGED ([sameRatifiedIdentity] true); it can never recompose a
+// different one the way scanType's own [importIdentityFromResource] does,
+// because there is no resource object here to read a second attribute off
+// of.
+//
+// It returns:
+//
+//   - (typeName, false) when markerType == typeName (nothing to correct), or
+//     the pair is not a recognized companion at all: a genuine cross-type
+//     marker, which the caller reports as malformed exactly as before this
+//     fix. This is also the answer for a recognized companion pair whose
+//     ratified rows disagree about the import identity - the route table
+//     family, issue #332: recomposing vpc_id needs the listed object's own
+//     attributes, which this sweep never has, and guessing would risk
+//     exactly the wrong marker HANDOFF's safety rule forbids, so it falls
+//     back to the same refusal a genuinely unrelated type gets rather than
+//     inventing a third outcome.
+//
+//   - ("", true) when markerType is itself declared
+//     ([declared.entryFor]): [Discover] always runs the config-driven scan
+//     over every declared type before either sweep runs, so markerType's
+//     OWN list call - the only place a mismatched-identity pair's recomposed
+//     attribute is ever read - has already visited this exact live object
+//     under its own name and filed the correct claim there. This sighting is
+//     the ARN join's (or Cloud Control's) generic, wire-shape answer finding
+//     the SAME live object a second time, not a second object; the caller
+//     skips it rather than filing a second, differently-identified claim for
+//     one address. See TestDiscoverDefaultAdopterDeclaredBothSidesNoFalseCollision
+//     for the analogous shape at the scanType level, where two DECLARED
+//     sides of one pair produce two claimants for one entry rather than two
+//     entries.
+//
+//   - (markerType, false) when the pair's ratified rows agree about the
+//     import identity ([sameRatifiedIdentity] true - aws_default_security_group/
+//     aws_security_group and aws_default_network_acl/aws_network_acl): the
+//     candidate's own importID, already read under typeName's ARN shape or
+//     Cloud Control identifier, IS markerType's identity too, so it carries
+//     forward unchanged and the caller files the claimant/orphan under
+//     markerType.
+// typeNeedsResourceObjectToRecompose reports whether typeName is one side
+// of an admitted companion pair ([defaultAdopterSiblings] or
+// [iamServiceLinkedRoleSibling]) whose ratified rows disagree about the
+// import identity ([sameRatifiedIdentity] false) - aws_route_table/
+// aws_default_route_table (issue #332) and aws_iam_role/
+// aws_iam_service_linked_role (issue #302) today.
+//
+// Binding the shared object under such a pair needs
+// [importIdentityFromResource] to recompose the OTHER side's identity from
+// the LISTED object's own schema attributes (vpc_id, arn) - which only a
+// native per-type list call ([scanType], via [listclient.List]'s
+// IncludeResource) ever provides. The estate-wide tag sweep
+// ([fileTaggingCandidate], issue #51's GetResources join) carries only the
+// joined ARN's own importID and the object's tags, never its schema
+// attributes, so [partitionSweepTypes] routes a type this answers true for
+// through the native per-type sweep instead, even when
+// [Request.TaggingSweep] is set - see its own doc comment.
+func typeNeedsResourceObjectToRecompose(typeName string) bool {
+	if plain, ok := defaultAdopterPlainSibling(typeName); ok {
+		return !sameRatifiedIdentity(typeName, plain)
+	}
+	if def := defaultAdopterPrefix + strings.TrimPrefix(typeName, "aws_"); defaultAdopterSiblings(typeName, def) {
+		return !sameRatifiedIdentity(typeName, def)
+	}
+	if typeName == iamRoleTypeName || typeName == iamServiceLinkedRoleTypeName {
+		return true
+	}
+	return false
+}
+
+// partitionSweepTypes splits [sweepTypes]' universe in two for
+// [Request.TaggingSweep] (issue #394): tagging is swept the one-round-trip
+// way [sweepViaTagging] exists for, and native is swept the older, one-
+// list-call-per-type way ([scanTypeReporting]) because
+// [typeNeedsResourceObjectToRecompose] says a candidate the tag sweep would
+// produce for it can never carry enough to bind its companion pair safely.
+// Every other caller of [sweepTypes] (the non-tagging, "guided" sweep leg)
+// already sweeps every type the native way, so it has no use for this split.
+func partitionSweepTypes(req Request, decl *declared) (tagging, native []string) {
+	for _, t := range sweepTypes(req, decl) {
+		if typeNeedsResourceObjectToRecompose(t) {
+			native = append(native, t)
+		} else {
+			tagging = append(tagging, t)
+		}
+	}
+	return tagging, native
+}
+
+func sweepBindType(decl *declared, markerType, typeName, escaped string) (bindType string, skip bool) {
+	if markerType == typeName {
+		return typeName, false
+	}
+	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) {
+		return typeName, false
+	}
+	if _, ok := decl.entryFor(markerType, escaped); ok {
+		return "", true
+	}
+	if sameRatifiedIdentity(markerType, typeName) {
+		return markerType, false
+	}
+	return typeName, false
+}
+
 // An arn-valued identity goes through [importIDFromARN] rather than being used
 // raw, because for some types the documented import ID is the ARN's resource-id
 // segment rather than the whole string - that function owns the distinction

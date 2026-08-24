@@ -606,7 +606,12 @@ var identityGoldenPin = map[string]int{
 	// sweep runs with no schemas, so the markers "record" selection is never
 	// honoured here and neither resource renders as RECORD_LOCATED. See
 	// identityGoldenPinBodyDigest's own note.
-	"NEEDS_DISCOVERY": 717,
+	// 717 -> 718 for GitHub issue #394: one ADDED row,
+	// internal/live/discovery/testdata/default-adopter-sweep-orphan's
+	// aws_sns_topic.unrelated, the same plain server-assigned
+	// NEEDS_DISCOVERY shape every sibling aws_sns_topic fixture already
+	// contributes.
+	"NEEDS_DISCOVERY": 718,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1225,7 +1230,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "8fa33785f6718ca82e43aabc3bf3739492d74685ad688b1699ac14e9e80a28b9"
+const identityGoldenPinBodyDigest = "271df52fce1d7eb21356c7f82011c4605757a06b4d72949b437ed279e067e22c" // issue #394: one ADDED row, default-adopter-sweep-orphan/aws_sns_topic.unrelated
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1809,7 +1814,17 @@ const (
 	// identityGoldenPin's "NEEDS_DISCOVERY" note). "0 identities changed, 2
 	// added, 0 removed" confirmed by diffing testdata/identity-golden.txt
 	// before and after regenerating.
-	identityGoldenPinInstances = 1695
+	//
+	// Then 1695 -> 1696 for issue #394's own fix (a default_* companion's
+	// mismatched identity can only be recomposed by a native per-type list
+	// call, not the ARN-join tag sweep): one new instance,
+	// internal/live/discovery/testdata/default-adopter-sweep-orphan's
+	// aws_sns_topic.unrelated, a plain server-assigned NEEDS_DISCOVERY
+	// fixture whose only purpose is to declare something so the config
+	// directory parses while declaring neither side of any companion pair.
+	// "0 identities changed, 1 added, 0 removed" confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating.
+	identityGoldenPinInstances = 1696
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2032,7 +2047,11 @@ const (
 	// toggle), and live/e2e/limits/strict-no-source-create (that toggle's
 	// limits-wing fixture). identityGoldenPinInstances is unchanged at
 	// 1695: none of the five resolves a managed instance identity.
-	identityGoldenPinDirs = 595
+	//
+	// 595 -> 596 for GitHub issue #394: one new fixture directory,
+	// internal/live/discovery/testdata/default-adopter-sweep-orphan (see
+	// identityGoldenPinInstances's own note immediately above).
+	identityGoldenPinDirs = 596
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
