@@ -1318,7 +1318,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// [configuredTagsSeed]'s doc comment for the mechanism.
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
 
-	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
+	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
 		// The record's binding did not pan out - the provider found
@@ -1425,7 +1425,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// stored value must never be in a position to answer "does this estate
 	// own this" - that is what the marker is for. Filling first would let a
 	// record about a filename argue about a tag.
-	b.fillResidueFor(ctx, addr, schema, obj)
+	b.fillResidueFor(ctx, addr, schema, obj, importStub)
 
 	// GitHub issue #353's one bit, applied after the ownership check for
 	// fillResidueFor's exact reason and read only for an instance whose
@@ -2028,7 +2028,20 @@ func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
 // instance, applied to the stub object ImportResourceState returns, BEFORE
 // ReadResource sees it - see the seeding step below for why this is the one
 // place in the whole conversation it can go.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, tagsSeed cty.Value, tagsSeedOK bool) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
+//
+// The second return is the exact object handed to ReadResource as
+// PriorState - the import stub, tags-seeded but otherwise untouched by any
+// live read. [builder.fillResidueFor] needs it for GitHub issue #393: an
+// Optional, non-Computed SDKv2 attribute that ImportResourceState seeds with
+// the provider's own internal schema Default (invisible over the plugin
+// protocol, so nothing in [providers.Schema] can name it) survives
+// ReadResource completely unread whenever the provider does not source that
+// attribute from the remote at all, which for a residue candidate is true by
+// construction (see [classifyResidue]'s doc comment). The value that comes
+// back is then bit-for-bit the same value that went in, and comparing the
+// two is the only way to tell that apart from a value ReadResource actually
+// produced - the schema itself carries no such signal to ask instead.
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, tagsSeed cty.Value, tagsSeedOK bool) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -2128,6 +2141,11 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		}
 	}
 
+	// The exact PriorState ReadResource is about to see, captured before the
+	// call so a caller can tell "the read confirmed this value" apart from
+	// "the read never touched this value" - see the doc comment above.
+	importStub := obj.Value
+
 	readResp := provider.ReadResource(ctx, providers.ReadResourceRequest{
 		TypeName:   typeName,
 		PriorState: obj.Value,
@@ -2217,7 +2235,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		Value:    newVal,
 		Private:  readResp.Private,
 		Identity: readResp.NewIdentity,
-	}, statusMaterialized, diags
+	}, importStub, statusMaterialized, diags
 }
 
 // pickImported selects the imported object that belongs at the address
