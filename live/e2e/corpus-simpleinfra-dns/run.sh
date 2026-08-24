@@ -518,8 +518,15 @@ ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)";
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
   && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
-grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$ORACLE_PLAN_OUT" \
-  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+# Not "No changes." literally (unlike the baseline above): four moved
+# blocks print their own "Terraform will perform the following actions
+# because you requested..."-style move notices even with zero attribute
+# churn, so the Plan: line and the destroy/create grep above are what rule
+# out real churn - confirmed by running, not assumed (this is the same
+# finding corpus-iam-read-only-policy's own day2_rename oracle made, there
+# from a data-source re-read instead of a move notice).
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -20; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both module moves (cratesio.com, zone only; rustaceans.org, zone + 2 records, each needing its own moved block for a genuine state-address rename) report only their move, no attribute diff at all"
 
 CURRENT_STAGE=migrate
@@ -832,11 +839,24 @@ else
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
     BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
-    grep -qE '^  # module\.rustaceans_org\.aws_route53_zone\.zone will be destroyed' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose destroying module.rustaceans_org.aws_route53_zone.zone - this stage's check is not load-bearing"; }
-    grep -qE '^  # module\.rustaceans_org_final\.aws_route53_zone\.zone will be created' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.rustaceans_org_final.aws_route53_zone.zone - this stage's check is not load-bearing"; }
-    log "  BREAK=2: correctly proposes destroying module.rustaceans_org.aws_route53_zone.zone and creating module.rustaceans_org_final.aws_route53_zone.zone - the moved-block and live-mv checks below are skipped"
+    # Verified directly (measured, not guessed): this is a genuinely
+    # stateless live-plan (no local state file, ever), so - like
+    # corpus-iam-read-only-policy's own BREAK=2 in this same batch - it
+    # walks only the addresses the CURRENT config declares. The old,
+    # no-longer-declared module.rustaceans_org is never visited at all, so
+    # nothing is ever proposed for destroying it. And because the two
+    # records' own untaggable identity is derived from THEIR PARENT ZONE'S
+    # marker, which under the new module path has no marker at all yet (the
+    # zone itself was never bound there), all three children under the new
+    # path - the zone AND both records - come back as creates, not just the
+    # zone alone.
+    grep -qE '^  # module\.rustaceans_org\.' <<< "$BREAK_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: the old, no-longer-declared module unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
+    for addr in 'aws_route53_zone.zone' 'aws_route53_record.a["@"]' 'aws_route53_record.cname["www"]'; do
+      grep -qF "  # module.rustaceans_org_final.$addr will be created" <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.rustaceans_org_final.$addr - this stage's check is not load-bearing"; }
+    done
+    log "  BREAK=2: correctly proposes creating all three of module.rustaceans_org_final's children (the zone, whose marker never existed there, AND its two records, whose identity derives from that same missing marker) - no destroy anywhere, the old module.rustaceans_org is simply never visited; the moved-block and live-mv checks below are skipped"
   else
     log "=== D1. choudoufu, moved block: module.rustaceans_org -> module.rustaceans_org_moved ==="
     sed -i.bak 's/module "rustaceans_org" {/module "rustaceans_org_moved" {/' "$ESTATE/rustaceans.org.tf"

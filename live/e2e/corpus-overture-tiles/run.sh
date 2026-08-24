@@ -494,6 +494,70 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarked"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# module.overture_tiles is this estate's only module call and carries every
+# one of its 26 resources, so - like corpus-lambda-simple's single-module
+# estate - both day2_rename mechanisms run on the SAME module, one after the
+# other, rather than on two different objects. Unlike lambda-simple's seven
+# per-child moved blocks, this rename uses ONE module-level moved block:
+# there are no record-located children here needing their own blocks (this
+# estate records nothing - "0 newly recorded" at stage 2), so the cycle
+# lambda-simple's header describes (a module-level block colliding with
+# explicit per-resource blocks in the same plan) does not arise, and a bare
+# `moved { from = module.overture_tiles to = module.overture_tiles_X }`
+# covers every one of its 26 children - the 16 taggable ones AND the 9
+# untaggable/config-derived ones - in a real Terraform plan. Confirmed
+# empirically below, not assumed.
+#
+# The oracle below is a THIRD copy, built the same way $PLAIN was
+# (copy_module + write_root, skip_account_id=true, no live block) with
+# $PLAIN's own state copied in - not $PLAIN itself, which stage 5 later
+# reuses for its own drift oracle. #249's known OAC-orphan gap is a
+# consequence of comparing $PLAIN against $ESTATE (two separate live
+# objects); it does not arise here, where the oracle only ever compares
+# $PLAIN's own state against itself.
+#
+# BREAK=2 (not 1: this crossing already uses BREAK=1 for stage 2's own
+# marker assertion) exercises this stage's own break control instead of the
+# real checks: renaming module.overture_tiles WITHOUT a moved block.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
+ORACLE="$WORK/oracle"
+copy_module "$ORACLE"
+write_root "$ORACLE" "" true
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$ORACLE/.terraform.lock.hcl"
+cp "$PLAIN/terraform.tfstate" "$ORACLE/terraform.tfstate"
+( cd "$ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
+BASELINE_PLAN_OUT="$(cd "$ORACLE" && tofu plan -input=false -no-color 2>&1)"; BASELINE_PLAN_RC=$?
+[ "$BASELINE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle's baseline (no-rename) plan exited $BASELINE_PLAN_RC"; }
+grep -qE '^  # .+ will be' <<< "$BASELINE_PLAN_OUT" \
+  && { printf '%s\n' "$BASELINE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the baseline (no-rename) oracle plan is not clean - this estate has drifted since the baseline was last measured"; }
+log "  baseline (no rename): clean, confirmed BEFORE the rename below"
+
+sed -i.bak 's/module "overture_tiles" {/module "overture_tiles_final" {/' "$ORACLE/main.tf"
+rm -f "$ORACLE/main.tf.bak"
+cat >> "$ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.overture_tiles
+  to   = module.overture_tiles_final
+}
+EOF
+( cd "$ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by ONE module-level moved block - the oracle itself is not zero-churn"; }
+grep -qE '^  # .+ will be updated' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes an in-place update for a rename that should be pure address bookkeeping under stock (stock writes no marker tags of its own)"; }
+log "  stock: zero churn on cold_deploy's own state - one module-level moved block covers every one of this module's 26 children, taggable and untaggable alike, no attribute diff at all"
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1146,6 +1210,134 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # See the D-ORACLE comment above stage 2 for why both mechanisms run on the
+  # SAME module. Unlike stock's one module-level block, choudoufu's own legs
+  # need one moved block PER TAGGABLE child (16): each carries its own marker,
+  # and only an explicit moved block tells choudoufu's stateless live-plan
+  # which old tag address maps to which new declared one - the same finding
+  # corpus-lambda-simple made for its own 3 taggable children, generalized to
+  # 16. The 9 untaggable/config-derived children and the 1 UNADMITTED_TYPE OAC
+  # (server-assigned identity, but re-derivable from its own deterministic
+  # `name` once choudoufu's own apply has created it - unaffected by the
+  # module's OWN address, same shape as an untaggable Route 53 record) need
+  # none - confirmed empirically below.
+  CURRENT_STAGE=day2_rename
+  log ""
+  log "=== D0. the estate's 16 taggable addresses this rename must not disturb ==="
+  TAGGABLE_ADDRS=(
+    'aws_vpc.batch[0]'
+    'aws_internet_gateway.batch[0]'
+    'aws_subnet.public[0]'
+    'aws_route_table.public[0]'
+    'aws_security_group.batch'
+    'aws_launch_template.batch[0]'
+    'aws_cloudwatch_log_group.batch'
+    'aws_batch_job_definition.tiles["base"]'
+    'aws_batch_compute_environment.tiles'
+    'aws_batch_job_queue.tiles'
+    'aws_iam_role.job'
+    'aws_iam_role.execution'
+    'aws_iam_role.ecs_instance'
+    'aws_iam_instance_profile.ecs'
+    'aws_s3_bucket.tiles[0]'
+    'aws_cloudfront_distribution.tiles[0]'
+  )
+  BEFORE_RENAME_N="$(tagged_object_count)"
+  [ "$BEFORE_RENAME_N" = "16" ] || fail "expected 16 tagged objects ahead of the rename, got $BEFORE_RENAME_N"
+  log "  $BEFORE_RENAME_N tagged objects, read via resourcegroupstaggingapi"
+
+  if [ "${BREAK:-}" = "2" ]; then
+    log "=== D1 (BREAK=2). rename module.overture_tiles -> module.overture_tiles_final WITHOUT a moved block ==="
+    sed -i.bak 's/module "overture_tiles" {/module "overture_tiles_final" {/' "$ESTATE/main.tf"
+    rm -f "$ESTATE/main.tf.bak"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
+    BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+    grep -qE '^  # module\.overture_tiles\.aws_vpc\.batch\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose destroying module.overture_tiles.aws_vpc.batch[0] - this stage's check is not load-bearing"; }
+    grep -qE '^  # module\.overture_tiles_final\.aws_vpc\.batch\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose creating module.overture_tiles_final.aws_vpc.batch[0] - this stage's check is not load-bearing"; }
+    log "  BREAK=2: correctly proposes destroying module.overture_tiles.aws_vpc.batch[0] and creating module.overture_tiles_final.aws_vpc.batch[0] (spot-checked on the VPC) - the moved-block and live-mv checks below are skipped"
+  else
+    log "=== D1. choudoufu, moved block: module.overture_tiles -> module.overture_tiles_moved ==="
+    sed -i.bak 's/module "overture_tiles" {/module "overture_tiles_moved" {/' "$ESTATE/main.tf"
+    rm -f "$ESTATE/main.tf.bak"
+    cat >> "$ESTATE/main.tf" <<'EOF'
+
+moved {
+  from = module.overture_tiles
+  to   = module.overture_tiles_moved
+}
+EOF
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+    MOVED_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+    [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+    for addr in "${TAGGABLE_ADDRS[@]}"; do
+      grep -qF "  # module.overture_tiles_moved.$addr will be updated in-place" <<< "$MOVED_PLAN_OUT" \
+        || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.overture_tiles_moved.$addr"; }
+    done
+    grep -qF 'Plan: 0 to add, 16 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly sixteen in-place changes - the sixteen taggable resources under the module"; }
+    log "  choudoufu: zero churn, sixteen in-place tags updates - the marker rewrite the moved block completes on every taggable resource"
+
+    MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+    [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 16 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly sixteen in-place changes"; }
+
+    AFTER_D1_N="$(tagged_object_count)"
+    [ "$AFTER_D1_N" = "16" ] || fail "the tagged object count changed across the moved-block rename: 16 -> $AFTER_D1_N"
+    GOT_BUCKET_ADDR_D1="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$GOT_BUCKET_ADDR_D1" = "module.overture_tiles_moved.aws_s3_bucket.tiles:0" ] \
+      || fail "the S3 bucket carries tofu-address=$GOT_BUCKET_ADDR_D1 after the rename, not module.overture_tiles_moved.aws_s3_bucket.tiles:0"
+    GOT_OAC_ID_D1="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "DistributionConfig.Origins.Items[0].OriginAccessControlId" --output text)"
+    [ "$GOT_OAC_ID_D1" = "$GOT_OAC_ID" ] \
+      || fail "the CloudFront distribution's own OAC changed from $GOT_OAC_ID to $GOT_OAC_ID_D1 across the moved-block rename - the untaggable/config-derived OAC moved when it should not have"
+    log "  $BUCKET_NAME's tofu-address now module.overture_tiles_moved.aws_s3_bucket.tiles:0; the distribution's OAC ($GOT_OAC_ID_D1) unchanged - read via the AWS CLI; $AFTER_D1_N tagged objects, unchanged"
+
+    log "=== D2. choudoufu, live-mv: module.overture_tiles_moved -> module.overture_tiles_final, no moved block at all ==="
+    sed -i.bak 's/module "overture_tiles_moved" {/module "overture_tiles_final" {/' "$ESTATE/main.tf"
+    rm -f "$ESTATE/main.tf.bak"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    for addr in "${TAGGABLE_ADDRS[@]}"; do
+      MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" "module.overture_tiles_moved.$addr" "module.overture_tiles_final.$addr" 2>&1)"; MV_RC=$?
+      [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv on $addr exited $MV_RC"; }
+      grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+        || { printf '%s\n' "$MV_OUT"; fail "live-mv on $addr did not report a real write"; }
+      grep -qF "\"module.overture_tiles_moved.$addr\" -> \"module.overture_tiles_final.$addr\"" <<< "$MV_OUT" \
+        || { printf '%s\n' "$MV_OUT"; fail "live-mv on $addr did not report rewriting the tofu-address marker from the old address to the new one"; }
+    done
+    log "  live-mv: all sixteen taggable children renamed, one call each, zero churn"
+
+    AFTER_D2_N="$(tagged_object_count)"
+    [ "$AFTER_D2_N" = "16" ] || fail "the tagged object count changed across live-mv: 16 -> $AFTER_D2_N"
+    GOT_BUCKET_ADDR_D2="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$GOT_BUCKET_ADDR_D2" = "module.overture_tiles_final.aws_s3_bucket.tiles:0" ] \
+      || fail "the S3 bucket carries tofu-address=$GOT_BUCKET_ADDR_D2 after live-mv, not module.overture_tiles_final.aws_s3_bucket.tiles:0"
+    GOT_OAC_ID_D2="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "DistributionConfig.Origins.Items[0].OriginAccessControlId" --output text)"
+    [ "$GOT_OAC_ID_D2" = "$GOT_OAC_ID" ] \
+      || fail "the CloudFront distribution's own OAC changed from $GOT_OAC_ID to $GOT_OAC_ID_D2 across live-mv - the untaggable/config-derived OAC moved when it should not have"
+    log "  $BUCKET_NAME's tofu-address now module.overture_tiles_final.aws_s3_bucket.tiles:0; the distribution's OAC ($GOT_OAC_ID_D2) unchanged - read via the AWS CLI; $AFTER_D2_N tagged objects, unchanged"
+
+    log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+    FINAL_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+    [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+    grep -qE 'No changes\.' <<< "$FINAL_PLAN_OUT" \
+      || { grep -E '^Plan: |^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+    log "  No changes. Both renames are complete and invisible to the next plan."
+
+    gauntlet_stage day2_rename pass "moved block: module.overture_tiles renamed to module.overture_tiles_moved with zero churn (0 add, 16 change, 0 destroy) via ONE module-level moved block, every taggable marker rewritten in place; live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across all sixteen taggable children, one call each, zero churn; the nine untaggable/config-derived children and the UNADMITTED_TYPE OAC did not move at all (16 tagged objects and the distribution's own OAC id unchanged throughout, read via the AWS CLI); stock oracle over the identical module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy) via its own single module-level moved block"
+  fi
 fi
 CURRENT_STAGE=""
 
