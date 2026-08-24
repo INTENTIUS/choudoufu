@@ -1318,7 +1318,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// [configuredTagsSeed]'s doc comment for the mechanism.
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
 
-	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
+	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, tagsSeed, tagsSeedOK)
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
 		// The record's binding did not pan out - the provider found
@@ -2108,7 +2108,7 @@ func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, tagsSeed cty.Value, tagsSeedOK bool) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, tagsSeed cty.Value, tagsSeedOK bool) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -2152,11 +2152,36 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			// provider's own Go code and never going to change no matter
 			// what identity this run asks with or how many times. Reusing
 			// "Cannot import for projection"'s wording here would claim
-			// a transient failure this run could retry past; refusing with
-			// an accurate cause instead, at the same severity, so the plan
-			// still stops rather than risk proposing a create for an object
-			// this run genuinely cannot verify one way or the other. See
-			// [noImporterDiagnostics] for the population this reaches.
+			// a transient failure this run could retry past.
+			//
+			// Retry, though, is not the only thing "no identity or retry
+			// changes" leaves off the table - a DIFFERENT mechanism than
+			// the one that just failed does. ImportResourceState is not the
+			// only way to obtain a stub for ReadResource to fill in: it is
+			// this package's only source for one when the identity has to
+			// be discovered, but for a type this run already knows the
+			// identity of BY CONFIGURATION - identity.Derivable admitted it
+			// on nameability alone, which is why materialize() ever reached
+			// this call with a real importID at all - the stub
+			// ImportResourceState would have produced (near-null, with only
+			// the identity attribute(s) set - the same shape
+			// ImportStatePassthroughContext's own generic implementation
+			// always builds) is one this run can build itself, with nothing
+			// about its shape depending on the missing RPC. See
+			// [synthesizeNoImporterStub]. Only when that has nothing to
+			// build from - no named identity attribute values at all, the
+			// case a marker-swept or record-located identity is in, which
+			// [identity.LocatedType]'s own condition 0 already keeps a
+			// NotImportable type out of - does this fall back to the
+			// refusal below, at the same severity, so the plan still stops
+			// rather than risk proposing a create for an object it cannot
+			// verify one way or the other. See [noImporterDiagnostics] for
+			// the population this reaches.
+			if stub, stubOK := synthesizeNoImporterStub(schema, identityValues); stubOK {
+				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
+				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
+				return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, diags)
+			}
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Resource type has no classic Importer",
@@ -2205,6 +2230,78 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		return nil, cty.NilVal, statusAbsent, diags
 	}
 
+	return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, diags)
+}
+
+// synthesizeNoImporterStub builds the stub [readImported] would otherwise
+// have received from [providers.Interface.ImportResourceState], for a type
+// [noImporterDiagnostics] has just confirmed has no classic Importer at
+// all - see the call site in [importAndRead] for why this is a different
+// mechanism than the retry "no identity or retry changes" rules out, not a
+// contradiction of it.
+//
+// values is [identity.Resolution.IdentityValues] (a [identity.ClassConcrete]
+// resolution) or [builder.renderFormula]'s rendered
+// [identity.Formula.Attrs] (a [identity.ClassParentDerived] one): one string
+// per identity attribute, keyed by the provider's own name for it, already
+// computed by the ordinary identity-resolution path that got this instance
+// to [importAndRead] with a real importID in the first place. Nothing here
+// invents an identity of its own; it only places values resolution already
+// produced onto the schema's own attribute names, exactly where
+// ImportResourceState's own stub would carry them.
+//
+// Every attribute this cannot place from values - every one values does not
+// name, and every one whose value does not convert onto the schema's own
+// type for it - is left null, the same as an ImportResourceState stub
+// leaves everything but the identity it was given. That is not a claim
+// about the object's real value, only that nothing here can do better;
+// [readImported]'s own ReadResource call is what fills it in for real, the
+// same as it does for every ordinarily-imported instance.
+//
+// Returns false - build nothing, and let the caller keep today's refusal -
+// when schema carries no block to build against, or when values names
+// nothing the schema has: an empty stub would tell ReadResource nothing
+// ImportResourceState's own answer would not equally have told it nothing
+// with, and a refusal is the honest answer for an instance this run
+// genuinely has no identity to hand the provider.
+func synthesizeNoImporterStub(schema providers.Schema, values map[string]string) (cty.Value, bool) {
+	if schema.Block == nil || len(values) == 0 {
+		return cty.NilVal, false
+	}
+	attrTypes := schema.Block.ImpliedType().AttributeTypes()
+	attrs := make(map[string]cty.Value, len(attrTypes))
+	placed := false
+	for name, ty := range attrTypes {
+		raw, ok := values[name]
+		if !ok {
+			attrs[name] = cty.NullVal(ty)
+			continue
+		}
+		converted, err := convert.Convert(cty.StringVal(raw), ty)
+		if err != nil {
+			// Not a string-shaped attribute, or convert.Convert otherwise
+			// refuses - left null exactly as an ImportResourceState stub
+			// would have left an attribute it was not given either.
+			attrs[name] = cty.NullVal(ty)
+			continue
+		}
+		attrs[name] = converted
+		placed = true
+	}
+	if !placed {
+		return cty.NilVal, false
+	}
+	return cty.ObjectVal(attrs), true
+}
+
+// readImported is [importAndRead]'s shared tail: ReadResource against obj,
+// the stub either ImportResourceState produced or
+// [synthesizeNoImporterStub] built in its place, then everything a
+// projection owes the value that comes back. Split out so the synthesized
+// path can reach the exact same tags-seeding, sensitivity-marking and
+// conformance-checking rules an ordinarily-imported instance already gets,
+// with no second copy to drift from the first.
+func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, tagsSeed cty.Value, tagsSeedOK bool, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	// GitHub issue #287 item 8. ImportResourceState commonly leaves "tags"
 	// null or empty on the stub it returns - it has no configuration to
 	// consult, only the identity it was given - and a provider whose
