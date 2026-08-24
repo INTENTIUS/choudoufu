@@ -945,7 +945,26 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 		list = m.req.Resolutions
 	}
 
-	projRes, projDiags := projection.BuildFrom(ctx, m.req.Config, list, m.req.Providers)
+	// BuildWith, not the record-store-less BuildFrom: a parent-derived
+	// resolution hands the WHOLE resolution list in above, and for any
+	// estate whose configuration declares a record_store that list
+	// ordinarily contains at least one identity.ClassRecordBacked sibling
+	// (corpus-lambda-simple's random_pet.this and friends) that has
+	// nothing to do with the instance actually being renamed. Without the
+	// estate's RecordStore threaded through exactly as live-plan's own
+	// build call does (internal/command/live_plan.go), the projection
+	// builder hits that sibling and raises "Record-backed instance with no
+	// record store" (build.go's materializeRecord) - a crash on the rename
+	// of a plainly taggable resource, reachable on every estate that
+	// combines a record_store with a live-mv rename on any resource.
+	// m.req.RecordStore is nil for a configuration with no record_store
+	// block (or a caller, today only this package's own unit tests, that
+	// never wired one in), so this changes nothing for that boundary: a
+	// nil field carried into Options.RecordStore is the exact input
+	// BuildFrom already passed.
+	projRes, projDiags := projection.BuildWith(ctx, m.req.Config, list, m.req.Providers, projection.Options{
+		RecordStore: m.req.RecordStore,
+	})
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
