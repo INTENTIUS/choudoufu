@@ -125,6 +125,7 @@ Turning a toggle on is the setup step.
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"report"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. `"repair"` writes the declared value over it, as the plan's ordinary in-place tags update. `"report"` leaves it and names what it would have written. `"never"` leaves it silently, for an estate where something else owns the tags. |
 | `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. `"store"` keeps it the way stock OpenTofu keeps it. `"refuse"` keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
+| `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. `"refuse"` reports it, by name, and names both remedies: `choudoufu live-import` from a stock state that already holds it, or this toggle. `"create"` selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
 
 None of the three `marker_repair` settings affects a resource being created. A create is stamped
 whatever the setting says: the safety rule has no converse permitting an
@@ -140,6 +141,26 @@ ordinary tags diff, and suppressing that per key is what
 whose identity is only its marker and whose marker write is discarded can
 never be found again. `"never"` therefore needs a resource to have somewhere
 else to hold its identity, which is the next block.
+
+#### Pinning `secrets` and `no_source_create` from the environment
+
+`secrets` and `no_source_create` can be pinned to their strict setting
+(`"refuse"` for both) from OUTSIDE the configuration: set
+`CHOUDOUFU_STRICT_PIN=1` in the environment that runs a plan or apply, and
+a `strict` block that sets either of them to anything else is refused, at
+the offending argument's own line, naming the environment variable and the
+value it forces. An omitted argument resolves to the pinned setting
+silently, with no refusal — pinning changes what "nothing here" means, it
+does not require every configuration to say so out loud.
+
+This is the mechanism a platform team uses to require a behavior a
+configuration author cannot switch off in the same commit that would relax
+it: the pin lives in the process that runs the plan, not in anything a pull
+request touches, so relaxing a toggle and approving that relaxation can
+never be the same change. `marker_repair` is not pinnable this way — its
+three settings are not a single safety axis the way the other two are (see
+the table above), so there is no one setting "pinning the profile" could
+force it to.
 
 #### `secrets`
 
