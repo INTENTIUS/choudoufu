@@ -215,3 +215,136 @@ func TestProjectionSurvivesTheLaunchConfigurationUserDataShape(t *testing.T) {
 			"every run", attrsJSON)
 	}
 }
+
+// stubLaunchConfigWithDataSchema is stubLaunchConfigSchema without the
+// tags/enable_monitoring attributes this second fixture does not need,
+// but with user_data_base64 unchanged - the one attribute under test.
+func stubLaunchConfigWithDataSchema() providers.Schema {
+	return providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":                {Type: cty.String, Computed: true},
+			"name":              {Type: cty.String, Required: true},
+			"user_data":         {Type: cty.String, Optional: true, Computed: true},
+			"user_data_base64":  {Type: cty.String, Optional: true},
+		},
+	}}
+}
+
+// TestOptionsDataResultsSeedsAnAttributeThatReadsADataSource is
+// [configuredAttrsSeed]'s data-source half: testdata/attrs-seed-data
+// declares `user_data_base64 = data.stub_data.userdata.rendered`, the exact
+// shape [Options.DataResults]'s own doc comment describes -
+// aws_launch_configuration.user_data_base64 in the real corpus-eks-basic
+// crossing reads `data.template_file.userdata.*.rendered[count.index]`,
+// and the bare module-level StaticEvaluator this package used before
+// [Options.DataResults] existed cannot resolve either shape: no provider,
+// no read, nothing to answer a data-resource reference with.
+//
+// Two runs of the identical fixture and provider stub: WITHOUT
+// Options.DataResults, the seed cannot resolve the data-source reference
+// and the provider's GetOk-conditional Read takes the bare-stub branch
+// (user_data comes back as the hash-shaped artifact); WITH it, the seed
+// resolves and the provider takes the branch a genuinely persisted state
+// file would have taken.
+func TestOptionsDataResultsSeedsAnAttributeThatReadsADataSource(t *testing.T) {
+	cfg := loadConfig(t, "testdata/attrs-seed-data")
+	addr := mustAddr(t, `stub_lc.withdata`)
+	schema := stubLaunchConfigWithDataSchema()
+
+	newProviderAndStub := func(sawUserDataBase64 *bool) (addrs.AbsProviderConfig, *tofu.MockProvider) {
+		provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+		p := &tofu.MockProvider{
+			GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+				Provider:      providers.Schema{Block: &configschema.Block{}},
+				ResourceTypes: map[string]providers.Schema{"stub_lc": schema},
+			},
+		}
+		p.ConfigureProviderCalled = true
+		p.ImportResourceStateFn = func(r providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+			return providers.ImportResourceStateResponse{ImportedResources: []providers.ImportedResource{{
+				TypeName: r.TypeName,
+				State: cty.ObjectVal(map[string]cty.Value{
+					"id":               cty.StringVal(r.Target.ID),
+					"name":             cty.NullVal(cty.String),
+					"user_data":        cty.NullVal(cty.String),
+					"user_data_base64": cty.NullVal(cty.String),
+				}),
+			}}}
+		}
+		p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+			prior := r.PriorState
+			userDataBase64 := prior.GetAttr("user_data_base64")
+			var userData, base64Out cty.Value
+			if !userDataBase64.IsNull() {
+				*sawUserDataBase64 = true
+				base64Out = userDataBase64
+				userData = cty.NullVal(cty.String)
+			} else {
+				base64Out = cty.NullVal(cty.String)
+				userData = cty.StringVal("wrong-hash-artifact")
+			}
+			return providers.ReadResourceResponse{NewState: cty.ObjectVal(map[string]cty.Value{
+				"id":               cty.StringVal("lc-data-1"),
+				"name":             cty.StringVal("data-workers"),
+				"user_data":        userData,
+				"user_data_base64": base64Out,
+			})}
+		}
+		return provAddr, p
+	}
+
+	t.Run("without DataResults", func(t *testing.T) {
+		var sawUserDataBase64 bool
+		provAddr, p := newProviderAndStub(&sawUserDataBase64)
+		res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+			{Addr: addr, Class: identity.ClassConcrete, ImportID: "lc-data-1", IdentityValues: map[string]string{"name": "data-workers"}},
+		}, SingleProvider(provAddr, p), Options{})
+		assertNoErrors(t, diags)
+		assertMaterialized(t, res, []string{`stub_lc.withdata`})
+
+		if sawUserDataBase64 {
+			t.Fatal("user_data_base64 seeded with no Options.DataResults at all - there is nothing this " +
+				"case could have resolved it from, so the test fixture or the seed function itself " +
+				"changed shape")
+		}
+		is := res.State.ResourceInstance(addr)
+		if is == nil || is.Current == nil || !strings.Contains(string(is.Current.AttrsJSON), "wrong-hash-artifact") {
+			t.Errorf("expected the hash-shaped artifact with no data results available; got %v", is)
+		}
+	})
+
+	t.Run("with DataResults", func(t *testing.T) {
+		var sawUserDataBase64 bool
+		provAddr, p := newProviderAndStub(&sawUserDataBase64)
+		res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+			{Addr: addr, Class: identity.ClassConcrete, ImportID: "lc-data-1", IdentityValues: map[string]string{"name": "data-workers"}},
+		}, SingleProvider(provAddr, p), Options{
+			DataResults: map[string]cty.Value{
+				"data.stub_data.userdata": cty.ObjectVal(map[string]cty.Value{
+					"rendered": cty.StringVal("hello from a data source"),
+				}),
+			},
+		})
+		assertNoErrors(t, diags)
+		assertMaterialized(t, res, []string{`stub_lc.withdata`})
+
+		if !sawUserDataBase64 {
+			t.Fatal("the provider's ReadResource never saw user_data_base64 in PriorState even with " +
+				"Options.DataResults supplied - the seed did not thread the data-results-aware " +
+				"evaluator through, so this test would pass for a fix that only helped var/local/path/" +
+				"terraform references and not a data source one")
+		}
+		is := res.State.ResourceInstance(addr)
+		if is == nil || is.Current == nil {
+			t.Fatalf("no object recorded for %s", addr)
+		}
+		attrsJSON := string(is.Current.AttrsJSON)
+		if strings.Contains(attrsJSON, "wrong-hash-artifact") {
+			t.Errorf("user_data still carries the hash-shaped artifact (%s) even with Options.DataResults "+
+				"supplied", attrsJSON)
+		}
+		if !strings.Contains(attrsJSON, "hello from a data source") {
+			t.Errorf("user_data_base64 does not carry the data source's own value (%s)", attrsJSON)
+		}
+	})
+}

@@ -536,6 +536,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// which is the right answer there, unlike for the hint, where a
 		// missing store only costs time.
 		RecordStore: projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate)),
+		// dataResults (statelessDataReads, above) is issue #179's own
+		// data-read phase output - already read, already paid for. See
+		// [projection.Options.DataResults]'s doc comment for why the
+		// projection's own tags/attrs seeding wants it too.
+		DataResults: dataResults,
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is

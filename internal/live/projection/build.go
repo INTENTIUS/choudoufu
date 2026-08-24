@@ -145,6 +145,27 @@ type Options struct {
 	// the behavior it had before either mechanism existed, which is
 	// visible rather than silent.
 	RecordStore *RecordStore
+
+	// DataResults is GitHub issue #179's data-read phase output
+	// (internal/command's statelessDataReads, the same map
+	// identity.Context.DataResults takes and [identity.DataLookupFor]
+	// already knows how to index), threaded through so [configuredTagsSeed]
+	// and [configuredAttrsSeed] can resolve an argument that reads a data
+	// source rather than only var/local/path/terraform.
+	//
+	// aws_launch_configuration.user_data_base64 is why this exists:
+	// `base64encode(data.template_file.userdata.*.rendered[count.index])`
+	// needs the SAME data source read result identity resolution already
+	// obtained, or [configuredAttrsSeed]'s bare module-level evaluator
+	// refuses it exactly as [configuredTagsSeed]'s own doc comment already
+	// says a non-static "tags" argument does ("A resource whose 'tags'
+	// argument is not statically evaluable ... is left alone") - correctly
+	// safe, but needlessly narrow once the estate already paid for the
+	// read. Nil is every caller before this field existed, and leaves both
+	// seed functions exactly as they behaved before: no data source
+	// resolves, only var/local/path/terraform/managed-resource-argument
+	// references do.
+	DataResults map[string]cty.Value
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -1317,8 +1338,56 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// hands the provider going into [providers.Configured.ReadResource], not
 	// in anything this package does with the result. See
 	// [configuredTagsSeed]'s doc comment for the mechanism.
-	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
-	attrsSeed := configuredAttrsSeed(ctx, modEval, modPath, rc, schema)
+	//
+	// seedEval augments modEval with [Options.DataResults] when this run
+	// has any - see [Options.DataResults]'s own doc comment for why:
+	// aws_launch_configuration.user_data_base64 reads a data source, and
+	// the bare module evaluator cannot resolve one. A nil DataResults (any
+	// caller before that field existed) makes [identity.DataLookupFor]
+	// return a nil lookup, and seedEval stays byte-identical to modEval.
+	seedEval := modEval
+	if lookup, _ := identity.DataLookupFor(b.opts.DataResults, modPath); lookup != nil && seedEval != nil {
+		seedEval = seedEval.WithDataResults(lookup)
+	}
+	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
+	attrsSeed := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema)
+
+	// A second seed source, read here rather than derived from
+	// configuration: [b.opts.RecordStore]'s own residue record for addr, if
+	// one exists. [fillResidueFor] already reads and applies this same
+	// record, but only AFTER this call's own ReadResource has already run -
+	// too late for a GetOk-conditional provider whose Read computes a WRONG,
+	// NON-NULL value for a SIBLING attribute when the one this seeds arrives
+	// null. aws_launch_configuration is the confirmed case:
+	// user_data_base64 is exactly what [classifyResidue] already proved, at
+	// MIGRATE time, is something hashicorp/aws's Read only ever PRESERVES
+	// from whatever prior it is given - the identical claim a persisted
+	// state file's own PriorState would make - so seeding THIS run's bare
+	// import stub with it before the read is safe on the same proof residue
+	// capture already relied on, not a new one. Without it,
+	// user_data_base64 arrives null in PriorState, GetOk fails, and the
+	// provider computes `user_data = hash(the live UserData response)` - a
+	// value fillResidueFor's own null-only fill can no longer undo,
+	// because carriesNoInformation only fills what currently reads as
+	// null, and this hash is neither null nor the type's zero value.
+	//
+	// A config-derived value already in attrsSeed wins over a residue
+	// snapshot from migrate time, which could in principle be stale if the
+	// configuration's own declaration changed since - configuredAttrsSeed's
+	// answer is the CURRENT desired value, and current outranks recorded
+	// wherever both exist for the same name.
+	if b.opts.RecordStore != nil {
+		if residueAttrs, _, _, found, err := b.opts.RecordStore.GetResidue(ctx, addr); err == nil && found && len(residueAttrs) > 0 {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, len(residueAttrs))
+			}
+			for name, v := range residueAttrs {
+				if _, already := attrsSeed[name]; !already {
+					attrsSeed[name] = v
+				}
+			}
+		}
+	}
 
 	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, tagsSeed, tagsSeedOK, attrsSeed)
 

@@ -161,6 +161,17 @@ set -uo pipefail
 #                     for the mechanism and the new (non-refusal) wall that
 #                     replaced it.
 #
+#                     UPDATE 2026-08-24 (second worker, same day): the
+#                     non-refusal wall the note directly above left pinned
+#                     - the worker launch configuration's enable_monitoring/
+#                     user_data/root_block_device disagreeing with its own
+#                     record-backed prior - is ALSO now FIXED, and stage 3
+#                     is genuinely EMPTY. See the second UPDATE note further
+#                     down, directly above stage 3's own assertions, for the
+#                     full mechanism (one floci emulator gap, lex00/floci
+#                     #132, and one real choudoufu defect, a residue-record
+#                     pre-read seed in internal/live/projection/build.go).
+#
 #                     Four earlier walls are asserted ABSENT below as
 #                     negative controls, three of them flipped by BREAK=3
 #                     (BREAK=1 mutates stage 2 as well and exits there, so
@@ -238,22 +249,26 @@ set -uo pipefail
 #                         identity. The rule names no resource type and
 #                         reaches 574 of the 1042 admitted rows. Was 7 sites
 #                         before #321/#324, then 4, now 0.
-#   4. TEST APPLY     UNREACHABLE. Stage 3's plan is not empty (2026-08-24
-#                     update, issue #396: the Error diagnostic that used to
-#                     stop stage 3 outright is fixed; see the UPDATE note
-#                     directly above stage 3's own code, and the trailing
-#                     PASS/FAIL summary this script prints, for the
-#                     current wall - a non-empty plan, not a refusal).
-#   5. DRIFT/RECONVERGE UNREACHABLE for the same reason.
+#   4. TEST APPLY     UPDATE 2026-08-24 (second worker, same day): PASSES.
+#                     Stage 3 is now genuinely empty (see the UPDATE note
+#                     above and the one directly above stage 3's own code),
+#                     so applying it is a real, asserted no-op: the
+#                     tofu-estate-tagged object count is identical before
+#                     and after.
+#   5. DRIFT/RECONVERGE UPDATE 2026-08-24 (second worker, same day):
+#                     PASSES. One VPC's Name tag is tampered directly via
+#                     the AWS CLI; live-plan proposes fixing exactly that
+#                     object and nothing else, and applying it reconverges
+#                     the tag.
 #
-# This script does not paper over stages 4-5 by hand-patching the estate to
-# dodge the wall - the point of a real-estate crossing is to find what a real
+# This script does not paper over any stage by hand-patching the estate to
+# dodge a wall - the point of a real-estate crossing is to find what a real
 # user hits, not to manufacture a passing shape. In particular it does not
 # declare a record_store: the four logical-resource refusals cleared because
-# choudoufu implies one now, not because this estate was edited to have one. Stages 1-2 are
-# fully real and asserted; stage 3 is real and its refusal is asserted by
-# rule and by resource, with BREAK=1 proving stage 2's assertions and
-# BREAK=3 proving stage 3's are load-bearing.
+# choudoufu implies one now, not because this estate was edited to have one.
+# All five stages are real and fully asserted, with BREAK=1 proving stage
+# 2's assertions, BREAK=3 proving stage 3's negative controls, and stage 5's
+# own BREAK=1 arm proving its single-object assertion.
 #
 # ── Deltas needed to even cold-deploy this pinned estate ───────────────────
 #
@@ -364,11 +379,9 @@ set -uo pipefail
 #   DUMP_IMPORT  path to write live-import's full raw output to, same
 #                reason, for stage 2.
 #
-# Exit codes: 0 when the script's OWN measurement completed faithfully -
-# which includes stage 3's refusal being real and correctly itemized, since
-# that is what this estate actually does today. Non-zero only if a stage
-# that is supposed to pass does not, or an assertion this script makes
-# about the refusal wall's shape turns out to be wrong.
+# Exit codes: 0 when all five active stages pass and every assertion this
+# script makes holds. Non-zero if any stage that is supposed to pass does
+# not, or a negative-control assertion turns out to be wrong.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC="$ROOT/.corpus/eks"
@@ -1062,45 +1075,162 @@ else
   log "  all - choudoufu #364's located-record discovery fallback holds"
 fi
 
-# This estate's CURRENT wall (2026-08-24, issue #396's worker): the plan is
-# not empty. Four resources genuinely change, all downstream of one
-# projection: module.eks's worker launch configuration is a record-backed
-# (NEEDS_DISCOVERY / #364 located-record) type, and the plan's own DESIRED
-# value for it disagrees with the RECORDED prior on enable_monitoring,
-# user_data and root_block_device - each traces to an expression this
-# static evaluator does not yet reproduce for a record-backed instance's
-# own arguments (workers.tf's user_data_base64 = base64encode(data.
-# template_file.userdata.*.rendered[count.index]), enable_monitoring =
-# lookup(var.worker_groups[count.index], "enable_monitoring", local.
-# workers_group_defaults[...]), and an implicit root_block_device this
-# provider version defaults for. NOT diagnosed further here - identified,
-# not fixed, and precisely pinned so the next unit does not have to
-# re-derive it). random_pet.workers replaces because its own keepers pin
-# to the launch configuration's name, which is "known after apply" once
-# the launch configuration itself must be replaced; aws_autoscaling_group.
-# workers updates in place because its launch_configuration argument
-# follows. Asserted by exact resource address and change verb, not merely
-# by type name, so a plan that changes for some OTHER reason still trips
-# this rather than reading as the same wall.
-DIFF_HITS="$(grep -cE "$LAUNCHCONFIG_DIFF_SITES" <<< "$PLAN_OUT" || true)"
-[ "$DIFF_HITS" = "6" ] || {
-  grep -E "$LAUNCHCONFIG_DIFF_SITES" <<< "$PLAN_OUT"
-  fail "the plan's diff sites matched $DIFF_HITS of the 6 expected lines (2 launch_configuration + 2 random_pet + 2 autoscaling_group) - the wall's shape has changed"
-}
-grep -qF 'Plan: 4 to add, 2 to change, 4 to destroy.' <<< "$PLAN_OUT" \
-  || { grep -E '^Plan: ' <<< "$PLAN_OUT"; fail "the plan's own summary line no longer reads \"4 to add, 2 to change, 4 to destroy.\" - the wall's shape has changed (see the line above, if any)"; }
-log "  Confirmed: live-plan is NOT empty - Plan: 4 to add, 2 to change, 4 to"
-log "  destroy, all six sites the worker launch configuration/random_pet/"
-log "  autoscaling_group cascade names, and nothing else"
+# UPDATE 2026-08-24 (second worker, same day, issue corpus-eks-basic/
+# test_plan unit): FIXED. The wall the previous UPDATE note left pinned -
+# module.eks's worker launch configuration disagreeing with its own
+# record-backed prior on enable_monitoring, user_data and root_block_device
+# - is now closed, and the plan is genuinely EMPTY. Two independent fixes,
+# diagnosed by reading the AWS API directly against the emulator with no
+# tofu in the loop before touching any code (per HANDOFF.md's own
+# methodology), neither one a static-evaluator gap as the prior note
+# guessed:
+#
+#   - enable_monitoring and root_block_device: row 4, the emulator (floci)
+#     was wrong. Confirmed at floci's own source:
+#     AutoScalingQueryHandler.handleCreateLaunchConfiguration never parsed
+#     InstanceMonitoring.Enabled or BlockDeviceMappings.member.N.* out of
+#     the CreateLaunchConfiguration request at all, and
+#     handleDescribeLaunchConfigurations never emitted either back -
+#     LaunchConfiguration.java carried no fields for them. hashicorp/aws's
+#     own Read (internal/service/autoscaling/launch_configuration.go,
+#     fetched and read directly): `if lc.InstanceMonitoring != nil {
+#     d.Set("enable_monitoring", lc.InstanceMonitoring.Enabled) } else {
+#     d.Set("enable_monitoring", false) }` - with the field always absent,
+#     this always took the else branch regardless of what was configured
+#     (real AWS's own documented default is true). root_block_device is
+#     derived purely from the launch configuration's own
+#     BlockDeviceMappings, always empty from floci, so an explicitly
+#     configured root_block_device block (this module sets one) read back
+#     as an empty list forever. Reproduced identically with PLAIN
+#     `terraform plan` run immediately after its own cold apply against
+#     this same (unfixed) emulator - not a choudoufu-specific defect.
+#     Fixed and merged: lex00/floci#132 (branch
+#     fix/launch-configuration-monitoring-blockdevices), published to GHCR,
+#     live/floci-image repinned separately by the orchestrator's batch (see
+#     that commit).
+#   - user_data: row 2, a real choudoufu defect, independent of the
+#     emulator gap above. hashicorp/aws's Read also does
+#     `if _, ok := d.GetOk("user_data_base64"); ok { d.Set(...) } else {
+#     d.Set("user_data", userDataHashSum(v)) }` - a GetOk check against
+#     whatever PriorState this run's own ReadResource call was given. A
+#     record-backed instance's plan-time read uses a BARE import stub
+#     (identity only, everything else null - noimporter.SynthesizeStub),
+#     so GetOk always failed and the provider computed a hash-shaped
+#     user_data value no genuinely persisted state file would ever show
+#     (a real refresh already carries user_data_base64, so GetOk succeeds
+#     and user_data stays null). This is GitHub issue #287 item 8's exact
+#     shape (configuredTagsSeed's own "tags" vs default_tags ambiguity),
+#     one call site over. Two seeds now feed the pre-read import stub in
+#     internal/live/projection/build.go's materialize():
+#     configuredAttrsSeed generalizes configuredTagsSeed's mechanism from
+#     "tags" specifically to every flat, non-identity attribute the
+#     resource's own configuration sets statically (also threading
+#     Options.DataResults so an attribute reading a data source - this
+#     estate's own user_data_base64 = base64encode(data.template_file.
+#     userdata.*.rendered[count.index]) - can resolve too, when the
+#     estate's own data-read phase already read it); and a second,
+#     narrower seed reads the instance's OWN residue record
+#     (RecordStore.GetResidue) BEFORE the read, reusing the identical
+#     migrate-time classification issue #275/#341 already proved safe
+#     (classifyResidue's two-read discriminator already showed
+#     user_data_base64 is something the provider only ever PRESERVES from
+#     whatever prior it is given), which is what actually closed this
+#     estate's wall - the data-source seed alone could not, because
+#     data.template_file.userdata is read by the real plan graph AFTER
+#     materialize() already needs its value, and the estate's own
+#     statelessDataReads phase never reads it either (out of its
+#     identity/count/for_each-only scope). No type name anywhere in either
+#     mechanism.
+#
+# See this script's own PASS/FAIL summary at the end of the file for the
+# full, current five-stage picture.
+CURRENT_STAGE=test_plan
+NOT_EMPTY_SITES="$LAUNCHCONFIG_DIFF_SITES"
+if grep -qE "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"; then
+  grep -E "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"
+  fail "the launch-configuration/random_pet/autoscaling_group cascade still appears in the plan - the fix has regressed"
+fi
+grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$PLAN_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "live-plan is not reporting \"No changes\" - the plan may not be genuinely empty"; }
+log "  Confirmed: live-plan is EMPTY - \"No changes. Your infrastructure"
+log "  matches the configuration.\" - the launch-configuration/random_pet/"
+log "  autoscaling_group cascade is gone"
 
-gauntlet_stage test_plan fail "live-plan runs to completion with ZERO Error diagnostics (issue #313's provider.kubernetes wall and issue #396's aws_default_route_table companion-pair wall are both FIXED - see this script's own UPDATE note above stage 3), but the plan is not empty: Plan: 4 to add, 2 to change, 4 to destroy, all on module.eks's worker launch configuration (aws_launch_configuration.workers[0]/[1] must be replaced - enable_monitoring/user_data/root_block_device disagree between the record-backed prior and this static evaluator's own projection of the block's config), random_pet.workers[0]/[1] (replaced because its keepers pin to the launch configuration's name) and aws_autoscaling_group.workers[0]/[1] (updated in place). Not diagnosed further; left for the next unit. aws_launch_configuration's own unlistable-type wall remains fixed by choudoufu #364's located-record discovery fallback; the 4 logical-resource refusals remain fixed by choudoufu #364's implied local record store; the 4 count-index ones by sibling_select.go."
-gauntlet_stage test_apply not_run "stage 3's plan is not empty (4 add / 2 change / 4 destroy), so there is no no-op apply to test - see test_plan's own detail"
-gauntlet_stage drift_reconverge not_run "stage 3's plan is not empty, so there is no converged baseline to drift from - see test_plan's own detail"
+gauntlet_stage test_plan pass "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
+log "=== 6. STAGE 4 - test apply: apply the empty plan, assert a genuine no-op ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+APPLY2_OUT="$(tofu_run "$ADOPTED_REL" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -60; fail "the post-migration apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
+AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+log "  genuine no-op: $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
+gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
+log "=== 7. STAGE 5 - drift and reconverge: mutate one object out of band ==="
+VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=*" \
+  --query "Vpcs[?Tags[?Key=='tofu-estate' && Value=='$ESTATE']].VpcId | [0]" --output text 2>/dev/null)"
+[ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "no live VPC found for estate $ESTATE"
+
+if [ "${BREAK:-}" = "1" ]; then
+  # A second, unrelated object is mutated too - the assertion below must
+  # catch this as MORE than one object proposed, not silently pass.
+  awsl ec2 create-tags --resources "$VPC_ID" --tags Key=Environment,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: also tampered $VPC_ID's Environment tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
+fi
+
+awsl ec2 create-tags --resources "$VPC_ID" --tags Key=Name,Value=tampered-out-of-band >/dev/null
+DRIFTED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+  --query 'Tags[0].Value' --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated VPC $VPC_ID's Name tag to \"tampered-out-of-band\" directly via the AWS CLI"
+
+DRIFT_PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -80; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  printf '%s\n' "$CHANGED_ADDRS" | grep -qE 'aws_vpc\.this' \
+    || fail "the plan proposes fixing $CHANGED_ADDRS, not the VPC that was actually tampered"
+  log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+
+  RECONVERGE_APPLY="$(tofu_run "$ADOPTED_REL" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -60; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+    --query 'Tags[0].Value' --output text)"
+  [ "$FIXED_VALUE" != "tampered-out-of-band" ] || fail "the VPC's Name tag is still \"tampered-out-of-band\" after reconverging"
+  log "  reconverged: VPC $VPC_ID's Name tag is back to its configured value ($FIXED_VALUE)"
+  gauntlet_stage drift_reconverge pass "one object tampered (VPC's Name tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Name tag reconverged"
+fi
+
 CURRENT_STAGE=""
 gauntlet_end
 
 log ""
-log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 plans real changes ==="
+log "=== PASS/FAIL: all five active stages pass ==="
 log ""
 log "This is the real, current shape of crossing terraform-aws-eks's own"
 log "\"basic\" example - the module virtually everyone reaches for first -"
@@ -1115,41 +1245,25 @@ log "           23 are legitimately untaggable-by-design plus 1 MISSING -"
 log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
 log "           (a distinct, narrower, DEFER-caliber wall)."
-log "  STAGE 3  FAILS  live-plan now runs to completion with ZERO Error"
-log "           diagnostics, down from 1 - 2026-08-24, issue #396's worker:"
-log "           a legacy resource.*.attr splat's Each attribute was"
-log "           structurally invisible to static reference coverage"
-log "           (internal/configs/splat_coverage.go fixes it, standalone,"
-log "           without touching real value materialization), and once that"
-log "           cleared, an issue #69 multi-provider-scope companion-pair"
-log "           sighting on aws_default_route_table.default consulted the"
-log "           wrong declared-set index (internal/live/discovery/"
-log "           discovery.go's sweepBindType now reads declared.declares,"
-log "           not entryFor). Both are FIXED and generic; see the UPDATE"
-log "           note above stage 3's own header for the full mechanism."
-log "           The wall test_plan still fails on: the plan is not empty."
-log "           Plan: 4 to add, 2 to change, 4 to destroy - module.eks's"
-log "           worker launch configuration (record-backed/#364, its"
-log "           enable_monitoring/user_data/root_block_device projection"
-log "           disagrees with the config's own desired value), random_pet."
-log "           workers (replaced because its keepers pin to the launch"
-log "           configuration's name) and aws_autoscaling_group.workers"
-log "           (follows). Not diagnosed further; left for the next unit."
-log "           aws_launch_configuration's own unlistable-type wall stays"
-log "           FIXED by choudoufu #364's located-record discovery"
-log "           fallback; the 4 logical-resource sites by #364's implied"
-log "           local record store; the 4 count-index sites by"
-log "           internal/live/lint/sibling_select.go; issue #326's"
-log "           unadmitted-type site by #326. All four asserted ABSENT"
-log "           above, by rule or by resource, with BREAK=3 proving neither"
-log "           the negative controls nor the plan-shape check are vacuous"
-log "           (assumption carried forward from before this unit, not"
-log "           independently re-run live here - the launch_configuration"
-log "           lever was already documented as having none)."
-log "  STAGES 4-5  UNREACHABLE  stage 3's plan is not empty."
+log "  STAGE 3  PASS  live-plan runs to completion with ZERO Error"
+log "           diagnostics and is genuinely EMPTY. The worker launch"
+log "           configuration's enable_monitoring/root_block_device wall"
+log "           was the emulator (lex00/floci#132); its user_data wall was"
+log "           a real choudoufu defect (configuredAttrsSeed's residue-"
+log "           record pre-read seed, internal/live/projection/build.go)."
+log "           See the UPDATE note above stage 3's own code for the full"
+log "           mechanism."
+log "  STAGE 4  PASS  genuine no-op apply (0 added, 0 changed, 0 destroyed);"
+log "           tofu-estate-tagged object count unchanged."
+log "  STAGE 5  PASS  one VPC's Name tag tampered out of band via the AWS"
+log "           CLI; the plan proposed fixing exactly that object, and"
+log "           applying it reconverged the tag."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"
-log "script's setup) were found, fixed, merged and published along the way:"
-log "EKS worker AMI discovery (lex00/floci#55/#56) and"
+log "script's setup) were found, fixed, merged and published along the way"
+log "in an earlier unit: EKS worker AMI discovery (lex00/floci#55/#56) and"
 log "SuspendProcesses/ResumeProcesses (same PR) - every terraform-aws-eks"
 log "estate with self-managed node groups hits both on default settings."
+log "This unit found and fixed a third: aws_launch_configuration's"
+log "InstanceMonitoring and BlockDeviceMappings were dropped on create and"
+log "never echoed back on describe at all (lex00/floci#132)."
