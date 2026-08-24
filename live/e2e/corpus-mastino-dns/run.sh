@@ -195,9 +195,13 @@ set -uo pipefail
 #       is the STATE's own, which is where a residue value lives by
 #       definition - and reaching a read would let an untaggable instance
 #       come back MISSING or DRIFTED and move those counts.
-#     * nothing is recorded for the other 45 record sets. They declare no
-#       residue-shaped argument, classifyResidue proves nothing about them,
-#       and a residue record must never speak where the provider does.
+#     * nothing is RESIDUE-recorded for the other 45 record sets - they
+#       declare no residue-shaped argument, classifyResidue proves nothing
+#       about them, and a residue record must never speak where the
+#       provider does. (CORRECTED 2026-08-24 below: this stopped meaning
+#       "nothing is recorded for them at all" once #364 gave every
+#       untaggable ratified-composite type its own identity record - the
+#       45 do get a record now, just never a residue block inside it.)
 #
 #   MEASURED HERE, 2026-08-20: 14 residue records written at migrate time,
 #   every one of them allow_overwrite = true read out of the store's own
@@ -207,6 +211,32 @@ set -uo pipefail
 #   drift on one of the fourteen reconverging to exactly that one instance
 #   and exactly the ttl attribute - which is the check that a residue fill
 #   has not started masking real live drift.
+#
+#   CORRECTED 2026-08-24 (GitHub issue #364, 9f95a8d37e / dd373f718b -
+#   "untaggable instances with a ratified composite identity ... get a real
+#   record now"): the "14 residue records" figure above is still right for
+#   what it measured (the residue-bearing subset), but it stopped being the
+#   TOTAL record-file count on the day #364 landed. aws_route53_record's
+#   identity IS a ratified Components composite (zone_id/name/type,
+#   table_generated.go), which is exactly the shape
+#   internal/live/projection/located.go's new locatedRatifiedComponentsRecord
+#   fallback reaches - so every one of the 59 UNTAGGABLE record sets now
+#   gets an identity record at migrate time (import_id composed from
+#   zone_id/name/type), not only the 14 whose provider schema also has a
+#   residue-shaped (pure-input) argument. RE-MEASURED HERE, 2026-08-24,
+#   against a real migrate: 59 files under .tofu-records/tofu-records/
+#   .../aws_route53_record/, every one carrying "kind":"identity" and an
+#   "identity" block; exactly 14 of the 59 ALSO carry a "residue" block
+#   (allow_overwrite = true) - the same 14 as before, unchanged in kind or
+#   value, just no longer alone in the directory. Spot-checked 4 of the new
+#   45 by value (mail/CNAME, staging10/A via the residue set, sage-dkim and
+#   sage-dkim2/CNAME) against `aws route53 list-resource-record-sets` read
+#   directly against the emulator, no tofu in the loop: every rendered
+#   name/type/zone_id matched the live record exactly. RESIDUE_WANT (14)
+#   keeps naming the residue-bearing subset (TRUE_N, the stage 3 residue-fill
+#   trace count, the drift target); RECORDS_WANT (59, defined as $UNTAGGABLE
+#   because that IS the property - every untaggable instance of this type
+#   gets a record) names the new total.
 #
 # ONE FLOCI DIVERGENCE, NOTED AND NOT WORKED AROUND (it does not block):
 #   `lovable-verify` sets name = "_lovable.strategy", which is not inside
@@ -304,6 +334,15 @@ UNTAGGABLE=59
 # addresses that proposed "+ allow_overwrite = true" on every cold plan while
 # #341 was open.
 RESIDUE_WANT=14
+# GitHub issue #364 (9f95a8d37e / dd373f718b, 2026-08-24): every UNTAGGABLE
+# instance of a type with a ratified Components composite identity now gets
+# an identity record at migrate time, not only the residue-bearing ones -
+# aws_route53_record's identity (zone_id/name/type) is exactly that shape.
+# So the total record-file count is $UNTAGGABLE, by property, not a
+# guessed number: this estate has no untaggable record set of any OTHER
+# type, so every one of the 59 gets a record and RECORDS_WANT == UNTAGGABLE
+# is not a coincidence to re-derive later, it is the invariant itself.
+RECORDS_WANT=$UNTAGGABLE
 
 # Stage 5's drift target, chosen on purpose from the fourteen rather than
 # from the other 45: it is an UNTAGGABLE record set whose identity can only
@@ -684,22 +723,30 @@ log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"
 # .tofu-records/tofu-records/<estate>/aws_route53_record/<encoded-addr> -
 # corpus-sumaform-aws's own residue assertion already reads the new layout
 # this way. The fix is this path, not the write path.
-RESIDUE_DIR="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record"
-[ -d "$RESIDUE_DIR" ] \
-  || fail "no residue records were written for any aws_route53_record - #341's exact symptom, and stage 3 below cannot come back empty without them"
-RESIDUE_N="$(find "$RESIDUE_DIR" -type f ! -name '*.lock' | grep -c . || true)"
-[ "$RESIDUE_N" = "$RESIDUE_WANT" ] \
-  || { find "$RESIDUE_DIR" -type f ! -name '*.lock' | head -20
-       fail "the migrate wrote $RESIDUE_N residue record(s) for aws_route53_record, expected $RESIDUE_WANT (the 4 apex NS blocks plus wp-prod-staging[0..9])"; }
-# And the VALUE, not the count: every one of them says allow_overwrite = true.
-# A record written with the wrong value produces an EMPTY plan that is wrong,
-# which stage 3's own verdict cannot see.
-TRUE_N="$(grep -l '"allow_overwrite"' "$RESIDUE_DIR"/* 2>/dev/null | xargs grep -lF '"attrValue":true' 2>/dev/null | grep -c . || true)"
+RECORD_DIR="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record"
+[ -d "$RECORD_DIR" ] \
+  || fail "no records were written for any aws_route53_record - #341's exact symptom, and stage 3 below cannot come back empty without them"
+# GitHub issue #364 (9f95a8d37e / dd373f718b, see this script's header):
+# every UNTAGGABLE instance of this type now gets an identity record, not
+# only the residue-bearing 14 - so the total file count is RECORDS_WANT
+# (== UNTAGGABLE, by property), and the residue-bearing subset is checked
+# separately below by its VALUE (the allow_overwrite attribute), not by a
+# second count of the same directory.
+RECORD_N="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+[ "$RECORD_N" = "$RECORDS_WANT" ] \
+  || { find "$RECORD_DIR" -type f ! -name '*.lock' | head -20
+       fail "the migrate wrote $RECORD_N record(s) for aws_route53_record, expected $RECORDS_WANT (one per untaggable instance, #364)"; }
+# And the VALUE, not the count: exactly RESIDUE_WANT of them carry a residue
+# block with allow_overwrite = true (the 4 apex NS blocks plus
+# wp-prod-staging[0..9] - #341). A record written with the wrong value
+# produces an EMPTY plan that is wrong, which stage 3's own verdict cannot
+# see.
+TRUE_N="$(grep -l '"allow_overwrite"' "$RECORD_DIR"/* 2>/dev/null | xargs grep -lF '"attrValue":true' 2>/dev/null | grep -c . || true)"
 [ "$TRUE_N" = "$RESIDUE_WANT" ] \
-  || { cat "$RESIDUE_DIR"/* | head -5
+  || { cat "$RECORD_DIR"/* | head -5
        fail "$TRUE_N of $RESIDUE_WANT residue records hold allow_overwrite = true"; }
-log "  $RESIDUE_WANT residue records written, every one of them allow_overwrite = true (#341)"
-log "  and none for the other 45 record sets, which declare no residue-shaped argument"
+log "  $RECORDS_WANT identity records written (one per untaggable instance, #364), $RESIDUE_WANT of them also carrying allow_overwrite = true residue (#341)"
+log "  and no residue block for the other $((RECORDS_WANT - RESIDUE_WANT)) record sets, which declare no residue-shaped argument"
 
 log "--- 2c: the markers, read through the AWS CLI - never through choudoufu ---"
 marker_of() { awsl route53 list-tags-for-resource --resource-type hostedzone --resource-id "$1" \
@@ -730,7 +777,7 @@ log "  and DataCite's own tags survived the marker write: Environment=production
 
 log ""
 log "STAGE 2 (migrate): PASS"
-gauntlet_stage migrate pass "$TAGGABLE of $INSTANCES stamped, $UNTAGGABLE skipped as untaggable, 0 failed; $RESIDUE_WANT residue records written, DataCite's own tags survived"
+gauntlet_stage migrate pass "$TAGGABLE of $INSTANCES stamped, $UNTAGGABLE skipped as untaggable, 0 failed; $RECORDS_WANT identity records written (#364), $RESIDUE_WANT of them also carrying residue (#341), DataCite's own tags survived"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan empty, identities by VALUE
@@ -918,19 +965,19 @@ for pair in \
     || fail "after the no-op apply, zone $Z carries tofu-address=$GOT_ADDR, expected $WANT_ADDR"
 done
 
-# And the residue survived the apply. WriteBack re-classifies after every
+# And the records survived the apply. WriteBack re-classifies after every
 # apply, so a bug that deleted or emptied these records here would leave the
 # no-op above green and put the estate straight back to #341 on the next
 # plan - which is the shape of failure this whole crossing exists to catch.
-RESIDUE_AFTER="$(find "$RESIDUE_DIR" -type f ! -name '*.lock' | grep -c . || true)"
-[ "$RESIDUE_AFTER" = "$RESIDUE_WANT" ] \
-  || fail "the residue record count went $RESIDUE_WANT -> $RESIDUE_AFTER across a no-op apply"
+RECORD_AFTER="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+[ "$RECORD_AFTER" = "$RECORDS_WANT" ] \
+  || fail "the record count went $RECORDS_WANT -> $RECORD_AFTER across a no-op apply"
 log "  genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets before and after, no state file,"
-log "  all 4 markers unmoved, all $RESIDUE_WANT residue records intact"
+log "  all 4 markers unmoved, all $RECORDS_WANT identity records intact ($RESIDUE_WANT of them residue-bearing)"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets unchanged, all 4 markers unmoved, all $RESIDUE_WANT residue records intact"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets unchanged, all 4 markers unmoved, all $RECORDS_WANT identity records intact ($RESIDUE_WANT residue-bearing)"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one UNTAGGABLE, RESIDUE-CARRYING
@@ -1142,8 +1189,9 @@ log "4 hosted zones - two of them BOTH named datacite.org, one public and one"
 log "private - and 59 Route 53 record sets that can carry no tag at all."
 log ""
 log "  1. 63 of 63 cold-deployed by stock Terraform, nothing marked."
-log "  2. 4 stamped, 59 correctly UNTAGGABLE, and $RESIDUE_WANT residue records written"
-log "     for untaggable record sets - which is what #341 fixed."
+log "  2. 4 stamped, 59 correctly UNTAGGABLE, all 59 carrying an identity record"
+log "     (#364) and $RESIDUE_WANT of those also carrying residue for untaggable"
+log "     record sets with a pure-input argument - which is what #341 fixed."
 log "  3. State file deleted, replanned EMPTY from the markers alone, with all"
 log "     63 rendered identities asserted by value against Route 53's own"
 log "     answer: the two same-named zones did not swap, the ten"

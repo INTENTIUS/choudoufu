@@ -1537,8 +1537,84 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	b.state.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, providerAddr, addrs.NoKey)
 	b.live[addr.String()] = obj.Value
 	b.materialized = append(b.materialized, addr)
-	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, importID)
+	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, traceImportID(typeName, importID, obj.Value))
 	return true
+}
+
+// traceImportID is what [builder.materialize]'s own trace line prints in
+// importID's place. importID is empty whenever this instance imported
+// through an identity OBJECT rather than a joined string - not only
+// [identity.TypeIdentity.IdentityObjectOnly] (no separator exists to join
+// with), but also, since GitHub issue #364 unit B's applyRecordFirst,
+// exactly the ordinary case for a type whose provider serves a composite
+// wire identity schema at all: [wanted.importID] is never populated from a
+// record's Components map (see [builder.materializeFromRecord]), because
+// [importTarget] does not need a string for such a type - it reads the
+// object straight through the identity schema via [identityFromValues].
+// The import itself is unaffected either way; this only restores the
+// trace's own value as a human-checkable audit line (and the one thing a
+// live-plan-invoking crossing script can grep to assert an identity BY
+// VALUE - see live/e2e/corpus-mastino-dns/run.sh, which broke exactly this
+// way the day the record-first path started reaching aws_route53_record).
+// The same ratified Components chain [locatedRatifiedComponentsRecord]
+// already uses to compose a record's own import ID is reused here, against
+// the object this call just read rather than the one migrate recorded -
+// reaching every type with a ratified composite identity, not only this
+// one, and never naming a resource type.
+func traceImportID(typeName, importID string, obj cty.Value) string {
+	if importID != "" {
+		return importID
+	}
+	ti, ok := identity.LookupType(typeName)
+	if !ok || len(ti.Components) == 0 || obj == cty.NilVal || !obj.IsWhollyKnown() {
+		return importID
+	}
+	composed, _, ok := identity.ComponentsFromValue(ti, traceNullifyEmptyOptionalStrings(obj))
+	if !ok {
+		return importID
+	}
+	return composed
+}
+
+// traceNullifyEmptyOptionalStrings is [traceImportID]'s own narrow
+// normalization, scoped to this trace line alone and touching nothing
+// [identity.ComponentsFromValue]'s other, plan-affecting callers read: a
+// provider read (as opposed to a statically evaluated HCL value, where an
+// omitted attribute genuinely evaluates to null) commonly answers an
+// unset optional string attribute with "" rather than null - Route 53's
+// own aws_route53_record.set_identifier does, over floci and observably in
+// AWS's own SDKv2-shaped provider surface generally - and
+// [identity.Component.OmitIfAbsent] only tests for null, so an empty
+// string reads as "present" and the composed string picks up a bare
+// trailing separator with nothing after it. Left for [identity.
+// ComponentsFromValue]'s core callers to fix if they ever need it (that
+// would touch the pinned identity golden set and is out of scope for a
+// display-only trace line); here it only ever removes a component that
+// would otherwise render as an empty segment, never adds or changes one
+// that has real content.
+func traceNullifyEmptyOptionalStrings(obj cty.Value) cty.Value {
+	// A marked receiver is unsafe for GetAttr (internal/live/marksafe);
+	// [identity.ComponentsFromValue] already refuses a marked val outright
+	// (val.IsMarked() at its own top), so leaving it untouched here still
+	// reaches that same refusal rather than a panic.
+	if obj.IsMarked() || !obj.Type().IsObjectType() {
+		return obj
+	}
+	attrTypes := obj.Type().AttributeTypes()
+	vals := make(map[string]cty.Value, len(attrTypes))
+	changed := false
+	for name, at := range attrTypes {
+		v := obj.GetAttr(name)
+		if at == cty.String && !v.IsNull() && v.IsWhollyKnown() && !v.IsMarked() && v.AsString() == "" {
+			v = cty.NullVal(cty.String)
+			changed = true
+		}
+		vals[name] = v
+	}
+	if !changed {
+		return obj
+	}
+	return cty.ObjectVal(vals)
 }
 
 // materializeRecord is [builder.materialize]'s counterpart for GitHub issue

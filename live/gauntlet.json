@@ -934,14 +934,14 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
-        "date": "2026-08-23T23:57:57Z",
+        "commit": "f8ebf966ef392bcdfff8f48d463e806270bc2730",
+        "date": "2026-08-24T19:49:06Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "63 resources from stock terraform; 4 live zones confirmed unmarked",
           "drift_reconverge": "one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact",
-          "migrate": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 14 residue records written, DataCite's own tags survived",
-          "test_apply": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 14 residue records intact",
+          "migrate": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 59 identity records written (#364), 14 of them also carrying residue (#341), DataCite's own tags survived",
+          "test_apply": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 59 identity records intact (14 residue-bearing)",
           "test_plan": "plan empty across 63 instances, no state file; 14 record sets and 4 zones filled residue from the store"
         }
       },
@@ -1099,13 +1099,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
-        "date": "2026-08-24T08:20:22Z",
+        "commit": "f8ebf966ef392bcdfff8f48d463e806270bc2730",
+        "date": "2026-08-24T19:50:12Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
-          "migrate": "58 of 67 stamped, 61 identities recorded (#364 unit A2)",
+          "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 58 objects, read through resourcegroupstaggingapi",
           "test_plan": "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
         }
