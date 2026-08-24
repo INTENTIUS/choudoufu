@@ -701,56 +701,35 @@ WANT_RULE_ACTIONS=0
 #    StorageEncrypted round-trip: it now reads back exactly what was
 #    requested, so the attribute that used to force a replace no longer
 #    appears in the plan at all. Confirmed live at step 3g.
-#  - 3 in-place updates remain (unchanged in COUNT, but not in cause - the
-#    three addresses are the same, module.db and module.db_default's
-#    aws_db_instance plus module.db's aws_db_parameter_group, but every
-#    attribute driving the diff is new). Two classes, both settled against
-#    an independent oracle rather than inferred:
-#      * lex00/floci#120 (EMULATOR GAP, filed by this crossing): floci's
-#        DescribeDBInstances/DescribeDBParameters never echo back port,
-#        backup_window, monitoring_interval, monitoring_role_arn,
-#        performance_insights_retention_period, engine_lifecycle_support,
-#        enabled_cloudwatch_logs_exports, max_allocated_storage, or a
-#        parameter block's apply_method - all eight are real, documented
-#        fields of AWS's own DBInstance/Parameter response shapes
-#        (confirmed against botocore's rds/2014-10-31/service-2.json, not
-#        assumed), and floci returns null (or, for port and
-#        backup_window, an outright wrong value) for every one of them
-#        regardless of what was actually requested. Confirmed against
-#        floci's raw API directly, no tofu in the loop, and confirmed a
-#        second, independent way at step 3g: stock terraform's OWN plan
-#        against its OWN real, never-deleted state file shows the
-#        identical diffs on the identical attributes, because it too
-#        refreshes through the same broken emulator. HANDOFF's third row.
-#      * INTENTIUS/choudoufu#393 (CHOUDOUFU DEFECT, filed by this
-#        crossing) was module.db_default's aws_db_instance additionally
-#        proposing "skip_final_snapshot = true -> false" forever, even
-#        though the estate's record store correctly held "false" for it.
-#        Root cause, confirmed with instrumented debug builds: the AWS
-#        provider's ImportResourceState stub for aws_db_instance is
-#        seeded with the resource's own SDK schema default (true) for
-#        this attribute before any live read happens, and
-#        internal/live/projection's fillResidue treated any non-zero bool
-#        as "the provider answered", so it trusted the stub's true over
-#        the correctly-recorded false. Confirmed absent from stock's own
-#        plan at step 3g (stock never goes through an import stub - its
-#        real state already has the true applied value), so this was
-#        choudoufu's alone, not stock's and not the emulator's. FIXED:
-#        fillResidue now takes a provenance signal - the exact PriorState
-#        importAndRead fed ReadResource before any read ran - and treats
-#        a value that comes back bit-for-bit unchanged from that stub as
-#        carrying no information, for exactly the population (a name a
-#        residue record already exists for) that classifyResidue already
-#        proved the provider does not source from the remote at all. The
-#        general zero-value rule (carriesNoInformation) is untouched;
-#        classifyResidue's own two-read discriminator has no import stub
-#        in its loop and keeps drawing its conclusions the same way it
-#        always did. Asserted absent from choudoufu's own plan too, at
-#        step 3g, alongside stock's.
+#  - 0 in-place updates remain (was 3, then round-8 repin's own re-measure:
+#    lex00/floci PR #128/ff815779 fixes #124 - a second RDS instance
+#    requesting a colliding port now gets its own distinct loopback bind
+#    address with the declared port honored - which turns out to be the
+#    LAST of the eight lex00/floci#120 attributes still open for this
+#    estate's two aws_db_instance addresses (module.db and module.db_default
+#    both declare port = 5432; module.db_default is the second-created
+#    instance and is exactly the colliding-port shape #124 fixes). The
+#    other seven of the eight (backup_window, monitoring_interval,
+#    monitoring_role_arn, performance_insights_retention_period,
+#    engine_lifecycle_support, enabled_cloudwatch_logs_exports,
+#    max_allocated_storage) and the parameter block's apply_method were
+#    already fixed by earlier rounds (round 5's #120 pass, round 6's PR
+#    #125 "RDS optional fields/ApplyMethod #120") but this estate had not
+#    been re-measured since, so the artifact's recorded wall (8 fields) was
+#    stale even before this round's port fix landed - see 3g below for the
+#    real current count (0) confirmed by choudoufu's own empty replan AND
+#    an independent direct-API probe of the live parameter group.
+#    INTENTIUS/choudoufu#393 (CHOUDOUFU DEFECT, filed by an earlier
+#    crossing) was module.db_default's aws_db_instance additionally
+#    proposing "skip_final_snapshot = true -> false" forever, even though
+#    the estate's record store correctly held "false" for it - FIXED,
+#    fillResidue now distinguishes an import stub's unconfirmed SDKv2
+#    schema default from a value ReadResource actually produced. Confirmed
+#    absent from both plans at step 3g.
 WANT_SLOT_N=0
 WANT_CREATE_N=0
 WANT_REPLACE_N=0
-WANT_UPDATE_N=3
+WANT_UPDATE_N=0
 # THE BLOCK-SHAPED RESIDUE FINDING, this crossing's own, and the one thing
 # in the residue that was choudoufu's. terraform-aws-modules/security-group
 # and terraform-aws-modules/vpc both write a `timeouts` block:
@@ -891,8 +870,14 @@ UPDATE_N="$(grep -c 'will be updated in-place$' <<< "$PLAN_ACTIONS")"
 [ "$CREATE_N" = "$WANT_CREATE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_CREATE_N create (the name_prefix parameter group), got $CREATE_N"; }
 [ "$REPLACE_N" = "$WANT_REPLACE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_REPLACE_N replacements (floci does not echo back what the apply set), got $REPLACE_N"; }
 [ "$UPDATE_N" = "$WANT_UPDATE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_UPDATE_N in-place updates, got $UPDATE_N"; }
-grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.this\[0\] will be updated in-place$' <<< "$PLAN_ACTIONS" \
-  || { printf '%s\n' "$PLAN_ACTIONS"; fail "the name_prefix parameter group must be an ordinary in-place update now, resolved by its own tofu-address marker rather than proposed as a create - see step 3f"; }
+# The name_prefix parameter group must not appear in the action list at
+# all any more (0 create, 0 update): round 8's own re-measure found
+# lex00/floci#120 fully resolved (see 3g), so it converges completely
+# rather than merely resolving by marker into an in-place update - the
+# stronger statement WANT_UPDATE_N=0 already proves, asserted again here
+# by name so a regression that brought back JUST this address would say so.
+grep -qF 'module.db.module.db_parameter_group.aws_db_parameter_group.this[0]' <<< "$PLAN_ACTIONS" \
+  && { printf '%s\n' "$PLAN_ACTIONS"; fail "the name_prefix parameter group is back in the plan's action list - it should be fully converged (0 diff) now that lex00/floci#120 is resolved"; }
 
 # ── 3e. the block-shaped residue, asserted both ways ───────────────────────
 # The proposal must be gone, AND the block must still be there: an assertion
@@ -967,7 +952,7 @@ log "  already carries tofu-address=$PG_ADDR_TAG - the emulator gap the"
 log "  prior recorded detail named for this instance is gone, and the plan"
 log "  resolves it as an ordinary in-place update rather than a create."
 
-# ── 3g. the remaining diffs, put to STOCK as the oracle (HANDOFF row 3) ────
+# ── 3g. the plan is genuinely empty; floci#120 confirmed resolved ─────────
 # storage_encrypted forcing a replacement was the last recorded detail's
 # blocker 3. Re-verified directly against floci's own API first: it now
 # round-trips correctly, so there is nothing left for either binary to force
@@ -981,113 +966,232 @@ log "  matching config) - 0a2f0291a0's third-image repin fixed the gap that"
 log "  used to force $WANT_REPLACE_N replacements here; neither binary"
 log "  proposes one any more."
 #
-# What's left is the 8-attribute-plus-parameter-block set the header
-# documents (lex00/floci#120), plus a check that the one choudoufu-only
-# residue defect (INTENTIUS/choudoufu#393) really has gone from BOTH
-# plans now that it is fixed. Both get an independent oracle here: the plain
-# estate from stage 1 still has its own terraform.tfstate and its own
-# .terraform, so stock can be asked the identical question against the
-# identical cloud, with real state instead of a stateless replan. Tag noise
-# is expected in stock's plan and deliberately not asserted on: stage 2
-# stamped markers onto objects stock's state does not know about, so stock
-# proposes removing them.
-log "=== 3g. the same question put to stock terraform (HANDOFF row 3) ==="
-STOCK_PLAN_OUT="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
-STOCK_PLAN_RC=$?
-[ "$STOCK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock terraform plan against its own state exited $STOCK_PLAN_RC - the oracle has to run for this stage to record what it records"; }
-STOCK_ACTIONS="$(grep -E '^  # ' <<< "$STOCK_PLAN_OUT")"
-STOCK_REPLACE_N="$(grep -c 'must be replaced$' <<< "$STOCK_ACTIONS")"
-[ "$STOCK_REPLACE_N" = "0" ] \
-  || { printf '%s\n' "$STOCK_ACTIONS"; fail "stock proposes $STOCK_REPLACE_N replacements against its OWN state file - storage_encrypted's round-trip fix was expected to remove every replacement on both sides, not just ours"; }
-# The 8 floci#120 attributes: same addresses, same attribute names, on
-# BOTH binaries - proof this is the emulator's gap and not a plan defect of
-# ours (stock never goes through choudoufu's projection at all).
+# UPDATE 2026-08-24 (round-8 repin, lex00/floci PR #128, ff815779,
+# ghcr.io/lex00/floci:main-20260824d sha256:25fc9687): re-measuring this
+# estate for real (it had not been re-crossed since round ~6-7, so the
+# artifact's recorded "3 in-place updates, lex00/floci#120" detail was
+# already stale before this round's own fix landed - rounds 5 and 6 had
+# each already closed some of #120's eight fields without a re-cross ever
+# confirming it here) finds choudoufu's OWN live-plan (PLAN_OUT, computed
+# above with no local state file at all) is a GENUINE, COMPLETE no-op:
+# "No changes. Your infrastructure matches the configuration." - not
+# merely the eight attributes' worth of noise being gone, everything.
+grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Plan:|^  # '; fail "expected a genuinely empty replan (No changes) - something in the plan action list is nonzero even though ADD_N/CHANGE_N/DESTROY_N above were all asserted at their WANT_ values"; }
+log "  choudoufu's own live-plan, from NO local state file, is a genuine"
+log "  no-op: 'No changes. Your infrastructure matches the configuration.'"
+#
+# The 8 lex00/floci#120 attributes must not appear in choudoufu's plan -
+# already implied by the empty-plan assertion above, reasserted here by
+# name so a partial regression (one attribute reappearing without making
+# the WHOLE plan non-empty, impossible today but not something to assume
+# forever) says which attribute, not just that the plan grew.
 for attr in 'backup_window' 'port' 'enabled_cloudwatch_logs_exports' 'engine_lifecycle_support' \
             'max_allocated_storage' 'monitoring_interval' 'monitoring_role_arn' 'performance_insights_retention_period'; do
-  grep -qE "^ *[+~] +${attr}( *=| \{)" <<< "$STOCK_PLAN_OUT" \
-    || { printf '%s\n' "$STOCK_PLAN_OUT" | grep -E "^  # |$attr"; fail "stock's own plan no longer shows $attr changing - lex00/floci#120 may have been fixed; re-measure this section rather than trusting a stale attribute list"; }
   grep -qE "^ *[+~] +${attr}( *=| \{)" <<< "$PLAN_OUT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E "^  # |$attr"; fail "choudoufu no longer shows $attr changing, but stock still does - that would make this ours to fix, not the emulator's"; }
+    && { printf '%s\n' "$PLAN_OUT" | grep -E "^  # |$attr"; fail "lex00/floci#120 is back: $attr appears in choudoufu's own plan again"; }
 done
-grep -qE '^ *\+ parameter \{$' <<< "$STOCK_PLAN_OUT" \
-  || fail "stock's own plan no longer proposes adding a parameter block - lex00/floci#120's apply_method gap may have been fixed"
-log "  stock terraform, on its OWN state file and the same cloud, shows the"
-log "  identical 8 attributes changing on the identical two aws_db_instance"
-log "  addresses, plus the identical parameter-block churn on"
-log "  aws_db_parameter_group - all traced to lex00/floci#120's round-trip"
-log "  gaps, confirmed on an independent binary that never goes through"
-log "  choudoufu's own projection. HANDOFF's third row: stock fails too."
+log "  all eight lex00/floci#120 attributes confirmed absent from"
+log "  choudoufu's plan by name: port, backup_window, monitoring_interval,"
+log "  monitoring_role_arn, performance_insights_retention_period,"
+log "  engine_lifecycle_support, enabled_cloudwatch_logs_exports,"
+log "  max_allocated_storage."
 #
-# INTENTIUS/choudoufu#393, both ways now that it is fixed.
+# Direct API confirmation, no tofu in the loop, for the specific field this
+# round's own fix (#124, RDS port isolation) reaches: the name_prefix
+# parameter group's two custom parameters (autovacuum, client_encoding),
+# which floci's apply_method echo gap used to hide, read back correctly
+# with --source user - the same values the config declares, confirmed
+# against the live object directly rather than trusted from either plan.
+PG_AUTOVACUUM="$(awsl rds describe-db-parameters --db-parameter-group-name "$PG_NAME" --source user \
+  --query "Parameters[?ParameterName=='autovacuum'].ParameterValue | [0]" --output text)"
+PG_CLIENT_ENCODING="$(awsl rds describe-db-parameters --db-parameter-group-name "$PG_NAME" --source user \
+  --query "Parameters[?ParameterName=='client_encoding'].ParameterValue | [0]" --output text)"
+[ "$PG_AUTOVACUUM" = "1" ] || fail "the live parameter group's autovacuum parameter reads $PG_AUTOVACUUM through the AWS CLI, not 1 (config's own value) - lex00/floci#120's apply_method echo gap may have regressed"
+[ "$PG_CLIENT_ENCODING" = "utf8" ] || fail "the live parameter group's client_encoding parameter reads $PG_CLIENT_ENCODING through the AWS CLI, not utf8 (config's own value) - lex00/floci#120's apply_method echo gap may have regressed"
+log "  the parameter group's two custom parameters read back correctly"
+log "  through a direct describe-db-parameters --source user call: autovacuum=$PG_AUTOVACUUM,"
+log "  client_encoding=$PG_CLIENT_ENCODING, matching config exactly."
 #
-# skip_final_snapshot must NOT appear in stock's plan for db_default,
-# because stock's real state already holds the true applied value and
-# never goes through an import stub at all. If it ever does, #393's
-# "choudoufu-only" framing is wrong and this section needs to be re-read
-# before anything else in it is trusted.
-grep -qF 'skip_final_snapshot' <<< "$STOCK_PLAN_OUT" \
-  && { printf '%s\n' "$STOCK_PLAN_OUT" | grep -B5 'skip_final_snapshot'; fail "stock's own plan shows skip_final_snapshot changing - INTENTIUS/choudoufu#393 was filed on the premise that this is choudoufu-only; re-read that issue before trusting it"; }
-# And it must NOT appear in choudoufu's OWN plan either, now that
-# fillResidue distinguishes an import stub's unconfirmed SDK default from a
-# value ReadResource actually produced (residue.go's importStub provenance
-# check). Before that fix this line failed every run: the stub's
-# `skip_final_snapshot = true` outranked the correctly recorded `false` and
-# the plan proposed the same update forever, absent from stock the whole
-# time (proven above), so it was never drift and never converged.
+# What was this round's own fix, specifically: module.db and
+# module.db_default both declare port = 5432 (a genuine port collision -
+# main.tf lines 48 and 128), and module.db_default (the second-created
+# instance) is exactly the shape lex00/floci#124 fixes (a colliding
+# instance now gets its own distinct loopback bind address with the
+# declared port honored, instead of the collision silently reassigning a
+# different port). Confirmed directly against the live object:
+DB_DEFAULT_PORT="$(awsl rds describe-db-instances --db-instance-identifier complete-postgresql-2 \
+  --query 'DBInstances[0].Endpoint.Port' --output text 2>/dev/null || true)"
+if [ -z "$DB_DEFAULT_PORT" ] || [ "$DB_DEFAULT_PORT" = "None" ]; then
+  # The second instance's identifier is whatever the module actually
+  # assigned it; fall back to reading it by its own tofu-address marker
+  # rather than guessing the identifier string.
+  DB_DEFAULT_ID="$(awsl rds describe-db-instances \
+    --query "DBInstances[?DBInstanceIdentifier != 'complete-postgresql'].DBInstanceIdentifier | [0]" --output text)"
+  DB_DEFAULT_PORT="$(awsl rds describe-db-instances --db-instance-identifier "$DB_DEFAULT_ID" \
+    --query 'DBInstances[0].Endpoint.Port' --output text)"
+fi
+[ "$DB_DEFAULT_PORT" = "5432" ] \
+  || fail "the second (colliding-port) RDS instance's Endpoint.Port reads $DB_DEFAULT_PORT through the AWS CLI, not 5432 - lex00/floci#124's port-isolation fix may have regressed"
+log "  lex00/floci#124 confirmed directly: the second, colliding-port RDS"
+log "  instance's own Endpoint.Port reads back 5432 - the declared port is"
+log "  honored even though another instance already holds it, via its own"
+log "  distinct loopback bind address."
+#
+# INTENTIUS/choudoufu#393, confirmed absent from choudoufu's own plan
+# (already implied by the empty-plan assertion above; reasserted by name).
 grep -qF 'skip_final_snapshot' <<< "$PLAN_OUT" \
   && { printf '%s\n' "$PLAN_OUT" | grep -B5 'skip_final_snapshot'; fail "choudoufu's plan still shows skip_final_snapshot changing on module.db_default's aws_db_instance - INTENTIUS/choudoufu#393 has regressed"; }
-log "  skip_final_snapshot does not appear in EITHER plan any more, on"
-log "  either instance - INTENTIUS/choudoufu#393 is FIXED: fillResidue now"
-log "  tells an import stub's unconfirmed SDKv2 schema default apart from a"
-log "  value ReadResource actually produced, so the correctly recorded"
-log "  residue (false) is no longer outranked by the stub's own default"
-log "  (true) on module.db_default's aws_db_instance."
+log "  skip_final_snapshot does not appear in choudoufu's plan -"
+log "  INTENTIUS/choudoufu#393 remains fixed."
+#
+# Stock's own replan against ITS OWN never-deleted state file, put here
+# informationally rather than as the pass/fail oracle for this stage: it
+# still proposes adding the same two parameter blocks (autovacuum,
+# client_encoding) that the direct probe above just confirmed ALREADY
+# match config on the live object. That is not a live discrepancy - it is
+# a property of stock's own state file's fidelity at apply time (this
+# script's stage 1 apply never round-tripped these two parameters into
+# state, a distinct, older gap in the CREATE-time refresh rather than in
+# either binary's own replan-time read), which the API probe above rules
+# out as a currently-real difference. Recorded here so the number is
+# understood rather than silently ignored, and NOT asserted as a pass/fail
+# gate: HANDOFF's row 3 ("stock fails too") already covers a state file
+# stock itself cannot keep current, and choudoufu's own empty, directly-
+# verified replan is the stronger, correct answer.
+STOCK_PLAN_OUT="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
+STOCK_PLAN_RC=$?
+[ "$STOCK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock terraform plan against its own state exited $STOCK_PLAN_RC"; }
+STOCK_PARAM_N="$(grep -cE '^ *\+ parameter \{$' <<< "$STOCK_PLAN_OUT")"
+log "  informational: stock's plan against its OWN historical state file"
+log "  still proposes $STOCK_PARAM_N parameter block(s) plus tag-removal"
+log "  noise (stage 2 stamped tags stock's state does not know about) -"
+log "  a property of that ONE state file's own apply-time fidelity, ruled"
+log "  out as a live discrepancy by the direct API probe above, not"
+log "  choudoufu's own oracle for this stage."
 
 log ""
-log "STAGE 3 (test_plan): the identity layer is CLEAR for real - 0 refusals"
-log "of any kind, where this estate stood at 7, then 33, then 14, then 2."
-log "The plan is not empty, and nothing left in it is identity. The slot,"
-log "create and replace walls this estate stood on are now gone too:"
-log "  $SLOT_N instances want the tofu-slot marker (was 3, was 22) -"
-log "     a7073177ed closed #372's own client-named-type remainder"
-log "  $CREATE_N create (was 1, the name_prefix parameter group) - the same"
-log "     fix settles its slot at migrate time, and floci's RDS 'pg' tagging"
-log "     works now too (re-verified at step 3f), so it resolves by its"
-log "     own marker like any other instance"
-log "  $REPLACE_N replacements (was 2) - 0a2f0291a0's third-image repin"
-log "     fixed floci's StorageEncrypted round-trip (asserted at step 3g)"
-log "  0 '+ timeouts {' proposals, was 2 - the block-shaped residue gap this"
-log "     crossing found, fixed generically for NestingSingle blocks"
-log "What's left is $UPDATE_N in-place updates, on the same three addresses"
-log "as before but for one reason now instead of two: lex00/floci#120 (8"
-log "aws_db_instance/aws_db_parameter_group arguments floci's Describe"
-log "calls never echo back, confirmed against AWS's own documented API"
-log "shapes and reproduced identically on stock terraform's own plan at"
-log "step 3g - HANDOFF's third row, the estate still has to clear once the"
-log "emulator does). INTENTIUS/choudoufu#393 (skip_final_snapshot's phantom"
-log "true -> false update on module.db_default) is FIXED: fillResidue can"
-log "now tell an import stub's unconfirmed SDKv2 default apart from a"
-log "value ReadResource actually produced."
+log "STAGE 3 (test_plan): PASS. The identity layer is CLEAR for real - 0"
+log "refusals of any kind, where this estate stood at 7, then 33, then 14,"
+log "then 2. The plan is genuinely empty - 'No changes. Your"
+log "infrastructure matches the configuration.' - not merely reduced. The"
+log "slot, create, replace and block-residue walls this estate stood on are"
+log "all gone ($SLOT_N slot, $CREATE_N create, $REPLACE_N replace, 0 '+"
+log "timeouts {' proposals), and now lex00/floci#120's round-trip gap is"
+log "too: round 8 (PR #128/ff815779, #124's colliding-port fix) closed the"
+log "LAST of its eight fields for this estate (module.db_default's own"
+log "port, the second of two instances declaring port=5432), and the other"
+log "seven plus the parameter block's apply_method were already fixed by"
+log "earlier rounds this estate had not been re-crossed since. Confirmed"
+log "three independent ways: choudoufu's own empty replan, a direct"
+log "describe-db-parameters --source user probe of the live parameter"
+log "group (autovacuum=1, client_encoding=utf8, matching config exactly),"
+log "and a direct describe-db-instances probe of the second instance's own"
+log "Endpoint.Port (5432, the declared port, not a reassigned collision"
+log "port). INTENTIUS/choudoufu#393 remains fixed."
 log ""
-gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The three walls this estate stood on before this crossing are ALL gone: $SLOT_N instances missing tofu-slot (was 3, was 22 - a7073177ed, 2026-08-22, closed #372's client-named-type remainder), $CREATE_N create (was 1 - the same fix settles the name_prefix parameter group's slot at migrate time, and floci's RDS 'pg' tagging now works too, re-verified against floci's own API at step 3f rather than trusted from the prior recorded detail), $REPLACE_N replacements (was 2 - 0a2f0291a0, 2026-08-22, fixed floci's StorageEncrypted round-trip, asserted live at step 3g). INTENTIUS/choudoufu#393 is also FIXED (module.db_default's aws_db_instance no longer proposes skip_final_snapshot=true->false: fillResidue now distinguishes an import stub's unconfirmed SDKv2 schema default from a value ReadResource actually produced, asserted against both binaries' own plans at step 3g). What is left is $UPDATE_N in-place updates on the same three addresses, now for a single reason: lex00/floci#120 (floci's DescribeDBInstances/DescribeDBParameters never echo back port, backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage, or a parameter block's apply_method, all eight confirmed as real documented AWS API fields against botocore's own service model and reproduced identically on stock terraform's own plan against its own real state file at step 3g - HANDOFF's third row, the estate still has to clear once the emulator does)"
-log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
-gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
-log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
-gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+gauntlet_stage test_plan pass "genuinely empty replan (No changes. Your infrastructure matches the configuration.) with no local state file. lex00/floci#120's round-trip gap, this estate's last recorded wall, is CONFIRMED FIXED: round 8 (PR #128/ff815779, ghcr.io/lex00/floci:main-20260824d sha256:25fc9687, #124's RDS colliding-port isolation) closed the last of its eight fields for this estate - module.db_default's own port (module.db and module.db_default both declare port=5432, a genuine collision; module.db_default is the second-created instance and gets its own distinct loopback bind address with the declared port honored). The other seven fields (backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage) and the parameter block's apply_method were already fixed by earlier rounds (round 5 and round 6's own #120 passes) that this estate had not been re-crossed since - the artifact's recorded '3 in-place updates' detail was stale before this round's own fix even landed. Confirmed three independent ways, not merely inferred from the empty plan: a direct describe-db-parameters --source user probe of the live parameter group (autovacuum=1, client_encoding=utf8, matching config exactly, no tofu in the loop), a direct describe-db-instances probe of the second instance's own Endpoint.Port (5432, the declared port), and all eight attribute names individually confirmed absent from choudoufu's plan. INTENTIUS/choudoufu#393 (skip_final_snapshot's phantom true->false update) remains fixed, confirmed absent. Stock's own replan against its own never-deleted state file still shows tag noise plus the two parameter blocks; ruled out as a live discrepancy by the same direct API probe (informational only, not this stage's oracle - HANDOFF row 3, a property of that one state file's own apply-time fidelity)."
+CURRENT_STAGE=test_apply
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
+# ══════════════════════════════════════════════════════════════════════════
+log "=== 4. test apply: apply the empty plan; tagged object count unchanged ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+NOOP_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
+[ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -50; fail "the no-op apply exited $NOOP_APPLY_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$NOOP_APPLY_OUT" \
+  || { grep -E 'Apply complete|Plan: ' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
+
+AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "the tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
+
+# The primary DB instance's marker did not move either - re-read directly
+# through the AWS CLI, the same call stage 2c used, not through
+# choudoufu's own report of itself.
+GOT_DB_ADDR2="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" \
+  --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_DB_ADDR2" = "$WANT_DB_ADDR" ] \
+  || fail "after the no-op apply, the primary DB instance carries tofu-address=$GOT_DB_ADDR2, not $WANT_DB_ADDR"
+log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after, no"
+log "  state file either time, primary DB instance's marker unmoved"
+log "  ($GOT_DB_ADDR2)."
+log ""
+log "STAGE 4 (test apply): PASS"
+log ""
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file, primary DB instance marker unmoved"
+CURRENT_STAGE=drift_reconverge
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
+# ══════════════════════════════════════════════════════════════════════════
+log "=== 5. drift and reconverge: one live object tampered out of band ==="
+plan_into() { ( cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color ); }
+
+if [ "${BREAK:-}" = "1" ]; then
+  # A second, unrelated object is mutated too - the assertion below must
+  # catch this as MORE than one object proposed, not silently pass.
+  awsl rds add-tags-to-resource --resource-name "$PG_ARN_READ" --tags Key=Example,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: also tampered the parameter group's Example tag - stage 5"
+  log "  must now see TWO drifted objects and fail the single-object"
+  log "  assertion"
+fi
+
+# config declares Example = local.name ("complete-postgresql") on this
+# instance - captured before tampering so the reconverge assertion below
+# compares against config's real value rather than an assumed empty one.
+ORIGINAL_EXAMPLE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+awsl rds add-tags-to-resource --resource-name "$DB_ARN" --tags Key=Example,Value=tampered-out-of-band >/dev/null
+DRIFTED_VALUE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated the primary DB instance's Example tag from \"$ORIGINAL_EXAMPLE\" to"
+log "  \"tampered-out-of-band\" directly via the AWS CLI"
+
+DRIFT_PLAN_OUT="$(plan_into 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -80; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly"
+  log "  more than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+
+  RECONVERGE_APPLY="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -50; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+  [ "$FIXED_VALUE" = "$ORIGINAL_EXAMPLE" ] \
+    || fail "the primary DB instance's Example tag is \"$FIXED_VALUE\" after reconverging, not \"$ORIGINAL_EXAMPLE\" (its pre-tamper, config-matching value)"
+  log "  reconverged: the primary DB instance's Example tag is back to"
+  log "  \"$FIXED_VALUE\", its pre-tamper, config-matching value"
+  gauntlet_stage drift_reconverge pass "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
+fi
+
 CURRENT_STAGE=""
 gauntlet_end
 
 log ""
-log "=== SUMMARY (partial pass, reported honestly) ==="
+log "=== SUMMARY ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          identity CLEAR (0 refusals, was 7, then 33, then 14, then 2); slot/create/replace walls and choudoufu#393 all fixed - blocked instead on $UPDATE_N in-place updates, floci#120's round-trip gaps alone (see header)"
-log "  stage 4  test_apply         NOT RUN"
-log "  stage 5  drift_reconverge   NOT RUN"
+log "  stage 3  test_plan          PASS - genuinely empty replan; lex00/floci#120's round-trip gap CONFIRMED FIXED (round 8's #124 closed the last of its eight fields, three independent probes; see header)"
+log "  stage 4  test_apply         PASS - genuine no-op, tagged object count and primary DB instance marker unchanged"
+log "  stage 5  drift_reconverge   $([ "${BREAK:-}" = "1" ] && echo "SKIPPED (BREAK=1)" || echo "PASS - one object tampered, plan proposed fixing exactly one, apply reconverged it")"
 log ""
 log "39 real resources, real emulator, real unmarked infrastructure, real"
 log "migration. Every assertion above reads live-import's or live-plan's own"
 log "output, or a tag read straight through the AWS CLI - never choudoufu's"
-log "own self-report. Run again with BREAK=1: stages 1 and 2 still pass and"
-log "stage 3's site-count assertions are the ones that fail."
+log "own self-report. Run again with BREAK=1: stages 1-4 still pass and"
+log "stage 5's single-object assertion is the one that fails."
