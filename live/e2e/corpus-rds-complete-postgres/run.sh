@@ -316,31 +316,33 @@ set -uo pipefail
 #                          floci's RDS 'pg' tagging works now too, step 3f),
 #                          0 replacements (was 2 - 0a2f0291a0's third-image
 #                          repin fixed floci's StorageEncrypted round-trip,
-#                          step 3g). What is left is 3 in-place updates, on
-#                          the same three addresses but for reasons that
-#                          have nothing to do with any of the above:
+#                          step 3g). RE-MEASURED again once INTENTIUS/
+#                          choudoufu#393 closed: fillResidue now tells an
+#                          ImportResourceState stub's
+#                          unconfirmed SDKv2 schema default apart from a
+#                          value ReadResource actually produced, so
+#                          module.db_default's aws_db_instance no longer
+#                          proposes "skip_final_snapshot = true -> false"
+#                          forever - that item is FIXED and asserted absent
+#                          from BOTH binaries' plans at step 3g. What is
+#                          left is 3 in-place updates, on the same three
+#                          addresses, now for one reason only:
 #                          lex00/floci#120 (8 aws_db_instance/
 #                          aws_db_parameter_group arguments floci's
 #                          Describe calls never echo back, confirmed
 #                          against AWS's own documented API shapes and
 #                          reproduced identically on stock terraform's own
-#                          plan at step 3g - HANDOFF's third row), and
-#                          INTENTIUS/choudoufu#393 (one residue-
-#                          classification defect of choudoufu's own on
-#                          module.db_default's skip_final_snapshot,
-#                          confirmed absent from stock's plan, filed with
-#                          its full mechanism and NOT fixed here - it
-#                          touches a safety-documented invariant and
-#                          deserves its own PR). The one residue item that
-#                          WAS choudoufu's and fixable inline - "+ timeouts
+#                          plan at step 3g - HANDOFF's third row, the
+#                          estate still has to clear once the emulator
+#                          does). The other residue item that WAS
+#                          choudoufu's and fixable inline - "+ timeouts
 #                          {...}" on two instances, a config-only
 #                          NestingSingle block the record did not carry -
-#                          is fixed in this same pass and is now 0.
+#                          was fixed in the same earlier pass and is 0.
 #                          BREAK=1 is the negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3, which does not
 #                          produce a clean plan while lex00/floci#120's
-#                          round-trip gaps and INTENTIUS/choudoufu#393
-#                          stand.
+#                          round-trip gaps stand.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
 # A partial, honestly-reported pass is the point: this is the real, current
@@ -718,23 +720,30 @@ WANT_RULE_ACTIONS=0
 #        identical diffs on the identical attributes, because it too
 #        refreshes through the same broken emulator. HANDOFF's third row.
 #      * INTENTIUS/choudoufu#393 (CHOUDOUFU DEFECT, filed by this
-#        crossing, NOT fixed here): module.db_default's aws_db_instance
-#        additionally proposes "skip_final_snapshot = true -> false"
-#        forever, even though the estate's record store correctly holds
-#        "false" for it. Root cause, confirmed with instrumented debug
-#        builds: the AWS provider's ImportResourceState stub for
-#        aws_db_instance is seeded with the resource's own SDK schema
-#        default (true) for this attribute before any live read happens,
-#        and internal/live/projection's fillResidue treats any non-zero
-#        bool as "the provider answered", so it trusts the stub's true
-#        over the correctly-recorded false. Confirmed absent from stock's
-#        own plan at step 3g (stock never goes through an import stub -
-#        its real state already has the true applied value), so this is
-#        choudoufu's alone, not stock's and not the emulator's - #393 has
-#        the full mechanism and a suggested fix; it is not fixed here
-#        because it touches a safety-documented invariant
-#        (fillResidue's own "never fill a read that carries information"
-#        rule) and deserves its own PR and its own test.
+#        crossing) was module.db_default's aws_db_instance additionally
+#        proposing "skip_final_snapshot = true -> false" forever, even
+#        though the estate's record store correctly held "false" for it.
+#        Root cause, confirmed with instrumented debug builds: the AWS
+#        provider's ImportResourceState stub for aws_db_instance is
+#        seeded with the resource's own SDK schema default (true) for
+#        this attribute before any live read happens, and
+#        internal/live/projection's fillResidue treated any non-zero bool
+#        as "the provider answered", so it trusted the stub's true over
+#        the correctly-recorded false. Confirmed absent from stock's own
+#        plan at step 3g (stock never goes through an import stub - its
+#        real state already has the true applied value), so this was
+#        choudoufu's alone, not stock's and not the emulator's. FIXED:
+#        fillResidue now takes a provenance signal - the exact PriorState
+#        importAndRead fed ReadResource before any read ran - and treats
+#        a value that comes back bit-for-bit unchanged from that stub as
+#        carrying no information, for exactly the population (a name a
+#        residue record already exists for) that classifyResidue already
+#        proved the provider does not source from the remote at all. The
+#        general zero-value rule (carriesNoInformation) is untouched;
+#        classifyResidue's own two-read discriminator has no import stub
+#        in its loop and keeps drawing its conclusions the same way it
+#        always did. Asserted absent from choudoufu's own plan too, at
+#        step 3g, alongside stock's.
 WANT_SLOT_N=0
 WANT_CREATE_N=0
 WANT_REPLACE_N=0
@@ -970,8 +979,9 @@ log "  used to force $WANT_REPLACE_N replacements here; neither binary"
 log "  proposes one any more."
 #
 # What's left is the 8-attribute-plus-parameter-block set the header
-# documents (lex00/floci#120) and the one choudoufu-only residue defect
-# (INTENTIUS/choudoufu#393). Both get an independent oracle here: the plain
+# documents (lex00/floci#120), plus a check that the one choudoufu-only
+# residue defect (INTENTIUS/choudoufu#393) really has gone from BOTH
+# plans now that it is fixed. Both get an independent oracle here: the plain
 # estate from stage 1 still has its own terraform.tfstate and its own
 # .terraform, so stock can be asked the identical question against the
 # identical cloud, with real state instead of a stateless replan. Tag noise
@@ -1005,18 +1015,30 @@ log "  aws_db_parameter_group - all traced to lex00/floci#120's round-trip"
 log "  gaps, confirmed on an independent binary that never goes through"
 log "  choudoufu's own projection. HANDOFF's third row: stock fails too."
 #
-# INTENTIUS/choudoufu#393 the other way around: skip_final_snapshot must
-# NOT appear in stock's plan for db_default, because stock's real state
-# already holds the true applied value and never goes through an import
-# stub at all. If it ever does, #393's "choudoufu-only" framing is wrong and
-# this section needs to be re-read before anything else in it is trusted.
+# INTENTIUS/choudoufu#393, both ways now that it is fixed.
+#
+# skip_final_snapshot must NOT appear in stock's plan for db_default,
+# because stock's real state already holds the true applied value and
+# never goes through an import stub at all. If it ever does, #393's
+# "choudoufu-only" framing is wrong and this section needs to be re-read
+# before anything else in it is trusted.
 grep -qF 'skip_final_snapshot' <<< "$STOCK_PLAN_OUT" \
   && { printf '%s\n' "$STOCK_PLAN_OUT" | grep -B5 'skip_final_snapshot'; fail "stock's own plan shows skip_final_snapshot changing - INTENTIUS/choudoufu#393 was filed on the premise that this is choudoufu-only; re-read that issue before trusting it"; }
-log "  skip_final_snapshot does not appear in stock's plan at all, on"
-log "  either instance - confirming INTENTIUS/choudoufu#393 is choudoufu's"
-log "  own defect (an import-stub artifact stateless replanning hits and a"
-log "  real, un-deleted state file never does), not stock's and not the"
-log "  emulator's. Filed, not fixed here."
+# And it must NOT appear in choudoufu's OWN plan either, now that
+# fillResidue distinguishes an import stub's unconfirmed SDK default from a
+# value ReadResource actually produced (residue.go's importStub provenance
+# check). Before that fix this line failed every run: the stub's
+# `skip_final_snapshot = true` outranked the correctly recorded `false` and
+# the plan proposed the same update forever, absent from stock the whole
+# time (proven above), so it was never drift and never converged.
+grep -qF 'skip_final_snapshot' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -B5 'skip_final_snapshot'; fail "choudoufu's plan still shows skip_final_snapshot changing on module.db_default's aws_db_instance - INTENTIUS/choudoufu#393 has regressed"; }
+log "  skip_final_snapshot does not appear in EITHER plan any more, on"
+log "  either instance - INTENTIUS/choudoufu#393 is FIXED: fillResidue now"
+log "  tells an import stub's unconfirmed SDKv2 schema default apart from a"
+log "  value ReadResource actually produced, so the correctly recorded"
+log "  residue (false) is no longer outranked by the stub's own default"
+log "  (true) on module.db_default's aws_db_instance."
 
 log ""
 log "STAGE 3 (test_plan): the identity layer is CLEAR for real - 0 refusals"
@@ -1034,15 +1056,17 @@ log "     fixed floci's StorageEncrypted round-trip (asserted at step 3g)"
 log "  0 '+ timeouts {' proposals, was 2 - the block-shaped residue gap this"
 log "     crossing found, fixed generically for NestingSingle blocks"
 log "What's left is $UPDATE_N in-place updates, on the same three addresses"
-log "as before but for entirely different reasons: lex00/floci#120 (8"
+log "as before but for one reason now instead of two: lex00/floci#120 (8"
 log "aws_db_instance/aws_db_parameter_group arguments floci's Describe"
 log "calls never echo back, confirmed against AWS's own documented API"
 log "shapes and reproduced identically on stock terraform's own plan at"
-log "step 3g - HANDOFF's third row), and INTENTIUS/choudoufu#393 (one"
-log "residue-classification defect of choudoufu's own, confirmed absent"
-log "from stock's plan, filed with its full mechanism and NOT fixed here)."
+log "step 3g - HANDOFF's third row, the estate still has to clear once the"
+log "emulator does). INTENTIUS/choudoufu#393 (skip_final_snapshot's phantom"
+log "true -> false update on module.db_default) is FIXED: fillResidue can"
+log "now tell an import stub's unconfirmed SDKv2 default apart from a"
+log "value ReadResource actually produced."
 log ""
-gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The three walls this estate stood on before this crossing are ALL gone: $SLOT_N instances missing tofu-slot (was 3, was 22 - a7073177ed, 2026-08-22, closed #372's client-named-type remainder), $CREATE_N create (was 1 - the same fix settles the name_prefix parameter group's slot at migrate time, and floci's RDS 'pg' tagging now works too, re-verified against floci's own API at step 3f rather than trusted from the prior recorded detail), $REPLACE_N replacements (was 2 - 0a2f0291a0, 2026-08-22, fixed floci's StorageEncrypted round-trip, asserted live at step 3g). What is left is $UPDATE_N in-place updates on the same three addresses for entirely different reasons: lex00/floci#120 (filed by this crossing - floci's DescribeDBInstances/DescribeDBParameters never echo back port, backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage, or a parameter block's apply_method, all eight confirmed as real documented AWS API fields against botocore's own service model and reproduced identically on stock terraform's own plan against its own real state file at step 3g - HANDOFF's third row, the estate still has to clear once the emulator does), and INTENTIUS/choudoufu#393 (filed by this crossing, NOT fixed here - module.db_default's aws_db_instance additionally proposes skip_final_snapshot=true->false forever because fillResidue's zero-value heuristic cannot tell an SDKv2 ImportResourceState stub's own schema default from real live information, confirmed absent from stock's plan at step 3g so this is choudoufu's alone; it touches a safety-documented invariant and deserves its own PR)"
+gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The three walls this estate stood on before this crossing are ALL gone: $SLOT_N instances missing tofu-slot (was 3, was 22 - a7073177ed, 2026-08-22, closed #372's client-named-type remainder), $CREATE_N create (was 1 - the same fix settles the name_prefix parameter group's slot at migrate time, and floci's RDS 'pg' tagging now works too, re-verified against floci's own API at step 3f rather than trusted from the prior recorded detail), $REPLACE_N replacements (was 2 - 0a2f0291a0, 2026-08-22, fixed floci's StorageEncrypted round-trip, asserted live at step 3g). INTENTIUS/choudoufu#393 is also FIXED (module.db_default's aws_db_instance no longer proposes skip_final_snapshot=true->false: fillResidue now distinguishes an import stub's unconfirmed SDKv2 schema default from a value ReadResource actually produced, asserted against both binaries' own plans at step 3g). What is left is $UPDATE_N in-place updates on the same three addresses, now for a single reason: lex00/floci#120 (floci's DescribeDBInstances/DescribeDBParameters never echo back port, backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage, or a parameter block's apply_method, all eight confirmed as real documented AWS API fields against botocore's own service model and reproduced identically on stock terraform's own plan against its own real state file at step 3g - HANDOFF's third row, the estate still has to clear once the emulator does)"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -1055,7 +1079,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          identity CLEAR (0 refusals, was 7, then 33, then 14, then 2); slot/create/replace walls all fixed - blocked instead on $UPDATE_N in-place updates, floci#120's round-trip gaps plus choudoufu#393 (see header)"
+log "  stage 3  test_plan          identity CLEAR (0 refusals, was 7, then 33, then 14, then 2); slot/create/replace walls and choudoufu#393 all fixed - blocked instead on $UPDATE_N in-place updates, floci#120's round-trip gaps alone (see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

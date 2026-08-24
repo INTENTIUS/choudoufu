@@ -479,7 +479,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 		t.Fatalf("cold read: %s", err)
 	}
 
-	filled, n := fillResidue(cold, schema.Block, back, strict.Store)
+	filled, n := fillResidue(cold, schema.Block, back, strict.Store, cty.NilVal)
 	if n == 0 {
 		t.Fatal("filled nothing from a record written under secrets=store")
 	}
@@ -499,7 +499,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 	// same record while still filling the ordinary ones beside it. Asserted
 	// per attribute rather than as a count, because "filled nothing" would
 	// pass for the wrong reason if the record were empty.
-	strictFilled, _ := fillResidue(cold, schema.Block, back, strict.Refuse)
+	strictFilled, _ := fillResidue(cold, schema.Block, back, strict.Refuse, cty.NilVal)
 	if !strictFilled.GetAttr("filename").IsNull() {
 		t.Fatalf("secrets=refuse filled filename = %#v from a record; that setting is \"sensitive settable arguments never recorded\", and never read back either", strictFilled.GetAttr("filename"))
 	}
@@ -605,7 +605,7 @@ func TestFillResidueNeverOverwritesTheCloud(t *testing.T) {
 		"description": cty.StringVal("what the record says"),
 	}
 
-	got, n := fillResidue(read, block, rec, strict.DefaultSecrets)
+	got, n := fillResidue(read, block, rec, strict.DefaultSecrets, cty.NilVal)
 	if n != 2 {
 		t.Fatalf("filled %d attributes, want 2 (filename and publish; description was answered by the provider)", n)
 	}
@@ -637,7 +637,7 @@ func TestFillResidueRefusesAMismatchedType(t *testing.T) {
 	})
 	got, n := fillResidue(read, block, map[string]cty.Value{
 		"filename": cty.ListVal([]cty.Value{cty.StringVal("a.zip")}),
-	}, strict.DefaultSecrets)
+	}, strict.DefaultSecrets, cty.NilVal)
 	if n != 0 || !got.GetAttr("filename").IsNull() {
 		t.Fatalf("filled %d attributes from a record whose recorded type no longer fits the schema", n)
 	}
@@ -680,7 +680,7 @@ func TestFillResidueRefusesASensitiveOrWriteOnlyTarget(t *testing.T) {
 				"description":      cty.NullVal(cty.String),
 				"arn":              cty.NullVal(cty.String),
 			})
-			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, tc.secrets)
+			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, tc.secrets, cty.NilVal)
 			if n != 0 {
 				t.Fatalf("filled filename from a record even though the current schema says %s", tc.name)
 			}
@@ -707,13 +707,113 @@ func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
 		"description":      cty.NullVal(cty.String),
 		"arn":              cty.NullVal(cty.String),
 	})
-	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, strict.DefaultSecrets)
+	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, strict.DefaultSecrets, cty.NilVal)
 	if n != 1 {
 		t.Fatalf("filled %d attributes, want 1 - a Computed-only attribute whose read carries no information must be fillable from its record", n)
 	}
 	if got.GetAttr("filename").AsString() != "a.zip" {
 		t.Fatal("filename was not filled from the record")
 	}
+}
+
+// TestFillResidueDistinguishesAnUnconfirmedStubDefaultFromARealRead is GitHub
+// issue #393, reduced to [fillResidue] alone. aws_db_instance.skip_final_snapshot
+// is Optional, not Computed, and hashicorp/aws's own SDKv2 schema seeds it
+// with an internal Default of `true` - the opposite of the type's zero value,
+// which is what [carriesNoInformation]'s legacy-SDK convention treats as
+// "nothing". [importAndRead]'s ImportResourceState stub answers `true`
+// before any live read runs, and a legacy-SDK ReadResource that never
+// sources the attribute from the remote at all (residueCandidates and
+// classifyResidue's whole reason for existing) leaves that stub value
+// completely alone - so the plan-time read comes back bit-for-bit unchanged
+// from the stub importAndRead fed it, for every instance of the type,
+// regardless of what was actually configured or what a correctly-recorded
+// residue value says.
+//
+// "publish" stands in for skip_final_snapshot here: [lambdaLikeSchema]
+// already declares it Optional and not Computed, exactly the shape a
+// residue candidate needs, and reusing it keeps this test free of a
+// hand-invented schema. Its own real-world SDK default happens to be the
+// zero value, so what "read" and "stub" answer below is overridden per
+// sub-test to model the non-zero-default case directly - the schema never
+// dictates what a fake provider says.
+func TestFillResidueDistinguishesAnUnconfirmedStubDefaultFromARealRead(t *testing.T) {
+	block := lambdaLikeSchema().Block
+	rec := map[string]cty.Value{"publish": cty.False}
+
+	t.Run("stub-seeded and never confirmed by Read: the record wins", func(t *testing.T) {
+		// importAndRead fed the provider "publish: true" as PriorState -
+		// ImportResourceState's own stub, before any live read - and
+		// ReadResource walked it straight through unchanged: the RDS shape
+		// this issue is about.
+		stub := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		read := stub // ReadResource echoed it back bit-for-bit, unconfirmed.
+
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, stub)
+		if n != 1 {
+			t.Fatalf("filled %d attributes, want 1 (publish): a value the provider only ever echoed from the import stub must not outrank a correctly recorded residue value", n)
+		}
+		if got.GetAttr("publish").True() {
+			t.Fatal("publish stayed true: the stub-seeded default outranked the record, exactly the phantom update issue #393 reports (true -> false forever)")
+		}
+	})
+
+	t.Run("mutation check: a genuinely confirmed read must never be overwritten", func(t *testing.T) {
+		// The provider was handed "publish: false" as PriorState this time,
+		// and its Read independently answered "true" anyway - proof this
+		// run's answer came from the provider's own computation and not
+		// from echoing what it was given.
+		stub := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.False,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		read := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, stub)
+		if n != 0 {
+			t.Fatalf("filled %d attributes, want 0: a read that disagrees with its own stub is a real answer, and a residue record must never outrank one", n)
+		}
+		if !got.GetAttr("publish").True() {
+			t.Fatal("a genuinely-read true was overwritten by a residue false - exactly the direction fillResidue's own doc comment says must never happen")
+		}
+	})
+
+	t.Run("no stub available: falls back to the pre-#393 conservative behavior", func(t *testing.T) {
+		read := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, cty.NilVal)
+		if n != 0 || !got.GetAttr("publish").True() {
+			t.Fatalf("filled %d attributes with no provenance signal at all; with cty.NilVal for importStub, a non-zero read must stay untouched exactly as it did before this fix", n)
+		}
+	})
 }
 
 // TestResidueStoreRefusesAnotherAddressesRecord pins the key/payload
@@ -812,7 +912,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 		}
 	}
 
-	filled, n := fillResidue(cold, schema.Block, back, strict.DefaultSecrets)
+	filled, n := fillResidue(cold, schema.Block, back, strict.DefaultSecrets, cty.NilVal)
 	if n != 3 {
 		t.Fatalf("filled %d attributes, want 3", n)
 	}
@@ -1119,7 +1219,7 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 				"ingress":                sgApplied().GetAttr("ingress"),
 				"egress":                 cty.NullVal(sgRuleSetType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 2 {
 				t.Fatalf("fillResidue filled %d, want 2 (revoke_rules_on_delete and timeouts)", n)
 			}
@@ -1186,7 +1286,7 @@ func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
 						"create": cty.StringVal("10m"),
 						"delete": cty.StringVal("15m"),
 					}),
-				}, secrets)
+				}, secrets, cty.NilVal)
 				if n != 0 {
 					t.Fatalf("fillResidue filled a block holding a %s under secrets=%q", tc.name, secrets)
 				}
@@ -1442,7 +1542,7 @@ func TestResidueCarriesListAndSetNestedBlocksByValue(t *testing.T) {
 				"root_block_device":      cty.ListValEmpty(hostRootBlockDeviceType().ElementType()),
 				"ephemeral_block_device": cty.SetValEmpty(hostEphemeralBlockDeviceType().ElementType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 2 {
 				t.Fatalf("fillResidue filled %d, want 2 (root_block_device and ephemeral_block_device)", n)
 			}
@@ -1572,7 +1672,7 @@ func TestFillResidueSeesThroughASensitivityMark(t *testing.T) {
 	}
 
 	record := map[string]cty.Value{"filename": cty.StringVal("check_links.py.zip")}
-	filled, n := fillResidue(cold, schema.Block, record, strict.Store)
+	filled, n := fillResidue(cold, schema.Block, record, strict.Store, cty.NilVal)
 	if n != 1 {
 		t.Fatalf("filled %d attributes, want 1.\nA sensitive attribute whose cold read is the legacy SDK's empty "+
 			"string carries no information, marked or not - and refusing to fill it leaves the estate proposing "+
@@ -1954,7 +2054,7 @@ func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
 				"min_size":               cty.NumberIntVal(1),
 				"initial_lifecycle_hook": cty.SetValEmpty(asgHookType()),
 			})
-			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets, cty.NilVal)
 			if n != 1 {
 				t.Fatalf("fillResidue filled %d, want 1 (initial_lifecycle_hook)", n)
 			}
