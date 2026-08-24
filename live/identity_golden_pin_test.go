@@ -625,7 +625,27 @@ var identityGoldenPin = map[string]int{
 	// server-assigned NEEDS_DISCOVERY shape, deliberately never covered by
 	// this fixture's own LiveManagedResults so it stays permanently
 	// unreadable, which is the whole point of the fixture.
-	"NEEDS_DISCOVERY": 720,
+	//
+	//
+	// 720 -> 723 for the corpus-alb-complete/test_plan unit that fixed
+	// [namesAModuleOutput]'s crosstalk (internal/live/identity's
+	// managedprovenance.go): three ADDED rows, all from the new fixture
+	// testdata/managed-read-module-blind-crosstalk -
+	// aws_cognito_user_pool.this, module.wildcard_cert.aws_acm_certificate.
+	// this[0], and modules/wildcard_cert's own aws_acm_certificate.this[0].
+	// All three are the plain server-assigned NEEDS_DISCOVERY shape every
+	// sibling ACM/Cognito fixture in this golden already contributes; the
+	// fixture's fourth resource,
+	// module.alb.aws_lb_listener_certificate.this["https/0"], is the one
+	// this unit's fix concerns and does not appear here at all - offline,
+	// with no managed results supplied, it declines with the ordinary
+	// "Non-static identity argument" refusal, exactly as it did before the
+	// fix (this golden sweeps with no [Context.ManagedResults], so the
+	// bug's own trigger - a module-output leg and a direct leg racing under
+	// real managed results - never fires in this sweep at all). "0
+	// identities changed, 3 added, 0 removed" confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating.
+	"NEEDS_DISCOVERY": 723,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1250,7 +1270,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "30896e9ed91dbe4719ffe64dd37c272442f05ece51043dddd6e47acf1c29e943" // issue #391: six ADDED rows across the two new fixtures identityGoldenPin's own CONCRETE/NEEDS_DISCOVERY/RECORD_BACKED comments detail; confirmed by diffing testdata/identity-golden.txt before and after regenerating with -update, which shows exactly those six lines added and nothing else changed
+const identityGoldenPinBodyDigest = "a18cad03640e0967b7e6ef7f0a97f312bc3a2bda736df2c90e35a378748063ba" // merge of issue #391 (six ADDED rows, two eks fixtures) and the corpus-alb-complete/test_plan crosstalk unit (three ADDED rows, testdata/managed-read-module-blind-crosstalk); confirmed by regenerating with -update over the union of fixtures, nine lines added vs the pre-#391 golden and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1853,7 +1873,15 @@ const (
 	// aws_cloudwatch_log_group.app and null_resource.suffix. "0 identities
 	// changed, 6 added, 0 removed" confirmed by diffing testdata/identity-
 	// golden.txt before and after regenerating with -update.
-	identityGoldenPinInstances = 1702
+	//
+	// Then 1702 -> 1705 for the corpus-alb-complete/test_plan unit that
+	// fixed [namesAModuleOutput]'s crosstalk: three new instances, all from
+	// testdata/managed-read-module-blind-crosstalk (see identityGoldenPin's
+	// "NEEDS_DISCOVERY" note for which three, and why the fixture's fourth
+	// resource is not among them). "0 identities changed, 3 added, 0
+	// removed" confirmed by diffing testdata/identity-golden.txt before and
+	// after regenerating.
+	identityGoldenPinInstances = 1705
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2086,7 +2114,14 @@ const (
 	// output and its own child/ submodule, plus internal/live/projection/
 	// testdata/record-parent-derived (see identityGoldenPinInstances's own
 	// note immediately above for the six rows they contribute).
-	identityGoldenPinDirs = 599
+	//
+	// Then 599 -> 602 for the corpus-alb-complete/test_plan unit that fixed
+	// [namesAModuleOutput]'s crosstalk: three new fixture directories -
+	// internal/live/identity/testdata/managed-read-module-blind-crosstalk
+	// and its two submodule directories, modules/alb and
+	// modules/wildcard_cert (see identityGoldenPinInstances's own note
+	// immediately above).
+	identityGoldenPinDirs = 602
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

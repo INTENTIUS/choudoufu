@@ -133,6 +133,45 @@ func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth
 	if unproven(travs) {
 		return "", false
 	}
+	// A "module" root is condition 3's own blind spot, not a legitimate
+	// exclusion: [resolver.managedUnknownAt]'s switch below can classify a
+	// traversal only when its addrs.Ref.Subject is addrs.Resource or
+	// addrs.ResourceInstance, so a module-output reference
+	// (module.wildcard_cert.acm_certificate_arn, terraform-aws-modules/acm's
+	// own `acm_certificate_arn` output) always falls through that switch's
+	// default case unclassified - never counted as a candidate, whatever the
+	// resource it actually names is doing. That is silent under-attribution
+	// when it is the ONLY managed-unknown reference in expr (this function
+	// already declines correctly, nothing to fix), but silent
+	// MISATTRIBUTION the moment the SAME expr also names an unrelated,
+	// DIRECTLY-referenced managed resource that happens to be covered and
+	// unknown too - terraform-aws-modules/alb's own combined `listeners` map
+	// is exactly this shape: an HTTPS listener's certificate reached only
+	// through a module output, sitting beside an unrelated
+	// Cognito-authenticated listener's aws_cognito_user_pool.this.arn,
+	// referenced directly. [resolver.managedUnknownAt] can see only the
+	// second reference, so `found` comes back with exactly one entry -
+	// Cognito - and the `len(found) != 1` ambiguity guard below never fires,
+	// because as far as it can tell there was never more than one candidate.
+	// A confidently wrong single answer is indistinguishable from a right
+	// one to that guard.
+	//
+	// The fix is not to make this chase see through a module boundary -
+	// that needs the same scope-switching [resolver.namedDef]'s "var" hop
+	// does, and a value chase (rather than the OWN-module definition chase
+	// namedDef exists for) is a materially different, riskier change to
+	// make blind. The safe fix is the one this package's own rule already
+	// states for every other blind spot here (a missing attribution
+	// outranks a wrong one, condition 2's unproven-var check being the
+	// other example): decline, rather than guess, the moment a reference
+	// this function cannot classify sits in the same expression as one it
+	// can. TestManagedFromModuleOutputBlindCrosstalk pins the repro and the
+	// fix; TestManagedFromModuleOutputBlindCrosstalkKnownValidationResolvesConcrete
+	// is the negative control - a module-output reference that never needed
+	// this chase at all (its own value resolved directly) is unaffected.
+	if namesAModuleOutput(travs) {
+		return "", false
+	}
 
 	// Every candidate this level's own traversals name, direct or chased,
 	// collected rather than returned on the first hit. A single reference
@@ -260,6 +299,32 @@ func namesAVariable(travs []hcl.Traversal) bool {
 			continue
 		}
 		if root, ok := trav[0].(hcl.TraverseRoot); ok && root.Name == "var" {
+			return true
+		}
+	}
+	return false
+}
+
+// namesAModuleOutput reports whether any traversal roots at "module". See
+// [resolver.managedFromExprAt]'s own comment on why a module-output
+// reference has to bail the whole level rather than merely being skipped:
+// [resolver.managedUnknownAt] cannot classify one (its addrs.Ref.Subject is
+// never addrs.Resource or addrs.ResourceInstance), so treating it as "not a
+// candidate" is not a proven negative, it is a blind spot - and a blind spot
+// beside a reference this package CAN see is exactly how a confident wrong
+// answer gets produced. Checked at every depth, the same as
+// [namesAVariable]/[resolver.namesAnUnprovenVariable]: the crosstalk this
+// guards is not about the top-level identity argument naming a module
+// output directly, it is about a CHASED local's or module variable's own
+// definition - reached only through the recursion - naming one beside an
+// unrelated direct reference. TestManagedFromModuleOutputBlindCrosstalk is
+// exactly that shape, two hops down.
+func namesAModuleOutput(travs []hcl.Traversal) bool {
+	for _, trav := range travs {
+		if len(trav) == 0 {
+			continue
+		}
+		if root, ok := trav[0].(hcl.TraverseRoot); ok && root.Name == "module" {
 			return true
 		}
 	}
