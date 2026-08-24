@@ -611,7 +611,26 @@ var identityGoldenPin = map[string]int{
 	// aws_sns_topic.unrelated, the same plain server-assigned
 	// NEEDS_DISCOVERY shape every sibling aws_sns_topic fixture already
 	// contributes.
-	"NEEDS_DISCOVERY": 718,
+	//
+	// 718 -> 721 for the corpus-alb-complete/test_plan unit that fixed
+	// [namesAModuleOutput]'s crosstalk (internal/live/identity's
+	// managedprovenance.go): three ADDED rows, all from the new fixture
+	// testdata/managed-read-module-blind-crosstalk -
+	// aws_cognito_user_pool.this, module.wildcard_cert.aws_acm_certificate.
+	// this[0], and modules/wildcard_cert's own aws_acm_certificate.this[0].
+	// All three are the plain server-assigned NEEDS_DISCOVERY shape every
+	// sibling ACM/Cognito fixture in this golden already contributes; the
+	// fixture's fourth resource,
+	// module.alb.aws_lb_listener_certificate.this["https/0"], is the one
+	// this unit's fix concerns and does not appear here at all - offline,
+	// with no managed results supplied, it declines with the ordinary
+	// "Non-static identity argument" refusal, exactly as it did before the
+	// fix (this golden sweeps with no [Context.ManagedResults], so the
+	// bug's own trigger - a module-output leg and a direct leg racing under
+	// real managed results - never fires in this sweep at all). "0
+	// identities changed, 3 added, 0 removed" confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating.
+	"NEEDS_DISCOVERY": 721,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1230,7 +1249,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "271df52fce1d7eb21356c7f82011c4605757a06b4d72949b437ed279e067e22c" // issue #394: one ADDED row, default-adopter-sweep-orphan/aws_sns_topic.unrelated
+const identityGoldenPinBodyDigest = "5ac7ebce258997247dc02a7ef71dba07a3395b9965e1ce4cbe8fdd54e20bf76c" // corpus-alb-complete/test_plan unit: three ADDED rows, testdata/managed-read-module-blind-crosstalk (see identityGoldenPin's "NEEDS_DISCOVERY" note); previously 271df52f..., issue #394's one ADDED row, default-adopter-sweep-orphan/aws_sns_topic.unrelated
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1824,7 +1843,14 @@ const (
 	// directory parses while declaring neither side of any companion pair.
 	// "0 identities changed, 1 added, 0 removed" confirmed by diffing
 	// testdata/identity-golden.txt before and after regenerating.
-	identityGoldenPinInstances = 1696
+	// Then 1696 -> 1699 for the corpus-alb-complete/test_plan unit that
+	// fixed [namesAModuleOutput]'s crosstalk: three new instances, all from
+	// testdata/managed-read-module-blind-crosstalk (see identityGoldenPin's
+	// "NEEDS_DISCOVERY" note for which three, and why the fixture's fourth
+	// resource is not among them). "0 identities changed, 3 added, 0
+	// removed" confirmed by diffing testdata/identity-golden.txt before and
+	// after regenerating.
+	identityGoldenPinInstances = 1699
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2051,7 +2077,14 @@ const (
 	// 595 -> 596 for GitHub issue #394: one new fixture directory,
 	// internal/live/discovery/testdata/default-adopter-sweep-orphan (see
 	// identityGoldenPinInstances's own note immediately above).
-	identityGoldenPinDirs = 596
+	//
+	// 596 -> 599 for the corpus-alb-complete/test_plan unit that fixed
+	// [namesAModuleOutput]'s crosstalk: three new fixture directories -
+	// internal/live/identity/testdata/managed-read-module-blind-crosstalk
+	// and its two submodule directories, modules/alb and
+	// modules/wildcard_cert (see identityGoldenPinInstances's own note
+	// immediately above).
+	identityGoldenPinDirs = 599
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

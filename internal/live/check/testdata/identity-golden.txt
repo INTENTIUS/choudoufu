@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=596 instances=1696
+# shape: dirs=599 instances=1699
 # shape: class CONCRETE=819
-# shape: class NEEDS_DISCOVERY=718
+# shape: class NEEDS_DISCOVERY=721
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=271df52fce1d7eb21356c7f82011c4605757a06b4d72949b437ed279e067e22c
+# shape: body-sha256=5ac7ebce258997247dc02a7ef71dba07a3395b9965e1ce4cbe8fdd54e20bf76c
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -361,6 +361,9 @@ internal/live/identity/testdata/managed-read-foreach-broken-sibling	aws_acm_cert
 internal/live/identity/testdata/managed-read-foreach-data-arg	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-foreach-var-arg	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/managed-read-known-plus-data	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-module-blind-crosstalk	aws_cognito_user_pool.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-module-blind-crosstalk	module.wildcard_cert.aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/managed-read-module-blind-crosstalk/modules/wildcard_cert	aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_cognito_risk_configuration.main	CONCRETE	us-east-1_abc123:1example23456789	client_id=1example23456789,user_pool_id=us-east-1_abc123
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_detective_member.member	CONCRETE	arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d/123456789012	account_id=123456789012,graph_arn=arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_lambda_function_event_invoke_config.main	CONCRETE	example:production	function_name=example,qualifier=production
