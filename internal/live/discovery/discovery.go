@@ -842,6 +842,12 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// estate's record, so it never joins the binding demand below.
 			// It was already recorded as declared in the loop above, so
 			// this skip cannot make it look like an orphan.
+			//
+			// Logged rather than silent so a real run's TF_LOG=debug output
+			// is how the shrink is measured against a migrated estate,
+			// the same way the two DEBUG lines a few hundred lines below
+			// already narrate this pass's other per-instance decisions.
+			log.Printf("[DEBUG] stateless/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
 			continue
 		}
 		typeName := r.Type()
