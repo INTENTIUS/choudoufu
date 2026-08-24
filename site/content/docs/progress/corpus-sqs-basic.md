@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replan from nothing | pass | no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS |
 | No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file |
 | Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

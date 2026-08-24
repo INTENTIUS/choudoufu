@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replan from nothing | pass | no resource change proposed, nothing foreign; all 35 rendered identities name a live hosted zone or record set |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); 7 zones / 28 records unchanged, all 7 markers unmoved |
 | Drift and reconverge | pass | one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname["2016"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

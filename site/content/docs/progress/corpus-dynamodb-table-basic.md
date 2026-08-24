@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replan from nothing | pass | no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged |
 | No-op apply | pass | genuine no-op: 1 objects before, 1 after, no state file either time |
 | Drift and reconverge | pass | one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-unique-rabbit's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

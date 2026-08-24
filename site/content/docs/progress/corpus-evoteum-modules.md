@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replan from nothing | pass | no changes; VPC and table markers unchanged, all three untaggable associations resolved by their composite identity |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 7, no state file |
 | Drift and reconverge | pass | VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

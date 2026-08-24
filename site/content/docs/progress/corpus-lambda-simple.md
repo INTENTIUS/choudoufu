@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replan from nothing | pass | no resource change proposed |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 3; markers and record store intact |
 | Drift and reconverge | pass | one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128 |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

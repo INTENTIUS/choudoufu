@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replan from nothing | pass | empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key |
 | No-op apply | pass | genuine no-op: 3 objects before, 3 after, no state file either time |
 | Drift and reconverge | pass | the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_iot_data.aws_s3_bucket.main |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

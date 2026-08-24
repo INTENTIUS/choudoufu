@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replan from nothing | pass | live-plan empty, role/policy tofu-address unchanged, both *_exclusive resources re-derived by value |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, both exclusive sets unchanged |
 | Drift and reconverge | pass | role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |

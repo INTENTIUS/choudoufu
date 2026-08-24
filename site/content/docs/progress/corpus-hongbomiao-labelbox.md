@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -21,7 +21,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replan from nothing | pass | no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file |
 | Drift and reconverge | pass | bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
