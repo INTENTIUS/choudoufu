@@ -362,7 +362,13 @@ var identityGoldenPin = map[string]int{
 	// as module.child.aws_eks_cluster.this from the parent), plus record-
 	// parent-derived's aws_cloudwatch_log_group.app. See
 	// identityGoldenPinInstances's own note.
-	"CONCRETE": 822,
+	//
+	// 822 -> 824 for corpus-eks-basic/test_plan's splat-visibility unit
+	// (issue #396): provider-config-demand-splat's own aws_eks_cluster.
+	// this[0] (a count-expanded, statically-computable "prod-cluster"),
+	// swept twice the same way the two rows above are. See
+	// identityGoldenPinInstances's own note.
+	"CONCRETE": 824,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -1278,7 +1284,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "ddb95c299ef3342087dd1af1a9a6d6bd8534d5aa49f83a079e53be69054579b5" // union re-pin: the nine rows of the #391+crosstalk merge plus the two aws_instance.gatekeeper rows from the moduleOutputLookup dependency-scoping unit; confirmed by regenerating with -update over the union of fixtures, exactly those eleven lines added vs the pre-#391 golden and nothing else changed
+const identityGoldenPinBodyDigest = "5bca096d86639d0a9373f71f44399e7b955233cd82160a41565204aa69e7077c" // corpus-eks-basic/test_plan's splat-visibility unit (issue #396): provider-config-demand-splat's own two aws_eks_cluster.this[0] CONCRETE rows added, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1899,7 +1905,20 @@ const (
 	// same own-directory-plus-parent reason the six above already are. "0
 	// identities changed, 2 added, 0 removed" confirmed by diffing testdata/
 	// identity-golden.txt before and after regenerating with -update.
-	identityGoldenPinInstances = 1707
+	//
+	// Then 1707 -> 1709, corpus-eks-basic/test_plan's splat-visibility unit
+	// (issue #396): two new instances, aws_eks_cluster.this[0], both
+	// CONCRETE ("prod-cluster"), added by internal/live/dataread/testdata/
+	// provider-config-demand-splat/ (its own directory plus its child/
+	// module, the same own-directory-plus-parent shape every fixture above
+	// sweeps twice) - a count-expanded managed resource whose child module
+	// output reads it back through a legacy 0.11-style splat
+	// (element(concat(aws_eks_cluster.this.*.id, tolist([""])), 0)), the
+	// exact shape internal/configs/splat_coverage.go now makes visible to
+	// static reference coverage. "0 identities changed, 2 added, 0 removed"
+	// confirmed by diffing testdata/identity-golden.txt before and after
+	// regenerating with -update.
+	identityGoldenPinInstances = 1709
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2139,7 +2158,12 @@ const (
 	// and its two submodule directories, modules/alb and
 	// modules/wildcard_cert (see identityGoldenPinInstances's own note
 	// immediately above).
-	identityGoldenPinDirs = 602
+	//
+	// Then 602 -> 604 for corpus-eks-basic/test_plan's splat-visibility unit
+	// (issue #396): two new fixture directories - internal/live/dataread/
+	// testdata/provider-config-demand-splat and its own child/ submodule
+	// (see identityGoldenPinInstances's own note immediately above).
+	identityGoldenPinDirs = 604
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
