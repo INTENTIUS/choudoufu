@@ -1315,7 +1315,7 @@ EOF
   grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
   SG_ADDR_D_AFTER_RENAME="${SG_ADDR_D_BEFORE/module.security_group./module.security_group_renamed.}"
-  grep -qF "~   \"tofu-address\" = \"$SG_ADDR_D_BEFORE\" -> \"$SG_ADDR_D_AFTER_RENAME\"" <<< "$MOVED_PLAN_OUT" \
+  grep -qE "~ +\"tofu-address\" = \"${SG_ADDR_D_BEFORE//./\\.}\" -> \"${SG_ADDR_D_AFTER_RENAME//./\\.}\"" <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
   log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
 
