@@ -75,6 +75,16 @@ import (
 // never more than one candidate. The wrong single answer looks exactly like
 // a confident right one.
 //
+// UPDATE (corpus-alb-complete/test_plan, the chase-through unit): the
+// paragraph above describes the state before ANY fix landed. The first fix
+// made a "module" root decline the whole level outright, whatever it named.
+// The current one ([resolver.managedFromModuleOutput]) instead resolves it -
+// entering the child module and asking the identical provenance question of
+// the output's own defining expression - so it becomes a real entry in
+// `found` precisely when it can be proven to name exactly one candidate.
+// Nothing above stops being true as HISTORY; it is why the mechanism looks
+// the way it does today.
+//
 // This is HANDOFF's row 2 (the plans differ: a defect), found by
 // instrumenting managedUnknownAt's own switch rather than by guessing at
 // resolve.go's stack discipline, which the prior worker had already checked
@@ -124,31 +134,47 @@ func moduleBlindCrosstalkSchemas() map[string]providers.Schema {
 }
 
 // TestManagedFromModuleOutputBlindCrosstalk is the repro, asserted BY
-// VALUE, of the bug [namesAModuleOutput] fixes: with the validation
-// resource's own certificate_arn still unknown (this run has not resolved
-// module.wildcard_cert's own graph node yet) and Cognito's pool ARN also
-// unknown (same reason, a different resource),
+// VALUE, of the original blind-spot bug and the negative case for the later
+// chase-through widening ([resolver.managedFromModuleOutput]): with the
+// validation resource's own certificate_arn still unknown (this run has not
+// resolved module.wildcard_cert's own graph node yet) AND Cognito's pool ARN
+// also unknown (same reason, a different resource),
 // module.alb.aws_lb_listener_certificate.this["https/0"] must never be
 // attributed to aws_cognito_user_pool.this - its own certificate_arn
 // argument reads module.wildcard_cert's output, and names no Cognito
 // reference anywhere in the configuration.
 //
-// Before the fix, it does exactly that: the instance resolves
+// Before ANY fix, it does exactly that: the instance resolves
 // NEEDS_DISCOVERY with CauseArgs[0] == "aws_cognito_user_pool.this" and a
 // Reason claiming it "takes certificate_arn from aws_cognito_user_pool.this"
 // - HANDOFF's row 2 (the plans differ: a defect), not merely a missed
-// resolution. After the fix, the instance declines honestly instead (its
-// own module-routed value genuinely cannot be read in this run), which is
-// what the second half of this test proves: the diagnostic naming this
-// address is the ordinary "Non-static identity argument" refusal, with no
-// Cognito anywhere in it.
+// resolution. The first fix (git history) declined outright the moment ANY
+// traversal named a "module" root, whether or not that traversal could be
+// chased - safe, but blind to the real answer even where one existed. The
+// current fix ([resolver.managedFromModuleOutput]) instead PROVES the
+// module-routed leg: it chases through module.wildcard_cert's own output
+// expression and finds a real candidate there too
+// (aws_acm_certificate_validation.this[0], still unknown in THIS test's
+// setup), so `found` ends up with TWO genuine candidates - Cognito and the
+// ACM resource - and the SAME len(found) != 1 ambiguity guard declines for
+// an honest reason instead of a blind one. Either way the instance declines
+// rather than resolves, which is what the second half of this test proves:
+// the diagnostic naming this address is the ordinary "Non-static identity
+// argument" refusal, with no Cognito anywhere in it.
+// TestManagedFromModuleOutputChasesThroughToACMResource is the sibling test
+// that proves the chase actually resolves something when only ONE candidate
+// is real (Cognito already known, only the ACM leg unknown) - the case this
+// test's own shape can never exercise, because both legs unknown here is
+// always genuinely ambiguous.
 //
 // The mutation check is built into the assertion shape itself, not a
-// separate run: reverting [namesAModuleOutput]'s call in
-// managedFromExprAt reproduces the FIRST failure mode this test checks for
-// (a resolved instance attributed to Cognito) precisely, and every
-// assertion below is written to catch that specific shape, not merely "no
-// error".
+// separate run: reverting managedFromExprAt's found-accumulation loop to
+// skip a "module" root instead of chasing or declining on it reproduces the
+// FIRST failure mode this test checks for (a resolved instance attributed
+// to Cognito) precisely, and every assertion below is written to catch that
+// specific shape, not merely "no error". Weakening the len(found) != 1
+// ambiguity guard itself is TestManagedFromModuleOutputChasesThroughToACMResource's
+// and this file's own mutation note - see that test's doc comment.
 func TestManagedFromModuleOutputBlindCrosstalk(t *testing.T) {
 	cfg := loadConfigTree(t, filepath.Join("testdata", "managed-read-module-blind-crosstalk"), nil)
 
@@ -229,5 +255,70 @@ func TestManagedFromModuleOutputBlindCrosstalkKnownValidationResolvesConcrete(t 
 	want := "arn:aws:elasticloadbalancing:us-east-1:1:listener/app/x/1/2_arn:aws:acm:us-east-1:1:certificate/real-wildcard-cert"
 	if res.ImportID != want {
 		t.Errorf("resolved ImportID %q, want %q", res.ImportID, want)
+	}
+}
+
+// TestManagedFromModuleOutputChasesThroughToACMResource is the positive
+// case [resolver.managedFromModuleOutput] exists for: when Cognito's own
+// pool ARN has already resolved (known) and ONLY the module-routed ACM
+// validation resource is still unknown, module.alb.aws_lb_listener_certificate.this
+// ["https/0"] must attribute to that REAL resource - by value - instead of
+// declining the way the pre-chase fix always did for any module-output
+// reference, proven or not.
+//
+// This is what makes the ambiguity guard in managedFromExprAt HONEST rather
+// than blind: at the level that chases local.listeners (the object
+// constructor combining both listeners), [resolver.managedUnknownAt] no
+// longer finds Cognito's own reference a candidate at all (its ARN is known
+// now), and [resolver.managedFromModuleOutput] proves the module-routed leg
+// resolves to exactly one candidate -
+// module.wildcard_cert.aws_acm_certificate_validation.this[0], the SAME
+// resource TestManagedFromModuleOutputBlindCrosstalkKnownValidationResolvesConcrete
+// already lets `certificate_arn` read a known VALUE from - so `found` ends
+// up with exactly one entry and the guard lets it through.
+//
+// Mutation check (b) from the unit's own brief: reverting
+// [resolver.managedFromModuleOutput]'s call in managedFromExprAt back to an
+// unconditional decline (git stash this file's diff, or hand-edit the loop
+// to `continue` instead of chasing/declining on a "module" root) makes this
+// test fail - the instance stops resolving at all and diags carry only the
+// "Non-static identity argument" refusal, not a sibling-apply Reason naming
+// the ACM resource. Mutation check (a) is
+// TestManagedFromModuleOutputBlindCrosstalk itself, unmodified above: it
+// still must fail (Cognito misattribution) if the len(found) != 1 ambiguity
+// guard this function also relies on is ever removed.
+func TestManagedFromModuleOutputChasesThroughToACMResource(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "managed-read-module-blind-crosstalk"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: moduleBlindCrosstalkManagedResults(true, false),
+		Schemas:        moduleBlindCrosstalkSchemas(),
+	})
+	if result == nil {
+		t.Fatalf("resolution produced no result at all: %s", renderDiags(diags))
+	}
+
+	addr := mustAddr(t, `module.alb.aws_lb_listener_certificate.this["https/0"]`)
+	res, ok := result.Get(addr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", addr, renderDiags(diags))
+	}
+	if res.Class != ClassNeedsDiscovery {
+		t.Fatalf("%s resolved %s (cause %s, args %v, reason %q), want NEEDS_DISCOVERY attributed to the ACM validation resource",
+			addr, res.Class, res.Cause, res.CauseArgs, res.Reason)
+	}
+	if res.Cause != DiscoverySiblingApply {
+		t.Errorf("%s resolved NEEDS_DISCOVERY with cause %s, want %s", addr, res.Cause, DiscoverySiblingApply)
+	}
+	wantSibling := "aws_acm_certificate_validation.this"
+	if len(res.CauseArgs) == 0 || res.CauseArgs[0] != wantSibling {
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q (the module's own validation resource, chased through module.wildcard_cert's acm_certificate_arn output)",
+			addr, res.CauseArgs, wantSibling)
+	}
+	if !strings.Contains(res.Reason, wantSibling) {
+		t.Errorf("%s: Reason %q does not name %q", addr, res.Reason, wantSibling)
+	}
+	if strings.Contains(res.Reason, "aws_cognito_user_pool") {
+		t.Errorf("%s: Reason %q names Cognito, which is unrelated to this listener's certificate", addr, res.Reason)
 	}
 }
