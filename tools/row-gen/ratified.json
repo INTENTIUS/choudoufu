@@ -170,6 +170,7 @@
         "attrs": [
           "port"
         ],
+        "omit_if_absent": true,
         "identity_attr": "*"
       },
       {
@@ -7709,6 +7710,7 @@
         "attrs": [
           "port"
         ],
+        "omit_if_absent": true,
         "identity_attr": "*"
       },
       {
