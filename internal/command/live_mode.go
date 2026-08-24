@@ -772,6 +772,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 		RecordStore:         r.recordStore,
+		// dataResults (statelessDataReads, above) is issue #179's own
+		// data-read phase output - already read, already paid for. See
+		// [projection.Options.DataResults]'s doc comment for why the
+		// projection's own tags/attrs seeding wants it too.
+		DataResults: dataResults,
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are

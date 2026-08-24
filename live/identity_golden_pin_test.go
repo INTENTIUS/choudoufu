@@ -2163,7 +2163,17 @@ const (
 	// (issue #396): two new fixture directories - internal/live/dataread/
 	// testdata/provider-config-demand-splat and its own child/ submodule
 	// (see identityGoldenPinInstances's own note immediately above).
-	identityGoldenPinDirs = 604
+	//
+	// Then 604 -> 606 for corpus-eks-basic/test_plan's own follow-up unit
+	// (the estate's launch-configuration wall, closed by
+	// configuredAttrsSeed and its residue-record pre-read seed in
+	// internal/live/projection/build.go): two new fixture directories,
+	// internal/live/projection/testdata/attrs-seed and attrs-seed-data,
+	// neither producing an admitted managed instance - stub_lc and
+	// stub_data are test-only schemas, never real provider types the
+	// admission table resolves. identityGoldenPinInstances is unchanged at
+	// 1709 for the same reason.
+	identityGoldenPinDirs = 606
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
