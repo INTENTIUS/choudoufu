@@ -208,6 +208,122 @@ resource "fake_listener" "app" {
 	}
 }
 
+// TestMaterializeMarksAnAttributeFromAConfiguredExpression is GitHub issue
+// #401 family 3's reproduction: corpus-alb-complete's aws_instance.this/
+// .other set `ami = data.aws_ssm_parameter.al2.value`, and that data
+// source's own "value" is unconditionally Sensitive in hashicorp/aws
+// regardless of what it names - nothing about "ami" itself is sensitive.
+// The mark this fixture injects is the same class through a plainer door
+// (a `sensitive = true` variable, the same mechanism
+// testdata/tags-sensitive already uses for configuredTagsSeed): what
+// matters is that the mark comes from the CONFIGURATION expression, not
+// from fake_host's own schema, which marks nothing.
+//
+// Before the fix this file's history describes (build.go's readImported
+// used to re-mark only from schema.Block.ValueMarks), "token" came back
+// unmarked here: the live read is byte-for-byte off the wire, where the
+// plugin protocol has nowhere to carry a mark, and nothing put the config's
+// own mark back on afterward. The CONFIG-evaluated side of a later plan
+// (the ordinary dynamic evaluator, which does propagate the variable's
+// mark through `token = var.token` same as it does for `ami =
+// data.aws_ssm_parameter.al2.value`) would then disagree with this
+// PRIOR side on marks alone, and OpenTofu's own renderer would show an
+// in-place update annotated "The value is unchanged" - forever, on every
+// plan, for a value that never changes.
+func TestMaterializeMarksAnAttributeFromAConfiguredExpression(t *testing.T) {
+	dir := t.TempDir()
+	const src = `
+variable "token" {
+  type      = string
+  sensitive = true
+  default   = "tok-123"
+}
+
+resource "fake_host" "app" {
+  name  = "app"
+  token = var.token
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+	cfg := loadConfig(t, dir)
+	addr := mustAddr(t, `fake_host.app`)
+
+	schema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":    {Type: cty.String, Computed: true},
+			"name":  {Type: cty.String, Required: true},
+			"token": {Type: cty.String, Optional: true}, // NOT Sensitive in the schema - like aws_instance.ami
+		},
+	}}
+
+	// What the wire actually returns: plain, unmarked strings. The plugin
+	// protocol has nowhere to put a mark, so this is exactly what a real
+	// ReadResource answer looks like whether or not the value is
+	// sensitive by provenance.
+	live := cty.ObjectVal(map[string]cty.Value{
+		"id":    cty.StringVal("host-1"),
+		"name":  cty.StringVal("app"),
+		"token": cty.StringVal("tok-123"),
+	})
+
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("fake")}
+	p := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			Provider:      providers.Schema{Block: &configschema.Block{}},
+			ResourceTypes: map[string]providers.Schema{"fake_host": schema},
+		},
+	}
+	p.ConfigureProviderCalled = true
+	p.ImportResourceStateFn = func(r providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		return providers.ImportResourceStateResponse{ImportedResources: []providers.ImportedResource{{
+			TypeName: r.TypeName,
+			State: cty.ObjectVal(map[string]cty.Value{
+				"id": cty.StringVal(r.Target.ID), "name": cty.NullVal(cty.String), "token": cty.NullVal(cty.String),
+			}),
+		}}}
+	}
+	p.ReadResourceFn = func(providers.ReadResourceRequest) providers.ReadResourceResponse {
+		return providers.ReadResourceResponse{NewState: live}
+	}
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: addr, Class: identity.ClassConcrete, ImportID: "host-1"},
+	}, SingleProvider(provAddr, p))
+	assertNoErrors(t, diags)
+
+	got := sensitivePathStrings(t, res, addr)
+	if len(got) != 1 || got[0] != ".token" {
+		t.Fatalf("AttrSensitivePaths = %v, want exactly [.token] - the mark var.token carried in "+
+			"configuration never made it onto the projected prior, so a later plan's config-evaluated "+
+			"side (marked) and this prior (unmarked) disagree on marks alone for a value that never changed", got)
+	}
+
+	obj, err := res.State.ResourceInstance(addr).Current.Decode(schema.Block.ImpliedType())
+	if err != nil {
+		t.Fatalf("decoding the materialized object: %s", err)
+	}
+	val, valMarks := obj.Value.GetAttr("token").Unmark()
+	if _, ok := valMarks[marks.Sensitive]; !ok {
+		t.Errorf("token carries %v, want a sensitive mark", valMarks)
+	}
+	// The value itself must still be there and still be right - a mark
+	// that arrived by losing the value would pass the assertion above.
+	if val.AsString() != "tok-123" {
+		t.Errorf("token = %q, want %q: the fix must move the mark to the correct side, never strip it "+
+			"from the value it protects", val.AsString(), "tok-123")
+	}
+
+	// The negative control: "name" is set from a plain, unmarked literal
+	// and must gain nothing. Without this, a fix that marked every
+	// attribute regardless of provenance would also pass the assertion
+	// above.
+	if _, nameMarks := obj.Value.GetAttr("name").Unmark(); len(nameMarks) != 0 {
+		t.Errorf("name carries %v, want no marks: nothing in its configuration expression is sensitive", nameMarks)
+	}
+}
+
 // TestMaterializedSensitiveAttrCannotCompoundAnImportIdentity pins the
 // consequence GitHub issue #343 expected the marking to have, and which it
 // already had: b.live carries the marked value, so a child whose import
