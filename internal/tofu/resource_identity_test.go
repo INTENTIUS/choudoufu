@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -534,5 +535,170 @@ func TestResolverImportAbsentDiagnostics(t *testing.T) {
 				t.Errorf("resolverImportAbsentDiagnostics(...) = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// TestContext2Plan_resourceIdentityResolverNoClassicImporterSynthesizesStub
+// is #388's own arm (b): internal/live/projection/build.go's importAndRead
+// already recognizes a provider's "doesn't support import" /
+// "Resource Import Not Implemented" answer as the type having no classic
+// Importer at all - a fixed property of the provider's own code, not a
+// transient failure - and, when this run already has a resolved identity
+// for the instance, synthesizes the near-null stub ImportResourceState
+// itself would have returned rather than refusing outright. Before this
+// test, n.importState (the plan-node seam's own path to the identical
+// provider RPC) had no equivalent: the SAME diagnostic surfaced as a raw,
+// misleading provider error and aborted the plan even when a
+// resolver-supplied target carried a real, resolved identity object.
+//
+// The resolved identity here is providers.ImportTarget.Identity - an
+// object whose attribute names come from the provider's own identity
+// schema, set only when this run resolved a real value, never a default -
+// matching test_string on both the identity schema and the resource
+// schema so [noimporter.SynthesizeStub] can place it. ReadResourceFn
+// asserts, by value, that PriorState carried EXACTLY that value and
+// nothing else, proving the stub came from the resolved identity and not
+// from a guess.
+func TestContext2Plan_resourceIdentityResolverNoClassicImporterSynthesizesStub(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.GetProviderSchemaResponse.ResourceTypes["test_object"] = providers.Schema{
+		Block: simpleTestSchema(),
+		IdentitySchema: &configschema.Object{
+			Attributes: map[string]*configschema.Attribute{
+				"test_string": {Type: cty.String, Required: true},
+			},
+			Nesting: configschema.NestingSingle,
+		},
+	}
+	p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		var diags tfdiags.Diagnostics
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Error",
+			"resource test_object doesn't support import",
+		))
+		return providers.ImportResourceStateResponse{Diagnostics: diags}
+	}
+	var priorStateSeen cty.Value
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		priorStateSeen = r.PriorState
+		return providers.ReadResourceResponse{
+			NewState: cty.ObjectVal(map[string]cty.Value{
+				"test_string": cty.StringVal("resolved-value"),
+				"test_number": cty.NullVal(cty.Number),
+				"test_bool":   cty.NullVal(cty.Bool),
+				"test_list":   cty.NullVal(cty.List(cty.String)),
+				"test_map":    cty.NullVal(cty.Map(cty.String)),
+			}),
+		}
+	}
+
+	resolver := &stubResourceIdentityResolver{
+		addr: addr,
+		target: providers.ImportTarget{
+			Identity: cty.ObjectVal(map[string]cty.Value{
+				"test_string": cty.StringVal("resolved-value"),
+			}),
+		},
+	}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ResourceIdentityResolver: resolver,
+	})
+
+	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: a resolved identity for a no-classic-Importer type must synthesize a stub, not abort\n%s", diags.Err())
+	}
+
+	instPlan := plan.Changes.ResourceInstance(addr)
+	if instPlan == nil {
+		t.Fatalf("no plan for %s at all", addr)
+	}
+	if instPlan.Importing == nil {
+		t.Fatalf("expected the synthesized stub to still produce an import, got a non-import change (action %s)", instPlan.Action)
+	}
+
+	if priorStateSeen == cty.NilVal {
+		t.Fatal("ReadResource was never called - the stub was not synthesized")
+	}
+	if got := priorStateSeen.GetAttr("test_string").AsString(); got != "resolved-value" {
+		t.Errorf("PriorState.test_string = %q, want %q", got, "resolved-value")
+	}
+	if !priorStateSeen.GetAttr("test_number").IsNull() {
+		t.Errorf("PriorState.test_number = %#v, want null - nothing in the resolved identity named it", priorStateSeen.GetAttr("test_number"))
+	}
+}
+
+// TestContext2Plan_resourceIdentityResolverNoClassicImporterRefusesWithNoIdentityValues
+// is the boundary the synthesis above must not cross: a resolver-supplied
+// target that carries only an opaque import-ID string, with no identity
+// object this run can name attribute values from, has nothing safe to
+// synthesize a stub from. The refusal must stand, worded accurately
+// ("Resource type has no classic Importer", the same wording
+// internal/live/projection/build.go's importAndRead already gives this
+// exact case) rather than surfacing the provider's raw "doesn't support
+// import" text as if it were a transient failure, and ReadResource must
+// never be called.
+func TestContext2Plan_resourceIdentityResolverNoClassicImporterRefusesWithNoIdentityValues(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		var diags tfdiags.Diagnostics
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Error",
+			"resource test_object doesn't support import",
+		))
+		return providers.ImportResourceStateResponse{Diagnostics: diags}
+	}
+	p.ReadResourceFn = func(providers.ReadResourceRequest) providers.ReadResourceResponse {
+		t.Fatal("ReadResource must never be called with no identity values to synthesize a stub from")
+		return providers.ReadResourceResponse{}
+	}
+
+	resolver := &stubResourceIdentityResolver{
+		addr:   addr,
+		target: providers.ImportTarget{ID: "opaque-id-only"},
+	}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ResourceIdentityResolver: resolver,
+	})
+
+	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if !diags.HasErrors() {
+		t.Fatalf("expected the refusal to stand with no identity values to synthesize from, got none")
+	}
+	if !strings.Contains(diags.Err().Error(), "Resource type has no classic Importer") {
+		t.Errorf("expected the accurate \"Resource type has no classic Importer\" refusal, got:\n%s", diags.Err())
+	}
+	if strings.Contains(diags.Err().Error(), "doesn't support import") {
+		t.Errorf("the raw provider diagnostic leaked through instead of the accurate refusal:\n%s", diags.Err())
 	}
 }
