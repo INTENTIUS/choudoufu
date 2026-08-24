@@ -475,7 +475,9 @@ moved {
   to   = aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
 }
 EOF
-ORACLE_TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+ORACLE_TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
+                -target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+                -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
                 -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
                 -target=module.monitoring.aws_cloudwatch_dashboard.site)
 ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -761,7 +763,8 @@ moved {
   to   = aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
 }
 EOF
-  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
            -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
            -target=module.monitoring.aws_cloudwatch_dashboard.site)
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
@@ -789,6 +792,40 @@ EOF
   log "=== D2. choudoufu, live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike -> .cf_requests_spike_renamed, no moved block at all ==="
   sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed" {/' "$ESTATE/modules/monitoring/main.tofu"
   rm -f "$ESTATE/modules/monitoring/main.tofu.bak"
+  # HARNESS WORKAROUND (the same confirmed real floci gap the header
+  # documents for aws_budgets_budget - AWS Budgets is not implemented by
+  # this image). Every other choudoufu invocation in this script scopes the
+  # budget out with -target; live-mv has no such flag (per its own -h text
+  # it "does not run a plan over the rest of the configuration", but it
+  # still resolves every resource's IMPORT IDENTITY while loading the
+  # module, including aws_budgets_budget's own account_id-derived identity,
+  # which this estate's skip_requesting_account_id=true provider setting
+  # makes impossible to build statically - "Identity argument not set").
+  # The budget block is removed from the ESTATE copy (never $SRC, never
+  # $PLAIN) for this one command only, the same exclusion the rest of the
+  # script achieves through -target; it does not come back, since nothing
+  # after this point plans or applies the estate.
+  python3 - "$ESTATE/modules/monitoring/main.tofu" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+start = s.index('resource "aws_budgets_budget" "monthly_limit" {')
+depth, i = 0, start
+while True:
+    c = s[i]
+    if c == '{':
+        depth += 1
+    elif c == '}':
+        depth -= 1
+        if depth == 0:
+            end = i + 1
+            break
+    i += 1
+while end < len(s) and s[end] == '\n':
+    end += 1
+open(p, 'w').write(s[:start] + s[end:])
+PYEOF
+  log "  removed aws_budgets_budget.monthly_limit from the ESTATE copy for this one live-mv call (floci gap, see header; already excluded everywhere else via -target)"
   MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
