@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `227f841a83` against `ghcr.io/lex00/floci@sha256:17499fd831adf7cf8dfe84fd16e48b11253f08791aff369a7460a3cd251ba5e6`, 2026-08-24T07:22:39Z.
+Measured at commit `3dc9a5e032` against `ghcr.io/lex00/floci@sha256:668a9b80802f137e46517a348d2aa9562e00851c49dcebce3757c9c18f299bd2`, 2026-08-24T08:20:26Z.
 
 ## The stages
 
@@ -44,7 +44,7 @@ answer is and how each check is proven non-vacuous, is
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass FAIL not run not run |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass FAIL not run not run |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass FAIL not run not run |
