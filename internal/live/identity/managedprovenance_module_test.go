@@ -310,9 +310,18 @@ func TestManagedFromModuleOutputChasesThroughToACMResource(t *testing.T) {
 	if res.Cause != DiscoverySiblingApply {
 		t.Errorf("%s resolved NEEDS_DISCOVERY with cause %s, want %s", addr, res.Cause, DiscoverySiblingApply)
 	}
-	wantSibling := "aws_acm_certificate_validation.this"
+	// Module-qualified, not the bare "aws_acm_certificate_validation.this":
+	// [resolver.qualifyFoundAddr] prefixes every candidate this package
+	// discovers inside a child module with that module's own absolute path
+	// the moment it is found, because two SIBLING module calls of the same
+	// source (this fixture's "wildcard_cert" module is one of exactly the
+	// shape corpus-alb-complete's real "acm" and "wildcard_cert" calls are)
+	// can each declare their own same-named "aws_acm_certificate_validation.this",
+	// and an unqualified `found` key would silently fold two DIFFERENT real
+	// resources into one string - a wrong claim, not merely an imprecise one.
+	wantSibling := "module.wildcard_cert.aws_acm_certificate_validation.this"
 	if len(res.CauseArgs) == 0 || res.CauseArgs[0] != wantSibling {
-		t.Fatalf("%s: CauseArgs = %v, want [0] == %q (the module's own validation resource, chased through module.wildcard_cert's acm_certificate_arn output)",
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q (the module's own validation resource, chased through module.wildcard_cert's acm_certificate_arn output, module-qualified)",
 			addr, res.CauseArgs, wantSibling)
 	}
 	if !strings.Contains(res.Reason, wantSibling) {

@@ -114,8 +114,37 @@ func (r *resolver) managedFromExpr(expr hcl.Expression, scope instScope) (string
 const maxManagedProvenanceChase = 16
 
 func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth int) (string, bool) {
-	if !r.managedResults || expr == nil || depth > maxManagedProvenanceChase {
+	found, ok := r.managedFoundAt(expr, scope, depth)
+	if !ok || len(found) != 1 {
 		return "", false
+	}
+	for addr := range found {
+		return addr, true
+	}
+	return "", false
+}
+
+// managedFoundAt is [resolver.managedFromExprAt]'s workhorse: it returns the
+// FULL SET of covered-and-unknown managed resources (direct, module-routed,
+// or chased through a local/var one hop out) that expr's own traversals can
+// be proven to name at this depth, rather than collapsing to a single
+// answer. [resolver.managedFromExprAt] collapses this to "exactly one, or
+// decline" for its own callers, but [resolver.managedFromModuleOutput] needs
+// the raw set: see its own doc comment for why collapsing early there
+// reintroduces the exact blind spot this file exists to close.
+//
+// ok is false only when the search itself could not be completed safely -
+// an unproven variable (condition 2's own rule, restated for this depth),
+// or depth exhausted. A TRUE, complete answer is ok=true, and found may
+// legitimately be EMPTY: every traversal this level names was decidable
+// (covered-and-known, not covered at all, or a module/local/var chase that
+// itself completed to zero real candidates) and none of them names a
+// covered-and-unknown resource. An empty-but-proven found is not the same
+// as "cannot classify", and callers must not conflate them - see
+// [resolver.managedFromModuleOutput].
+func (r *resolver) managedFoundAt(expr hcl.Expression, scope instScope, depth int) (map[string]bool, bool) {
+	if !r.managedResults || expr == nil || depth > maxManagedProvenanceChase {
+		return nil, false
 	}
 	travs := expr.Variables()
 	// Depth 0 is the identity argument itself, where [namesAVariable]'s
@@ -131,7 +160,7 @@ func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth
 		unproven = r.namesAnUnprovenVariable
 	}
 	if unproven(travs) {
-		return "", false
+		return nil, false
 	}
 	// A "module" root used to be declined outright, unconditionally, the
 	// moment it appeared anywhere in expr: [resolver.managedUnknownAt]'s
@@ -207,18 +236,26 @@ func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth
 			continue
 		}
 		if addr, ok := r.managedUnknownAt(trav); ok {
-			found[addr] = true
+			found[r.qualifyFoundAddr(addr)] = true
 			continue
 		}
 		root, isRoot := trav[0].(hcl.TraverseRoot)
 		if !isRoot || root.Name != "module" {
 			continue
 		}
-		addr, ok := r.managedFromModuleOutput(trav, depth+1)
+		sub, ok := r.managedFromModuleOutput(trav, depth+1)
 		if !ok {
-			return "", false
+			// Could not be proven either way - not "zero candidates", but
+			// "cannot tell". A reference this cannot classify must not let
+			// one it CAN classify (already sitting in `found`) win by
+			// default, so the WHOLE level declines rather than silently
+			// dropping just this traversal. See this function's own doc
+			// comment and [resolver.managedFromModuleOutput]'s.
+			return nil, false
 		}
-		found[addr] = true
+		for addr := range sub {
+			found[addr] = true
+		}
 	}
 	// Condition 3's first leg, one hop out: expr does not read the resource
 	// directly, but it reads a local or a module variable whose OWN
@@ -243,13 +280,7 @@ func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth
 			found[addr] = true
 		}
 	}
-	if len(found) != 1 {
-		return "", false
-	}
-	for addr := range found {
-		return addr, true
-	}
-	return "", false
+	return found, true
 }
 
 // managedFromNamed is [resolver.managedFromExprAt]'s one hop through
@@ -331,13 +362,13 @@ func namesAVariable(travs []hcl.Traversal) bool {
 	return false
 }
 
-// managedFromModuleOutput is [resolver.managedFromExprAt]'s chase through a
+// managedFromModuleOutput is [resolver.managedFoundAt]'s chase through a
 // module boundary for ONE "module.<call>[key].<output>" traversal: it looks
 // up what the module CALL's own output is defined as - the identical lookup
 // [resolver.resolveModuleOutput] makes for a VALUE chase (same
 // r.mod.ModuleCalls lookup, same repeated/key handling, same
 // r.enterModuleFor(r.modInst.Child(...)) hop into the child module) - and
-// then asks [resolver.managedFromExprAt] the SAME provenance question of the
+// then asks [resolver.managedFoundAt] the SAME provenance question of the
 // output's own expression, one depth further, inside the child module's own
 // scope rather than the caller's: an output's defining expression is
 // written in the child module, where the referring resource's own
@@ -345,42 +376,57 @@ func namesAVariable(travs []hcl.Traversal) bool {
 // [resolver.resolveModuleOutput] gives for the identical hop on the value
 // side.
 //
+// It returns the FULL SET managedFoundAt proves for the output's own
+// expression, not a single collapsed answer - see managedFoundAt's own doc
+// comment for why: a module output whose underlying resource genuinely
+// cannot be read (aws_acm_certificate_validation has no classic Importer,
+// the real corpus-alb-complete carrier for this) proves to EXACTLY ZERO
+// candidates, not "unprovable", and collapsing that to a single
+// string/bool answer the way the first version of this function did made
+// every such module reference indistinguishable from "cannot classify" -
+// which forced the caller to decline the WHOLE level for a module output
+// that in truth contributed nothing, reproducing the old blanket-decline
+// behavior for exactly the shape this file exists to fix. Measured against
+// the real estate (CHOUDOUFU_DEBUG_MANAGEDFROM=1, see this unit's own commit
+// history): TestManagedFromModuleOutputChasesThroughToACMResource's fixture
+// covers only the "resource IS covered" half; the real corpus needed this
+// half too.
+//
 // ok is false for every shape this cannot resolve with the same certainty
 // resolveModuleOutput requires of a value chase: no such module call, an
 // unrepeated call indexed or a repeated one not, a key the call does not
-// actually expand to, no output by that name, or a selector reaching past
-// the output into ITS OWN value (module.foo.bar.baz - this function proves
-// only "module.foo[key].bar", never a further selection into what bar
-// itself contains). It is also false whenever the output's own chase - the
-// recursive [resolver.managedFromExprAt] call - does not resolve to exactly
-// one candidate: zero real candidates and two-or-more ambiguous candidates
-// come back indistinguishable from "could not be proven" here, and that is
-// deliberate. [resolver.managedFromExprAt]'s own caller-side rule (see its
-// doc comment) treats every false from this function as "cannot classify"
-// and declines the WHOLE level rather than silently dropping this one
+// actually expand to, no output by that name, a selector reaching past the
+// output into ITS OWN value (module.foo.bar.baz - this function proves only
+// "module.foo[key].bar", never a further selection into what bar itself
+// contains), or the output's own chase itself being unprovable (an unproven
+// variable, depth exhausted). [resolver.managedFoundAt]'s own caller-side
+// rule treats every false from this function as "cannot classify" and
+// declines the WHOLE level rather than silently dropping this one
 // traversal - a module reference this cannot prove clean must not let a
 // direct reference sitting beside it win by default, which is exactly the
 // shape that produced TestManagedFromModuleOutputBlindCrosstalk's
-// misattribution before this file chased module boundaries at all.
+// misattribution before this file chased module boundaries at all. An
+// EMPTY-but-proven set (ok=true, len(sub)==0) is different from that and
+// must not be confused with it: the caller merges it and moves on.
 //
 // depth is the caller's own depth, already bumped by one for this hop, and
 // is what makes [maxManagedProvenanceChase] bound a module chase exactly
 // the way it already bounds a local/var chase - a pathological or
 // self-referential chain of module outputs declines rather than recursing
 // unboundedly.
-func (r *resolver) managedFromModuleOutput(trav hcl.Traversal, depth int) (string, bool) {
+func (r *resolver) managedFromModuleOutput(trav hcl.Traversal, depth int) (map[string]bool, bool) {
 	if len(trav) < 3 {
-		return "", false
+		return nil, false
 	}
 	callStep, ok := trav[1].(hcl.TraverseAttr)
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	rest := trav[2:]
 
 	mc, ok := r.mod.ModuleCalls[callStep.Name]
 	if !ok || mc.Config == nil {
-		return "", false
+		return nil, false
 	}
 
 	// See [resolver.resolveModuleOutput]'s identical block for why each of
@@ -391,21 +437,21 @@ func (r *resolver) managedFromModuleOutput(trav hcl.Traversal, depth int) (strin
 	key := addrs.InstanceKey(addrs.NoKey)
 	if idx, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
 		if !repeated {
-			return "", false
+			return nil, false
 		}
 		k, ok := indexKeyValue(idx.Key)
 		if !ok {
-			return "", false
+			return nil, false
 		}
 		key = k
 		rest = rest[1:]
 	} else if repeated {
-		return "", false
+		return nil, false
 	}
 	if repeated {
 		subject := "module." + callStep.Name
 		if _, ok := ChildModuleRepetitionData(r.ctx, r.curCfg, subject, mc.Count, mc.ForEach, key); !ok {
-			return "", false
+			return nil, false
 		}
 	}
 
@@ -414,26 +460,26 @@ func (r *resolver) managedFromModuleOutput(trav hcl.Traversal, depth int) (strin
 	// ("module.foo.bar.baz") are both outside what this function proves -
 	// see its own doc comment.
 	if len(rest) != 1 {
-		return "", false
+		return nil, false
 	}
 	outStep, isAttr := rest[0].(hcl.TraverseAttr)
 	if !isAttr {
-		return "", false
+		return nil, false
 	}
 
 	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
 	if !r.enterModuleFor(r.modInst.Child(callStep.Name, key)) {
-		return "", false
+		return nil, false
 	}
 	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
 
 	out, ok := r.mod.Outputs[outStep.Name]
 	if !ok || out.Expr == nil {
-		return "", false
+		return nil, false
 	}
 
 	// A fresh scope, not the caller's - see the doc comment above.
-	return r.managedFromExprAt(out.Expr, instScope{}, depth)
+	return r.managedFoundAt(out.Expr, instScope{}, depth)
 }
 
 // namesAnUnprovenVariable is condition 2 restated for a CHASED expression -
@@ -594,6 +640,44 @@ func (r *resolver) siblingApplyResolution(addr addrs.AbsResourceInstance, sibMar
 // selection cannot handle (an index or a key selection walk declines) falls
 // back to the CONTAINER'S own answer, which is today's behaviour, applied
 // exactly where it already was.
+// qualifyFoundAddr prefixes a module-relative resource address (what
+// [resolver.managedUnknownAt] and [addrs.Resource.String] render, e.g.
+// "aws_acm_certificate.this") with r.modInst's own ABSOLUTE path at the
+// moment it was discovered ("module.acm.aws_acm_certificate.this"), or
+// leaves it unqualified when r.modInst is the root module.
+//
+// This is the fix for a real collision [resolver.managedFromModuleOutput]
+// exposed on corpus-alb-complete's own configuration: two sibling module
+// calls of the SAME child module source (module.acm and module.wildcard_cert,
+// both terraform-aws-modules/acm) each declare their own
+// `aws_acm_certificate.this`, and [resolver.managedFoundAt]'s `found` set is
+// keyed by string - without this qualifier, chasing module.acm's own output
+// and module.wildcard_cert's own output in the SAME combined expression
+// (terraform-aws-modules/alb's own `listeners` map, the same shape the
+// original Cognito crosstalk bug lived in) folds two GENUINELY DIFFERENT
+// certificates into ONE `found` entry, "aws_acm_certificate.this" - not a
+// wrong marker (this package never writes one), but a wrong claim in the
+// sibling-apply sentence, and a silent one: `len(found) != 1` sees ONE
+// candidate and attributes confidently, when the true, disambiguated
+// picture may have been two DIFFERENT certificates or, mixed with an
+// unrelated direct reference elsewhere, a real ambiguity this package exists
+// to catch.
+//
+// r.modInst.String() is always the FULL path from the root, at any nesting
+// depth - not a delta from the caller - so qualifying at the single point a
+// raw address is ever minted ([resolver.managedUnknownAt]'s own call site in
+// [resolver.managedFoundAt]) is correct and idempotent: a candidate that
+// bubbles up from a DEEPER module chase ([resolver.managedFromModuleOutput]
+// merging a child's own `found` set into the caller's) already carries its
+// own correct, absolute qualifier from the moment it was discovered THERE,
+// and is never re-qualified again on the way up.
+func (r *resolver) qualifyFoundAddr(addr string) string {
+	if len(r.modInst) == 0 {
+		return addr
+	}
+	return r.modInst.String() + "." + addr
+}
+
 func (r *resolver) managedUnknownAt(trav hcl.Traversal) (string, bool) {
 	if !r.managedCovered(trav) {
 		return "", false
