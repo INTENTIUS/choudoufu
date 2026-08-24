@@ -21694,6 +21694,24 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::XRay::SamplingRule, {}) made a resource but the following ListResources(AWS::XRay::SamplingRule) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "status": "implemented",
+          "evidence": "Re-probed against this digest 2026-08-24 (round-6 repin merging lex00/floci main up to d7a098a2, PR #125: CustomizedMetricSpecification's Metrics/TargetTrackingMetricDataQuery shape per #122, launch-template SG conflation per #123, connection_tracking_specification + tenancy, ASG desired_capacity_type + InstanceRequirements overrides + WarmPoolConfiguration echo; Redshift untouched by the diff): redshift create-cluster (single-node, dc2.large) succeeds and returns ClusterStatus \"available\" - unchanged from every prior digest, including the one this repin replaces.",
+          "source": "hand probe against this digest"
+        },
+        {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest 2026-08-24 (round-6 repin merging lex00/floci main up to d7a098a2, PR #125: CustomizedMetricSpecification's Metrics/TargetTrackingMetricDataQuery shape per #122, launch-template SG conflation per #123, connection_tracking_specification + tenancy, ASG desired_capacity_type + InstanceRequirements overrides + WarmPoolConfiguration echo; QLDB untouched by the diff): the aws CLI's own qldb subcommand remains unavailable (botocore dropped the QLDB service model), so this probe used a raw sigv4-shaped signed HTTP POST instead of the CLI - POST /ledgers still returns HTTP 404 with a clean UnknownOperationException (\"Unknown operation: POST /ledgers\") - no QLDB handler, same as every prior digest.",
+          "source": "hand probe against this digest"
+        },
+        {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Re-probed against this digest 2026-08-24 (round-6 repin merging lex00/floci main up to d7a098a2, PR #125: CustomizedMetricSpecification's Metrics/TargetTrackingMetricDataQuery shape per #122, launch-template SG conflation per #123, connection_tracking_specification + tenancy, ASG desired_capacity_type + InstanceRequirements overrides + WarmPoolConfiguration echo; OpenSearch untouched by the diff): control plane remains daemonless - create-domain returns Processing=false immediately with an empty Endpoint and no docker socket mounted, matching every previous pin. The search data plane remains unverifiable without the docker socket.",
+          "source": "hand probe against this digest"
         }
       ]
     },
