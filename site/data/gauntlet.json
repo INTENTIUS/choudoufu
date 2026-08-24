@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "21d51b4a65cb8ff788c0a37692cd486a45356d65",
+  "commit": "f8ebf966ef392bcdfff8f48d463e806270bc2730",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T19:13:56Z",
+  "generated": "2026-08-24T19:49:15Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -930,14 +930,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
-        "date": "2026-08-23T23:57:57Z",
+        "commit": "f8ebf966ef392bcdfff8f48d463e806270bc2730",
+        "date": "2026-08-24T19:49:06Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "63 resources from stock terraform; 4 live zones confirmed unmarked",
           "drift_reconverge": "one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact",
-          "migrate": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 14 residue records written, DataCite's own tags survived",
-          "test_apply": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 14 residue records intact",
+          "migrate": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 59 identity records written (#364), 14 of them also carrying residue (#341), DataCite's own tags survived",
+          "test_apply": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 59 identity records intact (14 residue-bearing)",
           "test_plan": "plan empty across 63 instances, no state file; 14 record sets and 4 zones filled residue from the store"
         }
       },
@@ -1094,8 +1094,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "21d51b4a65cb8ff788c0a37692cd486a45356d65",
-        "date": "2026-08-24T19:14:57Z",
+        "commit": "f8ebf966ef392bcdfff8f48d463e806270bc2730",
+        "date": "2026-08-24T19:50:12Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
