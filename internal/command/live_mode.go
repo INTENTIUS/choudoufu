@@ -204,10 +204,23 @@ func statelessBegin(
 	// touched and stays nil, which is the scaffold's own proven nil
 	// contract (TestContext2Plan_resourceIdentityResolverNilContract) -
 	// every existing estate's plan is unaffected byte for byte.
+	//
+	// ConfigValueAdjuster rides the same object and the same flag - GitHub
+	// issue #388's stamp half, [projection.NodeResolver.AdjustConfigValue] -
+	// for the reason that method's own doc comment gives: one resolver
+	// serves both tofu.ResourceIdentityResolver and tofu.ConfigValueAdjuster
+	// so the two seams can never read a different estate name or a
+	// different markers-record selection from each other. The nil contract
+	// for THIS field is proven the identical way
+	// (TestContext2Plan_resourceIdentityResolverNilContract also pins
+	// ConfigValueAdjuster nil/unset; see this package's own
+	// TestStatelessBegin_nodeResolveFlagOff for the live-side half of that
+	// proof).
 	if nodeResolveEnabled() {
 		runner.nodeResolve = true
 		runner.resolver = &projection.NodeResolver{}
 		local.ContextOpts.ResourceIdentityResolver = runner.resolver
+		local.ContextOpts.ConfigValueAdjuster = runner.resolver
 	}
 
 	// The manager's Lock is already a no-op, so this is redundant on purpose.
@@ -677,6 +690,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.resolver.RecordStore = r.recordStore
 		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
+		// GitHub issue #388's stamp half (AdjustConfigValue,
+		// internal/live/projection/nodestamp.go): Estate and Selection are
+		// exactly what internal/live/stamp's own Request carries for the
+		// HCL path (stamp.Request.Estate, identity.SelectionFor(config)),
+		// and Slots is the same disco.SlotTable() stampRes is built from
+		// below - disco.SlotTable handles a nil disco already, the same way
+		// stamp's own call site does.
+		r.resolver.Estate = estate
+		r.resolver.Selection = identity.SelectionFor(config)
+		r.resolver.Slots = disco.SlotTable()
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account

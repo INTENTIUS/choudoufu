@@ -70,6 +70,10 @@ var refusals = []Refusal{
 		What:    "The record store could not be listed, so record-backed resources whose configuration block was removed cannot be found.",
 	},
 	{
+		Summary: "Cannot merge ownership markers into this tags value",
+		What:    "GitHub issue #388's node-path stamp (NodeResolver.AdjustConfigValue) found a tags argument it does not know how to add the two ownership markers into - a non-map value, a map of something other than strings, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated.",
+	},
+	{
 		Summary: "Cannot persist a record",
 		What:    "Writing a record for an effect back to the record store failed.",
 	},
@@ -84,6 +88,14 @@ var refusals = []Refusal{
 	{
 		Summary: "Cannot read for projection",
 		What:    "The provider refused the read this projection needed to fill in a resource's current state.",
+	},
+	{
+		Summary: "Cannot set ownership markers on a marked configuration value",
+		What:    "GitHub issue #388's node-path stamp found a resource instance's whole evaluated configuration value marked as sensitive, a shape ordinary block evaluation does not produce, and declined to unmark it rather than guess; the resource's ownership markers were left for the HCL-level stamp (or an operator) to write.",
+	},
+	{
+		Summary: "Cannot set ownership markers on an unresolved tags value",
+		What:    "GitHub issue #388's node-path stamp found a resource's tags argument not yet known at plan time, so it could not merge the two ownership markers into it; the resource's configuration value is used unchanged.",
 	},
 	{
 		Summary: "Could not write the discovery hint",

@@ -281,6 +281,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if nodeResolveEnabled() {
 		resolver = &projection.NodeResolver{}
 		coreOpts.ResourceIdentityResolver = resolver
+		// GitHub issue #388's stamp half rides the same object and the same
+		// flag - see live_mode.go's identical wiring and
+		// [projection.NodeResolver.AdjustConfigValue]'s own doc comment for
+		// why one resolver serves both interfaces.
+		coreOpts.ConfigValueAdjuster = resolver
 	}
 
 	// Built here rather than just before the plan, where it used to be,
@@ -443,6 +448,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		resolver.RecordStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
 		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
+		// GitHub issue #388's stamp half: the same estate name and
+		// markers-record selection statelessStamp is about to hand
+		// stamp.Request below, and the same disco.SlotTable() its Slots
+		// field reads (disco.SlotTable handles a nil disco already).
+		resolver.Estate = estate
+		resolver.Selection = identity.SelectionFor(config)
+		resolver.Slots = disco.SlotTable()
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account

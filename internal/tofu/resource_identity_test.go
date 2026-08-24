@@ -169,3 +169,137 @@ resource "test_object" "a" {
 		t.Errorf("expected the resolver to be asked once for %s, got calls %v", addr, resolver.calls)
 	}
 }
+
+// stubConfigValueAdjuster is a ConfigValueAdjuster that sets a fixed value
+// at one key of a map-typed attribute, to prove where in the pipeline that
+// write lands relative to ignore_changes processing.
+type stubConfigValueAdjuster struct {
+	attr  string
+	key   string
+	value string
+
+	calls []addrs.AbsResourceInstance
+}
+
+func (s *stubConfigValueAdjuster) AdjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
+	s.calls = append(s.calls, addr)
+	if config == cty.NilVal {
+		panic("adjuster called with no evaluated configuration value")
+	}
+	if schema.Block == nil {
+		panic("adjuster called with no resource schema")
+	}
+
+	elems := config.AsValueMap()
+	mapVal := elems[s.attr]
+	mapElems := map[string]cty.Value{}
+	if !mapVal.IsNull() {
+		for it := mapVal.ElementIterator(); it.Next(); {
+			k, v := it.Element()
+			mapElems[k.AsString()] = v
+		}
+	}
+	mapElems[s.key] = cty.StringVal(s.value)
+	elems[s.attr] = cty.MapVal(mapElems)
+	return cty.ObjectVal(elems), nil
+}
+
+// TestContext2Plan_configValueAdjusterHonoursIgnoreChanges is
+// opentofu/opentofu#3016's ordering invariant (rfc/20260823-foundation-
+// order-ruling.md, ruling 3; GitHub issue #388's stamp half), proven
+// generically rather than through the fork's own marker implementation:
+// [ConfigValueAdjuster] runs on the evaluated configuration value BEFORE
+// n.processIgnoreChanges, so a key an operator's own lifecycle {
+// ignore_changes } names is restored from prior state AFTER the adjuster
+// writes to it - the adjuster's write is subordinate to ignore_changes,
+// exactly as an ordinary hand-typed configuration change to that key would
+// be. If the adjuster instead ran after ignore_changes (or after
+// PlanResourceChange, which #3016 forbids outright), this test's ignored
+// key would show the adjuster's value instead of the prior one.
+func TestContext2Plan_configValueAdjusterHonoursIgnoreChanges(t *testing.T) {
+	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
+
+	addr := mustResourceInstanceAddr("test_object.a")
+
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+  test_map = {
+    other = "from config"
+  }
+
+  lifecycle {
+    ignore_changes = [test_map["marker_key"]]
+  }
+}
+`,
+	})
+
+	p := simpleMockProvider()
+	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{PlannedState: req.ProposedNewState}
+	}
+
+	s := states.BuildState(func(ss *states.SyncState) {
+		ss.SetResourceInstanceCurrent(
+			addr,
+			&states.ResourceInstanceObjectSrc{
+				Status:    states.ObjectReady,
+				AttrsJSON: []byte(`{"test_string":"foo","test_map":{"marker_key":"prior-value","other":"from state"}}`),
+			},
+			addrs.AbsProviderConfig{
+				Provider: addrs.NewDefaultProvider("test"),
+				Module:   addrs.RootModule,
+			},
+			addrs.NoKey,
+		)
+	})
+
+	adjuster := &stubConfigValueAdjuster{attr: "test_map", key: "marker_key", value: "adjuster-value"}
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ConfigValueAdjuster: adjuster,
+	})
+
+	plan, diags := ctx.Plan(context.Background(), m, s, DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors\n%s", diags.Err())
+	}
+
+	if len(adjuster.calls) != 1 || !adjuster.calls[0].Equal(addr) {
+		t.Fatalf("expected the adjuster to be asked once for %s, got calls %v", addr, adjuster.calls)
+	}
+
+	instPlan := plan.Changes.ResourceInstance(addr)
+	if instPlan == nil {
+		t.Fatalf("no plan for %s at all", addr)
+	}
+
+	schema := &providers.Schema{Block: simpleTestSchema()}
+	ric, err := instPlan.Decode(schema)
+	if err != nil {
+		t.Fatalf("decoding the planned change: %s", err)
+	}
+
+	after := ric.After
+	gotMap := after.GetAttr("test_map")
+	if gotMap.IsNull() || !gotMap.IsKnown() {
+		t.Fatalf("test_map is null or unknown in the planned value: %#v", gotMap)
+	}
+	elems := gotMap.AsValueMap()
+
+	// The ordering invariant: ignore_changes ran AFTER the adjuster and
+	// restored the PRIOR value at the ignored key, not the adjuster's.
+	if elems["marker_key"].AsString() != "prior-value" {
+		t.Errorf("test_map[\"marker_key\"] = %q, want %q (ignore_changes must win over the adjuster's write)", elems["marker_key"].AsString(), "prior-value")
+	}
+	// The un-ignored key reflects the adjuster's own untouched pass-through
+	// of the rest of the configuration.
+	if elems["other"].AsString() != "from config" {
+		t.Errorf("test_map[\"other\"] = %q, want %q (the adjuster must not have disturbed an unrelated key)", elems["other"].AsString(), "from config")
+	}
+}

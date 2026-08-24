@@ -359,6 +359,100 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	}
 }
 
+// TestStatelessBegin_nodeResolveFlagOff is GitHub issue #388's stamp half
+// (nodestamp.go's AdjustConfigValue) getting the identical flag-off nil
+// contract the resolver already has: with CHOUDOUFU_NODE_RESOLVE unset,
+// statelessBegin must never construct r.resolver at all, which is what
+// keeps BOTH local.ContextOpts.ResourceIdentityResolver and
+// local.ContextOpts.ConfigValueAdjuster nil - the two fields are only ever
+// set from that one object (live_mode.go's nodeResolveEnabled block sets
+// them together). TestContext2Plan_resourceIdentityResolverNilContract
+// pins the engine side of what a nil-nil ContextOpts does to a plan; this
+// is the live side of the same claim - the flag never lets either field be
+// touched in the first place.
+func TestStatelessBegin_nodeResolveFlagOff(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	code := c.Run([]string{"-no-color", "-auto-approve"})
+	done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0", code)
+	}
+
+	if captured == nil {
+		t.Fatal("no stateless runner was installed")
+	}
+	if captured.nodeResolve {
+		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE unset")
+	}
+	if captured.resolver != nil {
+		t.Errorf("resolver was constructed with the flag off: %#v (this is the one object both ResourceIdentityResolver and ConfigValueAdjuster are set from, so a non-nil resolver here means one of them may have been touched)", captured.resolver)
+	}
+}
+
+// TestStatelessMode_plainPlan_NodeResolveIsStillANoOp is
+// TestStatelessMode_plainPlan with CHOUDOUFU_NODE_RESOLVE=1: an estate
+// already fully applied, marked exactly as internal/live/stamp's HCL
+// rewrite would have left it, planned again with the node's
+// ConfigValueAdjuster wired in ADDITION to (not instead of) that HCL
+// rewrite - this unit does not retire the HCL stamp; see nodestamp.go's own
+// doc comment. If the adjuster computed anything OTHER than the exact
+// tofu-estate/tofu-address values already on the live object - a different
+// escaping, a stray third key, a value from the wrong estate - this plan
+// would show an in-place "~ tags" update. It does not: the two mechanisms
+// agree by value, byte for byte, on an already-owned estate.
+//
+// This does NOT use TestStatelessMode_plainApply's greenfield "-auto-approve
+// create both resources" fixture: on a never-applied estate, aws_s3_bucket
+// is config-identified (its bucket name is derivable from configuration
+// alone), so NodeResolver's step (c) confidently proposes an import target
+// for it before it exists at all - a known, already-flagged gap in the
+// #388 wiring unit's own PR description ("Step (c) existence gap ...
+// needs absence tolerance at the node before greenfield estates run under
+// the flag"), unrelated to this unit's marker-stamping work and out of its
+// scope. liveBlockCloud is already-applied, so the resolver's record/marker
+// steps answer directly and step (c)'s risky guess is never reached.
+func TestStatelessMode_plainPlan_NodeResolveIsStillANoOp(t *testing.T) {
+	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "1")
+
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := liveBlockCloud()
+	c, done := newLiveBlockPlanCommand(t, cloud)
+
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stdout := output.Stdout()
+	if !strings.Contains(stdout, "No changes.") {
+		t.Errorf("plan is not empty with the node seam active - the adjuster's markers disagree with the live object's own:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "tofu-address") || strings.Contains(stdout, "tofu-estate") {
+		t.Errorf("the plan mentions a marker tag at all, so something proposes to touch it:\n%s", stdout)
+	}
+
+	if captured == nil || !captured.nodeResolve {
+		t.Fatal("the flag was set but this run did not take the node-resolve path")
+	}
+}
+
 // TestStatelessMode_priorStateRunsOncePlan is the plan half of the same
 // pin: "choudoufu plan" reaches PriorState through opPlan rather than
 // opApply (internal/backend/local/backend_plan.go), a different call site
