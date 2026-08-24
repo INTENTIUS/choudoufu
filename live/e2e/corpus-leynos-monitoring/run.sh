@@ -440,6 +440,55 @@ log ""
 gauntlet_stage cold_deploy pass "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The estate's two taggable roots (the dashboard is untaggable, see header):
+# a `moved` block renames aws_cloudwatch_metric_alarm.s3_requests_spike, and
+# "choudoufu live-mv" (below, after drift_reconverge) renames
+# aws_cloudwatch_metric_alarm.cf_requests_spike with no moved block at all.
+# Both live inside modules/monitoring's own source (the module CALL itself
+# is not renamed), so the rename and its moved block are written into the
+# COPIED module source (never $SRC, never the datapoints_to_alarm DELTA's
+# own text). The stock oracle runs the same two renames, through moved
+# blocks only, on a copy of cold_deploy's own state - before choudoufu or
+# live-import ever touch these objects. BREAK=1 exercises this stage's own
+# break control instead (see the real leg below): renaming
+# cf_requests_spike WITHOUT a moved block, which must make choudoufu
+# propose destroying the old address and creating the new one.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "s3_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "s3_requests_spike_renamed" {/' "$PLAIN_ORACLE/modules/monitoring/main.tofu"
+sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed" {/' "$PLAIN_ORACLE/modules/monitoring/main.tofu"
+rm -f "$PLAIN_ORACLE/modules/monitoring/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/modules/monitoring/main.tofu" <<'EOF'
+
+moved {
+  from = aws_cloudwatch_metric_alarm.s3_requests_spike
+  to   = aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+}
+
+moved {
+  from = aws_cloudwatch_metric_alarm.cf_requests_spike
+  to   = aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
+}
+EOF
+ORACLE_TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+                -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
+                -target=module.monitoring.aws_cloudwatch_dashboard.site)
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color "${ORACLE_TARGETS[@]}" 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -678,6 +727,93 @@ log ""
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
 gauntlet_stage drift_reconverge pass "S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  $S3_ALARM_ARN (aws_cloudwatch_metric_alarm.s3_requests_spike), $CF_ALARM_ARN (aws_cloudwatch_metric_alarm.cf_requests_spike)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename cf_requests_spike -> cf_requests_spike_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed" {/' "$ESTATE/modules/monitoring/main.tofu"
+  rm -f "$ESTATE/modules/monitoring/main.tofu.bak"
+  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_dashboard.site)
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.cf_requests_spike will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying the CloudFront alarm - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.cf_requests_spike_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating the renamed alarm - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying the old alarm and creating the renamed one - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_cloudwatch_metric_alarm.s3_requests_spike -> .s3_requests_spike_renamed ==="
+  sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "s3_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "s3_requests_spike_renamed" {/' "$ESTATE/modules/monitoring/main.tofu"
+  rm -f "$ESTATE/modules/monitoring/main.tofu.bak"
+  cat >> "$ESTATE/modules/monitoring/main.tofu" <<'EOF'
+
+moved {
+  from = aws_cloudwatch_metric_alarm.s3_requests_spike
+  to   = aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+}
+EOF
+  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
+           -target=module.monitoring.aws_cloudwatch_dashboard.site)
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.s3_requests_spike_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed alarm"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.monitoring\.aws_cloudwatch_metric_alarm\.s3_requests_spike" +-> +"module\.monitoring\.aws_cloudwatch_metric_alarm\.s3_requests_spike_renamed"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the alarm's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color "${TARGETS[@]}" 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  S3_ADDR_D_AFTER="$(awsl cloudwatch list-tags-for-resource --resource-arn "$S3_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$S3_ADDR_D_AFTER" = "module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed" ] \
+    || fail "the S3-requests alarm carries tofu-address=$S3_ADDR_D_AFTER after the rename, not module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed"
+  log "  $S3_ALARM_ARN unchanged, tofu-address now module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike -> .cf_requests_spike_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike" {/resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed" {/' "$ESTATE/modules/monitoring/main.tofu"
+  rm -f "$ESTATE/modules/monitoring/main.tofu.bak"
+  MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike" -> "module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  CF_ADDR_D_AFTER="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CF_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$CF_ADDR_D_AFTER" = "module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed" ] \
+    || fail "the CloudFront-requests alarm carries tofu-address=$CF_ADDR_D_AFTER after live-mv, not module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed"
+  log "  $CF_ALARM_ARN unchanged, tofu-address now module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_dashboard.site)
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
