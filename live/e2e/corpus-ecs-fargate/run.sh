@@ -1469,7 +1469,7 @@ EOF
   ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
   MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" aws_service_discovery_http_namespace.this aws_service_discovery_http_namespace.this_renamed 2>&1)"; MV_RC=$?
-  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "wall: aws_service_discovery_http_namespace has no marker search path for live-mv. Its identity is provider-assigned (the ServiceDiscovery service assigns it at create time; no argument reconstructs it), so live-mv can only find it by listing the type, and this provider version has no List support for it. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal corpus-rds-complete-postgres's day2_rename hit for aws_db_instance. The moved-block leg (module.alb, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
   grep -qF '"aws_service_discovery_http_namespace.this" -> "aws_service_discovery_http_namespace.this_renamed"' <<< "$MV_OUT" \
