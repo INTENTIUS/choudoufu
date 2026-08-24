@@ -2273,7 +2273,22 @@ const (
 	// Then 610 -> 611 for issue #399's maintainer ruling: one new fixture
 	// directory, internal/live/identity/testdata/target-group-attachment-
 	// lambda-port (see identityGoldenPin's own "CONCRETE" note).
-	identityGoldenPinDirs = 611
+	//
+	// Then 611 -> 615 for the day2_rename record-located-follows-a-moved-
+	// address fix (internal/live/projection/located.go's
+	// locatedIdentityWithAliases): two new fixture directories,
+	// internal/live/projection/testdata/located-moved-module and
+	// located-moved-module-ambiguous, each with its own "child" module
+	// subdirectory swept as a standalone root the same way every other
+	// module-source fixture here is, so one new fixture is two new rows in
+	// this count. identityGoldenPinInstances and identityGoldenPinBodyDigest
+	// are both unchanged at 1714 and the digest below: aws_eip_association
+	// has no ratified table row and neither fixture declares a live block,
+	// so this schema-less sweep resolves nothing in any of the four new
+	// directories - confirmed by regenerating with -update and diffing
+	// internal/live/check/testdata/identity-golden.txt against the prior
+	// copy, which shows only the header's "dirs=" line moved.
+	identityGoldenPinDirs = 615
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
