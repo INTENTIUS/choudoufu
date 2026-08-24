@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1856f31f827ce50afc445d9358d28e1f407e7d01",
+  "commit": "21d51b4a65cb8ff788c0a37692cd486a45356d65",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T18:11:25Z",
+  "generated": "2026-08-24T19:13:56Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1094,13 +1094,13 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
-        "date": "2026-08-24T08:20:22Z",
+        "commit": "21d51b4a65cb8ff788c0a37692cd486a45356d65",
+        "date": "2026-08-24T19:14:57Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
-          "migrate": "58 of 67 stamped, 61 identities recorded (#364 unit A2)",
+          "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 58 objects, read through resourcegroupstaggingapi",
           "test_plan": "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
         }
