@@ -1345,7 +1345,7 @@ EOF
   DB_ADDR_D_BEFORE_CLI="${DB_ADDR_D_BEFORE/%:0/[0]}"
   DB_ADDR_D_NEW_CLI="${DB_ADDR_D_NEW/%:0/[0]}"
   MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" "$DB_ADDR_D_BEFORE_CLI" "$DB_ADDR_D_NEW_CLI" 2>&1)"; MV_RC=$?
-  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "wall: aws_db_instance has no marker search path for live-mv. Its identity is provider-assigned (identifier_prefix, not identifier - the name is not known until create time), so live-mv can only find it by listing the type, and this provider version has no List support for aws_db_instance. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal ecs-fargate's day2_rename hit for aws_service_discovery_http_namespace. The moved-block leg (module.security_group, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
   grep -qF "\"$DB_ADDR_D_BEFORE\" -> \"$DB_ADDR_D_NEW\"" <<< "$MV_OUT" \
