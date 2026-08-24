@@ -148,7 +148,10 @@ set -uo pipefail
 #                 other corpus-*/reference-* script's own default).
 #   FLOCI_IMAGE   the emulator image; defaults to the digest pin in
 #                 live/floci-image.
-#   BREAK         set to 1 to corrupt stage 2's identity assertion.
+#   BREAK         set to 1 to corrupt stage 2's identity assertion. Set to
+#                 "rename" to exercise day2_rename's own break control
+#                 instead - renaming module sessions_table WITHOUT a moved
+#                 block, which must propose a destroy and a create.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
@@ -741,23 +744,22 @@ if [ "${BREAK:-}" = "rename" ]; then
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # aws_dynamodb_table's identity is deterministically client-named (its own
-  # `name` argument), the same shape as corpus-hongbomiao-harbor's
-  # aws_iam_user - see that estate's script for the class of behavior this
-  # can produce (an ambiguity warning, an outright create, or both,
-  # nondeterministically). This assertion tolerates any of the observed
-  # shapes and enforces only the one invariant that actually matters: the
-  # plan must never propose destroying the live table under its old,
-  # still-marked address.
+  # Verified directly, reproduced identically across two isolated runs:
+  # this estate's aws_dynamodb_table.this shows GAUNTLET.md #6's own
+  # textbook Break shape - "the plan must show a destroy and a create" -
+  # the same clean pair corpus-eks-basic's BREAK=1 asserts for its security
+  # group, unlike corpus-hongbomiao-harbor's aws_iam_user (which shows a
+  # nondeterministic mix of an ambiguity warning and/or a bare create, never
+  # a destroy - see that estate's script). Both types are equally
+  # client-named; the difference is in exactly which discovery/plan path
+  # each type's identity resolution takes, not asserted further here.
   [ "$BREAK_PLAN_RC" -eq 0 ] \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit (see header)"; }
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit proposing a destroy and a create (see header)"; }
   grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
-    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the plan proposes destroying the live table under its old address - a wrong marker could have been written"; }
-  HAS_WARNING=0; grep -qF "Live resource marked for another address" <<< "$BREAK_PLAN_OUT" && HAS_WARNING=1
-  HAS_CREATE=0; grep -qE '^  # module\.sessions_table_renamed\.aws_dynamodb_table\.this will be created' <<< "$BREAK_PLAN_OUT" && HAS_CREATE=1
-  { [ "$HAS_WARNING" = "1" ] || [ "$HAS_CREATE" = "1" ]; } \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block neither warned of the ambiguity nor proposed a create - this stage's check is not load-bearing"; }
-  log "  BREAK=rename (this run's shape: warning=$HAS_WARNING create=$HAS_CREATE): never destroys the live table's old marker; proves the moved-block/live-mv checks below are load-bearing"
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose destroying the live table under its old address - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.sessions_table_renamed\.aws_dynamodb_table\.this will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose creating the table at the renamed address - this stage's check is not load-bearing"; }
+  log "  BREAK=rename: correctly proposes destroying module.sessions_table.aws_dynamodb_table.this and creating module.sessions_table_renamed.aws_dynamodb_table.this - the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module networking -> networking_renamed ==="
   sed -i.bak 's/module "networking" {/module "networking_renamed" {/' "$ESTATE/main.tofu"
