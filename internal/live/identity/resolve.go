@@ -2741,6 +2741,17 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 		return r.eachValuePart(trav, scope, ident)
 	}
 
+	if b, bound := scope.exprVars[trav.RootName()]; bound {
+		// A plain for-comprehension's own value variable, bound as an
+		// EXPRESSION rather than a value - [instScope.exprVars]'s own doc
+		// comment has the corpus shape. Answered the same way each.value
+		// already is: select into the bound element's own expression
+		// instead of evaluating it, so a reference reached through a
+		// function call (split(":", v.target_id)[6], not only a bare
+		// each.value.<attr>) still has something to select into.
+		return r.exprVarPart(trav, b, ident)
+	}
+
 	ref, refDiags := addrs.ParseRef(trav)
 	if refDiags.HasErrors() {
 		r.appendDiags(refDiags)
@@ -2780,6 +2791,60 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 	}
 
 	return r.parentPart(instAddr.Absolute(r.modInst), attrStep.Name, rng, ident)
+}
+
+// exprVarPart is [resolver.eachValuePart]'s general form: a reference into
+// a plain for-comprehension's own value variable, bound in
+// [instScope.exprVars] as an expression rather than a value. b is that
+// binding; trav is the whole reference, root included, so trav[1:] is what
+// selects into b's own expression the way each.value's own attribute steps
+// already do through [resolver.selectStatic].
+//
+// Unlike [resolver.eachValueSelect]'s three-valued eachAttrPresence, this
+// records a diagnostic on every failure to answer: a caller that reaches
+// this branch is already committed to the reference naming a real loop
+// variable (that is what put it in scope.exprVars), so silence here would
+// be a resolution nothing explains, not a fallback another arm can still
+// take. [resolver.resolveTransformCall]'s own source resolution is the
+// caller this exists for - split(":", v.target_id)[6] over
+// local.lambda_target_groups's `merge(v, {lambda_function_name =
+// split(":", v.target_id)[6]})` - but nothing here is specific to it.
+func (r *resolver) exprVarPart(trav hcl.Traversal, b *elemBinding, ident configs.StaticIdentifier) ([]Part, bool) {
+	rng := trav.SourceRange()
+	if b == nil || b.expr == nil {
+		r.errorf(rng, "Identity not resolvable from configuration",
+			"%s reads %s, which this package has no expression for.",
+			ident.Subject, traversalString(trav))
+		return nil, false
+	}
+
+	// b.expr belongs to the module it was WRITTEN in - very often not the
+	// module the argument being resolved lives in, exactly the reason
+	// [elemBinding.modInst] exists and [resolver.eachValueSelect] already
+	// re-enters it before touching b.expr. Skipping this made every module
+	// call inside b.expr resolve against the WRONG module's own children:
+	// terraform-aws-modules/alb's local.lambda_target_groups is written at
+	// the config ROOT, so v.target_id's own module.lambda_without_allowed_triggers
+	// reference has to be looked up among the root's module calls, not
+	// module.alb's, which is where this argument's own resolution was
+	// already scoped when it reached here.
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(b.modInst) {
+		r.errorf(rng, "Identity not resolvable from configuration",
+			"%s reads %s, whose defining module could not be entered.",
+			ident.Subject, traversalString(trav))
+		return nil, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	parts, ok, applicable := r.selectStatic(b.expr, trav[1:], b.scope, ident, 0)
+	if !applicable {
+		r.errorf(rng, "Identity not resolvable from configuration",
+			"%s reads %s, but the for-comprehension's own value does not have that shape.",
+			ident.Subject, traversalString(trav))
+		return nil, false
+	}
+	return parts, ok
 }
 
 func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string, rng hcl.Range, ident configs.StaticIdentifier) ([]Part, bool) {
@@ -3824,6 +3889,52 @@ type instScope struct {
 	// came from. Empty for every scope built anywhere else, which is what
 	// makes an instScope{} literal - and there are dozens - inert.
 	managedFrom string
+
+	// exprVars is [instScope.eachValueExpr] generalized from "each.value"
+	// to a plain for-comprehension's own value variable, under whatever
+	// name the author gave it and at whatever depth of nesting produced
+	// it: [resolver.forExprElems] binds one entry here, keyed by
+	// fe.ValVar, whenever the comprehension's SOURCE element proved its
+	// shape but not its whole value (#260's own asymmetry) - the same
+	// gap eachValueExpr closes for each.value, reached this time from
+	// INSIDE a local's own for-expression rather than at a resource's
+	// own for_each.
+	//
+	// terraform-aws-modules/alb's local.lambda_target_groups is the
+	// corpus shape: `for k, v in var.target_groups : k => merge(v,
+	// {lambda_function_name = split(":", v.target_id)[6]})`, where
+	// v.target_id is a module-output reference this package cannot prove
+	// a VALUE for. Without this, [resolver.forExprElems] nulled the
+	// element's own expression outright rather than let a bare `v` reach
+	// [addrs.ParseRef] unexplained (see loopVarUnbound), which meant a
+	// selection reached only through a function call - split()[N], not a
+	// bare each.value.<attr> - had nothing left to select into. With a
+	// name in this map, [resolver.resolveTraversal] answers a reference
+	// to it the same way it already answers each.value: by selecting
+	// into the bound element's own expression
+	// ([resolver.selectStatic]), never by evaluating a value.
+	//
+	// A plain map, not a stack: a name is looked up by string, and a
+	// for-comprehension nested inside another with the SAME value-variable
+	// name shadows the outer one exactly as HCL's own scoping would,
+	// because [instScope.withExprVar] only ever adds the innermost
+	// binding for that name to the child scope it returns.
+	exprVars map[string]*elemBinding
+}
+
+// withExprVar returns a copy of s with name bound to b in exprVars,
+// leaving s itself untouched - forExprElems builds one fresh instScope per
+// comprehension element already, and this keeps every other element's own
+// scope from seeing a sibling's binding.
+func (s instScope) withExprVar(name string, b *elemBinding) instScope {
+	next := s
+	m := make(map[string]*elemBinding, len(s.exprVars)+1)
+	for k, v := range s.exprVars {
+		m[k] = v
+	}
+	m[name] = b
+	next.exprVars = m
+	return next
 }
 
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {

@@ -913,21 +913,39 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 			b.val = r.provenValue(fe.ValExpr, scope, ident)
 			elems = append(elems, b)
 		default:
-			b := r.binding(fe.ValExpr, scope, ident)
-			if loopVarUnbound(fe.ValExpr, scope, fe.KeyVar, fe.ValVar) {
+			// The value clause is neither Group nor a bare loop variable -
+			// merge(v, {lambda_function_name = split(":", v.target_id)[6]})
+			// is the corpus shape (terraform-aws-modules/alb's own
+			// local.lambda_target_groups). If the SOURCE element's own
+			// expression is known (srcElems[i].expr != nil), bind the loop
+			// variable's name to it in scope.exprVars before building this
+			// element's own binding, so a later reference to the loop
+			// variable - however many function calls and index operations
+			// sit between it and the identity argument, not only a bare
+			// each.value.<attr> selection - has something to select into
+			// ([resolver.exprVarPart]) instead of meaning nothing outside
+			// this ForExpr node. See [instScope.exprVars]'s own doc comment.
+			bindScope := scope
+			exprBound := fe.ValVar != "" && i < len(srcElems) && srcElems[i].expr != nil
+			if exprBound {
+				bindScope = scope.withExprVar(fe.ValVar, &srcElems[i])
+			}
+			b := r.binding(fe.ValExpr, bindScope, ident)
+			if loopVarUnbound(fe.ValExpr, scope, fe.KeyVar, fe.ValVar) && !exprBound {
 				// The value clause reads a loop variable this scope does not
-				// bind, so the expression means nothing outside the ForExpr
-				// node that scopes it. Carrying it anyway let a later
-				// selection reach a bare `v` and hand it to
+				// bind, and nothing above gave it a structural substitute
+				// either, so the expression means nothing outside the
+				// ForExpr node that scopes it. Carrying it anyway let a
+				// later selection reach a bare `v` and hand it to
 				// [addrs.ParseRef], which answered "Invalid reference" - a
 				// diagnostic about a name the author never wrote, replacing
 				// one that named the real obstacle. Measured: one site in
 				// .corpus/iam/examples/iam-role-for-service-accounts.
 				//
-				// The value half is unaffected: [resolver.provenValue] has
-				// already failed on the same unbound name and left
-				// cty.NilVal, which is the answer this shape had before the
-				// expression was carried at all.
+				// The value half is unaffected either way:
+				// [resolver.provenValue] has already failed on the same
+				// unbound name and left cty.NilVal, which is the answer
+				// this shape had before the expression was carried at all.
 				b.expr = nil
 			}
 			elems = append(elems, b)
@@ -1182,6 +1200,31 @@ func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar str
 		return false, false
 	}
 	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	// The key may be PRESENT rather than absent - try()/lookup()'s default
+	// only ever matters when it is not, and [resolver.objectLacksKey] alone
+	// can only prove the absent half. [resolver.selectStaticExpr] is the
+	// same structural walk (an object constructor, or merge() of them) that
+	// already answers absence; asked for the key itself, it hands back the
+	// LEAF EXPRESSION a present key was written with, which is ordinary
+	// configuration data - most often a plain literal, like
+	// terraform-aws-modules/alb's own `attach_lambda_permission = true` -
+	// wherever it evaluates on its own. This is the same asymmetry #260
+	// exists for on the each.value side: a key nested inside a value this
+	// package cannot prove whole (v itself, here, because a SIBLING key
+	// such as target_id names a module output) is not the same question as
+	// whether THIS key's own value reads.
+	if leaf, leafOK := r.selectStaticExpr(elem.expr, []hcl.Traverser{hcl.TraverseAttr{Name: name}}, elem.scope, ident, 0); leafOK {
+		lv, diags := r.evalPure(leaf, elem.scope, ident)
+		if diags.HasErrors() {
+			return false, false
+		}
+		lb, err := convert.Convert(lv, cty.Bool)
+		if err != nil || lb.IsNull() || !lb.IsKnown() || lb.IsMarked() {
+			return false, false
+		}
+		return lb.True(), true
+	}
 
 	if !r.objectLacksKey(elem.expr, elem.scope, name, ident, 0) {
 		return false, false
