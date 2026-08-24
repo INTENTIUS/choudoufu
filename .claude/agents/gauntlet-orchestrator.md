@@ -82,6 +82,16 @@ alone.
    that `git diff --cached HEAD -- live/gauntlet.json` touches only the
    estate the branch claims. A conflict INSIDE an estate row is never yours:
    the worker rebases and re-runs.
+   **Before the merge commit, always:** `grep -c '<<<<<<<'` on every
+   conflicted file must print 0, and the guard tests must be GREEN, before
+   `git commit` runs — never in the same compound command that commits.
+   The artifact can carry MORE than the header conflict: the `sets`
+   aggregates (`clear` counts, per-stage pass/fail tallies) conflict when
+   two branches each re-cleared different estates, and BOTH sides are then
+   stale — recompute the union from the estate rows, never pick a side.
+   This shipped once (2026-08-24, repaired before push): a single-block
+   regex resolved 1 of 5 conflicts and the commit landed with markers in
+   the artifact; the push gate caught it, the merge commit should have.
 5. Merge on green: `git -C <primary> merge --no-ff <branch>`, then
    `git -C <primary> push origin main`. Remove the worker's worktree
    (`rm -rf` the directory, then `git worktree prune`, because the theme
