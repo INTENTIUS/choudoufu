@@ -473,6 +473,62 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarked"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two taggable, single-key for_each resources inside module "vpc"'s own
+# source (never the module CALL itself): a `moved` block renames
+# aws_iam_role.flow_logs, and "choudoufu live-mv" (below, after
+# drift_reconverge) renames aws_eip.nat with no moved block at all. Both
+# rename and their moved block are written into the COPIED module source
+# (modules/networking/vpc/main.tf - never $SRC, never $PLAIN), since a
+# for_each resource's own moved block lives alongside the resource, using
+# local (unqualified) addresses - the same convention
+# corpus-leynos-monitoring's own day2_rename uses for a resource inside a
+# module. BREAK=1's rename-without-moved control (D1 below) always targets
+# aws_eip.nat, never aws_iam_role.flow_logs: the IAM role's identity is
+# deterministically client-named (its own `name` argument), which makes an
+# unmoved rename ambiguous rather than a clean destroy+create (see
+# corpus-hongbomiao-labelbox's header for the same finding, verified
+# there); an EIP's identity is its server-assigned allocation id, which
+# genuinely cannot be re-derived from config alone. The stock oracle (real
+# tofu, plain .tf) runs the same two renames, through moved blocks only, on
+# a copy of cold_deploy's own state - before choudoufu or live-import ever
+# touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+VPC_MAIN="$PLAIN_ORACLE/modules/networking/vpc/main.tf"
+sed -i.bak 's/resource "aws_iam_role" "flow_logs" {/resource "aws_iam_role" "flow_logs_renamed" {/' "$VPC_MAIN"
+sed -i.bak 's/aws_iam_role\.flow_logs\[each\.key\]/aws_iam_role.flow_logs_renamed[each.key]/g' "$VPC_MAIN"
+sed -i.bak 's/resource "aws_eip" "nat" {/resource "aws_eip" "nat_renamed" {/' "$VPC_MAIN"
+sed -i.bak 's/aws_eip\.nat\[each\.key\]/aws_eip.nat_renamed[each.key]/g' "$VPC_MAIN"
+rm -f "$VPC_MAIN.bak"
+cat >> "$VPC_MAIN" <<'EOF'
+
+moved {
+  from = aws_iam_role.flow_logs
+  to   = aws_iam_role.flow_logs_renamed
+}
+
+moved {
+  from = aws_eip.nat
+  to   = aws_eip.nat_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -811,6 +867,95 @@ STOCK_NAME_DIFF="$(block_for_addr 'module.vpc.aws_vpc.this["main"]' <<< "$STOCK_
   log "STAGE 5 (drift and reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+EST_VPC_MAIN="$ESTATE/modules/networking/vpc/main.tf"
+log "=== D0. capture the live ids a rename must not disturb ==="
+ROLE_ARN_D="$(awsl iam get-role --role-name "${NAME_PREFIX}-main-flow-logs-role" --query 'Role.Arn' --output text)"
+[ -n "$ROLE_ARN_D" ] && [ "$ROLE_ARN_D" != "None" ] || fail "could not read the flow-logs IAM role's ARN"
+EIP_ALLOC_ID_D="$(awsl ec2 describe-addresses --filters "Name=tag:tofu-address,Values=module.vpc.aws_eip.nat:main-0" --query 'Addresses[0].AllocationId' --output text)"
+[ -n "$EIP_ALLOC_ID_D" ] && [ "$EIP_ALLOC_ID_D" != "None" ] || fail "no live EIP found by its tofu-address marker (module.vpc.aws_eip.nat:main-0)"
+log "  role ${NAME_PREFIX}-main-flow-logs-role ($ROLE_ARN_D), EIP $EIP_ALLOC_ID_D (module.vpc.aws_eip.nat:main-0)"
+
+if [ "${BREAK_DAY2_RENAME:-}" = "1" ]; then
+  log "=== D1 (BREAK_DAY2_RENAME=1). rename aws_eip.nat -> aws_eip.nat_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_eip" "nat" {/resource "aws_eip" "nat_renamed" {/' "$EST_VPC_MAIN"
+  sed -i.bak 's/aws_eip\.nat\[each\.key\]/aws_eip.nat_renamed[each.key]/g' "$EST_VPC_MAIN"
+  rm -f "$EST_VPC_MAIN.bak"
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK_DAY2_RENAME=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.vpc\.aws_eip\.nat\["main-0"\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_DAY2_RENAME=1: renaming without a moved block did not propose destroying the EIP - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.vpc\.aws_eip\.nat_renamed\["main-0"\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_DAY2_RENAME=1: renaming without a moved block did not propose creating the renamed EIP - this stage's check is not load-bearing"; }
+  log "  BREAK_DAY2_RENAME=1: correctly proposes destroying the old EIP and creating the renamed one - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_iam_role.flow_logs -> .flow_logs_renamed ==="
+  sed -i.bak 's/resource "aws_iam_role" "flow_logs" {/resource "aws_iam_role" "flow_logs_renamed" {/' "$EST_VPC_MAIN"
+  sed -i.bak 's/aws_iam_role\.flow_logs\[each\.key\]/aws_iam_role.flow_logs_renamed[each.key]/g' "$EST_VPC_MAIN"
+  rm -f "$EST_VPC_MAIN.bak"
+  cat >> "$EST_VPC_MAIN" <<'EOF'
+
+moved {
+  from = aws_iam_role.flow_logs
+  to   = aws_iam_role.flow_logs_renamed
+}
+EOF
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.vpc\.aws_iam_role\.flow_logs_renamed\["main"\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed role"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.vpc\.aws_iam_role\.flow_logs:main" +-> +"module\.vpc\.aws_iam_role\.flow_logs_renamed:main"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the role's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  ROLE_ARN_D_AFTER="$(awsl iam get-role --role-name "${NAME_PREFIX}-main-flow-logs-role" --query 'Role.Arn' --output text 2>/dev/null || true)"
+  [ "$ROLE_ARN_D_AFTER" = "$ROLE_ARN_D" ] || fail "the role's arn changed across the rename ($ROLE_ARN_D -> $ROLE_ARN_D_AFTER) - it was destroyed and recreated, not renamed"
+  ROLE_ADDR_D_AFTER="$(awsl iam list-role-tags --role-name "${NAME_PREFIX}-main-flow-logs-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ROLE_ADDR_D_AFTER" = "module.vpc.aws_iam_role.flow_logs_renamed:main" ] \
+    || fail "the role carries tofu-address=$ROLE_ADDR_D_AFTER after the rename, not module.vpc.aws_iam_role.flow_logs_renamed:main"
+  log "  ${NAME_PREFIX}-main-flow-logs-role unchanged, tofu-address now module.vpc.aws_iam_role.flow_logs_renamed:main - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_eip.nat -> .nat_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_eip" "nat" {/resource "aws_eip" "nat_renamed" {/' "$EST_VPC_MAIN"
+  sed -i.bak 's/aws_eip\.nat\[each\.key\]/aws_eip.nat_renamed[each.key]/g' "$EST_VPC_MAIN"
+  rm -f "$EST_VPC_MAIN.bak"
+  MV_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" live-mv -estate="$ESTATE_NAME" 'module.vpc.aws_eip.nat["main-0"]' 'module.vpc.aws_eip.nat_renamed["main-0"]' 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.vpc.aws_eip.nat:main-0" -> "module.vpc.aws_eip.nat_renamed:main-0"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  EIP_ALLOC_ID_D_AFTER="$(awsl ec2 describe-addresses --allocation-ids "$EIP_ALLOC_ID_D" --query "Addresses[0].AllocationId" --output text 2>/dev/null || true)"
+  [ "$EIP_ALLOC_ID_D_AFTER" = "$EIP_ALLOC_ID_D" ] || fail "the EIP's allocation id changed across live-mv ($EIP_ALLOC_ID_D -> $EIP_ALLOC_ID_D_AFTER) - it was destroyed and recreated, not renamed"
+  EIP_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$EIP_ALLOC_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$EIP_ADDR_D_AFTER" = "module.vpc.aws_eip.nat_renamed:main-0" ] \
+    || fail "the EIP carries tofu-address=$EIP_ADDR_D_AFTER after live-mv, not module.vpc.aws_eip.nat_renamed:main-0"
+  log "  $EIP_ALLOC_ID_D unchanged, tofu-address now module.vpc.aws_eip.nat_renamed:main-0 - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
 fi
 CURRENT_STAGE=""
 gauntlet_end

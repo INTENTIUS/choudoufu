@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
+  "commit": "2d7da09088f46e33989e93619c814d8d5b496520",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T21:57:05Z",
+  "generated": "2026-08-24T22:05:34Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 12,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 12,
+          "pass": 16,
           "fail": 1,
-          "not_run": 13
+          "not_run": 9
         },
         "day2_replace": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 11,
+      "clear": 15,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 11,
+          "pass": 15,
           "fail": 1,
-          "not_run": 13
+          "not_run": 9
         },
         "day2_replace": {
           "pass": 0,
@@ -675,7 +675,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -686,14 +686,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:25:24Z",
+        "commit": "b21c2758d378516218e849bfacc7429324cd6aea",
+        "date": "2026-08-24T21:36:12Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration",
+          "day2_rename": "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao",
           "migrate": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file",
@@ -882,7 +883,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -893,14 +894,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:28:51Z",
+        "commit": "db290803e4d7225646e7ee0d71506894e9b95f8a",
+        "date": "2026-08-24T21:19:57Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration",
+          "day2_rename": "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description",
           "migrate": "2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file",
@@ -1171,7 +1173,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1182,14 +1184,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "227f841a834ad157f472db31c76163d9cd57f0c6",
-        "date": "2026-08-24T07:22:36Z",
+        "commit": "2d7da09088f46e33989e93619c814d8d5b496520",
+        "date": "2026-08-24T22:06:59Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
+          "day2_rename": "moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
           "migrate": "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file",
@@ -1296,7 +1299,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1307,14 +1310,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:53:14Z",
+        "commit": "f2cf3270e92f5ad36c47327b0da58fc00877e2ea",
+        "date": "2026-08-24T21:45:41Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
+          "day2_rename": "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "migrate": "live-import -approve completed cleanly against the cold state",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 21",

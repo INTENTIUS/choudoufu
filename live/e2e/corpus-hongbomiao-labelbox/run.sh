@@ -113,6 +113,25 @@ set -uo pipefail
 # assertions are proven load-bearing rather than a grep that always
 # matches.
 #
+# day2_rename's own BREAK=1 arm (D1, below - rename without a moved block)
+# is never reached by an ordinary BREAK=1 run: stage 2's own control fires
+# first and `fail` exits there, the same limitation corpus-eks-basic's
+# header documents for its own day2_rename. Verified load-bearing directly
+# instead, with stage 2's control temporarily neutered in a scratch copy:
+# BREAK=1 does NOT come back as a clean destroy + create the way
+# corpus-eks-basic's security group does. aws_iam_role's identity is
+# deterministically client-named (its own `name` argument), so renaming the
+# module without a moved block makes choudoufu's discovery find the SAME
+# live role twice - once by the marker still naming the old, no-longer-
+# declared address, once as the derivable candidate for the new address the
+# renamed module now wants - and it refuses outright ("Two live resources
+# claiming one address") rather than guess which reading is right. That is
+# the stricter, correct response HANDOFF.md's safety rule names ("a wrong
+# marker outranks a missing one"): D1's BREAK=1 arm asserts this refusal,
+# not the literal destroy-and-create the stage's own Break text describes,
+# because that is what this specific, client-named-identity resource
+# actually does.
+#
 #   bash live/e2e/corpus-hongbomiao-labelbox/run.sh
 #
 # Needs Docker, the AWS CLI, and the real `tofu` binary on PATH for stage
@@ -361,6 +380,61 @@ log ""
 gauntlet_stage cold_deploy pass "4 resources added, 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The estate's two taggable roots (the CORS configuration and the inline
+# role policy are correctly untaggable, see header): a `moved` block renames
+# the WHOLE module call "amazon_s3_bucket_hm_labelbox" (its own
+# aws_s3_bucket.main is the only object it carries), and "choudoufu live-mv"
+# (below, after drift_reconverge) renames the whole module call
+# "labelbox_iam_role" with no moved block at all - not an individual
+# resource inside either module's own source, which stays byte-identical to
+# the pinned commit throughout (DELTA discipline). The S3 bucket module is
+# referenced by both siblings (cors config's s3_bucket_id, iam_role's
+# s3_bucket_name), so its rename updates those two reference lines too, in
+# this script's own root wiring only. The IAM role module is a leaf no
+# other module references, chosen for BREAK=1's rename-without-moved
+# control specifically because aws_s3_bucket.main carries
+# `lifecycle { prevent_destroy = true }` in the real module - a destroy
+# proposal against the bucket would refuse outright rather than plan, so
+# BREAK=1 below renames the role, never the bucket. The stock oracle (real
+# tofu - stock terraform cannot see this .tofu-only estate at all, see
+# header) runs the same two renames, through moved blocks only, on a copy
+# of cold_deploy's own state - before choudoufu or live-import ever touch
+# these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/module "amazon_s3_bucket_hm_labelbox" {/module "amazon_s3_bucket_hm_labelbox_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module\.amazon_s3_bucket_hm_labelbox\.id/module.amazon_s3_bucket_hm_labelbox_renamed.id/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module\.amazon_s3_bucket_hm_labelbox\.name/module.amazon_s3_bucket_hm_labelbox_renamed.name/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module "labelbox_iam_role" {/module "labelbox_iam_role_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+rm -f "$PLAIN_ORACLE/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/main.tofu" <<'EOF'
+
+moved {
+  from = module.amazon_s3_bucket_hm_labelbox
+  to   = module.amazon_s3_bucket_hm_labelbox_renamed
+}
+
+moved {
+  from = module.labelbox_iam_role
+  to   = module.labelbox_iam_role_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -546,6 +620,108 @@ log ""
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
 gauntlet_stage drift_reconverge pass "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  bucket $BUCKET_NAME (module.amazon_s3_bucket_hm_labelbox), role $ROLE_NAME (module.labelbox_iam_role)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename module labelbox_iam_role -> labelbox_iam_role_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "labelbox_iam_role" {/module "labelbox_iam_role_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Verified directly (isolated BREAK=1 run, stage 2's own earlier control
+  # neutered so day2_rename's arm is actually reached - see header): for
+  # THIS resource, an unmoved rename does not come back as a clean destroy
+  # + create the way corpus-eks-basic's security group does. aws_iam_role's
+  # identity is deterministically client-named (its own `name` argument),
+  # so choudoufu's discovery finds the SAME live role twice - once by the
+  # marker still naming the old, no-longer-declared address, once as the
+  # derivable candidate for the new address the renamed module now wants -
+  # and refuses outright ("Two live resources claiming one address") rather
+  # than guess which reading is right. That is the stricter, correct
+  # response the safety rule in HANDOFF.md names ("a wrong marker outranks
+  # a missing one"): a plan is never produced, so there is no wrong destroy
+  # or wrong create to make. The plan/apply RC IS still expected non-zero.
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block planned cleanly (exit 0) - expected a refusal (see header)"; }
+  grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
+  grep -qF "module.labelbox_iam_role.aws_iam_role.labelbox_iam_role" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: the refusal did not name the IAM role's old address"; }
+  log "  BREAK=1: correctly refuses (two live resources claiming module.labelbox_iam_role.aws_iam_role.labelbox_iam_role - the marker's old address and the renamed module's client-derivable identity resolve to the same live role) - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module amazon_s3_bucket_hm_labelbox -> amazon_s3_bucket_hm_labelbox_renamed ==="
+  sed -i.bak 's/module "amazon_s3_bucket_hm_labelbox" {/module "amazon_s3_bucket_hm_labelbox_renamed" {/' "$ESTATE/main.tofu"
+  sed -i.bak 's/module\.amazon_s3_bucket_hm_labelbox\.id/module.amazon_s3_bucket_hm_labelbox_renamed.id/' "$ESTATE/main.tofu"
+  sed -i.bak 's/module\.amazon_s3_bucket_hm_labelbox\.name/module.amazon_s3_bucket_hm_labelbox_renamed.name/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  cat >> "$ESTATE/main.tofu" <<'EOF'
+
+moved {
+  from = module.amazon_s3_bucket_hm_labelbox
+  to   = module.amazon_s3_bucket_hm_labelbox_renamed
+}
+EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.amazon_s3_bucket_hm_labelbox_renamed\.aws_s3_bucket\.main will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed bucket"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.amazon_s3_bucket_hm_labelbox\.aws_s3_bucket\.main" +-> +"module\.amazon_s3_bucket_hm_labelbox_renamed\.aws_s3_bucket\.main"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the bucket's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  BUCKET_ADDR_D_AFTER="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$BUCKET_ADDR_D_AFTER" = "module.amazon_s3_bucket_hm_labelbox_renamed.aws_s3_bucket.main" ] \
+    || fail "the bucket carries tofu-address=$BUCKET_ADDR_D_AFTER after the rename, not module.amazon_s3_bucket_hm_labelbox_renamed.aws_s3_bucket.main"
+  log "  $BUCKET_NAME unchanged, tofu-address now module.amazon_s3_bucket_hm_labelbox_renamed.aws_s3_bucket.main - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module labelbox_iam_role -> labelbox_iam_role_renamed, no moved block at all ==="
+  sed -i.bak 's/module "labelbox_iam_role" {/module "labelbox_iam_role_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.labelbox_iam_role.aws_iam_role.labelbox_iam_role module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.labelbox_iam_role.aws_iam_role.labelbox_iam_role" -> "module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  ROLE_ADDR_D_AFTER="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ROLE_ADDR_D_AFTER" = "module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role" ] \
+    || fail "the role carries tofu-address=$ROLE_ADDR_D_AFTER after live-mv, not module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role"
+  log "  $ROLE_NAME unchanged, tofu-address now module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
