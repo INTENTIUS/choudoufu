@@ -405,7 +405,8 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				} else {
 					touched = true
 					candidates := residueCandidates(schema, obj.Value, secrets)
-					if len(candidates) > 0 && req.Providers == nil {
+					pathCandidates := residueLeafPathCandidates(schema, obj.Value, secrets)
+					if len(candidates)+len(pathCandidates) > 0 && req.Providers == nil {
 						if !noProvidersWarned {
 							noProvidersWarned = true
 							diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified,
@@ -416,7 +417,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						// cleared. A nil req.Providers is a caller that never
 						// intended to classify this run, not a proof that
 						// this instance has no residue.
-					} else if len(candidates) > 0 {
+					} else if len(candidates)+len(pathCandidates) > 0 {
 						applied, _ := obj.Value.UnmarkDeep()
 						provider, provErr := residueProvider(ctx, req.Providers, providerCache, res.ProviderConfig)
 						if provErr != nil {
@@ -425,7 +426,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 								addr, res.ProviderConfig, provErr,
 							)))
 						} else {
-							attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), func(prior cty.Value) (cty.Value, error) {
+							attrs, ok := classifyResidueAll(schema, applied, secrets, func(prior cty.Value) (cty.Value, error) {
 								resp := provider.ReadResource(ctx, providers.ReadResourceRequest{
 									TypeName:      typeName,
 									PriorState:    prior,

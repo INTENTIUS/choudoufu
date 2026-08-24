@@ -2408,14 +2408,22 @@ func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
 	return cty.ObjectVal(attrs), true
 }
 
-// withSeededAttrs is [withSeededTags]'s general form: every name in seed
-// that v's object type both has and agrees on the type of is overlaid
-// onto v; a name seed does not name, or whose type disagrees, is left
-// exactly as the stub already had it - the same best-effort, never-a-
+// withSeededAttrs is [withSeededTags]'s general form: every FLAT name in
+// seed that v's object type both has and agrees on the type of is
+// overlaid onto v; a name seed does not name, or whose type disagrees, is
+// left exactly as the stub already had it - the same best-effort, never-a-
 // correctness-requirement stance [withSeededTags] documents, for the same
 // reason (a provider whose ImportResourceState returns a differently-
 // shaped stub than expected is read exactly as it always was for the
 // attributes that mismatch).
+//
+// A path-keyed entry ([isResiduePathKey], produced only by
+// [builder.residueSeedFor]'s own nested half) is not a flat name and is
+// routed through [setResiduePathValues] instead, unconditionally
+// (requireEmpty=false) - the same reasoning the flat half already applies
+// to every entry here: v is an import stub with no configuration in hand,
+// not a live answer this seed would be shadowing, so there is nothing to
+// protect by refusing to overwrite a null it already holds.
 func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
 	if v == cty.NilVal || v.IsNull() || !v.Type().IsObjectType() || len(seed) == 0 {
 		return v, false
@@ -2426,17 +2434,35 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
 		attrs[name] = v.GetAttr(name)
 	}
 	seeded := false
+	var pathSeed map[string]cty.Value
 	for name, val := range seed {
+		if isResiduePathKey(name) {
+			if pathSeed == nil {
+				pathSeed = make(map[string]cty.Value, len(seed))
+			}
+			pathSeed[name] = val
+			continue
+		}
 		if !ty.HasAttribute(name) || !val.Type().Equals(ty.AttributeType(name)) {
 			continue
 		}
 		attrs[name] = val
 		seeded = true
 	}
+	result := v
+	if seeded {
+		result = cty.ObjectVal(attrs)
+	}
+	if len(pathSeed) > 0 {
+		if pathResult, n := setResiduePathValues(result, pathSeed, false); n > 0 {
+			result = pathResult
+			seeded = true
+		}
+	}
 	if !seeded {
 		return v, false
 	}
-	return cty.ObjectVal(attrs), true
+	return result, true
 }
 
 // importAndRead is the whole provider conversation for one instance, and

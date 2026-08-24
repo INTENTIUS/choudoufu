@@ -192,7 +192,11 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 		return
 	}
 
-	filled, n := fillResidue(obj.Value, schema.Block, attrs, identity.SecretsFor(b.cfg), importStub)
+	secrets := identity.SecretsFor(b.cfg)
+	filled, n := fillResidue(obj.Value, schema.Block, attrs, secrets, importStub)
+	if pathFilled, pn := fillResiduePaths(filled, schema.Block, attrs, secrets); pn > 0 {
+		filled, n = pathFilled, n+pn
+	}
 	if n == 0 {
 		return
 	}
@@ -307,6 +311,34 @@ func (b *builder) residueSeedFor(ctx context.Context, w wanted, schema providers
 	configSourced := residueConfigSourced(schema)
 	var out map[string]cty.Value
 	for name, val := range attrs {
+		if isResiduePathKey(name) {
+			// [residueLeafPathCandidates]' own seeding half: a path-keyed
+			// entry is config-sourced under the identical rule
+			// [residueConfigSourced] applies at the top level (Required, or
+			// Optional and never Computed), asked of the leaf's OWN schema
+			// attribute rather than a precomputed top-level map, because a
+			// nested leaf has no entry in one. [withSeededAttrs] (build.go)
+			// is what actually applies a path-keyed entry once merged in
+			// below - [configuredAttrsSeed] never reaches a nested block at
+			// all (see its own doc comment), so this is the only source a
+			// path-keyed seed can come from.
+			path, err := decodeResiduePathKey(name)
+			if err != nil {
+				continue
+			}
+			attr, ok := schemaAttrAtPath(schema.Block, path)
+			if !ok || attr == nil || attr.WriteOnly {
+				continue
+			}
+			if !attr.Required && !(attr.Optional && !attr.Computed) {
+				continue
+			}
+			if out == nil {
+				out = make(map[string]cty.Value, len(attrs))
+			}
+			out[name] = val
+			continue
+		}
 		if !configSourced[name] {
 			continue
 		}
@@ -615,6 +647,281 @@ func residueCandidates(schema providers.Schema, applied cty.Value, secrets stric
 	return out
 }
 
+// residuePathCandidate is one flat, sensitive-or-not settable argument
+// found beneath a block boundary, together with the schema [configschema.Attribute]
+// that governs it and whether configuration is the only thing that can ever
+// set it (see [residueConfigSourced]'s reasoning, asked here per-leaf
+// because a leaf's own Required/Optional/Computed flags are all that
+// question needs).
+type residuePathCandidate struct {
+	Path          cty.Path
+	Attr          *configschema.Attribute
+	ConfigSourced bool
+}
+
+// residueLeafPathCandidates is [residueCandidates]'s generalization to any
+// path depth (GitHub issue #401 family 2, and the same gap named in issue
+// #275's own original design sketch: "This walk only reaches the schema's
+// own top level").
+//
+// [residueCandidates]'s block loop treats a whole nested block as ONE
+// candidate and [residueEligibleBlock] refuses it outright the moment
+// ANYTHING inside is sensitive or write-only, because
+// [residueMarkRecoverable] can only ever prove a WHOLE value's marks are
+// reconstructible, and a lone sensitive leaf beside ordinary siblings
+// leaves the block's own value carrying a mark at a path INSIDE it - the
+// one shape that predicate names as unrecoverable at block granularity
+// (see [TestResidueRefusesASingleNestedBlockHoldingASecret]'s own doc
+// comment, which is the test this function's existence does not
+// contradict: that test is about the WHOLE-BLOCK candidate
+// [residueCandidates] produces, and it still refuses one, unchanged).
+//
+// A single leaf's sensitivity IS recoverable, at leaf granularity, because
+// [markSchemaSensitive] already restores it generically at any depth from
+// the schema alone - every call site of it descends the whole block tree
+// through [configschema.Block.ValueMarks], not just the top level. So this
+// walks every nested block, at any depth, through every nesting mode
+// including [configschema.NestingGroup] ([residueEligibleBlock] excludes
+// Group because a WHOLE block's absence cannot be told apart from its
+// presence-but-empty there; a flat leaf's own [carriesNoInformation] test
+// never has to ask that question, so the exclusion has nothing to answer
+// for at this granularity), applying the identical per-attribute filter
+// [residueCandidates]'s own flat-attribute loop applies: WriteOnly refused
+// outright, Sensitive gated on secrets, NestedType left out of scope (the
+// same scope [residueCandidates] itself leaves it, for the same reason -
+// a nested object attribute needs its own decode and nothing measured here
+// needs it yet), and [residueMarkRecoverable] as the final word on whether
+// the leaf's own marks are reconstructible - a `sensitive = true` VARIABLE
+// feeding an otherwise-ordinary nested argument is refused here exactly as
+// it is at the top level, for the identical reason.
+//
+// aws_lb_listener.default_action.authenticate_oidc.client_secret (issue
+// #401 family 2) is the confirmed case: default_action is NestingList,
+// authenticate_oidc is NestingList nested inside it (max_items 1), and
+// client_secret is Required and Sensitive two levels down - a shape
+// [residueCandidates]'s own top-level BlockTypes loop never reaches at
+// all, and which would refuse default_action wholesale even if it did,
+// because default_action's OTHER arguments (target_group_arn, type, order)
+// are all real, provider-echoed values that a whole-block candidate would
+// incorrectly try to freeze.
+func residueLeafPathCandidates(schema providers.Schema, applied cty.Value, secrets strict.Secrets) []residuePathCandidate {
+	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
+		return nil
+	}
+	storing := strict.StoresSecrets(secrets)
+	if !storing && identity.CredentialMaterial(schema.Block) {
+		return nil
+	}
+	var out []residuePathCandidate
+	for name, blk := range schema.Block.BlockTypes {
+		if blk == nil || !applied.Type().HasAttribute(name) {
+			continue
+		}
+		walkResidueBlockType(blk, applied.GetAttr(name), residuePathAppend(nil, cty.GetAttrStep{Name: name}), storing, &out)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return tfdiags.FormatCtyPath(out[i].Path) < tfdiags.FormatCtyPath(out[j].Path)
+	})
+	return out
+}
+
+// residuePathAppend returns a fresh path with step appended, never sharing
+// prefix's backing array with any sibling call - the same hazard
+// [cty.Path]'s own append-based construction has everywhere else in this
+// codebase, and the reason every caller below goes through this rather
+// than a bare `append(prefix, step)`.
+func residuePathAppend(prefix cty.Path, step cty.PathStep) cty.Path {
+	out := make(cty.Path, len(prefix)+1)
+	copy(out, prefix)
+	out[len(prefix)] = step
+	return out
+}
+
+// walkResidueBlockType is [residueLeafPathCandidates]' per-nesting-mode
+// dispatch: a [configschema.NestingSingle] or [configschema.NestingGroup]
+// block is one object at prefix, and every other admitted mode is a
+// collection walked element by element, each element's own path carrying
+// an extra [cty.IndexStep] - a list index, a set element's own value, or a
+// map key, exactly the step [cty.Path.Apply] already knows how to resolve
+// back through the identical collection kind.
+func walkResidueBlockType(blk *configschema.NestedBlock, v cty.Value, prefix cty.Path, storing bool, out *[]residuePathCandidate) {
+	if blk == nil || v == cty.NilVal || v.IsNull() || !v.IsWhollyKnown() {
+		return
+	}
+	switch blk.Nesting {
+	case configschema.NestingSingle, configschema.NestingGroup:
+		walkResidueBlockBody(&blk.Block, v, prefix, storing, out)
+	case configschema.NestingList, configschema.NestingSet, configschema.NestingMap:
+		if !v.CanIterateElements() {
+			return
+		}
+		for it := v.ElementIterator(); it.Next(); {
+			kv, ev := it.Element()
+			walkResidueBlockBody(&blk.Block, ev, residuePathAppend(prefix, cty.IndexStep{Key: kv}), storing, out)
+		}
+	}
+}
+
+// walkResidueBlockBody is [residueLeafPathCandidates]'s per-block-instance
+// walk: every flat attribute the same filter [residueCandidates]'s own
+// loop applies, plus recursion into every further nested block type at
+// prefix, so a leaf at any depth is reached the same way client_secret is
+// reached two levels down.
+func walkResidueBlockBody(b *configschema.Block, v cty.Value, prefix cty.Path, storing bool, out *[]residuePathCandidate) {
+	if b == nil || v == cty.NilVal || v.IsNull() || !v.IsWhollyKnown() || !v.Type().IsObjectType() {
+		return
+	}
+	for name, attr := range b.Attributes {
+		if attr == nil || attr.WriteOnly || attr.NestedType != nil {
+			continue
+		}
+		if attr.Sensitive && !storing {
+			continue
+		}
+		if !v.Type().HasAttribute(name) {
+			continue
+		}
+		leaf := v.GetAttr(name)
+		if leaf.IsNull() || !leaf.IsWhollyKnown() {
+			continue
+		}
+		if !residueMarkRecoverable(attr, leaf) {
+			continue
+		}
+		*out = append(*out, residuePathCandidate{
+			Path:          residuePathAppend(prefix, cty.GetAttrStep{Name: name}),
+			Attr:          attr,
+			ConfigSourced: attr.Required || (attr.Optional && !attr.Computed),
+		})
+	}
+	for name, nblk := range b.BlockTypes {
+		if nblk == nil || !v.Type().HasAttribute(name) {
+			continue
+		}
+		walkResidueBlockType(nblk, v.GetAttr(name), residuePathAppend(prefix, cty.GetAttrStep{Name: name}), storing, out)
+	}
+}
+
+// residuePathKeyPrefix marks a residue [residueFields.Attributes] key as a
+// canonically-encoded [cty.Path] rather than a bare top-level attribute
+// name - a JSON array always opens with '[', and a bare attribute name is
+// a Go/HCL identifier, which never does, so the two key spaces can never
+// collide and a record written before path-keyed residue existed decodes
+// exactly as it always did.
+const residuePathKeyPrefix = '['
+
+// isResiduePathKey reports whether a [residueFields.Attributes] key is a
+// [residueLeafPathCandidates] path rather than a flat attribute name.
+func isResiduePathKey(key string) bool {
+	return len(key) > 0 && key[0] == residuePathKeyPrefix
+}
+
+// encodeResiduePathKey and [decodeResiduePathKey] are this file's own
+// [marshalSensitivePaths]/[unmarshalSensitivePaths], reusing the identical
+// step encoding (sensitivepaths.go's own [pathStepJSON]) for a single path
+// used as a map key rather than a member of a stored list - the same shape
+// for the same reason: the state file's own paths encoding is already
+// proven to round-trip every step [cty.Path] can hold.
+func encodeResiduePathKey(path cty.Path) (string, error) {
+	steps := make([]pathStepJSON, 0, len(path))
+	for _, step := range path {
+		switch s := step.(type) {
+		case cty.GetAttrStep:
+			name, err := json.Marshal(s.Name)
+			if err != nil {
+				return "", fmt.Errorf("encoding the attribute step %q of a residue path: %w", s.Name, err)
+			}
+			steps = append(steps, pathStepJSON{Type: getAttrPathStepType, Value: name})
+		case cty.IndexStep:
+			key, err := ctyjson.Marshal(s.Key, cty.DynamicPseudoType)
+			if err != nil {
+				return "", fmt.Errorf("encoding an index step of a residue path: %w", err)
+			}
+			steps = append(steps, pathStepJSON{Type: indexPathStepType, Value: key})
+		default:
+			return "", fmt.Errorf("a residue path contains a %T step, which cannot be encoded", step)
+		}
+	}
+	out, err := json.Marshal(steps)
+	if err != nil {
+		return "", fmt.Errorf("encoding a residue path: %w", err)
+	}
+	return string(out), nil
+}
+
+// decodeResiduePathKey reverses [encodeResiduePathKey].
+func decodeResiduePathKey(key string) (cty.Path, error) {
+	var steps []pathStepJSON
+	if err := json.Unmarshal([]byte(key), &steps); err != nil {
+		return nil, fmt.Errorf("a residue path key is not valid JSON: %w", err)
+	}
+	var path cty.Path
+	for _, step := range steps {
+		switch step.Type {
+		case getAttrPathStepType:
+			var name string
+			if err := json.Unmarshal(step.Value, &name); err != nil {
+				return nil, fmt.Errorf("a residue path key's attribute step could not be read: %w", err)
+			}
+			path = append(path, cty.GetAttrStep{Name: name})
+		case indexPathStepType:
+			key, err := ctyjson.Unmarshal(step.Value, cty.DynamicPseudoType)
+			if err != nil {
+				return nil, fmt.Errorf("a residue path key's index step could not be read: %w", err)
+			}
+			path = append(path, cty.IndexStep{Key: key})
+		default:
+			return nil, fmt.Errorf("a residue path key contains an unsupported step type %q", step.Type)
+		}
+	}
+	return path, nil
+}
+
+// schemaAttrAtPath resolves path against block the same way
+// [walkResidueBlockBody]/[walkResidueBlockType] constructed it, and is
+// [fillResiduePaths]' and [builder.residueSeedFor]'s way of re-asking
+// today's schema what governs a path a record was written against,
+// possibly a schema version or two ago - the identical re-check
+// [fillResidue]'s own doc comment explains for the flat case ("a record
+// written months ago against a schema where an attribute was ordinary must
+// not be applied after a provider release marks it"). A path whose shape
+// no longer matches today's schema (a block renamed, a nesting mode
+// changed, an attribute that became a block) answers false rather than
+// guessing.
+func schemaAttrAtPath(block *configschema.Block, path cty.Path) (*configschema.Attribute, bool) {
+	b := block
+	for i := 0; i < len(path); i++ {
+		step, ok := path[i].(cty.GetAttrStep)
+		if !ok {
+			return nil, false
+		}
+		if attr, ok := b.Attributes[step.Name]; ok {
+			if i != len(path)-1 {
+				// An attribute has no further children; a path continuing
+				// past one names something this schema does not have.
+				return nil, false
+			}
+			return attr, true
+		}
+		blk, ok := b.BlockTypes[step.Name]
+		if !ok || blk == nil {
+			return nil, false
+		}
+		b = &blk.Block
+		switch blk.Nesting {
+		case configschema.NestingList, configschema.NestingSet, configschema.NestingMap:
+			i++
+			if i >= len(path) {
+				return nil, false
+			}
+			if _, ok := path[i].(cty.IndexStep); !ok {
+				return nil, false
+			}
+		}
+	}
+	return nil, false
+}
+
 // residueEligibleBlock reports whether name is a block type on this
 // schema that residue may carry, and it is the ONE place that question is
 // answered - [residueCandidates] asks it to decide what may be recorded and
@@ -835,11 +1142,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
-	candidates := residueCandidates(schema, applied, secrets)
-	if len(candidates) == 0 {
-		return false, nil
-	}
-	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read)
+	attrs, ok := classifyResidueAll(schema, applied, secrets, read)
 	if !ok {
 		return false, nil
 	}
@@ -1142,6 +1445,124 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 		return nil, false
 	}
 	return out, true
+}
+
+// classifyResiduePaths is [classifyResidue]'s generalization to
+// [residueLeafPathCandidates]' output: the identical read-A/read-B
+// discriminator, asked with [cty.Path.Apply] in place of [cty.Value.GetAttr]
+// so a candidate need not sit at the schema's own top level.
+//
+// It performs its own two reads rather than sharing [classifyResidue]'s -
+// simpler to keep independent and independently testable, at the cost of
+// two extra provider RPCs, and only ever paid by an instance
+// [residueLeafPathCandidates] actually found something in (aws_lb_listener
+// and aws_lb_listener_rule with an OIDC action configured, so far - not
+// the general population).
+//
+// See [classifyResidue]'s own doc comment for what each side of the
+// discriminator proves; nothing about the reasoning changes at a deeper
+// path, only the accessor.
+func classifyResiduePaths(applied cty.Value, candidates []residuePathCandidate, identityAttrs map[string]bool, read residueReader) (map[string]cty.Value, bool) {
+	if len(candidates) == 0 || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
+		return nil, false
+	}
+
+	stub, err := identityOnly(applied, identityAttrs)
+	if err != nil {
+		return nil, false
+	}
+
+	a, err := read(stub)
+	if err != nil || !usableReadResult(a) {
+		return nil, false
+	}
+	b, err := read(applied)
+	if err != nil || !usableReadResult(b) {
+		return nil, false
+	}
+
+	out := make(map[string]cty.Value)
+	for _, c := range candidates {
+		want, err := c.Path.Apply(applied)
+		if err != nil || want == cty.NilVal || want.IsNull() || !want.IsWhollyKnown() {
+			continue
+		}
+		av, aerr := c.Path.Apply(a)
+		if aerr != nil {
+			continue
+		}
+		bv, berr := c.Path.Apply(b)
+		if berr != nil {
+			continue
+		}
+		log.Printf("[TRACE] projection: residue path candidate %q: readA=%#v readB=%#v applied=%#v", tfdiags.FormatCtyPath(c.Path), av, bv, want)
+		if !av.IsNull() && av.RawEquals(want) {
+			// Read A produced the applied value from a prior that did not
+			// carry it, so the provider reads this leaf from the remote.
+			continue
+		}
+		if !carriesNoInformation(av) {
+			// Same format-only widening [classifyResidue] makes for a
+			// non-Computed candidate: a real-looking answer here cannot be
+			// independent drift (the protocol forbids it for a leaf
+			// configuration alone can set), so it stays provisionally
+			// eligible and the read-B check below tells a format artifact
+			// apart from every other case that could produce this shape.
+			if !c.ConfigSourced {
+				continue
+			}
+		}
+		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(want) {
+			continue
+		}
+		key, keyErr := encodeResiduePathKey(c.Path)
+		if keyErr != nil {
+			continue
+		}
+		out[key] = want
+	}
+	if len(out) == 0 {
+		return nil, false
+	}
+	return out, true
+}
+
+// classifyResidueAll is [RecordResidueForInstance]'s and
+// [writeBackRecordEnvelopes]'s shared entry point: run both classifiers
+// against the same schema, applied value and read closure, and merge their
+// results into one map keyed by flat attribute name and by
+// [encodeResiduePathKey]'s canonical path string, the input
+// [encodeResidueFields] already accepts without caring which kind of key
+// it was given (a bare name is never a valid JSON array, and a path key
+// always is, so the two can never collide).
+func classifyResidueAll(schema providers.Schema, applied cty.Value, secrets strict.Secrets, read residueReader) (map[string]cty.Value, bool) {
+	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
+		return nil, false
+	}
+	candidates := residueCandidates(schema, applied, secrets)
+	pathCandidates := residueLeafPathCandidates(schema, applied, secrets)
+	if len(candidates) == 0 && len(pathCandidates) == 0 {
+		return nil, false
+	}
+	merged := make(map[string]cty.Value)
+	if len(candidates) > 0 {
+		if attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read); ok {
+			for k, v := range attrs {
+				merged[k] = v
+			}
+		}
+	}
+	if len(pathCandidates) > 0 {
+		if attrs, ok := classifyResiduePaths(applied, pathCandidates, residueIdentityAttrs(schema), read); ok {
+			for k, v := range attrs {
+				merged[k] = v
+			}
+		}
+	}
+	if len(merged) == 0 {
+		return nil, false
+	}
+	return merged, true
 }
 
 // carriesNoInformation reports whether a value is the provider's way of
@@ -1458,4 +1879,121 @@ func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.
 		return obj, 0
 	}
 	return cty.ObjectVal(out), filled
+}
+
+// fillResiduePaths is [fillResidue]'s generalization to a path-keyed
+// [residueLeafPathCandidates] entry: the identical safety rule ("a record
+// never overwrites a value the provider gave", [fillResidue]'s own doc
+// comment) applied at the leaf a [classifyResiduePaths] candidate names,
+// through [setResiduePathValues]'s single [cty.Transform] pass rather than
+// a flat `for name, ty := range obj.Type().AttributeTypes()` loop, because
+// the leaf this fills is not one of obj's own top-level attributes.
+//
+// Every attrs entry that is NOT a path key ([isResiduePathKey]) is left for
+// [fillResidue] to handle, exactly as it always has - the two loops
+// partition attrs by key shape and neither one's caller needs to know
+// which candidates went where.
+//
+// The schema is re-asked at fill time through [schemaAttrAtPath], the same
+// re-check [fillResidue]'s own doc comment explains for the flat case: a
+// record written when a leaf was ordinary must stop being filled the day a
+// provider release marks it Sensitive under `secrets = "refuse"`, or moves
+// it behind WriteOnly.
+//
+// The mark this fills back UNMARKED is restored, deeply and for the whole
+// object, by [builder.fillResidueFor]'s own trailing
+// [markSchemaSensitive] call - not by anything in this function, which
+// deals in unmarked values on both sides exactly as [fillResidue] does.
+func fillResiduePaths(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value, secrets strict.Secrets) (cty.Value, int) {
+	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || block == nil || len(attrs) == 0 {
+		return obj, 0
+	}
+	refusesSecrets := !strict.StoresSecrets(secrets)
+	entries := make(map[string]cty.Value)
+	for key, rec := range attrs {
+		if !isResiduePathKey(key) {
+			continue
+		}
+		if rec.IsNull() || !rec.IsWhollyKnown() || rec.IsMarked() {
+			continue
+		}
+		path, err := decodeResiduePathKey(key)
+		if err != nil {
+			continue
+		}
+		attr, ok := schemaAttrAtPath(block, path)
+		if !ok || attr == nil {
+			continue
+		}
+		if attr.WriteOnly || (attr.Sensitive && refusesSecrets) {
+			continue
+		}
+		if !rec.Type().Equals(attr.Type) {
+			continue
+		}
+		entries[key] = rec
+	}
+	if len(entries) == 0 {
+		return obj, 0
+	}
+	return setResiduePathValues(obj, entries, true)
+}
+
+// setResiduePathValues is the one [cty.Transform] pass [fillResiduePaths]
+// and [withSeededAttrs] both drive, matching a node's own canonical
+// [encodeResiduePathKey] against entries and replacing it when found.
+//
+// requireEmpty is [fillResiduePaths]' "never overwrite a value the
+// provider gave" rule ([carriesNoInformation] on the CURRENT, unmarked
+// node): true for the post-read fill, because obj there is a live read a
+// record must never shadow. [withSeededAttrs]'s pre-read seed passes
+// false, matching that function's own flat half: attrsSeed already
+// overwrites unconditionally (subject only to the type check every path
+// here still keeps), because obj there is an import stub built with no
+// configuration in hand, not a live answer to protect.
+//
+// cty.Transform's own contract - visit every node bottom-up, offering each
+// one a replacement - is what makes a single pass correct for however many
+// path entries land in the same object: a container is rebuilt from its
+// own already-transformed children before this callback ever sees it, so
+// entries at unrelated paths never interact, and [cty.Transform]'s own
+// unmark-before-descend, remark-after-rebuild discipline is what makes it
+// safe to call directly on a value this package has already schema-marked
+// (see [markSchemaSensitive]'s own doc comment on why obj reaches here
+// carrying marks at all) - never [cty.Value.GetAttr] or
+// [cty.Value.ElementIterator] on a marked receiver directly, which is what
+// [cty.Transform] itself does the unmarking for.
+func setResiduePathValues(obj cty.Value, entries map[string]cty.Value, requireEmpty bool) (cty.Value, int) {
+	if obj == cty.NilVal || len(entries) == 0 {
+		return obj, 0
+	}
+	filled := 0
+	result, err := cty.Transform(obj, func(p cty.Path, v cty.Value) (cty.Value, error) {
+		key, keyErr := encodeResiduePathKey(p)
+		if keyErr != nil {
+			return v, nil
+		}
+		val, ok := entries[key]
+		if !ok {
+			return v, nil
+		}
+		if !val.Type().Equals(v.Type()) {
+			return v, nil
+		}
+		if requireEmpty {
+			curPlain, _ := v.UnmarkDeep()
+			if !carriesNoInformation(curPlain) {
+				return v, nil
+			}
+		}
+		filled++
+		return val, nil
+	})
+	if err != nil {
+		return obj, 0
+	}
+	if filled == 0 {
+		return obj, 0
+	}
+	return result, filled
 }
