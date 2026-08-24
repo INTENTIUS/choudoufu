@@ -6,6 +6,8 @@
 package identity
 
 import (
+	"sort"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -519,6 +521,86 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 		}
 		names, uElems := u.result()
 		return stringVals(names), uElems, true
+	}
+
+	// values(X): #397's own chase, one hop further out than merge -
+	// terraform-aws-modules/terraform-aws-alb's own local.additional_certs
+	// (main.tf:456-473, corpus-alb-complete) is exactly
+	// `merge(values({for listener_key, listener_values in var.listeners :
+	// listener_key => {inner map, one entry per additional cert} if
+	// ...})...)`: flatten a map of maps into one flat map, common enough
+	// that OpenTofu's own function reference uses it as the worked example
+	// for `values`. Without this case the outer merge()'s splatted
+	// argument is a FunctionCallExpr this switch does not recognise, and
+	// the WHOLE chase declines - not only for this for_each's key set (the
+	// prior worker's own dead end), but for [resolver.elementExprBindings]
+	// too, which is what silently left [expansion.eachValueDeferred] with
+	// nothing to select each.value.certificate_arn out of and forced
+	// every instance back onto [expansion.managedFrom]'s one shared,
+	// expansion-wide answer - see [resolver.forEachExpansion]'s own
+	// managedFrom comment and gauntlet issue #397.
+	//
+	// Only a MAP or an OBJECT source is accepted: a list has no keys to
+	// sort by, and real `values()` itself errors on one, so
+	// [stringKeys] failing here is exactly the safe decline
+	// [resolver.stringKeys]'s own callers already rely on elsewhere.
+	// cty's own element iterators - what `values()` itself iterates
+	// with - visit a map or object in sorted-key order (documented on
+	// [cty.Value.ElementIterator]), so the sort below is not a guess at
+	// the builtin's behaviour; it is what the builtin already does.
+	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "values" && len(call.Args) == 1 && !call.ExpandFinal {
+		srcKeys, srcElems, srcOK := r.staticCollElems(call.Args[0], ident, depth+1, false)
+		if !srcOK {
+			return nil, nil, false
+		}
+		names, ok := stringKeys(srcKeys)
+		if !ok {
+			return nil, nil, false
+		}
+		order := make([]int, len(names))
+		for i := range order {
+			order[i] = i
+		}
+		sort.Slice(order, func(a, b int) bool { return names[order[a]] < names[order[b]] })
+		if tupleIsArgs {
+			// merge(values(X)...): values(X)'s own elements stand in for
+			// merge's separate arguments, the identical splat semantics
+			// the TupleConsExpr and "merge" cases above already give a
+			// literal list or a merge() call - each element here is
+			// itself an object to union in, not a value to bind to an
+			// integer index. Every element's own expression has to be in
+			// hand to decompose it one hop further; one that is not (an
+			// object built from a value this chase never read, such as
+			// [forExprElems]'s own Group branch) declines the whole
+			// level rather than silently dropping it from the union.
+			u := newKeyUnion()
+			for _, i := range order {
+				if i >= len(srcElems) || srcElems[i].expr == nil {
+					return nil, nil, false
+				}
+				got, gotElems, ok := r.staticForEachKeys(srcElems[i].expr, ident, depth+1, false)
+				if !ok {
+					return nil, nil, false
+				}
+				u.add(got, gotElems)
+			}
+			names, uElems := u.result()
+			return stringVals(names), uElems, true
+		}
+		// Not a splat: values(X) is an ordinary LIST in its own right,
+		// whose keys are its integer indices, one per source value in
+		// the same sorted-key order cty's iterator visits them in.
+		keys := make([]cty.Value, 0, len(order))
+		elems := make([]elemBinding, 0, len(order))
+		for pos, i := range order {
+			keys = append(keys, cty.NumberIntVal(int64(pos)))
+			if i < len(srcElems) {
+				elems = append(elems, srcElems[i])
+			} else {
+				elems = append(elems, elemBinding{})
+			}
+		}
+		return keys, elems, true
 	}
 
 	return nil, nil, false
