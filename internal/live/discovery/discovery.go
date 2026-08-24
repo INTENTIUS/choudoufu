@@ -367,13 +367,21 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && !req.Sweep {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep {
 		// Nothing waits on discovery and no sweep was asked for, which is a
 		// legitimate configuration: every instance was named by static
 		// analysis, and without a sweep there is nothing else to look at.
 		res.sortEverything()
 		return res, diags
 	}
+	// decl.recordBacked non-empty but decl.types empty: every needs-discovery
+	// instance in this configuration is record-backed. There is still slot
+	// bookkeeping to do for any of them that sit in a count block (see
+	// recordBacked's own doc comment), which happens below in bind() via
+	// [declared.bindTypeNames] - but nothing here calls the provider's list
+	// endpoint, because decl.typeNames() (the scan loop just below) is
+	// unchanged: schemas are fetched (a local schema call, not a list call)
+	// and the scan loop runs zero iterations.
 
 	schemas, schemaDiags := listclient.ListSchemas(ctx, req.Provider)
 	diags = diags.Append(schemaDiags)
@@ -771,6 +779,33 @@ func (d *declared) typeNames() []string {
 	out := make([]string, 0, len(d.types))
 	for t := range d.types {
 		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// bindTypeNames is typeNames widened by the types that have NO scan demand
+// at all - every needs-discovery instance of them is record-backed - but
+// still have a count block to bind, purely for slot accounting (see
+// recordBacked's own doc comment). [bind] uses this instead of typeNames so
+// that a count block entirely answered from the record still gets its
+// tofu-slot minted or carried; [Discover]'s scan loop and its "nothing to
+// do" shortcut use typeNames unchanged, so a type in this widened set but
+// absent from typeNames still triggers no scan and no provider call.
+func (d *declared) bindTypeNames() []string {
+	out := make([]string, 0, len(d.types)+len(d.recordBacked))
+	seen := make(map[string]bool, len(d.types)+len(d.recordBacked))
+	for t := range d.types {
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for t := range d.recordBacked {
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -2655,7 +2690,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 
 	bound := make(map[string]Binding)
 
-	for _, typeName := range decl.typeNames() {
+	for _, typeName := range decl.bindTypeNames() {
 		if decl.unscanned[typeName] {
 			// Nothing was listed for this type, and a problem already says
 			// why. Calling its instances unbound here would tell the plan
