@@ -268,7 +268,11 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	diags = diags.Append(m.rewrite(ctx, prior))
-	return res, diags
+	if diags.HasErrors() {
+		return res, diags
+	}
+
+	return res, diags.Append(m.propagateModuleRename(ctx))
 }
 
 // mover carries one rename's inputs through the find and write halves.
@@ -970,6 +974,158 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 		))
 	}
 	return obj, diags
+}
+
+// ---------------------------------------------------------------------------
+// Carrying the record store along with a module rename
+// ---------------------------------------------------------------------------
+
+// propagateModuleRename re-keys every record this estate's store holds
+// under the module boundary req.Old -> req.New actually renamed, once
+// [m.rewrite] has already made the live write for the one instance this
+// call was asked to rename.
+//
+// A live-mv rename is a single-resource operation: req.Old and req.New name
+// one instance, and the caller may not even know what else lives under the
+// module they share. But everything living under that module and findable
+// only through this estate's record store - [identity.ClassRecordLocated]
+// (GitHub issue #270) and an ordinary [identity.ClassNeedsDiscovery]
+// type's own stamp-time identity record, [RecordStore.MoveRecord]'s doc
+// comment names both - is invisible to the marker rewrite this package
+// already does, and stays bound to the old address forever unless
+// something else moves it. A `moved` block gets one: a plan-time alias
+// consult (located.go's locatedIdentityWithAliases). live-mv writes no
+// `moved` block, so this is the closest thing it has - a real re-key,
+// right now, rather than teaching every future reader to walk an alias
+// chain with no configuration behind it.
+//
+// Generic by construction: nothing here names a resource type. Any record
+// under [RecordStore]'s namespace whose address falls under the renamed
+// module prefix moves, including req.Old's own record if it has one -
+// GitHub issue #357's day2_rename wall on corpus-rds-complete-postgres
+// (aws_db_instance's own record-backed sibling, random_id.snapshot_identifier)
+// is the estate that named this, but the rule reaches every type stock
+// admits the same way. A sibling module's record, or anything outside the
+// renamed prefix, is never a match and is never touched - the mutation
+// check this package's own tests hold it to (a sibling module's record
+// stays put).
+//
+// Deliberately conservative about what counts as "a module rename" at all:
+// [moduleRenameBoundary] only recognizes exactly one module-instance step
+// differing between req.Old.Module and req.New.Module, with every step
+// before and after it identical. An ordinary resource rename within the
+// same module (no step differs) or an address pair this function does not
+// trust to generalize (more than one step differing at once - not
+// something live-mv itself ever produces from a single Old/New pair, but
+// nothing stops a caller from constructing one) does nothing here rather
+// than guess: doing nothing is always safe, and moving the wrong record
+// is exactly the wrong-marker hazard HANDOFF.md's safety rule exists to
+// stop.
+//
+// No cross-record transaction: each record moves through
+// [RecordStore.MoveRecord]'s own single-record CAS, but there is nothing
+// tying the whole set together. A crash partway through this loop leaves
+// every record reached before the crash correctly at its new address and
+// everything after it still at the old one - see MoveRecord's own doc
+// comment for why that is safe rather than merely tolerable. day2_crash
+// (live/GAUNTLET.md #10, planned) will need to recover the interrupted
+// case; the story today is the same one MoveRecord names: re-run the same
+// live-mv command, which finds nothing left to do for whatever already
+// moved and finishes what did not.
+func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	store := m.req.RecordStore
+	if store == nil {
+		return diags
+	}
+
+	oldPrefix, newPrefix, ok := moduleRenameBoundary(m.req.Old.Module, m.req.New.Module)
+	if !ok {
+		return diags
+	}
+
+	keys, err := store.List(ctx)
+	if err != nil {
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Could not list this estate's records",
+			fmt.Sprintf(
+				"Renaming %s to %s moves module boundary %s to %s, and every record under it has to follow, but this estate's record store could not be listed: %s.",
+				m.req.Old, m.req.New, oldPrefix, newPrefix, err),
+		))
+	}
+
+	prefix := store.Prefix()
+	for _, key := range keys {
+		addr, ok := projection.RecordAddr(prefix, key)
+		if !ok {
+			continue
+		}
+		rest, under := moduleSuffixUnder(addr.Module, oldPrefix)
+		if !under {
+			continue
+		}
+		newModule := make(addrs.ModuleInstance, 0, len(newPrefix)+len(rest))
+		newModule = append(newModule, newPrefix...)
+		newModule = append(newModule, rest...)
+		newAddr := addrs.AbsResourceInstance{Module: newModule, Resource: addr.Resource}
+		if newAddr.String() == addr.String() {
+			continue
+		}
+
+		if _, mErr := store.MoveRecord(ctx, addr, newAddr); mErr != nil {
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"A record could not be moved with its module",
+				fmt.Sprintf(
+					"Renaming %s to %s moved module boundary %s to %s. %s's own record has to move to %s to follow, and it could not: %s. The live write already completed; run the same live-mv command again to finish moving this estate's records once this is resolved - moving a record is safe to retry.",
+					m.req.Old, m.req.New, oldPrefix, newPrefix, addr, newAddr, mErr),
+			))
+		}
+	}
+	return diags
+}
+
+// moduleRenameBoundary reports the module-instance prefix a rename from old
+// to new actually moved: the leading steps up to and including the one step
+// that differs, on both sides, when old and new are the same length and
+// differ at EXACTLY one step. ok is false whenever that shape does not
+// hold - same length but no step differs (an ordinary rename within one
+// module, nothing to propagate), different lengths, or more than one step
+// differing - and [mover.propagateModuleRename] does nothing rather than
+// guess which steps are "the" rename in any of those cases.
+func moduleRenameBoundary(old, new addrs.ModuleInstance) (oldPrefix, newPrefix addrs.ModuleInstance, ok bool) {
+	if len(old) != len(new) {
+		return nil, nil, false
+	}
+	diffAt := -1
+	for i := range old {
+		if old[i] != new[i] {
+			if diffAt != -1 {
+				return nil, nil, false
+			}
+			diffAt = i
+		}
+	}
+	if diffAt == -1 {
+		return nil, nil, false
+	}
+	return old[:diffAt+1], new[:diffAt+1], true
+}
+
+// moduleSuffixUnder reports whether module falls under prefix - its leading
+// steps equal prefix exactly - and the steps beyond prefix when it does.
+func moduleSuffixUnder(module, prefix addrs.ModuleInstance) (rest addrs.ModuleInstance, ok bool) {
+	if len(module) < len(prefix) {
+		return nil, false
+	}
+	for i := range prefix {
+		if module[i] != prefix[i] {
+			return nil, false
+		}
+	}
+	return module[len(prefix):], true
 }
 
 // ---------------------------------------------------------------------------
