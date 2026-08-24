@@ -1636,6 +1636,36 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		// sibling it is waiting on rather than that their argument is not
 		// static. See [DiscoverySiblingApply].
 		if res, ok := r.siblingApplyResolution(addr, sibMark, sibArgs, hardFailed); ok {
+			// The record rung, after the withdrawal and not before it: the
+			// sibling-apply diagnostics have to come off r.diags either
+			// way, and siblingApplyResolution is what takes them off.
+			//
+			// A sibling-apply answer promises that a LATER run can find the
+			// object - by its marker, once the sibling exists and the value
+			// is known. For a type with nowhere to carry a marker that
+			// promise cannot be kept: the marker sweep has nothing to sweep,
+			// so the instance stays unbindable forever and the plan refuses
+			// it as an unstamped marker-only resource. The record is the
+			// only identity source left that is not a guess, which is the
+			// same argument every other [resolver.recordFallback] call site
+			// in this function makes, reached through a different door.
+			//
+			// terraform-aws-modules/terraform-aws-acm's own
+			// aws_route53_record.validation is the shape: its name and type
+			// come from aws_acm_certificate.this's domain_validation_options,
+			// which the provider fills in only after the certificate is
+			// applied, and aws_route53_record has no tags map. Before this,
+			// corpus-alb-complete's two validation records reached
+			// live-plan's "Unmarked apply of a marker-only resource" - a
+			// refusal with no way out, for two objects the estate had
+			// already migrated.
+			//
+			// [resolver.recordFallback] is a no-op for anything taggable, so
+			// nothing that resolves today is re-routed: a type with a marker
+			// keeps the sibling-apply answer it has always had.
+			if fb, fbOK := r.recordFallback(addr, resAddr.Type); fbOK {
+				return fb, true
+			}
 			return res, true
 		}
 		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
@@ -3937,6 +3967,38 @@ func (s instScope) withExprVar(name string, b *elemBinding) instScope {
 	return next
 }
 
+// withVars returns a copy of s with add's entries laid over its own vars,
+// leaving s itself untouched.
+//
+// It is what makes a for-comprehension nested inside another see the OUTER
+// comprehension's loop variables: [resolver.forExprElems] used to build a
+// FRESH instScope{vars: ...} per element, which discarded every enclosing
+// binding - fine while the decomposition chase only ever walked chains of
+// separate local/var names, and exactly the wall #397 hit the moment a
+// comprehension's own value clause was itself a comprehension reading the
+// outer loop variable (terraform-aws-modules/terraform-aws-alb's
+// local.additional_certs, main.tf:456-473).
+//
+// Shadowing is the map's: an inner comprehension reusing an outer's variable
+// name overwrites that one key and leaves the rest, which is what HCL's own
+// scoping does. exprVars is carried across untouched, because
+// [instScope.withExprVar] maintains it under the same rule.
+func (s instScope) withVars(add map[string]cty.Value) instScope {
+	next := s
+	if len(add) == 0 && s.vars == nil {
+		return next
+	}
+	m := make(map[string]cty.Value, len(s.vars)+len(add))
+	for k, v := range s.vars {
+		m[k] = v
+	}
+	for k, v := range add {
+		m[k] = v
+	}
+	next.vars = m
+	return next
+}
+
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
 	key := r.expKey(rc)
 	if exp, ok := r.expansions[key]; ok {
@@ -4270,7 +4332,7 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// object, or a set of strings, never a list, so a tuple standing
 		// here is not a set of merge() arguments and its elements' own keys
 		// are not this block's instance keys.
-		if keys, elems, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
+		if keys, elems, structOK := r.staticForEachKeys(expr, ident, 0, false, instScope{}); structOK {
 			r.diags = r.diags[:mark]
 			// Whatever the chase proved a key's value to be, carried onto the
 			// expansion so each.value resolves for that key alone. A key with

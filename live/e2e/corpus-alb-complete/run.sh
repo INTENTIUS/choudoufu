@@ -799,7 +799,22 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the config-language subset wall below is gone; update this script and push on to stage 4"; }
+# NODE_RESOLVE is read here rather than at 3a below, where it used to be
+# declared, because the very first thing that differs between the two paths
+# is now the EXIT CODE. See 3a for what the flag means.
+NODE_RESOLVE="${CHOUDOUFU_NODE_RESOLVE:-}"
+if [ -n "$NODE_RESOLVE" ]; then
+  [ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded under CHOUDOUFU_NODE_RESOLVE=1 - the two aws_acm_certificate_validation projection refusals this branch expects are gone; update this branch and push on to stage 4"; }
+else
+  # Flag off, live-plan COMPLETES as of 2026-08-24 (gauntlet issue #397's two
+  # remaining blockers and the record-rung fix that surfaced behind them):
+  # the config-language-subset wall that made this a non-zero exit for every
+  # prior pass of this script is gone, and a non-zero exit here is now a
+  # regression rather than the expected state. What stage 3 is still blocked
+  # on is a NON-EMPTY plan, checked at 3e below, which is a different and
+  # strictly later question.
+  [ "$PLAN_RC" -eq 0 ] || { grep -E '^Error:' -A 8 <<< "$PLAN_OUT"; fail "live-plan exited $PLAN_RC; it has completed cleanly since 2026-08-24, so a non-zero exit is a regression, not the old wall"; }
+fi
 
 log "  all distinct Error: lines from this live-plan run:"
 grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c | sed 's/^/    /'
@@ -818,8 +833,19 @@ grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c | sed 's/^/    /'
 MARKERLESS_SITES_N="$(grep -c '^Error: Resource type has nowhere to write an ownership marker$' <<< "$PLAN_OUT")"
 [ "$MARKERLESS_SITES_N" = "0" ] \
   || { grep -E '^Error:' <<< "$PLAN_OUT" | sort -u; fail "expected 0 markerless-type refusals (the credential veto was narrowed in 80666bc1c0), got $MARKERLESS_SITES_N"; }
-grep -qF 'aws_cognito_user_pool_client' <<< "$PLAN_OUT" \
-  && { printf '%s\n' "$PLAN_OUT" | grep -F 'aws_cognito_user_pool_client'; fail "aws_cognito_user_pool_client still appears in live-plan's output - the wall this pass recorded as cleared is not cleared"; }
+# The bare type-name grep is kept only for the flag-on path. Flag off, it is
+# now OVER-BROAD and was the first thing to fail the moment live-plan started
+# COMPLETING (2026-08-24): a run that gets past identity resolution prints its
+# own inventory line, "aws_cognito_user_pool_client, null_resource
+# [NOT_SCANNED]", which is information about what the sweep did not scan, not
+# a refusal. HANDOFF's fixed-wall rule - suspect the assertion before the
+# regression - and it was the assertion. What the grep was for (a refusal that
+# merely changed its wording) is subsumed flag-off by the strictly stronger
+# check below: ZERO Error diagnostics of any wording at all.
+if [ -n "$NODE_RESOLVE" ]; then
+  grep -qF 'aws_cognito_user_pool_client' <<< "$PLAN_OUT" \
+    && { printf '%s\n' "$PLAN_OUT" | grep -F 'aws_cognito_user_pool_client'; fail "aws_cognito_user_pool_client still appears in live-plan's output - the wall this pass recorded as cleared is not cleared"; }
+fi
 log "  3a  0 markerless-type refusals; aws_cognito_user_pool_client does not"
 log "      appear in live-plan's output at all. #309's last site is gone."
 
@@ -1030,7 +1056,8 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 # holds against the node-noimporter landing (8adb279dd7) merged after it -
 # that is unverified here and belongs to whichever unit next runs this
 # estate under CHOUDOUFU_NODE_RESOLVE=1.
-NODE_RESOLVE="${CHOUDOUFU_NODE_RESOLVE:-}"
+# NODE_RESOLVE itself is read at the top of stage 3 - see the exit-code
+# branch there.
 if [ -n "$NODE_RESOLVE" ]; then
   WANT_DIAG_N=2
   declare -a WANT_SITES=(
@@ -1063,20 +1090,38 @@ else
   # stamped, 1 recorded) - the two attachments were never routed through
   # the record rung either before or after this fix; their identity was
   # always fully config-derived, only refused outright.
-  WANT_DIAG_N=1
-  declare -a WANT_SITES=(
-    # family A's own remaining site (3b's numbered item 2 above): a module
-    # OUTPUT reference beside a direct one declines rather than risk a wrong
-    # sibling-apply attribution (84dcbabea9), and that decline applies
-    # flag-off exactly as it applies flag-on - this was never fixed
-    # flag-off, only misrecorded as such. local.lambda_target_groups's own
-    # function_name (the OTHER site this list used to name) is FIXED as of
-    # the 2026-08-24 unit before this one - see 3b's item 1 - and no longer
-    # appears anywhere in live-plan's output; expecting it here would fail
-    # this loop, which is the point of listing sites by name and not just
-    # by count.
-    'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
-  )
+  # 1 -> 0 (gauntlet issue #397, 2026-08-24). The last flag-off Error
+  # diagnostic this estate raised was
+  # module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn,
+  # "Non-static identity argument", and it is gone. Two independent fixes
+  # were needed and both are generic language rules, not shapes:
+  #
+  #   1. terraform-aws-modules/terraform-aws-alb's local.additional_certs
+  #      (main.tf:456-473) builds its per-listener value with a
+  #      for-expression NESTED inside another, reading the OUTER loop
+  #      variable. internal/live/identity's structural decomposition
+  #      (staticCollElems and its four companions) took no scope at all, so
+  #      the outer binding could not thread through the recursion; it does
+  #      now, and a collection reached through a value variable
+  #      (v / v.attr / lookup(v,"attr",d) / try(v.attr,d)) is decomposed
+  #      through the element's own expression.
+  #   2. its filter, length(lookup(listener_values, ...)) > 0, is a value-free
+  #      predicate wearing a length() and a comparison, which
+  #      forCondIncludesTolerant recognised in neither shape. Rather than
+  #      enumerate spellings, the element is now rebuilt into its own literal
+  #      skeleton (rebuildConstructor, unknown at every refused leaf) and the
+  #      condition evaluated normally - so any predicate that reads only the
+  #      structure the author wrote decides, and any that reads a refused
+  #      leaf still refuses.
+  #
+  # Behind them, four Errors nothing had ever been able to reach appeared and
+  # were fixed in the same unit - see 3d.
+  #
+  # The site list is empty on purpose, and the loop below is written so that
+  # an empty list is not a vacuous pass: WANT_DIAG_N=0 is what carries the
+  # claim, and BREAK=1 adds a site to prove the loop can still fail.
+  WANT_DIAG_N=0
+  declare -a WANT_SITES=()
 fi
 # The break GAUNTLET.md asks stage 3 for is a corrupted expected string, and
 # this one is chosen so that a grep which "always matches" is what it
@@ -1096,7 +1141,7 @@ fi
 
 # By name first, so BREAK=1 fails on the string it corrupted and not on a
 # count it did not touch.
-for site in "${WANT_SITES[@]}"; do
+for site in ${WANT_SITES[@]+"${WANT_SITES[@]}"}; do
   grep -qF "$site" <<< "$PLAN_OUT" \
     || { printf '%s\n' "$PLAN_OUT"; fail "expected $site among the stage-3 refusal sites"; }
 done
@@ -1118,15 +1163,18 @@ DIAG_N="$(grep -c '^Error:' <<< "$PLAN_OUT")"
 if [ -n "$NODE_RESOLVE" ]; then
   SUMMARIES_TEXT='2 Resource type has no classic Importer'
 else
-  # 2 Null identity argument dropped to 0 (issue #399): the only two sites
-  # that ever raised it on this estate, both aws_lb_target_group_attachment
-  # lambda-target ports, now omit cleanly instead of refusing.
-  SUMMARIES_TEXT='1 Non-static identity argument'
+  # 2 Null identity argument dropped to 0 (issue #399); 1 Non-static
+  # identity argument dropped to 0 (gauntlet issue #397, see WANT_DIAG_N
+  # above). There is no summary left to count, and the total above is the
+  # whole claim.
+  SUMMARIES_TEXT=''
 fi
-while read -r want summary; do
-  got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
-  [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
-done <<< "$SUMMARIES_TEXT"
+if [ -n "$SUMMARIES_TEXT" ]; then
+  while read -r want summary; do
+    got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
+    [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
+  done <<< "$SUMMARIES_TEXT"
+fi
 
 if [ -n "$NODE_RESOLVE" ]; then
   # ── 3c. flag on: the stronger truth stage 3's own Proves text demands ────
@@ -1190,6 +1238,62 @@ log "  3b  $DIAG_N diagnostics; every resource they block is untaggable. The"
 log "      taggable aws_lb_target_group.this over the same var.target_groups"
 log "      is silent, because it carries the marker stage 2 wrote"
 
+
+# ── 3d. the record rung, verified against the AWS CLI ──────────────────────
+# Behind the config-language wall sat four Errors nothing had ever been able
+# to reach, all on terraform-aws-modules/terraform-aws-acm's own
+# aws_route53_record.validation, in module.acm and module.wildcard_cert:
+#
+#   2 Error: Unstamped marker-only resource
+#   2 Error: Unmarked apply of a marker-only resource
+#
+# Its name and type come from aws_acm_certificate.this's
+# domain_validation_options, which the provider fills in only after the
+# certificate is applied, so identity resolution classified it
+# NEEDS_DISCOVERY/SIBLING_APPLY - true, and for a taggable type a real
+# promise, because the marker written at create time is what a later sweep
+# finds. aws_route53_record has no tags map, so that promise could never be
+# kept and live_plan escalated the unstamped instance to a hard refusal, for
+# two objects this estate had already migrated. HANDOFF's fifth row.
+#
+# identity.RecordFallbackType already answered exactly this question for six
+# other call sites; the sibling-apply branch simply never asked it. It does
+# now, and these two instances resolve RECORD_LOCATED - so what binds them is
+# the record live-import already wrote.
+#
+# Which makes the record the thing to check, and to check against the cloud
+# rather than against choudoufu's own report: an identity in a record is a
+# claim about a live object, and a wrong one is silent. This reads the record
+# store on disk and asks Route53 itself whether a record set of that name and
+# type exists in that zone.
+if [ -z "$NODE_RESOLVE" ]; then
+  REC_DIR="$ADOPTED_EST/.tofu-records/tofu-records/$ESTATE/aws_route53_record"
+  [ -d "$REC_DIR" ] || fail "no aws_route53_record records in the store at $REC_DIR - live-import's write half is what makes the read half above safe, and without it a clean plan means nothing"
+  for MOD in acm wildcard_cert; do
+    ADDR="module.$MOD.aws_route53_record.validation[0]"
+    REC_FILE="$(grep -lF "\"address\":\"$ADDR\"" "$REC_DIR"/* 2>/dev/null | head -1)"
+    [ -n "$REC_FILE" ] || fail "$ADDR has no record in the store; the plan can only be clean by accident without one"
+    REC_NAME="$(grep -o '"name":"[^"]*"' "$REC_FILE" | head -1 | cut -d'"' -f4)"
+    REC_TYPE="$(grep -o '"type":"[^"]*"' "$REC_FILE" | head -1 | cut -d'"' -f4)"
+    REC_ZONE="$(grep -o '"zone_id":"[^"]*"' "$REC_FILE" | head -1 | cut -d'"' -f4)"
+    [ -n "$REC_NAME" ] && [ -n "$REC_TYPE" ] && [ -n "$REC_ZONE" ] \
+      || { cat "$REC_FILE"; fail "$ADDR's record does not carry a whole name/type/zone_id identity"; }
+    LIVE_TYPE="$(awsl route53 list-resource-record-sets --hosted-zone-id "$REC_ZONE" \
+      --query "ResourceRecordSets[?Name=='${REC_NAME}.'].Type | [0]" --output text)"
+    [ "$LIVE_TYPE" = "$REC_TYPE" ] \
+      || fail "$ADDR's record claims $REC_NAME ($REC_TYPE) in zone $REC_ZONE, and Route53 answers '$LIVE_TYPE' for that name - a recorded identity that does not name a real object is the silent failure HANDOFF's safety rule is about"
+    log "  3d  $ADDR binds from the record: $REC_NAME $REC_TYPE in $REC_ZONE,"
+    log "      confirmed by route53 list-resource-record-sets directly"
+  done
+fi
+
+# ── 3e. the plan itself ────────────────────────────────────────────────────
+# Stage 3's own Proves text: with the state file deleted, live-plan is EMPTY.
+# The exit code is not the verdict and neither is the diagnostic count; this
+# is.
+PLAN_EMPTY=0
+grep -qE '^No changes\.' <<< "$PLAN_OUT" && PLAN_EMPTY=1
+PLAN_LINE="$(grep -E '^Plan: ' <<< "$PLAN_OUT" | head -1)"
 log ""
 if [ -n "$NODE_RESOLVE" ]; then
   log "STAGE 3 (test_plan) [CHOUDOUFU_NODE_RESOLVE=1]: BLOCKED for real -"
@@ -1199,16 +1303,27 @@ if [ -n "$NODE_RESOLVE" ]; then
   log "this same estate is blocked on flag-off survive as warnings."
   log ""
   gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess. CORRECTION (issue #399, 2026-08-24): 'the same 3 static-path sites... downgrade to warnings' above is now stale for the two port sites - #399's ruling makes port [identity.Component.OmitIfAbsent], which the node-seam's own ComponentsFromValue (the function this flag's downgrade path reads) is unit-tested to now resolve cleanly rather than report not-found (TestComponentsFromValuePortNullOmits). Whether that changes this stage's flag-on diagnostic count or is only visible as a warning that no longer fires is NOT re-verified against this real estate under the flag by this unit; see the 3c comment above."
-else
-  log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
-  log "diagnostic (family A's own remaining site). Family B's fifth-row read"
-  log "of two null lambda-target ports is GONE (issue #399's ruling: port is"
-  log "now OmitIfAbsent on this row), the markerless-type wall that used to"
-  log "be the only thing this estate could print is gone, and family A's"
-  log "other 11 sites (2026-08-22/23) - the function_name site included,"
-  log "fixed 2026-08-24 - are gone too."
+elif [ "$PLAN_EMPTY" = "1" ]; then
+  # The pass path, written now rather than left for whoever finally reaches
+  # it: stage 3's own Proves text asks for an EMPTY plan plus identities
+  # compared by value against the CLI, and 3d already does the second half
+  # for the two instances that bind from the record. Nothing takes this
+  # branch today - the four families named in the fail detail below are why -
+  # but it exists so the next unit's success is a verdict and not an edit.
+  log "STAGE 3 (test_plan): PASS - live-plan is empty against the migrated"
+  log "estate with no state file, and the record-bound identities check out"
+  log "against route53 directly (3d)."
   log ""
-  gauntlet_stage test_plan fail "1 Error diagnostic, down from 3 (issue #399's maintainer ruling, 2026-08-24): module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397's own plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars) was attempted in a follow-up unit and reaches PART of the way (staticCollElems now has a values() case, proven on the isolated fixture testdata/values-splat-per-element) but not this site: local.additional_certs's per-listener value clause is itself a NESTED for-expression reading an OUTER loop variable, which the structural chase has no scope-threading for, and its own filter clause (length(lookup(v,\"additional_certificate_arns\",[]))>0) is not one of forCondIncludesTolerant's recognised value-free shapes either - both confirmed by trace, both their own materially larger, riskier change to the machinery every other estate's identity resolution shares, out of that follow-up unit's own scope too. The other 2 (module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port, Null identity argument) are FIXED as of this unit: issue #399's maintainer ruling (2026-08-24, verified against botocore's elbv2 2015-12-01 model - TargetDescription.Port and CreateTargetGroupInput.Port both documented as not applying to a Lambda-type target, so the collision OmitIfAbsent's safety margin exists for is structurally impossible for this shape) makes the ratified row's port component [identity.Component.OmitIfAbsent], the same mechanism availability_zone and quic_server_id on this row already use - see internal/live/identity/targetgroupattachment_omitifabsent_test.go, its own mutation check, and tools/row-gen/ratified.json. No routing change was needed: resolve.go's existing OmitIfAbsent-on-a-clean-null redirect picks the change up generically, and stage 2's migrate count is unchanged (51 of 80 stamped, 1 recorded) - these two instances were never routed through the record rung, before or after; their identity was always fully config-derived, only refused outright. The row change itself needed a second fix beyond the ruling: the row's own leading separator (the comma between target_id and port) was a standalone bare-literal component, not bundled with port's own OmitIfAbsent component the way availability_zone/quic_server_id's already are, so a lambda attachment rendered a dangling trailing comma until that was corrected too - see the test file's own doc comment. Does not name a concrete aws_* type in control flow beyond the two ratified rows (aws_lb_target_group_attachment, aws_alb_target_group_attachment) issue #399 itself names."
+  gauntlet_stage test_plan pass "empty live-plan with no state file; $DIAG_N Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets"
+else
+  log "STAGE 3 (test_plan): BLOCKED for real - not by a refusal any more."
+  log "live-plan COMPLETES (exit 0, $DIAG_N Error diagnostics): every"
+  log "config-language-subset site this estate ever raised is gone, and the"
+  log "two aws_route53_record.validation instances behind them bind from the"
+  log "record, verified against route53 directly (3d). What is left is a"
+  log "NON-EMPTY plan: $PLAN_LINE"
+  log ""
+  gauntlet_stage test_plan fail "0 Error diagnostics, down from 1 (gauntlet issue #397, 2026-08-24) - live-plan COMPLETES for this estate for the first time, exit 0. Two generic language fixes cleared the last static-path refusal (module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn, Non-static identity argument): an explicit instScope threaded through internal/live/identity's structural decomposition so a for-expression NESTED inside another can read the outer loop variable, plus a new collection-through-a-value-variable case (v / v.attr / lookup(v,\"attr\",d) / try(v.attr,d)) resolved through the element's own expression; and forCondIncludesTolerant now decides any filter clause that reads only the STRUCTURE the author wrote, by binding the value variable to the element's own rebuilt skeleton (rebuildConstructor, unknown at every refused leaf) instead of enumerating length()/comparison spellings. Behind them, four Errors nothing had ever reached appeared and were fixed in the same unit (HANDOFF row 5): terraform-aws-modules/terraform-aws-acm's two aws_route53_record.validation instances take their name and type from an unapplied aws_acm_certificate, and aws_route53_record has no tags map, so the NEEDS_DISCOVERY/SIBLING_APPLY answer promised a marker sweep that could never find them - identity.RecordFallbackType, which six other call sites already consult, is now asked on the sibling-apply path too and both drop to the record rung, binding from the record live-import had already written (identity verified by value against route53 list-resource-record-sets - see 3d). STILL BLOCKED, and the wall is now a NON-EMPTY plan rather than a refusal: $PLAN_LINE. Four families, all newly reachable and none of them this unit's scope: (1) 2 aws_acm_certificate_validation instances plan a CREATE - the type has no classic Importer and no marker surface, so projection can never read it back; it needs the record rung too, which RecordFallbackType's condition 0 (NotImportable) currently refuses on the grounds that a record exists to be imported back, a rule that has no answer yet for a type with no cloud object to import. (2) module.alb.aws_lb_listener.this[\"ex-oidc\"] and aws_lb_listener_rule.this[\"ex-cognito/ex-oidc\"] each show authenticate_oidc.client_secret being added: an argument the provider never echoes back, which HANDOFF says the record holds, so this is the residue half of the same foundation. (3) aws_instance.this/.other show a sensitive-marked ami whose own warning says the value is unchanged - a marks-only diff. (4) aws_cognito_user_pool.this shows email_sending_account defaulting and two empty nested blocks disappearing, which needs checking against the real Cognito API before it is called ours or floci's."
 fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
@@ -1226,10 +1341,11 @@ log "                              #58, #61, #62)"
 log "  stage 2  migrate            PASS (real: $STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed -"
 log "                              floci#65 is fixed in the pinned image and its"
 log "                              4 sites now stamp, see header)"
-log "  stage 3  test_plan          BLOCKED - $DIAG_N config-language-subset diagnostics"
-log "                              on untaggable resources. #309's markerless-type"
-log "                              site is GONE; these were behind it. See header"
-log "                              for families A and B."
+log "  stage 3  test_plan          BLOCKED - but no longer by a refusal: live-plan"
+log "                              completes with $DIAG_N Error diagnostics. The wall is"
+log "                              now a non-empty plan ($PLAN_LINE),"
+log "                              four families, all newly reachable - see the"
+log "                              stage-3 detail for each."
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
