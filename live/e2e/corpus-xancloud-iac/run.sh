@@ -933,7 +933,7 @@ EOF
   sed -i.bak 's/resource "aws_eip" "nat" {/resource "aws_eip" "nat_renamed" {/' "$EST_VPC_MAIN"
   sed -i.bak 's/aws_eip\.nat\[each\.key\]/aws_eip.nat_renamed[each.key]/g' "$EST_VPC_MAIN"
   rm -f "$EST_VPC_MAIN.bak"
-  MV_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" live-mv -estate="$ESTATE_NAME" 'module.vpc.aws_eip.nat:main-0' 'module.vpc.aws_eip.nat_renamed:main-0' 2>&1)"; MV_RC=$?
+  MV_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" live-mv -estate="$ESTATE_NAME" 'module.vpc.aws_eip.nat["main-0"]' 'module.vpc.aws_eip.nat_renamed["main-0"]' 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
