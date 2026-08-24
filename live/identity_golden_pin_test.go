@@ -368,7 +368,43 @@ var identityGoldenPin = map[string]int{
 	// this[0] (a count-expanded, statically-computable "prod-cluster"),
 	// swept twice the same way the two rows above are. See
 	// identityGoldenPinInstances's own note.
-	"CONCRETE": 824,
+	//
+	// 824 -> 826 for issue #399's maintainer ruling (2026-08-24):
+	// aws_lb_target_group_attachment's port component becomes
+	// [identity.Component.OmitIfAbsent], the same mechanism its own
+	// availability_zone and quic_server_id components already use, never a
+	// type-specific branch. Two ADDED rows, both in the new fixture
+	// internal/live/identity/testdata/target-group-attachment-lambda-port:
+	// .lambda (port evaluates to a clean null, the shape
+	// terraform-aws-modules/terraform-aws-alb's own local.lambda_target_
+	// groups writes for a real Lambda target - botocore's elbv2 model
+	// documents port as not applying to that target type at all) renders
+	// the two-field target_group_arn/target_id form with no port segment
+	// and no dangling separator; .instance (port present and non-null, the
+	// ordinary shape) renders the three-field form, byte-identical to what
+	// this row already produced before the ruling - the mutation boundary
+	// the fix must not cost. No pre-existing row moved: every other
+	// CONCRETE row in the golden, including target-group-attachment-
+	// optional's own base/with_az/with_quic/aliasBase (port always present
+	// there), is byte-identical; see the digest.
+	//
+	// The row's own leading-separator shape moved too, in the same commit:
+	// the "," between target_id and port used to be a standalone bare-
+	// literal component (always emitted, because port was always
+	// required), which the ruling's own probe caught as a real defect the
+	// instant port became omittable - a lambda attachment rendered
+	// "...,function:my-function," with a trailing comma, exactly the
+	// wrong-marker shape HANDOFF's safety rule forbids, not a refusal a
+	// human would ever approve. Moving the "," onto port's own component
+	// (identical to how availability_zone and quic_server_id already carry
+	// theirs) fixes it structurally, for every OmitIfAbsent component this
+	// row has or ever gains, not by naming this one type in control flow.
+	// See TestTargetGroupAttachmentPortOmitIfAbsent and its own mutation
+	// check (internal/live/identity/targetgroupattachment_omitifabsent_
+	// test.go) plus TestComponentsFromValuePortNullOmits (valuecomponents_
+	// test.go), which replaces the stale TestComponentsFromValuePortNull
+	// IsNotFound that pinned the pre-ruling refusal.
+	"CONCRETE": 826,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -1304,7 +1340,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "a946bbb2d273cf74849c0aa35845ef416afbe9cfd6f91e7a08313a75d5fb3590" // corpus-alb-complete/test_plan unit continuing gauntlet issue #397: testdata/values-splat-per-element's own three NEEDS_DISCOVERY rows added (aws_cognito_user_pool.this, module.wildcard_cert.aws_acm_certificate.this[0], modules/wildcard_cert's own aws_acm_certificate.this[0]), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed
+const identityGoldenPinBodyDigest = "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1944,7 +1980,13 @@ const (
 	// values-splat-per-element (see identityGoldenPinBodyDigest's own
 	// note). "0 identities changed, 3 added, 0 removed" confirmed the same
 	// way.
-	identityGoldenPinInstances = 1712
+	//
+	// Then 1712 -> 1714, issue #399's maintainer ruling: two new instances
+	// from testdata/target-group-attachment-lambda-port (see
+	// identityGoldenPin's own "CONCRETE" note and identityGoldenPin
+	// BodyDigest's note). "0 identities changed, 2 added, 0 removed"
+	// confirmed the same way.
+	identityGoldenPinInstances = 1714
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2227,7 +2269,11 @@ const (
 	// gauntlet issue #397: two new fixture directories, testdata/
 	// values-splat-per-element and its own modules/wildcard_cert submodule
 	// (see identityGoldenPinBodyDigest's own note).
-	identityGoldenPinDirs = 610
+	//
+	// Then 610 -> 611 for issue #399's maintainer ruling: one new fixture
+	// directory, internal/live/identity/testdata/target-group-attachment-
+	// lambda-port (see identityGoldenPin's own "CONCRETE" note).
+	identityGoldenPinDirs = 611
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

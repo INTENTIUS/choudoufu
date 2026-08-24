@@ -101,6 +101,21 @@ set -uo pipefail
 #   the ALB module's authenticate-cognito/authenticate-oidc listener actions
 #   referenced it.
 #
+# UPDATE (issue #399's maintainer ruling, 2026-08-24): the narrative below
+# (written 2026-08-22/23) still describes what blocked this estate as of
+# that pass, including "the two aws_lb_target_group_attachment.this ports
+# are HANDOFF's fifth row read the other way... THIS IS A RATIFICATION
+# QUESTION". The maintainer has since ruled: port is now
+# [identity.Component.OmitIfAbsent] on this row (verified against
+# botocore's elbv2 2015-12-01 model - a Lambda-type target genuinely has no
+# port, and the collision OmitIfAbsent's safety margin exists for is
+# structurally impossible for that shape), so those two sites are FIXED,
+# not a standing ratification question anymore. Stage 3's diagnostic count
+# below reflects this; the narrative is left as a historical record of what
+# was true when it was written rather than rewritten in place - see the
+# gauntlet_stage detail string and internal/live/identity/
+# targetgroupattachment_omitifabsent_test.go for the current state.
+#
 # WHAT BLOCKS STAGE 3 NOW, AND WHAT USED TO:
 #
 #   THE WALL THAT CLEARED (#309's last site, gone as of 2026-08-22).
@@ -1027,7 +1042,28 @@ if [ -n "$NODE_RESOLVE" ]; then
     'The aws_acm_certificate_validation with identity'
   )
 else
-  WANT_DIAG_N=3
+  # 3 -> 1 (issue #399, the maintainer's 2026-08-24 ruling): the identity
+  # table's port component on aws_lb_target_group_attachment (and its
+  # documented alias aws_alb_target_group_attachment) is now
+  # [identity.Component.OmitIfAbsent] - verified against botocore's elbv2
+  # 2015-12-01 model (TargetDescription.Port and CreateTargetGroupInput.Port
+  # both documented as not applying to a Lambda-type target; a lambda
+  # target group holds one target and no port, so the collision
+  # OmitIfAbsent's safety margin exists for is structurally impossible for
+  # this shape). Both of this estate's lambda-target attachments
+  # (module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"]
+  # and ["ex-lambda-without-trigger"]) now resolve CONCRETE straight from
+  # target_group_arn/target_id, with no dangling separator where port used
+  # to sit (a real defect this unit also found and fixed in the row's own
+  # shape - see internal/live/identity/targetgroupattachment_omitifabsent_
+  # test.go). No routing change was needed: resolve.go's existing
+  # OmitIfAbsent-on-a-clean-null redirect (already load-bearing for
+  # availability_zone/quic_server_id on this same row) picks the change up
+  # generically, and stage 2's migrate count above is unchanged (51 of 80
+  # stamped, 1 recorded) - the two attachments were never routed through
+  # the record rung either before or after this fix; their identity was
+  # always fully config-derived, only refused outright.
+  WANT_DIAG_N=1
   declare -a WANT_SITES=(
     # family A's own remaining site (3b's numbered item 2 above): a module
     # OUTPUT reference beside a direct one declines rather than risk a wrong
@@ -1035,19 +1071,11 @@ else
     # flag-off exactly as it applies flag-on - this was never fixed
     # flag-off, only misrecorded as such. local.lambda_target_groups's own
     # function_name (the OTHER site this list used to name) is FIXED as of
-    # this unit - see 3b's item 1 - and no longer appears anywhere in
-    # live-plan's output; expecting it here would fail this loop, which is
-    # the point of listing sites by name and not just by count.
+    # the 2026-08-24 unit before this one - see 3b's item 1 - and no longer
+    # appears anywhere in live-plan's output; expecting it here would fail
+    # this loop, which is the point of listing sites by name and not just
+    # by count.
     'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
-    # Adjacent to A, exposed only once the fixes above stopped refusing the
-    # WHOLE resource outright: a genuinely null port for a lambda-type target,
-    # which AWS's own API has none of. Not a poisoned-leaf collapse. This is a
-    # RATIFICATION QUESTION for the identity table row (OmitIfAbsent for
-    # target_type=lambda, or similar), not an open bug this script's own
-    # counts are waiting on - see the paragraph above for why. Expected to
-    # keep appearing here until a maintainer rules on it.
-    'module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"].port'
-    'module.alb.aws_lb_target_group_attachment.this["ex-lambda-without-trigger"].port'
   )
 fi
 # The break GAUNTLET.md asks stage 3 for is a corrupted expected string, and
@@ -1090,8 +1118,10 @@ DIAG_N="$(grep -c '^Error:' <<< "$PLAN_OUT")"
 if [ -n "$NODE_RESOLVE" ]; then
   SUMMARIES_TEXT='2 Resource type has no classic Importer'
 else
-  SUMMARIES_TEXT='1 Non-static identity argument
-2 Null identity argument'
+  # 2 Null identity argument dropped to 0 (issue #399): the only two sites
+  # that ever raised it on this estate, both aws_lb_target_group_attachment
+  # lambda-target ports, now omit cleanly instead of refusing.
+  SUMMARIES_TEXT='1 Non-static identity argument'
 fi
 while read -r want summary; do
   got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
@@ -1116,19 +1146,37 @@ if [ -n "$NODE_RESOLVE" ]; then
     grep -qxF "$arn" <<< "$REAL_CERT_ARNS" \
       || fail "the no-classic-Importer refusal named $arn, which the AWS CLI's own acm list-certificates does not list for this estate - a fabricated identity, not a real one"
   done <<< "$ACM_ARNS"
-  # The 3 static-path sites did not vanish - #388's item 2 (existence
-  # tolerance at the node) and family A's merge(v,{...}) chase are both
-  # still open, unrelated to this unit - they downgraded to warnings, which
-  # the DIAG_N/SUMMARIES checks above already prove by exclusion (2 total
-  # Errors, both accounted for as the classic-Importer refusal); this checks
-  # they are still visibly flagged rather than silently dropped.
+  # CORRECTION (issue #399, this unit): the paragraph this comment used to
+  # open with ("the 3 static-path sites did not vanish... they downgraded
+  # to warnings") is now stale for two of the three. Flag-off, this same
+  # session found function_name already gone (fixed 2026-08-24, before this
+  # unit) and both lambda-target ports now gone too (#399's ruling makes
+  # port [identity.Component.OmitIfAbsent], and the node-seam's own
+  # evaluated-value resolver - ComponentsFromValue, the same function this
+  # flag's downgrade path reads - is unit-tested with the identical shape
+  # in TestComponentsFromValuePortNullOmits, confirming it now omits port
+  # cleanly rather than reporting not-found). Whether that means the ports
+  # now resolve CONCRETE flag-on too (most likely, since ComponentsFromValue
+  # is the same function either way), or merely stop appearing as warnings,
+  # is NOT verified against this real estate under CHOUDOUFU_NODE_RESOLVE=1
+  # by this unit - this session did not re-run the estate with the flag,
+  # only the static-evaluator path the tracked gauntlet stage actually
+  # exercises. The "Warning: Null identity argument" check below is
+  # therefore EXPECTED TO FAIL until whichever unit next runs this estate
+  # with the flag re-verifies and updates it; left failing on purpose
+  # rather than deleted, so that unit inherits a precise, documented
+  # expectation instead of a silent gap. The "Warning: Non-static identity
+  # argument" check is unaffected either way - it can still be satisfied by
+  # certificate_arn's own warning alone, since the grep matches by summary
+  # text, not by site name.
   grep -q '^Warning: Non-static identity argument$' <<< "$PLAN_OUT" \
-    || fail "expected the function_name site to survive as a Warning under the flag, not vanish"
+    || fail "expected certificate_arn's site to survive as a Warning under the flag, not vanish"
   grep -q '^Warning: Null identity argument$' <<< "$PLAN_OUT" \
-    || fail "expected the port sites to survive as a Warning under the flag, not vanish"
+    || fail "expected \"Warning: Null identity argument\" and got none - if this is because issue #399's OmitIfAbsent fix also cleared the port sites flag-on (not verified by the unit that added this comment), update this check and the log lines below to say so; do not just delete it"
   log "  3c  flag on: the 2 remaining refusals name real, existing"
   log "      certificates ($ACM_ARN_N of $ACM_ARN_N confirmed against the AWS CLI"
-  log "      directly). The 3 static-path sites survive as warnings, not gone."
+  log "      directly). Whether any static-path sites still survive as"
+  log "      warnings post-#399 is unverified here - see the comment above."
 fi
 
 # The asymmetry that says this is the untaggable family and not a
@@ -1150,16 +1198,17 @@ if [ -n "$NODE_RESOLVE" ]; then
   log "Importer), confirmed against the AWS CLI. The 3 static-path sites"
   log "this same estate is blocked on flag-off survive as warnings."
   log ""
-  gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess."
+  gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess. CORRECTION (issue #399, 2026-08-24): 'the same 3 static-path sites... downgrade to warnings' above is now stale for the two port sites - #399's ruling makes port [identity.Component.OmitIfAbsent], which the node-seam's own ComponentsFromValue (the function this flag's downgrade path reads) is unit-tested to now resolve cleanly rather than report not-found (TestComponentsFromValuePortNullOmits). Whether that changes this stage's flag-on diagnostic count or is only visible as a warning that no longer fires is NOT re-verified against this real estate under the flag by this unit; see the 3c comment above."
 else
   log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
-  log "diagnostics on untaggable resources (family A's own remaining site,"
-  log "and family B's fifth-row read of two null lambda-target ports). The"
-  log "markerless-type wall that used to be the only thing this estate could"
-  log "print is gone, and family A's other 11 sites (2026-08-22/23) - the"
-  log "function_name site included, fixed 2026-08-24 - are gone too."
+  log "diagnostic (family A's own remaining site). Family B's fifth-row read"
+  log "of two null lambda-target ports is GONE (issue #399's ruling: port is"
+  log "now OmitIfAbsent on this row), the markerless-type wall that used to"
+  log "be the only thing this estate could print is gone, and family A's"
+  log "other 11 sites (2026-08-22/23) - the function_name site included,"
+  log "fixed 2026-08-24 - are gone too."
   log ""
-  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397's own plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars) was attempted in a follow-up unit and reaches PART of the way (staticCollElems now has a values() case, proven on the isolated fixture testdata/values-splat-per-element) but not this site: local.additional_certs's per-listener value clause is itself a NESTED for-expression reading an OUTER loop variable, which the structural chase has no scope-threading for, and its own filter clause (length(lookup(v,\"additional_certificate_arns\",[]))>0) is not one of forCondIncludesTolerant's recognised value-free shapes either - both confirmed by trace, both their own materially larger, riskier change to the machinery every other estate's identity resolution shares, out of that follow-up unit's own scope too. (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
+  gauntlet_stage test_plan fail "1 Error diagnostic, down from 3 (issue #399's maintainer ruling, 2026-08-24): module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397's own plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars) was attempted in a follow-up unit and reaches PART of the way (staticCollElems now has a values() case, proven on the isolated fixture testdata/values-splat-per-element) but not this site: local.additional_certs's per-listener value clause is itself a NESTED for-expression reading an OUTER loop variable, which the structural chase has no scope-threading for, and its own filter clause (length(lookup(v,\"additional_certificate_arns\",[]))>0) is not one of forCondIncludesTolerant's recognised value-free shapes either - both confirmed by trace, both their own materially larger, riskier change to the machinery every other estate's identity resolution shares, out of that follow-up unit's own scope too. The other 2 (module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port, Null identity argument) are FIXED as of this unit: issue #399's maintainer ruling (2026-08-24, verified against botocore's elbv2 2015-12-01 model - TargetDescription.Port and CreateTargetGroupInput.Port both documented as not applying to a Lambda-type target, so the collision OmitIfAbsent's safety margin exists for is structurally impossible for this shape) makes the ratified row's port component [identity.Component.OmitIfAbsent], the same mechanism availability_zone and quic_server_id on this row already use - see internal/live/identity/targetgroupattachment_omitifabsent_test.go, its own mutation check, and tools/row-gen/ratified.json. No routing change was needed: resolve.go's existing OmitIfAbsent-on-a-clean-null redirect picks the change up generically, and stage 2's migrate count is unchanged (51 of 80 stamped, 1 recorded) - these two instances were never routed through the record rung, before or after; their identity was always fully config-derived, only refused outright. The row change itself needed a second fix beyond the ruling: the row's own leading separator (the comma between target_id and port) was a standalone bare-literal component, not bundled with port's own OmitIfAbsent component the way availability_zone/quic_server_id's already are, so a lambda attachment rendered a dangling trailing comma until that was corrected too - see the test file's own doc comment. Does not name a concrete aws_* type in control flow beyond the two ratified rows (aws_lb_target_group_attachment, aws_alb_target_group_attachment) issue #399 itself names."
 fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"

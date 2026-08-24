@@ -164,12 +164,11 @@
         "identity_attr": "*"
       },
       {
-        "literal": ","
-      },
-      {
+        "literal": ",",
         "attrs": [
           "port"
         ],
+        "omit_if_absent": true,
         "identity_attr": "*"
       },
       {
@@ -7703,12 +7702,11 @@
         "identity_attr": "*"
       },
       {
-        "literal": ","
-      },
-      {
+        "literal": ",",
         "attrs": [
           "port"
         ],
+        "omit_if_absent": true,
         "identity_attr": "*"
       },
       {
