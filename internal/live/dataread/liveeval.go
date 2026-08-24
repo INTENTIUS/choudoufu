@@ -56,7 +56,18 @@ import (
 // resource's own projection, so attaching it unconditionally - root or
 // descendant, analysis or read - costs nothing and cannot disagree with
 // itself between modules or between [Analyze] and [Read].
-func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup, materialize bool, recordManagedRefusal func(*hcl.Diagnostic)) *configs.StaticEvaluator {
+// wanted narrows dependency-tracking for module-output crossings this
+// evaluator's OWN module declares directly (module.<call>.<name>
+// references reachable from whatever expression the caller is about to
+// evaluate through the returned evaluator) - see [moduleOutputWantsFor]
+// and [moduleOutputWant]. nil is the fully-conservative default every call
+// site but [analyzer.evalRecorded] passes: evaluate and record every
+// output of every module call this module makes, unchanged from this
+// function's behavior before wanted existed. It applies only at THIS
+// level, never to the ancestor chain below - an ancestor's own module
+// calls are a different module's outputs entirely, out of scope for
+// whatever traversal wanted was computed from.
+func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup, materialize bool, recordManagedRefusal func(*hcl.Diagnostic), wanted map[string]moduleOutputWant) *configs.StaticEvaluator {
 	node := cfg.Descendent(module)
 	if node == nil || node.Module == nil || node.Module.StaticEvaluator == nil {
 		return nil
@@ -65,7 +76,7 @@ func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.
 
 	if len(module) > 0 {
 		parentPath := module[:len(module)-1]
-		parentEval := liveModuleEvaluator(ctx, cfg, parentPath, lookup, materialize, recordManagedRefusal)
+		parentEval := liveModuleEvaluator(ctx, cfg, parentPath, lookup, materialize, recordManagedRefusal, nil)
 		if parentEval == nil {
 			return nil
 		}
@@ -83,6 +94,6 @@ func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.
 
 	return base.Pure().
 		WithDataResults(lookup(module)).
-		WithModuleOutputResults(moduleOutputLookup(ctx, cfg, module, lookup, materialize, recordManagedRefusal)).
+		WithModuleOutputResults(moduleOutputLookup(ctx, cfg, module, lookup, materialize, recordManagedRefusal, wanted)).
 		WithFunctionOverrides(arityGuardedFunctions())
 }

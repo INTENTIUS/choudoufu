@@ -1126,10 +1126,6 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 		}
 	}()
 
-	eval := liveModuleEvaluator(an.ctx, an.cfg, module, an.lookupFactory(record), false, an.recordManagedRefusal)
-	if eval == nil {
-		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, nil, false, false
-	}
 	ident := configs.StaticIdentifier{
 		Module:    module,
 		Subject:   fmt.Sprintf("%s's %s", res.String(), ne.label),
@@ -1148,6 +1144,23 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 			continue
 		}
 		travs = append(travs, trav)
+	}
+
+	// Computed from THIS expression's own traversals, before building the
+	// evaluator: which module call(s) ne.expr reaches, and whether every
+	// reference to one names a SPECIFIC output rather than the call as a
+	// whole. See [moduleOutputWantsFor]'s own doc for why - the short
+	// version is that GitHub issue #391's own fourth finding was
+	// [moduleOutputLookup] sharing ONE `record` closure across every
+	// output of a module call while answering ONE reference to it, so a
+	// completely unrelated sibling output's own dependency (one this
+	// expression never names) got attributed to whatever THIS expression
+	// actually asked for.
+	wanted := moduleOutputWantsFor(travs)
+
+	eval := liveModuleEvaluator(an.ctx, an.cfg, module, an.lookupFactory(record), false, an.recordManagedRefusal, wanted)
+	if eval == nil {
+		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, nil, false, false
 	}
 
 	refs, refDiags := lang.References(addrs.ParseRef, travs)
