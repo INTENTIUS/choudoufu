@@ -904,6 +904,17 @@ LAUNCHCONFIG_SITES='aws_launch_configuration|Unlistable marker-discovered type'
 # "no CFN type in the ARN join table" warnings. Excluded by exact shape
 # rather than by the provider prefix, so a real kubernetes refusal - which
 # would say "Rule:" or "Error:" - still trips the check.
+#
+# This is the SAME shape LAUNCHCONFIG_SITES' own check below has to
+# exclude, for the identical reason: aws_launch_configuration is one of
+# many admitted types with no CFN type in that same join table (so is,
+# say, aws_lambda_permission - see the sweep's own output, which lists
+# them alphabetically with nothing type-specific about the wording), and
+# the tag sweep's completeness warning fires for it regardless of whether
+# the located-record fallback bound its instances correctly. Reused by
+# name rather than duplicated so the two checks cannot drift into
+# excluding different substrings for what is provably the same line
+# shape.
 K8S_NOT_A_REFUSAL='has no CFN type the ARN join table'
 
 assert_rule_absent() {
@@ -930,7 +941,16 @@ if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
   grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS unadmitted-type(#326)"
   grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS count-index(sibling_select.go)"
   grep -qE 'Rule: logical-resource\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS logical-resource(#364)"
-  grep -qE "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS aws_launch_configuration(located-fallback)"
+  # Same exclusion as the non-BREAK branch below: the ARN-join-table
+  # warning is not a signal either way, and "No BREAK lever" (see the
+  # header above the negative-control list) already documents that nothing
+  # here actually corrupts the located fallback under BREAK=3, so this
+  # arm exists for the count-index/logical-resource/unadmitted-type
+  # BREAK_HITS accounting to have somewhere consistent to report this
+  # control's absence of a real lever, not because BREAK is expected to
+  # make it fire.
+  LAUNCHCONFIG_BREAK_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" || true)"
+  [ -n "$LAUNCHCONFIG_BREAK_HITS" ] || BREAK_HITS="$BREAK_HITS aws_launch_configuration(located-fallback)"
   [ -z "$BREAK_HITS" ] \
     || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
@@ -954,11 +974,29 @@ else
   assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
   assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
 
-  grep -qE "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" \
-    && { grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT"; fail "aws_launch_configuration's unlistable-type wall is back - the located-record discovery fallback (internal/live/discovery/locatedfallback.go) may have regressed"; }
-  log "  Confirmed: no mention of aws_launch_configuration or \"Unlistable"
-  log "  marker-discovered type\" anywhere in live-plan's output - choudoufu"
-  log "  #364's located-record discovery fallback holds"
+  # The tag sweep's own "no CFN type in the ARN join table" warning fires
+  # for aws_launch_configuration exactly as it does for the four
+  # kubernetes_* types above (see K8S_NOT_A_REFUSAL) - it is a statement
+  # about internal/live/discovery/tagging.go's ARN-join coverage over ALL
+  # admitted types with no CFN mapping, unrelated to whether THIS type's
+  # instances were bound. A naive grep for the type's own name treats that
+  # warning as a regression on every run, whether or not the located
+  # fallback still holds - found 2026-08-23 the same way #326's kubernetes
+  # check above was already fixed for the identical false positive, and
+  # left unfixed here until this unit re-read the actual plan output by
+  # hand and found line "aws_launch_configuration has no CFN type the ARN
+  # join table" is the ONLY mention of the type anywhere in it.
+  LAUNCHCONFIG_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" || true)"
+  [ -z "$LAUNCHCONFIG_HITS" ] || {
+    printf '%s\n' "$LAUNCHCONFIG_HITS"
+    fail "aws_launch_configuration's unlistable-type wall is back - the located-record discovery fallback (internal/live/discovery/locatedfallback.go) may have regressed"
+  }
+  log "  Confirmed: the only mention of aws_launch_configuration anywhere in"
+  log "  live-plan's output is the tag sweep's own join-table warning (the"
+  log "  same false-positive shape #326's kubernetes check already excludes,"
+  log "  not a refusal), and \"Unlistable marker-discovered type\" does not"
+  log "  appear at all - choudoufu #364's located-record discovery fallback"
+  log "  holds"
 fi
 
 # The wall that IS here NOW, asserted by its own words and by the provider
