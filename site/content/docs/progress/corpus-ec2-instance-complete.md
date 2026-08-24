@@ -31,7 +31,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Greenfield apply (planned) | not run |  |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `10d5d70a26` on 2026-08-24T19:00:37Z, exit code 0.
+Last run at commit `e921449d48` on 2026-08-24T19:26:13Z, exit code 0.
 
 ## Reproduce it
 

@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1856f31f827ce50afc445d9358d28e1f407e7d01",
+  "commit": "1a2702d53e9d0408c78ad9454862dbb31bbf1bac",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T18:11:25Z",
+  "generated": "2026-08-24T19:46:39Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -53,7 +53,7 @@
       "id": "day2_rename",
       "order": 6,
       "title": "Rename",
-      "status": "planned",
+      "status": "active",
       "proves": "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
       "oracle": "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
       "break": "Rename without the `moved` block; the plan must show a destroy and a create."
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 25,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 2,
-          "fail": 0,
-          "not_run": 24
+          "pass": 5,
+          "fail": 4,
+          "not_run": 17
         },
         "day2_replace": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 24,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 2,
-          "fail": 0,
-          "not_run": 23
+          "pass": 5,
+          "fail": 4,
+          "not_run": 16
         },
         "day2_replace": {
           "pass": 0,
@@ -343,7 +343,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "fail",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -354,14 +354,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "887ede549f75e420e213556f3aeecd33ea28b7dc",
-        "date": "2026-08-24T14:41:11Z",
-        "exit_code": 0,
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:33:49Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
+          "day2_rename": "choudoufu defect: the moved-block rename of module.asg_sg proposes a create for its untaggable child aws_security_group_rule.egress_rules[0] instead of matching it structurally under the parent's new address - not zero churn. The parent aws_security_group.this_name_prefix[0] itself IS relocated correctly ('will be updated in-place'); stock's native moved-block handling relocates the rule cleanly too (confirmed by the oracle above, zero churn). The gap is choudoufu-specific and already characterized: an untaggable/derived child's identity resolution does not follow a moved parent module the way a marker-carrying resource's does. Not fixed in this unit, scope is the day2_rename stage activation itself (see corpus-vpc-complete's own day2_rename detail for the first occurrence of this class of wall).",
           "drift_reconverge": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 41 objects carry tofu-estate=autoscaling-complete-crossing",
           "test_apply": "genuine no-op: 41 objects before, 41 after, no state file either time",
@@ -395,7 +396,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -425,7 +426,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -439,11 +440,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
-        "date": "2026-08-24T08:17:36Z",
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:26:13Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
+          "day2_rename": "moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
           "migrate": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file",
@@ -465,7 +467,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "fail",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -476,14 +478,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9a2853b24b568de8666e13d107594855b680d1b1",
-        "date": "2026-08-24T16:02:44Z",
-        "exit_code": 0,
+        "commit": "1a2702d53e9d0408c78ad9454862dbb31bbf1bac",
+        "date": "2026-08-24T19:50:55Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "62 resources, once for real",
+          "day2_rename": "wall: aws_service_discovery_http_namespace has no marker search path for live-mv. Its identity is provider-assigned (the ServiceDiscovery service assigns it at create time; no argument reconstructs it), so live-mv can only find it by listing the type, and this provider version has no List support for it. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal corpus-rds-complete-postgres's day2_rename hit for aws_db_instance. The moved-block leg (module.alb, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited 1",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "migrate": "46 of 62 stamped",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 46 tofu-estate-tagged objects before, 46 after, no state file either time",
@@ -506,7 +509,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -520,11 +523,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1856f31f827ce50afc445d9358d28e1f407e7d01",
-        "date": "2026-08-24T18:14:35Z",
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:41:40Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
+          "day2_rename": "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "migrate": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 25 tofu-estate-tagged objects before, 25 after",
@@ -558,7 +562,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -599,7 +603,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -640,7 +644,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -681,7 +685,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -722,7 +726,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -805,7 +809,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -846,7 +850,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
@@ -887,7 +891,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -927,7 +931,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "9520a21de6cf0bc63349361940dfc8137eaa1db2",
@@ -968,7 +972,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -998,7 +1002,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "fail",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1009,14 +1013,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3408262769e6b4d7dc925e7a96c40680a65fda62",
-        "date": "2026-08-24T11:24:31Z",
-        "exit_code": 0,
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:37:14Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "39 resources, once for real",
+          "day2_rename": "wall: aws_db_instance has no marker search path for live-mv. Its identity is provider-assigned (identifier_prefix, not identifier - the name is not known until create time), so live-mv can only find it by listing the type, and this provider version has no List support for aws_db_instance. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal ecs-fargate's day2_rename hit for aws_service_discovery_http_namespace. The moved-block leg (module.security_group, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited 1",
           "drift_reconverge": "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "26 of 39 stamped",
           "test_apply": "genuine no-op: 26 objects before, 26 after, no state file, primary DB instance marker unmoved",
@@ -1050,7 +1055,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "91c1f10fc7f0b37dd79ca9b4d3ad2bc27b3fa4c0",
@@ -1091,7 +1096,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
@@ -1132,7 +1137,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
@@ -1173,7 +1178,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "227f841a834ad157f472db31c76163d9cd57f0c6",
@@ -1203,7 +1208,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1217,11 +1222,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "7f33f8696629e246a0ea78fc7a8c473c27397f5a",
-        "date": "2026-08-24T04:07:23Z",
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:29:30Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
+          "day2_rename": "moved block: aws_eip.crossing_nat renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_route_table.crossing_public renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected",
           "migrate": "7 stamped, 2 recorded (markers = record honoured at migrate time, GitHub issue #365 slice 2), 0 failed, 2 skipped",
           "test_apply": "genuine no-op: 7 tagged objects before, 7 after, no state file either time; module.server's record-based instance and volume identities unchanged",
@@ -1244,7 +1250,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "fail",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1255,14 +1261,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1bb746d9a4534b71413a7a208607e8d857a9feb8",
-        "date": "2026-08-23T22:32:26Z",
-        "exit_code": 0,
+        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
+        "date": "2026-08-24T19:24:13Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration",
+          "day2_rename": "choudoufu defect: the moved-block rename of module.vpc_endpoints proposes a create for its untaggable child aws_security_group_rule.this[\"ingress_https\"] instead of matching it structurally under the parent's new address - not zero churn. The parent aws_security_group.this[0] itself IS relocated correctly ('will be updated in-place'); stock's native moved-block handling relocates the rule cleanly too ('has moved to', zero churn, confirmed via a standalone repro). The gap is choudoufu-specific: an untaggable/derived child's identity resolution does not follow a moved parent module the way a marker-carrying resource's does (internal/live/moved's alias index is marker-based and has nothing to index for an untaggable type). Reaches every estate that renames a module containing a derived child of a moved parent (aws_security_group_rule, aws_route, aws_route_table_association, aws_vpc_dhcp_options_association, ...) - not fixed in this unit, scope is the day2_rename stage activation itself.",
           "drift_reconverge": "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete",
           "migrate": "40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372)",
           "test_apply": "genuine no-op: 39 objects before, 39 after, no state file either time",
@@ -1296,7 +1303,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
