@@ -150,9 +150,17 @@ const (
 
 // identityPayload is [recordEnvelope.Identity]: the answer to "which live
 // object is this" for an instance whose type carries no ownership marker
-// (today's locatedPayload). Exactly one of ImportID or Attrs is ever
-// populated for a given instance - see [identity.LocatedIdentityPlanFor]'s
-// three-way shape, which [LocatedRecordFrom] reads.
+// (today's locatedPayload). For most of [identity.LocatedIdentityPlanFor]'s
+// three-way shape exactly one of ImportID or Attrs is populated - which
+// [LocatedRecordFrom] reads - but GitHub issue #401 family 1 is a deliberate
+// exception: a type whose wire identity schema names nothing better than
+// the bare "id" default (LocatedRecordFrom's own default branch) may still
+// carry a schema-fallback-synthesized identity ([schemaFallbackComponentsRecord]),
+// and that writer populates BOTH fields at once - ImportID stays the bare
+// id a genuine ReadResource PriorState needs, and Attrs carries the real
+// identity components a record-first stub ([builder.recordFirstStubValues])
+// could otherwise never recover. Nothing about the envelope shape changed
+// for this: both fields were always independently optional JSON keys.
 type identityPayload struct {
 	// ImportID is the provider's import identity string for the live
 	// object this instance owns, for a type whose identity is one

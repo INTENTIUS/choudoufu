@@ -251,6 +251,7 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 	}
 	plan, recordable := identity.LocatedIdentityPlanFor(resourceType, schema)
 	rec := LocatedRecord{}
+	bareID := false
 	if recordable {
 		switch {
 		case plan.Composite():
@@ -298,12 +299,73 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			rec.ImportID, recordable = identity.LocatedNamedAttr(obj, plan.Attr)
 		default:
 			rec.ImportID, recordable = identity.LocatedImportID(obj)
+			bareID = true
+		}
+	}
+	if bareID && recordable {
+		// GitHub issue #401 family 1: the bare-"id" default above is the
+		// only branch that never asks whether the TYPE has a real,
+		// schema-derivable identity of its own - it is what every type
+		// falls through to when the wire identity schema names nothing
+		// better than "id" and no ratified row overrides it, and "id" is
+		// the provider's own opaque, unrelated state key for a type like
+		// aws_acm_certificate_validation, not an identity-schema
+		// attribute. Such a type can still be admitted on nameability
+		// alone (identity.SynthesizeTypeIdentity - the same schema
+		// fallback ratify.go's admittedByProviderSchema and this run's own
+		// ClassConcrete/identity.Derivable resolution already grant it),
+		// and its resolved components are the one piece of prior state a
+		// later record-first stub (builder.materializeFromRecord) can
+		// never otherwise recover, because SynthesizeStub can only place a
+		// value under an attribute NAME an identity Component resolved.
+		// Recording them alongside the bare id, never in place of it,
+		// costs nothing when the type admits no such identity (ok stays
+		// false, rec is unchanged) and closes that gap generically for
+		// every type sharing the shape - keyed on the class (bare-id
+		// default reached, schema-fallback identity resolvable against
+		// this real object), never on a type name.
+		if comps, ok := schemaFallbackComponentsRecord(resourceType, schema, obj); ok {
+			rec.Components = comps
 		}
 	}
 	if !recordable || rec.Empty() {
 		return LocatedRecord{}, false
 	}
 	return rec, true
+}
+
+// schemaFallbackComponentsRecord is [LocatedRecordFrom]'s family-1 half
+// (GitHub issue #401): it asks the same schema-fallback synthesis every
+// other admission route already asks ([identity.SynthesizeTypeIdentity]) for
+// a type with no ratified table row, and - if it resolves one - reads that
+// synthesized identity's components off obj with [identity.ComponentsFromValue],
+// the identical evaluator GitHub issue #388's plan-node seam already uses
+// against real, evaluated configuration values.
+//
+// Refuses (ok=false) exactly as its callee does: the type is vetoed
+// ([identity.NotImportable]), the provider serves no schema for it, its
+// identity cannot be admitted from the schema or this run's config signal
+// (nil here, since a migrate-time or apply-time record write has no HCL in
+// scope - AdmitSchema's own required-argument reading is what a type like
+// aws_acm_certificate_validation actually clears), or - [identity.
+// SensitiveComponentsAttr]'s own check, asked here the same way
+// [locatedRatifiedComponentsRecord] asks it - one of the components reads a
+// Sensitive argument. obj arrives already unmarked (every caller of
+// [LocatedRecordFrom] unmarks deep before this point), so the schema is the
+// only place left to ask that question.
+func schemaFallbackComponentsRecord(resourceType string, schema providers.Schema, obj cty.Value) (map[string]string, bool) {
+	ti, ok := identity.SynthesizeTypeIdentity(resourceType, map[string]providers.Schema{resourceType: schema}, nil)
+	if !ok {
+		return nil, false
+	}
+	if identity.SensitiveComponentsAttr(ti, schema) != "" {
+		return nil, false
+	}
+	_, values, ok := identity.ComponentsFromValue(ti, obj)
+	if !ok || len(values) == 0 {
+		return nil, false
+	}
+	return values, true
 }
 
 // locatedRatifiedComponentsRecord is [LocatedRecordFrom]'s fallback for a

@@ -22,9 +22,28 @@ import (
 // -json` against a real cold-deployed corpus-alb-complete estate, 2026-08-24):
 // certificate_arn is the only Required argument, and it is also the whole
 // of the type's identity - validation_record_fqdns and timeouts are
-// ordinary configuration the provider's own Read never re-derives (id is
-// a synthetic create-time timestamp with no semantic meaning at all;
-// omitted here because nothing in this package ever needs to set it).
+// ordinary configuration the provider's own Read never re-derives. id is a
+// synthetic create-time timestamp with no semantic meaning of its own
+// (resourceCertificateValidationCreate's own d.SetId(time.Now()...)), but
+// it IS a real Computed attribute on the provider's schema block, and
+// GitHub issue #401 family 1's own reproduction confirms a genuine
+// ReadResource PriorState always carries it - included here (as Computed,
+// the same shape every SDKv2 resource's implicit id carries) so
+// build_family1_test.go's stub-seeding tests can assert against it; every
+// earlier test in this file leaves it null and never asserted its
+// presence, so adding it changes nothing about them.
+//
+// IdentitySchema is the type's real Terraform-1.12 resource-identity
+// schema, also read against the same real cold-deployed estate: one
+// Required attribute, certificate_arn, and nothing else - "fully
+// client-assigned" (family 1's own design comment on GitHub issue #401),
+// which is what lets identity.SynthesizeTypeIdentity admit the type
+// through [derivable]'s strict AdmitSchema path with no configuration
+// signal at all. len(required)==1 keeps [compositeIdentity] false, so
+// LocatedIdentityPlanFor still falls through to the bare-"id" default
+// this whole family exists to enrich, exactly as it does for the real
+// type - not a composite wire identity, which would take a different
+// branch already handled before this unit existed.
 func certificateValidationSchema() providers.Schema {
 	return providers.Schema{
 		Block: &configschema.Block{
@@ -34,6 +53,13 @@ func certificateValidationSchema() providers.Schema {
 					Type:     cty.Set(cty.String),
 					Optional: true,
 				},
+				"id": {Type: cty.String, Computed: true},
+			},
+		},
+		IdentitySchema: &configschema.Object{
+			Nesting: configschema.NestingSingle,
+			Attributes: map[string]*configschema.Attribute{
+				"certificate_arn": {Type: cty.String, Required: true},
 			},
 		},
 	}
@@ -194,6 +220,12 @@ func TestNoClassicImporterSynthesizesAStubFromTheResolvedIdentity(t *testing.T) 
 			NewState: cty.ObjectVal(map[string]cty.Value{
 				"certificate_arn":         cty.StringVal(arn),
 				"validation_record_fqdns": cty.SetVal([]cty.Value{cty.StringVal(fqdn)}),
+				// id now being part of certificateValidationSchema()
+				// (added for GitHub issue #401 family 1's own tests),
+				// TestConformance requires every schema attribute present
+				// on whatever NewState this mock returns; the value itself
+				// is not asserted by this test.
+				"id": cty.StringVal("2026-08-24 22:42:29.573 +0000 UTC"),
 			}),
 		}
 	}
