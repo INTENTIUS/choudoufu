@@ -1380,6 +1380,23 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		attrsSeed[name] = val
 	}
 
+	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed]
+	// could not statically evaluate - a managed-resource reference,
+	// chiefly (see its own doc comment) - from this estate's residue
+	// record, when one exists. Configuration wins whenever both name the
+	// same attribute: it is read fresh on every run, where a residue
+	// record can be stale, so a name already in attrsSeed is left exactly
+	// as configuration produced it.
+	for name, val := range b.residueSeedFor(ctx, addr, schema) {
+		if _, ok := attrsSeed[name]; ok {
+			continue
+		}
+		if attrsSeed == nil {
+			attrsSeed = make(map[string]cty.Value)
+		}
+		attrsSeed[name] = val
+	}
+
 	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, attrsSeed)
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {

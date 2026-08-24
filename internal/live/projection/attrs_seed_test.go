@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -243,5 +244,207 @@ func TestConfiguredAttrsSeedBoundaries(t *testing.T) {
 	}
 	if _, ok := seed["id"]; ok {
 		t.Errorf("id (Computed-only) must never be seeded; seed=%#v", seed)
+	}
+}
+
+// TestResidueSeedForFixesAManagedReferenceAttribute is GitHub issue #395's
+// OWN real shape, not the literal simplification
+// TestConfiguredAttrsSeedFixesTaskDefinitionFormat proves the mechanism
+// with: task_definition = stub_task_definition.this.arn is a reference to
+// another resource's computed attribute, which
+// [configs.StaticEvaluator] - configuredAttrsSeed's only source - can
+// never resolve at all (the config-language subset is var/local/path/
+// terminal, never a managed resource; see configuredAttrsSeed's own doc
+// comment). Confirmed against the real corpus estate: with only the
+// static-config seed landed, this exact shape (aws_ecs_service.
+// task_definition = aws_ecs_task_definition.this[0].arn) still showed
+// #395's wrong short-form value on a real re-run - configuredAttrsSeed
+// alone was not the whole fix.
+//
+// A residue record left over from an earlier migrate or apply - written
+// under [residueConfigSourced]'s widening of [classifyResidue] - is the
+// other source [builder.residueSeedFor] reads, and this seeds the import
+// stub from THAT when static configuration cannot answer. The provider
+// fake below is deliberately the identical quirk
+// TestConfiguredAttrsSeedFixesTaskDefinitionFormat uses, so the only
+// variable between the two tests is where the seed comes from.
+func TestResidueSeedForFixesAManagedReferenceAttribute(t *testing.T) {
+	cfg := loadConfig(t, "testdata/residue-seed-managed-ref")
+	addr := mustAddr(t, `stub_service.this`)
+	schema := stubServiceSchema()
+
+	const wireARN = "arn:aws:ecs:eu-west-1:000000000000:task-definition/mini-td:1"
+	const shortForm = "mini-td:1"
+
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-managed-ref"))
+	rf, err := encodeResidueFields(map[string]cty.Value{"task_definition": cty.StringVal(wireARN)})
+	if err != nil {
+		t.Fatalf("encoding the residue fixture: %s", err)
+	}
+	ctx := context.Background()
+	if _, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+		env.Residue = rf
+	}); err != nil {
+		t.Fatalf("writing the residue fixture: %s", err)
+	}
+
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+	p := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			Provider:      providers.Schema{Block: &configschema.Block{}},
+			ResourceTypes: map[string]providers.Schema{"stub_service": schema},
+		},
+	}
+	p.ConfigureProviderCalled = true
+	p.ImportResourceStateFn = func(r providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		return providers.ImportResourceStateResponse{ImportedResources: []providers.ImportedResource{{
+			TypeName: r.TypeName,
+			State: cty.ObjectVal(map[string]cty.Value{
+				"id":              cty.StringVal(r.Target.ID),
+				"name":            cty.NullVal(cty.String),
+				"task_definition": cty.NullVal(cty.String),
+			}),
+		}}}
+	}
+	var sawSeededPrior bool
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		prior := r.PriorState.GetAttr("task_definition")
+		out := shortForm
+		if !prior.IsNull() {
+			sawSeededPrior = true
+			out = wireARN
+		}
+		return providers.ReadResourceResponse{NewState: cty.ObjectVal(map[string]cty.Value{
+			"id":              cty.StringVal("arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"),
+			"name":            cty.StringVal("svc"),
+			"task_definition": cty.StringVal(out),
+		})}
+	}
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: addr, Class: identity.ClassConcrete, ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"},
+	}, SingleProvider(provAddr, p), Options{RecordStore: store})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`stub_service.this`})
+
+	if !sawSeededPrior {
+		t.Fatal("the provider's ReadResource never saw a non-null task_definition in PriorState - " +
+			"residueSeedFor never reached it, so a config-language-subset reference will show issue #395's " +
+			"wrong value on EVERY plan forever, exactly as it did against the real corpus estate")
+	}
+
+	is := res.State.ResourceInstance(addr)
+	if is == nil || is.Current == nil {
+		t.Fatal("stub_service.this is not in the projection")
+	}
+	got := string(is.Current.AttrsJSON)
+	if !strings.Contains(got, wireARN) {
+		t.Errorf("the projected task_definition does not carry the live ARN:\n%s\nwant it to contain %q", got, wireARN)
+	}
+	if strings.Contains(got, `"task_definition":"`+shortForm+`"`) {
+		t.Errorf("the projected task_definition regressed to the short family:revision form:\n%s", got)
+	}
+}
+
+// TestResidueSeedForWithoutARecordReproducesIssue395Unfixed is
+// TestResidueSeedForFixesAManagedReferenceAttribute's own control: the
+// identical fixture and provider fake, with no residue record written at
+// all - the shape a FIRST plan after migrate has, before any apply has
+// classified residue and before MIGRATE'S OWN ratify wrote one either.
+// Proves the fixture genuinely reproduces #395's original bug rather than
+// passing regardless of residueSeedFor's involvement.
+func TestResidueSeedForWithoutARecordReproducesIssue395Unfixed(t *testing.T) {
+	cfg := loadConfig(t, "testdata/residue-seed-managed-ref")
+	addr := mustAddr(t, `stub_service.this`)
+	schema := stubServiceSchema()
+
+	const wireARN = "arn:aws:ecs:eu-west-1:000000000000:task-definition/mini-td:1"
+	const shortForm = "mini-td:1"
+
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-managed-ref-control"))
+
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+	p := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			Provider:      providers.Schema{Block: &configschema.Block{}},
+			ResourceTypes: map[string]providers.Schema{"stub_service": schema},
+		},
+	}
+	p.ConfigureProviderCalled = true
+	p.ImportResourceStateFn = func(r providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		return providers.ImportResourceStateResponse{ImportedResources: []providers.ImportedResource{{
+			TypeName: r.TypeName,
+			State: cty.ObjectVal(map[string]cty.Value{
+				"id":              cty.StringVal(r.Target.ID),
+				"name":            cty.NullVal(cty.String),
+				"task_definition": cty.NullVal(cty.String),
+			}),
+		}}}
+	}
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		prior := r.PriorState.GetAttr("task_definition")
+		out := shortForm
+		if !prior.IsNull() {
+			out = wireARN
+		}
+		return providers.ReadResourceResponse{NewState: cty.ObjectVal(map[string]cty.Value{
+			"id":              cty.StringVal("arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"),
+			"name":            cty.StringVal("svc"),
+			"task_definition": cty.StringVal(out),
+		})}
+	}
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: addr, Class: identity.ClassConcrete, ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"},
+	}, SingleProvider(provAddr, p), Options{RecordStore: store})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`stub_service.this`})
+
+	is := res.State.ResourceInstance(addr)
+	if is == nil || is.Current == nil {
+		t.Fatal("stub_service.this is not in the projection")
+	}
+	got := string(is.Current.AttrsJSON)
+	if !strings.Contains(got, `"task_definition":"`+shortForm+`"`) {
+		t.Fatalf("this control must reproduce #395's ORIGINAL bug with no residue record available: "+
+			"got %s, want it to contain the short form %q. If this fails, the fixture no longer exercises "+
+			"the managed-reference case at all and the paired test above proves nothing.", got, shortForm)
+	}
+}
+
+// TestResidueSeedForNeverSeedsAComputedAttribute is residueSeedFor's own
+// boundary: a residue record can legitimately hold a Computed-only
+// attribute too (aws_nat_gateway.regional_nat_gateway_address is the
+// confirmed case fillResidue's own doc comment names), and
+// residueSeedFor must leave those to fillResidueFor's POST-read fill
+// rather than seeding them pre-read - see residueSeedFor's own doc
+// comment for why the two are not proven equivalent in this change.
+func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
+	ctx := context.Background()
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-boundary"))
+	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
+
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, lambdaLikeSchema(), lambdaApplied(), strict.DefaultSecrets, sdkv2LikeRead)
+	if err != nil {
+		t.Fatalf("RecordResidueForInstance: %s", err)
+	}
+	if !recorded {
+		t.Fatal("setup: this fixture must classify as residue for the boundary check below to mean anything")
+	}
+
+	b := &builder{opts: Options{RecordStore: store}}
+	seed := b.residueSeedFor(ctx, addr, lambdaLikeSchema())
+
+	if v, ok := seed["filename"]; !ok || v.AsString() != "check_links.py.zip" {
+		t.Errorf("filename (Optional, not Computed) must be seeded from the residue record; seed=%#v", seed)
+	}
+	if v, ok := seed["publish"]; !ok || !v.RawEquals(cty.False) {
+		t.Errorf("publish (Optional, not Computed) must be seeded from the residue record; seed=%#v", seed)
+	}
+	if v, ok := seed["source_code_hash"]; ok {
+		t.Errorf("source_code_hash (Optional+Computed) must NOT be pre-read seeded even though it is "+
+			"recorded as residue - Computed means the provider may answer independent of configuration, "+
+			"and fillResidueFor's own post-read, carriesNoInformation-gated fill already handles this "+
+			"population correctly; got seeded as %#v", v)
 	}
 }
