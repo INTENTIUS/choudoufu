@@ -759,6 +759,80 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	return s.store.PutIfVersion(ctx, key, payload, expectedVersion)
 }
 
+// MoveRecord relocates the whole record stored for from to the key for to -
+// the day2_rename stage's (live/GAUNTLET.md #6, GitHub issue #357)
+// live-mv-and-no-moved-block sibling of what c5f530c48d already fixed for
+// the `moved`-block path: that fix's plan-time read follows a
+// record-located instance through a moved-alias index when the config
+// declares one (located.go's locatedIdentityWithAliases) - live-mv rewrites
+// a live marker with no `moved` block to consult at all, so nothing else
+// ever teaches a later plan where a record-backed instance's key went. This
+// is the physical re-key that stands in for that alias consult when there
+// is no `moved` block: called once per instance
+// whose address falls under a renamed module boundary (mv.go's
+// propagateModuleRename), including the resource live-mv was asked to
+// rename itself - its own kind=identity record (written by
+// internal/live/liveimport/stamp.go's seedIdentityFor for every stamped
+// instance, taggable or not) is exactly as stale after a rename as any
+// other record under the old module prefix, and a SECOND rename of the
+// same instance would look for it under an address the store no longer
+// holds anything at if this were skipped.
+//
+// The envelope's own Address field is rewritten to match to; every other
+// member - Kind, Provider, Identity, Object, Residue, Provisioned - crosses
+// unchanged, so a moved record decodes identically to the one that was
+// there before, apart from the address it now names.
+//
+// moved is false, with no error, when nothing is recorded for from at all -
+// the ordinary case for most instances under a renamed module, which carry
+// no record because they are markable and their marker is rewritten
+// elsewhere (mv.go's rewrite). A record already occupying to's key is
+// refused rather than overwritten: two records claiming one key is the
+// wrong-marker hazard HANDOFF.md's safety rule exists to stop, and this
+// function has no way to tell which of the two is right.
+//
+// Not one atomic operation across the two keys: the copy to `to` is
+// written and CAS-confirmed (conditional on nothing already being there)
+// before the delete at `from` runs, so a crash between the two leaves the
+// record readable at BOTH keys - correct at its new address either way,
+// since every reader asks by address, and inert at the old one, since
+// [builder.discoverOrphanedRecords] never proposes destroying a
+// kind=identity key on its own. A crash before the write to `to` completes
+// leaves the record only at `from`, exactly as if this call had never
+// run. Either way nothing is lost and nothing binds to the wrong address;
+// the one visible symptom of an interrupted move is a stale, inert copy
+// left at `from`, which day2_crash (live/GAUNTLET.md #10, planned) will
+// need a recovery story for - re-running the same live-mv command is the
+// obvious one, since a record already moved is simply not found at `from`
+// on the next pass and is left alone rather than moved twice.
+func (s *RecordStore) MoveRecord(ctx context.Context, from, to addrs.AbsResourceInstance) (moved bool, err error) {
+	if s == nil {
+		return false, nil
+	}
+	env, fromVersion, exists, err := s.getRaw(ctx, from)
+	if err != nil {
+		return false, fmt.Errorf("reading the record to move from %s: %w", from, err)
+	}
+	if !exists {
+		return false, nil
+	}
+
+	env.Address = to.String()
+	payload, err := json.Marshal(env)
+	if err != nil {
+		return false, fmt.Errorf("encoding the record moved from %s to %s: %w", from, to, err)
+	}
+	if _, err := s.store.PutIfVersion(ctx, RecordKey(s.prefix, to), payload, ""); err != nil {
+		return false, fmt.Errorf("writing the record moved from %s to %s: %w (nothing was deleted at %s)", from, to, err, from)
+	}
+	if err := s.store.Delete(ctx, RecordKey(s.prefix, from), fromVersion); err != nil {
+		return true, fmt.Errorf(
+			"the record for %s was copied to %s, but the old key could not be removed: %w; nothing was lost - %s now holds the correct record - but the stale copy at %s should be cleaned up by hand or by rerunning the same rename",
+			from, to, err, to, from)
+	}
+	return true, nil
+}
+
 // delete removes addr's whole envelope, conditional on expectedVersion -
 // used when an address leaves the final state entirely (the record-backed
 // half) or drops out of every concern this run tracked for it (the merged
