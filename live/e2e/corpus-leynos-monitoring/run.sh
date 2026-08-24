@@ -210,6 +210,17 @@ set -uo pipefail
 # header documents, adapted to this estate having only two taggable objects
 # instead of three and no config-declared tags to drift.
 #
+# day2_rename's own BREAK=1 arm (D1, below - rename without a moved block)
+# is written for the same reason but is never reached by an ordinary
+# BREAK=1 run: stage 2's own control fires first and `fail` exits there, the
+# same limitation corpus-eks-basic's header documents for its own day2_rename
+# ("BREAK=1 mutates BOTH stages ... a BREAK=1 run proves stage 2's control
+# and leaves stage 3's unexercised"). Verified load-bearing directly instead:
+# with stage 2's and stage 5's BREAK checks temporarily neutered in a scratch
+# copy, BREAK=1 correctly proposed destroying aws_cloudwatch_metric_alarm.
+# cf_requests_spike and creating .cf_requests_spike_renamed - the real tofu
+# run this script's own D1 assertions are written to catch.
+#
 #   bash live/e2e/corpus-leynos-monitoring/run.sh
 #
 # Needs Docker, the AWS CLI, and the real `tofu` binary on PATH for stage 1
