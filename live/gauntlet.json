@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1bb746d9a4534b71413a7a208607e8d857a9feb8",
+  "commit": "13ed1dcb6c97573483fe33453e06ebfa95c287da",
   "emulator": "ghcr.io/lex00/floci@sha256:52b819326e712c791261685ce46a03ab5f2a47fa1f221dcc91c8dad9b5f09b00",
-  "generated": "2026-08-23T22:38:13Z",
+  "generated": "2026-08-24T00:02:19Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -316,8 +316,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1bb746d9a4534b71413a7a208607e8d857a9feb8",
-        "date": "2026-08-23T22:40:25Z",
+        "commit": "27c79cd909558f6c8d15aeb97bd394933a39692b",
+        "date": "2026-08-23T23:55:26Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
@@ -1332,8 +1332,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "d63619b9684c37f425203a2f6351b1814f062431",
-        "date": "2026-08-23T22:21:54Z",
+        "commit": "13ed1dcb6c97573483fe33453e06ebfa95c287da",
+        "date": "2026-08-24T00:04:20Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
