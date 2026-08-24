@@ -142,7 +142,10 @@ also asserted by value; an exit code is not a verdict.
    code path, not that the defect is upstream.
 8. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
-9. **Gate**: not the whole tier - the packages your change touches, plus the
+9. **Gate**: run `gofmt -l` over every Go file you touched and fix what it
+   names BEFORE the gate - three merges in one day reached the full tier
+   red on formatting alone because the per-worker gates run tests, not fmt.
+   Then: not the whole tier - the packages your change touches, plus the
    ones that sweep the whole tree and so can fail on a file you never opened:
    `./internal/live/check/` (the identity golden), `./tools/gauntlet/` (the
    artifact and rendered-doc guards), `./live/` (the derivation registry and

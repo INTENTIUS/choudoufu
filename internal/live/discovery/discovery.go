@@ -2046,6 +2046,7 @@ const (
 //     Cloud Control identifier, IS markerType's identity too, so it carries
 //     forward unchanged and the caller files the claimant/orphan under
 //     markerType.
+//
 // typeNeedsResourceObjectToRecompose reports whether typeName is one side
 // of an admitted companion pair ([defaultAdopterSiblings] or
 // [iamServiceLinkedRoleSibling]) whose ratified rows disagree about the

@@ -32,12 +32,12 @@ func TestSweepBindType(t *testing.T) {
 	empty := &declared{}
 
 	cases := []struct {
-		name                        string
-		decl                        *declared
-		markerType, typeName        string
-		escaped                     string
-		wantBindType                string
-		wantSkip                    bool
+		name                 string
+		decl                 *declared
+		markerType, typeName string
+		escaped              string
+		wantBindType         string
+		wantSkip             bool
 	}{
 		{
 			name:         "same type - nothing to correct",
