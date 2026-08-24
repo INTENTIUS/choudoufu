@@ -832,22 +832,64 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 #     that stage 3 is blocked on a defect. Until that ruling lands, this
 #     script's own WANT_SITES/WANT_DIAG_N below expect exactly these two
 #     nulls to keep refusing, on purpose.
-WANT_DIAG_N=3
-declare -a WANT_SITES=(
-  # A's one remaining site - see header for what fixed the other 11 (three
-  # each.value widenings for 10, family B's own side effect for the
-  # eleventh) and for what is different about this one.
-  'module.alb.aws_lambda_permission.this["ex-lambda-without-trigger"].function_name'
-  # Adjacent to A, exposed only once the fixes above stopped refusing the
-  # WHOLE resource outright: a genuinely null port for a lambda-type target,
-  # which AWS's own API has none of. Not a poisoned-leaf collapse. This is a
-  # RATIFICATION QUESTION for the identity table row (OmitIfAbsent for
-  # target_type=lambda, or similar), not an open bug this script's own
-  # counts are waiting on - see the paragraph above for why. Expected to
-  # keep appearing here until a maintainer rules on it.
-  'module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"].port'
-  'module.alb.aws_lb_target_group_attachment.this["ex-lambda-without-trigger"].port'
-)
+#
+# CHOUDOUFU_NODE_RESOLVE=1 (issue #388's plan-node seam) changes what this
+# section asserts, genuinely, not just how it is worded. #388's own landing
+# comment: this estate's two remaining static-refusal families (the
+# function_name and the two ports above) DOWNGRADE to warnings under the
+# flag (identity.DowngradeForNodeResolution) and resolve at the node from
+# real evaluated values instead of expression text - the crossing script's
+# hard-coded expectation of those refusal sites is the stale oracle HANDOFF
+# calls a fixed wall making a stale assertion fail. Re-verified here on an
+# idle machine (this unit): flag-off, 3 baseline runs plus this pass's own
+# baseline all show exactly these 3 as Errors, 0 sites related to
+# aws_acm_certificate_validation, matching the artifact's own recorded
+# detail. Flag-on, 4/4 runs (2 from #388's own landing measurement, 2 more
+# here) show the 3 downgrade to warnings AND a genuinely new pair of Errors:
+# projecting the estate's two aws_acm_certificate_validation instances
+# (needed once the pre-walk projection actually runs for the first time -
+# see internal/live/projection/noimporter_test.go's own doc comment for the
+# traced mechanism) hits a real, pre-existing, generic gap this unit fixed
+# in internal/live/projection/build.go: the type is admitted on nameability
+# alone (identity.Derivable resolves certificate_arn from configuration;
+# tools/row-gen/notimportable.go's own notImportableExempt map has recorded
+# since 2026-08-17 that it also has no classic Importer) and the OLD code
+# asked the provider to classically import it anyway, reporting a
+# misleading "Cannot import for projection" (implying the provider was
+# erroring) instead of the accurate "Resource type has no classic
+# Importer" this fix now raises - same severity, same refusal, no risk of
+# a wrong marker or a false create, just an honest cause. NOT
+# load-sensitive: 4/4 flag-on runs on an otherwise idle machine, 0/4
+# flag-off.
+NODE_RESOLVE="${CHOUDOUFU_NODE_RESOLVE:-}"
+if [ -n "$NODE_RESOLVE" ]; then
+  WANT_DIAG_N=2
+  declare -a WANT_SITES=(
+    # The diagnostic's own opening clause, which the CLI's line-wrapped
+    # renderer puts on one line by itself (the identity string itself
+    # wraps to the next line, which is why this stops here rather than
+    # trying to fold the ARN in too). The ARN - minted by ACM per run - is
+    # asserted for real, by value, against the AWS CLI below (3c).
+    'The aws_acm_certificate_validation with identity'
+  )
+else
+  WANT_DIAG_N=3
+  declare -a WANT_SITES=(
+    # A's one remaining site - see header for what fixed the other 11 (three
+    # each.value widenings for 10, family B's own side effect for the
+    # eleventh) and for what is different about this one.
+    'module.alb.aws_lambda_permission.this["ex-lambda-without-trigger"].function_name'
+    # Adjacent to A, exposed only once the fixes above stopped refusing the
+    # WHOLE resource outright: a genuinely null port for a lambda-type target,
+    # which AWS's own API has none of. Not a poisoned-leaf collapse. This is a
+    # RATIFICATION QUESTION for the identity table row (OmitIfAbsent for
+    # target_type=lambda, or similar), not an open bug this script's own
+    # counts are waiting on - see the paragraph above for why. Expected to
+    # keep appearing here until a maintainer rules on it.
+    'module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"].port'
+    'module.alb.aws_lb_target_group_attachment.this["ex-lambda-without-trigger"].port'
+  )
+fi
 # The break GAUNTLET.md asks stage 3 for is a corrupted expected string, and
 # this one is chosen so that a grep which "always matches" is what it
 # catches: module.alb.aws_lb_target_group.this is a resource in this very
@@ -877,13 +919,49 @@ DIAG_N="$(grep -c '^Error:' <<< "$PLAN_OUT")"
 
 # The summaries, by count. A shift between buckets at the same total would
 # otherwise pass the check above.
+if [ -n "$NODE_RESOLVE" ]; then
+  SUMMARIES_TEXT='2 Resource type has no classic Importer'
+else
+  SUMMARIES_TEXT='1 Non-static identity argument
+2 Null identity argument'
+fi
 while read -r want summary; do
   got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
   [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
-done <<'SUMMARIES'
-1 Non-static identity argument
-2 Null identity argument
-SUMMARIES
+done <<< "$SUMMARIES_TEXT"
+
+if [ -n "$NODE_RESOLVE" ]; then
+  # ── 3c. flag on: the stronger truth stage 3's own Proves text demands ────
+  # An empty plan alone is not enough - a wrong identity can converge - so
+  # this checks the two remaining refusals name REAL, EXISTING certificates,
+  # by value, against the AWS CLI directly, never through choudoufu's own
+  # report. A fabricated or stale identity here would be exactly the silent
+  # failure HANDOFF's safety rule is about, and this would catch it: the
+  # provider's own refusal happens to embed the identity it was asked about,
+  # so this reads that value back out rather than trusting the count alone.
+  ACM_ARNS="$(grep -oE 'arn:aws:acm:[^\"]+' <<< "$PLAN_OUT" | sort -u)"
+  ACM_ARN_N="$(grep -c . <<< "$ACM_ARNS")"
+  [ "$ACM_ARN_N" = "2" ] \
+    || { printf '%s\n' "$ACM_ARNS"; fail "expected 2 distinct aws_acm_certificate_validation identities among the no-classic-Importer refusals, got $ACM_ARN_N"; }
+  REAL_CERT_ARNS="$(awsl acm list-certificates --query 'CertificateSummaryList[].CertificateArn' --output text | tr '\t' '\n' | sort -u)"
+  while read -r arn; do
+    grep -qxF "$arn" <<< "$REAL_CERT_ARNS" \
+      || fail "the no-classic-Importer refusal named $arn, which the AWS CLI's own acm list-certificates does not list for this estate - a fabricated identity, not a real one"
+  done <<< "$ACM_ARNS"
+  # The 3 static-path sites did not vanish - #388's item 2 (existence
+  # tolerance at the node) and family A's merge(v,{...}) chase are both
+  # still open, unrelated to this unit - they downgraded to warnings, which
+  # the DIAG_N/SUMMARIES checks above already prove by exclusion (2 total
+  # Errors, both accounted for as the classic-Importer refusal); this checks
+  # they are still visibly flagged rather than silently dropped.
+  grep -q '^Warning: Non-static identity argument$' <<< "$PLAN_OUT" \
+    || fail "expected the function_name site to survive as a Warning under the flag, not vanish"
+  grep -q '^Warning: Null identity argument$' <<< "$PLAN_OUT" \
+    || fail "expected the port sites to survive as a Warning under the flag, not vanish"
+  log "  3c  flag on: the 2 remaining refusals name real, existing"
+  log "      certificates ($ACM_ARN_N of $ACM_ARN_N confirmed against the AWS CLI"
+  log "      directly). The 3 static-path sites survive as warnings, not gone."
+fi
 
 # The asymmetry that says this is the untaggable family and not a
 # type-coverage gap: aws_lb_target_group.this for_eaches over exactly the
@@ -897,12 +975,22 @@ log "      taggable aws_lb_target_group.this over the same var.target_groups"
 log "      is silent, because it carries the marker stage 2 wrote"
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
-log "diagnostics on untaggable resources (families A and B, see header). The"
-log "markerless-type wall that used to be the only thing this estate could"
-log "print is gone, and these were behind it."
-log ""
-gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output), family A's module-input-poisoning wall is down from 20 to 12 diagnostics (2026-08-22, three each.value widenings, none naming a concrete aws_* type), and family B - aws_acm_certificate.this[0].domain_validation_options minted by ACM and driving aws_route53_record.validation[0]'s name and type in both certificate module instances - is now fixed (2026-08-23), down to these 3: internal/live/projection's PlanInstances now plans a resource whose count expression resolves statically to a known integer (planCounted), not only an uncounted one; identity.resolver.managedFromExpr now chases a local's or a module variable's own defining expression for a covered-but-unknown managed reference, guarded by namesAnUnprovenVariable (a var with its own default cannot be issue #183's synthetic-unknown hazard) and by declining outright when more than one distinct resource is found rather than guessing; resolver.tolerantManagedValue evaluates the whole identity argument through the same tolerant evaluator a module output already gets, gated on that attribution succeeding first; and managedUnknownAt's own selectReferencedValue isolates the one attribute a reference names before asking ContainsMarked/IsWhollyKnown, so aws_acm_certificate's unrelated sensitive private_key no longer vetoes attribution to domain_validation_options. None names a concrete aws_* type. A side effect, not a fifth fix: module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn (family A's own remaining site) reads the same certificate through aws_acm_certificate_validation's fallback and now resolves too, through unmodified machinery, because the certificate it depends on stopped being invisible - family A is down to 1 of its original 12. The 3 that remain: local.lambda_target_groups's function_name (family A, a merge(v, {...}) value clause needing v's own structural expression substituted into the call, a genuinely new piece of machinery, not attempted here) and the two aws_lb_target_group_attachment ports (HANDOFF's fifth row read the other way - a lambda target genuinely has no port in real AWS, so the null is the honest answer, not a defect these fixes reach or should)"
+if [ -n "$NODE_RESOLVE" ]; then
+  log "STAGE 3 (test_plan) [CHOUDOUFU_NODE_RESOLVE=1]: BLOCKED for real -"
+  log "$DIAG_N diagnostics, both aws_acm_certificate_validation instances"
+  log "refusing projection for a real, structural reason (no classic"
+  log "Importer), confirmed against the AWS CLI. The 3 static-path sites"
+  log "this same estate is blocked on flag-off survive as warnings."
+  log ""
+  gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess."
+else
+  log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
+  log "diagnostics on untaggable resources (families A and B, see header). The"
+  log "markerless-type wall that used to be the only thing this estate could"
+  log "print is gone, and these were behind it."
+  log ""
+  gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output), family A's module-input-poisoning wall is down from 20 to 12 diagnostics (2026-08-22, three each.value widenings, none naming a concrete aws_* type), and family B - aws_acm_certificate.this[0].domain_validation_options minted by ACM and driving aws_route53_record.validation[0]'s name and type in both certificate module instances - is now fixed (2026-08-23), down to these 3: internal/live/projection's PlanInstances now plans a resource whose count expression resolves statically to a known integer (planCounted), not only an uncounted one; identity.resolver.managedFromExpr now chases a local's or a module variable's own defining expression for a covered-but-unknown managed reference, guarded by namesAnUnprovenVariable (a var with its own default cannot be issue #183's synthetic-unknown hazard) and by declining outright when more than one distinct resource is found rather than guessing; resolver.tolerantManagedValue evaluates the whole identity argument through the same tolerant evaluator a module output already gets, gated on that attribution succeeding first; and managedUnknownAt's own selectReferencedValue isolates the one attribute a reference names before asking ContainsMarked/IsWhollyKnown, so aws_acm_certificate's unrelated sensitive private_key no longer vetoes attribution to domain_validation_options. None names a concrete aws_* type. A side effect, not a fifth fix: module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn (family A's own remaining site) reads the same certificate through aws_acm_certificate_validation's fallback and now resolves too, through unmodified machinery, because the certificate it depends on stopped being invisible - family A is down to 1 of its original 12. The 3 that remain: local.lambda_target_groups's function_name (family A, a merge(v, {...}) value clause needing v's own structural expression substituted into the call, a genuinely new piece of machinery, not attempted here) and the two aws_lb_target_group_attachment ports (HANDOFF's fifth row read the other way - a lambda target genuinely has no port in real AWS, so the null is the honest answer, not a defect these fixes reach or should). Re-verified 2026-08-23 on an idle machine (this unit): #388's open edge 1 (a NEW aws_acm_certificate_validation 'Cannot import for projection' error, 2/2 flag-on vs 0/3 flag-off) is NOT load-sensitive - 4/4 flag-on runs reproduce it, 0/4 flag-off - and is root-caused and fixed generically (internal/live/projection/build.go, see the flag-on branch of this script's own stage-3 oracle for the mechanism and the fix). Flag-off truth here is unaffected: this estate's projection has never run to completion even once at flag-off, because the same 3 sites above have always kept identity.Result.HasErrors() true and aborted PriorState before projection.BuildWith runs."
+fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
