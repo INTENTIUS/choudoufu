@@ -863,6 +863,40 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 #      this to a correct attribution instead of a decline if the value is
 #      worth it."
 #
+# UPDATE (corpus-alb-chase unit, 10c48ab942, gauntlet issue #397): that
+# future unit ran. managedFromModuleOutput (managedprovenance.go) now
+# genuinely chases module.wildcard_cert's own acm_certificate_arn output
+# through the child module boundary - the same scope-switching hop
+# resolveModuleOutput already makes for a VALUE, applied to the provenance
+# question - instead of declining outright, proven by
+# TestManagedFromModuleOutputChasesThroughToACMResource and unchanged
+# crosstalk-regression coverage. It also fixed a genuine address-collision
+# bug the chase exposed: module.acm and module.wildcard_cert are sibling
+# calls of the SAME child module source and each declare their own
+# `aws_acm_certificate.this`, which collided into one `found` entry before
+# qualifyFoundAddr module-qualified every candidate address at the point it
+# is discovered.
+#
+# This site still refuses, for a DIFFERENT, deeper reason confirmed directly
+# against this real estate's own live-plan output (temporary
+# CHOUDOUFU_DEBUG_MANAGEDFROM instrumentation, removed before landing):
+# local.listeners/local.additional_certs combines THREE listeners - this one
+# behind module.acm, this one behind module.wildcard_cert, and an unrelated
+# Cognito-authenticated one - in ONE object literal, and
+# resolve.go's forEachExpansion computes expansion.managedFrom ONCE for the
+# WHOLE for_each expansion rather than per element, so even the corrected
+# chase finds three simultaneously covered-and-unknown candidates at once
+# (`found=map[aws_cognito_user_pool.this:true
+# module.acm.aws_acm_certificate.this:true
+# module.wildcard_cert.aws_acm_certificate.this:true]`, read straight off
+# the trace) - an HONEST ambiguity the len(found)!=1 guard correctly
+# declines, not a blind spot. gauntlet issue #397 tracks the plausible next
+# step (a per-element provenance chase using elementExprBindings/
+# instScope.exprVars, the same machinery family A's function_name fix below
+# already generalized) - a materially larger, riskier change than "chase
+# through a module boundary" and outside this unit's own scope, so not
+# attempted here.
+#
 # All 3 remain HANDOFF's first or fifth row and every resource they BLOCK
 # is UNTAGGABLE, whose identity has to come from configuration because there
 # is no tag to recover it from:
@@ -1068,7 +1102,7 @@ else
   log "print is gone, and family A's other 11 sites (2026-08-22/23) - the"
   log "function_name site included, fixed 2026-08-24 - are gone too."
   log ""
-  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. terraform-aws-modules/acm's own output try(aws_acm_certificate_validation.this[0].certificate_arn, aws_acm_certificate.this[0].arn, \"\") is a MODULE OUTPUT reference beside a direct one, and managedFromExprAt (84dcbabea9, 2026-08-24) declines the instant its own chase names a module root rather than risk a second wrong sibling-apply attribution - the same rule that closed this estate's Cognito-misattribution crosstalk bug applies here too, by design (HANDOFF: a missing attribution outranks a wrong one). 84dcbabea9's own commit recorded this site as resolving 'through unmodified machinery', but that verification was CHOUDOUFU_NODE_RESOLVE=1 only; flag-off it was never fixed, confirmed by a byte-identical diff across three flag-off live-plan captures spanning this unit's whole session. HANDOFF's first row (choudoufu refuses where stock proceeds), not attempted here - the fix is chasing through a module boundary instead of declining at it, which 84dcbabea9 itself flagged as future work. (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
+  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397 tracks the plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars, the same machinery family A's function_name fix below already generalized), out of this unit's own scope (chasing the module boundary, not redesigning per-instance provenance granularity). (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
 fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
