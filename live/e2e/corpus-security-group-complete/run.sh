@@ -1314,7 +1314,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log "=== D0. capture the live ids a rename must not disturb ==="
   SG_PG_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.postgresql.module.security_group.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
   [ -n "$SG_PG_ID_D" ] && [ "$SG_PG_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (module.postgresql's own SG)"
-  SG_APP_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.app:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+  SG_APP_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.app"]}]' --query "SecurityGroups[0].GroupId" --output text)"
   [ -n "$SG_APP_ID_D" ] && [ "$SG_APP_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (aws_security_group.app)"
   log "  $SG_PG_ID_D (module.postgresql's SG), $SG_APP_ID_D (aws_security_group.app)"
 
@@ -1385,9 +1385,9 @@ EOF
     SG_APP_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SG_APP_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
     [ "$SG_APP_ID_D_AFTER" = "$SG_APP_ID_D" ] || fail "aws_security_group.app's id changed across live-mv ($SG_APP_ID_D -> $SG_APP_ID_D_AFTER) - it was destroyed and recreated, not renamed"
     SG_APP_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG_APP_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-    [ "$SG_APP_ADDR_D_AFTER" = "aws_security_group.app_renamed:0" ] \
-      || fail "the security group carries tofu-address=$SG_APP_ADDR_D_AFTER after live-mv, not aws_security_group.app_renamed:0"
-    log "  $SG_APP_ID_D unchanged, tofu-address now aws_security_group.app_renamed:0 - read via the AWS CLI"
+    [ "$SG_APP_ADDR_D_AFTER" = "aws_security_group.app_renamed" ] \
+      || fail "the security group carries tofu-address=$SG_APP_ADDR_D_AFTER after live-mv, not aws_security_group.app_renamed"
+    log "  $SG_APP_ID_D unchanged, tofu-address now aws_security_group.app_renamed - read via the AWS CLI"
 
     log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
     FINAL_PLAN_OUT="$(plan_into 2>&1)"; FINAL_PLAN_RC=$?
