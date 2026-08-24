@@ -659,7 +659,27 @@ var identityGoldenPin = map[string]int{
 	// dependency that always refuses classification, deliberately unrelated
 	// to cluster_id), swept twice for the same own-directory-plus-parent
 	// reason.
-	"NEEDS_DISCOVERY": 725,
+	//
+	// 725 -> 728 for the corpus-alb-complete/test_plan unit continuing
+	// gauntlet issue #397 (internal/live/identity's localvalue.go gains a
+	// `values(X)` case in staticCollElems): three ADDED rows, all from the
+	// new fixture testdata/values-splat-per-element -
+	// aws_cognito_user_pool.this, module.wildcard_cert.aws_acm_certificate.
+	// this[0], and modules/wildcard_cert's own aws_acm_certificate.this[0].
+	// All three are the plain server-assigned NEEDS_DISCOVERY shape every
+	// sibling ACM/Cognito fixture in this golden already contributes
+	// (including testdata/managed-read-module-blind-crosstalk's own three,
+	// added above); the fixture's fourth resource,
+	// aws_lb_listener_certificate.this["https/0"], is the one this unit's
+	// fix concerns and does not appear here at all - offline, with no
+	// managed results supplied, it declines with the ordinary "Non-static
+	// identity argument" refusal, exactly as it did before the fix (this
+	// golden sweeps with no [Context.ManagedResults], so the values()/
+	// merge() flatten this fixture exercises never produces the unknown
+	// this unit's fix is about). "0 identities changed, 3 added, 0 removed"
+	// confirmed by diffing testdata/identity-golden.txt before and after
+	// regenerating.
+	"NEEDS_DISCOVERY": 728,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1284,7 +1304,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "5bca096d86639d0a9373f71f44399e7b955233cd82160a41565204aa69e7077c" // corpus-eks-basic/test_plan's splat-visibility unit (issue #396): provider-config-demand-splat's own two aws_eks_cluster.this[0] CONCRETE rows added, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "a946bbb2d273cf74849c0aa35845ef416afbe9cfd6f91e7a08313a75d5fb3590" // corpus-alb-complete/test_plan unit continuing gauntlet issue #397: testdata/values-splat-per-element's own three NEEDS_DISCOVERY rows added (aws_cognito_user_pool.this, module.wildcard_cert.aws_acm_certificate.this[0], modules/wildcard_cert's own aws_acm_certificate.this[0]), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1918,7 +1938,13 @@ const (
 	// static reference coverage. "0 identities changed, 2 added, 0 removed"
 	// confirmed by diffing testdata/identity-golden.txt before and after
 	// regenerating with -update.
-	identityGoldenPinInstances = 1709
+	//
+	// Then 1709 -> 1712, the corpus-alb-complete/test_plan unit continuing
+	// gauntlet issue #397: three new instances from testdata/
+	// values-splat-per-element (see identityGoldenPinBodyDigest's own
+	// note). "0 identities changed, 3 added, 0 removed" confirmed the same
+	// way.
+	identityGoldenPinInstances = 1712
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2196,7 +2222,12 @@ const (
 	// above: stub_service/stub_task_definition are test-only fictions
 	// with no admitted identity. identityGoldenPinInstances is unchanged
 	// at 1709 across all four of this pin's own fixtures.
-	identityGoldenPinDirs = 608
+	//
+	// Then 608 -> 610 for the corpus-alb-complete/test_plan unit continuing
+	// gauntlet issue #397: two new fixture directories, testdata/
+	// values-splat-per-element and its own modules/wildcard_cert submodule
+	// (see identityGoldenPinBodyDigest's own note).
+	identityGoldenPinDirs = 610
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

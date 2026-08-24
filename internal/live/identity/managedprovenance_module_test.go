@@ -331,3 +331,87 @@ func TestManagedFromModuleOutputChasesThroughToACMResource(t *testing.T) {
 		t.Errorf("%s: Reason %q names Cognito, which is unrelated to this listener's certificate", addr, res.Reason)
 	}
 }
+
+// TestValuesSplatPerElementProvenance is #397's own positive case, on the
+// isolated testdata/values-splat-per-element fixture (see its own header
+// comment): unlike TestManagedFromModuleOutputChasesThroughToACMResource
+// above, BOTH the module-routed ACM leg AND Cognito's own pool ARN are
+// unknown here at once - the shape [expansion.managedFrom]'s ONE
+// combined, whole-expansion answer cannot tell apart, because chasing
+// local.flat's own definition (managedFromExprAt's Variables() walk)
+// reaches BOTH aws_cognito_user_pool.this and
+// module.wildcard_cert.aws_acm_certificate_validation.this[0] from the SAME
+// expression, whichever for_each key started the chase. Before #397's two
+// fixes (staticCollElems's values() case and forEachExpansion capturing
+// eachValueDeferred on the eval-succeeded path, not only the tolerant-retry
+// one), aws_lb_listener_certificate.this["https/0"] had nothing but that
+// one ambiguous answer to fall back on and declined outright - exactly
+// TestManagedFromModuleOutputBlindCrosstalk's own shape, one level of
+// map-of-maps deeper.
+//
+// With both fixes, ["https/0"]'s own eachValueDeferred entry is
+// `{certificate_arn = module.wildcard_cert.acm_certificate_arn}` - ITS OWN
+// element's expression, reached by decomposing local.flat's definition
+// (merge(values(local.per_listener)...)) structurally instead of
+// evaluating it as one opaque value - and [resolver.eachValueDeferredParts]
+// selects certificate_arn out of THAT, reaching only the ACM leg. Cognito's
+// own unknown, sitting in the SAME flattened map under a different key,
+// never enters this instance's own chase at all.
+func TestValuesSplatPerElementProvenance(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "values-splat-per-element"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: moduleBlindCrosstalkManagedResults(true, true),
+		Schemas:        moduleBlindCrosstalkSchemas(),
+	})
+	if result == nil {
+		t.Fatalf("resolution produced no result at all: %s", renderDiags(diags))
+	}
+
+	addr := mustAddr(t, `aws_lb_listener_certificate.this["https/0"]`)
+	res, ok := result.Get(addr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", addr, renderDiags(diags))
+	}
+	if res.Class != ClassNeedsDiscovery {
+		t.Fatalf("%s resolved %s (cause %s, args %v, reason %q), want NEEDS_DISCOVERY attributed to the ACM validation resource",
+			addr, res.Class, res.Cause, res.CauseArgs, res.Reason)
+	}
+	if res.Cause != DiscoverySiblingApply {
+		t.Errorf("%s resolved NEEDS_DISCOVERY with cause %s, want %s", addr, res.Cause, DiscoverySiblingApply)
+	}
+	wantSibling := "module.wildcard_cert.aws_acm_certificate_validation.this"
+	if len(res.CauseArgs) == 0 || res.CauseArgs[0] != wantSibling {
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q (this instance's own ACM leg, reached through its own eachValueDeferred expression, not expansion.managedFrom's shared, ambiguous answer)",
+			addr, res.CauseArgs, wantSibling)
+	}
+	if !strings.Contains(res.Reason, wantSibling) {
+		t.Errorf("%s: Reason %q does not name %q", addr, res.Reason, wantSibling)
+	}
+	if strings.Contains(res.Reason, "aws_cognito_user_pool") {
+		t.Errorf("%s: Reason %q names Cognito - the SIBLING instance's own unknown leaked into this one's attribution, which is exactly the crosstalk hazard this file exists to avoid", addr, res.Reason)
+	}
+
+	// The sibling instance must resolve too, and to Cognito specifically -
+	// proving this is genuine per-element precision, not a lucky guess that
+	// happens to land on the alphabetically-first (or map-iteration-first)
+	// candidate. If both instances came back naming the SAME resource, that
+	// would be [resolver.managedFromScope]'s coarse, shared answer winning
+	// by accident on an expansion that (by construction here) contains only
+	// two keys - the failure mode this test exists to rule out.
+	cognitoAddr := mustAddr(t, `aws_lb_listener_certificate.this["cognito/0"]`)
+	cognitoRes, ok := result.Get(cognitoAddr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", cognitoAddr, renderDiags(diags))
+	}
+	if cognitoRes.Class != ClassNeedsDiscovery || cognitoRes.Cause != DiscoverySiblingApply {
+		t.Fatalf("%s resolved %s/%s (args %v, reason %q), want NEEDS_DISCOVERY/%s attributed to Cognito",
+			cognitoAddr, cognitoRes.Class, cognitoRes.Cause, cognitoRes.CauseArgs, cognitoRes.Reason, DiscoverySiblingApply)
+	}
+	if len(cognitoRes.CauseArgs) == 0 || cognitoRes.CauseArgs[0] != "aws_cognito_user_pool.this" {
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q", cognitoAddr, cognitoRes.CauseArgs, "aws_cognito_user_pool.this")
+	}
+	if strings.Contains(cognitoRes.Reason, "acm_certificate") {
+		t.Errorf("%s: Reason %q names the ACM resource - the SIBLING instance's own unknown leaked into this one's attribution", cognitoAddr, cognitoRes.Reason)
+	}
+}

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=608 instances=1709
+# shape: dirs=610 instances=1712
 # shape: class CONCRETE=824
-# shape: class NEEDS_DISCOVERY=725
+# shape: class NEEDS_DISCOVERY=728
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=5bca096d86639d0a9373f71f44399e7b955233cd82160a41565204aa69e7077c
+# shape: body-sha256=a946bbb2d273cf74849c0aa35845ef416afbe9cfd6f91e7a08313a75d5fb3590
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -624,6 +624,9 @@ internal/live/identity/testdata/typedvar-string	module.child.aws_sqs_queue.q["b"
 internal/live/identity/testdata/typedvar-untyped	aws_sqs_queue.seed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/typedvar-untyped	module.child.aws_sqs_queue.q["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/typedvar-untyped	module.child.aws_sqs_queue.q["b"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/values-splat-per-element	aws_cognito_user_pool.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/values-splat-per-element	module.wildcard_cert.aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/values-splat-per-element/modules/wildcard_cert	aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/child-live-config	module.vendored.aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-live-config/mod	aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-module	aws_vpc.main	NEEDS_DISCOVERY		
