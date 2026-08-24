@@ -174,6 +174,10 @@ set -uo pipefail
 #                            stage 5's mutation, so the plan must propose
 #                            fixing two objects where the assertion demands
 #                            exactly one.
+#                  rename    rename module unencrypted_sqs (day2_rename's D1)
+#                            WITHOUT a moved block, so the plan must propose
+#                            destroying the old queue and creating the
+#                            renamed one instead of zero churn.
 #                  1         alias for `schema`.
 #                They are separate values rather than one flag because the
 #                first corruption reached exits the script: a single BREAK=1
@@ -224,8 +228,8 @@ gauntlet_begin
 BREAK_AT="${BREAK:-}"
 [ "$BREAK_AT" = "1" ] && BREAK_AT="schema"
 case "$BREAK_AT" in
-  ""|schema|identity|drift) ;;
-  *) fail "BREAK must be one of: schema, identity, drift (1 is an alias for schema)" ;;
+  ""|schema|identity|drift|rename) ;;
+  *) fail "BREAK must be one of: schema, identity, drift, rename (1 is an alias for schema)" ;;
 esac
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -384,6 +388,47 @@ log ""
 gauntlet_stage cold_deploy pass "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration"
 log "STAGE 1 (cold deploy): PASS"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two of the estate's four taggable queues, both standalone module calls
+# with no cross-references from any sibling (unlike fifo_sqs's DLQ pair):
+# a `moved` block renames the WHOLE module call "default_sqs", and
+# "choudoufu live-mv" (below, after drift_reconverge) renames "unencrypted_
+# sqs" with no moved block at all. The stock oracle (real terraform, the
+# same binary stage 1 used) runs the same two renames, through moved
+# blocks only, on a copy of $EST right after cold_deploy's own state -
+# before choudoufu or live-import ever touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock terraform, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$EST" "$PLAIN_ORACLE"
+sed -i.bak 's/module "default_sqs" {/module "default_sqs_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$PLAIN_ORACLE/main.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak"
+cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.default_sqs
+  to   = module.default_sqs_renamed
+}
+
+moved {
+  from = module.unencrypted_sqs
+  to   = module.unencrypted_sqs_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
@@ -609,6 +654,88 @@ gauntlet_stage drift_reconverge pass "one object tampered, exactly 1 object prop
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  $DEFAULT_QUEUE_URL (module.default_sqs), $UNENCRYPTED_QUEUE_URL (module.unencrypted_sqs)"
+
+if [ "$BREAK_AT" = "rename" ]; then
+  log "=== D1 (BREAK=rename). rename module unencrypted_sqs -> unencrypted_sqs_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=rename rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose destroying the unencrypted queue - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.unencrypted_sqs_renamed\.aws_sqs_queue\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose creating the renamed queue - this stage's check is not load-bearing"; }
+  log "  BREAK=rename: correctly proposes destroying the old queue and creating the renamed one - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module default_sqs -> default_sqs_renamed ==="
+  sed -i.bak 's/module "default_sqs" {/module "default_sqs_renamed" {/' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  cat >> "$EST/main.tf" <<'EOF'
+
+moved {
+  from = module.default_sqs
+  to   = module.default_sqs_renamed
+}
+EOF
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.default_sqs_renamed\.aws_sqs_queue\.this\[0\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed queue"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.default_sqs\.aws_sqs_queue\.this:0" +-> +"module\.default_sqs_renamed\.aws_sqs_queue\.this:0"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the queue's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  DEFAULT_ADDR_D_AFTER="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text)"
+  [ "$DEFAULT_ADDR_D_AFTER" = "module.default_sqs_renamed.aws_sqs_queue.this:0" ] \
+    || fail "the default queue carries tofu-address=$DEFAULT_ADDR_D_AFTER after the rename, not module.default_sqs_renamed.aws_sqs_queue.this:0"
+  log "  $DEFAULT_QUEUE_URL unchanged, tofu-address now module.default_sqs_renamed.aws_sqs_queue.this:0 - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module unencrypted_sqs -> unencrypted_sqs_renamed, no moved block at all ==="
+  sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.unencrypted_sqs.aws_sqs_queue.this[0]' 'module.unencrypted_sqs_renamed.aws_sqs_queue.this[0]' 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.unencrypted_sqs.aws_sqs_queue.this:0" -> "module.unencrypted_sqs_renamed.aws_sqs_queue.this:0"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  UNENCRYPTED_ADDR_D_AFTER="$(awsl sqs list-queue-tags --queue-url "$UNENCRYPTED_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text)"
+  [ "$UNENCRYPTED_ADDR_D_AFTER" = "module.unencrypted_sqs_renamed.aws_sqs_queue.this:0" ] \
+    || fail "the unencrypted queue carries tofu-address=$UNENCRYPTED_ADDR_D_AFTER after live-mv, not module.unencrypted_sqs_renamed.aws_sqs_queue.this:0"
+  log "  $UNENCRYPTED_QUEUE_URL unchanged, tofu-address now module.unencrypted_sqs_renamed.aws_sqs_queue.this:0 - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$FINAL_PLAN_D_OUT" \
+    && { printf '%s\n' "$FINAL_PLAN_D_OUT" | grep -E '^  # .+ will be'; fail "the post-rename plan proposes a resource change"; }
+  log "  no resource action proposed. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
