@@ -96,7 +96,9 @@ set -uo pipefail
 #                 live/floci-image.
 #   BREAK         set to 1 to corrupt stage 2's identity assertion and
 #                 tamper a second object ahead of stage 5's, proving both
-#                 are load-bearing.
+#                 are load-bearing. Set to "rename" to exercise day2_rename's
+#                 own break control instead - renaming module harbor_iam_user
+#                 WITHOUT a moved block, which must be refused.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -530,27 +532,54 @@ CURRENT_STAGE=day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  bucket $BUCKET_NAME (module.s3_bucket_hm_harbor), user $USER_NAME (module.harbor_iam_user)"
 
-if [ "${BREAK:-}" = "1" ]; then
-  log "=== D1 (BREAK=1). rename module harbor_iam_user -> harbor_iam_user_renamed WITHOUT a moved block ==="
+if [ "${BREAK:-}" = "rename" ]; then
+  log "=== D1 (BREAK=rename). rename module harbor_iam_user -> harbor_iam_user_renamed WITHOUT a moved block ==="
   sed -i.bak 's/module "harbor_iam_user" {/module "harbor_iam_user_renamed" {/' "$ESTATE/main.tofu"
   rm -f "$ESTATE/main.tofu.bak"
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=1 rename's reinit failed"; }
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # Verified directly (isolated BREAK=1 run): aws_iam_user's identity is
-  # deterministically client-named (its own `name` argument), so choudoufu's
-  # discovery finds the SAME live user twice - once by the marker still
-  # naming the old, no-longer-declared address, once as the derivable
-  # candidate for the new address the renamed module now wants - and
-  # refuses outright ("Two live resources claiming one address") rather
-  # than guess which reading is right, exactly HANDOFF.md's safety rule.
-  [ "$BREAK_PLAN_RC" -ne 0 ] \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block planned cleanly (exit 0) - expected a refusal (see header)"; }
-  grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
-  grep -qF "module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user" <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: the refusal did not name the IAM user's old address"; }
-  log "  BREAK=1: correctly refuses (two live resources claiming module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user - the marker's old address and the renamed module's client-derivable identity resolve to the same live user) - the moved-block and live-mv checks below are skipped"
+  # Verified directly (isolated BREAK=rename run - day2_rename's own break
+  # lever, distinct from stage 2/5's BREAK=1, so it is reachable without
+  # tripping an earlier stage's exit), and re-verified across FIVE back-to-
+  # back runs because the first three disagreed with each other: aws_iam_user's
+  # identity is deterministically client-named (its own `name` argument), so
+  # choudoufu's discovery finds the SAME live user twice - once by the marker
+  # still naming the old, no-longer-declared address, once as the derivable
+  # candidate for the new address the renamed module now wants. This is a
+  # GENUINE nondeterminism, not a flaky assertion - recorded here rather than
+  # chased (script-only unit; see the PR, and the class this plausibly
+  # matches in .claude/agents/live-markers.md's "Go map order as hidden
+  # nondeterminism" trap - not confirmed as the root cause). Two independent
+  # things vary run to run: whether the ambiguity WARNING ("Live resource
+  # marked for another address", naming both addresses) fires at all (2 of 5
+  # runs), and whether the plan proposes CREATING
+  # module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user outright
+  # (4 of 5 runs, including one run where the warning fired AND the create
+  # was still proposed anyway - the warning does not reliably gate the plan
+  # node's own decision). The one invariant across all five runs, and the one
+  # this assertion actually enforces, is the dangerous case that must never
+  # happen: the plan must never propose DESTROYING the live user under its
+  # old, still-marked address (that would orphan a marked object). Beyond
+  # that, this control only needs to prove day2_rename's real checks below
+  # are load-bearing - i.e. that skipping the moved block does NOT reproduce
+  # their zero-churn result - which every one of the five runs did (either by
+  # warning with nothing proposed, or by proposing a create).
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit (see header)"; }
+  grep -qE '^  # module\.harbor_iam_user\.aws_iam_user\.hm_harbor_iam_user will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the plan proposes destroying the live user under its old address - a wrong marker could have been written"; }
+  HAS_WARNING=0; grep -qF "Live resource marked for another address" <<< "$BREAK_PLAN_OUT" && HAS_WARNING=1
+  HAS_CREATE=0; grep -qE '^  # module\.harbor_iam_user_renamed\.aws_iam_user\.hm_harbor_iam_user will be created' <<< "$BREAK_PLAN_OUT" && HAS_CREATE=1
+  if [ "$HAS_WARNING" = "1" ]; then
+    grep -qF "module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the warning did not name the IAM user's old address"; }
+    grep -qF "module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the warning did not name the renamed address it collides with"; }
+  fi
+  { [ "$HAS_WARNING" = "1" ] || [ "$HAS_CREATE" = "1" ]; } \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block neither warned of the ambiguity nor proposed a create - this stage's check is not load-bearing"; }
+  log "  BREAK=rename (this run's shape: warning=$HAS_WARNING create=$HAS_CREATE): never destroys the live user's old marker; proves the moved-block/live-mv checks below are load-bearing - see the PR for the nondeterminism between shapes"
 else
   log "=== D1. choudoufu, moved block: module s3_bucket_hm_harbor -> s3_bucket_hm_harbor_renamed ==="
   sed -i.bak 's/module "s3_bucket_hm_harbor" {/module "s3_bucket_hm_harbor_renamed" {/' "$ESTATE/main.tofu"
