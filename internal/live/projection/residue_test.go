@@ -716,6 +716,106 @@ func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
 	}
 }
 
+// TestFillResidueDistinguishesAnUnconfirmedStubDefaultFromARealRead is GitHub
+// issue #393, reduced to [fillResidue] alone. aws_db_instance.skip_final_snapshot
+// is Optional, not Computed, and hashicorp/aws's own SDKv2 schema seeds it
+// with an internal Default of `true` - the opposite of the type's zero value,
+// which is what [carriesNoInformation]'s legacy-SDK convention treats as
+// "nothing". [importAndRead]'s ImportResourceState stub answers `true`
+// before any live read runs, and a legacy-SDK ReadResource that never
+// sources the attribute from the remote at all (residueCandidates and
+// classifyResidue's whole reason for existing) leaves that stub value
+// completely alone - so the plan-time read comes back bit-for-bit unchanged
+// from the stub importAndRead fed it, for every instance of the type,
+// regardless of what was actually configured or what a correctly-recorded
+// residue value says.
+//
+// "publish" stands in for skip_final_snapshot here: [lambdaLikeSchema]
+// already declares it Optional and not Computed, exactly the shape a
+// residue candidate needs, and reusing it keeps this test free of a
+// hand-invented schema. Its own real-world SDK default happens to be the
+// zero value, so what "read" and "stub" answer below is overridden per
+// sub-test to model the non-zero-default case directly - the schema never
+// dictates what a fake provider says.
+func TestFillResidueDistinguishesAnUnconfirmedStubDefaultFromARealRead(t *testing.T) {
+	block := lambdaLikeSchema().Block
+	rec := map[string]cty.Value{"publish": cty.False}
+
+	t.Run("stub-seeded and never confirmed by Read: the record wins", func(t *testing.T) {
+		// importAndRead fed the provider "publish: true" as PriorState -
+		// ImportResourceState's own stub, before any live read - and
+		// ReadResource walked it straight through unchanged: the RDS shape
+		// this issue is about.
+		stub := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		read := stub // ReadResource echoed it back bit-for-bit, unconfirmed.
+
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, stub)
+		if n != 1 {
+			t.Fatalf("filled %d attributes, want 1 (publish): a value the provider only ever echoed from the import stub must not outrank a correctly recorded residue value", n)
+		}
+		if got.GetAttr("publish").True() {
+			t.Fatal("publish stayed true: the stub-seeded default outranked the record, exactly the phantom update issue #393 reports (true -> false forever)")
+		}
+	})
+
+	t.Run("mutation check: a genuinely confirmed read must never be overwritten", func(t *testing.T) {
+		// The provider was handed "publish: false" as PriorState this time,
+		// and its Read independently answered "true" anyway - proof this
+		// run's answer came from the provider's own computation and not
+		// from echoing what it was given.
+		stub := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.False,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		read := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, stub)
+		if n != 0 {
+			t.Fatalf("filled %d attributes, want 0: a read that disagrees with its own stub is a real answer, and a residue record must never outrank one", n)
+		}
+		if !got.GetAttr("publish").True() {
+			t.Fatal("a genuinely-read true was overwritten by a residue false - exactly the direction fillResidue's own doc comment says must never happen")
+		}
+	})
+
+	t.Run("no stub available: falls back to the pre-#393 conservative behavior", func(t *testing.T) {
+		read := cty.ObjectVal(map[string]cty.Value{
+			"id":               cty.StringVal("x"),
+			"function_name":    cty.StringVal("x"),
+			"filename":         cty.NullVal(cty.String),
+			"source_code_hash": cty.NullVal(cty.String),
+			"publish":          cty.True,
+			"description":      cty.NullVal(cty.String),
+			"arn":              cty.NullVal(cty.String),
+		})
+		got, n := fillResidue(read, block, rec, strict.DefaultSecrets, cty.NilVal)
+		if n != 0 || !got.GetAttr("publish").True() {
+			t.Fatalf("filled %d attributes with no provenance signal at all; with cty.NilVal for importStub, a non-zero read must stay untouched exactly as it did before this fix", n)
+		}
+	})
+}
+
 // TestResidueStoreRefusesAnotherAddressesRecord pins the key/payload
 // agreement check. Filling one instance's prior state from another's
 // arguments would produce an EMPTY plan that is wrong, which no
