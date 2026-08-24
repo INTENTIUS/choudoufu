@@ -74,7 +74,7 @@ Oracle: Stock `plan` after the same mutation, with marker tags normalised out of
 
 Break: Mutate a second object as well; the single-object assertion must fail.
 
-### 6. Rename (`day2_rename`, planned)
+### 6. Rename (`day2_rename`, active)
 
 Proves: Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.
 

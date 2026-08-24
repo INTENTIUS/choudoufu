@@ -10,7 +10,7 @@ Source: <https://github.com/datacite/mastino.git> at `4d8c1f1bebd91e73195017ce44
 
 Set: growing. Lane: published-deployment.
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -19,7 +19,7 @@ Set: growing. Lane: published-deployment.
 | Replan from nothing | pass | plan empty across 63 instances, no state file; 14 record sets and 4 zones filled residue from the store |
 | No-op apply | pass | genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 14 residue records intact |
 | Drift and reconverge | pass | one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact |
-| Rename (planned) | not run |  |
+| Rename | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
