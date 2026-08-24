@@ -291,6 +291,7 @@ PLAIN_ORACLE="$PLAIN_ORACLE_ROOT/autoscaling/examples/complete"
 sed -i.bak 's/module "asg_sg" {/module "asg_sg_renamed" {/' "$PLAIN_ORACLE/main.tf"
 sed -i.bak 's/module\.asg_sg\./module.asg_sg_renamed./g' "$PLAIN_ORACLE/main.tf"
 sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$PLAIN_ORACLE/main.tf"
+sed -i.bak 's/aws_sqs_queue\.this\.name/aws_sqs_queue.this_renamed.name/' "$PLAIN_ORACLE/main.tf"
 rm -f "$PLAIN_ORACLE/main.tf.bak"
 cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
 
@@ -633,6 +634,7 @@ log "  $ASG_SG_ID (module.asg_sg), $SQS_ARN (aws_sqs_queue.this)"
 if [ "${BREAK:-}" = "1" ]; then
   log "=== D1 (BREAK=1). rename aws_sqs_queue.this -> .this_renamed WITHOUT a moved block ==="
   sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_sqs_queue\.this\.name/aws_sqs_queue.this_renamed.name/' "$ADOPTED/main.tf"
   rm -f "$ADOPTED/main.tf.bak"
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
@@ -683,6 +685,7 @@ EOF
 
   log "=== D2. choudoufu, live-mv: aws_sqs_queue.this -> .this_renamed, no moved block at all ==="
   sed -i.bak 's/resource "aws_sqs_queue" "this" {/resource "aws_sqs_queue" "this_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_sqs_queue\.this\.name/aws_sqs_queue.this_renamed.name/' "$ADOPTED/main.tf"
   rm -f "$ADOPTED/main.tf.bak"
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }

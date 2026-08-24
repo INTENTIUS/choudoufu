@@ -756,9 +756,9 @@ EOF
   VPC_ID_D_AFTER="$(awsl ec2 describe-vpcs --vpc-ids "$VPC_ID_D" --query "Vpcs[0].VpcId" --output text 2>/dev/null || true)"
   [ "$VPC_ID_D_AFTER" = "$VPC_ID_D" ] || fail "the vpc's id changed across the rename ($VPC_ID_D -> $VPC_ID_D_AFTER) - it was destroyed and recreated, not renamed"
   VPC_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-  [ "$VPC_ADDR_D_AFTER" = "module.vpc_renamed.aws_vpc.this[0]" ] \
-    || fail "the vpc carries tofu-address=$VPC_ADDR_D_AFTER after the rename, not module.vpc_renamed.aws_vpc.this[0]"
-  log "  $VPC_ID_D unchanged, tofu-address now module.vpc_renamed.aws_vpc.this[0] - read via the AWS CLI"
+  [ "$VPC_ADDR_D_AFTER" = "module.vpc_renamed.aws_vpc.this:0" ] \
+    || fail "the vpc carries tofu-address=$VPC_ADDR_D_AFTER after the rename, not module.vpc_renamed.aws_vpc.this:0"
+  log "  $VPC_ID_D unchanged, tofu-address now module.vpc_renamed.aws_vpc.this:0 - read via the AWS CLI"
 
   log "=== D2. choudoufu, live-mv: module.security_group -> module.security_group_renamed, no moved block at all ==="
   sed -i.bak 's/module "security_group" {/module "security_group_renamed" {/' "$EST/main.tf"
@@ -777,9 +777,9 @@ EOF
   SG_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SG_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
   [ "$SG_ID_D_AFTER" = "$SG_ID_D" ] || fail "the security group's id changed across live-mv ($SG_ID_D -> $SG_ID_D_AFTER) - it was destroyed and recreated, not renamed"
   SG_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-  [ "$SG_ADDR_D_AFTER" = "module.security_group_renamed.aws_security_group.this_name_prefix[0]" ] \
-    || fail "the security group carries tofu-address=$SG_ADDR_D_AFTER after live-mv, not module.security_group_renamed.aws_security_group.this_name_prefix[0]"
-  log "  $SG_ID_D unchanged, tofu-address now module.security_group_renamed.aws_security_group.this_name_prefix[0] - read via the AWS CLI"
+  [ "$SG_ADDR_D_AFTER" = "module.security_group_renamed.aws_security_group.this_name_prefix:0" ] \
+    || fail "the security group carries tofu-address=$SG_ADDR_D_AFTER after live-mv, not module.security_group_renamed.aws_security_group.this_name_prefix:0"
+  log "  $SG_ID_D unchanged, tofu-address now module.security_group_renamed.aws_security_group.this_name_prefix:0 - read via the AWS CLI"
 
   log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
   FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
