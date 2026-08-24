@@ -113,6 +113,25 @@ set -uo pipefail
 # assertions are proven load-bearing rather than a grep that always
 # matches.
 #
+# day2_rename's own BREAK=1 arm (D1, below - rename without a moved block)
+# is never reached by an ordinary BREAK=1 run: stage 2's own control fires
+# first and `fail` exits there, the same limitation corpus-eks-basic's
+# header documents for its own day2_rename. Verified load-bearing directly
+# instead, with stage 2's control temporarily neutered in a scratch copy:
+# BREAK=1 does NOT come back as a clean destroy + create the way
+# corpus-eks-basic's security group does. aws_iam_role's identity is
+# deterministically client-named (its own `name` argument), so renaming the
+# module without a moved block makes choudoufu's discovery find the SAME
+# live role twice - once by the marker still naming the old, no-longer-
+# declared address, once as the derivable candidate for the new address the
+# renamed module now wants - and it refuses outright ("Two live resources
+# claiming one address") rather than guess which reading is right. That is
+# the stricter, correct response HANDOFF.md's safety rule names ("a wrong
+# marker outranks a missing one"): D1's BREAK=1 arm asserts this refusal,
+# not the literal destroy-and-create the stage's own Break text describes,
+# because that is what this specific, client-named-identity resource
+# actually does.
+#
 #   bash live/e2e/corpus-hongbomiao-labelbox/run.sh
 #
 # Needs Docker, the AWS CLI, and the real `tofu` binary on PATH for stage
@@ -613,13 +632,29 @@ if [ "${BREAK:-}" = "1" ]; then
   log "=== D1 (BREAK=1). rename module labelbox_iam_role -> labelbox_iam_role_renamed WITHOUT a moved block ==="
   sed -i.bak 's/module "labelbox_iam_role" {/module "labelbox_iam_role_renamed" {/' "$ESTATE/main.tofu"
   rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=1 rename's reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
-  grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role\.labelbox_iam_role will be destroyed' <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying the IAM role - this stage's check is not load-bearing"; }
-  grep -qE '^  # module\.labelbox_iam_role_renamed\.aws_iam_role\.labelbox_iam_role will be created' <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating the renamed role - this stage's check is not load-bearing"; }
-  log "  BREAK=1: correctly proposes destroying the old role and creating the renamed one - the moved-block and live-mv checks below are skipped"
+  # Verified directly (isolated BREAK=1 run, stage 2's own earlier control
+  # neutered so day2_rename's arm is actually reached - see header): for
+  # THIS resource, an unmoved rename does not come back as a clean destroy
+  # + create the way corpus-eks-basic's security group does. aws_iam_role's
+  # identity is deterministically client-named (its own `name` argument),
+  # so choudoufu's discovery finds the SAME live role twice - once by the
+  # marker still naming the old, no-longer-declared address, once as the
+  # derivable candidate for the new address the renamed module now wants -
+  # and refuses outright ("Two live resources claiming one address") rather
+  # than guess which reading is right. That is the stricter, correct
+  # response the safety rule in HANDOFF.md names ("a wrong marker outranks
+  # a missing one"): a plan is never produced, so there is no wrong destroy
+  # or wrong create to make. The plan/apply RC IS still expected non-zero.
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block planned cleanly (exit 0) - expected a refusal (see header)"; }
+  grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
+  grep -qF "module.labelbox_iam_role.aws_iam_role.labelbox_iam_role" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: the refusal did not name the IAM role's old address"; }
+  log "  BREAK=1: correctly refuses (two live resources claiming module.labelbox_iam_role.aws_iam_role.labelbox_iam_role - the marker's old address and the renamed module's client-derivable identity resolve to the same live role) - the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module amazon_s3_bucket_hm_labelbox -> amazon_s3_bucket_hm_labelbox_renamed ==="
   sed -i.bak 's/module "amazon_s3_bucket_hm_labelbox" {/module "amazon_s3_bucket_hm_labelbox_renamed" {/' "$ESTATE/main.tofu"
@@ -633,6 +668,11 @@ moved {
   to   = module.amazon_s3_bucket_hm_labelbox_renamed
 }
 EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
   grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
@@ -658,6 +698,8 @@ EOF
   log "=== D2. choudoufu, live-mv: module labelbox_iam_role -> labelbox_iam_role_renamed, no moved block at all ==="
   sed -i.bak 's/module "labelbox_iam_role" {/module "labelbox_iam_role_renamed" {/' "$ESTATE/main.tofu"
   rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
   MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.labelbox_iam_role.aws_iam_role.labelbox_iam_role module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
