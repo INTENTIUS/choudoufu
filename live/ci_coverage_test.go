@@ -71,7 +71,20 @@ var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd", "site"}
 // fork-authored functions in it, which is internal/command's situation
 // exactly. 0.5 seconds, and the alternative is a fix nothing can catch
 // regressing.
-var forkOwnedMixedRoots = []string{"internal/command", "internal/engine/applying"}
+//
+// internal/tofu is the third, found by an adversarial audit on 2026-08-23:
+// resource_identity.go and its 713-line resource_identity_test.go - the
+// tests proving no-Importer stub synthesis is safe - sat in the engine's
+// core package, itself upstream's, with no root here or in the workflow
+// naming it. Same shape as #164 and #171: a directory-level check guarding
+// a fork whose unit is the file. internal/tofu has no subpackages of its
+// own (only testdata/, which every walk here already skips), so unlike
+// internal/command there is no upstream subtree to avoid dragging in;
+// walking it is walking exactly what the fork touched plus what it did not.
+// Measured, the whole package is 5-6s of test time (~12s wall including
+// build), so it runs unshallowed like the fork-owned roots rather than
+// one-level-deep like internal/command.
+var forkOwnedMixedRoots = []string{"internal/command", "internal/engine/applying", "internal/tofu"}
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a
