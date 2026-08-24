@@ -13,12 +13,10 @@ import (
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
-	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
@@ -662,52 +660,6 @@ func (s *RecordStore) GetResidue(ctx context.Context, addr addrs.AbsResourceInst
 		out[name] = val
 	}
 	return out, version, true, true, nil
-}
-
-// GetObject reads addr's persisted whole-object record - GitHub issue #73's
-// record-backed instances, kind=object - and decodes it against schema:
-// the same value [builder.materializeRecord] hydrates a projection's prior
-// state with, minus the state-graph bookkeeping (dependencies, an
-// EnsureModule entry) a caller with no projection in progress has no use
-// for. keyExists and objectFound carry [RecordStore.GetIdentity]'s and
-// [RecordStore.GetResidue]'s own distinction: keyExists is true whenever
-// the physical key exists at all, objectFound only when it decodes to a
-// usable object under the given schema.
-//
-// This is the door GitHub issue #391's identity-resolution bootstrap uses
-// ([statelessResolveRecordBacked] in internal/command/live_plan.go): a
-// SIBLING resource's own identity formula may name a record-backed
-// instance's value before any projection exists to read it from, and this
-// reads exactly that value, offline, with no provider and no plan.
-func (s *RecordStore) GetObject(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) (val cty.Value, version string, keyExists bool, objectFound bool, err error) {
-	env, version, exists, err := s.getRaw(ctx, addr)
-	if err != nil {
-		return cty.NilVal, "", false, false, err
-	}
-	if !exists || env.Object == nil {
-		return cty.NilVal, version, exists, false, nil
-	}
-	raw, _, _, err := decodeObjectValue(env.Object)
-	if err != nil {
-		return cty.NilVal, "", false, false, fmt.Errorf("the persisted record for %s could not be read: %w", addr, err)
-	}
-	// Same unmark-convert-remark order [builder.materializeRecord] uses:
-	// the record's own sensitivity comes off before the schema conversion
-	// and goes back on after it, and the schema's own sensitivity is
-	// layered on top of that - a record written before a provider marked
-	// an attribute sensitive must still come back marked today.
-	unmarkedVal, sensitive := raw.UnmarkDeepWithPaths()
-	converted, err := convert.Convert(unmarkedVal, schema.Block.ImpliedType())
-	if err != nil {
-		return cty.NilVal, "", false, false, fmt.Errorf(
-			"the persisted record for %s does not fit %s's current schema: %w", addr, addr.Resource.Resource.Type, err,
-		)
-	}
-	if len(sensitive) > 0 {
-		converted = converted.MarkWithPaths(sensitive)
-	}
-	converted = markSchemaSensitive(converted, schema.Block)
-	return converted, version, true, true, nil
 }
 
 // getProvisioned reads addr's Provisioned member - GitHub issue #353's one

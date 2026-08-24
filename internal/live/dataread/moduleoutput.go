@@ -94,10 +94,44 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 						recordManagedRefusal(refused)
 					}
 				}
-				return cty.NilVal, false
+				// A DynamicVal placeholder here, not a whole-call refusal:
+				// this doc comment's own words above ("refuses only that
+				// call") describe the intent this line now actually
+				// carries out. module.eks.cluster_id and
+				// module.eks.workers_asg_arns are two entirely different
+				// attributes of the same returned object; a caller naming
+				// cluster_id never touches workers_asg_arns's own value at
+				// all, so workers_asg_arns being unanswerable today (it
+				// needs a live attribute of an autoscaling group marker
+				// discovery has not swept yet) must not be why cluster_id
+				// itself - answerable on its own - refuses too. Before this
+				// line, a single unanswerable output among a module's whole
+				// set (terraform-aws-eks's own module ships 27) poisoned
+				// every other output's own, independently answerable value,
+				// non-deterministically depending on Go's own map
+				// iteration order over child.Module.Outputs deciding which
+				// output's failure was hit first. A whole-object USE still
+				// refuses correctly: [cty.ObjectVal]'s attribute carries no
+				// mark of its own, but see unprojectedAttr's identical
+				// reasoning in managedproj.go - this file's own
+				// [staticEvalExprRefused] call three lines below already
+				// treats an object containing any DynamicVal as not wholly
+				// known, so jsonencode(module.eks) or a splat over this
+				// object still refuses exactly as before; only naming ONE
+				// answerable attribute changes.
+				attrs[name] = cty.DynamicVal
+				continue
 			}
 			if val.IsNull() || val.ContainsMarked() {
-				return cty.NilVal, false
+				// Same reasoning as the refusal above: a null or marked
+				// SIBLING output must not block cluster_id's own value.
+				// cty.DynamicVal carries no mark itself, so nothing here
+				// can leak a mark forward - the mark simply never crosses,
+				// which is the safe direction (see HANDOFF's "never
+				// Unmark" rule: this substitutes an unknown, never the
+				// marked value itself).
+				attrs[name] = cty.DynamicVal
+				continue
 			}
 			// materialize mirrors managedProjector.argument's own rule
 			// exactly: offline classification needs COVERAGE, not a value,
@@ -115,7 +149,12 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 				continue
 			}
 			if !val.IsWhollyKnown() {
-				return cty.NilVal, false
+				// Same reasoning again: an unknown SIBLING output's value
+				// - one this read pass could not fully materialize - must
+				// not cost every OTHER, already-known output its own
+				// value.
+				attrs[name] = cty.DynamicVal
+				continue
 			}
 			attrs[name] = val
 		}

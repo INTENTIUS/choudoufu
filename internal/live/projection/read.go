@@ -143,10 +143,28 @@ func ReadInstances(ctx context.Context, cfg *configs.Config, resolutions []ident
 		), "its identity formula is part of a cycle and can never be rendered.")
 	}
 	// A record-backed instance (issue #73) has no cloud object at all: its
-	// prior state comes from the record store, which this phase deliberately
-	// does not open. Reading one would mean deciding what a half-read record
-	// means to an identity, which is a separate question from this one.
+	// prior state comes from the record store, not the cloud, so this reads
+	// it from there instead of omitting it - but only when the caller
+	// actually opted in by supplying opts.RecordStore, which keeps every
+	// existing caller (all of them pass a zero Options today) byte-
+	// identical. This is what closes issue #391's own shape: a PARENT_
+	// DERIVED formula that names a record-backed parent - the corpus-eks-
+	// basic estate's aws_eks_cluster.this[0], whose name formula names
+	// random_string.suffix - is in the "derived" bucket below, not this
+	// one, and [builder.renderFormula] needs its parent's value already in
+	// b.live to render it; without this, that parent is exactly the "half-
+	// read record" this omission used to defer on, forever, because
+	// nothing else in this function ever revisits it. materializeRecord is
+	// the same hydration [builder.run]'s own applyRecordFirst pass already
+	// uses for a full [Build] - the "half-read" concern this omission's
+	// prior wording raised does not apply to a record-backed instance
+	// specifically, because its value IS the whole answer; there is no
+	// live object for a record to be a partial read OF.
 	for _, r := range recordBacked {
+		if opts.RecordStore != nil {
+			b.materializeRecord(ctx, r.Addr, r.Undeclared)
+			continue
+		}
 		b.omit(r.Addr, ReasonUnreadable, fmt.Sprintf(
 			"%s is a record-backed effect, whose prior state lives in this estate's record store rather than in the cloud, so there is no live object to read its attributes from.", r.Addr,
 		), "it is record-backed and has no live object to read.")
