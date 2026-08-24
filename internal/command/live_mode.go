@@ -839,7 +839,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// declared_tagged = "untag"'s released keys, worked out from the
 	// projection's own policy outcomes now that it has run.
 	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
-	stampRes, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag)
+	recordBackedBlocks, recordBlocksDiags := recordBackedNeedsDiscoveryBlocks(ctx, recordShrinkStore, resolutions.NeedsDiscovery())
+	diags = diags.Append(recordBlocksDiags)
+	if recordBlocksDiags.HasErrors() {
+		return nil, diags
+	}
+	stampRes, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag, recordBackedBlocks)
 	diags = diags.Append(stampDiags)
 	if stampDiags.HasErrors() {
 		return nil, diags

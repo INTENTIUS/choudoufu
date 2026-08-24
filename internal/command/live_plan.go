@@ -630,7 +630,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// declared_tagged = "untag"'s released keys, worked out from the
 	// projection's own policy outcomes now that it has run.
 	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(pol))
-	stampRes, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag)
+	recordBackedBlocks, recordBlocksDiags := recordBackedNeedsDiscoveryBlocks(ctx, recordShrinkStore, resolutions.NeedsDiscovery())
+	diags = diags.Append(recordBlocksDiags)
+	if recordBlocksDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+	stampRes, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag, recordBackedBlocks)
 	diags = diags.Append(stampDiags)
 	if stampDiags.HasErrors() {
 		return 1, false, diags
@@ -747,6 +753,46 @@ func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projec
 				out = make(map[string]bool)
 			}
 			out[r.Addr.String()] = true
+		}
+	}
+	return out, diags
+}
+
+// recordBackedNeedsDiscoveryBlocks reduces
+// [statelessRecordBackedNeedsDiscoveryAddrs]'s own per-INSTANCE record
+// check to block granularity, for [statelessStampGaps]' escalation gate:
+// [stamp.Skip.Addr] and [identity.BlockDiscovery] are both keyed by
+// [addrs.ConfigResource] (the resource block, module-qualified, with no
+// instance key), never by the instance a record is written for. A block is
+// exempt from "this resource cannot be found again" only when EVERY one of
+// its instances that needs discovery already has a usable identity in the
+// record store - a for_each block half migrated, some instances recorded
+// and others not, still has to escalate for the ones that are not.
+//
+// store is nil under the same two conditions
+// [statelessRecordBackedNeedsDiscoveryAddrs] documents (no record store
+// opened, or the migration flag off), and this returns (nil, nil)
+// immediately in that case, which is what keeps a flag-off run's stamp-gap
+// diagnostics byte-identical: a nil map's lookup is always false, so
+// [statelessStampGaps] escalates exactly as it did before this existed.
+func recordBackedNeedsDiscoveryBlocks(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) (map[string]bool, tfdiags.Diagnostics) {
+	recordBacked, diags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
+	if store == nil || len(needs) == 0 {
+		return nil, diags
+	}
+	total := make(map[string]int, len(needs))
+	covered := make(map[string]int, len(needs))
+	for _, r := range needs {
+		key := r.Addr.ConfigResource().String()
+		total[key]++
+		if recordBacked[r.Addr.String()] {
+			covered[key]++
+		}
+	}
+	out := make(map[string]bool, len(total))
+	for key, n := range total {
+		if covered[key] == n {
+			out[key] = true
 		}
 	}
 	return out, diags
@@ -1345,7 +1391,11 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 // run stamped, and what it did not, is the record of whether the estate's
 // ownership is intact after this plan, and a caller that cannot see it cannot
 // check anything about it (audit finding C2).
-func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]identity.BlockDiscovery, policyUntag map[string]string) (*stamp.Result, tfdiags.Diagnostics) {
+//
+// recordBackedBlocks is [recordBackedNeedsDiscoveryBlocks]'s result, or nil
+// for a flag-off run - see that function's own doc comment for what it
+// means and why [statelessStampGaps] is where it has to apply.
+func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]identity.BlockDiscovery, policyUntag map[string]string, recordBackedBlocks map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
 	if diags.HasErrors() {
 		return nil, diags
@@ -1384,15 +1434,16 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 	}
 
 	res, stampDiags := stamp.Stamp(ctx, stamp.Request{
-		Estate:         estate,
-		Config:         config,
-		Schemas:        schemas,
-		Slots:          slotTable,
-		NeedsDiscovery: needsDiscovery,
-		PolicyUntag:    policyUntag,
+		Estate:             estate,
+		Config:             config,
+		Schemas:            schemas,
+		Slots:              slotTable,
+		NeedsDiscovery:     needsDiscovery,
+		PolicyUntag:        policyUntag,
+		RecordBackedBlocks: recordBackedBlocks,
 	})
 	diags = diags.Append(stampDiags)
-	return res, diags.Append(statelessStampGaps(res, needsDiscovery))
+	return res, diags.Append(statelessStampGaps(res, needsDiscovery, recordBackedBlocks))
 }
 
 // statelessStampGaps re-checks the stamping pass's own report against the
@@ -1405,7 +1456,19 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 // skipped all the way into the cloud (audit finding C2). One reader of the
 // report, checking the one property that matters, is what makes that
 // impossible to reintroduce quietly.
-func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.BlockDiscovery) tfdiags.Diagnostics {
+//
+// recordBackedBlocks is [recordBackedNeedsDiscoveryBlocks]'s result: a
+// block this run would otherwise escalate, but whose every needs-discovery
+// instance already has a usable identity in the estate's record store
+// (GitHub issue #364's write half - liveimport and write-back record an
+// untaggable instance's identity the same way a taggable one's marker
+// covers it). Such a block is not "lost to every future run" the way this
+// function's whole warning describes: the record is exactly the other way
+// to find it again, so escalating on top of it would refuse an estate
+// #364 already made safe. nil for a flag-off run - see that function's own
+// doc comment for why, and why this stays a no-op (a nil map's lookup is
+// always false) whenever it is.
+func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.BlockDiscovery, recordBackedBlocks map[string]bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if res == nil || len(needsDiscovery) == 0 {
 		return diags
@@ -1461,7 +1524,7 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.Bl
 		// this reader had silently regressed the same population it exists
 		// to protect.
 		disco, marked := needsDiscovery[skip.Addr.String()]
-		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked || disco.Cause.BindsByName() {
+		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked || disco.Cause.BindsByName() || recordBackedBlocks[skip.Addr.String()] {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(
