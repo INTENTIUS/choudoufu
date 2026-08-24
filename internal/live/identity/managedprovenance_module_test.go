@@ -499,3 +499,59 @@ func TestNestedForScopePerElementProvenance(t *testing.T) {
 		t.Errorf(`module.alb.aws_lb_listener_certificate.this["plain/0"] exists; the "plain" listener declares no additional_certificate_arns, so the length(lookup(...)) > 0 filter must exclude it entirely`)
 	}
 }
+
+// TestNestedForScopeKnownValidationRendersIdentityByValue is the by-value
+// half of the same fixture, and the negative control that keeps #397's two
+// fixes a RULE rather than a licence to resolve something.
+//
+// Once module.wildcard_cert's own validation resource has resolved (its
+// certificate_arn is a known ARN) while Cognito's pool ARN has not,
+// module.alb.aws_lb_listener_certificate.this["https/0"] must render a
+// CONCRETE identity built from ITS OWN listener's certificate - asserted
+// here as the exact string that becomes the import ID and the marker - and
+// the "cognito/0" sibling, whose own ARN is still unknown, must not.
+//
+// It does NOT require #397's two fixes to pass: with the validation ARN
+// known, the whole for_each expression evaluates and the structural chase is
+// never reached, which is exactly why this belongs here as a control. What
+// it catches is the other direction - a chase that answers from the WRONG
+// element. Making elemVarSource select nothing (pass nil instead of the
+// traversal steps, so the whole listener object stands in for its
+// certificate list) fails this test with invented instance keys
+// "https/certificate_arn" and "cognito/certificate_arn" colliding on one
+// identity, which is precisely the wrong-marker shape the value assertion
+// exists to catch. Both of the sibling test's own assertions fail under the
+// same mutation.
+func TestNestedForScopeKnownValidationRendersIdentityByValue(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "nested-for-scope-per-element"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: moduleBlindCrosstalkManagedResults(false, true),
+		Schemas:        moduleBlindCrosstalkSchemas(),
+	})
+	if result == nil {
+		t.Fatalf("resolution produced no result at all: %s", renderDiags(diags))
+	}
+
+	addr := mustAddr(t, `module.alb.aws_lb_listener_certificate.this["https/0"]`)
+	res, ok := result.Get(addr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", addr, renderDiags(diags))
+	}
+	if res.Class != ClassConcrete {
+		t.Fatalf("%s resolved %s (cause %s, args %v, reason %q), want CONCRETE - its own certificate_arn is a known value",
+			addr, res.Class, res.Cause, res.CauseArgs, res.Reason)
+	}
+	want := "arn:aws:elasticloadbalancing:us-east-1:1:listener/app/x/1/2_arn:aws:acm:us-east-1:1:certificate/real-wildcard-cert"
+	if res.ImportID != want {
+		t.Errorf("%s: ImportID %q, want %q", addr, res.ImportID, want)
+	}
+
+	// The sibling reads a resource this run has NOT resolved, so it must not
+	// come back concrete off the neighbour's known value.
+	cognitoAddr := mustAddr(t, `module.alb.aws_lb_listener_certificate.this["cognito/0"]`)
+	if cognitoRes, ok := result.Get(cognitoAddr); ok && cognitoRes.Class == ClassConcrete {
+		t.Errorf("%s resolved CONCRETE with ImportID %q; aws_cognito_user_pool.this.arn is unknown in this run, so this instance's certificate_arn cannot be known - the sibling's value leaked",
+			cognitoAddr, cognitoRes.ImportID)
+	}
+}

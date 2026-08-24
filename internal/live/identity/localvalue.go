@@ -453,6 +453,18 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 		}
 	}
 
+	// A collection reached through an enclosing for-comprehension's own
+	// value variable - the binding [instScope.exprVars] carries and nothing
+	// on this side used to be able to see. See [resolver.elemVarSource].
+	if leaf, leafScope, leafMod, ok := r.elemVarSource(expr, scope, ident); ok {
+		savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+		if !r.enterModuleFor(leafMod) {
+			return nil, nil, false
+		}
+		defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+		return r.staticCollElems(leaf, ident, depth+1, tupleIsArgs, leafScope)
+	}
+
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
 		names, itemElems, ok := r.objectConsElems(obj, ident, scope)
 		if !ok {
@@ -604,6 +616,171 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	}
 
 	return nil, nil, false
+}
+
+// elemVarSource answers "what collection does this expression denote, when
+// the only thing standing between it and a literal is a for-comprehension's
+// own value variable that never proved a value".
+//
+// It is the collection-side counterpart of [resolver.exprVarPart], which
+// already answers the same question for an identity ARGUMENT: a name in
+// [instScope.exprVars] is bound to the SOURCE element's own expression, and a
+// reference to it is answered by selecting into that expression rather than
+// by evaluating a value. Until #397 nothing asked the question on the
+// collection side, because the chase only ever walked chains of separate
+// local/var names, where an enclosing loop variable cannot occur.
+//
+// terraform-aws-modules/terraform-aws-alb's own local.additional_certs is
+// where it does occur (main.tf:456-473): the outer comprehension's per-listener
+// value clause is ITSELF a comprehension, and what it ranges over is
+//
+//	lookup(listener_values, "additional_certificate_arns", [])
+//
+// - the OUTER comprehension's value variable, which never proves a value
+// because one listener's list holds a module output and another's holds an
+// unapplied resource attribute.
+//
+// Three spellings, all of them ones this file already treats as one family
+// on the each.value side ([resolver.eachValueSelector],
+// [resolver.lookupOrTryDefaultOverVar]):
+//
+//	v            v.attr            v["attr"]
+//	lookup(v, "attr", default)
+//	try(v.attr, default)
+//
+// The answer is an EXPRESSION plus where to read it, never a value:
+// [resolver.selectStaticExpr] hands back the leaf a present key was written
+// with, in the element's own scope and module instance - most often the
+// caller across a module-call boundary, which is why the module is entered
+// before the selection and the caller is told which one to enter for the
+// recursion. Where the key is provably ABSENT ([resolver.objectLacksKey],
+// the same absence proof the filter clause already relies on), the answer is
+// the lookup()/try() DEFAULT instead, read in the current module, because
+// that is where it was written.
+//
+// A key that is neither provably present nor provably absent declines, and
+// the caller is left with exactly the refusal it already had.
+func (r *resolver) elemVarSource(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (hcl.Expression, instScope, addrs.ModuleInstance, bool) {
+	if len(scope.exprVars) == 0 {
+		return nil, instScope{}, nil, false
+	}
+
+	// v, v.attr, v["attr"] - the whole expression is the selection.
+	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) > 0 {
+		b, bound := scope.exprVars[trav.RootName()]
+		if !bound {
+			return nil, instScope{}, nil, false
+		}
+		leaf, ok := r.selectFromElemExpr(b, trav[1:], ident)
+		if !ok {
+			return nil, instScope{}, nil, false
+		}
+		return leaf, b.scope, b.modInst, true
+	}
+
+	root, steps, key, defaultExpr, ok := r.elemVarLookupOrTry(expr, ident)
+	if !ok {
+		return nil, instScope{}, nil, false
+	}
+	b, bound := scope.exprVars[root]
+	if !bound || b == nil || b.expr == nil {
+		return nil, instScope{}, nil, false
+	}
+	if leaf, ok := r.selectFromElemExpr(b, steps, ident); ok {
+		return leaf, b.scope, b.modInst, true
+	}
+	if !r.elemLacksKey(b, key, ident) {
+		return nil, instScope{}, nil, false
+	}
+	// The default is written HERE, beside the lookup(), not inside the
+	// element - so it is read in the caller's own scope and module, which is
+	// the one already current.
+	return defaultExpr, scope, r.modInst, true
+}
+
+// elemVarLookupOrTry reads lookup(v, "key", default) and try(v.key, default)
+// into the four pieces [resolver.elemVarSource] needs: the value variable's
+// name, the traversal steps to apply to its element, the attribute name to
+// prove absent if those steps do not land, and the default to fall back to.
+//
+// It is [resolver.lookupOrTryDefaultOverVar] with the variable's name read
+// OUT of the expression rather than checked against one supplied by the
+// caller - the filter clause knows whose value variable it is looking at,
+// and a collection source does not.
+func (r *resolver) elemVarLookupOrTry(expr hcl.Expression, ident configs.StaticIdentifier) (root string, steps []hcl.Traverser, key string, defaultExpr hclsyntax.Expression, ok bool) {
+	call, isCall := expr.(*hclsyntax.FunctionCallExpr)
+	if !isCall || call.ExpandFinal {
+		return "", nil, "", nil, false
+	}
+	switch call.Name {
+	case "lookup":
+		if len(call.Args) != 3 {
+			return "", nil, "", nil, false
+		}
+		trav, diags := hcl.AbsTraversalForExpr(call.Args[0])
+		if diags.HasErrors() || len(trav) != 1 {
+			return "", nil, "", nil, false
+		}
+		kv, kdiags := r.evalPure(call.Args[1], instScope{}, ident)
+		if kdiags.HasErrors() {
+			return "", nil, "", nil, false
+		}
+		ks, err := convert.Convert(kv, cty.String)
+		// IsMarked before AsString, which panics rather than errors on a
+		// marked value - the same guard every key read in this file carries.
+		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
+			return "", nil, "", nil, false
+		}
+		name := ks.AsString()
+		return trav.RootName(), []hcl.Traverser{hcl.TraverseAttr{Name: name}}, name, call.Args[2], true
+
+	case "try":
+		if len(call.Args) != 2 {
+			return "", nil, "", nil, false
+		}
+		trav, diags := hcl.AbsTraversalForExpr(call.Args[0])
+		if diags.HasErrors() || len(trav) != 2 {
+			return "", nil, "", nil, false
+		}
+		attr, isAttr := trav[1].(hcl.TraverseAttr)
+		if !isAttr {
+			return "", nil, "", nil, false
+		}
+		return trav.RootName(), trav[1:], attr.Name, call.Args[1], true
+	}
+	return "", nil, "", nil, false
+}
+
+// selectFromElemExpr is [resolver.selectStaticExpr] performed inside the
+// module the element's expression was WRITTEN in, which is the same
+// re-entry [resolver.exprVarPart] and [resolver.eachValueDeferredParts]
+// already do before touching an element binding, and for the same reason:
+// a module call named inside that expression has to be looked up among its
+// own module's children.
+func (r *resolver) selectFromElemExpr(b *elemBinding, rest []hcl.Traverser, ident configs.StaticIdentifier) (hcl.Expression, bool) {
+	if b == nil || b.expr == nil {
+		return nil, false
+	}
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(b.modInst) {
+		return nil, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+	return r.selectStaticExpr(b.expr, rest, b.scope, ident, 0)
+}
+
+// elemLacksKey is [resolver.objectLacksKey] performed in the element's own
+// module, for the same reason [resolver.selectFromElemExpr] enters it.
+func (r *resolver) elemLacksKey(b *elemBinding, name string, ident configs.StaticIdentifier) bool {
+	if b == nil || b.expr == nil {
+		return false
+	}
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(b.modInst) {
+		return false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+	return r.objectLacksKey(b.expr, b.scope, name, ident, 0)
 }
 
 // elementExprBindings is #354's collector: the element EXPRESSIONS of a
@@ -1179,7 +1356,143 @@ func (r *resolver) forCondIncludes(cond hclsyntax.Expression, scope instScope, i
 	return b.True(), true
 }
 
-// forCondIncludesTolerant is [resolver.forCondIncludes] widened for the
+// forCondIncludesTolerant decides a for-comprehension's "if" clause for one
+// element when [resolver.forCondIncludes] cannot, and is the only entry
+// [resolver.forExprElems] uses.
+//
+// Two routes, in order, and the order is what keeps every answer this
+// package already gives byte-identical:
+//
+//   - [resolver.forCondIncludesShaped], the recognized value-free SHAPES -
+//     lookup(v, "k", d) / try(v.k, d) as the whole condition, composed
+//     through !, && and || by three-valued logic. Unchanged.
+//   - [resolver.forCondFromRebuiltElem], which decides any OTHER condition
+//     whose answer follows from the STRUCTURE of the element the caller
+//     wrote, whatever functions and operators sit between the two.
+//
+// #397 is what forced the second: terraform-aws-modules/terraform-aws-alb's
+// own local.additional_certs filters with
+//
+//	if length(lookup(listener_values, "additional_certificate_arns", [])) > 0
+//
+// which is a recognized value-free predicate wearing a length() and a
+// comparison. Enumerating that spelling - and then length() == 0, and >= 2,
+// and the coalesce()/compact() variants the same corpus writes elsewhere -
+// is a list that never closes and derives nothing. The rule underneath it
+// does derive: the LENGTH of a collection whose SHAPE the caller wrote out
+// is knowable even when none of its contents are, and so is everything else
+// that reads only structure.
+func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar string, elem elemBinding, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
+	if include, ok := r.forCondIncludesShaped(cond, valVar, elem, scope, ident); ok {
+		return include, true
+	}
+	return r.forCondFromRebuiltElem(cond, valVar, elem, scope, ident)
+}
+
+// forCondFromRebuiltElem decides a filter clause by binding the
+// comprehension's value variable to the element's own literal SKELETON -
+// exactly what the caller wrote, with an unknown standing in for each leaf
+// the static scope refused - and then evaluating the condition normally.
+//
+// This is [resolver.chosenBranch]'s argument applied one clause over, and the
+// safety case is the same one word for word: [rebuildConstructor] substitutes
+// an unknown for a refused leaf and NOTHING else, so a condition that depends
+// on such a leaf evaluates to an unknown and is refused by
+// [resolver.forCondIncludes]'s own IsKnown guard, while a condition that
+// depends only on the structure the author wrote evaluates to that structure
+// and is correct. Nothing here can answer TRUE on a filter whose real answer
+// is FALSE, which is the only direction that could invent an instance key.
+//
+// Worked through on #397's own clause,
+// `length(lookup(v, "additional_certificate_arns", [])) > 0`:
+//
+//   - a listener whose element WRITES that key rebuilds to an object whose
+//     attribute is a tuple of N unknowns. A tuple's length is part of its
+//     TYPE, so length() is known - N - and N > 0 decides. What the
+//     certificate ARNs are never enters it.
+//   - a listener that omits the key rebuilds to an object without it, so
+//     lookup() takes its [] default, length is 0, and the element is
+//     excluded - which is what keeps a key set from being invented out of a
+//     default.
+//   - a listener whose LIST ITSELF is a refused leaf (an unknown, not a
+//     tuple of unknowns) has an unknown length, and the whole clause
+//     refuses.
+//
+// The guards are the ones every value-to-address path in this package
+// carries. An impure call in either the condition or the element is refused
+// before anything is evaluated ([resolver.evalStatic]'s own reason: a filter
+// that decides differently on the next run decides which live objects this
+// estate claims). A rebuilt value carrying a mark anywhere is refused rather
+// than unmarked, because this decides instance keys and an instance key
+// becomes a cloud tag written in plaintext.
+func (r *resolver) forCondFromRebuiltElem(cond hclsyntax.Expression, valVar string, elem elemBinding, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
+	if valVar == "" || elem.expr == nil {
+		return false, false
+	}
+	if len(impureCallsIn(cond)) > 0 {
+		return false, false
+	}
+	rebuilt, rebuiltOK := r.rebuiltElemValue(elem, ident)
+	if !rebuiltOK {
+		return false, false
+	}
+	return r.forCondIncludes(cond, scope.withVars(map[string]cty.Value{valVar: rebuilt}), ident)
+}
+
+// rebuiltElemValue is [rebuildConstructor] reached from an element binding:
+// enter the module the element's expression was WRITTEN in - most often the
+// caller across a module-call boundary, the same re-entry
+// [resolver.eachValueDeferredParts] and [resolver.forCondIncludesShaped]
+// already perform for the identical reason - rebuild the constructor there,
+// and come back.
+//
+// It is a probe. Every diagnostic the rebuild's own strict attempts leave
+// behind is rolled back, exactly as [resolver.elementExprBindings] rolls back
+// its chase, because the caller has its own answer either way.
+//
+// False is returned for anything that is not an object or tuple constructor
+// at all, which is [rebuildConstructor]'s own contract: "I could not rebuild
+// this" is a different claim from "this rebuilds to something not yet known",
+// and only the second licenses a caller to carry on.
+func (r *resolver) rebuiltElemValue(elem elemBinding, ident configs.StaticIdentifier) (cty.Value, bool) {
+	if elem.expr == nil || r.eval == nil {
+		return cty.NilVal, false
+	}
+	if len(impureCallsIn(elem.expr)) > 0 {
+		return cty.NilVal, false
+	}
+	mark, sibMark := len(r.diags), len(r.pendingSiblingApply)
+	defer func() {
+		r.diags = r.diags[:mark]
+		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+	}()
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(elem.modInst) {
+		return cty.NilVal, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	rb := argRebuild{
+		moduleOutput: r.moduleOutputValues(r.curCfg, r.modInst),
+		localExpr:    localExprs(r.curCfg),
+	}
+	val, ok := rebuildConstructor(r.ctx, r.eval, elem.expr, ident, rb)
+	if !ok || val == cty.NilVal || val.IsNull() {
+		return cty.NilVal, false
+	}
+	// ContainsMarked, not IsMarked: a mark on an element hoists to the
+	// containing value only for a SET, so a marked string inside the object
+	// this just rebuilt leaves the object itself unmarked and a later read
+	// would panic on it. The asymmetry is cty's and is asserted in
+	// internal/live/marksafe's TestOnlySetsHoistElementMarks.
+	if val.ContainsMarked() {
+		return cty.NilVal, false
+	}
+	return val, true
+}
+
+// forCondIncludesShaped is [resolver.forCondIncludes] widened for the
 // idiom nearly every terraform-aws-modules block uses to gate an optional
 // sub-resource: `<provable> && lookup(v, "flag", default)`, or the try()
 // spelling `try(v.flag, default)`, where v is the comprehension's OWN value
@@ -1218,19 +1531,19 @@ func (r *resolver) forCondIncludes(cond hclsyntax.Expression, scope instScope, i
 // does for the identical reason - the element's literal was WRITTEN in the
 // module that supplied it, most often the caller across a module-call
 // boundary, not the module the for_each itself lives in.
-func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar string, elem elemBinding, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
+func (r *resolver) forCondIncludesShaped(cond hclsyntax.Expression, valVar string, elem elemBinding, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
 	if include, ok := r.forCondIncludes(cond, scope, ident); ok {
 		return include, true
 	}
 	switch e := cond.(type) {
 	case *hclsyntax.ParenthesesExpr:
-		return r.forCondIncludesTolerant(e.Expression, valVar, elem, scope, ident)
+		return r.forCondIncludesShaped(e.Expression, valVar, elem, scope, ident)
 
 	case *hclsyntax.UnaryOpExpr:
 		if e.Op != hclsyntax.OpLogicalNot {
 			return false, false
 		}
-		inc, ok := r.forCondIncludesTolerant(e.Val, valVar, elem, scope, ident)
+		inc, ok := r.forCondIncludesShaped(e.Val, valVar, elem, scope, ident)
 		if !ok {
 			return false, false
 		}
@@ -1239,11 +1552,11 @@ func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar str
 	case *hclsyntax.BinaryOpExpr:
 		switch e.Op {
 		case hclsyntax.OpLogicalAnd:
-			lInc, lOK := r.forCondIncludesTolerant(e.LHS, valVar, elem, scope, ident)
+			lInc, lOK := r.forCondIncludesShaped(e.LHS, valVar, elem, scope, ident)
 			if lOK && !lInc {
 				return false, true
 			}
-			rInc, rOK := r.forCondIncludesTolerant(e.RHS, valVar, elem, scope, ident)
+			rInc, rOK := r.forCondIncludesShaped(e.RHS, valVar, elem, scope, ident)
 			if rOK && !rInc {
 				return false, true
 			}
@@ -1253,11 +1566,11 @@ func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar str
 			return false, false
 
 		case hclsyntax.OpLogicalOr:
-			lInc, lOK := r.forCondIncludesTolerant(e.LHS, valVar, elem, scope, ident)
+			lInc, lOK := r.forCondIncludesShaped(e.LHS, valVar, elem, scope, ident)
 			if lOK && lInc {
 				return true, true
 			}
-			rInc, rOK := r.forCondIncludesTolerant(e.RHS, valVar, elem, scope, ident)
+			rInc, rOK := r.forCondIncludesShaped(e.RHS, valVar, elem, scope, ident)
 			if rOK && rInc {
 				return true, true
 			}

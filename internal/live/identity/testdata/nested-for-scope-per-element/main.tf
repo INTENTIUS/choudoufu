@@ -43,8 +43,13 @@ locals {
       certificate_arn             = "arn:aws:acm:us-east-1:1:certificate/root-cert"
       additional_certificate_arns = [aws_cognito_user_pool.this.arn]
     }
+    # No additional_certificate_arns at all, AND deliberately not a
+    # provable element in its own right (its certificate_arn reaches an
+    # unapplied resource), so the filter has to decide it on the REBUILT
+    # skeleton rather than on a value: lookup() takes its [] default, length
+    # is 0, and no aws_lb_listener_certificate instance exists for it.
     plain = {
-      certificate_arn = "arn:aws:acm:us-east-1:1:certificate/root-cert"
+      certificate_arn = aws_cognito_user_pool.this.arn
     }
   }
 }
