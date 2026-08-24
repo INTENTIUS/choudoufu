@@ -363,9 +363,20 @@ resource "fake_host" "app" {
 
 	schema := providers.Schema{Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
-			"id":    {Type: cty.String, Computed: true},
-			"name":  {Type: cty.String, Required: true},
-			"token": {Type: cty.String, Optional: true}, // NOT Sensitive in the schema - like aws_instance.ami
+			"id":   {Type: cty.String, Computed: true},
+			"name": {Type: cty.String, Required: true},
+			// Optional AND Computed - aws_instance.ami's own real shape in
+			// hashicorp/aws 6.59.0 (confirmed via `terraform providers
+			// schema -json`): settable, but the provider may answer
+			// independently when configuration leaves it unset. This is
+			// what the first version of this fix missed - the VALUE-
+			// seeding guard in configuredAttrsSeed already excludes every
+			// Computed attribute, including this one, so with "token"
+			// Optional-only (as an earlier revision of this test had it)
+			// the whole schema-only mark check was reached fine but never
+			// exercised the actual real-world gap: it ran on the wrong
+			// side of the Computed guard.
+			"token": {Type: cty.String, Optional: true, Computed: true},
 		},
 	}}
 	dataSchema := providers.Schema{Block: &configschema.Block{

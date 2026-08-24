@@ -2147,13 +2147,17 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			// marker alone.
 			continue
 		}
-		if attr.Computed || attr.WriteOnly || attr.NestedType != nil {
+		if attr.WriteOnly || attr.NestedType != nil {
 			continue
 		}
 		if !attr.Required && !attr.Optional {
 			// Neither settable by configuration nor computed is not a real
 			// schema shape, but this loop asks nothing of the schema it
-			// cannot answer safely from these two flags alone.
+			// cannot answer safely from these two flags alone. A purely
+			// Computed attribute has no configuration expression at all -
+			// nothing to seed a VALUE from and nothing to check for a MARK
+			// either - so it is excluded from both questions here, not
+			// just the value one.
 			continue
 		}
 		val, localMarks, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name, dataSchemas)
@@ -2163,7 +2167,19 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 				Marks: pvm.Marks,
 			})
 		}
-		if !ok {
+		if attr.Computed || !ok {
+			// Optional+Computed is aws_instance.ami's own real shape
+			// (hashicorp/aws 6.59.0) - settable, but the provider may
+			// answer independently when configuration is silent, which is
+			// why its VALUE was never seeded here even before this
+			// function existed (issue #395/#376's own "never Computed"
+			// rule). GitHub issue #401 family 3's bug was this same
+			// exclusion applied a layer too high: Computed governs
+			// whether the VALUE can be trusted, not whether the
+			// CONFIGURATION EXPRESSION carries a sensitivity mark worth
+			// recording - configuredAttrSeed already ran above and the
+			// marks loop already captured whatever it found, so only the
+			// seed map is skipped here.
 			continue
 		}
 		if out == nil {
