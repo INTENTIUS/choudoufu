@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1a2702d53e9d0408c78ad9454862dbb31bbf1bac",
+  "commit": "de120d18d3912197660f1e94cdbdfd6c270888eb",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T19:46:39Z",
+  "generated": "2026-08-24T20:18:01Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 5,
+      "clear": 6,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,8 +158,8 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 5,
-          "fail": 4,
+          "pass": 6,
+          "fail": 3,
           "not_run": 17
         },
         "day2_replace": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 5,
+      "clear": 6,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,8 +235,8 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 5,
-          "fail": 4,
+          "pass": 6,
+          "fail": 3,
           "not_run": 16
         },
         "day2_replace": {
@@ -467,7 +467,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -478,15 +478,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1a2702d53e9d0408c78ad9454862dbb31bbf1bac",
-        "date": "2026-08-24T19:50:55Z",
-        "exit_code": 1,
+        "commit": "de120d18d3912197660f1e94cdbdfd6c270888eb",
+        "date": "2026-08-24T20:22:11Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "62 resources, once for real",
-          "day2_rename": "wall: aws_service_discovery_http_namespace has no marker search path for live-mv. Its identity is provider-assigned (the ServiceDiscovery service assigns it at create time; no argument reconstructs it), so live-mv can only find it by listing the type, and this provider version has no List support for it. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal corpus-rds-complete-postgres's day2_rename hit for aws_db_instance. The moved-block leg (module.alb, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited 1",
+          "day2_rename": "moved block: module.alb renamed with zero churn (0 add, 9 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "migrate": "46 of 62 stamped",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 46 tofu-estate-tagged objects before, 46 after, no state file either time",
@@ -1016,12 +1016,12 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
-        "date": "2026-08-24T19:37:14Z",
+        "commit": "de120d18d3912197660f1e94cdbdfd6c270888eb",
+        "date": "2026-08-24T20:14:45Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "39 resources, once for real",
-          "day2_rename": "wall: aws_db_instance has no marker search path for live-mv. Its identity is provider-assigned (identifier_prefix, not identifier - the name is not known until create time), so live-mv can only find it by listing the type, and this provider version has no List support for aws_db_instance. choudoufu correctly refuses rather than guess (HANDOFF's 'a wrong marker outranks a missing one') - the SAME class of refusal ecs-fargate's day2_rename hit for aws_service_discovery_http_namespace. The moved-block leg (module.security_group, above) already proved zero churn; this is the live-mv leg's own, separate wall. live-mv exited 1",
+          "day2_rename": "the post-rename plan is not empty",
           "drift_reconverge": "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "26 of 39 stamped",
           "test_apply": "genuine no-op: 26 objects before, 26 after, no state file, primary DB instance marker unmoved",
