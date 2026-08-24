@@ -1256,11 +1256,27 @@ fi
 
 CURRENT_STAGE=day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
-SG_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.security_group.aws_security_group.this[0]"]}]' --query "SecurityGroups[0].GroupId" --output text)"
-[ -n "$SG_ID_D" ] && [ "$SG_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker"
-DB_ARN_D="$(awsl rds describe-db-instances --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this[0]\`)].DBInstanceArn | [0]" --output text)"
+# The exact escaped form of each marker (":0" vs no index at all) depends on
+# how the external security-group module's own count resolves and is not
+# worth guessing twice - both are discovered by scanning this estate's own
+# tagged objects and matching by address prefix in bash.
+SG_ALL_D="$(awsl ec2 describe-security-groups \
+  --filters "Name=tag:tofu-estate,Values=$ESTATE" \
+  --query "SecurityGroups[].[GroupId,Tags[?Key=='tofu-address']|[0].Value]" --output text)"
+SG_LINE_D="$(grep -E '	module\.security_group\.' <<< "$SG_ALL_D" | head -1)"
+[ -n "$SG_LINE_D" ] || { printf '%s\n' "$SG_ALL_D"; fail "no live security group found by its tofu-address marker"; }
+SG_ID_D="$(awk -F'\t' '{print $1}' <<< "$SG_LINE_D")"
+SG_ADDR_D_BEFORE="$(awk -F'\t' '{print $2}' <<< "$SG_LINE_D")"
+
+DB_ARN_D="$(awsl rds describe-db-instances \
+  --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this:0\`)].DBInstanceArn | [0]" --output text)"
+if [ -z "$DB_ARN_D" ] || [ "$DB_ARN_D" = "None" ]; then
+  DB_ARN_D="$(awsl rds describe-db-instances \
+    --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this[0]\`)].DBInstanceArn | [0]" --output text)"
+fi
 [ -n "$DB_ARN_D" ] && [ "$DB_ARN_D" != "None" ] || fail "no live db instance found by its tofu-address marker"
-log "  $SG_ID_D (module.security_group), $DB_ARN_D (module.db_default)"
+DB_ADDR_D_BEFORE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN_D" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+log "  $SG_ID_D ($SG_ADDR_D_BEFORE), $DB_ARN_D ($DB_ADDR_D_BEFORE)"
 
 if [ "${BREAK:-}" = "1" ]; then
   log "=== D1 (BREAK=1). rename module.db_default -> module.db_default_renamed WITHOUT a moved block ==="
@@ -1298,7 +1314,8 @@ EOF
   [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
   grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
-  grep -qE '~ +"tofu-address" = "module\.security_group\.aws_security_group\.this\[0\]" -> "module\.security_group_renamed\.aws_security_group\.this\[0\]"' <<< "$MOVED_PLAN_OUT" \
+  SG_ADDR_D_AFTER_RENAME="${SG_ADDR_D_BEFORE/module.security_group./module.security_group_renamed.}"
+  grep -qF "~   \"tofu-address\" = \"$SG_ADDR_D_BEFORE\" -> \"$SG_ADDR_D_AFTER_RENAME\"" <<< "$MOVED_PLAN_OUT" \
     || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
   log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags update(s) - the marker rewrite the moved block completes"
 
@@ -1310,9 +1327,9 @@ EOF
   SG_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SG_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
   [ "$SG_ID_D_AFTER" = "$SG_ID_D" ] || fail "the security group's id changed across the rename ($SG_ID_D -> $SG_ID_D_AFTER) - it was destroyed and recreated, not renamed"
   SG_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-  [ "$SG_ADDR_D_AFTER" = "module.security_group_renamed.aws_security_group.this[0]" ] \
-    || fail "the security group carries tofu-address=$SG_ADDR_D_AFTER after the rename, not module.security_group_renamed.aws_security_group.this[0]"
-  log "  $SG_ID_D unchanged, tofu-address now module.security_group_renamed.aws_security_group.this[0] - read via the AWS CLI"
+  [ "$SG_ADDR_D_AFTER" = "$SG_ADDR_D_AFTER_RENAME" ] \
+    || fail "the security group carries tofu-address=$SG_ADDR_D_AFTER after the rename, not $SG_ADDR_D_AFTER_RENAME"
+  log "  $SG_ID_D unchanged, tofu-address now $SG_ADDR_D_AFTER_RENAME - read via the AWS CLI"
 
   log "=== D2. choudoufu, live-mv: module.db_default -> module.db_default_renamed, no moved block at all ==="
   sed -i.bak 's/module "db_default" {/module "db_default_renamed" {/' "$ADOPTED_EST/main.tf"
@@ -1320,18 +1337,25 @@ EOF
   rm -f "$ADOPTED_EST/main.tf.bak" "$ADOPTED_EST/outputs.tf.bak"
   ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
-  MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.db_default.module.db_instance.aws_db_instance.this[0]' 'module.db_default_renamed.module.db_instance.aws_db_instance.this[0]' 2>&1)"; MV_RC=$?
+  # live-mv's own CLI arguments parse ordinary HCL resource-address syntax
+  # (bracket count indices), while the tofu-address TAG VALUE this estate's
+  # markers carry escapes the same index as ":N" - convert before calling,
+  # compare in tag form after.
+  DB_ADDR_D_NEW="${DB_ADDR_D_BEFORE/module.db_default./module.db_default_renamed.}"
+  DB_ADDR_D_BEFORE_CLI="${DB_ADDR_D_BEFORE/%:0/[0]}"
+  DB_ADDR_D_NEW_CLI="${DB_ADDR_D_NEW/%:0/[0]}"
+  MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" "$DB_ADDR_D_BEFORE_CLI" "$DB_ADDR_D_NEW_CLI" 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
-  grep -qF '"module.db_default.module.db_instance.aws_db_instance.this:0" -> "module.db_default_renamed.module.db_instance.aws_db_instance.this:0"' <<< "$MV_OUT" \
+  grep -qF "\"$DB_ADDR_D_BEFORE\" -> \"$DB_ADDR_D_NEW\"" <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
   log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
 
   DB_ARN_D_AFTER="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN_D" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
-  [ "$DB_ARN_D_AFTER" = "module.db_default_renamed.module.db_instance.aws_db_instance.this[0]" ] \
-    || fail "the db instance carries tofu-address=$DB_ARN_D_AFTER after live-mv, not module.db_default_renamed.module.db_instance.aws_db_instance.this[0]"
-  log "  $DB_ARN_D unchanged, tofu-address now module.db_default_renamed.module.db_instance.aws_db_instance.this[0] - read via the AWS CLI"
+  [ "$DB_ARN_D_AFTER" = "$DB_ADDR_D_NEW" ] \
+    || fail "the db instance carries tofu-address=$DB_ARN_D_AFTER after live-mv, not $DB_ADDR_D_NEW"
+  log "  $DB_ARN_D unchanged, tofu-address now $DB_ADDR_D_NEW - read via the AWS CLI"
 
   log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
   FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
