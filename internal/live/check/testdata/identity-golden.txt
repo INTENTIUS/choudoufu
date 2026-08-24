@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=615 instances=1714
+# shape: dirs=618 instances=1717
 # shape: class CONCRETE=826
-# shape: class NEEDS_DISCOVERY=728
+# shape: class NEEDS_DISCOVERY=731
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467
+# shape: body-sha256=b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -502,6 +502,9 @@ internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["a"]	CONCR
 internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["b"]	CONCRETE	tofu-signal-b	bucket=tofu-signal-b
 internal/live/identity/testdata/naming-signal-named	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/identity/testdata/nested-block-component	aws_autoscaling_traffic_source_attachment.present	CONCRETE	example,elbv2,arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456	autoscaling_group_name=example,identifier=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456,type=elbv2
+internal/live/identity/testdata/nested-for-scope-per-element	aws_cognito_user_pool.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/nested-for-scope-per-element	module.wildcard_cert.aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/nested-for-scope-per-element/modules/wildcard_cert	aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/non-identity-attr	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.present_but_null["from_map"]	CONCRETE	my_test_lambda_function/AllowFromMapNotification	function_name=my_test_lambda_function,statement_id=AllowFromMapNotification
 internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.qualified	CONCRETE	my_test_lambda_function:qualifier_name/AllowExecutionFromCloudWatch	function_name=my_test_lambda_function,qualifier=qualifier_name,statement_id=AllowExecutionFromCloudWatch

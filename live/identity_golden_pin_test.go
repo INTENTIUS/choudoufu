@@ -715,7 +715,27 @@ var identityGoldenPin = map[string]int{
 	// this unit's fix is about). "0 identities changed, 3 added, 0 removed"
 	// confirmed by diffing testdata/identity-golden.txt before and after
 	// regenerating.
-	"NEEDS_DISCOVERY": 728,
+	//
+	// 728 -> 731 for the corpus-alb-complete/test_plan unit landing gauntlet
+	// issue #397's two remaining blockers (a for-expression NESTED inside
+	// another, reading the outer loop variable, and a filter clause decided
+	// from the element's own rebuilt skeleton): three ADDED rows, all from
+	// the new fixture testdata/nested-for-scope-per-element, and all three
+	// the same plain server-assigned NEEDS_DISCOVERY shape its sibling
+	// fixtures values-splat-per-element and managed-read-module-blind-
+	// crosstalk already contribute - aws_cognito_user_pool.this,
+	// module.wildcard_cert.aws_acm_certificate.this[0], and
+	// modules/wildcard_cert's own aws_acm_certificate.this[0]. The two
+	// instances this unit's fix actually concerns,
+	// module.alb.aws_lb_listener_certificate.this["https/0"] and
+	// ["cognito/0"], do not appear here at all, for the same reason the
+	// values-splat note above gives: this golden sweeps with no
+	// [Context.ManagedResults], so nothing in the fixture is ever unknown
+	// and the ordinary "Non-static identity argument" refusal stands offline
+	// exactly as it did before. "0 identities changed, 3 added, 0 removed"
+	// across all 615 pre-existing directories, confirmed by running the
+	// golden BEFORE regenerating.
+	"NEEDS_DISCOVERY": 731,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1340,7 +1360,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1986,7 +2006,13 @@ const (
 	// identityGoldenPin's own "CONCRETE" note and identityGoldenPin
 	// BodyDigest's note). "0 identities changed, 2 added, 0 removed"
 	// confirmed the same way.
-	identityGoldenPinInstances = 1714
+	//
+	// Then 1714 -> 1717, the corpus-alb-complete/test_plan unit landing
+	// gauntlet issue #397's two remaining blockers: three new instances from
+	// testdata/nested-for-scope-per-element (see identityGoldenPin's own
+	// "NEEDS_DISCOVERY" note). "0 identities changed, 3 added, 0 removed"
+	// confirmed the same way.
+	identityGoldenPinInstances = 1717
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2288,7 +2314,16 @@ const (
 	// directories - confirmed by regenerating with -update and diffing
 	// internal/live/check/testdata/identity-golden.txt against the prior
 	// copy, which shows only the header's "dirs=" line moved.
-	identityGoldenPinDirs = 615
+	//
+	// Then 615 -> 618 for gauntlet issue #397's two remaining blockers: one
+	// new fixture, internal/live/identity/testdata/nested-for-scope-per-
+	// element, whose two module sources (modules/alb and
+	// modules/wildcard_cert) are each swept as a standalone root the same
+	// way every other module-source fixture here is, so one new fixture is
+	// three new rows in this count. modules/alb contributes no INSTANCE row
+	// of its own: swept standalone its `listeners` variable takes its {}
+	// default, so aws_lb_listener_certificate.this has no instances at all.
+	identityGoldenPinDirs = 618
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
