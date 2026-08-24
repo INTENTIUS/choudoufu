@@ -7,6 +7,7 @@ package lang
 
 import (
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -73,6 +74,7 @@ func ReferencesInBlock(parseRef ParseRef, body hcl.Body, schema *configschema.Bl
 	// available.
 	traversals := blocktoattr.ExpandedVariables(body, schema)
 	funcs := filterProviderFunctions(blocktoattr.ExpandedFunctions(body, schema))
+	traversals = append(traversals, splatEachTraversals(body)...)
 
 	return References(parseRef, append(traversals, funcs...))
 }
@@ -89,6 +91,7 @@ func ReferencesInExpr(parseRef ParseRef, expr hcl.Expression) ([]*addrs.Referenc
 		funcs := filterProviderFunctions(fexpr.Functions())
 		traversals = append(traversals, funcs...)
 	}
+	traversals = append(traversals, splatEachTraversals(expr)...)
 	return References(parseRef, traversals)
 }
 
@@ -119,4 +122,112 @@ func filterProviderFunctions(funcs []hcl.Traversal) []hcl.Traversal {
 		}
 	}
 	return pfuncs
+}
+
+// splatEachTraversals finds every legacy `resource.*.attr` splat reachable
+// from root and, for each one, returns a traversal combining the splat's
+// Source (the resource being splatted over) with the attribute steps its
+// "Each" expression applies to one element - the demand [hcl.Expression.
+// Variables] never reports on its own.
+//
+// hclsyntax represents `SOURCE.*.attr` as a SplatExpr whose Each is a
+// RelativeTraversalExpr evaluated per-element against an AnonSymbolExpr
+// placeholder, not against SOURCE itself (hashicorp/hcl/v2/hclsyntax's
+// expression.go). variablesWalker (that package's variables.go) only ever
+// calls back for a *ScopeTraversalExpr, and a RelativeTraversalExpr rooted
+// in a placeholder is never one - so `Variables()` sees the reference to
+// SOURCE and stops there, structurally blind to the ".attr" the splat goes
+// on to read from each element. A caller downstream of Variables() (this
+// package's own References, and everything built on it: static reference
+// classification, coverage checks, refusal diagnostics) never learns that
+// "attr" was demanded at all.
+//
+// This walks the real expression tree instead of trusting Variables(), so
+// it sees the SplatExpr node directly and can read Each's own traversal off
+// it. It only ever ADDS traversals alongside whatever Variables() already
+// found; nothing here removes or replaces a reference.
+//
+// This reaches every splat this package's own callers evaluate: an output
+// or local value's expression (through ReferencesInExpr, since a module
+// output's `value` and a local's own expression are both evaluated that
+// way), and a resource, data source or provider configuration's own body
+// (through ReferencesInBlock). A splat inside a `dynamic` block's generated
+// content is not reached: [Scope.ExpandBlock] evaluates the block before
+// this ever sees the expanded body, and the expanded body reaching
+// ReferencesInBlock afterward is no longer a *hclsyntax.Body this function
+// can walk, so [splatEachTraversals] finds nothing there and neither
+// clause below fires - the same "found=false, add nothing" fallback used
+// for every other shape this cannot decide.
+func splatEachTraversals(x any) []hcl.Traversal {
+	node, ok := x.(hclsyntax.Node)
+	if !ok {
+		return nil
+	}
+	var out []hcl.Traversal
+	//nolint:errcheck // a walk error here means one splat's shape could not
+	// be read; every other reference in the expression is still found by
+	// the ordinary Variables()-based path, so nothing needs to abort.
+	hclsyntax.Walk(node, splatWalker{out: &out})
+	return out
+}
+
+// splatWalker is an [hclsyntax.Walker] that collects a combined
+// Source+Each traversal for every [hclsyntax.SplatExpr] it finds. See
+// [splatEachTraversals].
+type splatWalker struct {
+	out *[]hcl.Traversal
+}
+
+func (w splatWalker) Enter(n hclsyntax.Node) hcl.Diagnostics {
+	splat, ok := n.(*hclsyntax.SplatExpr)
+	if !ok {
+		return nil
+	}
+	source, ok := splat.Source.(*hclsyntax.ScopeTraversalExpr)
+	if !ok {
+		// The splat's source is itself an expression (a function call, a
+		// nested splat, ...) rather than a plain reference: nothing this
+		// function can turn into an absolute traversal, so it contributes
+		// nothing extra. Variables() already found whatever plain
+		// references live inside that source expression on its own.
+		return nil
+	}
+	each, ok := splatEachSteps(splat.Each)
+	if !ok || len(each) == 0 {
+		// Either an Each shape this function does not recognize (see
+		// [splatEachSteps]), or a bare `resource.*` with nothing following
+		// the splat - which demands nothing beyond the resource itself,
+		// already covered by Variables() finding Source on its own.
+		return nil
+	}
+	combined := make(hcl.Traversal, 0, len(source.Traversal)+len(each))
+	combined = append(combined, source.Traversal...)
+	combined = append(combined, each...)
+	*w.out = append(*w.out, combined)
+	return nil
+}
+
+func (w splatWalker) Exit(hclsyntax.Node) hcl.Diagnostics { return nil }
+
+// splatEachSteps extracts the relative traversal steps a SplatExpr's Each
+// expression applies to its per-element placeholder ([hclsyntax.
+// AnonSymbolExpr]), when Each is exactly that placeholder, optionally
+// wrapped in one relative traversal - the shape a legacy `resource.*.attr`
+// splat parses to. Anything else (a function call over the element, an
+// index into it, a nested splat) is a shape this cannot yet decide, so it
+// reports found=false and the caller adds nothing rather than guess at a
+// demand it cannot name precisely.
+func splatEachSteps(each hclsyntax.Expression) (hcl.Traversal, bool) {
+	switch e := each.(type) {
+	case *hclsyntax.AnonSymbolExpr:
+		// `resource.*` with nothing following the splat.
+		return nil, true
+	case *hclsyntax.RelativeTraversalExpr:
+		if _, ok := e.Source.(*hclsyntax.AnonSymbolExpr); !ok {
+			return nil, false
+		}
+		return e.Traversal, true
+	default:
+		return nil, false
+	}
 }
