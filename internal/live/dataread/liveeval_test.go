@@ -45,7 +45,7 @@ func TestLiveModuleEvaluatorScopesLookupPerModule(t *testing.T) {
 	}
 
 	childModule := addrs.Module{"child"}
-	childEval := liveModuleEvaluator(ctx, cfg, childModule, lookup, false, nil)
+	childEval := liveModuleEvaluator(ctx, cfg, childModule, lookup, false, nil, nil)
 	if childEval == nil {
 		t.Fatal("liveModuleEvaluator returned nil for the child module")
 	}

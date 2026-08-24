@@ -113,3 +113,50 @@ func TestModuleOutputSiblingRefusalStillRefusesItsOwnReference(t *testing.T) {
 		t.Fatalf("data.aws_zone.of_other resolved eligible, want refused: aws_instance.other.id was never supplied, so module.child.other_instance_id has no value to give it")
 	}
 }
+
+// TestModuleOutputSiblingDependencyDoesNotPoisonAnUnrelatedOutput is
+// corpus-eks-basic's own gauntlet wall (test_plan), traced to a fourth
+// finding one layer under the two tests above: even once a sibling
+// output's own VALUE failure stops leaking, evaluating that output still
+// recorded whatever DATA SOURCE dependency its own expression touched onto
+// the OUTER classify() call's shared dependency set. moduleOutputLookup's
+// per-output loop shares ONE `record` closure - analyze.go's own
+// lookupFactory/classify tracking, which decides Source.Deps and
+// therefore Source.Eligible - across every output it evaluates while
+// answering ONE cross-module reference, not scoped to the output the
+// caller actually reads.
+//
+// The child module's third output, poison_output, is wired so it ALWAYS
+// refuses classification outright (data.aws_zone.poison names a managed
+// resource in depends_on, rule 4, unconditionally) and is reached ONLY by
+// evaluating module.child as a whole, the same way other_instance_id is -
+// never by of_cluster's own argument, which names nothing but
+// module.child.cluster_id. Before this fix, data.aws_zone.of_cluster's own
+// Deps wrongly included data.aws_zone.poison, and poison's own permanent
+// refusal propagated onto of_cluster through the ordinary dependency-
+// refusal path (analyze.go's classify(), "it depends on %s, which cannot
+// be read before the plan") - exactly corpus-eks-basic's real wall,
+// reproduced here with no cloud and no floci.
+func TestModuleOutputSiblingDependencyDoesNotPoisonAnUnrelatedOutput(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "provider-config-demand-sibling-output"), nil)
+
+	live := map[string]cty.Value{
+		"module.child.aws_eks_cluster.this": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("prod-cluster"),
+		}),
+	}
+
+	analysis := AnalyzeProviderConfigs(context.Background(), cfg, Options{LiveManagedResults: live})
+	src, ok := analysis.SourceFor(addrs.RootModule, dataAddr("aws_zone", "of_cluster"))
+	if !ok {
+		t.Fatalf("data.aws_zone.of_cluster was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("data.aws_zone.of_cluster refused, poisoned by an unrelated sibling output's own dependency (module.child.poison_output, gated behind data.aws_zone.poison's depends_on on a managed resource) that of_cluster's own argument (module.child.cluster_id) never names: %s", src.ReasonDetail)
+	}
+	for _, dep := range src.Deps {
+		if dep.Resource.Type == "aws_zone" && dep.Resource.Name == "poison" {
+			t.Fatalf("data.aws_zone.of_cluster's own Deps wrongly include data.aws_zone.poison, a dependency of the unrelated sibling output poison_output, not of cluster_id: %v", src.Deps)
+		}
+	}
+}

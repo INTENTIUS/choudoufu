@@ -273,7 +273,7 @@ func (r *reader) readSource(src *Source) bool {
 	// (see its own doc), so passing it straight through keeps every
 	// module's coverage bounded to that module's own reads, at every level
 	// of the chain.
-	eval := liveModuleEvaluator(r.ctx, r.cfg, src.Module, r.lookupFor, true, nil)
+	eval := liveModuleEvaluator(r.ctx, r.cfg, src.Module, r.lookupFor, true, nil, nil)
 	if eval == nil {
 		return r.refuse(src, SummaryReadFailed, "%s's module is no longer in the configuration tree; this is a defect in the calling code.", src.Resource.String())
 	}

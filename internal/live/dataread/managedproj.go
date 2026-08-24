@@ -299,7 +299,7 @@ func (p *managedProjector) replay(deps []SourceDep, lookup func(addrs.Module) co
 // instance carrying the arguments that evaluate, then the aggregate shape a
 // whole-resource reference evaluates to.
 func (p *managedProjector) build(module addrs.Module, res addrs.Resource, rc *configs.Resource, body *hclsyntax.Body, lookup func(addrs.Module) configs.StaticDataLookup) (cty.Value, bool) {
-	eval := liveModuleEvaluator(p.ctx, p.cfg, module, lookup, p.materialize, nil)
+	eval := liveModuleEvaluator(p.ctx, p.cfg, module, lookup, p.materialize, nil, nil)
 	if eval == nil {
 		return cty.NilVal, false
 	}

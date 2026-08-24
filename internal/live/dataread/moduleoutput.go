@@ -54,7 +54,7 @@ import (
 // [configs.staticScopeData.StaticValidateReferences]'s existing "only a
 // covered call passes" discipline then keeps the reference refusing exactly
 // as it did before this lookup existed.
-func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup, materialize bool, recordManagedRefusal func(*hcl.Diagnostic)) configs.StaticModuleOutputLookup {
+func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup, materialize bool, recordManagedRefusal func(*hcl.Diagnostic), wanted map[string]moduleOutputWant) configs.StaticModuleOutputLookup {
 	return func(call addrs.ModuleCall) (cty.Value, bool) {
 		childPath := make(addrs.Module, 0, len(module)+1)
 		childPath = append(childPath, module...)
@@ -68,7 +68,38 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 			return cty.EmptyObjectVal, true
 		}
 
-		eval := liveModuleEvaluator(ctx, cfg, childPath, lookup, materialize, recordManagedRefusal)
+		// want.only, when true, is issue #391's own fourth finding closed:
+		// this call is answering a reference whose OWN traversal names one
+		// or more SPECIFIC outputs of this call (module.<call>.<name>,
+		// never a whole-object use) - see [moduleOutputWantsFor], which
+		// only ever narrows to this from a traversal shape it can spell
+		// back out exactly. Every OTHER output declared here is skipped
+		// entirely: not merely omitted from attrs the way an unanswered
+		// one already was (this file's earlier fix), but never evaluated
+		// at all, so whatever DATA SOURCE or managed-resource dependency a
+		// completely unrelated sibling output's own expression reaches
+		// never reaches lookup's own `record` side effect either - the
+		// dependency-tracking half of the same "one call answers 27
+		// outputs, only one of them asked for" bug this file's value-level
+		// fix above already closed for VALUES. A caller that names no
+		// specific output (jsonencode(module.child), a splat, an
+		// unrecognized traversal shape) gets want.only false, the
+		// unchanged, fully-conservative "evaluate and record every
+		// output" behavior this function has always had - correct there,
+		// because a whole-object use genuinely does depend on every
+		// output.
+		want := wanted[call.Name]
+
+		// The recursive call below answers THIS child's own module-output
+		// crossings, if it has any (module.child.grandchild.output) - a
+		// deeper level than [moduleOutputWantsFor] scoped its answer to,
+		// so it is handed nil, the same fully-conservative "evaluate and
+		// record every output" default every OTHER liveModuleEvaluator
+		// call site already gets. Narrowing that deeper level too is a
+		// straightforward extension of the same mechanism, not attempted
+		// here: nothing in this package's corpus coverage reaches a
+		// second module-output hop.
+		eval := liveModuleEvaluator(ctx, cfg, childPath, lookup, materialize, recordManagedRefusal, nil)
 		if eval == nil {
 			return cty.NilVal, false
 		}
@@ -84,7 +115,29 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 		unanswered := false
 		for name, out := range child.Module.Outputs {
 			if out.Sensitive || out.Ephemeral {
+				// Unconditional, even for an output want.only would
+				// otherwise skip below: this is the existing whole-call
+				// refusal [moduleOutputLookup]'s own doc comment
+				// ("What refuses rather than substitutes") describes, and
+				// narrowing IT to the wanted output(s) too is a separate
+				// question from the dependency-tracking one this
+				// function's want.only branch below closes - left as it
+				// was.
 				return cty.NilVal, false
+			}
+			if want.only && !want.names[name] {
+				// Not the output this call's referencing expression
+				// names, and this call's own traversal named at least one
+				// SPECIFIC output (want.only), so no whole-object use is
+				// in play this round: skip evaluating it entirely, the
+				// same as if it did not exist for this call's own
+				// purposes. Its own expression's dependencies - the
+				// entire point - never reach lookup's `record` side
+				// effect, so an unrelated sibling's own refusal can never
+				// attribute itself to the output actually being read.
+				// Never counts toward unanswered/unprojectedAttr below:
+				// those exist for a WHOLE-OBJECT use, which this is not.
+				continue
 			}
 			val, _, refused, ok := staticEvalExprRefused(ctx, childPath, "output."+name, "value", out.Expr, eval)
 			if !ok {
@@ -171,8 +224,106 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 			// object doesn't" shape - is what makes that so: it's an
 			// unknown that IsWhollyKnown() sees on the object, but that no
 			// traversal beginning with a "." can ever spell.
-			attrs[unprojectedAttr] = cty.DynamicVal
+			//
+			// Skipped entirely when want.only: this round evaluated only
+			// the SPECIFIC output(s) the caller's own traversal names, not
+			// every output the call declares, so "unanswered" here can
+			// only ever mean one of THOSE named outputs itself failed -
+			// already correctly refused by the omitted key above, via
+			// HCL's own "no such attribute" - never a stand-in for "the
+			// whole object is incomplete", which is the one claim
+			// unprojectedAttr exists to make and this round never asked.
+			if !want.only {
+				attrs[unprojectedAttr] = cty.DynamicVal
+			}
 		}
 		return cty.ObjectVal(attrs), true
 	}
+}
+
+// moduleOutputWant is one module call's own scoping answer, computed once
+// per referencing expression by [moduleOutputWantsFor] from that
+// expression's own static traversals and handed to [moduleOutputLookup] as
+// wanted[call.Name] - never derived inside moduleOutputLookup itself, which
+// has no visibility into what the ORIGINAL caller several evaluation layers
+// out actually asked for (see this file's own header comment on why not:
+// HCL resolves module.eks as a whole object first, .cluster_id as a
+// separate step after).
+type moduleOutputWant struct {
+	// only reports that every traversal this call's own referencing
+	// expression contains, if it names this call at all, spelled a
+	// SPECIFIC output by name (module.<call>.<name>, never a bare
+	// module.<call> or a shape this scan does not recognize). false is
+	// the safe, fully-conservative default: evaluate and record every
+	// output, unchanged from this function's behavior before want existed.
+	only bool
+
+	// names is the set of specifically-named outputs when only is true.
+	// Never consulted when only is false.
+	names map[string]bool
+}
+
+// moduleOutputWantsFor computes, from one expression's own static
+// traversals (already filtered for self/dynamic-iterator roots by the
+// caller - see [analyzer.evalRecorded]), which module call(s) it reaches
+// and, for each, whether every reference to it names one or more SPECIFIC
+// outputs rather than the call as a whole.
+//
+// Deliberately conservative wherever a traversal's own shape is not one
+// this function can spell back out exactly - fewer than two steps, a root
+// other than "module", a call step that is not a plain name, or anything
+// after the call step other than zero or more index steps (an expanded
+// call: module.child[0].output, module.child["key"].output) followed by
+// either nothing (a whole-object use) or one plain attribute step (a named
+// output, with any further steps ignored - they index INTO that output's
+// own value, not across another module boundary). Any traversal reaching a
+// call this function cannot fully parse widens that call's own want to
+// "every output", the untouched behavior [moduleOutputLookup] has always
+// had - never narrows past what this function can prove, because a wrong
+// narrowing would drop a real dependency silently rather than refuse.
+func moduleOutputWantsFor(travs []hcl.Traversal) map[string]moduleOutputWant {
+	if len(travs) == 0 {
+		return nil
+	}
+	wanted := make(map[string]moduleOutputWant)
+	for _, trav := range travs {
+		if len(trav) < 2 || trav.RootName() != "module" {
+			continue
+		}
+		callStep, ok := trav[1].(hcl.TraverseAttr)
+		if !ok {
+			continue // not an ordinary module.<name>... traversal at all
+		}
+		callName := callStep.Name
+		if w, seen := wanted[callName]; seen && !w.only {
+			continue // already conservative for this call; nothing narrows it back
+		}
+
+		rest := trav[2:]
+		for len(rest) > 0 {
+			if _, isIndex := rest[0].(hcl.TraverseIndex); !isIndex {
+				break
+			}
+			rest = rest[1:]
+		}
+
+		if len(rest) == 0 {
+			wanted[callName] = moduleOutputWant{only: false}
+			continue
+		}
+		attrStep, ok := rest[0].(hcl.TraverseAttr)
+		if !ok {
+			wanted[callName] = moduleOutputWant{only: false}
+			continue
+		}
+
+		w := wanted[callName]
+		w.only = true
+		if w.names == nil {
+			w.names = map[string]bool{}
+		}
+		w.names[attrStep.Name] = true
+		wanted[callName] = w
+	}
+	return wanted
 }

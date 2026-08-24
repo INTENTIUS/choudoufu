@@ -645,7 +645,15 @@ var identityGoldenPin = map[string]int{
 	// real managed results - never fires in this sweep at all). "0
 	// identities changed, 3 added, 0 removed" confirmed by diffing
 	// testdata/identity-golden.txt before and after regenerating.
-	"NEEDS_DISCOVERY": 723,
+	//
+	// 723 -> 725 for corpus-eks-basic/test_plan's own moduleOutputLookup
+	// dependency-scoping unit (issue #391 continued): the SAME fixture's
+	// third addition, aws_instance.gatekeeper (named in depends_on by the
+	// new data.aws_zone.poison, so a third sibling output can carry a
+	// dependency that always refuses classification, deliberately unrelated
+	// to cluster_id), swept twice for the same own-directory-plus-parent
+	// reason.
+	"NEEDS_DISCOVERY": 725,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1270,7 +1278,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "a18cad03640e0967b7e6ef7f0a97f312bc3a2bda736df2c90e35a378748063ba" // merge of issue #391 (six ADDED rows, two eks fixtures) and the corpus-alb-complete/test_plan crosstalk unit (three ADDED rows, testdata/managed-read-module-blind-crosstalk); confirmed by regenerating with -update over the union of fixtures, nine lines added vs the pre-#391 golden and nothing else changed
+const identityGoldenPinBodyDigest = "ddb95c299ef3342087dd1af1a9a6d6bd8534d5aa49f83a079e53be69054579b5" // union re-pin: the nine rows of the #391+crosstalk merge plus the two aws_instance.gatekeeper rows from the moduleOutputLookup dependency-scoping unit; confirmed by regenerating with -update over the union of fixtures, exactly those eleven lines added vs the pre-#391 golden and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1881,7 +1889,17 @@ const (
 	// resource is not among them). "0 identities changed, 3 added, 0
 	// removed" confirmed by diffing testdata/identity-golden.txt before and
 	// after regenerating.
-	identityGoldenPinInstances = 1705
+	//
+	// Then 1702 -> 1704, corpus-eks-basic/test_plan's own moduleOutputLookup
+	// dependency-scoping unit (issue #391 continued): two new instances,
+	// aws_instance.gatekeeper, added to the SAME provider-config-demand-
+	// sibling-output fixture (a third sibling output, poison_output, wired
+	// through a NEW data.aws_zone.poison that names this managed resource
+	// in depends_on - see the fixture's own comment), swept twice for the
+	// same own-directory-plus-parent reason the six above already are. "0
+	// identities changed, 2 added, 0 removed" confirmed by diffing testdata/
+	// identity-golden.txt before and after regenerating with -update.
+	identityGoldenPinInstances = 1707
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
