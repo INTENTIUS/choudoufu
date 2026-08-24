@@ -239,7 +239,7 @@ several have already inverted once.
   day, the ladder unmoved. The median blocked estate carries about two
   blocking classes, so clearing one class across forty estates leaves forty
   estates blocked. The estate is the only unit that measures progress.
-- **A large slice is parity, not defect.** Whole classes are 100%
+- **A large slice is stock-refuses-too, not defect.** Whole classes are 100%
   unset-required-variable artifacts that stock OpenTofu refuses identically.
   Those gate nothing an operator with tfvars would see.
 - **A large slice is adoption-only.** A refusal that fires because the

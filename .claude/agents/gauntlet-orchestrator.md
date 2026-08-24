@@ -170,5 +170,5 @@ Do not proceed past any of these; state the question and wait.
   for it.
 - Hold loop state only in chat. If it is not in a branch, a PR, the
   artifact or the tracker, the next session does not have it.
-- Re-open the retired questions (parity, labels, admission as a gate); the
+- Re-open the retired questions (the stock-comparison score, labels, admission as a gate); the
   reasoning is in the tracker's 2026-08-21 thread and HANDOFF's "Retired".

@@ -124,7 +124,7 @@ and no ruling:
 |---|---|
 | choudoufu refuses where stock proceeds | defect; fix it |
 | the plans or the resulting cloud differ | defect; fix it |
-| stock fails too | the estate still has to clear: either choudoufu handles what stock cannot, or the stage's oracle is wrong and the oracle is what gets fixed. Parity is not the promise — supporting an estate that already works in OpenTofu is (maintainer ruling, 2026-08-24) — so matching stock's failure is never the finish line, and check the masquerade first: both runners share the emulator, so "stock fails identically" can be row 4 wearing row 3's clothes (corpus-ecs-fargate's task-def wall was exactly this) |
+| stock fails too | the estate still has to clear: either choudoufu handles what stock cannot, or the stage's oracle is wrong and the oracle is what gets fixed. Matching stock is not the promise — supporting an estate that already works in OpenTofu is (maintainer ruling, 2026-08-24) — so matching stock's failure is never the finish line, and check the masquerade first: both runners share the emulator, so "stock fails identically" can be row 4 wearing row 3's clothes (corpus-ecs-fargate's task-def wall was exactly this) |
 | the emulator is wrong | fix it in the floci fork, file the issue there, publish the image, repin and re-measure |
 | handling it would write a wrong marker | drop the instance to the record rung, proceed, open a rung ticket |
 
@@ -263,7 +263,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 ## Retired
 
-"Parity" and its three labels, the decision matrix and its `RULE` row,
+The old stock-comparison score and its three labels, the decision matrix and its `RULE` row,
 admission as a gate, "no memory" as a goal, the offline corpus and
 refusal-site counts as progress instruments (`live-check` stays as a user
 tool), the wall taxonomy, the rulings list. Their history is in git before

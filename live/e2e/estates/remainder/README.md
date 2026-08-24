@@ -384,7 +384,7 @@ Independent verification confirmed a real, documented, importable identity
 for these 27 types — every one would otherwise have been ratified — but
 each is held back for a reason outside what a docs check alone catches:
 
-> **Superseded in part, 2026-08-16 (the `wall/rejected4` batch).** The type-parity
+> **Superseded in part, 2026-08-16 (the `wall/rejected4` batch).** The type-coverage
 > ruling makes credential material the only sanctioned permanent exclusion, so
 > the "standing policy exclusion" paragraph below no longer holds for the
 > seventeen WAF Classic and WAF Classic Regional types named in it, nor for

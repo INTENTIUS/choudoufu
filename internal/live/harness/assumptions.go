@@ -285,17 +285,17 @@ func credentialExclusionsAreTwo() Assumption {
 		ID: "credential-exclusions-are-exactly-two",
 		Claim: "Exactly two provider types are excluded from admission on credential-material grounds with no " +
 			"route to admission at all, they are all in the hand veto ledger, and none of them is admitted.",
-		Consequence: "Type parity is the bar, and this credential exclusion is its one remaining sanctioned hole - " +
+		Consequence: "Type-for-type coverage is the bar, and this credential exclusion is its one remaining sanctioned hole - " +
 			"down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto " +
 			"strict { secrets } instead, where they are admitted by default. A third type vetoed on credential " +
-			"grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the parity " +
+			"grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the coverage " +
 			"denominator without anybody deciding to. This has already drifted once in the other direction: " +
 			"aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading \"credential\" " +
 			"until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.",
 		Evidence: "CLAUDE.md's sanctioned list, checked against tools/row-gen/rejected.json's own " +
 			"reason text and against internal/live/identity.DefaultTable. See credentialReason for " +
 			"what the text half of this cannot see.",
-		Tracker:  "the parity ruling; no issue - the list is a standing exclusion, not work.",
+		Tracker:  "the type-coverage ruling; no issue - the list is a standing exclusion, not work.",
 		Recorded: sanctionedCredentialExclusions,
 		Check: func(r *Repo) (string, error) {
 			rj, err := r.Rejected()
