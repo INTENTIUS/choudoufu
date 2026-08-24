@@ -664,6 +664,27 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		return nil, diags
 	}
 
+	// GitHub issue #313's provider-configuration dependency-order fixpoint,
+	// now that resolution has settled: a provider block whose own arguments
+	// read a data source - which may itself read a managed resource this
+	// estate already owns - gets exactly the same value stock OpenTofu's
+	// ordinary plan graph would supply once prior state exists. See
+	// [statelessProviderDataReads]'s own doc comment for the mechanism and
+	// for corpus-eks-basic, the estate this closes: this call was missing
+	// here entirely until now - live-plan's own "-estate" form
+	// (LivePlanCommand.livePlan) has carried it since 1c1b00324f, but a
+	// configuration WITH a live block, which is what plain "choudoufu plan"/
+	// "apply" and "live-plan" both run through for such a configuration
+	// (LivePlanCommand.Run's own alias, above statelessBegin), reaches this
+	// function instead, and nothing here ever called it. r.recordStore is
+	// opened unconditionally above whenever the live block names a
+	// record_store, regardless of the migration flag - unlike
+	// recordShrinkStore below, this is not gated on r.nodeResolve, for the
+	// same reason live-plan's own equivalent construction is not: reading a
+	// GitHub issue #364 record-backed value that a PARENT_DERIVED formula
+	// already names as a parent is not the #388 migration's concern.
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore)
+
 	merged := resolutions.All()
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened
 	// unconditionally above whenever the live block names a record_store,

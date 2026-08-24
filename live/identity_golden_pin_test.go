@@ -355,7 +355,14 @@ var identityGoldenPin = map[string]int{
 	// above is - once from its own child module directory, once as its
 	// parent's module.child.aws_eks_cluster.this. See
 	// identityGoldenPinInstances's own note.
-	"CONCRETE": 819,
+	//
+	// 819 -> 822 for issue #391's own two new fixtures: provider-config-
+	// demand-sibling-output's own aws_eks_cluster.this, swept twice the
+	// same way the row above is (once from its own child directory, once
+	// as module.child.aws_eks_cluster.this from the parent), plus record-
+	// parent-derived's aws_cloudwatch_log_group.app. See
+	// identityGoldenPinInstances's own note.
+	"CONCRETE": 822,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -611,7 +618,14 @@ var identityGoldenPin = map[string]int{
 	// aws_sns_topic.unrelated, the same plain server-assigned
 	// NEEDS_DISCOVERY shape every sibling aws_sns_topic fixture already
 	// contributes.
-	"NEEDS_DISCOVERY": 718,
+	// 718 -> 720 for issue #391's own new fixture provider-config-demand-
+	// sibling-output: aws_instance.other, swept twice the same way its
+	// aws_eks_cluster.this sibling is (once from its own child directory,
+	// once as module.child.aws_instance.other from the parent) - a plain
+	// server-assigned NEEDS_DISCOVERY shape, deliberately never covered by
+	// this fixture's own LiveManagedResults so it stays permanently
+	// unreadable, which is the whole point of the fixture.
+	"NEEDS_DISCOVERY": 720,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -751,7 +765,13 @@ var identityGoldenPin = map[string]int{
 	// random-password (both of which already existed as limits fixtures and
 	// stay refused there, for want of a record_store rather than for want of
 	// admission).
-	"RECORD_BACKED": 24,
+	//
+	// 24 -> 25 for issue #391's own new fixture record-parent-derived:
+	// null_resource.suffix, a logical resource with no live object at all,
+	// standing in for corpus-eks-basic's random_string.suffix - the
+	// record-backed parent a sibling ClassParentDerived formula (built by
+	// hand in the test, not derived from this fixture) names.
+	"RECORD_BACKED": 25,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -1230,7 +1250,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "271df52fce1d7eb21356c7f82011c4605757a06b4d72949b437ed279e067e22c" // issue #394: one ADDED row, default-adopter-sweep-orphan/aws_sns_topic.unrelated
+const identityGoldenPinBodyDigest = "30896e9ed91dbe4719ffe64dd37c272442f05ece51043dddd6e47acf1c29e943" // issue #391: six ADDED rows across the two new fixtures identityGoldenPin's own CONCRETE/NEEDS_DISCOVERY/RECORD_BACKED comments detail; confirmed by diffing testdata/identity-golden.txt before and after regenerating with -update, which shows exactly those six lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1824,7 +1844,16 @@ const (
 	// directory parses while declaring neither side of any companion pair.
 	// "0 identities changed, 1 added, 0 removed" confirmed by diffing
 	// testdata/identity-golden.txt before and after regenerating.
-	identityGoldenPinInstances = 1696
+	//
+	// Then 1696 -> 1702 for issue #391: six new instances across the two
+	// new fixtures identityGoldenPinBodyDigest's own note names -
+	// provider-config-demand-sibling-output's aws_eks_cluster.this and
+	// aws_instance.other, each swept twice (own child directory plus the
+	// parent's module.child.* row), and record-parent-derived's
+	// aws_cloudwatch_log_group.app and null_resource.suffix. "0 identities
+	// changed, 6 added, 0 removed" confirmed by diffing testdata/identity-
+	// golden.txt before and after regenerating with -update.
+	identityGoldenPinInstances = 1702
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2051,7 +2080,13 @@ const (
 	// 595 -> 596 for GitHub issue #394: one new fixture directory,
 	// internal/live/discovery/testdata/default-adopter-sweep-orphan (see
 	// identityGoldenPinInstances's own note immediately above).
-	identityGoldenPinDirs = 596
+	//
+	// 596 -> 599 for issue #391: three new fixture directories -
+	// internal/live/dataread/testdata/provider-config-demand-sibling-
+	// output and its own child/ submodule, plus internal/live/projection/
+	// testdata/record-parent-derived (see identityGoldenPinInstances's own
+	// note immediately above for the six rows they contribute).
+	identityGoldenPinDirs = 599
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

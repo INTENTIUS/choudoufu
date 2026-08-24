@@ -377,6 +377,46 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
+	// The estate name, read from the same two sources discovery and stamping
+	// read it from. Their diagnostics about it are raised below, in their own
+	// voices; this call is for the ownership rule the projection needs, which
+	// has to know the estate before anything is materialized. Moved ahead of
+	// [statelessProviderDataReads] (it used to sit between that call and
+	// [statelessDiscover]) because that fixpoint's own record-rung read
+	// needs the record store before it, not after - see recordStoreForReads'
+	// own comment below.
+	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
+
+	// The estate's record store, when the live block names one - opened
+	// here originally only as guided discovery's hint source (issue #109),
+	// now also read from directly by statelessProviderDataReads. A store
+	// that will not open is not this command's error to fail on: the hint
+	// is a plan-cost cache, so the run proceeds hintless (guided discovery
+	// and the record-rung read both stay off) and everything below behaves
+	// exactly as it always has.
+	var hintStore staterecord.Store
+	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
+		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
+		if storeErr != nil {
+			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
+		} else {
+			hintStore = store
+		}
+	}
+	// recordStoreForReads is the same wrapper [statelessDiscover] gets below
+	// as recordShrinkStore, built once here and unconditionally (unlike
+	// recordShrinkStore, never gated on GitHub issue #388's migration
+	// flag): [statelessProviderDataReads] reads only GitHub issue #364's
+	// already-resolved ClassRecordBacked instances that a PARENT_DERIVED
+	// formula names as a parent, by their own address, which costs nothing
+	// when the store holds none and changes nothing about ordinary marker
+	// discovery's own demand either way, so there is no byte-identical-
+	// flag-off property to preserve here. NewRecordEnvelopeStore(nil, ...)
+	// is nil, so a hintStore that would not open leaves this nil and
+	// [projection.ReadInstances] omits a record-backed parent exactly as
+	// it always did.
+	recordStoreForReads := projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+
 	// GitHub issue #313's provider-configuration dependency-order fixpoint,
 	// now that resolution has settled: a provider block whose own arguments
 	// read a data source - which may itself read a managed resource this
@@ -387,13 +427,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions)
-
-	// The estate name, read from the same two sources discovery and stamping
-	// read it from. Their diagnostics about it are raised below, in their own
-	// voices; this call is for the ownership rule the projection needs, which
-	// has to know the estate before anything is materialized.
-	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads)
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -404,34 +438,16 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		log.Printf("[TRACE] live: ownership policy: %s", pol)
 	}
 
-	// The estate's record store, when the live block names one - opened
-	// here only as guided discovery's hint source (issue #109). A store
-	// that will not open is not this command's error to fail on: the hint
-	// is a plan-cost cache, so the run proceeds hintless (guided discovery
-	// stays off) and the projection below behaves exactly as it always has.
-	var hintStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
-		if storeErr != nil {
-			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
-		} else {
-			hintStore = store
-		}
-	}
-
 	// GitHub issue #388's plan-node seam, edge 3: the same record-store
-	// wrapper resolver.RecordStore is populated with below, built here
-	// instead so [statelessDiscover] can also use it to shrink the marker
-	// sweep's per-instance binding demand (statelessRecordBackedNeedsDiscoveryAddrs).
-	// Gated on resolver != nil (the migration flag) rather than just on
-	// hintStore being non-nil: a flag-off run must see a byte-identical
+	// wrapper recordStoreForReads is built above, unconditionally now, so
+	// this is a reuse rather than a second construction. Gated on
+	// resolver != nil (the migration flag) rather than just on hintStore
+	// being non-nil: a flag-off run must see a byte-identical marker-sweep
 	// demand no matter what the record store holds, so this stays nil
-	// whenever the flag itself is off. NewRecordEnvelopeStore is a
-	// nil-safe, no-I/O wrapper construction (see its own doc comment), so
-	// building it once here and reusing it below costs nothing extra.
+	// whenever the flag itself is off.
 	var recordShrinkStore *projection.RecordStore
 	if resolver != nil {
-		recordShrinkStore = projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate))
+		recordShrinkStore = recordStoreForReads
 	}
 
 	// Marker discovery, when anything is waiting on it. Its output is a
@@ -2353,9 +2369,27 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // AnalyzeProviderConfigs] is SCOPED, so an unreadable one is simply absent
 // from the result, and providerConfigValue sees exactly the same "Provider
 // unavailable" diagnostic it always has for that provider configuration -
-// unchanged, not a new refusal. Bounded to one retry, never a loop, for the
-// same reason [statelessResolve] never loops: a second pass that reads
-// nothing new has nothing left to gain from a third.
+// unchanged, not a new refusal. Bounded to maxProviderDataReadPasses passes,
+// never unbounded: a pass that gains nothing new over the pass before it
+// has nothing left to offer a further one, so the loop always stops itself
+// well before the cap in the overwhelmingly common case (zero or one
+// provider-config data source at all), and the cap is a backstop for a
+// demand chain deeper than anything measured yet.
+//
+// A pass beyond the first closes a read-side chain more than one hop deep:
+// corpus-eks-basic's own provider "kubernetes" block reads
+// data.aws_eks_cluster.cluster, which reads module.eks.cluster_id (a module
+// output), which reads aws_eks_cluster.this[0].id - the shape the original
+// single retry closed. That instance's own identity is GitHub issue #364's
+// PARENT_DERIVED shape (name = local.cluster_name =
+// "test-eks-${random_string.suffix.result}"), so reading it needs its own
+// parent's value first - [expandFormulaParents] pulls that parent
+// (random_string.suffix, record-backed, no live object at all) into the
+// SAME [projection.ReadInstances] call, and recordStore is what lets that
+// call materialize it (see [ReadInstances]'s own recordBacked branch)
+// instead of omitting it as before. Once that parent is read, a pass this
+// loop's cap makes possible - not the original single retry - is what
+// reads aws_eks_cluster.this[0]'s own live attributes in turn.
 //
 // provs is confined through [liveProviderReads] for the data-read half,
 // exactly as [statelessDataReads] confines its own - the 2026-08-21 audit's
@@ -2368,52 +2402,129 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // [statelessResolve]'s identical, already-audited call to
 // [projection.PlanInstances]: a managed resource's provider comes from its
 // own declared block, never from this phase's data-source boundary.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result) map[string]cty.Value {
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
 	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
-	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
 	confined := func(a *dataread.Analysis) dataread.Providers {
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
+
+	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
 	results, diags := dataread.ReadProviderConfigs(ctx, config, analysis, confined(analysis))
 	for _, d := range diags {
 		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
 	}
 
-	demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
-	var instances []identity.Resolution
-	for _, d := range demand {
-		if !d.Complete {
-			continue
+	live := map[string]cty.Value{}
+	readOpts := projection.Options{RecordStore: recordStore}
+	const maxProviderDataReadPasses = 5
+	for pass := 1; pass < maxProviderDataReadPasses; pass++ {
+		demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
+		var instances []identity.Resolution
+		for _, d := range demand {
+			if !d.Complete {
+				continue
+			}
+			for _, inst := range d.Instances {
+				if _, already := live[inst.Addr.String()]; !already {
+					instances = append(instances, inst)
+				}
+			}
 		}
-		instances = append(instances, d.Instances...)
-	}
-	if len(instances) == 0 {
-		return results
-	}
+		instances = expandFormulaParents(resolutions, instances)
+		if len(instances) == 0 {
+			// Nothing new demanded that a prior pass has not already read;
+			// see [projection.ReadInstances]'s own completeness rule for
+			// why a block already fully read never re-appears here.
+			break
+		}
 
-	read, readDiags := projection.ReadInstances(ctx, config, instances, provs, projection.Options{})
-	for _, d := range readDiags {
-		log.Printf("[TRACE] live: reading managed values for provider-configuration data reads: %s", d.Description().Summary)
-	}
-	if read == nil || len(read.Values) == 0 {
-		return results
-	}
+		read, readDiags := projection.ReadInstances(ctx, config, instances, provs, readOpts)
+		for _, d := range readDiags {
+			log.Printf("[TRACE] live: reading managed values for provider-configuration data reads (pass %d): %s", pass, d.Description().Summary)
+		}
+		if read == nil || len(read.Values) == 0 {
+			break
+		}
+		gained := false
+		for k, v := range read.Values {
+			if _, already := live[k]; !already {
+				live[k] = v
+				gained = true
+			}
+		}
+		if !gained {
+			// Every value this pass could name was already known; another
+			// pass would ask the identical question and get the identical
+			// answer.
+			break
+		}
 
-	opts.LiveManagedResults = read.Values
-	second := dataread.AnalyzeProviderConfigs(ctx, config, opts)
-	secondResults, secondDiags := dataread.ReadProviderConfigs(ctx, config, second, confined(second))
-	for _, d := range secondDiags {
-		log.Printf("[TRACE] live: provider-configuration data reads, second pass: %s", d.Description().Summary)
+		opts.LiveManagedResults = live
+		nextAnalysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
+		nextResults, nextDiags := dataread.ReadProviderConfigs(ctx, config, nextAnalysis, confined(nextAnalysis))
+		for _, d := range nextDiags {
+			log.Printf("[TRACE] live: provider-configuration data reads, pass %d: %s", pass+1, d.Description().Summary)
+		}
+		if len(nextResults) < len(results) {
+			// This pass answered fewer sources than the pass before it
+			// somehow; never regress on the strength of a later attempt.
+			// See [statelessResolve]'s own errorCount comparison for the
+			// same rule applied to its own passes.
+			break
+		}
+		analysis, results = nextAnalysis, nextResults
 	}
-	if len(secondResults) < len(results) {
-		// The retry answered fewer sources than the first pass somehow;
-		// never regress on the strength of a second attempt. See
-		// [statelessResolve]'s own errorCount comparison for the same rule
-		// applied to its own two passes.
-		return results
+	return results
+}
+
+// expandFormulaParents adds every [identity.ClassParentDerived] instance's
+// formula parents, transitively, to instances - the closure
+// [projection.ReadInstances] needs already in hand before it runs, since it
+// materializes strictly from what it is given and never looks a parent up
+// itself (see its own doc comment: "only the caller knows the block's real
+// expansion"). [identity.DemandedManagedReads] names only the instance a
+// refused reference directly named, never the parents ITS OWN identity
+// formula depends on, so without this a demanded PARENT_DERIVED instance's
+// formula has nothing in [projection.ReadInstances]'s b.live to render
+// against and is silently omitted - the corpus-eks-basic shape this exists
+// for, aws_eks_cluster.this[0] needing random_string.suffix's own value
+// read alongside it, in the same call, before its own live attributes can
+// be read at all.
+//
+// Parents are looked up in resolutions - already fully resolved, no I/O -
+// so this costs nothing beyond a few map reads even when every instance is
+// [identity.ClassConcrete] and the loop below never executes. A visited set
+// keyed by address makes this safe against a formula that names the same
+// parent twice, or - should identity resolution ever admit one - a cycle;
+// [projection.ReadInstances]'s own orderWork raises a proper diagnostic for
+// an actual cycle in whatever this hands it.
+func expandFormulaParents(resolutions *identity.Result, instances []identity.Resolution) []identity.Resolution {
+	seen := make(map[string]bool, len(instances))
+	out := make([]identity.Resolution, 0, len(instances))
+	var add func(r identity.Resolution)
+	add = func(r identity.Resolution) {
+		key := r.Addr.String()
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, r)
+		if r.Class != identity.ClassParentDerived || r.Formula == nil {
+			return
+		}
+		for _, p := range r.Formula.Parents {
+			parentRes, ok := resolutions.Get(p)
+			if !ok {
+				continue
+			}
+			add(parentRes)
+		}
 	}
-	return secondResults
+	for _, r := range instances {
+		add(r)
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------

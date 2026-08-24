@@ -240,7 +240,7 @@ Rules are tests. The ones that hold this document to the tree:
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 1696 rendered identities across 596 configuration directories, pinned by value; if your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 1702 rendered identities across 599 configuration directories, pinned by value; if your change moves a line, explain it, and `-update` alone cannot silence it |
 | `live/ci_coverage_test.go` | every fork-owned test package is in CI's glob |
 | `live/brief_tracked_test.go` | the briefs, the skill, `scripts/pickup.sh` and `.claude/scripts/agent-progress.sh` are tracked, so a fresh clone has the procedure |
 | `internal/live/harness` | every ratchet pins its denominator |

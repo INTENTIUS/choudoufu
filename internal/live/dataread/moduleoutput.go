@@ -74,6 +74,14 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 		}
 
 		attrs := make(map[string]cty.Value, len(child.Module.Outputs))
+		// unanswered tracks whether any output was left out of attrs below,
+		// so a WHOLE-OBJECT use (jsonencode(module.child), a splat) still
+		// refuses correctly even though a NAMED attribute access to a
+		// different, answerable output now succeeds. See unanswered's own
+		// assignment for why omitting the attribute - not substituting
+		// cty.DynamicVal for it - is what a single output's own failure
+		// needs.
+		unanswered := false
 		for name, out := range child.Module.Outputs {
 			if out.Sensitive || out.Ephemeral {
 				return cty.NilVal, false
@@ -94,10 +102,12 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 						recordManagedRefusal(refused)
 					}
 				}
-				return cty.NilVal, false
+				unanswered = true
+				continue
 			}
 			if val.IsNull() || val.ContainsMarked() {
-				return cty.NilVal, false
+				unanswered = true
+				continue
 			}
 			// materialize mirrors managedProjector.argument's own rule
 			// exactly: offline classification needs COVERAGE, not a value,
@@ -109,15 +119,59 @@ func moduleOutputLookup(ctx context.Context, cfg *configs.Config, module addrs.M
 			// here exactly as [managedProjector.argument] refuses an
 			// unknown or impure managed argument: this seam must never
 			// hand a data source, or a provider block, an unknown to read
-			// with.
+			// with. This branch is untouched by this file's own "refuses
+			// only that call" fix below: an output covered-but-not-yet-
+			// read is not a failure at all in this mode, and cty.DynamicVal
+			// here is what makes that count as coverage, exactly as it
+			// always has.
 			if !materialize {
 				attrs[name] = cty.DynamicVal
 				continue
 			}
 			if !val.IsWhollyKnown() {
-				return cty.NilVal, false
+				unanswered = true
+				continue
 			}
 			attrs[name] = val
+		}
+		if unanswered {
+			// A caller naming ONE answerable output (module.eks.cluster_id)
+			// must not refuse over a completely different, unrelated
+			// output failing (module.eks.workers_asg_arns, which needs a
+			// live attribute marker discovery has not swept yet) - that
+			// whole-lookup abort is the bug this fix closes; terraform-aws-
+			// eks's own eks module ships 27 outputs, and which one failed
+			// first used to decide the WHOLE object's fate,
+			// non-deterministically, by Go's own map iteration order over
+			// child.Module.Outputs.
+			//
+			// The failing output's own key is left OUT of attrs entirely -
+			// not set to cty.DynamicVal - because materialize=false's
+			// "covered but not yet known" meaning (the branch just above)
+			// is a DIFFERENT claim from this one: "not yet known" is
+			// eligible, on purpose, because the read phase will supply a
+			// value later, while a genuine !ok/null/marked/unknown failure
+			// here may NEVER resolve (this baseline call, Options{}, has no
+			// LiveManagedResults at all and never will for a wall that is
+			// structurally real). Two claims sharing one cty.Value shape
+			// would make analyze.go's own coverage-mode caller treat
+			// "genuinely will never work" as "will work eventually" -
+			// exactly the false-reassurance shape this package's own doc.go
+			// forbids. Omitting the key instead means a caller naming the
+			// failing output DIRECTLY (module.child.workers_asg_arns) gets
+			// HCL's own "this object does not have an attribute named…"
+			// diagnostic - !ok, refusing exactly as it always did - while a
+			// caller naming only a DIFFERENT, successful attribute never
+			// sees it.
+			//
+			// A WHOLE-OBJECT use (jsonencode(module.child), a splat over
+			// it) must still refuse, and unprojectedAttr - the identical
+			// unspellable-attribute-name device managedproj.go already
+			// uses for the same "one attribute access succeeds, whole-
+			// object doesn't" shape - is what makes that so: it's an
+			// unknown that IsWhollyKnown() sees on the object, but that no
+			// traversal beginning with a "." can ever spell.
+			attrs[unprojectedAttr] = cty.DynamicVal
 		}
 		return cty.ObjectVal(attrs), true
 	}

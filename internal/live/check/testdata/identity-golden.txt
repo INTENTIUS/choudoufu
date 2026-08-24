@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=596 instances=1696
-# shape: class CONCRETE=819
-# shape: class NEEDS_DISCOVERY=718
+# shape: dirs=599 instances=1702
+# shape: class CONCRETE=822
+# shape: class NEEDS_DISCOVERY=720
 # shape: class PARENT_DERIVED=135
-# shape: class RECORD_BACKED=24
-# shape: body-sha256=271df52fce1d7eb21356c7f82011c4605757a06b4d72949b437ed279e067e22c
+# shape: class RECORD_BACKED=25
+# shape: body-sha256=30896e9ed91dbe4719ffe64dd37c272442f05ece51043dddd6e47acf1c29e943
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -52,6 +52,10 @@ internal/live/dataread/testdata/managed-projection-whole	aws_instance.web	NEEDS_
 internal/live/dataread/testdata/module-output-hop	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/module-output-hop/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/provider-config-demand	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand-sibling-output	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand-sibling-output	module.child.aws_instance.other	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/provider-config-demand-sibling-output/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand-sibling-output/child	aws_instance.other	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/provider-config-demand/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.this	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/zz-audit-arity	aws_instance.web	NEEDS_DISCOVERY		
@@ -862,6 +866,8 @@ internal/live/projection/testdata/named	aws_cloudwatch_log_group.app	CONCRETE	/o
 internal/live/projection/testdata/named	aws_s3_bucket_policy.data	CONCRETE	ownership-unit-data	bucket=ownership-unit-data
 internal/live/projection/testdata/named-moved	aws_cloudwatch_log_group.app	CONCRETE	/ours/logs	name=/ours/logs
 internal/live/projection/testdata/plan-acm-validation	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/projection/testdata/record-parent-derived	aws_cloudwatch_log_group.app	CONCRETE	placeholder	name=placeholder
+internal/live/projection/testdata/record-parent-derived	null_resource.suffix	RECORD_BACKED		
 internal/live/providerscope/testdata/aliased-parent	module.east.aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
 internal/live/providerscope/testdata/aliased-parent	module.west.aws_s3_bucket.data	CONCRETE	west-bucket	bucket=west-bucket
 internal/live/providerscope/testdata/aliased-parent/vpc	aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
