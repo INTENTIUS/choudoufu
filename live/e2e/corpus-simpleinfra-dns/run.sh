@@ -441,6 +441,87 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES instances ($Z zones, $R records) from plain terraform, 0 of $ZONES zones carry tofu-estate"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The closer template here is corpus-mastino-dns's day2_rename (zone
+# renames, untaggable record children not moved), not the module-rename
+# scripts' per-resource moved-block sweep - but this estate's zones are
+# themselves module calls (module "X" { source = "./impl" }, not a bare
+# `resource "aws_route53_zone"`), so renaming the module changes the STATE
+# ADDRESS of every child, records included, and the two mechanisms differ
+# in what each actually needs:
+#   - the STOCK oracle below (real terraform, real state) needs a moved
+#     block for every stateful child under a renamed module, or an
+#     unlisted record's old-address instance genuinely destroys and its
+#     new-address instance genuinely creates - ordinary Terraform move
+#     semantics, demonstrated on module.rustaceans_org (1 zone + 2
+#     records = 3 moved blocks).
+#   - choudoufu's OWN legs below (D1/D2, at the end of this script) need
+#     only ONE moved block, for the zone: it never uses local state at
+#     all (every stage above deletes/asserts-absent terraform.tfstate),
+#     so its untaggable records are re-derived every plan from the zone's
+#     marker plus each record's own name and type - unaffected by the
+#     zone's OWN address, exactly the mastino-dns finding, just reached
+#     through a module rename instead of a bare-resource one.
+#
+# Two zones, chosen for what each demonstrates: module.rustaceans_org (1 A
+# + 1 CNAME - the smallest real record set, so the "records don't move"
+# claim is actually exercised) gets the moved-block leg; module.
+# cratesio_com (0 records - "parked and reserved") gets the live-mv leg,
+# kept maximally simple since live-mv moves one resource instance at a
+# time. The stock oracle plans the NET rename of BOTH on a copy of
+# cold_deploy's own state, before choudoufu or live-import touch either.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two module renames, through moved blocks, on cold_deploy's own state ==="
+ORACLE="$WORK/oracle"
+copy_estate "$ORACLE" ""
+cp "$PLAIN/terraform.tfstate" "$ORACLE/terraform.tfstate"
+( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
+BASELINE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; BASELINE_PLAN_RC=$?
+[ "$BASELINE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle's baseline (no-rename) plan exited $BASELINE_PLAN_RC"; }
+grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$BASELINE_PLAN_OUT" \
+  || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -20; fail "the baseline (no-rename) oracle plan is not clean - this estate has drifted since the baseline was last measured"; }
+log "  baseline (no rename): clean, confirmed BEFORE the rename below"
+
+sed -i.bak 's/module "cratesio_com" {/module "cratesio_com_final" {/' "$ORACLE/cratesio.com.tf"
+rm -f "$ORACLE/cratesio.com.tf.bak"
+sed -i.bak 's/module "rustaceans_org" {/module "rustaceans_org_final" {/' "$ORACLE/rustaceans.org.tf"
+rm -f "$ORACLE/rustaceans.org.tf.bak"
+cat > "$ORACLE/_moved.tf" <<'EOF'
+moved {
+  from = module.cratesio_com.aws_route53_zone.zone
+  to   = module.cratesio_com_final.aws_route53_zone.zone
+}
+
+moved {
+  from = module.rustaceans_org.aws_route53_zone.zone
+  to   = module.rustaceans_org_final.aws_route53_zone.zone
+}
+
+moved {
+  from = module.rustaceans_org.aws_route53_record.a["@"]
+  to   = module.rustaceans_org_final.aws_route53_record.a["@"]
+}
+
+moved {
+  from = module.rustaceans_org.aws_route53_record.cname["www"]
+  to   = module.rustaceans_org_final.aws_route53_record.cname["www"]
+}
+EOF
+( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both module moves (cratesio.com, zone only; rustaceans.org, zone + 2 records, each needing its own moved block for a genuine state-address rename) report only their move, no attribute diff at all"
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -724,6 +805,104 @@ else
     || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
   log "  reconverged: TTL is back to $WANT_TTL, $RECORDS record sets still there, the parent zone's marker intact - all read via the AWS CLI"
   gauntlet_stage drift_reconverge pass "one untaggable record drifted, exactly $DRIFT_ADDR proposed and applied, TTL reconverged to $WANT_TTL, $RECORDS records and the parent marker intact"
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # See the D-ORACLE comment above stage 2 for why choudoufu's own legs
+  # below need only ONE moved block each (the zone), unlike the oracle's
+  # per-child sweep. The adopted estate (stages 2-5) is still marked and
+  # still converged, which is exactly the state a rename needs to start
+  # from.
+  CURRENT_STAGE=day2_rename
+  log ""
+  log "=== D0. capture the live zones this rename must not disturb ==="
+  RUSTACEANS_ZONE="$(zone_by_marker 'module.rustaceans_org.aws_route53_zone.zone')" \
+    || fail "no hosted zone carries tofu-address=module.rustaceans_org.aws_route53_zone.zone"
+  CRATESIO_ZONE="$(zone_by_marker 'module.cratesio_com.aws_route53_zone.zone')" \
+    || fail "no hosted zone carries tofu-address=module.cratesio_com.aws_route53_zone.zone"
+  log "  $RUSTACEANS_ZONE (module.rustaceans_org, 1 A + 1 CNAME record), $CRATESIO_ZONE (module.cratesio_com, 0 records)"
+
+  if [ "${BREAK:-}" = "2" ]; then
+    log "=== D1 (BREAK=2). rename module.rustaceans_org -> module.rustaceans_org_final WITHOUT a moved block ==="
+    sed -i.bak 's/module "rustaceans_org" {/module "rustaceans_org_final" {/' "$ESTATE/rustaceans.org.tf"
+    rm -f "$ESTATE/rustaceans.org.tf.bak"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+    grep -qE '^  # module\.rustaceans_org\.aws_route53_zone\.zone will be destroyed' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose destroying module.rustaceans_org.aws_route53_zone.zone - this stage's check is not load-bearing"; }
+    grep -qE '^  # module\.rustaceans_org_final\.aws_route53_zone\.zone will be created' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.rustaceans_org_final.aws_route53_zone.zone - this stage's check is not load-bearing"; }
+    log "  BREAK=2: correctly proposes destroying module.rustaceans_org.aws_route53_zone.zone and creating module.rustaceans_org_final.aws_route53_zone.zone - the moved-block and live-mv checks below are skipped"
+  else
+    log "=== D1. choudoufu, moved block: module.rustaceans_org -> module.rustaceans_org_moved ==="
+    sed -i.bak 's/module "rustaceans_org" {/module "rustaceans_org_moved" {/' "$ESTATE/rustaceans.org.tf"
+    rm -f "$ESTATE/rustaceans.org.tf.bak"
+    cat >> "$ESTATE/rustaceans.org.tf" <<'EOF'
+
+moved {
+  from = module.rustaceans_org.aws_route53_zone.zone
+  to   = module.rustaceans_org_moved.aws_route53_zone.zone
+}
+EOF
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+    MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+    [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn (the two records deriving their identity from the zone's marker must not move)"; }
+    grep -qE '^  # module\.rustaceans_org_moved\.aws_route53_zone\.zone will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.rustaceans_org_moved.aws_route53_zone.zone"; }
+    grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change - only the zone itself carries a marker to rewrite"; }
+    grep -qE '~ +"tofu-address" += +"module\.rustaceans_org\.aws_route53_zone\.zone" +-> +"module\.rustaceans_org_moved\.aws_route53_zone\.zone"' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the zone's tofu-address marker being rewritten from the old address to the new one"; }
+    log "  choudoufu: zero churn, one in-place tags update on the zone itself - its 2 record children (A, CNAME) do not move at all"
+
+    MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+    [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+    RUSTACEANS_ZONE_AFTER="$(zone_by_marker 'module.rustaceans_org_moved.aws_route53_zone.zone')" \
+      || fail "no hosted zone carries tofu-address=module.rustaceans_org_moved.aws_route53_zone.zone after the rename"
+    [ "$RUSTACEANS_ZONE_AFTER" = "$RUSTACEANS_ZONE" ] \
+      || fail "the rustaceans.org zone's id changed across the rename ($RUSTACEANS_ZONE -> $RUSTACEANS_ZONE_AFTER) - it was destroyed and recreated, not renamed"
+    [ "$(record_count)" = "$RECORDS" ] \
+      || fail "the record set count is no longer $RECORDS after the moved-block rename - a record child moved when it should not have"
+    log "  $RUSTACEANS_ZONE unchanged, tofu-address now module.rustaceans_org_moved.aws_route53_zone.zone, and all $RECORDS record sets across the estate are still there - read via the AWS CLI"
+
+    log "=== D2. choudoufu, live-mv: module.cratesio_com -> module.cratesio_com_final, no moved block at all ==="
+    sed -i.bak 's/module "cratesio_com" {/module "cratesio_com_final" {/' "$ESTATE/cratesio.com.tf"
+    rm -f "$ESTATE/cratesio.com.tf.bak"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" 'module.cratesio_com.aws_route53_zone.zone' 'module.cratesio_com_final.aws_route53_zone.zone' 2>&1)"; MV_RC=$?
+    [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+    grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+    grep -qF '"module.cratesio_com.aws_route53_zone.zone" -> "module.cratesio_com_final.aws_route53_zone.zone"' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+    log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+    CRATESIO_ZONE_AFTER="$(zone_by_marker 'module.cratesio_com_final.aws_route53_zone.zone')" \
+      || fail "no hosted zone carries tofu-address=module.cratesio_com_final.aws_route53_zone.zone after live-mv"
+    [ "$CRATESIO_ZONE_AFTER" = "$CRATESIO_ZONE" ] \
+      || fail "the cratesio.com zone's id changed across live-mv ($CRATESIO_ZONE -> $CRATESIO_ZONE_AFTER) - it was destroyed and recreated, not renamed"
+    log "  $CRATESIO_ZONE unchanged, tofu-address now module.cratesio_com_final.aws_route53_zone.zone - read via the AWS CLI"
+
+    log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+    FINAL_PLAN_OUT="$(plan_into 2>&1)"; FINAL_PLAN_RC=$?
+    [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$FINAL_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan proposes a resource change"; }
+    log "  no resource change proposed. Both renames are complete and invisible to the next plan."
+
+    gauntlet_stage day2_rename pass "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI"
+  fi
 fi
 CURRENT_STAGE=""
 gauntlet_end
