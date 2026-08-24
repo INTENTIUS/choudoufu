@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=599 instances=1702
+# shape: dirs=599 instances=1704
 # shape: class CONCRETE=822
-# shape: class NEEDS_DISCOVERY=720
+# shape: class NEEDS_DISCOVERY=722
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=30896e9ed91dbe4719ffe64dd37c272442f05ece51043dddd6e47acf1c29e943
+# shape: body-sha256=4bc7d0794cf41b0e13423e6a2c913c1b93f368a670b04611fb7342ee5ec6305b
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -53,8 +53,10 @@ internal/live/dataread/testdata/module-output-hop	module.child.aws_eks_cluster.t
 internal/live/dataread/testdata/module-output-hop/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/provider-config-demand	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/provider-config-demand-sibling-output	module.child.aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand-sibling-output	module.child.aws_instance.gatekeeper	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/provider-config-demand-sibling-output	module.child.aws_instance.other	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/provider-config-demand-sibling-output/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/dataread/testdata/provider-config-demand-sibling-output/child	aws_instance.gatekeeper	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/provider-config-demand-sibling-output/child	aws_instance.other	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/provider-config-demand/child	aws_eks_cluster.this	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.this	NEEDS_DISCOVERY		

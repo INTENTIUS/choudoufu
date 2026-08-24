@@ -625,7 +625,14 @@ var identityGoldenPin = map[string]int{
 	// server-assigned NEEDS_DISCOVERY shape, deliberately never covered by
 	// this fixture's own LiveManagedResults so it stays permanently
 	// unreadable, which is the whole point of the fixture.
-	"NEEDS_DISCOVERY": 720,
+	// 720 -> 722 for corpus-eks-basic/test_plan's own moduleOutputLookup
+	// dependency-scoping unit (issue #391 continued): the SAME fixture's
+	// third addition, aws_instance.gatekeeper (named in depends_on by the
+	// new data.aws_zone.poison, so a third sibling output can carry a
+	// dependency that always refuses classification, deliberately unrelated
+	// to cluster_id), swept twice for the same own-directory-plus-parent
+	// reason.
+	"NEEDS_DISCOVERY": 722,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1250,7 +1257,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "30896e9ed91dbe4719ffe64dd37c272442f05ece51043dddd6e47acf1c29e943" // issue #391: six ADDED rows across the two new fixtures identityGoldenPin's own CONCRETE/NEEDS_DISCOVERY/RECORD_BACKED comments detail; confirmed by diffing testdata/identity-golden.txt before and after regenerating with -update, which shows exactly those six lines added and nothing else changed
+const identityGoldenPinBodyDigest = "4bc7d0794cf41b0e13423e6a2c913c1b93f368a670b04611fb7342ee5ec6305b" // issue #391 continued (corpus-eks-basic/test_plan's moduleOutputLookup dependency-scoping unit): two more ADDED rows, aws_instance.gatekeeper swept twice in provider-config-demand-sibling-output and its child directory, join the six identityGoldenPin's own CONCRETE/NEEDS_DISCOVERY/RECORD_BACKED comments already detail; confirmed by diffing testdata/identity-golden.txt before and after regenerating with -update, which shows exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1853,7 +1860,17 @@ const (
 	// aws_cloudwatch_log_group.app and null_resource.suffix. "0 identities
 	// changed, 6 added, 0 removed" confirmed by diffing testdata/identity-
 	// golden.txt before and after regenerating with -update.
-	identityGoldenPinInstances = 1702
+	//
+	// Then 1702 -> 1704, corpus-eks-basic/test_plan's own moduleOutputLookup
+	// dependency-scoping unit (issue #391 continued): two new instances,
+	// aws_instance.gatekeeper, added to the SAME provider-config-demand-
+	// sibling-output fixture (a third sibling output, poison_output, wired
+	// through a NEW data.aws_zone.poison that names this managed resource
+	// in depends_on - see the fixture's own comment), swept twice for the
+	// same own-directory-plus-parent reason the six above already are. "0
+	// identities changed, 2 added, 0 removed" confirmed by diffing testdata/
+	// identity-golden.txt before and after regenerating with -update.
+	identityGoldenPinInstances = 1704
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
