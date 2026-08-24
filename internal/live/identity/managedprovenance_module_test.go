@@ -415,3 +415,87 @@ func TestValuesSplatPerElementProvenance(t *testing.T) {
 		t.Errorf("%s: Reason %q names the ACM resource - the SIBLING instance's own unknown leaked into this one's attribution", cognitoAddr, cognitoRes.Reason)
 	}
 }
+
+// TestNestedForScopePerElementProvenance is #397's remaining half, on
+// testdata/nested-for-scope-per-element: the REAL
+// terraform-aws-modules/terraform-aws-alb local.additional_certs shape
+// (main.tf:456-473) with TWO cert-carrying listeners instead of one, so
+// per-element attribution is provable in both directions.
+//
+// Two mechanisms have to hold at once for either instance to resolve:
+//
+//   - The outer comprehension's per-listener VALUE clause is itself a
+//     for-expression over `lookup(listener_values, ...)`, reading the OUTER
+//     comprehension's own loop variable. Decomposing it requires the outer
+//     element's binding to be in scope while the inner one is chased, which
+//     is what threading instScope through staticCollElems/forExprElems/
+//     forSourceElements/evaluatedCollElements buys.
+//   - The outer filter is
+//     `length(lookup(listener_values, "additional_certificate_arns", [])) > 0`.
+//     [resolver.forCondIncludesTolerant] previously recognised only a bare
+//     lookup()/try() as the WHOLE condition, so this filter could not be
+//     decided without listener_values' own value - which never proves,
+//     because one listener's list holds a module output and another's holds
+//     an unapplied resource attribute.
+//
+// Both ManagedResults are unknown here, exactly as in
+// TestValuesSplatPerElementProvenance: that is the configuration
+// [expansion.managedFrom]'s one shared, expansion-wide answer cannot tell
+// apart, because chasing local.additional_certs' own definition reaches
+// BOTH legs from the same expression whichever key started the chase.
+//
+// The third listener ("plain") carries no additional_certificate_arns at
+// all, so the filter must DROP it: an aws_lb_listener_certificate instance
+// keyed "plain/0" existing at all would be a key set invented from a
+// default, and is asserted absent below.
+func TestNestedForScopePerElementProvenance(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "nested-for-scope-per-element"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: moduleBlindCrosstalkManagedResults(true, true),
+		Schemas:        moduleBlindCrosstalkSchemas(),
+	})
+	if result == nil {
+		t.Fatalf("resolution produced no result at all: %s", renderDiags(diags))
+	}
+
+	httpsAddr := mustAddr(t, `module.alb.aws_lb_listener_certificate.this["https/0"]`)
+	res, ok := result.Get(httpsAddr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", httpsAddr, renderDiags(diags))
+	}
+	if res.Class != ClassNeedsDiscovery || res.Cause != DiscoverySiblingApply {
+		t.Fatalf("%s resolved %s/%s (args %v, reason %q), want NEEDS_DISCOVERY/%s attributed to the ACM validation resource",
+			httpsAddr, res.Class, res.Cause, res.CauseArgs, res.Reason, DiscoverySiblingApply)
+	}
+	wantSibling := "module.wildcard_cert.aws_acm_certificate_validation.this"
+	if len(res.CauseArgs) == 0 || res.CauseArgs[0] != wantSibling {
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q (this listener's OWN additional_certificate_arns element, not the expansion-wide answer)",
+			httpsAddr, res.CauseArgs, wantSibling)
+	}
+	if strings.Contains(res.Reason, "aws_cognito_user_pool") {
+		t.Errorf("%s: Reason %q names Cognito - the sibling listener's own unknown leaked into this one's attribution", httpsAddr, res.Reason)
+	}
+
+	cognitoAddr := mustAddr(t, `module.alb.aws_lb_listener_certificate.this["cognito/0"]`)
+	cognitoRes, ok := result.Get(cognitoAddr)
+	if !ok {
+		t.Fatalf("%s did not resolve at all: %s", cognitoAddr, renderDiags(diags))
+	}
+	if cognitoRes.Class != ClassNeedsDiscovery || cognitoRes.Cause != DiscoverySiblingApply {
+		t.Fatalf("%s resolved %s/%s (args %v, reason %q), want NEEDS_DISCOVERY/%s attributed to Cognito",
+			cognitoAddr, cognitoRes.Class, cognitoRes.Cause, cognitoRes.CauseArgs, cognitoRes.Reason, DiscoverySiblingApply)
+	}
+	if len(cognitoRes.CauseArgs) == 0 || cognitoRes.CauseArgs[0] != "aws_cognito_user_pool.this" {
+		t.Fatalf("%s: CauseArgs = %v, want [0] == %q", cognitoAddr, cognitoRes.CauseArgs, "aws_cognito_user_pool.this")
+	}
+	if strings.Contains(cognitoRes.Reason, "acm_certificate") {
+		t.Errorf("%s: Reason %q names the ACM resource - the sibling listener's own unknown leaked into this one's attribution", cognitoAddr, cognitoRes.Reason)
+	}
+
+	// The filter must drop the listener with no additional_certificate_arns
+	// at all: lookup()'s [] default means zero certificates, never one.
+	if _, ok := result.Get(mustAddr(t, `module.alb.aws_lb_listener_certificate.this["plain/0"]`)); ok {
+		t.Errorf(`module.alb.aws_lb_listener_certificate.this["plain/0"] exists; the "plain" listener declares no additional_certificate_arns, so the length(lookup(...)) > 0 filter must exclude it entirely`)
+	}
+}
