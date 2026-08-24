@@ -85,12 +85,12 @@ var enforcedLimits = map[string]Rule{
 	// GitHub issue #365 slice 3. The one shape the secrets toggle refuses:
 	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
 	// "strict-secrets".
-	"strict-secrets":   RuleStrictSecrets,
+	"strict-secrets": RuleStrictSecrets,
 	// GitHub issue #365 ruling 4 (rfc/20260823-foundation-order-ruling.md).
 	// See live/LIMITATIONS.md, "strict-no-source-create".
 	"strict-no-source-create": RuleStrictNoSourceCreate,
-	"policy-scope":     RulePolicyScope,
-	"policy-threshold": RulePolicyThreshold,
+	"policy-scope":            RulePolicyScope,
+	"policy-threshold":        RulePolicyThreshold,
 	// GitHub issue #365's first strict-profile toggle. The fixture sets
 	// marker_repair = "never", a setting the schema defines and no build
 	// implements yet; internal/live/lint/testdata carries the rest of the
