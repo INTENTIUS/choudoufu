@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "17002ab92460ef56f503b0434da05a001dc2f776",
+  "commit": "afae3a2ce4519026cdfad7523fd691674e86184c",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T22:06:05Z",
+  "generated": "2026-08-24T22:11:08Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 16,
+      "clear": 17,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,8 +158,8 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 16,
-          "fail": 1,
+          "pass": 17,
+          "fail": 0,
           "not_run": 9
         },
         "day2_replace": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,8 +235,8 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 15,
-          "fail": 1,
+          "pass": 16,
+          "fail": 0,
           "not_run": 9
         },
         "day2_replace": {
@@ -841,7 +841,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -852,15 +852,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
-        "date": "2026-08-24T21:55:29Z",
+        "commit": "afae3a2ce4519026cdfad7523fd691674e86184c",
+        "date": "2026-08-24T22:12:35Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "8 resources, genuinely cold, genuinely unmarked",
-          "day2_rename": "moved block leg PASSES for real: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too). live-mv leg FAILS: internal/live/mv/mv.go's materialize() calls projection.BuildFrom without this estate's RecordStore, so ANY live-mv call here - including on the plain taggable aws_lambda_function.this - crashes with \"Record-backed instance with no record store\" (internal/live/projection/build.go:1676) the moment it walks this configuration's OTHER record-located resources (random_pet.this, local_file.archive_plan[0], null_resource.archive[0], terraform_data.package_filename_for_hash[0]). Generic Go fix needed in mv.go (wire RecordStore into the BuildFrom/BuildWith call materialize makes), not attempted here (script-only unit).",
+          "day2_rename": "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty",
           "drift_reconverge": "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128",
           "migrate": "3 stamped, 4 recorded, 0 failed, 1 skipped",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 3; markers and record store intact",

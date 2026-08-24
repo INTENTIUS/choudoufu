@@ -1429,41 +1429,67 @@ EOF
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
 
-  # GENUINE WALL, not a script bug (verified by hand against the code
-  # before writing this): live-mv on ANY resource in this estate - taggable
-  # or not, the function itself included - fails outright with "Record-
-  # backed instance with no record store" (internal/live/projection/
-  # build.go:1676) whenever the SAME configuration also declares a
-  # record-located resource elsewhere (random_pet.this, local_file.
-  # archive_plan[0], null_resource.archive[0] and terraform_data.package_
-  # filename_for_hash[0] all qualify here). Root cause: internal/live/mv/
-  # mv.go's materialize (around line 944) calls projection.BuildFrom(ctx,
-  # m.req.Config, list, m.req.Providers) - the record-store-less
-  # convenience wrapper - instead of projection.BuildWith(..., projection.
-  # Options{RecordStore: ...}), the one live-plan's own path uses (see
-  # internal/command/live_plan.go). mv.Request already carries a
-  # RecordStore field (issue #364's own consult point, used at line ~903
-  # for the needs-discovery fallback) but materialize never receives it, so
-  # resolving the OLD object's projection - which walks every declared
-  # instance's resolution, not only the one being renamed, per this same
-  # function's own doc comment ("a rename is about the whole
-  # configuration's identity map") - hits the first record-located
-  # instance it walks and raises the internal-inconsistency diagnostic
-  # build.go itself says should be unreachable when a record_store is
-  # configured, which this estate's live block genuinely is (stage 2's own
-  # migrate and stage 3's own test_plan both read it correctly). This is a
-  # generic Go-level wiring gap in live-mv, reachable by every estate that
-  # combines a record_store with an unrelated live-mv rename - not
-  # attempted here (script-only unit; see the reproduce command below).
-  MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.lambda_function_moved.aws_lambda_function.this[0]' 'module.lambda_function_final.aws_lambda_function.this[0]' 2>&1)"; MV_RC=$?
-  if [ "$MV_RC" -eq 0 ]; then
-    fail "choudoufu live-mv on aws_lambda_function.this SUCCEEDED - the internal/live/mv/mv.go record-store wiring gap this script documents has been fixed; rewrite this D2 block as a real pass (see the header comment just above for what changed and where)"
-  fi
-  grep -qF 'Record-backed instance with no record store' <<< "$MV_OUT" \
-    || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv on aws_lambda_function.this failed a DIFFERENT way than the documented wall (\"Record-backed instance with no record store\") - re-diagnose before assuming this is the same gap"; }
-  log "  live-mv genuinely crashes on this estate: \"Record-backed instance with no record store\" - internal/live/mv/mv.go's materialize() does not pass RecordStore into projection.BuildFrom, unlike live-plan's own path. Confirmed the SAME estate's record_store IS correctly configured (stages 2 and 3 both read it). This is the wall; day2_rename fails honestly rather than papering over it."
+  # This leg used to crash outright: live-mv on ANY resource in this
+  # estate - taggable or not, the function itself included - failed with
+  # "Record-backed instance with no record store" (internal/live/
+  # projection/build.go:1676) the moment it walked this configuration's
+  # OTHER record-located resources (random_pet.this, local_file.
+  # archive_plan[0], null_resource.archive[0], terraform_data.package_
+  # filename_for_hash[0]). Root cause: internal/live/mv/mv.go's
+  # materialize() called projection.BuildFrom(ctx, m.req.Config, list,
+  # m.req.Providers) - the record-store-less convenience wrapper - instead
+  # of projection.BuildWith(..., projection.Options{RecordStore: ...}), the
+  # one live-plan's own path uses (internal/command/live_plan.go).
+  # aws_lambda_function.this is a ClassParentDerived resolution (its
+  # function_name reads random_pet.this.id), so materialize's own "the
+  # whole resolution list goes in for that case" branch handed the full
+  # per-estate resolution list to BuildFrom, which then reached the
+  # record-backed siblings with no store to read them through. Fixed:
+  # materialize() now calls BuildWith with Options{RecordStore:
+  # m.req.RecordStore}, exactly what live-plan already passed - see the
+  # gauntlet:corpus-lambda-simple/day2_rename fix commit. Three calls
+  # below, one per taggable child under the module (the function, the
+  # role, the log group) - live-mv moves one resource instance at a time.
+  MV_FN_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.lambda_function_moved.aws_lambda_function.this[0]' 'module.lambda_function_final.aws_lambda_function.this[0]' 2>&1)"; MV_FN_RC=$?
+  [ "$MV_FN_RC" -eq 0 ] || { printf '%s\n' "$MV_FN_OUT" | tail -30; fail "choudoufu live-mv on aws_lambda_function.this exited $MV_FN_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_FN_OUT" \
+    || { printf '%s\n' "$MV_FN_OUT"; fail "live-mv on aws_lambda_function.this did not report a real write"; }
+  grep -qF '"module.lambda_function_moved.aws_lambda_function.this:0" -> "module.lambda_function_final.aws_lambda_function.this:0"' <<< "$MV_FN_OUT" \
+    || { printf '%s\n' "$MV_FN_OUT"; fail "live-mv on aws_lambda_function.this did not report rewriting the tofu-address marker from the old address to the new one"; }
 
-  gauntlet_stage day2_rename fail "moved block leg PASSES for real: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too). live-mv leg FAILS: internal/live/mv/mv.go's materialize() calls projection.BuildFrom without this estate's RecordStore, so ANY live-mv call here - including on the plain taggable aws_lambda_function.this - crashes with \"Record-backed instance with no record store\" (internal/live/projection/build.go:1676) the moment it walks this configuration's OTHER record-located resources (random_pet.this, local_file.archive_plan[0], null_resource.archive[0], terraform_data.package_filename_for_hash[0]). Generic Go fix needed in mv.go (wire RecordStore into the BuildFrom/BuildWith call materialize makes), not attempted here (script-only unit)."
+  MV_ROLE_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.lambda_function_moved.aws_iam_role.lambda[0]' 'module.lambda_function_final.aws_iam_role.lambda[0]' 2>&1)"; MV_ROLE_RC=$?
+  [ "$MV_ROLE_RC" -eq 0 ] || { printf '%s\n' "$MV_ROLE_OUT" | tail -30; fail "choudoufu live-mv on aws_iam_role.lambda exited $MV_ROLE_RC"; }
+  grep -qF '"module.lambda_function_moved.aws_iam_role.lambda:0" -> "module.lambda_function_final.aws_iam_role.lambda:0"' <<< "$MV_ROLE_OUT" \
+    || { printf '%s\n' "$MV_ROLE_OUT"; fail "live-mv on aws_iam_role.lambda did not report rewriting the tofu-address marker from the old address to the new one"; }
+
+  MV_LOG_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.lambda_function_moved.aws_cloudwatch_log_group.lambda[0]' 'module.lambda_function_final.aws_cloudwatch_log_group.lambda[0]' 2>&1)"; MV_LOG_RC=$?
+  [ "$MV_LOG_RC" -eq 0 ] || { printf '%s\n' "$MV_LOG_OUT" | tail -30; fail "choudoufu live-mv on aws_cloudwatch_log_group.lambda exited $MV_LOG_RC"; }
+  grep -qF '"module.lambda_function_moved.aws_cloudwatch_log_group.lambda:0" -> "module.lambda_function_final.aws_cloudwatch_log_group.lambda:0"' <<< "$MV_LOG_OUT" \
+    || { printf '%s\n' "$MV_LOG_OUT"; fail "live-mv on aws_cloudwatch_log_group.lambda did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: all three taggable children renamed, one call each, zero churn - the mv.go RecordStore wiring gap is fixed"
+
+  LAMBDA_ARN_D2_AFTER="$(awsl lambda get-function --function-name "$FN_NAME" --query 'Configuration.FunctionArn' --output text)"
+  [ "$LAMBDA_ARN_D2_AFTER" = "$LAMBDA_ARN" ] || fail "the function's ARN changed across live-mv ($LAMBDA_ARN -> $LAMBDA_ARN_D2_AFTER) - it was destroyed and recreated, not renamed"
+  ADDR_D2_LAMBDA="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text)"
+  [ "$ADDR_D2_LAMBDA" = "module.lambda_function_final.aws_lambda_function.this:0" ] \
+    || fail "the function carries tofu-address=$ADDR_D2_LAMBDA after live-mv, not module.lambda_function_final.aws_lambda_function.this:0"
+  ADDR_D2_ROLE="$(awsl iam list-role-tags --role-name "$FN_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ADDR_D2_ROLE" = "module.lambda_function_final.aws_iam_role.lambda:0" ] \
+    || fail "the role carries tofu-address=$ADDR_D2_ROLE after live-mv, not module.lambda_function_final.aws_iam_role.lambda:0"
+  ADDR_D2_LOGGROUP="$(awsl logs list-tags-for-resource --resource-arn "$LOGGROUP_ARN" --query 'tags."tofu-address"' --output text 2>/dev/null \
+    || awsl logs list-tags-log-group --log-group-name "/aws/lambda/${FN_NAME}" --query 'tags."tofu-address"' --output text)"
+  [ "$ADDR_D2_LOGGROUP" = "module.lambda_function_final.aws_cloudwatch_log_group.lambda:0" ] \
+    || fail "the log group carries tofu-address=$ADDR_D2_LOGGROUP after live-mv, not module.lambda_function_final.aws_cloudwatch_log_group.lambda:0"
+  log "  all three live objects unchanged, tofu-address now under module.lambda_function_final - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and marker agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qE '^  # .+ will be' <<< "$FINAL_PLAN_OUT" \
+    && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  no resource change proposed. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty"
 fi
 CURRENT_STAGE=""
 gauntlet_end
