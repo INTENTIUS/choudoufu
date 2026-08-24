@@ -227,7 +227,7 @@ func TestConfiguredAttrsSeedBoundaries(t *testing.T) {
 		"unset_flag":    {Type: cty.String, Optional: true},
 	}}}
 
-	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema)
+	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
 
 	if v, ok := seed["name"]; !ok || v.AsString() != "widget-1" {
 		t.Errorf("name (Required, not Computed, statically set) must be seeded; seed=%#v", seed)

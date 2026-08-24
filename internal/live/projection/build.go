@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -1353,7 +1354,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		seedEval = seedEval.WithDataResults(lookup)
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
-	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema)
+	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources)
 	if tagsSeedOK {
 		if attrsSeed == nil {
 			attrsSeed = make(map[string]cty.Value, 1)
@@ -2106,17 +2107,17 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // attribute: [importAndRead] falls back to ImportResourceState's own
 // answer for it, exactly as before this existed. That is the same "refuse
 // rather than guess" choice [PlanInstances] makes for the same reason.
-// configMarks are the sensitivity marks that were actually on the
-// CONFIGURATION expression for one of the returned seeds, before
-// [configuredAttrSeed] stripped them for the wire - see that function's own
-// doc comment for why they have to come off, and [importAndRead]'s doc
-// comment for GitHub issue #401 family 3, which this exists to close: a
-// config-derived mark that never comes back on is what turns a genuinely
-// unchanged value into a perpetual sensitivity-only diff. Each entry's Path
-// is relative to the whole resource object (attribute name first), ready to
-// merge straight into [readImported]'s own schema-mark reconciliation with
-// [combineValueMarks].
-func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
+// configMarks are the sensitivity marks that belong on the CONFIGURATION
+// expression for one of this resource's flat attributes, whether or not
+// that expression's VALUE could also be seeded - see [configuredAttrSeed]'s
+// own doc comment for why the two are answered separately. [importAndRead]'s
+// doc comment has GitHub issue #401 family 3, which this exists to close: a
+// config-derived mark that never comes back on the projected prior is what
+// turns a genuinely unchanged value into a perpetual sensitivity-only diff.
+// Each entry's Path is relative to the whole resource object (attribute
+// name first), ready to merge straight into [readImported]'s own
+// schema-mark reconciliation with [combineValueMarks].
+func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
 	if eval == nil || rc == nil || schema.Block == nil {
 		return nil, nil
 	}
@@ -2155,7 +2156,13 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			// cannot answer safely from these two flags alone.
 			continue
 		}
-		val, localMarks, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name)
+		val, localMarks, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name, dataSchemas)
+		for _, pvm := range localMarks {
+			marks = append(marks, cty.PathValueMarks{
+				Path:  append(cty.GetAttrPath(name), pvm.Path...),
+				Marks: pvm.Marks,
+			})
+		}
 		if !ok {
 			continue
 		}
@@ -2163,12 +2170,6 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			out = make(map[string]cty.Value)
 		}
 		out[name] = val
-		for _, pvm := range localMarks {
-			marks = append(marks, cty.PathValueMarks{
-				Path:  append(cty.GetAttrPath(name), pvm.Path...),
-				Marks: pvm.Marks,
-			})
-		}
 	}
 	return out, marks
 }
@@ -2179,31 +2180,44 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 // same hazard [PlanInstances]'s planOne guards) never loses every other
 // attribute's seed on the same resource.
 //
-// marks is what [configuredAttrsSeed] threads on to [readImported]: the
-// paths inside val (relative to val itself - empty for val being marked as
-// a whole) that were marked before this function stripped them. Recovering
-// them here, right where the config value is still in hand, is the only
-// place they can be recovered at all - by the time importAndRead's provider
-// round trip returns, the value has been off the wire and back, and the
-// wire has nowhere to put a mark.
-func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, ident configs.StaticIdentifier, rc *configs.Resource, attr *configschema.Attribute, name string) (val cty.Value, marks []cty.PathValueMarks, ok bool) {
+// It answers two INDEPENDENT questions, because they have different
+// prerequisites. Whether the VALUE can be seeded needs a full, successful
+// static evaluation - [Options.DataResults], when the attribute reads a
+// data source, among everything else - and often cannot be answered at all
+// (ok=false is the ordinary, common case this whole mechanism already
+// tolerates). Whether the value is SENSITIVE by configuration is a much
+// narrower question with a much cheaper answer for the one shape that
+// matters here: a bare `attr = data.<type>.<name>.<field>` reference needs
+// only that data source TYPE's own schema, which this package already has
+// in hand for the SAME provider serving the resource being seeded, with no
+// read and no [Options.DataResults] entry at all. [dataSensitivePath]
+// answers that question; the returned marks reflect it even when ok is
+// false, and a panic recovered below only clears val/ok, never marks - a
+// crash in the VALUE half must not erase a fact the SCHEMA half already
+// established with nothing but a schema map.
+func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, ident configs.StaticIdentifier, rc *configs.Resource, attr *configschema.Attribute, name string, dataSchemas map[string]providers.Schema) (val cty.Value, pvms []cty.PathValueMarks, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			val, marks, ok = cty.NilVal, nil, false
+			val, ok = cty.NilVal, false
 		}
 	}()
 
 	spec := hcldec.ObjectSpec{
 		name: &hcldec.AttrSpec{Name: name, Type: attr.Type, Required: false},
 	}
+	traversals := hcldec.Variables(rc.Config, spec)
 
-	refs, refDiags := lang.References(addrs.ParseRef, hcldec.Variables(rc.Config, spec))
+	if dataSensitivePath(traversals, dataSchemas) {
+		pvms = []cty.PathValueMarks{{Marks: cty.NewValueMarks(marks.Sensitive)}}
+	}
+
+	refs, refDiags := lang.References(addrs.ParseRef, traversals)
 	if refDiags.HasErrors() {
-		return cty.NilVal, nil, false
+		return cty.NilVal, pvms, false
 	}
 	hclCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
 	if ctxDiags.HasErrors() {
-		return cty.NilVal, nil, false
+		return cty.NilVal, pvms, false
 	}
 	if hclCtx == nil {
 		hclCtx = &hcl.EvalContext{}
@@ -2211,7 +2225,7 @@ func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, iden
 
 	configVal, _, valDiags := hcldec.PartialDecode(rc.Config, spec, hclCtx)
 	if valDiags.HasErrors() || configVal == cty.NilVal || configVal.IsNull() || !configVal.Type().HasAttribute(name) {
-		return cty.NilVal, nil, false
+		return cty.NilVal, pvms, false
 	}
 
 	// Unmarked here, unconditionally, and BEFORE anything else reads the
@@ -2220,16 +2234,76 @@ func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, iden
 	// the seed goes straight into ReadResourceRequest.PriorState, and cty's
 	// msgpack encoder refuses a marked value outright. Nothing sensitive is
 	// lost by unmarking here, though: the paths this call captures on the
-	// way off travel back to the caller as marks below, and
-	// [readImported] puts them back on the object this package persists,
-	// alongside whatever the schema itself marks (GitHub issue #401 family
-	// 3 - a config-derived mark, such as a value read through a Sensitive
-	// data source attribute, that never came back on before this).
+	// way off travel back to the caller as marks below - superseding the
+	// schema-only guess above with the real, resolved answer, when the
+	// static evaluator got far enough to have one - and [readImported]
+	// puts them back on the object this package persists, alongside
+	// whatever the schema itself marks.
 	attrVal, localMarks := configVal.GetAttr(name).UnmarkDeepWithPaths()
-	if attrVal.IsNull() || !attrVal.IsWhollyKnown() {
-		return cty.NilVal, nil, false
+	if len(localMarks) > 0 {
+		pvms = localMarks
 	}
-	return attrVal, localMarks, true
+	if attrVal.IsNull() || !attrVal.IsWhollyKnown() {
+		return cty.NilVal, pvms, false
+	}
+	return attrVal, pvms, true
+}
+
+// dataSensitivePath reports whether any raw variable traversal a
+// configuration expression makes reads an attribute a DATA SOURCE's OWN
+// schema marks Sensitive - a purely static fact, checkable from the schema
+// alone with no data ever read. It exists because [Options.DataResults] is
+// scoped to what IDENTITY resolution demands (dataread.Analyze's own doc
+// comment - "resolution is run... every data-source refusal it still
+// raises names a newly demanded source"), so a data reference that feeds
+// only an ordinary, non-identity attribute - aws_instance.ami reading
+// data.aws_ssm_parameter.al2.value, corpus-alb-complete's own shape and
+// GitHub issue #401 family 3's reproduction - is never read before a
+// projection is built, and the VALUE genuinely can never be seeded. What
+// it WOULD be sensitive needs no value at all: hashicorp/aws's
+// aws_ssm_parameter data source marks "value" Sensitive unconditionally,
+// regardless of which parameter it names or what that parameter holds.
+//
+// Only the one flat shape a plain attribute reference actually is - a
+// traversal of data.<type>.<name>.<attr>, naming one top-level attribute
+// of the data source's own result object directly - is recognized.
+// Anything with a function call or a deeper path in between is a question
+// [configuredAttrSeed]'s own value resolution already declines to answer
+// for other reasons (it is not a bare reference), and guessing past that
+// here would be exactly the kind of invented answer this package's own
+// "refuse rather than guess" rule exists to rule out.
+func dataSensitivePath(traversals []hcl.Traversal, dataSchemas map[string]providers.Schema) bool {
+	for _, trav := range traversals {
+		if len(trav) < 4 {
+			continue
+		}
+		root, ok := trav[0].(hcl.TraverseRoot)
+		if !ok || root.Name != "data" {
+			continue
+		}
+		typeStep, ok := trav[1].(hcl.TraverseAttr)
+		if !ok {
+			continue
+		}
+		if _, ok := trav[2].(hcl.TraverseAttr); !ok {
+			// The data instance's own name, unused beyond confirming the
+			// traversal has the shape data.<type>.<name>.<attr> rather
+			// than, say, an index into a for_each'd data block.
+			continue
+		}
+		attrStep, ok := trav[3].(hcl.TraverseAttr)
+		if !ok {
+			continue
+		}
+		dsSchema, ok := dataSchemas[typeStep.Name]
+		if !ok || dsSchema.Block == nil {
+			continue
+		}
+		if a, ok := dsSchema.Block.Attributes[attrStep.Name]; ok && a != nil && a.Sensitive {
+			return true
+		}
+	}
+	return false
 }
 
 // configuredTagsSeed statically evaluates a taggable resource's own,
