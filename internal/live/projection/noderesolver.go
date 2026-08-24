@@ -13,6 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -85,6 +86,27 @@ type NodeResolver struct {
 	// greenfield resource in an estate with no history at all; see
 	// ResolveResourceIdentity's own comment and this file's tests.
 	NoSourceCreate bool
+
+	// Estate and Selection are GitHub issue #388's stamp half
+	// ([NodeResolver.AdjustConfigValue] in nodestamp.go, populated at the
+	// same "build early, populate once the run knows more" step as the
+	// three fields above - see internal/command/live_mode.go and
+	// live_plan.go, right where they set RecordStore/MarkerIndex/
+	// NoSourceCreate). See nodestamp.go's own doc comment for what each is
+	// for; they live here, not in a separate type, so one object serves
+	// both tofu.ResourceIdentityResolver and tofu.ConfigValueAdjuster and
+	// the two seams never drift onto two different snapshots of the same
+	// run's estate name or selection.
+	Estate    string
+	Selection *strict.Selection
+
+	// Slots is [discovery.Result.SlotTable]: the estate-wide sweep's slot
+	// assignment, escaped instance address to slot value, the same map
+	// stamp.Request.Slots already carries for the HCL path. Nil is a
+	// completely ordinary value - a configuration with no count blocks
+	// assigns no slots at all - and is read exactly like an absent map
+	// entry: no tofu-slot tag written. See nodestamp.go's own doc comment.
+	Slots map[string]string
 }
 
 // NewMarkerIndex builds a [NodeResolver.MarkerIndex] from a discovery
