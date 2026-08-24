@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=618 instances=1717
+# shape: dirs=619 instances=1719
 # shape: class CONCRETE=826
-# shape: class NEEDS_DISCOVERY=731
+# shape: class NEEDS_DISCOVERY=733
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26
+# shape: body-sha256=98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -535,6 +535,8 @@ internal/live/identity/testdata/record-backed-parent-attr	null_resource.gate	REC
 internal/live/identity/testdata/record-backed-parent-attr	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr	terraform_data.seed	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr-unknown	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/record-fallback-sibling-apply	aws_acm_certificate.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/record-fallback-sibling-apply	aws_s3_bucket.logs	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.named	CONCRETE	web-static	name=web-static
 internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/route53-record-set-identifier	aws_route53_record.unweighted	CONCRETE	Z4KAPRWWNC7JR_dev.example.com_NS	name=dev.example.com,type=NS,zone_id=Z4KAPRWWNC7JR

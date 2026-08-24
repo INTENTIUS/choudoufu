@@ -799,6 +799,8 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
+printf '%s\n' "$PLAN_OUT" > /tmp/alb_plan_out.txt
+
 [ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the config-language subset wall below is gone; update this script and push on to stage 4"; }
 
 log "  all distinct Error: lines from this live-plan run:"

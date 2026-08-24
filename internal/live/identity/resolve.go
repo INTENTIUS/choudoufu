@@ -1636,6 +1636,36 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		// sibling it is waiting on rather than that their argument is not
 		// static. See [DiscoverySiblingApply].
 		if res, ok := r.siblingApplyResolution(addr, sibMark, sibArgs, hardFailed); ok {
+			// The record rung, after the withdrawal and not before it: the
+			// sibling-apply diagnostics have to come off r.diags either
+			// way, and siblingApplyResolution is what takes them off.
+			//
+			// A sibling-apply answer promises that a LATER run can find the
+			// object - by its marker, once the sibling exists and the value
+			// is known. For a type with nowhere to carry a marker that
+			// promise cannot be kept: the marker sweep has nothing to sweep,
+			// so the instance stays unbindable forever and the plan refuses
+			// it as an unstamped marker-only resource. The record is the
+			// only identity source left that is not a guess, which is the
+			// same argument every other [resolver.recordFallback] call site
+			// in this function makes, reached through a different door.
+			//
+			// terraform-aws-modules/terraform-aws-acm's own
+			// aws_route53_record.validation is the shape: its name and type
+			// come from aws_acm_certificate.this's domain_validation_options,
+			// which the provider fills in only after the certificate is
+			// applied, and aws_route53_record has no tags map. Before this,
+			// corpus-alb-complete's two validation records reached
+			// live-plan's "Unmarked apply of a marker-only resource" - a
+			// refusal with no way out, for two objects the estate had
+			// already migrated.
+			//
+			// [resolver.recordFallback] is a no-op for anything taggable, so
+			// nothing that resolves today is re-routed: a type with a marker
+			// keeps the sibling-apply answer it has always had.
+			if fb, fbOK := r.recordFallback(addr, resAddr.Type); fbOK {
+				return fb, true
+			}
 			return res, true
 		}
 		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
