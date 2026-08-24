@@ -13,6 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -91,14 +92,21 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 
 	typeName := addr.Resource.Resource.Type
 
-	rec, version, keyExists, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, addr)
+	rec, version, keyExists, identityFound, viaAlias, err := b.locatedIdentityWithAliases(ctx, addr)
 	if err != nil {
 		detail := fmt.Sprintf("Reading the located record for %s failed: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a located record", detail))
 		b.omitFailed(addr, detail)
 		return
 	}
-	if keyExists {
+	if keyExists && !viaAlias {
+		// A record found under a `moved` block's OLD address lives at a
+		// DIFFERENT store key than the one write-back will create for addr
+		// (the new one), so there is no version of addr's own key to
+		// protect against a race - see [builder.locatedIdentityWithAliases]'s
+		// doc comment. Recording one here would tell write-back's CAS that
+		// addr's key already held this version, when the key it actually
+		// read is a different key entirely.
 		b.recordEnvelopeVersion(addr, version)
 	}
 	if !identityFound {
@@ -125,6 +133,86 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 		values:   rec.Components,
 		located:  true,
 	})
+}
+
+// locatedIdentityWithAliases is [RecordStore.GetIdentity] widened to the
+// addresses a `moved` block honours for addr (GitHub issue #401's day2_rename
+// wall on corpus-vpc-complete and corpus-autoscaling-complete): a
+// record-located instance's identity is written once, at the address that
+// existed when [liveimport]'s migrate or an earlier apply wrote it, and a
+// `moved` block relocates the DECLARED address without touching the record
+// store at all. That is the identical gap [moved.Aliases] already closes for
+// a live marker - internal/live/discovery's sweep and
+// internal/live/projection/ownership.go's [moved.Accepts] both consult it so
+// a marker still carrying an old address is not read as an orphan - except
+// here the address is a record STORE KEY rather than a tag value, and
+// nothing on this path consulted [moved.Honoured] at all before this change:
+// a moved-block rename of a taggable resource follows its marker through the
+// alias index just fine, but its untaggable, record-located sibling stayed
+// bound to the address the record was written under, so the next plan found
+// nothing at the new address and proposed a CREATE for an object that had
+// only ever been renamed.
+//
+// addr itself is tried first - the ordinary, unmoved case, and the only one
+// that costs a single store read for every other instance - and
+// b.movedStmts is consulted only once that comes back with no identity.
+// Exactly one alias carrying an identity is bound to addr, mirroring
+// [moved.Accepts]'s own "the live object still carrying the old address IS
+// this instance" rule; more than one is refused rather than guessed, the
+// same discipline [declared.record]'s "one marker value for two declared
+// addresses" diagnostic already holds markers to - guessing which of two
+// prior records is this instance's is exactly the wrong-marker shape
+// HANDOFF.md's safety rule exists to stop.
+//
+// A record found via an alias is deliberately reported with keyExists=false
+// and viaAlias=true, and [builder.materializeLocated] uses that to skip
+// [builder.recordEnvelopeVersion] for addr: the version read belongs to the
+// ALIAS's key, not addr's, and asserting it as addr's own CAS expectation
+// would tell write-back that addr's key already held a version it has never
+// had. Leaving addr out of EnvelopeVersions falls back to
+// [writeBackRecordEnvelopes]'s stale-key path (RecordStore.currentVersion),
+// which reads addr's real version at write-back time - "no key yet", for an
+// ordinary move - and still catches a genuine concurrent write to addr's own
+// key between plan and apply. The OLD key is left exactly as it was: it is
+// never proposed for destruction ([builder.discoverOrphanedRecords] skips
+// every kind=identity key on principle), so leaving it in place costs
+// nothing and risks nothing, the same way a moved marker's old tag value is
+// never scrubbed separately from the ordinary in-place rewrite that
+// completes the move.
+func (b *builder) locatedIdentityWithAliases(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, viaAlias bool, err error) {
+	rec, version, keyExists, identityFound, err = b.opts.RecordStore.GetIdentity(ctx, addr)
+	if err != nil || identityFound {
+		return rec, version, keyExists, identityFound, false, err
+	}
+
+	var (
+		found   LocatedRecord
+		matches int
+		last    addrs.AbsResourceInstance
+	)
+	for _, origin := range moved.Aliases(b.movedStmts, addr) {
+		originRec, _, _, originFound, originErr := b.opts.RecordStore.GetIdentity(ctx, origin)
+		if originErr != nil {
+			return LocatedRecord{}, "", false, false, false, originErr
+		}
+		if !originFound {
+			continue
+		}
+		matches++
+		found = originRec
+		last = origin
+	}
+	switch matches {
+	case 0:
+		return LocatedRecord{}, "", false, false, false, nil
+	case 1:
+		return found, "", false, true, true, nil
+	default:
+		return LocatedRecord{}, "", false, false, false, fmt.Errorf(
+			"more than one address a moved block says %s used to have carries a located record (the most recently checked is %s); this package will not guess which prior record is this instance's",
+			addr, last,
+		)
+	}
 }
 
 // LocatedRecordFrom derives the [LocatedRecord] one applied object of
