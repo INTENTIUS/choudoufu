@@ -2173,7 +2173,30 @@ const (
 	// stub_data are test-only schemas, never real provider types the
 	// admission table resolves. identityGoldenPinInstances is unchanged at
 	// 1709 for the same reason.
-	identityGoldenPinDirs = 606
+	//
+	// Then 606 -> 607 for the corpus-ecs-fargate/test_plan unit that fixed
+	// GitHub issues #395 and #376 - the SAME configuredAttrsSeed mechanism
+	// as corpus-eks-basic's unit above, independently generalized and then
+	// reconciled onto the identical implementation (rebased 2026-08-24,
+	// see build.go's own doc comment on configuredAttrsSeed and
+	// configuredTagsSeed for which parts of each unit's design survived):
+	// one new fixture directory, internal/live/projection/testdata/
+	// attrs-seed-fargate (named to avoid colliding with corpus-eks-basic's
+	// own testdata/attrs-seed), whose three stub_* resource types are
+	// test-only fictions with no identity.DefaultTable entry and no
+	// provider schema, so they resolve no admitted managed instance
+	// identity at all.
+	//
+	// Then 607 -> 608 for the same unit's second fixture directory,
+	// internal/live/projection/testdata/residue-seed-managed-ref: the
+	// harder half of #395, a task_definition set to a REFERENCE to
+	// another resource's computed attribute rather than a literal, which
+	// needed residueSeedFor (a residue-record seed, not just
+	// configuredAttrsSeed's static-config one) to fix. Same reason as
+	// above: stub_service/stub_task_definition are test-only fictions
+	// with no admitted identity. identityGoldenPinInstances is unchanged
+	// at 1709 across all four of this pin's own fixtures.
+	identityGoldenPinDirs = 608
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

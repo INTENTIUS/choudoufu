@@ -425,7 +425,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 								addr, res.ProviderConfig, provErr,
 							)))
 						} else {
-							attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), func(prior cty.Value) (cty.Value, error) {
+							attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), func(prior cty.Value) (cty.Value, error) {
 								resp := provider.ReadResource(ctx, providers.ReadResourceRequest{
 									TypeName:      typeName,
 									PriorState:    prior,

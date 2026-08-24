@@ -215,6 +215,68 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 	log.Printf("[TRACE] projection: filled %d residue attribute(s) of %s from the record store", n, addr)
 }
 
+// residueSeedFor is [builder.materialize]'s PRE-READ counterpart to
+// [builder.fillResidueFor]'s post-read fill, and the other half of GitHub
+// issues #395 and #376's fix: a residue record that
+// [residueConfigSourced]'s widening let MIGRATE (or an earlier apply) write
+// for a non-Computed, configuration-owned attribute is exactly the value a
+// persisted state file's own PriorState would carry into ReadResource, and
+// [configuredAttrsSeed] can only ever reconstruct that value when
+// configuration itself is statically evaluable - never when the argument
+// is a reference to another managed resource's own computed attribute
+// (task_definition = aws_ecs_task_definition.this[0].arn is exactly this
+// shape, and the config-language subset's static evaluator has no path to
+// a managed resource's value at all). The residue record is what a MIGRATE
+// or an earlier apply already resolved that reference to, once, for real -
+// so seeding from it here is not a guess, it is the same "what would a
+// real state file's PriorState already hold" reasoning
+// [configuredAttrsSeed]'s own doc comment makes, from a second source.
+//
+// Returned entries never override one [builder.materialize] already got
+// from [configuredAttrsSeed]: static configuration is read fresh on every
+// run and a residue record can be stale (written at MIGRATE time, read on
+// every later plan), so configuration wins whenever both exist - the
+// caller enforces this by only merging in a name absent from its own seed
+// map, not by anything here.
+//
+// This does not widen WHICH attributes are safe to seed beyond
+// [residueConfigSourced]'s own population - the residue record may hold
+// other, provider-blind attributes (aws_lambda_function.filename and its
+// like) that [fillResidueFor] already handles correctly post-read, and
+// this function deliberately leaves those to it rather than seeding them
+// too. Feeding a non-null value into a Read the provider genuinely never
+// consults for that attribute would very likely be harmless (the provider
+// would just leave the seed untouched, same as an empty stub), but that
+// claim is not exercised or asserted anywhere in this change, so it is not
+// made here.
+//
+// Every failure is silent and best-effort, matching [fillResidueFor]'s own
+// stance for the identical store: this run's own later call to
+// [builder.fillResidueFor] re-reads the same record and raises
+// [SummaryResidueUnreadable] if something is genuinely wrong, so a second
+// warning here would only be an echo.
+func (b *builder) residueSeedFor(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) map[string]cty.Value {
+	if b.opts.RecordStore == nil || schema.Block == nil {
+		return nil
+	}
+	attrs, _, _, residueFound, err := b.opts.RecordStore.GetResidue(ctx, addr)
+	if err != nil || !residueFound {
+		return nil
+	}
+	configSourced := residueConfigSourced(schema)
+	var out map[string]cty.Value
+	for name, val := range attrs {
+		if !configSourced[name] {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]cty.Value, len(attrs))
+		}
+		out[name] = val
+	}
+	return out
+}
+
 // SummaryResidueUnreadable is the summary of the warning
 // [builder.fillResidueFor] raises when an estate's residue record exists but
 // cannot be used. Named for [SummaryLocatedNoStore]'s reason:
@@ -682,7 +744,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 	if len(candidates) == 0 {
 		return false, nil
 	}
-	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), read)
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read)
 	if !ok {
 		return false, nil
 	}
@@ -759,6 +821,42 @@ func residueIdentityAttrs(schema providers.Schema) map[string]bool {
 	return out
 }
 
+// residueConfigSourced reports, for every flat attribute a schema names,
+// whether configuration is the ONLY thing that can ever set its value: the
+// plugin protocol's own Required/Optional/Computed contract (see
+// [configschema.Attribute]'s own doc comment) says a Required or a plain
+// Optional (never Computed) attribute's true value can never differ from
+// what was last configured - Computed is the ONE flag that lets a provider
+// answer independently of configuration at all. [classifyResidue] uses this
+// to widen its own read-A/read-B test for GitHub issues #395 and #376: a
+// non-Computed attribute's read A can never be showing REAL, independent
+// drift, so a real-looking answer there can only be a representation
+// artifact (a legacy-SDK Read choosing between two equivalent SPELLINGS of
+// the identical value based on what PriorState happened to hold), never a
+// genuinely different underlying value - see [classifyResidue]'s own
+// widened branch for the safety condition that still catches actual drift.
+//
+// NestedType and block-typed names are deliberately absent from the
+// returned map (as opposed to present and false): [classifyResidue] only
+// ever looks up a flat candidate here, so the two are indistinguishable to
+// every caller and there is no need to manufacture an answer for a
+// question nothing asks.
+func residueConfigSourced(schema providers.Schema) map[string]bool {
+	out := map[string]bool{}
+	if schema.Block == nil {
+		return out
+	}
+	for name, attr := range schema.Block.Attributes {
+		if attr == nil || attr.WriteOnly || attr.NestedType != nil {
+			continue
+		}
+		if attr.Required || (attr.Optional && !attr.Computed) {
+			out[name] = true
+		}
+	}
+	return out
+}
+
 // residueReader is the one provider call [classifyResidue] makes, narrowed
 // to what it needs so a test can supply two answers without a provider.
 type residueReader func(prior cty.Value) (cty.Value, error)
@@ -822,7 +920,40 @@ type residueReader func(prior cty.Value) (cty.Value, error)
 //
 // The caller is expected to treat ok=false as "record nothing for this
 // instance", never as "record what we have".
-func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[string]bool, read residueReader) (map[string]cty.Value, bool) {
+//
+// # The format-only widening (GitHub issues #395 and #376)
+//
+// configSourced (see [residueConfigSourced]) names the candidates whose
+// value the plugin protocol's own contract says configuration is the ONLY
+// thing that can ever set - Required, or Optional and never Computed. For
+// exactly this population, read A producing something real (failing the
+// carriesNoInformation test below) is widened to still count as residue
+// PROVIDED read B - given the correct, applied value as its prior - echoes
+// that value back exactly. hashicorp/aws's aws_ecs_service is the
+// confirmed case: task_definition's Read reformats between the short
+// "family:revision" form and the full ARN depending on whether PriorState
+// already looks like an ARN, defaulting to the short form when PriorState
+// carries nothing - so an identity-only prior (read A) answers with the
+// short form, a real, non-null, DIFFERENT-looking value that used to fail
+// the unwidened test below and be treated as unrecordable drift.
+//
+// The safety argument is the same one [configuredAttrsSeed] makes for
+// seeding, from the opposite direction: a non-Computed attribute's TRUE
+// value can never differ from configuration by the protocol's own
+// contract, so read A's different-looking answer cannot be reporting real,
+// independent drift - there is nothing else it could be reporting except a
+// different SPELLING of the identical value. And the read-B leg is what
+// keeps genuine drift from slipping through anyway: if the live object's
+// task_definition had actually changed out of band, feeding it its own
+// applied value as PriorState would make the provider echo the CURRENT
+// wire value in that format - which is the NEW value, not applied - so
+// `bv.RawEquals(want)` correctly fails and the candidate falls through to
+// "real drift, do not record" exactly as before. Confirmed directly
+// against a live floci + hashicorp/aws 6.59.0 standalone repro (see the
+// PR description for the reproduce command): seeding PriorState with the
+// correct ARN before any read at all makes the provider echo it back
+// unchanged, matching this reasoning's own prediction.
+func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[string]bool, configSourced map[string]bool, read residueReader) (map[string]cty.Value, bool) {
 	if len(candidates) == 0 || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil, false
 	}
@@ -887,14 +1018,27 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 			continue
 		}
 		if !carriesNoInformation(av) {
-			// Read A produced something else real. The provider manages the
-			// attribute and currently disagrees with what we applied, which
-			// is drift and belongs in the plan rather than in a record.
-			continue
+			// Read A produced something else real. Ordinarily that means
+			// the provider manages the attribute and currently disagrees
+			// with what we applied - drift, which belongs in the plan
+			// rather than in a record. The one exception is the format-only
+			// widening this function's own doc comment describes: for a
+			// candidate configSourced names, a real-looking answer here
+			// cannot be independent drift at all (the protocol's own
+			// contract forbids it), so it is provisionally still eligible,
+			// and the read-B check right below is what tells a genuine
+			// format artifact apart from every other case that could
+			// produce this shape.
+			if !configSourced[name] {
+				continue
+			}
 		}
 		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(want) {
 			// The provider did not preserve what the prior held, so a
-			// record would not survive a read either.
+			// record would not survive a read either - and, for the
+			// widened branch above, this is also what proves the live
+			// object has not actually drifted: fed the correct value, the
+			// provider echoed something else.
 			continue
 		}
 		out[name] = want

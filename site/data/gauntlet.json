@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "d2615e9203e774f24b1fa00e1e02dc571177def5",
+  "commit": "9a2853b24b568de8666e13d107594855b680d1b1",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T15:35:01Z",
+  "generated": "2026-08-24T15:59:49Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 24,
+      "clear": 25,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -173,9 +173,9 @@
           "not_run": 26
         },
         "drift_reconverge": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "greenfield": {
           "pass": 0,
@@ -198,13 +198,13 @@
           "not_run": 26
         },
         "test_apply": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "test_plan": {
-          "pass": 24,
-          "fail": 2,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         }
       }
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 23,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -250,9 +250,9 @@
           "not_run": 25
         },
         "drift_reconverge": {
-          "pass": 23,
+          "pass": 24,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "greenfield": {
           "pass": 0,
@@ -275,13 +275,13 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 23,
+          "pass": 24,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "test_plan": {
-          "pass": 23,
-          "fail": 2,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         }
       }
@@ -468,26 +468,26 @@
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "844b3e3c23c6793ef3cda37259f1b9b39f9aded6",
-        "date": "2026-08-24T13:43:46Z",
+        "commit": "9a2853b24b568de8666e13d107594855b680d1b1",
+        "date": "2026-08-24T16:02:44Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "62 resources, once for real",
-          "drift_reconverge": "depends on stages 3-4",
+          "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "migrate": "46 of 62 stamped",
-          "test_apply": "depends on stage 3, which does not produce a clean plan",
-          "test_plan": "round-9 repin (lex00/floci PR #130, issue #129, ec82d50d, ghcr.io/lex00/floci:main-20260824e sha256:75987cd7): ECS ContainerDefinition/TaskDefinition now echo the exact registered JSON, converging module.ecs_service's own task definition off its old replacement - confirmed by a traced replan (3a, the same #365-slice-2 fallback already used for the ECS cluster), not merely an unmoved count - taking with it the cascading task_definition attribute that used to be this estate's sole in-place change (asserted absent, 3d). That converge exposes two choudoufu defects the old replacement had been masking, both newly filed rather than fixed in this repin unit, both pinned by exact text so WANT_CHANGE_N=2 cannot silently hide a different change: choudoufu/#395, module.ecs_service.aws_ecs_service.this[0]'s task_definition migrates as the short family:revision form instead of the live ARN config's own .arn reference produces (stock's own replan of the same state shows zero diff - floci echoes CreateService's taskDefinition argument verbatim, the same contract PR #130 leaned on for container_definitions, so this is choudoufu's own migrate/projection, not an emulator gap); choudoufu/#376 (second confirmed instance, commented there), module.ecs_service.aws_ecs_task_definition.this[0] is missing track_latest/skip_destroy, two client-side-only provider defaults migrate's record should carry forward from the migrated stock state and doesn't. Separately, ONE task-definition replacement remains, not two: module.ecs_task_definition (the standalone one: volume block, ARM64 runtime platform), confirmed identical in stock's own fresh replan (WANT_ADD_N/WANT_DESTROY_N 2 -> 1). Read directly against the emulator API and against real AWS (register/describe/deregister, no tofu in the loop, zero running resources), two residual container_definitions diffs force it, either alone sufficient (ForceNew): essential going explicit-true (state) -> absent (config) is a genuine HANDOFF row-3 wall (both floci and real AWS always echo essential explicitly; terraform-provider-aws's own equivalence check does not suppress the resulting diff, independent of the emulator); mountPoints[].readOnly going explicit-false (state) -> absent (config) is a confirmed emulator gap (lex00/floci#131: real AWS leaves readOnly absent when never set, floci was defaulting and echoing it) fixed and tested on branch fix/ecs-mountpoints-readonly, not yet published/repinned - and would not by itself have cleared this estate this round, since the essential diff forces the same replacement independently. #371, #378 and #372 remain fixed: #378's two aws_cloudwatch_log_group instances under for_each'd module calls stay out of the plan (internal/live/stamp's per-module-instance tofu-address via tofu.marker_module_prefix), and #372's remainder keeps all 5 client-named count instances slotted at migrate time (0 of $CHANGE_N in-place changes are a bare tofu-slot tag). #371's ABSENT class is still 0; identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID."
+          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 46 tofu-estate-tagged objects before, 46 after, no state file either time",
+          "test_plan": "genuinely empty replan (\"No changes. Your infrastructure matches the configuration.\") - #371, #378, #372, #110, #395 and #376 all fixed and stay fixed; the standalone task definition's essential/mountPoints[].readOnly wall is gone (lex00/floci#131, published and repinned this unit) and essential defaulting to true was never an independent wall on its own (this unit's own re-measurement). #395/#376: choudoufu keeps no persisted state, so every plan re-derives PriorState through ImportResourceState's bare stub; internal/live/projection/build.go's configuredAttrsSeed generalizes the tags-only import-stub seed (issue #287 item 8) to every Required-or-Optional-non-Computed attribute (fixing #376's track_latest/skip_destroy directly), and internal/live/projection/residue.go's residueConfigSourced widening of classifyResidue plus the new builder.residueSeedFor pre-read seed close #395's managed-reference case (task_definition = aws_ecs_task_definition.this[0].arn) that configuredAttrsSeed's static evaluator alone could not reach. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID."
         }
       },
       "notes": "RE-CROSSED FOR REAL 2026-08-21 at dbc5ebf575 (GitHub issue #346's fix), twice, the second time instrumented to capture live-plan's raw output. STAGES UNCHANGED at 2 of 5, and #346's fix does not reach this estate either. Stage 1: 'Apply complete! Resources: 62 added, 0 changed, 0 destroyed', cluster confirmed carrying no tofu-address beforehand. Stage 2: '46 of 62 eligible (28 VERIFIED + 18 DRIFTED); 16 skipped'; '46 stamped, 1 recorded (time_sleep.this[0]), 0 failed, 15 skipped'; both markers confirmed by direct aws ecs describe-* calls against floci rather than through choudoufu's own report (cluster/ex-fargate = module.ecs_cluster.aws_ecs_cluster.this:0, service/ex-fargate/ex-fargate = module.ecs_service.aws_ecs_service.this:0). Stage 3 fails on exactly 8 diagnostics, the same 8 as before, verified two ways (grep -c '^Error:' over the raw output, and the script's own hard count assertions): 1 'Module output not supported in static context' on main.tf:68 (cluster_arn = module.ecs_cluster.arn), 1 'Unable to compute static value' on modules/service/main.tf:1565 (aws_appautoscaling_target.this[0].resource_id), and 6 'Unresolvable identity' cascading from it onto aws_appautoscaling_policy.this['cpu'] and ['memory']. Why the fix misses it: the same value-shaped module-CALL-argument route as corpus-rds-complete-postgres, PLUS a transform the part-shaped route could not express even if it reached - local.cluster_name = element(split('/', var.cluster_arn), 1), a function applied to the deferred value. identity.Formula holds literals and ParentRefs and has no way to say 'split this parent attribute and take element 1'. That is a mechanism this repository does not have, not a gap in #346's fix. A 'Provider version does not match the admission evidence version' warning (6.61.0 resolved against 6.59.0 admission evidence) also prints; the script's own header calls it a caution, not a failure. PRIOR HISTORY BELOW. Landed dd83121592 (2026-08-18), 62 resources: ECS cluster (Container Insights, FARGATE/FARGATE_SPOT split), a BLUE_GREEN service behind an ALB, ECS Exec, ECS Service Connect, a two-container task definition plus a standalone second one, a CloudMap namespace, nested ALB/VPC modules. cold_deploy and migrate genuinely pass (43 of 62 stamped: 26 VERIFIED + 17 DRIFTED; 19 skipped - 16 untaggable by design, 3 blocked by #305). test_plan blocked by 4 sites: #305's familiar default_* trio (3 sites) and a NEW one, filed as #308: the child-module for_each keyset prover (internal/live/identity/foreach_keyset.go) has no case for a for-comprehension (for k, v in var.container_definitions : k => v if ...) and doesn't chase a bare var.X for_each source across a module-call boundary to the literal object constructor at the caller, whose keys are actually static even though one unrelated attribute value inside the map is dynamic - resolve.go's resource-level forEachOverComprehension already does the equivalent per-entry evaluation the module-call prover lacks. Two real floci gaps found and filed but not fixed, both sized as real modeling work rather than quick patches: lex00/floci#59 (CreateCluster silently drops settings/Container Insights, default_capacity_provider_strategy never serialized back) and lex00/floci#60 (CreateService/DescribeServices drop scheduling_strategy, enable_ecs_managed_tags, enable_execute_command, health_check_grace_period_seconds, deployment_controller, blue-green load_balancer.advanced_configuration, service_connect_configuration entirely - scheduling_strategy's omission in particular forces the AWS provider to propose destroy-and-recreate on every plan after creation, a real non-idempotency bug independent of choudoufu). Neither floci gap blocks this crossing's own outcome since test_plan already refuses earlier, upstream of any ECS-field diff. Follow-up pass 2026-08-18 (#313 cross-check, 0a94070b16/3ff22c5be6): the committed run.sh still asserted pre-#305 counts (43/62 eligible) and failed before ever reaching stage 3; updated to the real current numbers (46/62 eligible, #305's default_* trio now fully resolved here) and re-verified against real floci twice plus a BREAK=1 negative control, all read from the script's own printed lines. test_plan's sole remaining blocker is confirmed #308 alone - #313's diagnostic does not appear anywhere in the output. Mechanism: this estate's vpc submodule expands subnets via count over a statically-known length, never a for_each keyed on the AZ name values, so #313 structurally can't reach it. Commented on #313 and #308. #308 fixed and merged 2026-08-18 (a9ac6d06e7/b2bb59585d, generic: a *hclsyntax.ForExpr case plus a cross-module-call var/local chase in internal/live/identity/foreach_keyset.go, reaching every module-call for_each proof, not just this estate) - re-run confirms 0 occurrences of #308's diagnostic (was 1), but test_plan is still blocked: #308 firing first had been masking two more causes in the same live-plan output all along. Follow-up pass 2026-08-18 (e74c7d5869/07c7317ab6) re-staled run.sh's stage-3 assertions and header to the real current picture, verified across three separate real live-plan runs (stable counts each time) plus a BREAK=1 negative control: 236 total diagnostics, three distinct root causes, not one. Root cause A (#313's canonical shape, 48 sites): data.aws_availability_zones.available feeding local.azs into module \"vpc\"'s azs argument. Root cause B (also #313's family via a module output, 1 site): module.ecs_cluster.arn passed into module \"ecs_service\" as cluster_arn, \"Module output not supported in static context\". Both A and B are #313's already-ruled maintainer-level architecture question (live-plan never calls a provider during plan), not fixed here. Root cause C (NOT #313 - a distinct, newly-found, likely-fixable gap #308's own fix exposed, 4 sites): each.value.enable_cloudwatch_logging/create_cloudwatch_log_group inside module.container_definition, both literal booleans in the caller's own object literal but refused because each.value is treated as one opaque blob instead of projected to the referenced field - filed as #315, not attempted. These cascade to 177 \"Unable to compute static value\" and 6 \"Unresolvable identity\" sites (traced: aws_appautoscaling_policy reads aws_appautoscaling_target's resource_id, itself one of C's failures). Re-verified 2026-08-19 (be6b1096ba/b7bbff04a6) against everything landed overnight (#313's data-source half, #315, #321/#324, #323, #325): root cause A (0 sites, confirmed fixed) and root cause C (0 sites, #315's each.value projection fix confirmed) are both gone. Only root cause B remains (module.ecs_cluster.arn, a Computed attribute crossing a module-output boundary), now cascading to 1 \"Unable to compute static value\" plus 6 \"Unresolvable identity\" sites (aws_appautoscaling_target/aws_appautoscaling_policy chain) - down from 236 diagnostics to 8. This is the same already-acknowledged Computed-attribute/module-output architecture question corpus-rds-complete-postgres and corpus-security-group-complete are also blocked on; no action taken here, no new issue filed."

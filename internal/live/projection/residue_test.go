@@ -116,7 +116,7 @@ func TestClassifyResidueSeparatesFilenameFromDescription(t *testing.T) {
 		t.Fatalf("residueCandidates = %v, want %v", candidates, wantCandidates)
 	}
 
-	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), sdkv2LikeRead)
+	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for an object whose provider plainly leaves three arguments alone")
 	}
@@ -179,7 +179,7 @@ func TestClassifyResidueLeavesAZeroValueTheProviderAnswers(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(obj, residueCandidates(schema, obj, strict.DefaultSecrets), lambdaIdentityAttrs(), legacyRead)
+	got, ok := classifyResidue(obj, residueCandidates(schema, obj, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, legacyRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing at all; the three real residue arguments should still classify")
 	}
@@ -216,7 +216,7 @@ func TestClassifyResidueRefusesTheFrameworkNull(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), frameworkRead)
+	got, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, frameworkRead)
 	if ok {
 		if _, bad := got["filename"]; bad {
 			t.Fatal("filename was recorded from a provider that answers null for it on EVERY read. " +
@@ -319,7 +319,7 @@ func TestClassifyResidueFailsClosed(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), tc.read())
+			got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, tc.read())
 			if ok || len(got) != 0 {
 				t.Fatalf("classifyResidue returned ok=%v with %v. Every one of these is a missing answer, and a missing answer must record NOTHING.", ok, sortedNames(got))
 			}
@@ -354,7 +354,7 @@ func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 
 	echo := func(prior cty.Value) (cty.Value, error) { return prior, nil }
-	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), echo)
+	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, echo)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for a provider that manages nothing; that estate would never converge")
 	}
@@ -363,6 +363,158 @@ func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	}
 	if _, bad := got["id"]; bad {
 		t.Error("\"id\" was recorded even from an echo provider. The candidate filter, not the classifier, is what keeps the identity out.")
+	}
+}
+
+// serviceLikeSchema is aws_ecs_service's shape reduced to the attribute
+// GitHub issue #395 is about, taken from hashicorp/aws 6.59.0's own
+// schema: task_definition is Optional, never Computed - the plugin
+// protocol's own contract says configuration is the only thing that can
+// ever set it.
+func serviceLikeSchema() providers.Schema {
+	return providers.Schema{
+		Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":              {Type: cty.String, Computed: true},
+				"name":            {Type: cty.String, Required: true},
+				"cluster":         {Type: cty.String, Required: true},
+				"task_definition": {Type: cty.String, Optional: true},
+			},
+		},
+	}
+}
+
+func serviceApplied() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":              cty.StringVal("arn:aws:ecs:eu-west-1:000000000000:service/ex-fargate/ex-fargate"),
+		"name":            cty.StringVal("ex-fargate"),
+		"cluster":         cty.StringVal("arn:aws:ecs:eu-west-1:000000000000:cluster/ex-fargate"),
+		"task_definition": cty.StringVal("arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate:1"),
+	})
+}
+
+func ecsServiceIdentityAttrs() map[string]bool {
+	return residueIdentityAttrs(serviceLikeSchema())
+}
+
+// taskDefFormatRead is the CONFIRMED hashicorp/aws 6.59.0 aws_ecs_service
+// Read quirk, reduced to task_definition alone and verified directly
+// against a live floci build with no tofu in the loop (see the PR
+// description for the reproduce command): given a prior whose
+// task_definition already looks like an ARN, echo the live wire value -
+// floci's DescribeServices always answers with the full ARN, confirmed
+// independently through the AWS CLI - in ARN form; given anything else
+// (null, or a non-ARN string), answer with the short "family:revision"
+// form instead, discarding whatever the prior actually held. Every other
+// attribute is echoed from applied, standing in for "the rest of the
+// object reads normally".
+func taskDefFormatRead(applied cty.Value, liveWireARN, shortForm string) residueReader {
+	return func(prior cty.Value) (cty.Value, error) {
+		out := map[string]cty.Value{}
+		for name, v := range applied.AsValueMap() {
+			out[name] = v
+		}
+		td := prior.GetAttr("task_definition")
+		if !td.IsNull() && strings.HasPrefix(td.AsString(), "arn:") {
+			out["task_definition"] = cty.StringVal(liveWireARN)
+		} else {
+			out["task_definition"] = cty.StringVal(shortForm)
+		}
+		return cty.ObjectVal(out), nil
+	}
+}
+
+// TestClassifyResidueRecordsAFormatOnlyDivergenceOnANonComputedAttribute is
+// GitHub issue #395's classify-side fix. Read A's answer (the short form,
+// from the identity-only prior [identityOnly] builds) is real and
+// non-empty, so it fails the unwidened carriesNoInformation test and used
+// to be rejected outright as unrecordable drift - masking #395 from
+// [RecordResidueForInstance] at MIGRATE time as thoroughly as it masked it
+// from the live read itself. [residueConfigSourced]'s widening, plus the
+// read-B safety leg, records it instead.
+func TestClassifyResidueRecordsAFormatOnlyDivergenceOnANonComputedAttribute(t *testing.T) {
+	schema := serviceLikeSchema()
+	applied := serviceApplied()
+	wireARN := applied.GetAttr("task_definition").AsString()
+	const shortForm = "ex-fargate:1"
+
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
+	read := taskDefFormatRead(applied, wireARN, shortForm)
+
+	got, ok := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read)
+	if !ok {
+		t.Fatal("classifyResidue proved nothing; task_definition's format-only divergence should have been recorded")
+	}
+	td, recorded := got["task_definition"]
+	if !recorded {
+		t.Fatal("task_definition was not classified as residue - #395's whole migrate-time fix depends on it being recorded here")
+	}
+	if !td.RawEquals(applied.GetAttr("task_definition")) {
+		t.Errorf("task_definition classified as %#v, want the applied ARN %#v", td, applied.GetAttr("task_definition"))
+	}
+}
+
+// TestClassifyResidueRefusesTheSameShapeWithoutConfigSourced is the
+// control for the test above: the identical read pair, with configSourced
+// nil (residueConfigSourced's answer for a schema this test never
+// consults), reproduces the PRE-#395 behavior - task_definition is
+// real-but-different and unrecorded. This is what proves the widening
+// itself, and not merely the read function, is what changed the outcome.
+func TestClassifyResidueRefusesTheSameShapeWithoutConfigSourced(t *testing.T) {
+	schema := serviceLikeSchema()
+	applied := serviceApplied()
+	wireARN := applied.GetAttr("task_definition").AsString()
+	read := taskDefFormatRead(applied, wireARN, "ex-fargate:1")
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
+
+	got, _ := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), nil, read)
+	if _, bad := got["task_definition"]; bad {
+		t.Error("task_definition was classified as residue with configSourced=nil; the widening must be " +
+			"opt-in through the schema property, not the default")
+	}
+}
+
+// TestClassifyResidueStillRejectsGenuineDriftOnANonComputedAttribute is the
+// widening's own safety proof, and the reason it is sound rather than
+// merely convenient. If the live object's task_definition has genuinely
+// changed out of band (not a format artifact), read B - given the STALE
+// applied value as its prior - still looks ARN-shaped, so the provider
+// still echoes the TRUE current wire value in ARN form; it just is not
+// applied's value any more, because the object actually drifted. That
+// must NOT be classified as residue: recording it would make every future
+// plan silently discard the real drift and keep reasserting the stale,
+// no-longer-true task_definition forever - the exact hazard
+// [classifyResidue]'s own "No sentinel" section already reasons about for
+// the unwidened rule.
+func TestClassifyResidueStillRejectsGenuineDriftOnANonComputedAttribute(t *testing.T) {
+	schema := serviceLikeSchema()
+	staleApplied := serviceApplied() // task_definition = .../ex-fargate:1
+	const driftedARN = "arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate:2"
+
+	read := func(prior cty.Value) (cty.Value, error) {
+		out := map[string]cty.Value{}
+		for name, v := range staleApplied.AsValueMap() {
+			out[name] = v
+		}
+		td := prior.GetAttr("task_definition")
+		if !td.IsNull() && strings.HasPrefix(td.AsString(), "arn:") {
+			// The live object drifted to revision 2 between migrate/apply
+			// and this read. The provider always answers with the TRUE
+			// current wire value; it only chooses ARN form because the
+			// prior looked like one.
+			out["task_definition"] = cty.StringVal(driftedARN)
+		} else {
+			out["task_definition"] = cty.StringVal("ex-fargate:2")
+		}
+		return cty.ObjectVal(out), nil
+	}
+
+	candidates := residueCandidates(schema, staleApplied, strict.DefaultSecrets)
+	got, _ := classifyResidue(staleApplied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read)
+	if _, bad := got["task_definition"]; bad {
+		t.Error("task_definition was classified as residue despite genuine drift (read B, given the stale " +
+			"applied value, answered a DIFFERENT value) - this would silently hide real drift from every " +
+			"future plan, forever")
 	}
 }
 
@@ -453,7 +605,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 
 	candidates := residueCandidates(schema, applied, strict.Store)
 	unmarked, _ := applied.UnmarkDeep()
-	attrs, ok := classifyResidue(unmarked, candidates, lambdaIdentityAttrs(), sdkv2LikeRead)
+	attrs, ok := classifyResidue(unmarked, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for a type whose sensitive argument the provider never returns")
 	}
@@ -883,7 +1035,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 	applied := lambdaApplied()
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), sdkv2LikeRead)
+	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, sdkv2LikeRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
@@ -1004,7 +1156,7 @@ func TestNoSentinelValueExists(t *testing.T) {
 
 	// And the values that can reach a RECORD are the applied values
 	// themselves, never anything constructed.
-	attrs, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), sdkv2LikeRead)
+	attrs, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
@@ -1185,7 +1337,7 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - ingress (NestingSet, non-null applied value) is now a structural candidate; egress (null applied value) is not, for its own unrelated reason", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), sgLikeRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, sgLikeRead)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing")
 			}
@@ -1507,7 +1659,7 @@ func TestResidueCarriesListAndSetNestedBlocksByValue(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - both a NestingList and a NestingSet block should now be structural candidates alongside the ordinary flat ones", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), hostBareImportRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing")
 			}
@@ -1621,7 +1773,7 @@ func TestClassifyResidueLeavesAnEmptyCollectionBlockUnrecorded(t *testing.T) {
 	// unchanged, and read B (the full applied prior) passes applied's own
 	// empty collections through unchanged - the exact pattern that made
 	// this recordable before this test's fix.
-	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), hostBareImportRead)
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead)
 	if ok {
 		if _, bad := attrs["root_block_device"]; bad {
 			t.Error("root_block_device (empty, never configured) was recorded as residue. Nothing was ever configured here - filling it back reproduces exactly what a bare read already gives - and recording it anyway is the corpus-mastino-dns regression: 14 real residue records became 59, six empty routing-policy blocks per record, none of them carrying any information a plain read did not already have.")
@@ -2011,7 +2163,7 @@ func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - initial_lifecycle_hook (NestingSet) should be a structural candidate alongside the ordinary flat ones", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), asgFlattenRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, asgFlattenRead)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing; initial_lifecycle_hook was not a residue candidate")
 			}
