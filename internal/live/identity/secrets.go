@@ -12,8 +12,12 @@ import (
 
 // SecretsFor is the root module's `strict { secrets = ... }` setting,
 // resolved: an omitted argument, an absent strict block and an absent live
-// block all answer [strict.DefaultSecrets], which is what every
-// configuration written before GitHub issue #365 slice 3 gets.
+// block all answer [strict.SecretsDefault], which is [strict.DefaultSecrets]
+// - what every configuration written before GitHub issue #365 slice 3 gets
+// - unless the environment has pinned the strict profile ([strict.Pinned]),
+// in which case it is [strict.PinnedSecrets] instead. A configuration that
+// explicitly sets a VALID value while pinned is not clamped here: see
+// "Why the pin does not clamp an explicit value" below.
 //
 // It lives here rather than in internal/live/strict for [SelectionFor]'s
 // reason, spelled out on that function: the setting is read from the
@@ -63,24 +67,45 @@ import (
 // way that matters: it would silently produce a DIFFERENT plan from the one
 // the operator's configuration describes, rather than the same plan lint is
 // about to refuse.
+//
+// # Why the pin does not clamp an explicit value
+//
+// [strict.Pinned] changes what "nothing here" means (see
+// [strict.SecretsDefault]), and a configuration that sets no secrets
+// argument at all, or one lint has already condemned as a typo, has
+// nothing else this function could honor instead. A configuration that
+// sets a VALID value the pin disagrees with is different: that value is
+// something the operator wrote on purpose, and this function still returns
+// it unchanged. Silently overriding it here would mean a caller reading
+// this one value cannot tell "the pin applied" from "the operator asked
+// for this", which is the opposite of GitHub issue #365's env-pin design
+// note ("REFUSES a configuration that relaxes it" - a loud stop, not a
+// silent substitution). The loud stop is internal/live/lint's: every real
+// entry point runs checkStrictSecrets before this function is ever called
+// for a plan, and [strict.PinRefusal] is what it consults.
 func SecretsFor(cfg *configs.Config) strict.Secrets {
 	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil || cfg.Module.Live.Strict == nil {
-		return strict.DefaultSecrets
+		return strict.SecretsDefault()
 	}
 	st := cfg.Module.Live.Strict
 	if !st.SecretsSet {
-		return strict.DefaultSecrets
+		return strict.SecretsDefault()
 	}
 	v := strict.Secrets(st.Secrets)
 	if !strict.SecretsValid(v) {
-		return strict.DefaultSecrets
+		return strict.SecretsDefault()
 	}
 	return v
 }
 
 // NoSourceCreateFor is [SecretsFor]'s twin for GitHub issue #365's ruling-4
 // toggle: an omitted argument, an absent strict block and an absent live
-// block all answer [strict.DefaultNoSourceCreate] ("refuse"), for the exact
+// block all answer [strict.NoSourceCreateDefault] ("refuse" either way -
+// [strict.DefaultNoSourceCreate] was already the safety-first setting
+// before the environment pin existed, so pinning changes nothing here
+// unless a configuration explicitly asks for "create", which
+// [strict.PinRefusal] and RuleStrictNoSourceCreate handle the same way
+// [SecretsFor]'s doc comment describes for its own toggle), for the exact
 // reasons [SecretsFor]'s own doc comment gives for its setting - an absent
 // configuration means today's behavior, and a spelling
 // internal/live/strict does not know has already been refused by
@@ -89,15 +114,15 @@ func SecretsFor(cfg *configs.Config) strict.Secrets {
 // rather than a guess at which way the operator meant to move.
 func NoSourceCreateFor(cfg *configs.Config) strict.NoSourceCreate {
 	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil || cfg.Module.Live.Strict == nil {
-		return strict.DefaultNoSourceCreate
+		return strict.NoSourceCreateDefault()
 	}
 	st := cfg.Module.Live.Strict
 	if !st.NoSourceCreateSet {
-		return strict.DefaultNoSourceCreate
+		return strict.NoSourceCreateDefault()
 	}
 	v := strict.NoSourceCreate(st.NoSourceCreate)
 	if !strict.NoSourceCreateValid(v) {
-		return strict.DefaultNoSourceCreate
+		return strict.NoSourceCreateDefault()
 	}
 	return v
 }

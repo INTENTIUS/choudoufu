@@ -144,11 +144,23 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // is the only answer that is not a guess.
 func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
 	if !st.SecretsSet {
-		// An omitted argument resolves to strict.DefaultSecrets in
-		// identity.SecretsFor, which every layer reads. Nothing to check.
+		// An omitted argument resolves to strict.SecretsDefault() in
+		// identity.SecretsFor, which every layer reads - strict.DefaultSecrets,
+		// or strict.PinnedSecrets() if the environment has pinned the strict
+		// profile. Either way it is silent: nothing here relaxes anything, so
+		// nothing to check.
 		return
 	}
 	if strict.SecretsValid(strict.Secrets(st.Secrets)) {
+		if detail := strict.PinRefusal("secrets", st.Secrets); detail != "" {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictSecrets,
+				Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+				Module:    path,
+				Detail:    detail,
+				Subject:   st.SecretsRange,
+			})
+		}
 		return
 	}
 	*issues = append(*issues, Issue{
@@ -175,11 +187,21 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 // there is nothing here beyond a typo to catch.
 func checkStrictNoSourceCreate(st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
 	if !st.NoSourceCreateSet {
-		// An omitted argument resolves to strict.DefaultNoSourceCreate.
-		// Nothing to check.
+		// An omitted argument resolves to strict.NoSourceCreateDefault().
+		// Nothing to check - and pinning changes nothing here anyway, since
+		// strict.DefaultNoSourceCreate was already the safety-first setting.
 		return
 	}
 	if strict.NoSourceCreateValid(strict.NoSourceCreate(st.NoSourceCreate)) {
+		if detail := strict.PinRefusal("no_source_create", st.NoSourceCreate); detail != "" {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictNoSourceCreate,
+				Construct: fmt.Sprintf("strict.no_source_create = %q", st.NoSourceCreate),
+				Module:    path,
+				Detail:    detail,
+				Subject:   st.NoSourceCreateRange,
+			})
+		}
 		return
 	}
 	*issues = append(*issues, Issue{

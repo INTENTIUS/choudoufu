@@ -20,6 +20,19 @@
 // marker_repair (grammar plus the two predicates that say which settings a
 // build acts on - see [Implemented]), the `markers "record"` selection, and
 // secrets (see [Secrets]).
+//
+// # The consolidated schema and the environment pin
+//
+// [Toggles] is the single declared inventory of every toggle above: name,
+// default, the refusal its non-default setting relaxes or tightens, and a
+// doc line - registry.go, added by #365's consolidation slice so that
+// inventory lives in one place instead of being reconstructed by reading
+// three types and internal/configs/live.go's decode table side by side.
+// [EnvPin] and [Pinned] are that same slice's other half: an environment
+// variable that forces a [Toggle.Pinnable] toggle to its [Toggle.SafeValue]
+// from outside the configuration, so a platform team can require behavior
+// a configuration author cannot switch off in the same commit that would
+// relax it (pin.go).
 package strict
 
 import (
