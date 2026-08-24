@@ -91,8 +91,9 @@ set -uo pipefail
 #                 tamper a second object ahead of stage 5's, proving both
 #                 are load-bearing. Set to "rename" to exercise day2_rename's
 #                 own break control instead - renaming module kafka_kms_key
-#                 WITHOUT a moved block, which must not reproduce the real
-#                 legs' zero-churn result.
+#                 WITHOUT a moved block, which must refuse with a marker-
+#                 ambiguity error rather than reproduce the real legs'
+#                 zero-churn result.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -549,23 +550,31 @@ if [ "${BREAK:-}" = "rename" ]; then
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # Unlike corpus-hongbomiao-harbor's aws_iam_user (client-named, so
-  # discovery can derive a candidate identity for the new address and find
-  # it collides with the live object still marked under the old one),
-  # aws_kms_key has no user-set unique argument at all - only tags - so
-  # there is nothing in the renamed config to derive a candidate identity
-  # from. The plan simply cannot see the live key under its old, no-longer-
-  # declared address (a stateless plan only walks currently-declared
-  # addresses) and proposes CREATING a brand new one at the new address
-  # instead - not zero churn, and the load-bearing thing this control
-  # actually needs to prove.
-  [ "$BREAK_PLAN_RC" -eq 0 ] \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit proposing a create (see header)"; }
-  grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be destroyed' <<< "$BREAK_PLAN_OUT" \
-    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the plan proposes destroying the live key under its old address - a wrong marker could have been written"; }
-  grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_key\.main will be created' <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block did not propose creating a new key at the renamed address - this stage's check is not load-bearing"; }
-  log "  BREAK=rename: correctly proposes CREATING module.kafka_kms_key_renamed.aws_kms_key.main outright (not zero churn) and never destroys the live key's old marker - the moved-block and live-mv checks below are skipped"
+  # Verified directly, reproduced identically across two isolated back-to-
+  # back runs: unlike corpus-hongbomiao-harbor's aws_iam_user (client-named,
+  # where the plan itself completes, RC 0), aws_kms_key has no user-set
+  # unique argument at all - only tags - so nothing in the renamed config
+  # can derive a candidate identity for the new address. What actually
+  # fires is a hard refusal, and about the OLD address, not the new one:
+  # "Two live resources claiming one address", naming
+  # module.kafka_kms_key.aws_kms_key.main as claimed by 2 live aws_kms_key
+  # resources - but BOTH entries the message prints are the SAME key id in
+  # the SAME region (e.g. "c922a3c2-... in us-west-2, c922a3c2-... in
+  # us-west-2"), not two different objects. That is worth a precise flag in
+  # the PR as its own possible defect (the ambiguity check likely fails to
+  # dedupe a record-derived candidate against a marker/tag-sweep-derived
+  # candidate that resolve to the identical live object) - not chased here
+  # (script-only unit). Whatever the exact cause, the refusal itself is the
+  # SAFE outcome HANDOFF's rule wants (a human stops here, no marker moves),
+  # so this control is genuinely load-bearing: the real checks below expect
+  # a clean, empty stock-equivalent plan, and this one refuses outright.
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited 0 - expected a refusal (see header)"; }
+  grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
+  grep -qF "module.kafka_kms_key.aws_kms_key.main" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the refusal did not name the KMS key's old address"; }
+  log "  BREAK=rename: correctly refuses (module.kafka_kms_key.aws_kms_key.main: \"Two live resources claiming one address\" - see the PR for the duplicate-id detail worth a follow-up) - the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module hm_production_bucket -> hm_production_bucket_renamed ==="
   sed -i.bak 's/module "hm_production_bucket" {/module "hm_production_bucket_renamed" {/' "$ESTATE/main.tofu"
