@@ -748,6 +748,18 @@ func walkResidueBlockType(blk *configschema.NestedBlock, v cty.Value, prefix cty
 	if blk == nil || v == cty.NilVal || v.IsNull() || !v.IsWhollyKnown() {
 		return
 	}
+	if v.IsMarked() {
+		// A whole block-type value carrying a mark is not this walk's
+		// ordinary case (residueMarkRecoverable's own per-leaf marks are
+		// how a candidate leaf inside an ordinary, unmarked block gets
+		// found), but cty.Value.ElementIterator panics on a marked
+		// receiver, and marksafe's own rule applies here exactly as
+		// everywhere else: refuse rather than unmark. Skipping this
+		// subtree only means a candidate inside it is not found, which is
+		// the same safe direction residueCandidates' own filters already
+		// fail in.
+		return
+	}
 	switch blk.Nesting {
 	case configschema.NestingSingle, configschema.NestingGroup:
 		walkResidueBlockBody(&blk.Block, v, prefix, storing, out)
