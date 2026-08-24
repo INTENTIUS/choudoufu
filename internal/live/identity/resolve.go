@@ -4354,38 +4354,6 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// [resolver.elementExprBindings] and
 		// [resolver.eachValueDeferredParts].
 		deferredExprs = r.elementExprBindings(expr, ident)
-	} else {
-		// #397: the identical capture, tried here too - not only when the
-		// whole for_each value failed to evaluate and had to be retried,
-		// but whenever it succeeded outright with one or more UNKNOWN
-		// attributes still sitting inside it. That is exactly the shape
-		// [expansion.eachValueDeferred]'s own doc comment already
-		// describes ("a key whose value is an object the declared-type
-		// conversion produced with unknown attributes in it") - #354 built
-		// the mechanism for the retry route; this is the same situation
-		// reached by evalStatic succeeding directly instead of failing and
-		// being retried, and [resolver.eachValueDeferredParts] already
-		// knows what to do with it once it is populated. Before this, a
-		// for_each source whose value evaluated whole never reached
-		// [resolver.elementExprBindings] at all, so an identity argument
-		// reading one instance's own unknown attribute had nothing to
-		// select against but [expansion.managedFrom]'s ONE combined answer
-		// for the WHOLE expansion - ambiguous by construction whenever two
-		// instances' own elements name different covered-and-unknown
-		// resources in the same for_each source, which is exactly
-		// terraform-aws-modules/terraform-aws-alb's own local.additional_certs
-		// (gauntlet issue #397, corpus-alb-complete).
-		//
-		// elementExprBindings is a PROBE - it rolls back every diagnostic
-		// and pending sibling-apply record its own chase leaves on the way,
-		// win or lose (see its own doc comment) - so trying it
-		// unconditionally costs nothing on the overwhelming majority of
-		// expansions that have no unknowns anywhere in them: nothing below
-		// ever consults an eachValueDeferred entry unless the matching
-		// attribute's own ordinary evaluation has already come back
-		// unknown, so a fully-known expansion behaves exactly as it always
-		// has, byte for byte.
-		deferredExprs = r.elementExprBindings(expr, ident)
 	}
 	if !forEachKeysKnown(val) || val.IsNull() {
 		r.errorf(expr.Range(), "Non-static for_each expression",

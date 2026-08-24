@@ -897,6 +897,63 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 # through a module boundary" and outside this unit's own scope, so not
 # attempted here.
 #
+# UPDATE (continuing gauntlet issue #397, 2026-08-24): the plausible next
+# step above was attempted, on the real machinery
+# (internal/live/identity's elementExprBindings/staticCollElems), and it
+# reaches PART of the way but not this site. What actually blocked it, read
+# straight off the same fixture family
+# (testdata/managed-read-module-blind-crosstalk, which reproduces this
+# estate's local.additional_certs verbatim - see main.tf:456-473), traced
+# with debug instrumentation added and removed in this unit:
+#
+#   1. staticCollElems (localvalue.go) had no case for the `values()`
+#      builtin at all - a FunctionCallExpr this switch did not recognise,
+#      so the WHOLE structural chase of local.additional_certs
+#      (merge(values({...})...), the exact idiom OpenTofu's own function
+#      reference gives as values()'s worked example) declined the instant
+#      it reached values(), for every caller of
+#      staticForEachKeys/elementExprBindings, not only this one. FIXED this
+#      unit, generically (values() is a general builtin, not an ALB-specific
+#      shape) - proven end-to-end, with mutation checks, on the new
+#      isolated fixture testdata/values-splat-per-element
+#      (TestValuesSplatPerElementProvenance). This alone does not move this
+#      estate's verdict, because of (2) below.
+#
+#   2. Even with (1) fixed, local.additional_certs's OWN per-listener value
+#      clause is a NESTED for-expression (`for idx, cert_arn in
+#      lookup(listener_values, "additional_certificate_arns", []) : ...`)
+#      that reads `listener_values`, a loop variable bound by the
+#      ENCLOSING for-expression one level out. forSourceElements/
+#      forExprElems/staticCollElems/evaluatedCollElements take no scope
+#      parameter to thread that binding through a recursive structural
+#      decomposition - they were built for chains of separate local/var
+#      NAMES (resolver.namedDef hops), never for a for-expression nested
+#      inside another one sharing a loop variable. Decomposing past the
+#      outer "which listener" level therefore fails outright, independent
+#      of (1) or of anything about values() specifically.
+#
+#   3. Layered on top of (2), and blocking even a fix for it on its own:
+#      the OUTER for-expression's own filter clause,
+#      `if length(lookup(listener_values, "additional_certificate_arns",
+#      [])) > 0`, is not one of forCondIncludesTolerant's recognised
+#      value-free shapes (only a BARE `lookup(v, key, default)` or
+#      `try(v.attr, default)` AS THE WHOLE CONDITION is handled, via
+#      lookupOrTryDefaultOverVar; a length()-wrapped comparison built from
+#      one is not), so the filter cannot be decided without evaluating
+#      `listener_values` as a value, which local.additional_certs's own
+#      unknown-carrying shape never fully provides.
+#
+# (2) and (3) are each their own materially larger, riskier change to the
+# CORE static structural-decomposition machinery every other estate's
+# identity resolution also runs through - exactly the "touching the
+# per-instance expansion/instScope machinery" risk the original
+# crosstalk-fix worker flagged, now confirmed concretely rather than
+# guessed at. Per this unit's own stop-and-write-up permission, neither is
+# attempted here; #397 is updated with this precise pair of blockers in
+# place of the single "plausible next step" paragraph above, which (1)'s
+# own landing has now made stale on its own (a fixed wall makes a stale
+# script/finding fail before a stale script's absence would).
+#
 # All 3 remain HANDOFF's first or fifth row and every resource they BLOCK
 # is UNTAGGABLE, whose identity has to come from configuration because there
 # is no tag to recover it from:
@@ -1102,7 +1159,7 @@ else
   log "print is gone, and family A's other 11 sites (2026-08-22/23) - the"
   log "function_name site included, fixed 2026-08-24 - are gone too."
   log ""
-  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397 tracks the plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars, the same machinery family A's function_name fix below already generalized), out of this unit's own scope (chasing the module boundary, not redesigning per-instance provenance granularity). (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
+  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. UPDATE (corpus-alb-chase unit, 10c48ab942/gauntlet issue #397): the module-boundary chase 84dcbabea9 deferred is now implemented - managedFromModuleOutput (managedprovenance.go) genuinely chases module.wildcard_cert's own acm_certificate_arn output through the child module instead of declining outright, proven by TestManagedFromModuleOutputChasesThroughToACMResource, and fixed a real address-collision bug along the way (module.acm and module.wildcard_cert are sibling calls of the same child module source, and both declare their own aws_acm_certificate.this - qualifyFoundAddr now module-qualifies every candidate address so the two are never folded into one). This site still refuses, for a DIFFERENT, deeper, pre-existing reason confirmed directly against this real estate's own live-plan output: local.additional_certs/local.listeners combines THREE listeners (this one behind module.acm, this one behind module.wildcard_cert, and an unrelated Cognito-authenticated one) in ONE object literal, and expansion.managedFrom (resolve.go's forEachExpansion) computes ONE provenance answer for the WHOLE for_each expansion rather than per element - so even the corrected chase finds three simultaneously covered-and-unknown candidates at once (aws_cognito_user_pool.this, module.acm.aws_acm_certificate.this, module.wildcard_cert.aws_acm_certificate.this) and the len(found)!=1 ambiguity guard correctly, honestly declines. HANDOFF's first row (choudoufu refuses where stock proceeds), still open - #397's own plausible next step (a per-element provenance chase using elementExprBindings/instScope.exprVars) was attempted in a follow-up unit and reaches PART of the way (staticCollElems now has a values() case, proven on the isolated fixture testdata/values-splat-per-element) but not this site: local.additional_certs's per-listener value clause is itself a NESTED for-expression reading an OUTER loop variable, which the structural chase has no scope-threading for, and its own filter clause (length(lookup(v,\"additional_certificate_arns\",[]))>0) is not one of forCondIncludesTolerant's recognised value-free shapes either - both confirmed by trace, both their own materially larger, riskier change to the machinery every other estate's identity resolution shares, out of that follow-up unit's own scope too. (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
 fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
