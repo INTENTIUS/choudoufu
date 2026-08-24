@@ -703,6 +703,54 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "8 resources, genuinely cold, genuinely unmarked"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# module.lambda_function is this estate's only real module and carries all
+# 3 of its taggable resources (aws_lambda_function.this[0], aws_iam_role.
+# lambda[0], aws_cloudwatch_log_group.lambda[0] - see the header's own
+# accounting: "3 stamped"); random_pet.this is the estate's only other real
+# resource and is record-located (RECORD_ADMITTED per the header above -
+# #340), which live-mv explicitly does not support renaming yet (issue
+# #270: "renaming it means moving a record store key, which live-mv does
+# not do"). So both day2_rename mechanisms run on the SAME module, one
+# after the other, rather than on two different objects: a `moved` block
+# first (module.lambda_function -> module.lambda_function_moved), then
+# "choudoufu live-mv" second (module.lambda_function_moved ->
+# module.lambda_function_final, no moved block for that hop at all, one
+# live-mv call per taggable resource since live-mv moves one resource
+# instance at a time and none of the three are ParentRef children of
+# another). The stock oracle below plans the NET rename (original name
+# straight to the final name) on a copy of cold_deploy's own state, before
+# choudoufu or live-import ever touch it.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
+ORACLE_ROOT="$WORK/oracle"
+cp -r "$WORK/lambda" "$ORACLE_ROOT"
+ORACLE="$ORACLE_ROOT/examples/simple"
+rm -rf "$ORACLE/.terraform" "$ORACLE/.terraform.lock.hcl"
+sed -i.bak 's/module "lambda_function" {/module "lambda_function_final" {/' "$ORACLE/main.tf"
+sed -i.bak 's/module\.lambda_function\./module.lambda_function_final./g' "$ORACLE/outputs.tf"
+rm -f "$ORACLE/main.tf.bak" "$ORACLE/outputs.tf.bak"
+cat >> "$ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.lambda_function
+  to   = module.lambda_function_final
+}
+EOF
+( cd "$ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by a moved block - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - the module move reports only its move, no attribute diff at all"
+
 CURRENT_STAGE=migrate
 
 # ── STAGE 2: MIGRATE ─────────────────────────────────────────────────────
@@ -1199,6 +1247,127 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# See the D-ORACLE comment above stage 2 for why both mechanisms run on the
+# SAME module (module.lambda_function is the estate's only real module and
+# random_pet.this, its only other real resource, is record-located - live-mv
+# does not support renaming that class yet, issue #270). live-mv moves one
+# resource instance at a time, so the live-mv leg below issues one call per
+# taggable resource under the module (the function, the role, the log
+# group) rather than the single call another estate's module leg needs when
+# its module holds exactly one taggable child.
+#
+# BREAK=6 (not 1: this script's own stage 3 identity check and stage 5
+# drift check already corrupt their assertions and exit through fail()
+# under BREAK=1 before this point, the same collision corpus-eks-basic's
+# header documents between its own stage 2 and stage 3) exercises this
+# stage's own break control instead of the real checks: renaming module.
+# lambda_function WITHOUT a moved block, which must make choudoufu propose
+# destroying the old address's function and creating the new one - the
+# opposite of every other assertion in this part.
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live objects this rename must not disturb ==="
+log "  $LAMBDA_ARN (aws_lambda_function), role $FN_NAME (aws_iam_role), $LOGGROUP_ARN (aws_cloudwatch_log_group)"
+
+if [ "${BREAK:-}" = "6" ]; then
+  log "=== D1 (BREAK=6). rename module.lambda_function -> module.lambda_function_final WITHOUT a moved block ==="
+  sed -i.bak 's/module "lambda_function" {/module "lambda_function_final" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.lambda_function\./module.lambda_function_final./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=6 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=6 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.lambda_function\.aws_lambda_function\.this\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=6: renaming without a moved block did not propose destroying module.lambda_function.aws_lambda_function.this[0] - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.lambda_function_final\.aws_lambda_function\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=6: renaming without a moved block did not propose creating module.lambda_function_final.aws_lambda_function.this[0] - this stage's check is not load-bearing"; }
+  log "  BREAK=6: correctly proposes destroying module.lambda_function.aws_lambda_function.this[0] and creating module.lambda_function_final.aws_lambda_function.this[0] - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.lambda_function -> module.lambda_function_moved ==="
+  sed -i.bak 's/module "lambda_function" {/module "lambda_function_moved" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.lambda_function\./module.lambda_function_moved./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  cat >> "$EST/main.tf" <<'EOF'
+
+moved {
+  from = module.lambda_function
+  to   = module.lambda_function_moved
+}
+EOF
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  for addr in aws_lambda_function.this aws_iam_role.lambda aws_cloudwatch_log_group.lambda; do
+    grep -qE "^  # module\\.lambda_function_moved\\.${addr}\\[0\\] will be updated in-place" <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.lambda_function_moved.$addr[0]"; }
+  done
+  grep -qF 'Plan: 0 to add, 3 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly three in-place changes - the three taggable resources under the module"; }
+  log "  choudoufu: zero churn, three in-place tags updates - the marker rewrite the moved block completes on all three taggable resources"
+
+  MOVED_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 3 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly three in-place changes"; }
+
+  LAMBDA_ARN_D1_AFTER="$(awsl lambda get-function --function-name "$FN_NAME" --query 'Configuration.FunctionArn' --output text)"
+  [ "$LAMBDA_ARN_D1_AFTER" = "$LAMBDA_ARN" ] || fail "the function's ARN changed across the rename ($LAMBDA_ARN -> $LAMBDA_ARN_D1_AFTER) - it was destroyed and recreated, not renamed"
+  ADDR_D1_LAMBDA="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text)"
+  [ "$ADDR_D1_LAMBDA" = "module.lambda_function_moved.aws_lambda_function.this:0" ] \
+    || fail "the function carries tofu-address=$ADDR_D1_LAMBDA after the rename, not module.lambda_function_moved.aws_lambda_function.this:0"
+  ADDR_D1_ROLE="$(awsl iam list-role-tags --role-name "$FN_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ADDR_D1_ROLE" = "module.lambda_function_moved.aws_iam_role.lambda:0" ] \
+    || fail "the role carries tofu-address=$ADDR_D1_ROLE after the rename, not module.lambda_function_moved.aws_iam_role.lambda:0"
+  ADDR_D1_LOGGROUP="$(awsl logs list-tags-for-resource --resource-arn "$LOGGROUP_ARN" --query 'tags."tofu-address"' --output text 2>/dev/null \
+    || awsl logs list-tags-log-group --log-group-name "/aws/lambda/${FN_NAME}" --query 'tags."tofu-address"' --output text)"
+  [ "$ADDR_D1_LOGGROUP" = "module.lambda_function_moved.aws_cloudwatch_log_group.lambda:0" ] \
+    || fail "the log group carries tofu-address=$ADDR_D1_LOGGROUP after the rename, not module.lambda_function_moved.aws_cloudwatch_log_group.lambda:0"
+  log "  all three live objects unchanged, tofu-address now under module.lambda_function_moved - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module.lambda_function_moved -> module.lambda_function_final, no moved block at all ==="
+  sed -i.bak 's/module "lambda_function_moved" {/module "lambda_function_final" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.lambda_function_moved\./module.lambda_function_final./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  for pair in \
+    "aws_lambda_function.this" \
+    "aws_iam_role.lambda" \
+    "aws_cloudwatch_log_group.lambda"
+  do
+    MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" "module.lambda_function_moved.${pair}[0]" "module.lambda_function_final.${pair}[0]" 2>&1)"; MV_RC=$?
+    [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv on $pair exited $MV_RC"; }
+    grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv on $pair did not report a real write"; }
+    grep -qF "\"module.lambda_function_moved.${pair}:0\" -> \"module.lambda_function_final.${pair}:0\"" <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv on $pair did not report rewriting the tofu-address marker from the old address to the new one"; }
+  done
+  log "  live-mv: all three taggable resources moved to module.lambda_function_final, one call each, each a real cloud write"
+
+  LAMBDA_ARN_D2_AFTER="$(awsl lambda get-function --function-name "$FN_NAME" --query 'Configuration.FunctionArn' --output text)"
+  [ "$LAMBDA_ARN_D2_AFTER" = "$LAMBDA_ARN" ] || fail "the function's ARN changed across live-mv ($LAMBDA_ARN -> $LAMBDA_ARN_D2_AFTER) - it was destroyed and recreated, not renamed"
+  ADDR_D2_LAMBDA="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text)"
+  [ "$ADDR_D2_LAMBDA" = "module.lambda_function_final.aws_lambda_function.this:0" ] \
+    || fail "the function carries tofu-address=$ADDR_D2_LAMBDA after live-mv, not module.lambda_function_final.aws_lambda_function.this:0"
+  log "  $LAMBDA_ARN unchanged, tofu-address now module.lambda_function_final.aws_lambda_function.this:0 - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qE '^  # .+ will be' <<< "$FINAL_PLAN_OUT" \
+    && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  no resource change proposed. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) - all three taggable resources' markers rewritten in place in one moved block; live-mv: module.lambda_function_moved renamed to module.lambda_function_final with zero churn, one live-mv call per taggable resource (the function, the role, the log group), each a real marker rewrite; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the function's ARN unchanged throughout, read via the AWS CLI"
 fi
 CURRENT_STAGE=""
 gauntlet_end
