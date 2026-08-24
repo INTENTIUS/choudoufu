@@ -3937,6 +3937,38 @@ func (s instScope) withExprVar(name string, b *elemBinding) instScope {
 	return next
 }
 
+// withVars returns a copy of s with add's entries laid over its own vars,
+// leaving s itself untouched.
+//
+// It is what makes a for-comprehension nested inside another see the OUTER
+// comprehension's loop variables: [resolver.forExprElems] used to build a
+// FRESH instScope{vars: ...} per element, which discarded every enclosing
+// binding - fine while the decomposition chase only ever walked chains of
+// separate local/var names, and exactly the wall #397 hit the moment a
+// comprehension's own value clause was itself a comprehension reading the
+// outer loop variable (terraform-aws-modules/terraform-aws-alb's
+// local.additional_certs, main.tf:456-473).
+//
+// Shadowing is the map's: an inner comprehension reusing an outer's variable
+// name overwrites that one key and leaves the rest, which is what HCL's own
+// scoping does. exprVars is carried across untouched, because
+// [instScope.withExprVar] maintains it under the same rule.
+func (s instScope) withVars(add map[string]cty.Value) instScope {
+	next := s
+	if len(add) == 0 && s.vars == nil {
+		return next
+	}
+	m := make(map[string]cty.Value, len(s.vars)+len(add))
+	for k, v := range s.vars {
+		m[k] = v
+	}
+	for k, v := range add {
+		m[k] = v
+	}
+	next.vars = m
+	return next
+}
+
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
 	key := r.expKey(rc)
 	if exp, ok := r.expansions[key]; ok {
@@ -4270,7 +4302,7 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// object, or a set of strings, never a list, so a tuple standing
 		// here is not a set of merge() arguments and its elements' own keys
 		// are not this block's instance keys.
-		if keys, elems, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
+		if keys, elems, structOK := r.staticForEachKeys(expr, ident, 0, false, instScope{}); structOK {
 			r.diags = r.diags[:mark]
 			// Whatever the chase proved a key's value to be, carried onto the
 			// expansion so each.value resolves for that key alone. A key with

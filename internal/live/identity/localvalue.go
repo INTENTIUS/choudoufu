@@ -341,8 +341,8 @@ func (r *resolver) binding(expr hcl.Expression, scope instScope, ident configs.S
 // first and cty.NilVal wherever this resolver did not evaluate one for
 // itself. See [resolver.staticCollElems] for what "did not evaluate one"
 // means and why an unproven value is left unbound rather than guessed.
-func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, []elemBinding, bool) {
-	keys, elems, ok := r.staticCollElems(expr, ident, depth, tupleIsArgs)
+func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool, scope instScope) ([]string, []elemBinding, bool) {
+	keys, elems, ok := r.staticCollElems(expr, ident, depth, tupleIsArgs, scope)
 	if !ok {
 		return nil, nil, false
 	}
@@ -415,24 +415,24 @@ func stringKeys(keys []cty.Value) ([]string, bool) {
 //     no values at all, which is the boundary [resolver.forSourceElements]
 //     draws for a for-comprehension's source and the one
 //     [expansion.keyOnly] draws for each.value.
-func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) (keys []cty.Value, elems []elemBinding, ok bool) {
+func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool, scope instScope) (keys []cty.Value, elems []elemBinding, ok bool) {
 	if depth > maxStaticDecomposeDepth {
 		return nil, nil, false
 	}
 	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
-		return r.staticCollElems(paren.Expression, ident, depth+1, tupleIsArgs)
+		return r.staticCollElems(paren.Expression, ident, depth+1, tupleIsArgs, scope)
 	}
 
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
 		if root := trav.RootName(); root == "local" || root == "var" {
 			if nameStep, ok := trav[1].(hcl.TraverseAttr); ok {
-				defExpr, _, decl, restore, defOk := r.namedDef(root, nameStep.Name, instScope{})
+				defExpr, defScope, decl, restore, defOk := r.namedDef(root, nameStep.Name, scope)
 				if defOk {
 					defer restore()
 					// tupleIsArgs propagates through the alias: the corpus
 					// shape is merge(local.teams...), where the splatted
 					// argument is a local naming the list.
-					keys, elems, ok := r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
+					keys, elems, ok := r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs, defScope)
 					if !ok {
 						return nil, nil, false
 					}
@@ -454,7 +454,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	}
 
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
-		names, itemElems, ok := r.objectConsElems(obj, ident)
+		names, itemElems, ok := r.objectConsElems(obj, ident, scope)
 		if !ok {
 			return nil, nil, false
 		}
@@ -462,7 +462,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	}
 
 	if fe, ok := expr.(*hclsyntax.ForExpr); ok {
-		names, forElems, ok := r.forExprElems(fe, ident, depth)
+		names, forElems, ok := r.forExprElems(fe, ident, depth, scope)
 		if !ok {
 			return nil, nil, false
 		}
@@ -483,7 +483,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 			elems := make([]elemBinding, 0, len(tuple.Exprs))
 			for i, elem := range tuple.Exprs {
 				keys = append(keys, cty.NumberIntVal(int64(i)))
-				elems = append(elems, r.binding(elem, instScope{}, ident))
+				elems = append(elems, r.binding(elem, scope, ident))
 			}
 			return keys, elems, true
 		}
@@ -492,7 +492,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 			// An element of the splatted list is one of merge's arguments,
 			// an object in its own right - never itself a list of them, and
 			// never a list at all, which is why this asks for strings.
-			got, gotElems, ok := r.staticForEachKeys(elem, ident, depth+1, false)
+			got, gotElems, ok := r.staticForEachKeys(elem, ident, depth+1, false, scope)
 			if !ok {
 				return nil, nil, false
 			}
@@ -513,7 +513,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 			// objects, so an argument whose key set is integer indices is
 			// not a merge argument at all and refuses here rather than
 			// contributing "0", "1" to the union.
-			got, gotElems, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
+			got, gotElems, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat, scope)
 			if !ok {
 				return nil, nil, false
 			}
@@ -549,7 +549,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	// [cty.Value.ElementIterator]), so the sort below is not a guess at
 	// the builtin's behaviour; it is what the builtin already does.
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "values" && len(call.Args) == 1 && !call.ExpandFinal {
-		srcKeys, srcElems, srcOK := r.staticCollElems(call.Args[0], ident, depth+1, false)
+		srcKeys, srcElems, srcOK := r.staticCollElems(call.Args[0], ident, depth+1, false, scope)
 		if !srcOK {
 			return nil, nil, false
 		}
@@ -578,7 +578,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 				if i >= len(srcElems) || srcElems[i].expr == nil {
 					return nil, nil, false
 				}
-				got, gotElems, ok := r.staticForEachKeys(srcElems[i].expr, ident, depth+1, false)
+				got, gotElems, ok := r.staticForEachKeys(srcElems[i].expr, ident, depth+1, false, srcElems[i].scope)
 				if !ok {
 					return nil, nil, false
 				}
@@ -656,7 +656,7 @@ func (r *resolver) elementExprBindings(expr hcl.Expression, ident configs.Static
 		break
 	}
 
-	keys, elems, ok := r.staticForEachKeys(expr, ident, 0, false)
+	keys, elems, ok := r.staticForEachKeys(expr, ident, 0, false, instScope{})
 	if !ok {
 		return nil
 	}
@@ -814,12 +814,12 @@ func (r *resolver) provenValue(expr hcl.Expression, scope instScope, ident confi
 // errors on a duplicate object key, so there is no "correct" answer to copy,
 // and folding two items into one binding is the shape that made two
 // count.index instances share one live marker in #178.
-func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier) ([]string, []elemBinding, bool) {
+func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier, scope instScope) ([]string, []elemBinding, bool) {
 	seen := map[string]int{}
 	var keys []string
 	var elems []elemBinding
 	for _, item := range obj.Items {
-		kv, diags := r.evalPure(item.KeyExpr, instScope{}, ident)
+		kv, diags := r.evalPure(item.KeyExpr, scope, ident)
 		if diags.HasErrors() {
 			return nil, nil, false
 		}
@@ -844,7 +844,7 @@ func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.
 		}
 		seen[name] = len(keys)
 		keys = append(keys, name)
-		elems = append(elems, r.binding(item.ValueExpr, instScope{}, ident))
+		elems = append(elems, r.binding(item.ValueExpr, scope, ident))
 	}
 	return keys, elems, true
 }
@@ -915,12 +915,12 @@ func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.
 // leaves that key's value unbound instead of refusing the comprehension.
 // Grouping mode (`k => v...`) collects a tuple of every matching element's
 // value rather than one value, so it offers nothing.
-func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, []elemBinding, bool) {
+func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int, outer instScope) ([]string, []elemBinding, bool) {
 	if fe.KeyExpr == nil {
 		return nil, nil, false
 	}
 
-	srcKeys, srcElems, ok := r.forSourceElements(fe.CollExpr, ident, depth)
+	srcKeys, srcElems, ok := r.forSourceElements(fe.CollExpr, ident, depth, outer)
 	if !ok {
 		return nil, nil, false
 	}
@@ -941,7 +941,7 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 		if fe.ValVar != "" && i < len(srcElems) && srcElems[i].val != cty.NilVal {
 			vars[fe.ValVar] = srcElems[i].val
 		}
-		scope := instScope{vars: vars}
+		scope := outer.withVars(vars)
 
 		if fe.CondExpr != nil {
 			var srcElem elemBinding
@@ -1089,8 +1089,8 @@ func isBareVar(expr hclsyntax.Expression, name string) bool {
 //
 // Evaluation is tried first because it yields strictly more: the same keys
 // plus the values beside them.
-func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.StaticIdentifier, depth int) (keys []cty.Value, elems []elemBinding, ok bool) {
-	if keys, elems, ok := r.evaluatedCollElements(coll, ident); ok {
+func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.StaticIdentifier, depth int, scope instScope) (keys []cty.Value, elems []elemBinding, ok bool) {
+	if keys, elems, ok := r.evaluatedCollElements(coll, ident, scope); ok {
 		return keys, elems, true
 	}
 	// tupleIsArgs is false: a for-comprehension's source is ranged over, so
@@ -1103,7 +1103,7 @@ func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.St
 	// still binds the value variable for the elements it DID evaluate. Each
 	// binding is one expression this resolver evaluated itself, never an
 	// inference from a neighbouring element.
-	keys, elems, ok = r.staticCollElems(coll, ident, depth+1, false)
+	keys, elems, ok = r.staticCollElems(coll, ident, depth+1, false, scope)
 	if !ok {
 		return nil, nil, false
 	}
@@ -1118,7 +1118,7 @@ func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.St
 // elements - which is what an element iterator hands back, and what
 // hclsyntax.ForExpr.Value then binds. Anything that is not a collection at
 // all cannot be ranged over and refuses.
-func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident configs.StaticIdentifier) (keys []cty.Value, elems []elemBinding, ok bool) {
+func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident configs.StaticIdentifier, scope instScope) (keys []cty.Value, elems []elemBinding, ok bool) {
 	// An impure call would make the collection a different collection on
 	// the next run. Its LENGTH might well be stable, but nothing here can
 	// show that, and [resolver.evalStatic] refuses the same shape one layer
@@ -1126,7 +1126,7 @@ func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident config
 	if len(impureCallsIn(expr)) > 0 {
 		return nil, nil, false
 	}
-	val, diags := r.evalPure(expr, instScope{}, ident)
+	val, diags := r.evalPure(expr, scope, ident)
 	if diags.HasErrors() || val == cty.NilVal {
 		return nil, nil, false
 	}
