@@ -553,6 +553,26 @@ func (r *resolver) objectLacksKey(expr hcl.Expression, scope instScope, name str
 	if depth > maxStaticDecomposeDepth {
 		return false
 	}
+
+	// A bare reference to a for-comprehension's own value variable, bound
+	// in scope.exprVars as an expression rather than a value ([instScope.exprVars]).
+	// merge(v, {lambda_function_name = ...}) is exactly this: proving
+	// "lambda_qualifier" absent from the merged result needs v's OWN
+	// structural keys too, not only the override object's, and without
+	// this substitution a bare `v` matched no case below and this
+	// answered false - not absent - for every key v itself lacks,
+	// which is every key besides the override's. See
+	// [resolver.selectStaticExpr]'s identical shape on the render side.
+	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 1 {
+		if b, bound := scope.exprVars[trav.RootName()]; bound && b != nil && b.expr != nil {
+			savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+			if r.enterModuleFor(b.modInst) {
+				defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+				return r.objectLacksKey(b.expr, b.scope, name, ident, depth+1)
+			}
+		}
+	}
+
 	switch e := expr.(type) {
 	case *hclsyntax.ParenthesesExpr:
 		return r.objectLacksKey(e.Expression, scope, name, ident, depth+1)
