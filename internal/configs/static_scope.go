@@ -463,9 +463,21 @@ func lookupCoversTraversal(val cty.Value, remaining hcl.Traversal) bool {
 		switch ts := step.(type) {
 		case hcl.TraverseAttr:
 			if !ty.IsObjectType() {
-				// Not a shape this function can decide; the evaluator itself
-				// does, exactly as before.
-				return true
+				// A collection standing in for a whole resource - the
+				// aggregate shape a count- or for_each-expanded resource's
+				// own reference carries, and what a legacy `resource.*.attr`
+				// splat's synthesized coverage traversal names its element
+				// attribute against with no explicit index step at all
+				// (see [lang.splatEachTraversals]) - is checked on its
+				// ELEMENT, exactly like an explicit TraverseIndex step
+				// already is below.
+				elem, ok := uniformElementType(ty)
+				if !ok || !elem.IsObjectType() {
+					// Not a shape this function can decide; the evaluator
+					// itself does, exactly as before.
+					return true
+				}
+				ty = elem
 			}
 			return ty.HasAttribute(ts.Name)
 		case hcl.TraverseIndex:

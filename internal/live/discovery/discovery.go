@@ -2025,19 +2025,40 @@ const (
 //     back to the same refusal a genuinely unrelated type gets rather than
 //     inventing a third outcome.
 //
-//   - ("", true) when markerType is itself declared
-//     ([declared.entryFor]): [Discover] always runs the config-driven scan
-//     over every declared type before either sweep runs, so markerType's
-//     OWN list call - the only place a mismatched-identity pair's recomposed
-//     attribute is ever read - has already visited this exact live object
-//     under its own name and filed the correct claim there. This sighting is
-//     the ARN join's (or Cloud Control's) generic, wire-shape answer finding
+//   - ("", true) when markerType is itself declared ANYWHERE in the whole
+//     configuration ([declared.declares], never [declared.entryFor]): the
+//     two disagree exactly for a companion pair split across
+//     [Request.ScopeProvider] passes (issue #69's multi-provider sweep,
+//     GitHub issue #396), and declares is the one [statelessDiscover]'s own
+//     doc comment already promises callers - "Request.ScopeProvider is what
+//     keeps a pass from *binding* through the wrong account while still
+//     letting it recognize (via declared.declares, built from every
+//     resolution regardless of provider) that such an object is somebody
+//     else's declared, owned resource rather than an orphan to remove."
+//     entryFor reads [declared.types], which [declaredInstances] leaves
+//     UNPOPULATED for a resolution outside the CURRENT pass's own
+//     [inScope] - correctly, since that map is what drives THIS pass's own
+//     binding attempts, not what a companion-pair sighting from another
+//     pass should consult. declares reads [declared.all], populated
+//     unconditionally, before any scope filtering, straight from
+//     [Request.Resolutions] - which is what a same-scope-but-not-yet-
+//     scanned companion (this comment's own original scenario: [Discover]
+//     always runs the config-driven scan over every declared type before
+//     either sweep runs, so markerType's OWN list call - the only place a
+//     mismatched-identity pair's recomposed attribute is ever read - has
+//     already visited this exact live object under its own name and filed
+//     the correct claim there) and a cross-scope companion (a second
+//     provider-scoped pass's own sweep re-visiting an object a DIFFERENT
+//     pass already bound correctly) both need: is markerType declared at
+//     all, not "did THIS call's own scan reach it". This sighting is the
+//     ARN join's (or Cloud Control's) generic, wire-shape answer finding
 //     the SAME live object a second time, not a second object; the caller
 //     skips it rather than filing a second, differently-identified claim for
 //     one address. See TestDiscoverDefaultAdopterDeclaredBothSidesNoFalseCollision
 //     for the analogous shape at the scanType level, where two DECLARED
 //     sides of one pair produce two claimants for one entry rather than two
-//     entries.
+//     entries, and TestSweepBindTypeSkipsAcrossProviderScopes for the
+//     cross-scope shape this fixes.
 //
 //   - (markerType, false) when the pair's ratified rows agree about the
 //     import identity ([sameRatifiedIdentity] true - aws_default_security_group/
@@ -2103,7 +2124,7 @@ func sweepBindType(decl *declared, markerType, typeName, escaped string) (bindTy
 	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) {
 		return typeName, false
 	}
-	if _, ok := decl.entryFor(markerType, escaped); ok {
+	if decl.declares(markerType, escaped) {
 		return "", true
 	}
 	if sameRatifiedIdentity(markerType, typeName) {

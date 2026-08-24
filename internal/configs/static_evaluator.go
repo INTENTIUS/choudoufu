@@ -644,6 +644,14 @@ func (s *StaticEvaluator) scope(ident StaticIdentifier) *lang.Scope {
 
 func (s StaticEvaluator) Evaluate(ctx context.Context, expr hcl.Expression, ident StaticIdentifier) (cty.Value, hcl.Diagnostics) {
 	val, diags := s.scope(ident).EvalExpr(ctx, expr, cty.DynamicPseudoType)
+	// A legacy resource.*.attr splat's own Each attribute demand is
+	// invisible to the reference gathering EvalExpr just did (see
+	// [staticScopeData.splatCoverageDiagnostics]'s own doc comment for
+	// why, and why this is called standalone rather than folded into that
+	// gathering). Purely additive: never consulted for val itself, only
+	// for a diagnostic naming what val's own evaluation could not.
+	sd := staticScopeData{&s, []StaticIdentifier{ident}}
+	diags = diags.Append(sd.splatCoverageDiagnostics(ctx, expr))
 	return val, diags.ToHCL()
 }
 

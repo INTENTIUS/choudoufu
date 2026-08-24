@@ -24,11 +24,45 @@ import (
 // correction, this can only ever carry an identity forward unchanged, never
 // recompose a different one.
 func TestSweepBindType(t *testing.T) {
-	declaredRouteTable := &declared{types: map[string]map[string]*declaredEntry{
-		"aws_default_route_table": {
-			`module.vpc.aws_default_route_table.default:0`: {},
+	// A real [declared] built by [declaredInstances] always populates .all
+	// (every resolution, unconditionally, before any scope filtering) at
+	// the same time as - or ahead of - .types (only the resolutions this
+	// pass's own [inScope] admits), never .types alone: see
+	// [declared.declares]'s own doc comment and [declaredInstances]'s two
+	// loops. Both are set here so this fixture matches that shape rather
+	// than exercising a combination declaredInstances never produces.
+	declaredRouteTable := &declared{
+		types: map[string]map[string]*declaredEntry{
+			"aws_default_route_table": {
+				`module.vpc.aws_default_route_table.default:0`: {},
+			},
 		},
-	}}
+		all: map[string]map[string]*declaredAddress{
+			"aws_default_route_table": {
+				`module.vpc.aws_default_route_table.default:0`: {},
+			},
+		},
+	}
+	// The cross-[Request.ScopeProvider]-pass shape issue #396 fixes:
+	// aws_default_route_table.default is declared in the whole
+	// configuration (so .all carries it, from declaredInstances' first,
+	// unconditional loop) but this PARTICULAR pass is scoped to a provider
+	// configuration that resolution does not belong to (so .types never
+	// gained an entry for it - declaredInstances' second loop skips
+	// anything [inScope] excludes before it ever reaches the d.types
+	// write). A companion sighting arriving through Cloud Control's or the
+	// tag sweep's generic, provider-agnostic listing must still recognize
+	// this as "somebody else's declared, owned resource" and skip it,
+	// exactly as declaredRouteTable's same-scope case does - not refuse it
+	// as though nothing in the whole estate ever declared it.
+	declaredElsewhereScope := &declared{
+		types: map[string]map[string]*declaredEntry{},
+		all: map[string]map[string]*declaredAddress{
+			"aws_default_route_table": {
+				`module.vpc.aws_default_route_table.default:0`: {},
+			},
+		},
+	}
 	empty := &declared{}
 
 	cases := []struct {
@@ -60,6 +94,26 @@ func TestSweepBindType(t *testing.T) {
 			// pair) this sweep cannot itself verify.
 			name:         "declared default_route_table companion already covered - skip",
 			decl:         declaredRouteTable,
+			markerType:   "aws_default_route_table",
+			typeName:     "aws_route_table",
+			escaped:      `module.vpc.aws_default_route_table.default:0`,
+			wantBindType: "",
+			wantSkip:     true,
+		},
+		{
+			// GitHub issue #396: markerType is declared, but only in a
+			// DIFFERENT [Request.ScopeProvider] pass's own .types index -
+			// this pass's .types has nothing for it, and only .all
+			// (unconditional, whole-configuration) carries it. Before this
+			// fix sweepBindType consulted entryFor (.types only) and
+			// reported this as an undeclared, mismatched-identity orphan -
+			// exactly corpus-eks-basic's real "Malformed ownership marker"
+			// wall on aws_default_route_table.default, hit only once a
+			// second, kubernetes-scoped discovery pass's own sweep
+			// re-visited a route table a first, aws-scoped pass had
+			// already bound correctly.
+			name:         "declared elsewhere-scope default_route_table companion - skip, not refuse",
+			decl:         declaredElsewhereScope,
 			markerType:   "aws_default_route_table",
 			typeName:     "aws_route_table",
 			escaped:      `module.vpc.aws_default_route_table.default:0`,

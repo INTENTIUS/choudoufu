@@ -155,6 +155,12 @@ set -uo pipefail
 #                     have today), not a discovery, stamping or identity
 #                     fix, and not attempted here. See #313.
 #
+#                     UPDATE 2026-08-24 (issue #396's worker): FIXED. See
+#                     the UPDATE note directly above stage 3's own code
+#                     below, and this script's trailing PASS/FAIL summary,
+#                     for the mechanism and the new (non-refusal) wall that
+#                     replaced it.
+#
 #                     Four earlier walls are asserted ABSENT below as
 #                     negative controls, three of them flipped by BREAK=3
 #                     (BREAK=1 mutates stage 2 as well and exits there, so
@@ -232,7 +238,12 @@ set -uo pipefail
 #                         identity. The rule names no resource type and
 #                         reaches 574 of the 1042 admitted rows. Was 7 sites
 #                         before #321/#324, then 4, now 0.
-#   4. TEST APPLY     UNREACHABLE. Stage 3 produced no plan to apply.
+#   4. TEST APPLY     UNREACHABLE. Stage 3's plan is not empty (2026-08-24
+#                     update, issue #396: the Error diagnostic that used to
+#                     stop stage 3 outright is fixed; see the UPDATE note
+#                     directly above stage 3's own code, and the trailing
+#                     PASS/FAIL summary this script prints, for the
+#                     current wall - a non-empty plan, not a refusal).
 #   5. DRIFT/RECONVERGE UNREACHABLE for the same reason.
 #
 # This script does not paper over stages 4-5 by hand-patching the estate to
@@ -804,12 +815,70 @@ log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
 gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
+# UPDATE 2026-08-24 (issue #396's worker, continuing #391/the eks-splat
+# gauntlet unit): the "Provider unavailable for marker discovery" wall
+# below (provider.kubernetes could not be configured, #313's live-value-
+# through-provider-config boundary) is FIXED. Root cause was two layered
+# defects, neither previously diagnosed to this depth:
+#
+#   1. A legacy 0.11-style splat (`resource.*.attr`, terraform-aws-eks's
+#      own `element(concat(aws_eks_cluster.this.*.id, list("")), 0)`
+#      cluster_id output) is structurally invisible to
+#      hcl.Expression.Variables(): a SplatExpr's Each traversal evaluates
+#      against an AnonSymbolExpr placeholder, never a *ScopeTraversalExpr,
+#      so internal/configs' static reference classifier never saw the
+#      demand for aws_eks_cluster.this's own "id" and defaulted to
+#      "covered" on an empty remaining traversal. Fixed by
+#      internal/configs/splat_coverage.go: a standalone walk of the
+#      expression tree for SplatExpr nodes, feeding a synthesized
+#      Source+Each traversal through the SAME StaticValidateReferences
+#      classification a normal reference goes through - diagnostics only,
+#      never folded into real value materialization (a first attempt that
+#      did fold it in broke every already-working splat over a count-
+#      expanded resource across the whole corpus with a spurious "Missing
+#      resource instance key", found only by running this full estate, not
+#      by any unit test - see that file's own doc comment).
+#   2. Once (1) let discovery/marker resolution proceed further,
+#      aws_default_route_table.default's own marker-binding hit issue #69's
+#      multi-provider sweep: a companion-pair sighting (aws_route_table's
+#      generic Cloud Control listing, re-visiting an object a DIFFERENT,
+#      aws-scoped discovery pass had already bound correctly) consulted
+#      decl.entryFor (scoped to THIS pass's own inScope set, correctly
+#      empty for an object out of scope) instead of decl.declares (built
+#      from every resolution regardless of provider scope, exactly what
+#      internal/command/live_plan.go's own statelessDiscover doc comment
+#      already promised). Fixed in internal/live/discovery/discovery.go's
+#      sweepBindType.
+#
+# With both fixed, live-plan now runs to completion with ZERO Error
+# diagnostics - PLAN_RC=0. That is NOT yet a pass: test_plan's own oracle
+# (live/GAUNTLET.md) requires an EMPTY plan, and this one is not empty -
+# see the new wall recorded below, in module.eks's worker launch
+# configuration/random_pet/autoscaling_group chain. Stages 1-2's own prose
+# below is unchanged and still accurate; stage 3's is superseded by this
+# note and by the assertions immediately following, not by the paragraph
+# beginning "3. TEST PLAN" further up this header.
 CURRENT_STAGE=test_plan
 log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan exited 0 - this estate's wall did not fire. That would be stages 4-5 becoming reachable, which is good news and not something this script may skip past silently: read the plan and rewrite this stage."; }
+# The RC==0 requirement is conditional on BREAK=3, not unconditional: that
+# lever deliberately corrupts stage 3 so a refusal fires again (see the
+# BREAK block below), and a refusal is an Error diagnostic, which is
+# exactly what makes live-plan exit non-zero. BREAK=1 mutates stage 2 and
+# exits there (see the comment above that block), so it never reaches this
+# line at all - only the plain "${BREAK:-}" = "3" case needs the exemption.
+if [ "${BREAK:-}" != "3" ]; then
+  [ "$PLAN_RC" -eq 0 ] || { grep -E '^Error:' <<< "$PLAN_OUT"; fail "live-plan exited $PLAN_RC - a new Error diagnostic appeared where none did before (issue #396); read the plan and rewrite this stage"; }
+  ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
+  [ "$ERROR_COUNT" = "0" ] || {
+    grep -E '^Error:' <<< "$PLAN_OUT"
+    fail "live-plan exited 0 but reported $ERROR_COUNT \"Error:\" diagnostics - that combination should not happen; the wall's shape has changed"
+  }
+  log "  Confirmed: live-plan exits 0 with zero Error diagnostics - the"
+  log "             provider.kubernetes wall (issue #313/#396) is gone"
+fi
 
 # No associative arrays: /bin/bash on macOS is still 3.2 (no `declare -A`
 # support at all), and every other corpus-* script in this repo already
@@ -863,47 +932,44 @@ if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 #     (LAUNCHCONFIG_SITES), since there is no "Rule: ..." name to flip the
 #     way the three lint-driven controls above have.
 #
-# Present, and this estate's current wall - a different one, uncovered by
-# fixing the one above:
+# Formerly present, now FIXED (2026-08-24, issue #396's worker - see the
+# UPDATE note above stage 3's own header): "Provider unavailable for marker
+# discovery" for provider.kubernetes, #313's live-value-through-provider-
+# config boundary reached from live-plan's own bootstrap. No longer
+# asserted present; the ERROR_COUNT=0 check above is what would catch its
+# return.
 #
-#   - "Provider unavailable for marker discovery" for provider.kubernetes.
-#     Its configuration (`insecure = true` aside, its `host` and `token`
-#     arguments) reads data.aws_eks_cluster.cluster and
-#     data.aws_eks_cluster_auth.cluster, whose own configuration depends on
-#     aws_eks_cluster.this[0] - a managed resource this run has not read a
-#     value out of yet. internal/configs/static_scope.go, what
-#     internal/command/live_plan.go uses to configure a provider before
-#     discovery can even run, resolves only var/local/path/terraform - no
-#     state, no apply, no dependency graph - so a provider configured from
-#     ANOTHER provider's live output is exactly what it cannot evaluate:
-#     "Dynamic value in static context: Unable to use
-#     data.aws_eks_cluster.cluster in static context, which is required by
-#     provider.kubernetes." Stock OpenTofu never asks this question: its
-#     plan graph refreshes aws_eks_cluster.this[0] and evaluates the data
-#     sources BEFORE configuring provider.kubernetes, in one coherent walk
-#     choudoufu's stateless discovery does not build.
-#
-#     This is the exact shape issue #313 already named and deferred
-#     ("live-value-through-provider-config boundary"), reached here from a
-#     new direction: #313 and stage 2's own MISSING finding on
-#     kubernetes_config_map.aws_auth are live-import's no-state
-#     VERIFICATION pass hitting these same two data sources at migrate
-#     time; this is live-plan's own provider-configuration bootstrap
-#     hitting them before discovery runs at all. Fixing it generically
-#     would mean teaching the stateless path a provider-configuration
-#     dependency order - sequence AWS discovery/read ahead of a dependent
-#     provider's own configuration for any provider pair a configuration
-#     names this way - which is a real, novel piece of the stateless
-#     engine's design that does not exist today in any form, not a
-#     discovery, stamping or identity fix, and not attempted here. Left to
-#     #313.
-LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
+# This estate's CURRENT wall instead: the plan is not empty. Four
+# resources genuinely change - module.eks's worker launch configuration,
+# the random_pet whose keepers pin to its name, and the autoscaling group
+# that references both. See LAUNCHCONFIG_DIFF_SITES and the assertions
+# built around it, below.
+LOGICAL_SITES='random_string\.suffix|null_resource\.wait_for_cluster|local_file\.kubeconfig'
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
-LAUNCHCONFIG_SITES='aws_launch_configuration|Unlistable marker-discovered type'
+# Narrowed to the REFUSAL text alone (2026-08-24, issue #396's worker):
+# aws_launch_configuration now legitimately appears in the plan's own diff
+# (its worker launch configuration is one of the four resources this
+# estate's current wall replaces - see LAUNCHCONFIG_DIFF_SITES below), so a
+# bare mention of the type name is no longer evidence the located-record
+# discovery fallback (internal/live/discovery/locatedfallback.go) failed;
+# only "Unlistable marker-discovered type" - the refusal's own wording - is.
+LAUNCHCONFIG_SITES='Unlistable marker-discovered type'
+# The four resource addresses this estate's CURRENT wall (a non-empty
+# plan, not a refusal) touches - checked by exact shape, not merely by
+# type name, so a plan that changes for some OTHER reason still trips this.
+LAUNCHCONFIG_DIFF_SITES='module\.eks\.aws_launch_configuration\.workers\[[01]\] must be replaced|module\.eks\.random_pet\.workers\[[01]\] must be replaced|module\.eks\.aws_autoscaling_group\.workers\[[01]\] will be updated in-place'
 # The kubernetes_* lines that are NOT a refusal: the tag sweep's own
-# "no CFN type in the ARN join table" warnings. Excluded by exact shape
-# rather than by the provider prefix, so a real kubernetes refusal - which
-# would say "Rule:" or "Error:" - still trips the check.
+# "no CFN type in the ARN join table" warnings, in either of the two
+# shapes that name it - the long-form warning body ("kubernetes_config_map
+# has no CFN type the ARN join table...") AND the short summary table's
+# own per-type tag ("  kubernetes_config_map [NO_ARN_JOIN]"), found by
+# reading the plan fresh once the discovery/marker walls in front of this
+# one cleared (issue #396) and the summary table's own alphabetical walk
+# reached the kubernetes_* types for the first time - it was always there,
+# just never rendered this far before an earlier error cut discovery
+# short. Excluded by exact shape rather than by the provider prefix, so a
+# real kubernetes refusal - which would say "Rule:" or "Error:" - still
+# trips the check.
 #
 # This is the SAME shape LAUNCHCONFIG_SITES' own check below has to
 # exclude, for the identical reason: aws_launch_configuration is one of
@@ -914,8 +980,9 @@ LAUNCHCONFIG_SITES='aws_launch_configuration|Unlistable marker-discovered type'
 # the located-record fallback bound its instances correctly. Reused by
 # name rather than duplicated so the two checks cannot drift into
 # excluding different substrings for what is provably the same line
-# shape.
-K8S_NOT_A_REFUSAL='has no CFN type the ARN join table'
+# shape. An ERE now (grep -vE below, not -vF): two alternatives, not one
+# fixed string.
+K8S_NOT_A_REFUSAL='has no CFN type the ARN join table|\[NO_ARN_JOIN\]'
 
 assert_rule_absent() {
   local rule="$1" sites="$2" what="$3"
@@ -949,27 +1016,27 @@ if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
   # BREAK_HITS accounting to have somewhere consistent to report this
   # control's absence of a real lever, not because BREAK is expected to
   # make it fire.
-  LAUNCHCONFIG_BREAK_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" || true)"
+  LAUNCHCONFIG_BREAK_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL" || true)"
   [ -n "$LAUNCHCONFIG_BREAK_HITS" ] || BREAK_HITS="$BREAK_HITS aws_launch_configuration(located-fallback)"
   [ -z "$BREAK_HITS" ] \
     || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
   assert_rule_absent "unadmitted-type" 'Rule: unadmitted-type\.' "issue #326's fix for kubernetes_config_map.aws_auth"
-  # The kubernetes provider's own configuration failure (this estate's
-  # current wall, below) DOES legitimately mention "kubernetes" outside the
-  # join-table warnings - it is not #326's regression, and this exclusion
-  # says so by shape rather than widening K8S_NOT_A_REFUSAL to hide a real
-  # unadmitted-type regression the same way.
-  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" | grep -vcE 'Provider unavailable for marker discovery|cannot evaluate the configuration of provider|provider\.kubernetes|registry\.opentofu\.org/hashicorp/kubernetes' || true)"
+  # The provider.kubernetes configuration wall this exclusion used to carve
+  # out (issue #313) is FIXED as of 2026-08-24 (issue #396's worker - see
+  # this script's own UPDATE note above stage 3); the exclusion patterns
+  # below are kept only because a regression of #313 would otherwise be
+  # misread as a #326 regression by this check, not because any of them is
+  # expected to match anything in a clean run.
+  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL" | grep -vcE 'Provider unavailable for marker discovery|cannot evaluate the configuration of provider|provider\.kubernetes|registry\.opentofu\.org/hashicorp/kubernetes' || true)"
   [ "$K8S_REFUSALS" = "0" ] || {
-    grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL"
-    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings and the known provider-config wall below - #326's fix may have regressed"
+    grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL"
+    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed, or issue #313's provider.kubernetes wall is back"
   }
   log "  Confirmed: the only mentions of kubernetes anywhere in live-plan's"
-  log "             output are the tag sweep's four join-table warnings and"
-  log "             the known provider-config wall below, not a fresh"
-  log "             regression - issue #326's fix holds for"
-  log "             kubernetes_config_map.aws_auth"
+  log "             output are the tag sweep's four join-table warnings -"
+  log "             issue #326's fix holds for kubernetes_config_map.aws_auth"
+  log "             and issue #313's provider.kubernetes wall stays fixed"
 
   assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
   assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
@@ -986,48 +1053,54 @@ else
   # left unfixed here until this unit re-read the actual plan output by
   # hand and found line "aws_launch_configuration has no CFN type the ARN
   # join table" is the ONLY mention of the type anywhere in it.
-  LAUNCHCONFIG_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" || true)"
+  LAUNCHCONFIG_HITS="$(grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL" || true)"
   [ -z "$LAUNCHCONFIG_HITS" ] || {
     printf '%s\n' "$LAUNCHCONFIG_HITS"
     fail "aws_launch_configuration's unlistable-type wall is back - the located-record discovery fallback (internal/live/discovery/locatedfallback.go) may have regressed"
   }
-  log "  Confirmed: the only mention of aws_launch_configuration anywhere in"
-  log "  live-plan's output is the tag sweep's own join-table warning (the"
-  log "  same false-positive shape #326's kubernetes check already excludes,"
-  log "  not a refusal), and \"Unlistable marker-discovered type\" does not"
-  log "  appear at all - choudoufu #364's located-record discovery fallback"
-  log "  holds"
+  log "  Confirmed: \"Unlistable marker-discovered type\" does not appear at"
+  log "  all - choudoufu #364's located-record discovery fallback holds"
 fi
 
-# The wall that IS here NOW, asserted by its own words and by the provider
-# it names - provider.kubernetes's own configuration, not aws_launch_
-# configuration (fixed above) and not an admission refusal at all.
-grep -qF 'Provider unavailable for marker discovery' <<< "$PLAN_OUT" \
-  || { grep -E '^Error:' <<< "$PLAN_OUT"; fail "the \"Provider unavailable for marker discovery\" error is gone - this estate's wall has moved again; read the plan and rewrite this stage"; }
-grep -qE 'provider\.kubernetes' <<< "$PLAN_OUT" \
-  || fail "the provider-unavailable error no longer names provider.kubernetes - the wall has changed shape"
-grep -qE 'Dynamic value in static context' <<< "$PLAN_OUT" \
-  || fail "the provider-unavailable error no longer cites a static-context evaluation failure - the wall has changed shape"
-ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
-[ "$ERROR_COUNT" = "1" ] || {
-  grep -E '^Error:' <<< "$PLAN_OUT"
-  fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 1 (provider.kubernetes's static-context wall; aws_launch_configuration, the 4 logical-resource and 4 count-index sites are all fixed) - the wall's shape has changed"
+# This estate's CURRENT wall (2026-08-24, issue #396's worker): the plan is
+# not empty. Four resources genuinely change, all downstream of one
+# projection: module.eks's worker launch configuration is a record-backed
+# (NEEDS_DISCOVERY / #364 located-record) type, and the plan's own DESIRED
+# value for it disagrees with the RECORDED prior on enable_monitoring,
+# user_data and root_block_device - each traces to an expression this
+# static evaluator does not yet reproduce for a record-backed instance's
+# own arguments (workers.tf's user_data_base64 = base64encode(data.
+# template_file.userdata.*.rendered[count.index]), enable_monitoring =
+# lookup(var.worker_groups[count.index], "enable_monitoring", local.
+# workers_group_defaults[...]), and an implicit root_block_device this
+# provider version defaults for. NOT diagnosed further here - identified,
+# not fixed, and precisely pinned so the next unit does not have to
+# re-derive it). random_pet.workers replaces because its own keepers pin
+# to the launch configuration's name, which is "known after apply" once
+# the launch configuration itself must be replaced; aws_autoscaling_group.
+# workers updates in place because its launch_configuration argument
+# follows. Asserted by exact resource address and change verb, not merely
+# by type name, so a plan that changes for some OTHER reason still trips
+# this rather than reading as the same wall.
+DIFF_HITS="$(grep -cE "$LAUNCHCONFIG_DIFF_SITES" <<< "$PLAN_OUT" || true)"
+[ "$DIFF_HITS" = "6" ] || {
+  grep -E "$LAUNCHCONFIG_DIFF_SITES" <<< "$PLAN_OUT"
+  fail "the plan's diff sites matched $DIFF_HITS of the 6 expected lines (2 launch_configuration + 2 random_pet + 2 autoscaling_group) - the wall's shape has changed"
 }
-log "  exactly 1 Error diagnostic total: provider.kubernetes cannot be"
-log "  configured because its host/token arguments read data sources whose"
-log "  own configuration depends on a managed resource this stateless run"
-log "  has not read yet (issue #313). aws_launch_configuration's wall,"
-log "  the 4 logical-resource sites and the 4 count-index sites are all"
-log "  fixed; this is a different, previously-hidden wall, not a regression."
+grep -qF 'Plan: 4 to add, 2 to change, 4 to destroy.' <<< "$PLAN_OUT" \
+  || { grep -E '^Plan: ' <<< "$PLAN_OUT"; fail "the plan's own summary line no longer reads \"4 to add, 2 to change, 4 to destroy.\" - the wall's shape has changed (see the line above, if any)"; }
+log "  Confirmed: live-plan is NOT empty - Plan: 4 to add, 2 to change, 4 to"
+log "  destroy, all six sites the worker launch configuration/random_pet/"
+log "  autoscaling_group cascade names, and nothing else"
 
-gauntlet_stage test_plan fail "1 Error diagnostic: provider.kubernetes cannot be configured - its host/token arguments read data.aws_eks_cluster.cluster and data.aws_eks_cluster_auth.cluster, whose own configuration depends on aws_eks_cluster.this[0], a managed resource this stateless run has not read a value out of yet (issue #313's live-value-through-provider-config boundary, reached here from live-plan's provider-configuration bootstrap rather than live-import's verification pass). aws_launch_configuration's former wall is FIXED (2026-08-22, choudoufu #364's other half: internal/live/discovery/locatedfallback.go binds it from a record internal/live/liveimport/stamp.go's Approve writes at migrate time via internal/live/projection/locatedseed.go, reusing issue #270's LocatedStore for a different type population - generic property is no tags argument and no list route of any kind, reaching 215 admitted AWS types); the 4 logical-resource refusals remain fixed by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go. The kubernetes-provider-config wall is foundation work spanning the stateless engine's provider-configuration ordering, not a discovery/stamping/identity fix, and is left to #313"
-gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
-gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
+gauntlet_stage test_plan fail "live-plan runs to completion with ZERO Error diagnostics (issue #313's provider.kubernetes wall and issue #396's aws_default_route_table companion-pair wall are both FIXED - see this script's own UPDATE note above stage 3), but the plan is not empty: Plan: 4 to add, 2 to change, 4 to destroy, all on module.eks's worker launch configuration (aws_launch_configuration.workers[0]/[1] must be replaced - enable_monitoring/user_data/root_block_device disagree between the record-backed prior and this static evaluator's own projection of the block's config), random_pet.workers[0]/[1] (replaced because its keepers pin to the launch configuration's name) and aws_autoscaling_group.workers[0]/[1] (updated in place). Not diagnosed further; left for the next unit. aws_launch_configuration's own unlistable-type wall remains fixed by choudoufu #364's located-record discovery fallback; the 4 logical-resource refusals remain fixed by choudoufu #364's implied local record store; the 4 count-index ones by sibling_select.go."
+gauntlet_stage test_apply not_run "stage 3's plan is not empty (4 add / 2 change / 4 destroy), so there is no no-op apply to test - see test_plan's own detail"
+gauntlet_stage drift_reconverge not_run "stage 3's plan is not empty, so there is no converged baseline to drift from - see test_plan's own detail"
 CURRENT_STAGE=""
 gauntlet_end
 
 log ""
-log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 refuses outright ==="
+log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 plans real changes ==="
 log ""
 log "This is the real, current shape of crossing terraform-aws-eks's own"
 log "\"basic\" example - the module virtually everyone reaches for first -"
@@ -1041,26 +1114,39 @@ log "           local record store (choudoufu #364), and of the remaining 24"
 log "           23 are legitimately untaggable-by-design plus 1 MISSING -"
 log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
-log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
-log "  STAGE 3  FAILS  1 Error diagnostic and nothing else, down from 8,"
-log "           then 4, but a DIFFERENT one: provider.kubernetes cannot be"
-log "           configured, because its host/token arguments read data"
-log "           sources whose own configuration depends on a managed"
-log "           resource this stateless run has not read yet (issue #313's"
-log "           live-value-through-provider-config boundary)."
-log "           aws_launch_configuration's former wall is FIXED (choudoufu"
-log "           #364's other half): it is marker-discovered and the"
-log "           provider cannot list it, but its identity is now recorded"
-log "           at migrate time and read back by a located-record discovery"
-log "           fallback, so its 2 declared instances bind cleanly."
-log "           The 4 logical-resource sites are FIXED by #364's implied"
-log "           local record store, with no edit to this estate; the 4"
-log "           count-index sites by internal/live/lint/sibling_select.go;"
-log "           issue #326's unadmitted-type site by #326. All four are"
-log "           asserted ABSENT above, by rule or by resource, with"
-log "           BREAK=3 proving neither the negative controls nor the"
-log "           positive check on the remaining wall are vacuous."
-log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."
+log "           (a distinct, narrower, DEFER-caliber wall)."
+log "  STAGE 3  FAILS  live-plan now runs to completion with ZERO Error"
+log "           diagnostics, down from 1 - 2026-08-24, issue #396's worker:"
+log "           a legacy resource.*.attr splat's Each attribute was"
+log "           structurally invisible to static reference coverage"
+log "           (internal/configs/splat_coverage.go fixes it, standalone,"
+log "           without touching real value materialization), and once that"
+log "           cleared, an issue #69 multi-provider-scope companion-pair"
+log "           sighting on aws_default_route_table.default consulted the"
+log "           wrong declared-set index (internal/live/discovery/"
+log "           discovery.go's sweepBindType now reads declared.declares,"
+log "           not entryFor). Both are FIXED and generic; see the UPDATE"
+log "           note above stage 3's own header for the full mechanism."
+log "           The wall test_plan still fails on: the plan is not empty."
+log "           Plan: 4 to add, 2 to change, 4 to destroy - module.eks's"
+log "           worker launch configuration (record-backed/#364, its"
+log "           enable_monitoring/user_data/root_block_device projection"
+log "           disagrees with the config's own desired value), random_pet."
+log "           workers (replaced because its keepers pin to the launch"
+log "           configuration's name) and aws_autoscaling_group.workers"
+log "           (follows). Not diagnosed further; left for the next unit."
+log "           aws_launch_configuration's own unlistable-type wall stays"
+log "           FIXED by choudoufu #364's located-record discovery"
+log "           fallback; the 4 logical-resource sites by #364's implied"
+log "           local record store; the 4 count-index sites by"
+log "           internal/live/lint/sibling_select.go; issue #326's"
+log "           unadmitted-type site by #326. All four asserted ABSENT"
+log "           above, by rule or by resource, with BREAK=3 proving neither"
+log "           the negative controls nor the plan-shape check are vacuous"
+log "           (assumption carried forward from before this unit, not"
+log "           independently re-run live here - the launch_configuration"
+log "           lever was already documented as having none)."
+log "  STAGES 4-5  UNREACHABLE  stage 3's plan is not empty."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"
 log "script's setup) were found, fixed, merged and published along the way:"
