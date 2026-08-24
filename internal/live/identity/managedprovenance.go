@@ -133,66 +133,92 @@ func (r *resolver) managedFromExprAt(expr hcl.Expression, scope instScope, depth
 	if unproven(travs) {
 		return "", false
 	}
-	// A "module" root is condition 3's own blind spot, not a legitimate
-	// exclusion: [resolver.managedUnknownAt]'s switch below can classify a
-	// traversal only when its addrs.Ref.Subject is addrs.Resource or
-	// addrs.ResourceInstance, so a module-output reference
-	// (module.wildcard_cert.acm_certificate_arn, terraform-aws-modules/acm's
-	// own `acm_certificate_arn` output) always falls through that switch's
-	// default case unclassified - never counted as a candidate, whatever the
-	// resource it actually names is doing. That is silent under-attribution
-	// when it is the ONLY managed-unknown reference in expr (this function
-	// already declines correctly, nothing to fix), but silent
-	// MISATTRIBUTION the moment the SAME expr also names an unrelated,
-	// DIRECTLY-referenced managed resource that happens to be covered and
+	// A "module" root used to be declined outright, unconditionally, the
+	// moment it appeared anywhere in expr: [resolver.managedUnknownAt]'s
+	// switch below can classify a traversal only when its addrs.Ref.Subject
+	// is addrs.Resource or addrs.ResourceInstance, so a module-output
+	// reference (module.wildcard_cert.acm_certificate_arn,
+	// terraform-aws-modules/acm's own `acm_certificate_arn` output) always
+	// fell through that switch's default case unclassified - never counted
+	// as a candidate, whatever the resource it actually names is doing.
+	// That was silent under-attribution when it was the ONLY managed-unknown
+	// reference in expr (already safe, nothing to fix there), but silent
+	// MISATTRIBUTION the moment the SAME expr also named an unrelated,
+	// DIRECTLY-referenced managed resource that happened to be covered and
 	// unknown too - terraform-aws-modules/alb's own combined `listeners` map
 	// is exactly this shape: an HTTPS listener's certificate reached only
 	// through a module output, sitting beside an unrelated
 	// Cognito-authenticated listener's aws_cognito_user_pool.this.arn,
-	// referenced directly. [resolver.managedUnknownAt] can see only the
-	// second reference, so `found` comes back with exactly one entry -
-	// Cognito - and the `len(found) != 1` ambiguity guard below never fires,
-	// because as far as it can tell there was never more than one candidate.
-	// A confidently wrong single answer is indistinguishable from a right
-	// one to that guard.
+	// referenced directly. The blanket decline this file shipped first
+	// (see git history) closed that hole the only safe way available at the
+	// time: bail the whole level rather than let the direct reference win by
+	// default.
 	//
-	// The fix is not to make this chase see through a module boundary -
-	// that needs the same scope-switching [resolver.namedDef]'s "var" hop
-	// does, and a value chase (rather than the OWN-module definition chase
-	// namedDef exists for) is a materially different, riskier change to
-	// make blind. The safe fix is the one this package's own rule already
-	// states for every other blind spot here (a missing attribution
-	// outranks a wrong one, condition 2's unproven-var check being the
-	// other example): decline, rather than guess, the moment a reference
-	// this function cannot classify sits in the same expression as one it
-	// can. TestManagedFromModuleOutputBlindCrosstalk pins the repro and the
-	// fix; TestManagedFromModuleOutputBlindCrosstalkKnownValidationResolvesConcrete
-	// is the negative control - a module-output reference that never needed
-	// this chase at all (its own value resolved directly) is unaffected.
-	if namesAModuleOutput(travs) {
-		return "", false
-	}
-
-	// Every candidate this level's own traversals name, direct or chased,
-	// collected rather than returned on the first hit. A single reference
-	// is the overwhelming case at depth 0 (one identity argument, one
-	// attribute), but the CHASE this file adds reaches expressions no
-	// caller wrote by hand - a local built for one purpose and reused by
-	// many resources, terraform-aws-modules/alb's own combined listener
-	// configuration among them, can legitimately name more than one
-	// covered-but-unknown managed resource in the same breath (an ACM
-	// certificate beside an unrelated Cognito user pool, say). Picking
-	// whichever one Variables() happened to list first would attribute an
-	// argument to a resource it may have nothing to do with - a wrong
-	// "waiting on" claim is not a wrong marker, but it is a wrong claim,
-	// and this package's own rule (a missing attribution outranks a wrong
-	// one) applies here exactly as it does to condition 2's var check.
-	// TestManagedFromDeclinesAmbiguousMultiResourceLocal pins it.
+	// [resolver.managedFromModuleOutput] now CHASES the module boundary
+	// instead of merely refusing to see across it - the same
+	// scope-switching hop [resolver.resolveModuleOutput] already makes for a
+	// VALUE (enter the child module, read the output's own defining
+	// expression) applied here to the provenance question instead: does the
+	// output's own expression itself name a covered-and-unknown managed
+	// resource. That turns a module-output traversal into an ordinary
+	// candidate for the `found` set below, in the SAME loop a direct
+	// reference already populates it in, so the ambiguity guard
+	// (`len(found) != 1`) sees every real candidate instead of only the ones
+	// it could already classify - honest ambiguity where there genuinely are
+	// two candidates (TestManagedFromModuleOutputBlindCrosstalk, both legs
+	// unknown, still declines), and a real single answer where there is only
+	// one (TestManagedFromModuleOutputChasesThroughToACMResource, the
+	// module's own resource unknown and Cognito's already resolved).
+	//
+	// The safety property survives the widening because
+	// [resolver.managedFromModuleOutput] itself proves-or-declines: it
+	// returns ok only when the module output's own chase resolves to
+	// EXACTLY one candidate (using this very function, recursively, with the
+	// same ambiguity guard), and every other outcome - no such call, a key
+	// the call does not expand to, a selector reaching past the output, the
+	// output's own chase finding zero or several candidates, an unproven
+	// variable, depth exhausted - comes back false. A false there is treated
+	// exactly like [namesAnUnprovenVariable]'s existing rule: a reference
+	// this cannot classify must not let one it CAN classify (already sitting
+	// in `found`) win by default, so it declines the WHOLE level rather than
+	// silently dropping just this traversal. See the loop below and
+	// [resolver.managedFromModuleOutput]'s own doc comment.
+	//
+	// Every candidate this level's own traversals name, direct, module-
+	// routed, or chased through a local/var one hop out, collected rather
+	// than returned on the first hit. A single reference is the overwhelming
+	// case at depth 0 (one identity argument, one attribute), but the CHASE
+	// this file adds reaches expressions no caller wrote by hand - a local
+	// built for one purpose and reused by many resources,
+	// terraform-aws-modules/alb's own combined listener configuration among
+	// them, can legitimately name more than one covered-but-unknown managed
+	// resource in the same breath (an ACM certificate beside an unrelated
+	// Cognito user pool, say). Picking whichever one Variables() happened to
+	// list first would attribute an argument to a resource it may have
+	// nothing to do with - a wrong "waiting on" claim is not a wrong marker,
+	// but it is a wrong claim, and this package's own rule (a missing
+	// attribution outranks a wrong one) applies here exactly as it does to
+	// condition 2's var check and to the module-chase decline above.
+	// TestManagedFromDeclinesAmbiguousMultiResourceLocal pins the local/var
+	// shape of it.
 	found := map[string]bool{}
 	for _, trav := range travs {
+		if len(trav) == 0 {
+			continue
+		}
 		if addr, ok := r.managedUnknownAt(trav); ok {
 			found[addr] = true
+			continue
 		}
+		root, isRoot := trav[0].(hcl.TraverseRoot)
+		if !isRoot || root.Name != "module" {
+			continue
+		}
+		addr, ok := r.managedFromModuleOutput(trav, depth+1)
+		if !ok {
+			return "", false
+		}
+		found[addr] = true
 	}
 	// Condition 3's first leg, one hop out: expr does not read the resource
 	// directly, but it reads a local or a module variable whose OWN
@@ -305,30 +331,109 @@ func namesAVariable(travs []hcl.Traversal) bool {
 	return false
 }
 
-// namesAModuleOutput reports whether any traversal roots at "module". See
-// [resolver.managedFromExprAt]'s own comment on why a module-output
-// reference has to bail the whole level rather than merely being skipped:
-// [resolver.managedUnknownAt] cannot classify one (its addrs.Ref.Subject is
-// never addrs.Resource or addrs.ResourceInstance), so treating it as "not a
-// candidate" is not a proven negative, it is a blind spot - and a blind spot
-// beside a reference this package CAN see is exactly how a confident wrong
-// answer gets produced. Checked at every depth, the same as
-// [namesAVariable]/[resolver.namesAnUnprovenVariable]: the crosstalk this
-// guards is not about the top-level identity argument naming a module
-// output directly, it is about a CHASED local's or module variable's own
-// definition - reached only through the recursion - naming one beside an
-// unrelated direct reference. TestManagedFromModuleOutputBlindCrosstalk is
-// exactly that shape, two hops down.
-func namesAModuleOutput(travs []hcl.Traversal) bool {
-	for _, trav := range travs {
-		if len(trav) == 0 {
-			continue
+// managedFromModuleOutput is [resolver.managedFromExprAt]'s chase through a
+// module boundary for ONE "module.<call>[key].<output>" traversal: it looks
+// up what the module CALL's own output is defined as - the identical lookup
+// [resolver.resolveModuleOutput] makes for a VALUE chase (same
+// r.mod.ModuleCalls lookup, same repeated/key handling, same
+// r.enterModuleFor(r.modInst.Child(...)) hop into the child module) - and
+// then asks [resolver.managedFromExprAt] the SAME provenance question of the
+// output's own expression, one depth further, inside the child module's own
+// scope rather than the caller's: an output's defining expression is
+// written in the child module, where the referring resource's own
+// each.key/count.index have no meaning, exactly the reasoning
+// [resolver.resolveModuleOutput] gives for the identical hop on the value
+// side.
+//
+// ok is false for every shape this cannot resolve with the same certainty
+// resolveModuleOutput requires of a value chase: no such module call, an
+// unrepeated call indexed or a repeated one not, a key the call does not
+// actually expand to, no output by that name, or a selector reaching past
+// the output into ITS OWN value (module.foo.bar.baz - this function proves
+// only "module.foo[key].bar", never a further selection into what bar
+// itself contains). It is also false whenever the output's own chase - the
+// recursive [resolver.managedFromExprAt] call - does not resolve to exactly
+// one candidate: zero real candidates and two-or-more ambiguous candidates
+// come back indistinguishable from "could not be proven" here, and that is
+// deliberate. [resolver.managedFromExprAt]'s own caller-side rule (see its
+// doc comment) treats every false from this function as "cannot classify"
+// and declines the WHOLE level rather than silently dropping this one
+// traversal - a module reference this cannot prove clean must not let a
+// direct reference sitting beside it win by default, which is exactly the
+// shape that produced TestManagedFromModuleOutputBlindCrosstalk's
+// misattribution before this file chased module boundaries at all.
+//
+// depth is the caller's own depth, already bumped by one for this hop, and
+// is what makes [maxManagedProvenanceChase] bound a module chase exactly
+// the way it already bounds a local/var chase - a pathological or
+// self-referential chain of module outputs declines rather than recursing
+// unboundedly.
+func (r *resolver) managedFromModuleOutput(trav hcl.Traversal, depth int) (string, bool) {
+	if len(trav) < 3 {
+		return "", false
+	}
+	callStep, ok := trav[1].(hcl.TraverseAttr)
+	if !ok {
+		return "", false
+	}
+	rest := trav[2:]
+
+	mc, ok := r.mod.ModuleCalls[callStep.Name]
+	if !ok || mc.Config == nil {
+		return "", false
+	}
+
+	// See [resolver.resolveModuleOutput]'s identical block for why each of
+	// these is refused rather than guessed: an indexed reference on an
+	// unrepeated call, an unindexed one on a repeated call, and a key the
+	// call's own count/for_each does not actually expand to.
+	repeated := mc.Count != nil || mc.ForEach != nil
+	key := addrs.InstanceKey(addrs.NoKey)
+	if idx, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
+		if !repeated {
+			return "", false
 		}
-		if root, ok := trav[0].(hcl.TraverseRoot); ok && root.Name == "module" {
-			return true
+		k, ok := indexKeyValue(idx.Key)
+		if !ok {
+			return "", false
+		}
+		key = k
+		rest = rest[1:]
+	} else if repeated {
+		return "", false
+	}
+	if repeated {
+		subject := "module." + callStep.Name
+		if _, ok := ChildModuleRepetitionData(r.ctx, r.curCfg, subject, mc.Count, mc.ForEach, key); !ok {
+			return "", false
 		}
 	}
-	return false
+
+	// Exactly one step left, naming the output itself: no output at all
+	// ("module.foo") and a selector reaching past it into its own value
+	// ("module.foo.bar.baz") are both outside what this function proves -
+	// see its own doc comment.
+	if len(rest) != 1 {
+		return "", false
+	}
+	outStep, isAttr := rest[0].(hcl.TraverseAttr)
+	if !isAttr {
+		return "", false
+	}
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(r.modInst.Child(callStep.Name, key)) {
+		return "", false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	out, ok := r.mod.Outputs[outStep.Name]
+	if !ok || out.Expr == nil {
+		return "", false
+	}
+
+	// A fresh scope, not the caller's - see the doc comment above.
+	return r.managedFromExprAt(out.Expr, instScope{}, depth)
 }
 
 // namesAnUnprovenVariable is condition 2 restated for a CHASED expression -
