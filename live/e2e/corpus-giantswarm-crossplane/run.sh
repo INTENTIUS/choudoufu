@@ -137,7 +137,11 @@ set -uo pipefail
 #                 other corpus-*/reference-* script's own default).
 #   FLOCI_IMAGE   the emulator image; defaults to the digest pin in
 #                 live/floci-image.
-#   BREAK         set to 1 to corrupt stage 2's identity assertion.
+#   BREAK         set to 1 to corrupt stage 2's identity assertion. Set to
+#                 "rename" to exercise day2_rename's own break control
+#                 instead - renaming module crossplane WITHOUT a moved
+#                 block, which must not reproduce the real legs' zero-churn
+#                 no-op plan.
 #   BREAK_STAGE3  set to 1 to corrupt stage 3's expected inline-policy name.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5's replan.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
@@ -349,6 +353,57 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 gauntlet_stage cold_deploy pass "6 resource instances added, 0 already tofu-estate-marked before migration"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# This estate has exactly ONE module call ("crossplane"), unlike every
+# other OpenTofu-native crossing in this campaign, and no root-level
+# standalone resource of its own (see header's scoping decision - the
+# other five real directories in this repository are excluded). Both
+# taggable objects (the IAM role and the managed policy) live inside that
+# one module, whose source stays byte-identical to the pinned commit
+# throughout (DELTA discipline), so the only renameable boundary at all is
+# the module call itself. Both legs therefore rename the SAME module
+# SEQUENTIALLY: a `moved` block relocates module.crossplane ->
+# .crossplane_renamed first (D1, zero churn across both taggable objects
+# in one operation), then "choudoufu live-mv" relocates
+# module.crossplane_renamed -> .crossplane_final with no moved block at
+# all (D2) - two independent renames of the one module boundary this
+# estate has, each proving its own mechanism the same way every other
+# estate's two legs prove theirs on two different objects. The stock
+# oracle (real tofu - stock terraform cannot see this .tofu-only estate at
+# all, see header) runs the same two renames, chained through moved blocks
+# only, on a copy of cold_deploy's own state - before choudoufu or
+# live-import ever touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same chained module rename through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/module "crossplane" {/module "crossplane_final" {/' "$PLAIN_ORACLE/main.tofu"
+rm -f "$PLAIN_ORACLE/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/main.tofu" <<'EOF'
+
+moved {
+  from = module.crossplane
+  to   = module.crossplane_renamed
+}
+
+moved {
+  from = module.crossplane_renamed
+  to   = module.crossplane_final
+}
+EOF
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - the chained move reports only the moves, no attribute diff at all"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -595,6 +650,131 @@ log ""
 log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  role $ROLE_NAME, policy $POLICY_ARN (both module.crossplane)"
+
+if [ "${BREAK:-}" = "rename" ]; then
+  log "=== D1 (BREAK=rename). rename module crossplane -> crossplane_broken WITHOUT a moved block ==="
+  sed -i.bak 's/module "crossplane" {/module "crossplane_broken" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Verified directly: this module's two client-named taggable objects take
+  # genuinely different paths under a bare rename, and neither reproduces
+  # the real legs' zero-churn result. The role shows corpus-eks-basic's own
+  # textbook Break shape - "[UNOWNED]" naming the old, still-marked address,
+  # then a plain destroy of module.crossplane.aws_iam_role.* paired with a
+  # create of module.crossplane_broken.aws_iam_role.* (an "Owned and
+  # undeclared" object, correctly destroyed rather than silently adopted
+  # under the new name). The managed policy takes an entirely different
+  # route: "[NEEDS_DISCOVERY]" because aws_iam_policy's import identity is
+  # the whole ARN as one opaque provider-required string, not one this
+  # stateless walk resolves the old marked object through here, so it is
+  # simply proposed as a fresh create with no destroy of its own old address
+  # at all - never treated as a collision. A dependent untaggable child
+  # (aws_iam_role_policy_attachment) is also proposed as a create, since it
+  # needs both to exist first. Net: "Plan: 3 to add, 1 to change, 1 to
+  # destroy." This assertion does not hard-code that exact multi-resource
+  # shape (fragile against unrelated drift in this module's untaggable
+  # children); it proves the control is load-bearing the same way the
+  # tolerant checks in corpus-hongbomiao-harbor/-storage do, by requiring
+  # only that the result differs from the real legs' zero-churn no-op.
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - see header"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | tail -10; fail "BREAK=rename: renaming without a moved block reproduced the real legs' zero-churn no-op plan - this stage's check is not load-bearing"; }
+  log "  BREAK=rename: the plan is not the real legs' zero-churn no-op (see the PR for the exact shape observed) - proves the moved-block/live-mv checks below are load-bearing"
+else
+  log "=== D1. choudoufu, moved block: module crossplane -> crossplane_renamed ==="
+  sed -i.bak 's/module "crossplane" {/module "crossplane_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  cat >> "$ESTATE/main.tofu" <<'EOF'
+
+moved {
+  from = module.crossplane
+  to   = module.crossplane_renamed
+}
+EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" = "2" ] \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename plan proposes $N_CHANGED_D1 in-place changes, not 2 (the role and the managed policy)"; }
+  grep -qF "Plan: 0 to add, 2 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary is not exactly 2 in-place changes"; }
+  grep -qE '~ +"tofu-address" += +"module\.crossplane\.aws_iam_role\.giantswarm_crossplane_role" +-> +"module\.crossplane_renamed\.aws_iam_role\.giantswarm_crossplane_role"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the role's tofu-address marker being rewritten from the old address to the new one"; }
+  grep -qE '~ +"tofu-address" += +"module\.crossplane\.aws_iam_policy\.giantswarm_crossplane_policy" +-> +"module\.crossplane_renamed\.aws_iam_policy\.giantswarm_crossplane_policy"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the policy's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, 2 in-place tags updates (role and policy) - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 2 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly 2 in-place changes"; }
+
+  ROLE_ADDR_D_AFTER="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ROLE_ADDR_D_AFTER" = "module.crossplane_renamed.aws_iam_role.giantswarm_crossplane_role" ] \
+    || fail "the role carries tofu-address=$ROLE_ADDR_D_AFTER after the rename, not module.crossplane_renamed.aws_iam_role.giantswarm_crossplane_role"
+  POLICY_ADDR_D_AFTER="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$POLICY_ADDR_D_AFTER" = "module.crossplane_renamed.aws_iam_policy.giantswarm_crossplane_policy" ] \
+    || fail "the policy carries tofu-address=$POLICY_ADDR_D_AFTER after the rename, not module.crossplane_renamed.aws_iam_policy.giantswarm_crossplane_policy"
+  log "  $ROLE_NAME and $POLICY_ARN unchanged, tofu-address now under module.crossplane_renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module crossplane_renamed -> crossplane_final, no moved block at all ==="
+  sed -i.bak 's/module "crossplane_renamed" {/module "crossplane_final" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  # Both taggable objects live under the SAME renamed module boundary, so
+  # live-mv is invoked once per object - it rewrites one live resource's own
+  # marker per call, the same as every other estate's live-mv leg.
+  MV_ROLE_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.crossplane_renamed.aws_iam_role.giantswarm_crossplane_role module.crossplane_final.aws_iam_role.giantswarm_crossplane_role 2>&1)"; MV_ROLE_RC=$?
+  [ "$MV_ROLE_RC" -eq 0 ] || { printf '%s\n' "$MV_ROLE_OUT" | tail -30; fail "choudoufu live-mv (role) exited $MV_ROLE_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_ROLE_OUT" \
+    || { printf '%s\n' "$MV_ROLE_OUT"; fail "live-mv (role) did not report a real write"; }
+  grep -qF '"module.crossplane_renamed.aws_iam_role.giantswarm_crossplane_role" -> "module.crossplane_final.aws_iam_role.giantswarm_crossplane_role"' <<< "$MV_ROLE_OUT" \
+    || { printf '%s\n' "$MV_ROLE_OUT"; fail "live-mv (role) did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv (role): $(grep -F 'live ID' <<< "$MV_ROLE_OUT")"
+
+  MV_POLICY_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.crossplane_renamed.aws_iam_policy.giantswarm_crossplane_policy module.crossplane_final.aws_iam_policy.giantswarm_crossplane_policy 2>&1)"; MV_POLICY_RC=$?
+  [ "$MV_POLICY_RC" -eq 0 ] || { printf '%s\n' "$MV_POLICY_OUT" | tail -30; fail "choudoufu live-mv (policy) exited $MV_POLICY_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_POLICY_OUT" \
+    || { printf '%s\n' "$MV_POLICY_OUT"; fail "live-mv (policy) did not report a real write"; }
+  grep -qF '"module.crossplane_renamed.aws_iam_policy.giantswarm_crossplane_policy" -> "module.crossplane_final.aws_iam_policy.giantswarm_crossplane_policy"' <<< "$MV_POLICY_OUT" \
+    || { printf '%s\n' "$MV_POLICY_OUT"; fail "live-mv (policy) did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv (policy): $(grep -F 'live ID' <<< "$MV_POLICY_OUT")"
+
+  ROLE_ADDR_D2_AFTER="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ROLE_ADDR_D2_AFTER" = "module.crossplane_final.aws_iam_role.giantswarm_crossplane_role" ] \
+    || fail "the role carries tofu-address=$ROLE_ADDR_D2_AFTER after live-mv, not module.crossplane_final.aws_iam_role.giantswarm_crossplane_role"
+  POLICY_ADDR_D2_AFTER="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$POLICY_ADDR_D2_AFTER" = "module.crossplane_final.aws_iam_policy.giantswarm_crossplane_policy" ] \
+    || fail "the policy carries tofu-address=$POLICY_ADDR_D2_AFTER after live-mv, not module.crossplane_final.aws_iam_policy.giantswarm_crossplane_policy"
+  log "  $ROLE_NAME and $POLICY_ARN unchanged, tofu-address now under module.crossplane_final - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 

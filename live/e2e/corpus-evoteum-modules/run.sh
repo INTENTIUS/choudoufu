@@ -148,7 +148,10 @@ set -uo pipefail
 #                 other corpus-*/reference-* script's own default).
 #   FLOCI_IMAGE   the emulator image; defaults to the digest pin in
 #                 live/floci-image.
-#   BREAK         set to 1 to corrupt stage 2's identity assertion.
+#   BREAK         set to 1 to corrupt stage 2's identity assertion. Set to
+#                 "rename" to exercise day2_rename's own break control
+#                 instead - renaming module sessions_table WITHOUT a moved
+#                 block, which must propose a destroy and a create.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
@@ -461,6 +464,54 @@ gauntlet_stage cold_deploy pass "10 resources added (1 vpc, 3 subnets, 1 igw, 1 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The two module calls: a `moved` block renames the WHOLE module call
+# "networking" (its own aws_vpc.main, three aws_subnet.public[cidr]
+# instances, aws_internet_gateway.main and aws_route_table.public are all
+# taggable; its three aws_route_table_association.public[cidr] instances
+# are untaggable-by-design derived children), and "choudoufu live-mv"
+# (below, after drift_reconverge) renames the whole module call
+# "sessions_table" with no moved block at all - its own
+# aws_dynamodb_table.this is the only object it carries, and no other
+# module references it (no cross-module output references exist between
+# networking and sessions_table in this crossing's own root wiring).
+# Neither leaf module's own source is touched (DELTA discipline). The
+# stock oracle (real tofu - see header for why stock terraform cannot see
+# this .tofu-only estate at all) runs the same two renames, through moved
+# blocks only, on a copy of cold_deploy's own state - before choudoufu or
+# live-import ever touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/module "networking" {/module "networking_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module "sessions_table" {/module "sessions_table_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+rm -f "$PLAIN_ORACLE/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/main.tofu" <<'EOF'
+
+moved {
+  from = module.networking
+  to   = module.networking_renamed
+}
+
+moved {
+  from = module.sessions_table
+  to   = module.sessions_table_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state (moved-block relocation of a whole module, associations included) - no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -678,6 +729,121 @@ fi
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  vpc $VPC_ID (module.networking), table $TABLE_NAME (module.sessions_table)"
+
+if [ "${BREAK:-}" = "rename" ]; then
+  log "=== D1 (BREAK=rename). rename module sessions_table -> sessions_table_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "sessions_table" {/module "sessions_table_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Verified directly, reproduced identically across two isolated runs:
+  # this estate's aws_dynamodb_table.this shows GAUNTLET.md #6's own
+  # textbook Break shape - "the plan must show a destroy and a create" -
+  # the same clean pair corpus-eks-basic's BREAK=1 asserts for its security
+  # group, unlike corpus-hongbomiao-harbor's aws_iam_user (which shows a
+  # nondeterministic mix of an ambiguity warning and/or a bare create, never
+  # a destroy - see that estate's script). Both types are equally
+  # client-named; the difference is in exactly which discovery/plan path
+  # each type's identity resolution takes, not asserted further here.
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit proposing a destroy and a create (see header)"; }
+  grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose destroying the live table under its old address - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.sessions_table_renamed\.aws_dynamodb_table\.this will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose creating the table at the renamed address - this stage's check is not load-bearing"; }
+  log "  BREAK=rename: correctly proposes destroying module.sessions_table.aws_dynamodb_table.this and creating module.sessions_table_renamed.aws_dynamodb_table.this - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module networking -> networking_renamed ==="
+  sed -i.bak 's/module "networking" {/module "networking_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  cat >> "$ESTATE/main.tofu" <<'EOF'
+
+moved {
+  from = module.networking
+  to   = module.networking_renamed
+}
+EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  # corpus-vpc-complete's own day2_rename script documents a genuine,
+  # unfixed choudoufu defect that reaches exactly this shape: a moved
+  # module whose untaggable/derived children (aws_route_table_association
+  # among them, named there by type) do not follow the moved parent the
+  # way a marker-carrying resource does, because internal/live/moved's
+  # alias index is marker-based and has nothing to index for an untaggable
+  # type - so a CREATE gets proposed for the derived child instead of it
+  # matching structurally under the parent's new address. This estate's
+  # networking module carries the exact same type
+  # (aws_route_table_association.public, three instances via for_each), so
+  # this is checked for explicitly rather than only asserting zero churn
+  # generically, precisely so a recurrence here is reported by name instead
+  # of as a bare "not zero churn" failure.
+  if grep -qE '^  # module\.networking_renamed\.aws_route_table_association\.public\[.+\] will be created' <<< "$MOVED_PLAN_OUT"; then
+    printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'
+    fail "choudoufu defect (known, documented in corpus-vpc-complete/run.sh, unfixed): the moved-block rename of module.networking proposes a CREATE for its untaggable derived child aws_route_table_association.public instead of matching it structurally under the parent's new address - not zero churn. internal/live/moved's alias index is marker-based and has nothing to index for an untaggable type, so a derived child does not follow its moved parent module. This estate's own aws_route_table_association.public (3 for_each instances) reproduces the exact same class vpc-complete's script already names; reaches every estate that renames a module containing a derived child of a moved parent (aws_security_group_rule, aws_route, aws_route_table_association, aws_vpc_dhcp_options_association, ...). Not fixed in this script-only unit - a Go-level fix to internal/live/moved's alias index (or an equivalent structural-match fallback for untaggable children under a renamed module) is needed."
+  fi
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
+  [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
+  grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan's summary does not match its own $N_CHANGED_D1 in-place changes"; }
+  grep -qE '~ +"tofu-address" += +"module\.networking\.aws_vpc\.main" +-> +"module\.networking_renamed\.aws_vpc\.main"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the VPC's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, $N_CHANGED_D1 in-place tags updates - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE "Resources: 0 added, $N_CHANGED_D1 changed, 0 destroyed" <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply did not change exactly $N_CHANGED_D1 resources"; }
+
+  VPC_ID_D_AFTER="$(awsl ec2 describe-vpcs --vpc-ids "$VPC_ID" --query "Vpcs[0].VpcId" --output text 2>/dev/null || true)"
+  [ "$VPC_ID_D_AFTER" = "$VPC_ID" ] || fail "the VPC's id changed across the rename ($VPC_ID -> $VPC_ID_D_AFTER) - it was destroyed and recreated, not renamed"
+  VPC_ADDR_D_AFTER="$(awsl ec2 describe-vpcs --vpc-ids "$VPC_ID" --query "Vpcs[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$VPC_ADDR_D_AFTER" = "module.networking_renamed.aws_vpc.main" ] \
+    || fail "the VPC carries tofu-address=$VPC_ADDR_D_AFTER after the rename, not module.networking_renamed.aws_vpc.main"
+  log "  $VPC_ID unchanged, tofu-address now module.networking_renamed.aws_vpc.main - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module sessions_table -> sessions_table_renamed, no moved block at all ==="
+  sed -i.bak 's/module "sessions_table" {/module "sessions_table_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.sessions_table.aws_dynamodb_table.this module.sessions_table_renamed.aws_dynamodb_table.this 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.sessions_table.aws_dynamodb_table.this" -> "module.sessions_table_renamed.aws_dynamodb_table.this"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  TABLE_ADDR_D_AFTER="$(awsl dynamodb list-tags-of-resource --resource-arn "$(awsl dynamodb describe-table --table-name "$TABLE_NAME" --query 'Table.TableArn' --output text)" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$TABLE_ADDR_D_AFTER" = "module.sessions_table_renamed.aws_dynamodb_table.this" ] \
+    || fail "the table carries tofu-address=$TABLE_ADDR_D_AFTER after live-mv, not module.sessions_table_renamed.aws_dynamodb_table.this"
+  log "  $TABLE_NAME unchanged, tofu-address now module.sessions_table_renamed.aws_dynamodb_table.this - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.networking renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place across its taggable objects including the untaggable route-table-association children resolving structurally; live-mv: module.sessions_table renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 log ""
