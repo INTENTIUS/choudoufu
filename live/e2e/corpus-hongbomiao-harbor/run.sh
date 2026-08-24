@@ -302,6 +302,53 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The estate's two taggable roots: a `moved` block renames the WHOLE module
+# call "s3_bucket_hm_harbor" (its own aws_s3_bucket.main is the only object
+# it carries, and is referenced by harbor_iam_user's s3_bucket_name), and
+# "choudoufu live-mv" (below, after drift_reconverge) renames the whole
+# module call "harbor_iam_user" with no moved block at all - a leaf no
+# other module references. Neither leaf module's own source is touched
+# (DELTA discipline). aws_s3_bucket.main carries
+# `lifecycle { prevent_destroy = true }` in the real module, so BREAK=1's
+# rename-without-moved control below renames the user, never the bucket.
+# The stock oracle (real tofu - stock terraform cannot see this .tofu-only
+# estate at all, see header) runs the same two renames, through moved
+# blocks only, on a copy of cold_deploy's own state - before choudoufu or
+# live-import ever touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/module "s3_bucket_hm_harbor" {/module "s3_bucket_hm_harbor_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module\.s3_bucket_hm_harbor\.name/module.s3_bucket_hm_harbor_renamed.name/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module "harbor_iam_user" {/module "harbor_iam_user_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+rm -f "$PLAIN_ORACLE/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/main.tofu" <<'EOF'
+
+moved {
+  from = module.s3_bucket_hm_harbor
+  to   = module.s3_bucket_hm_harbor_renamed
+}
+
+moved {
+  from = module.harbor_iam_user
+  to   = module.harbor_iam_user_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -476,6 +523,100 @@ log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "the plan proposed fixing $N_CHANGED object(s) after the out-of-band tag mutation: $CHANGED_ADDRS"
 log ""
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  bucket $BUCKET_NAME (module.s3_bucket_hm_harbor), user $USER_NAME (module.harbor_iam_user)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename module harbor_iam_user -> harbor_iam_user_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "harbor_iam_user" {/module "harbor_iam_user_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Verified directly (isolated BREAK=1 run): aws_iam_user's identity is
+  # deterministically client-named (its own `name` argument), so choudoufu's
+  # discovery finds the SAME live user twice - once by the marker still
+  # naming the old, no-longer-declared address, once as the derivable
+  # candidate for the new address the renamed module now wants - and
+  # refuses outright ("Two live resources claiming one address") rather
+  # than guess which reading is right, exactly HANDOFF.md's safety rule.
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block planned cleanly (exit 0) - expected a refusal (see header)"; }
+  grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
+  grep -qF "module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user" <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=1: the refusal did not name the IAM user's old address"; }
+  log "  BREAK=1: correctly refuses (two live resources claiming module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user - the marker's old address and the renamed module's client-derivable identity resolve to the same live user) - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module s3_bucket_hm_harbor -> s3_bucket_hm_harbor_renamed ==="
+  sed -i.bak 's/module "s3_bucket_hm_harbor" {/module "s3_bucket_hm_harbor_renamed" {/' "$ESTATE/main.tofu"
+  sed -i.bak 's/module\.s3_bucket_hm_harbor\.name/module.s3_bucket_hm_harbor_renamed.name/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  cat >> "$ESTATE/main.tofu" <<'EOF'
+
+moved {
+  from = module.s3_bucket_hm_harbor
+  to   = module.s3_bucket_hm_harbor_renamed
+}
+EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.s3_bucket_hm_harbor_renamed\.aws_s3_bucket\.main will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed bucket"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.s3_bucket_hm_harbor\.aws_s3_bucket\.main" +-> +"module\.s3_bucket_hm_harbor_renamed\.aws_s3_bucket\.main"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the bucket's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  BUCKET_ADDR_D_AFTER="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$BUCKET_ADDR_D_AFTER" = "module.s3_bucket_hm_harbor_renamed.aws_s3_bucket.main" ] \
+    || fail "the bucket carries tofu-address=$BUCKET_ADDR_D_AFTER after the rename, not module.s3_bucket_hm_harbor_renamed.aws_s3_bucket.main"
+  log "  $BUCKET_NAME unchanged, tofu-address now module.s3_bucket_hm_harbor_renamed.aws_s3_bucket.main - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module harbor_iam_user -> harbor_iam_user_renamed, no moved block at all ==="
+  sed -i.bak 's/module "harbor_iam_user" {/module "harbor_iam_user_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user" -> "module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  USER_ADDR_D_AFTER="$(awsl iam list-user-tags --user-name "$USER_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$USER_ADDR_D_AFTER" = "module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user" ] \
+    || fail "the user carries tofu-address=$USER_ADDR_D_AFTER after live-mv, not module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user"
+  log "  $USER_NAME unchanged, tofu-address now module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.s3_bucket_hm_harbor renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.harbor_iam_user renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
