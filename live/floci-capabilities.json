@@ -25687,6 +25687,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Re-probed against this digest 2026-08-24: create-domain returns Processing=false immediately and delete-domain returns Deleted=true, the same daemonless-control-plane round trip as every prior digest. The search data plane remains unverifiable without the docker socket.",
+          "source": "hand probe against this digest"
+        },
+        {
           "type": "aws_opensearchserverless_access_policy",
           "mechanism": "cloudcontrol-list-scoped",
           "status": "unimplemented",
@@ -25855,6 +25861,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest 2026-08-24: the AWS CLI bundled in this checkout has dropped the qldb service model (AWS deprecated QLDB) and did not pick up AWS_DATA_PATH, so the probe used boto3 directly with a vendored botocore data directory carrying the qldb model to issue a real ListLedgers request against the endpoint. Result: clean UnknownOperationException (\"Unknown operation: GET /ledgers\"), same as every prior digest - still no QLDB handler.",
+          "source": "hand probe against this digest"
+        },
+        {
           "type": "aws_quicksight_analysis",
           "mechanism": "cloudcontrol-list-scoped",
           "status": "unimplemented",
@@ -25972,6 +25984,12 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::RDS::DBShardGroup, {}) made a resource but the following ListResources(AWS::RDS::DBShardGroup) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "status": "implemented",
+          "evidence": "Re-probed against this digest 2026-08-24 (round-10 repin, lex00/floci main tip 2c4c2ce1, tag main-20260824f): redshift create-cluster (single-node, dc2.large) succeeds and returns ClusterStatus \"available\" - unchanged from every prior digest.",
+          "source": "hand probe against this digest"
         },
         {
           "type": "aws_redshift_cluster",
