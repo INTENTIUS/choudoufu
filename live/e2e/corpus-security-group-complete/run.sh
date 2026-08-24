@@ -406,33 +406,50 @@ SKIPPED=9
 # the record before falling back to the marker sweep or the static
 # evaluator. Measured for real against this estate, not derived: all 58
 # STAMPED instances get one (their identity is a plain server-minted "id",
-# recordable in full and not sensitive). Of the 9 SKIPPED (untaggable)
-# ones, aws_route_table_association's identity is still the composite
-# (route_table_id, subnet_id) pair that LocatedIdentityPlanFor cannot
-# derive from a bare top-level "id" attribute - those 6 stay unrecorded.
+# recordable in full and not sensitive).
 #
-# The other 3 SKIPPED - the estate's aws_vpc_security_group_rules_exclusive
-# instances (module.consul, module.postgresql, module.security_group) - DO
-# now get one: unit B's read-first work (#364) found that
-# LocatedIdentityPlanFor's default branch always fell back to the bare "id"
-# attribute even when a ratified TypeIdentity.IdentityAttrs row named a
-# different, single attribute the wire identity schema said nothing about -
-# the same defect issue #332 already fixed one layer out, for the classic
-# discovery/plan-time path, for aws_default_route_table specifically
-# (identity_attrs ["vpc_id"]; this estate's two aws_default_route_table
-# instances were ALREADY counted as recorded before this fix - they just
-# held the wrong value, rtb-... instead of vpc-..., so fixing them moves no
-# count here, only a value). aws_vpc_security_group_rules_exclusive's own
-# ratified row (identity_attrs ["security_group_id"]) hits the identical
-# gap on the WRITE side this issue is about, and the fix that closes it for
-# one closes it for both: LocatedIdentityPlanFor now prefers a ratified
-# single-attribute row over the bare "id" default whenever the wire schema
-# itself says nothing (internal/live/identity/located.go's namedIdentityAttr).
+# Of the 9 SKIPPED (untaggable) ones, 3 - the estate's
+# aws_vpc_security_group_rules_exclusive instances (module.consul,
+# module.postgresql, module.security_group) - got one first: unit B's
+# read-first work (#364) found that LocatedIdentityPlanFor's default branch
+# always fell back to the bare "id" attribute even when a ratified
+# TypeIdentity.IdentityAttrs row named a different, SINGLE attribute the
+# wire identity schema said nothing about - the same defect issue #332
+# already fixed one layer out, for the classic discovery/plan-time path,
+# for aws_default_route_table specifically (identity_attrs ["vpc_id"]; this
+# estate's two aws_default_route_table instances were ALREADY counted as
+# recorded before that fix - they just held the wrong value, rtb-...
+# instead of vpc-..., so fixing them moved no count, only a value).
+# aws_vpc_security_group_rules_exclusive's own ratified row (identity_attrs
+# ["security_group_id"]) hit the identical gap on the WRITE side, closed by
+# internal/live/identity/located.go's namedIdentityAttr preferring a
+# ratified single-attribute row over the bare "id" default.
 #
-# So IDENTITIES_RECORDED is ELIGIBLE plus these 3, not ELIGIBLE+SKIPPED -
-# still a real, estate-specific number, not a guess: aws_route_table_association's
-# 6 instances remain unrecorded.
-IDENTITIES_RECORDED=61
+# The remaining 6 - aws_route_table_association - are a genuine COMPOSITE
+# identity (route_table_id, subnet_id), not a single-attribute override, so
+# namedIdentityAttr's fix did not reach them; they stayed unrecorded through
+# 2026-08-24. 9f95a8d37e / dd373f718b (#364, "untaggable instances with a
+# ratified composite identity ... get a real record now") closed that gap
+# generically: internal/live/projection/located.go's LocatedRecordFrom now
+# falls back to locatedRatifiedComponentsRecord whenever
+# RecordableIdentitySchema answers false but the type has a ratified
+# Components composite (table_generated.go), composing the same real-value
+# evaluator (#388's identity.ComponentsFromValue) into an import-ID string -
+# reached by any untaggable, residuable, ratified-composite type, not just
+# this one (the commit measures about 70 ratified types sharing the shape).
+# Re-measured here, 2026-08-24, against a real migrate + a read of
+# .tofu-records: all 6 aws_route_table_association instances now carry
+# identity {"import_id":"subnet-.../rtb-..."}, and all 6 were spot-checked
+# by value against `aws ec2 describe-route-tables` (Associations[].SubnetId
+# paired with the route table's own id) - every one matched exactly.
+#
+# So IDENTITIES_RECORDED is now ELIGIBLE+SKIPPED = INSTANCES: every one of
+# the 67 instances this estate declares gets an identity recorded, whether
+# it is stamped, untaggable-with-a-single-attribute-override, or
+# untaggable-with-a-composite. A future regression that drops any one of
+# them - stamped or skipped - still moves this count, because there is no
+# longer a "these SKIPPED ones don't count" carve-out left to hide behind.
+IDENTITIES_RECORDED=$((ELIGIBLE + SKIPPED))
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
