@@ -506,8 +506,8 @@ PKG_FILE="downloaded_package_${PKG_HASH}.zip"
 INSTANCES=80
 VERIFIED_WANT=41
 DRIFTED_WANT=10
-UNTAGGABLE_WANT=28
-UNADMITTED_WANT=1
+UNTAGGABLE_WANT=29
+UNADMITTED_WANT=0
 ELIGIBLE=$((VERIFIED_WANT + DRIFTED_WANT))
 STAMPED_WANT=$ELIGIBLE
 IMPORT_FAILED_WANT=0
@@ -719,11 +719,19 @@ UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep 
 grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among DRIFTED (#305, fixed)"
 grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among VERIFIED (#305, fixed)"
 grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among VERIFIED (#305, fixed)"
-grep -qF 'aws_cognito_user_pool_client.this' <<< "$IMPORT_OUT" || fail "expected aws_cognito_user_pool_client.this among UNADMITTED_TYPE (#309)"
+# #309/#364: aws_cognito_user_pool_client is admitted now (identity.LocatedType,
+# through liveimport's own new door, locatedByProviderSchema) and ratifies
+# UNTAGGABLE - it has no tags argument at all - not UNADMITTED_TYPE.
+UNADMITTED_TEXT="$(grep -A2 '^UNADMITTED_TYPE ' <<< "$IMPORT_OUT" || true)"
+grep -qF 'aws_cognito_user_pool_client' <<< "$UNADMITTED_TEXT" \
+  && fail "aws_cognito_user_pool_client is still UNADMITTED_TYPE - the #364 admission fix (locatedByProviderSchema) is not in this binary"
+grep -qF 'aws_cognito_user_pool_client.this' <<< "$IMPORT_OUT" || fail "expected aws_cognito_user_pool_client.this among UNTAGGABLE"
 log "  $ELIGIBLE of $INSTANCES eligible ($VERIFIED_WANT VERIFIED + $DRIFTED_WANT DRIFTED); $SKIPPED_WANT skipped"
-log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema + $UNADMITTED_WANT UNADMITTED_TYPE - #309's"
-log "  aws_cognito_user_pool_client; #305's default_* trio is now admitted and"
-log "  eligible above); nothing written yet"
+log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema, including"
+log "  aws_cognito_user_pool_client - #309/#364, admitted through"
+log "  identity.LocatedType now, and recorded rather than unadmitted;"
+log "  #305's default_* trio is now admitted and eligible above); nothing"
+log "  written yet"
 
 log "=== 2b. -approve: stamp the eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"

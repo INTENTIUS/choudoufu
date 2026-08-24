@@ -10,6 +10,8 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // ComponentsFromValue evaluates t.Components against val - a resource
@@ -210,4 +212,48 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		return c.Literal + rendered, c.identityAttrFor(name), rendered, true, false
 	}
 	return "", "", "", false, false
+}
+
+// SensitiveComponentsAttr names the first attribute t.Components would read
+// off a real object that the provider's schema marks Sensitive and does not
+// also mark Deprecated, or "" when none is. It is [sensitiveIdentityAttr]'s
+// same question - the evidence rule is [credentialMaterial]'s, deliberately:
+// Sensitive minus Deprecated, scoped only to the attributes a record would
+// actually hold - asked of a ratified [TypeIdentity.Components] chain
+// instead of a [LocatedIdentityPlan], for [ComponentsFromValue]'s own
+// callers: a record derived straight from the table the static evaluator
+// and GitHub issue #388's plan-node seam already use, rather than from
+// [LocatedIdentityPlanFor]'s narrower wire-schema/documented-import-ID
+// plan, still must never carry a secret.
+//
+// A component's Attrs are read from the resource's own top-level schema, or
+// - when Block names one - from that nested block's own attributes, the
+// same two places [componentFromValue] reads the runtime value from. A
+// component naming Cloud or PerElement contributes no schema attribute at
+// all and is skipped; [ComponentsFromValue] already refuses those shapes
+// outright regardless of sensitivity.
+func SensitiveComponentsAttr(t TypeIdentity, schema providers.Schema) string {
+	if schema.Block == nil {
+		return ""
+	}
+	for _, c := range t.Components {
+		if len(c.Attrs) == 0 {
+			continue
+		}
+		block := schema.Block
+		if c.Block != "" {
+			nb, ok := schema.Block.BlockTypes[c.Block]
+			if !ok || nb == nil {
+				continue
+			}
+			block = &nb.Block
+		}
+		for _, name := range c.Attrs {
+			a := block.Attributes[name]
+			if a != nil && a.Sensitive && !a.Deprecated {
+				return name
+			}
+		}
+	}
+	return ""
 }

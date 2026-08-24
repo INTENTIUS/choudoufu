@@ -2287,7 +2287,7 @@ func TestStatelessStampGaps_trustedKeyedModuleIsNotAGap(t *testing.T) {
 			Reason: stamp.SkipModuleKeyedTrusted,
 			Detail: "Declared inside a for_each'd module; its markers are trusted as written, not verified.",
 		}}}
-		if diags := statelessStampGaps(res, needsDiscovery); diags.HasErrors() {
+		if diags := statelessStampGaps(res, needsDiscovery, nil); diags.HasErrors() {
 			t.Errorf("a resource carrying its own hand-written markers was reported as an unstamped gap: %s", diags.Err())
 		}
 	})
@@ -2298,7 +2298,7 @@ func TestStatelessStampGaps_trustedKeyedModuleIsNotAGap(t *testing.T) {
 			Reason: stamp.SkipModuleKeyed,
 			Detail: "declares no tags argument",
 		}}}
-		diags := statelessStampGaps(res, needsDiscovery)
+		diags := statelessStampGaps(res, needsDiscovery, nil)
 		if !diags.HasErrors() {
 			t.Error("a marker-discovered resource with no tags argument inside a keyed module was not reported; that is the guarantee #111 exists to restore")
 		}

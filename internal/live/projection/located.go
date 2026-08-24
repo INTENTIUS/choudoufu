@@ -159,7 +159,7 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 // site having to remember to ask a second question.
 func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
 	if !identity.RecordableIdentitySchema(resourceType, schema) {
-		return LocatedRecord{}, false
+		return locatedRatifiedComponentsRecord(resourceType, schema, obj)
 	}
 	plan, recordable := identity.LocatedIdentityPlanFor(resourceType, schema)
 	rec := LocatedRecord{}
@@ -197,6 +197,59 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 		return LocatedRecord{}, false
 	}
 	return rec, true
+}
+
+// locatedRatifiedComponentsRecord is [LocatedRecordFrom]'s fallback for a
+// type neither the provider's own wire identity schema nor the documented
+// import ID grammar can already record ([identity.RecordableIdentitySchema]
+// answered false): when the type's ratified table row still carries a
+// Components composite - the same Literal/Attrs/Block/OmitIfAbsent chain
+// the static evaluator and GitHub issue #388's plan-node seam already
+// derive an identity from, just never plumbed into a WRITTEN record before
+// this - it is evaluated here directly against obj, the real applied
+// object migrate or an apply already has in hand, with no HCL involved.
+//
+// This is what closes issue #364's own untaggable-with-no-record gap for a
+// type like aws_route53_record: it is untaggable, has a genuine ratified
+// composite identity (zone_id/name/type[/set_identifier]), but
+// [identity.LocatedIdentityPlanFor] answers false for it because AWS serves
+// no wire identity schema for the type and tools/importdocs-gen's prose
+// parser did not resolve its "X or X_SETIDENTIFIER" Import section into a
+// [identity.DocumentedImportIDs] grammar. Measured 2026-08-24 against
+// table_generated.go/idnotwhole_generated.go/docimportid_generated.go:
+// about 70 ratified types share this exact shape (a 2+-Attrs Components
+// row, in IDNotProvenWholeTypes, absent from docimportid_generated.go), so
+// this reaches all of them, not only the one this unit's estate exercises -
+// nothing here names a resource type.
+//
+// Only [identity.ComponentsFromValue]'s composed-STRING form is used, never
+// its values map: [LocatedRecord.Components] is documented as the
+// PROVIDER'S OWN wire identity object, read back at plan time through
+// providers.ImportTarget{Identity: ...} - a call a provider with no wire
+// identity schema for this type (the precondition for reaching this
+// function at all) cannot answer. A type whose components chain resolves
+// to no string at all ([identity.TypeIdentity.IdentityObjectOnly]) is
+// therefore left unrecordable here rather than risk that mismatch; that is
+// not a regression; it was unrecordable before this function existed too.
+//
+// [identity.SensitiveComponentsAttr] is this function's own version of
+// [sensitiveIdentityAttr]: obj already arrives here with every mark
+// stripped (every caller unmarks deep before this point, same as
+// [LocatedIdentityPlanFor]'s callers), so the schema is the only place left
+// to ask whether a component this would record is secret.
+func locatedRatifiedComponentsRecord(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
+	ti, ok := identity.LookupType(resourceType)
+	if !ok || len(ti.Components) == 0 {
+		return LocatedRecord{}, false
+	}
+	if identity.SensitiveComponentsAttr(ti, schema) != "" {
+		return LocatedRecord{}, false
+	}
+	importID, _, ok := identity.ComponentsFromValue(ti, obj)
+	if !ok || importID == "" {
+		return LocatedRecord{}, false
+	}
+	return LocatedRecord{ImportID: importID}, true
 }
 
 // SummaryLocatedNoStore is the summary of the refusal

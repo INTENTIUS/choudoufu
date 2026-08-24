@@ -117,3 +117,64 @@ func TestStatelessRecordBackedNeedsDiscoveryAddrs(t *testing.T) {
 		}
 	})
 }
+
+// TestRecordBackedNeedsDiscoveryBlocks is [statelessStampGaps]'s and
+// [stamp.Request.RecordBackedBlocks]'s shared input: the per-instance check
+// above, reduced to BLOCK granularity, because [stamp.Skip.Addr] and
+// [identity.BlockDiscovery] are both keyed by [addrs.ConfigResource] with no
+// instance key - a for_each block's own escalation is all-or-nothing at
+// that granularity, so a block counts as record-backed only when EVERY one
+// of its needs-discovery instances has a record, never on a majority.
+func TestRecordBackedNeedsDiscoveryBlocks(t *testing.T) {
+	ctx := context.Background()
+	// A single-instance block: the corpus-alb-complete shape
+	// (aws_route53_record.validation[0]) this fix was found against.
+	single := mustCommandTestAddr(t, "aws_route53_record.validation")
+	// A for_each block with two instances, so the "all, not majority" rule
+	// has something to prove.
+	pairA := mustCommandTestAddr(t, `aws_lb_target_group_attachment.this["a"]`)
+	pairB := mustCommandTestAddr(t, `aws_lb_target_group_attachment.this["b"]`)
+
+	needs := []identity.Resolution{
+		{Addr: single, Class: identity.ClassNeedsDiscovery, Reason: "untaggable"},
+		{Addr: pairA, Class: identity.ClassNeedsDiscovery, Reason: "untaggable"},
+		{Addr: pairB, Class: identity.ClassNeedsDiscovery, Reason: "untaggable"},
+	}
+
+	t.Run("nil store is a no-op", func(t *testing.T) {
+		got, diags := recordBackedNeedsDiscoveryBlocks(ctx, nil, needs)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		if len(got) != 0 {
+			t.Errorf("got %v, want nothing (nil store)", got)
+		}
+	})
+
+	t.Run("a fully-covered single-instance block is exempt; a half-covered for_each block is not", func(t *testing.T) {
+		raw, err := staterecord.NewLocalStore(t.TempDir())
+		if err != nil {
+			t.Fatalf("NewLocalStore: %s", err)
+		}
+		const prefix = "prefix/"
+		store := projection.NewRecordEnvelopeStore(raw, prefix)
+
+		seedIdentityRecord(t, raw, prefix, single, "single-record")
+		seedIdentityRecord(t, raw, prefix, pairA, "pair-a-record")
+		// pairB deliberately has no record: its block must not be exempt.
+
+		got, diags := recordBackedNeedsDiscoveryBlocks(ctx, store, needs)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		singleKey := single.ConfigResource().String()
+		pairKey := pairA.ConfigResource().String()
+		if !got[singleKey] {
+			t.Errorf("got %v, want %q exempt - its one needs-discovery instance has a record", got, singleKey)
+		}
+		if got[pairKey] {
+			t.Errorf("got %v, want %q NOT exempt - only one of its two needs-discovery instances "+
+				"(pairA) has a record; pairB still has no other handle and must keep escalating", got, pairKey)
+		}
+	})
+}

@@ -505,7 +505,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
-	if _, admitted := identity.LookupType(typeName); !admitted && !admittedByProviderSchema(ctx, req, res, typeName) {
+	if _, admitted := identity.LookupType(typeName); !admitted && !admittedByProviderSchema(ctx, req, res, typeName) && !locatedByProviderSchema(ctx, req, res, typeName) {
 		entry.Status = StatusUnadmittedType
 		entry.Detail = fmt.Sprintf(
 			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
@@ -862,6 +862,44 @@ func admittedByProviderSchema(ctx context.Context, req Request, res *states.Reso
 	}
 	_, ok := identity.SynthesizeTypeIdentity(typeName, resp.ResourceTypes, nil)
 	return ok
+}
+
+// locatedByProviderSchema is ratifyOne's third door into admission,
+// alongside a ratified table row ([identity.LookupType]) and a provider-
+// served wire identity schema ([admittedByProviderSchema]): a type
+// [identity.LocatedType] would route onto the record-located path (GitHub
+// issue #270's own admission rule - [identity.MarkerlessTypes] membership,
+// no ratified row, and a schema this run can fully record an identity
+// from) is a type this run already knows how to verify and record, even
+// though neither of the other two doors opens for it.
+//
+// aws_cognito_user_pool_client is exactly this shape: no ratified table
+// row, no wire identity schema the provider serves (so
+// [admittedByProviderSchema] answers false), but a documented import ID
+// grammar [identity.LocatedIdentityPlanFor] can read
+// (tools/importdocs-gen's possessive-of parse of its Import section) that
+// [identity.RecordableIdentitySchema] accepts. Before this existed,
+// ratifyOne never asked [identity.LocatedType] at all, so a migration
+// stamped such a type StatusUnadmittedType and wrote no record for it -
+// live-plan's own projection has admitted the identical type through this
+// exact door since the commits that cleared [identity.LocatedType]'s own
+// conditions for it, so a migrated estate's next live-plan read the
+// instance as unclaimed and proposed creating a second one, having never
+// been given the chance to record the first.
+func locatedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
+	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
+	if err != nil {
+		return false
+	}
+	resp := provider.GetProviderSchema(ctx)
+	if resp.Diagnostics.HasErrors() {
+		return false
+	}
+	schema, ok := resp.ResourceTypes[typeName]
+	if !ok || schema.Block == nil {
+		return false
+	}
+	return identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema})
 }
 
 func resourceSchema(ctx context.Context, provider providers.Interface, typeName string) (providers.Schema, error) {

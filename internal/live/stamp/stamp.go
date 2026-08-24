@@ -139,6 +139,23 @@ type Request struct {
 	// documented coarsening rather than a silent one - see
 	// internal/command's PolicyUntagBlocks.
 	PolicyUntag map[string]string
+
+	// RecordBackedBlocks names the resource blocks [NeedsDiscovery] also
+	// names, but whose every needs-discovery instance already has a usable
+	// identity in the estate's record store (GitHub issue #364's write
+	// half) - keyed the identical way NeedsDiscovery is. [mustStamp]
+	// consults it before escalating an unstamped instance to
+	// [SummaryUnmarkedApply]: NeedsDiscovery's whole premise is "the marker
+	// is the only handle that will ever exist", and a written record is
+	// the other handle, so a block covered here is no longer marker-only
+	// in the sense that premise means, the same way [identity.
+	// DiscoveryCause.BindsByName] already is not. Nil for a caller that
+	// has not opened a record store or turned GitHub issue #388's
+	// migration flag on (the same two conditions internal/command's
+	// [recordBackedNeedsDiscoveryBlocks] builds it under), which keeps a
+	// flag-off run's severity exactly what it always was - a nil map's
+	// lookup is always false.
+	RecordBackedBlocks map[string]bool
 }
 
 // Result is what one pass did, for callers that want to report it. Every
@@ -1230,7 +1247,22 @@ func (s *stamper) mustStamp(rc *configs.Resource) bool {
 	// whose instances disagree to DiscoveryCauseUnspecified, so a for_each
 	// where one key's name resolves and another's does not is marker-only
 	// again and lands back on the error.
-	return !disco.Cause.BindsByName()
+	if disco.Cause.BindsByName() {
+		return false
+	}
+	// [Request.RecordBackedBlocks] is the other way "can only ever be found
+	// by their ownership marker" can be false: GitHub issue #364 wrote this
+	// block's every needs-discovery instance an identity in the estate's
+	// record store, the same handle a marker would have been. A block half
+	// covered - a for_each where some instances got a record and others did
+	// not - is not in the map at all ([recordBackedNeedsDiscoveryBlocks]
+	// requires every instance), so this still escalates for it, correctly:
+	// the ones without a record really do have no other handle.
+	key := addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}.String()
+	if s.req.RecordBackedBlocks[key] {
+		return false
+	}
+	return true
 }
 
 // discovery is [stamper.mustStamp] with the reason attached: the block's
