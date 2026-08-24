@@ -2234,7 +2234,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 }
 
 // synthesizeNoImporterStub builds the stub [readImported] would otherwise
-// have received from [providers.Interface.ImportResourceState], for a type
+// have received from [providers.Configured.ImportResourceState], for a type
 // [noImporterDiagnostics] has just confirmed has no classic Importer at
 // all - see the call site in [importAndRead] for why this is a different
 // mechanism than the retry "no identity or retry changes" rules out, not a
