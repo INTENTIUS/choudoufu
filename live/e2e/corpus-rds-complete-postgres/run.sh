@@ -286,7 +286,10 @@ set -uo pipefail
 #
 #   stage 1  cold deploy   PASS - real, verified, unmarked infrastructure.
 #   stage 2  migrate       PASS - real: 26 of 39 resource instances stamped
-#                          for real (20 VERIFIED + 6 DRIFTED), the other 13
+#                          for real (21 VERIFIED + 5 DRIFTED - round-5 repin to
+#                          827a6c5a fixed module.db.module.db_instance.aws_db_instance.this[0]'s
+#                          enabled_cloudwatch_logs_exports round-trip, lex00/floci PR #121/#120,
+#                          moving it out of DRIFTED), the other 13
 #                          UNTAGGABLE by provider schema in the dry run -
 #                          of which -approve records 1 (module.db_default's
 #                          random_id.snapshot_identifier, record-backed
@@ -568,8 +571,8 @@ VERIFIED_N="$(grep -oE '^VERIFIED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9
 DRIFTED_N="$(grep -oE '^DRIFTED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNTAGGABLE_N="$(grep -oE '^UNTAGGABLE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
-[ "${VERIFIED_N:-0}" = "20" ] || fail "expected 20 VERIFIED, got ${VERIFIED_N:-0}"
-[ "${DRIFTED_N:-0}" = "6" ] || fail "expected 6 DRIFTED, got ${DRIFTED_N:-0}"
+[ "${VERIFIED_N:-0}" = "21" ] || fail "expected 21 VERIFIED, got ${VERIFIED_N:-0}"
+[ "${DRIFTED_N:-0}" = "5" ] || fail "expected 5 DRIFTED, got ${DRIFTED_N:-0}"
 [ "${UNTAGGABLE_N:-0}" = "13" ] || fail "expected 13 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
 [ "${UNADMITTED_N:-0}" = "0" ] || fail "expected 0 UNADMITTED_TYPE (#305 fixed), got ${UNADMITTED_N:-0}"
 # #305 fixed: the default_* trio (3 sites) is now admitted, so it must
@@ -580,7 +583,7 @@ for addr in 'module.vpc.aws_default_network_acl.this[0]' 'module.vpc.aws_default
             'module.vpc.aws_default_security_group.this[0]'; do
   grep -qF "$addr" <<< "$ELIGIBLE_BLOCK" || fail "expected $addr among VERIFIED/DRIFTED (#305 fixed) - not found"
 done
-log "  $ELIGIBLE of $INSTANCES eligible (20 VERIFIED + 6 DRIFTED); $SKIPPED skipped"
+log "  $ELIGIBLE of $INSTANCES eligible (21 VERIFIED + 5 DRIFTED); $SKIPPED skipped"
 log "  (13 UNTAGGABLE by provider schema); #305's default_* trio is admitted"
 log "  now and eligible above; nothing written yet"
 
