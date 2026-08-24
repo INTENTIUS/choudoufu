@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
+	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -1804,72 +1805,17 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 	return sawError, detail
 }
 
-// noImporterDiagnosticSignals is the same substring pair
-// tools/survey-gen/schemas.go's probeImportability already uses to answer
-// [identity.NotImportable]'s question offline, one extra ImportResourceState
-// RPC per type: "resource ... doesn't support import" is
-// terraform-plugin-sdk/v2's helper/schema.Provider.ImportState's own
-// hardcoded text when a resource's Importer field is nil, checked before any
-// API call; "Resource Import Not Implemented" is terraform-plugin-framework's
-// equivalent for a Resource that implements no ImportState method. Both are
-// static properties of the provider's own Go code - Importer is nil or it
-// is not - never a fact about the account, the region or which object was
-// asked for, so a live floci and real AWS answer it identically and a run
-// against either learns nothing new by asking again with a different
-// identity.
-var noImporterDiagnosticSignals = []string{
-	"doesn't support import",
-	"Import Not Implemented",
-}
-
-// noImporterDiagnostics reports whether every error-severity diagnostic in
-// diags matches one of [noImporterDiagnosticSignals], the same one-strike
-// shape [notFoundDiagnostics] uses for its own signal list. detail is the
-// first matching diagnostic's rendered text.
-//
-// Issue #331's own audit named the population this answers for: a type
-// admitted on nameability alone (identity.Derivable resolves it straight
-// from configuration, with no discovery and no Importer ever in THAT path)
-// can still reach this function as a PARENT_DERIVED projection target once
-// something else - #388's plan-node seam downgrading a sibling instance's
-// static refusal to a warning, for the estate this was found against - lets
-// the run reach far enough to try. tools/row-gen/notimportable.go's own
-// notImportableExempt map is the ratified list of such types today
-// (aws_acm_certificate_validation, admitted on nameability by classify.go's
-// 2026-08-17 ruling, is the one this diagnostic shape was found against);
-// aws_iam_policy_attachment, aws_iot_ca_certificate and aws_lightsail_domain
-// are the same file's own account of who else has no classic Importer
-// either, reached by three different admission routes (a ratified table
-// row, the untaggable-but-enumerable path, and nameability again) - which is
-// why this checks the PROVIDER'S OWN ANSWER rather than any one of those
-// rosters: whichever route admitted the type, the provider's diagnostic
-// names the same underlying fact once asked.
-func noImporterDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
-	sawError := false
-	detail := ""
-	for _, d := range diags {
-		if d.Severity() != tfdiags.Error {
-			continue
-		}
-		sawError = true
-		desc := d.Description()
-		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
-		matched := false
-		for _, signal := range noImporterDiagnosticSignals {
-			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false, ""
-		}
-		if detail == "" {
-			detail = text
-		}
-	}
-	return sawError, detail
-}
+// noImporterDiagnosticSignals, noImporterDiagnostics and
+// synthesizeNoImporterStub used to live here. GitHub issue #388's plan-node
+// seam (internal/tofu/node_resource_plan_instance.go's importState) needed
+// the identical classification and synthesis for the same provider
+// response, reached through a different path that this package's own
+// import of internal/tofu (elsewhere in this package, for unrelated
+// reasons) rules out sharing directly - internal/tofu must never import
+// this package back. Both now call internal/live/noimporter, a leaf
+// package with no dependency on either side; see its own doc comment for
+// why. This package's own behavior, wording and every test below are
+// unchanged - only the two functions' bodies moved.
 
 // configuredTagsSeed statically evaluates a taggable resource's own,
 // AS-WRITTEN "tags" argument - before [stamp.Stamp] ever touches it - for
@@ -2145,7 +2091,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			))
 			return nil, cty.NilVal, statusAbsent, diags
 		}
-		if ok, detail := noImporterDiagnostics(importResp.Diagnostics); ok {
+		if ok, detail := noimporter.Diagnostics(importResp.Diagnostics); ok {
 			// Not a provider erroring - the opposite. The provider is
 			// correctly answering that ImportResourceState is not
 			// implemented for this type at all, a fact fixed in the
@@ -2168,16 +2114,16 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			// ImportStatePassthroughContext's own generic implementation
 			// always builds) is one this run can build itself, with nothing
 			// about its shape depending on the missing RPC. See
-			// [synthesizeNoImporterStub]. Only when that has nothing to
+			// [noimporter.SynthesizeStub]. Only when that has nothing to
 			// build from - no named identity attribute values at all, the
 			// case a marker-swept or record-located identity is in, which
 			// [identity.LocatedType]'s own condition 0 already keeps a
 			// NotImportable type out of - does this fall back to the
 			// refusal below, at the same severity, so the plan still stops
 			// rather than risk proposing a create for an object it cannot
-			// verify one way or the other. See [noImporterDiagnostics] for
+			// verify one way or the other. See [noimporter.Diagnostics] for
 			// the population this reaches.
-			if stub, stubOK := synthesizeNoImporterStub(schema, identityValues); stubOK {
+			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
 				return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, diags)
@@ -2233,70 +2179,9 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 	return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, diags)
 }
 
-// synthesizeNoImporterStub builds the stub [readImported] would otherwise
-// have received from [providers.Configured.ImportResourceState], for a type
-// [noImporterDiagnostics] has just confirmed has no classic Importer at
-// all - see the call site in [importAndRead] for why this is a different
-// mechanism than the retry "no identity or retry changes" rules out, not a
-// contradiction of it.
-//
-// values is [identity.Resolution.IdentityValues] (a [identity.ClassConcrete]
-// resolution) or [builder.renderFormula]'s rendered
-// [identity.Formula.Attrs] (a [identity.ClassParentDerived] one): one string
-// per identity attribute, keyed by the provider's own name for it, already
-// computed by the ordinary identity-resolution path that got this instance
-// to [importAndRead] with a real importID in the first place. Nothing here
-// invents an identity of its own; it only places values resolution already
-// produced onto the schema's own attribute names, exactly where
-// ImportResourceState's own stub would carry them.
-//
-// Every attribute this cannot place from values - every one values does not
-// name, and every one whose value does not convert onto the schema's own
-// type for it - is left null, the same as an ImportResourceState stub
-// leaves everything but the identity it was given. That is not a claim
-// about the object's real value, only that nothing here can do better;
-// [readImported]'s own ReadResource call is what fills it in for real, the
-// same as it does for every ordinarily-imported instance.
-//
-// Returns false - build nothing, and let the caller keep today's refusal -
-// when schema carries no block to build against, or when values names
-// nothing the schema has: an empty stub would tell ReadResource nothing
-// ImportResourceState's own answer would not equally have told it nothing
-// with, and a refusal is the honest answer for an instance this run
-// genuinely has no identity to hand the provider.
-func synthesizeNoImporterStub(schema providers.Schema, values map[string]string) (cty.Value, bool) {
-	if schema.Block == nil || len(values) == 0 {
-		return cty.NilVal, false
-	}
-	attrTypes := schema.Block.ImpliedType().AttributeTypes()
-	attrs := make(map[string]cty.Value, len(attrTypes))
-	placed := false
-	for name, ty := range attrTypes {
-		raw, ok := values[name]
-		if !ok {
-			attrs[name] = cty.NullVal(ty)
-			continue
-		}
-		converted, err := convert.Convert(cty.StringVal(raw), ty)
-		if err != nil {
-			// Not a string-shaped attribute, or convert.Convert otherwise
-			// refuses - left null exactly as an ImportResourceState stub
-			// would have left an attribute it was not given either.
-			attrs[name] = cty.NullVal(ty)
-			continue
-		}
-		attrs[name] = converted
-		placed = true
-	}
-	if !placed {
-		return cty.NilVal, false
-	}
-	return cty.ObjectVal(attrs), true
-}
-
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
 // the stub either ImportResourceState produced or
-// [synthesizeNoImporterStub] built in its place, then everything a
+// [noimporter.SynthesizeStub] built in its place, then everything a
 // projection owes the value that comes back. Split out so the synthesized
 // path can reach the exact same tags-seeding, sensitivity-marking and
 // conformance-checking rules an ordinarily-imported instance already gets,
