@@ -433,7 +433,7 @@ func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
 	}
 
 	b := &builder{opts: Options{RecordStore: store}}
-	seed := b.residueSeedFor(ctx, addr, lambdaLikeSchema())
+	seed := b.residueSeedFor(ctx, wanted{addr: addr}, lambdaLikeSchema())
 
 	if v, ok := seed["filename"]; !ok || v.AsString() != "check_links.py.zip" {
 		t.Errorf("filename (Optional, not Computed) must be seeded from the residue record; seed=%#v", seed)
@@ -446,5 +446,222 @@ func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
 			"recorded as residue - Computed means the provider may answer independent of configuration, "+
 			"and fillResidueFor's own post-read, carriesNoInformation-gated fill already handles this "+
 			"population correctly; got seeded as %#v", v)
+	}
+}
+
+// TestResidueSeedForSeedsWhenTheCapturedIdentityAgrees is issue #398's
+// acceptance (a): a residue record whose envelope also carries an
+// identity ([LocatedRecordFrom]'s best-effort recording, GitHub issue #364
+// unit A2) that AGREES with this materialize attempt's own identity seeds
+// exactly as it always has. This is the corpus-eks-basic /
+// corpus-ecs-fargate case - the same object, read again - and it must stay
+// green: their launch-config user_data and task_definition-reference legs
+// depend on residue seeding still working when nothing about the object
+// changed.
+func TestResidueSeedForSeedsWhenTheCapturedIdentityAgrees(t *testing.T) {
+	cfg := loadConfig(t, "testdata/residue-seed-managed-ref")
+	addr := mustAddr(t, `stub_service.this`)
+	schema := stubServiceSchema()
+
+	const wireARN = "arn:aws:ecs:eu-west-1:000000000000:task-definition/mini-td:1"
+	const shortForm = "mini-td:1"
+	const serviceARN = "arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"
+
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-identity-agrees"))
+	ctx := context.Background()
+	rf, err := encodeResidueFields(map[string]cty.Value{"task_definition": cty.StringVal(wireARN)})
+	if err != nil {
+		t.Fatalf("encoding the residue fixture: %s", err)
+	}
+	if _, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: serviceARN}
+		env.Residue = rf
+	}); err != nil {
+		t.Fatalf("writing the identity+residue fixture: %s", err)
+	}
+
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+	p := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			Provider:      providers.Schema{Block: &configschema.Block{}},
+			ResourceTypes: map[string]providers.Schema{"stub_service": schema},
+		},
+	}
+	p.ConfigureProviderCalled = true
+	p.ImportResourceStateFn = func(r providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+		return providers.ImportResourceStateResponse{ImportedResources: []providers.ImportedResource{{
+			TypeName: r.TypeName,
+			State: cty.ObjectVal(map[string]cty.Value{
+				"id":              cty.StringVal(r.Target.ID),
+				"name":            cty.NullVal(cty.String),
+				"task_definition": cty.NullVal(cty.String),
+			}),
+		}}}
+	}
+	var sawSeededPrior bool
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		prior := r.PriorState.GetAttr("task_definition")
+		out := shortForm
+		if !prior.IsNull() {
+			sawSeededPrior = true
+			out = wireARN
+		}
+		return providers.ReadResourceResponse{NewState: cty.ObjectVal(map[string]cty.Value{
+			"id":              cty.StringVal(serviceARN),
+			"name":            cty.StringVal("svc"),
+			"task_definition": cty.StringVal(out),
+		})}
+	}
+
+	// The SAME identity the record's envelope was just written under - the
+	// "nothing about the object changed" case.
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: addr, Class: identity.ClassConcrete, ImportID: serviceARN},
+	}, SingleProvider(provAddr, p), Options{RecordStore: store})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`stub_service.this`})
+
+	if !sawSeededPrior {
+		t.Fatal("a captured identity that AGREES with the current resolution must still seed - " +
+			"this is issue #398's acceptance (a), and it is what the eks/ecs corpus depends on")
+	}
+	is := res.State.ResourceInstance(addr)
+	got := string(is.Current.AttrsJSON)
+	if !strings.Contains(got, wireARN) {
+		t.Errorf("the projected task_definition does not carry the live ARN:\n%s\nwant it to contain %q", got, wireARN)
+	}
+}
+
+// TestResidueSeedForRefusesWhenTheCapturedIdentityDisagrees is issue #398's
+// acceptance (b): a residue record whose envelope's OWN captured identity
+// (written by [LocatedRecordFrom] at the same apply or migrate that wrote
+// the residue) DISAGREES with this materialize attempt's current identity
+// must not be seeded. This is the destroyed-and-recreated-outside-choudoufu
+// shape #398 describes: the object at this address is a different physical
+// object than the one the residue was captured from, and the old residue -
+// an ARN reference nothing but this seed would ever resupply - must never
+// reach the new object's read as PriorState.
+//
+// This calls [builder.residueSeedFor] directly rather than through
+// [BuildWith], and deliberately so: a resolution with a captured identity
+// already in the record store goes through [builder.applyRecordFirst]
+// first, which reads that SAME captured identity as w.importID for its own
+// attempt - comparing a recordFirst w against the record it came from
+// would be circular and could never disagree by construction. What that
+// path actually relies on for staleness is [ownershipStale] in
+// ownership.go, checked post-read against the live object's own marker;
+// this residue check exists for every OTHER path to materialize() - the
+// marker sweep, the static evaluator, or a classic retry after
+// [ownershipStale] rejects the record - where w's identity is derived
+// independently of the record being read here. Calling residueSeedFor
+// directly is what isolates that path's behaviour without needing to
+// choreograph applyRecordFirst's rejection through a full BuildWith run.
+func TestResidueSeedForRefusesWhenTheCapturedIdentityDisagrees(t *testing.T) {
+	ctx := context.Background()
+	schema := stubServiceSchema()
+	addr := mustAddr(t, `stub_service.this`)
+
+	const staleARN = "arn:aws:ecs:eu-west-1:000000000000:task-definition/mini-td:1"
+	const oldServiceARN = "arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc"
+	const newServiceARN = "arn:aws:ecs:eu-west-1:000000000000:service/mini-cluster/mini-svc-recreated"
+
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-identity-disagrees"))
+	rf, err := encodeResidueFields(map[string]cty.Value{"task_definition": cty.StringVal(staleARN)})
+	if err != nil {
+		t.Fatalf("encoding the residue fixture: %s", err)
+	}
+	if _, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: oldServiceARN}
+		env.Residue = rf
+	}); err != nil {
+		t.Fatalf("writing the identity+residue fixture: %s", err)
+	}
+
+	b := &builder{opts: Options{RecordStore: store}}
+	seed := b.residueSeedFor(ctx, wanted{addr: addr, importID: newServiceARN}, schema)
+
+	if v, ok := seed["task_definition"]; ok {
+		t.Fatalf("a captured identity (%q) that DISAGREES with the current resolution (%q) must not be "+
+			"seeded - the residue was recorded against a different physical object, and issue #398's "+
+			"self-reinforcing round-trip is exactly what seeding here would reproduce; got seeded as %#v",
+			oldServiceARN, newServiceARN, v)
+	}
+}
+
+// TestIdentitiesAgree is [identitiesAgree]'s own direct table: the
+// comparison [residueIdentityStale] runs, isolated from the record store
+// and the materialize path around it.
+func TestIdentitiesAgree(t *testing.T) {
+	tests := []struct {
+		name            string
+		current         LocatedRecord
+		captured        LocatedRecord
+		wantAgreement   bool
+		wantExplanation string
+	}{
+		{
+			name:            "both empty",
+			current:         LocatedRecord{},
+			captured:        LocatedRecord{},
+			wantAgreement:   true,
+			wantExplanation: "nothing to compare, so nothing to disagree about - a legacy record or a type with no derivable identity",
+		},
+		{
+			name:            "current unknown, captured present",
+			current:         LocatedRecord{},
+			captured:        LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x"},
+			wantAgreement:   true,
+			wantExplanation: "permissive: nothing on the current side to disagree with",
+		},
+		{
+			name:            "matching single-string identity",
+			current:         LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x"},
+			captured:        LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x"},
+			wantAgreement:   true,
+			wantExplanation: "the same object, read again",
+		},
+		{
+			name:            "different single-string identity",
+			current:         LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x"},
+			captured:        LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x-recreated"},
+			wantAgreement:   false,
+			wantExplanation: "issue #398's own shape: destroyed and recreated at a different identity",
+		},
+		{
+			name:            "matching composite identity",
+			current:         LocatedRecord{Components: map[string]string{"zone_id": "Z1", "name": "a.example.com."}},
+			captured:        LocatedRecord{Components: map[string]string{"zone_id": "Z1", "name": "a.example.com."}},
+			wantAgreement:   true,
+			wantExplanation: "same composite components",
+		},
+		{
+			name:            "disagreeing composite identity",
+			current:         LocatedRecord{Components: map[string]string{"zone_id": "Z1", "name": "a.example.com."}},
+			captured:        LocatedRecord{Components: map[string]string{"zone_id": "Z1", "name": "b.example.com."}},
+			wantAgreement:   false,
+			wantExplanation: "a component differs",
+		},
+		{
+			name:            "composite identity with a differing component count",
+			current:         LocatedRecord{Components: map[string]string{"zone_id": "Z1", "name": "a.example.com."}},
+			captured:        LocatedRecord{Components: map[string]string{"zone_id": "Z1"}},
+			wantAgreement:   false,
+			wantExplanation: "fewer components captured than resolved now - not provably the same object",
+		},
+		{
+			name:            "mismatched form: single-string now, composite captured",
+			current:         LocatedRecord{ImportID: "arn:aws:ecs:eu-west-1:000000000000:service/x"},
+			captured:        LocatedRecord{Components: map[string]string{"zone_id": "Z1"}},
+			wantAgreement:   false,
+			wantExplanation: "the identity's own SHAPE changed, which is at least as suspicious as its value changing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := identitiesAgree(tt.current, tt.captured)
+			if got != tt.wantAgreement {
+				t.Errorf("identitiesAgree(%#v, %#v) = %v, want %v (%s)", tt.current, tt.captured, got, tt.wantAgreement, tt.wantExplanation)
+			}
+		})
 	}
 }
