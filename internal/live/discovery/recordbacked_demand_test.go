@@ -137,3 +137,90 @@ func TestDiscover_recordBackedAddrsStillDeclaredNotOrphaned(t *testing.T) {
 		}
 	}
 }
+
+// TestDiscover_recordBackedWholeCountBlockStillMintsSlot is #388's
+// flag-sweep-scout regression (GitHub issue #388 comment, corpus-iam-policy):
+// a count block whose ENTIRE declared demand is record-backed - the shape a
+// migrated single-member `count = 1` block takes once its identity lives in
+// the estate record - must still be indexed for slot purposes, or
+// [Result.SlotTable] has no entry for it and [projection.NodeResolver]'s
+// AdjustConfigValue writes no tofu-slot tag, mismatching what migrate
+// already wrote onto the live marker. It must ALSO make no provider call at
+// all, exactly as [TestDiscover_recordBackedAddrsSkipTheWholeDemand] proves
+// for a non-count resolution: minting the slot is bookkeeping over the
+// declared configuration, never a reason to scan.
+func TestDiscover_recordBackedWholeCountBlockStillMintsSlot(t *testing.T) {
+	cloud := newFakeCloud()
+	// A live object matching the marker exists - if the demand were not
+	// actually shrunk to zero provider calls, this is what a stray scan
+	// would find.
+	cloud.own("aws_eip", "eipalloc-a", `aws_eip.pool:0`)
+
+	cfg1 := loadCountConfig(t, 1)
+	res, diags := Discover(context.Background(), Request{
+		Estate:            countEstate,
+		Config:            cfg1,
+		Resolutions:       resolveOrFail(t, cfg1).All(),
+		RecordBackedAddrs: map[string]bool{`aws_eip.pool[0]`: true},
+		Provider:          cloud,
+	})
+	assertNoErrors(t, diags)
+
+	if len(cloud.requests) != 0 {
+		t.Errorf("the provider was called %d times for a demand that should have been entirely record-backed: %v", len(cloud.requests), cloud.requests)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a record-backed instance was bound by a scan it should never have run: %v", res.Bindings)
+	}
+	if len(res.Orphans) != 0 {
+		t.Errorf("no orphan should have been produced: %v", res.Orphans)
+	}
+	assertSlotTable(t, res, map[string]string{"aws_eip.pool:0": "0"})
+}
+
+// TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots is
+// TestDiscover_recordBackedWholeCountBlockStillMintsSlot generalized past a
+// single-member set: corpus-vpc-complete's 28 regressed objects are the same
+// shape at a larger scale (a migrated estate whose record store answers
+// every instance of a block at once - GitHub issue #388's
+// statelessRecordBackedNeedsDiscoveryAddrs reads the WHOLE estate's record in
+// one pass, so a block's members are never partly record-backed in
+// practice). Every declared index must get exactly the slot equal to its own
+// index, with zero provider calls and zero bindings, the same as the N=1
+// case - this is what proves the fix generalizes rather than happening to
+// work only for a trivial one-entry countBlock.entries slice.
+func TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots(t *testing.T) {
+	cloud := newFakeCloud()
+	// Live objects matching every marker exist - if the demand were not
+	// actually shrunk to zero provider calls, a stray scan would find them.
+	cloud.own("aws_eip", "eipalloc-a", `aws_eip.pool:0`)
+	cloud.own("aws_eip", "eipalloc-b", `aws_eip.pool:1`)
+	cloud.own("aws_eip", "eipalloc-c", `aws_eip.pool:2`)
+
+	cfg3 := loadCountConfig(t, 3)
+	res, diags := Discover(context.Background(), Request{
+		Estate:      countEstate,
+		Config:      cfg3,
+		Resolutions: resolveOrFail(t, cfg3).All(),
+		RecordBackedAddrs: map[string]bool{
+			`aws_eip.pool[0]`: true,
+			`aws_eip.pool[1]`: true,
+			`aws_eip.pool[2]`: true,
+		},
+		Provider: cloud,
+	})
+	assertNoErrors(t, diags)
+
+	if len(cloud.requests) != 0 {
+		t.Errorf("the provider was called %d times for a demand that should have been entirely record-backed: %v", len(cloud.requests), cloud.requests)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a record-backed instance was bound by a scan it should never have run: %v", res.Bindings)
+	}
+	if len(res.Orphans) != 0 {
+		t.Errorf("no orphan should have been produced: %v", res.Orphans)
+	}
+	assertSlotTable(t, res, map[string]string{
+		"aws_eip.pool:0": "0", "aws_eip.pool:1": "1", "aws_eip.pool:2": "2",
+	})
+}

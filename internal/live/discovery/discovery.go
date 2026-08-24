@@ -367,13 +367,21 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && !req.Sweep {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep {
 		// Nothing waits on discovery and no sweep was asked for, which is a
 		// legitimate configuration: every instance was named by static
 		// analysis, and without a sweep there is nothing else to look at.
 		res.sortEverything()
 		return res, diags
 	}
+	// decl.recordBacked non-empty but decl.types empty: every needs-discovery
+	// instance in this configuration is record-backed. There is still slot
+	// bookkeeping to do for any of them that sit in a count block (see
+	// recordBacked's own doc comment), which happens below in bind() via
+	// [declared.bindTypeNames] - but nothing here calls the provider's list
+	// endpoint, because decl.typeNames() (the scan loop just below) is
+	// unchanged: schemas are fetched (a local schema call, not a list call)
+	// and the scan loop runs zero iterations.
 
 	schemas, schemaDiags := listclient.ListSchemas(ctx, req.Provider)
 	diags = diags.Append(schemaDiags)
@@ -645,6 +653,25 @@ type declared struct {
 	// keys there would be bound once per key. See [declared.countBlockFor].
 	countAliases map[string]map[string]*countBlock
 
+	// recordBacked is [declaredEntry] objects for instances excluded from
+	// the binding demand by [Request.RecordBackedAddrs] (edge 3, GitHub
+	// issue #388 - see that field's own doc comment), keyed the same way
+	// types is. Deliberately kept out of types: types drives both the
+	// config-driven scan's demand ([declared.typeNames], the "any work to
+	// do" shortcut in [Discover]) and marker-matching lookups
+	// ([declared.entryFor]), and an entry here must join neither - that is
+	// the "wasted binding ATTEMPT" the doc comment on RecordBackedAddrs
+	// says is the only thing skipped. What it must still join is
+	// [countBlock.entries]: [declared.indexCountBlocks] walks this map as
+	// well as types, purely to mint or carry that instance's tofu-slot the
+	// same way an ordinary zero-claimant entry does (bindCountByAddress's
+	// and bindCountBySlot's `case 0`/deficit path). Without this, a
+	// record-backed count instance vanishes from the per-instance loop the
+	// slot binder walks entirely, so it never gets a [SlotAssignment] and
+	// [Result.SlotTable] has no entry for it - see GitHub issue #388's
+	// flag-sweep-scout comment for the two estates that regressed this way.
+	recordBacked map[string]map[string]*declaredEntry
+
 	order map[string][]string // type -> escaped instance addresses, in address order
 
 	// unscanned holds the types whose scan never happened - the provider
@@ -757,6 +784,33 @@ func (d *declared) typeNames() []string {
 	return out
 }
 
+// bindTypeNames is typeNames widened by the types that have NO scan demand
+// at all - every needs-discovery instance of them is record-backed - but
+// still have a count block to bind, purely for slot accounting (see
+// recordBacked's own doc comment). [bind] uses this instead of typeNames so
+// that a count block entirely answered from the record still gets its
+// tofu-slot minted or carried; [Discover]'s scan loop and its "nothing to
+// do" shortcut use typeNames unchanged, so a type in this widened set but
+// absent from typeNames still triggers no scan and no provider call.
+func (d *declared) bindTypeNames() []string {
+	out := make([]string, 0, len(d.types)+len(d.recordBacked))
+	seen := make(map[string]bool, len(d.types)+len(d.recordBacked))
+	for t := range d.types {
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for t := range d.recordBacked {
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // inScope reports whether a resource block is this pass's business: every
 // block, when scope is the zero value (every existing caller, unchanged),
 // or only the blocks using that exact provider configuration when it is
@@ -787,6 +841,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		counts:       make(map[string]map[string]*countBlock),
 		typeAliases:  make(map[string]map[string]*declaredEntry),
 		countAliases: make(map[string]map[string]*countBlock),
+		recordBacked: make(map[string]map[string]*declaredEntry),
 		order:        make(map[string][]string),
 		unscanned:    make(map[string]bool),
 		unreadable:   make(map[string]int),
@@ -850,15 +905,32 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		if req.RecordBackedAddrs[r.Addr.String()] {
 			// Edge 3 (see [Request.RecordBackedAddrs]'s own doc comment):
 			// this instance's identity is already answered from the
-			// estate's record, so it never joins the binding demand below.
-			// It was already recorded as declared in the loop above, so
-			// this skip cannot make it look like an orphan.
+			// estate's record, so it never joins the binding demand below -
+			// no scan match is attempted for it, and it can raise none of
+			// the diagnostics the loop below raises. It was already
+			// recorded as declared in the loop above, so this skip cannot
+			// make it look like an orphan.
+			//
+			// It is filed under recordBacked, not types, so that
+			// [declared.indexCountBlocks] can still hang it off its count
+			// block (see recordBacked's own doc comment): a record-backed
+			// count instance still needs a tofu-slot minted or carried,
+			// exactly as a genuinely-unbound one does, or the slot the
+			// binder assigns its siblings comes out shifted and its own
+			// tofu-slot tag is left unwritten - the #388 flag-sweep-scout
+			// regression on corpus-iam-policy and corpus-vpc-complete.
 			//
 			// Logged rather than silent so a real run's TF_LOG=debug output
 			// is how the shrink is measured against a migrated estate,
 			// the same way the two DEBUG lines a few hundred lines below
 			// already narrate this pass's other per-instance decisions.
 			log.Printf("[DEBUG] stateless/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
+			typeName := r.Type()
+			escaped := EscapeAddress(r.Addr.String())
+			if d.recordBacked[typeName] == nil {
+				d.recordBacked[typeName] = make(map[string]*declaredEntry)
+			}
+			d.recordBacked[typeName][escaped] = &declaredEntry{res: r, escaped: escaped}
 			continue
 		}
 		typeName := r.Type()
@@ -1112,6 +1184,24 @@ func (d *declared) indexCountBlocks(ctx context.Context, req Request) {
 		}
 	}
 
+	// recordBacked entries join the same count blocks, by the same lookup,
+	// so a slot is minted or carried for them too - see recordBacked's own
+	// doc comment. This is the only thing that reads recordBacked back out:
+	// it never joins types, so it plays no part in the scan demand
+	// [declared.typeNames] reports or in [declared.entryFor]'s marker
+	// lookups.
+	for typeName, entries := range d.recordBacked {
+		for _, entry := range entries {
+			blockAddr := EscapeAddress(entry.res.Addr.ContainingResource().String())
+			cb, ok := d.counts[typeName][blockAddr]
+			if !ok {
+				continue
+			}
+			entry.inCount = true
+			cb.entries = append(cb.entries, entry)
+		}
+	}
+
 	// Index order, not address order: "aws_eip.pool[10]" sorts before
 	// "aws_eip.pool[2]" as a string, and the set matcher pairs the k-th
 	// lowest slot with the k-th index.
@@ -1148,7 +1238,15 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 			continue
 		}
 		typeName := rc.Type
-		if d.types[typeName] == nil {
+		if d.types[typeName] == nil && d.recordBacked[typeName] == nil {
+			// Nothing waiting on discovery for this type at all - not
+			// scanned demand, not a recordBacked slot-only entry either -
+			// so a count-set entry here would have nothing to match
+			// against. See recordBacked's own doc comment for why a type
+			// entirely answered from the record still needs this gate to
+			// pass: [Request.RecordBackedAddrs] can empty types out
+			// completely while still needing its count block indexed for
+			// slot purposes.
 			continue
 		}
 		blockAddr := addrs.AbsResource{Module: modInst, Resource: rc.Addr()}.String()
@@ -2592,7 +2690,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 
 	bound := make(map[string]Binding)
 
-	for _, typeName := range decl.typeNames() {
+	for _, typeName := range decl.bindTypeNames() {
 		if decl.unscanned[typeName] {
 			// Nothing was listed for this type, and a problem already says
 			// why. Calling its instances unbound here would tell the plan
