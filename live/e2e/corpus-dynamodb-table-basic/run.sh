@@ -299,8 +299,10 @@ log ""
 # live-import ever touch it.
 CURRENT_STAGE=day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
-ORACLE="$WORK/oracle"
-cp -r "$EX" "$ORACLE"
+ORACLE_ROOT="$WORK/oracle"
+cp -r "$EST" "$ORACLE_ROOT"
+ORACLE="$ORACLE_ROOT/examples/basic"
+rm -rf "$ORACLE/.terraform" "$ORACLE/.terraform.lock.hcl"
 sed -i.bak 's/module "dynamodb_table" {/module "dynamodb_table_final" {/' "$ORACLE/main.tf"
 sed -i.bak 's/module\.dynamodb_table\./module.dynamodb_table_final./g' "$ORACLE/outputs.tf"
 rm -f "$ORACLE/main.tf.bak" "$ORACLE/outputs.tf.bak"
@@ -589,7 +591,7 @@ EOF
     [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
     grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
       || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
-    grep -qF '"module.dynamodb_table_moved.aws_dynamodb_table.this[0]" -> "module.dynamodb_table_final.aws_dynamodb_table.this[0]"' <<< "$MV_OUT" \
+    grep -qF '"module.dynamodb_table_moved.aws_dynamodb_table.this:0" -> "module.dynamodb_table_final.aws_dynamodb_table.this:0"' <<< "$MV_OUT" \
       || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
     log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
 
