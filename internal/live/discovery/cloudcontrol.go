@@ -280,17 +280,36 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			continue
 		}
 
+		// bindType is the type every declared-set lookup and reported
+		// record below uses to find where this object belongs. It starts
+		// as typeName - the type this Cloud Control list call was made
+		// for - and is corrected to the marker's own type only for the
+		// cases [sweepBindType] knows safe: see its own doc comment for
+		// the three-way answer and issue #394 for the bug this closes.
+		bindType := typeName
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			diags = diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemMalformedMarker,
-				TypeName: typeName,
-				Marker:   raw,
-				LiveIDs:  liveIDs(importID),
-				Detail: fmt.Sprintf(
-					"A live %s (via Cloud Control) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-					typeName, req.Estate, raw, markerType, typeName),
-			}))
-			continue
+			corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+			if skip {
+				// The marker's own type is declared and was already
+				// visited, correctly, by its own config-driven scan pass
+				// before this sweep ran - this is the same live object
+				// surfacing a second time under this list call's own type
+				// name, not a second object. Nothing to file.
+				continue
+			}
+			if corrected == typeName {
+				diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemMalformedMarker,
+					TypeName: typeName,
+					Marker:   raw,
+					LiveIDs:  liveIDs(importID),
+					Detail: fmt.Sprintf(
+						"A live %s (via Cloud Control) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+						typeName, req.Estate, raw, markerType, typeName),
+				}))
+				continue
+			}
+			bindType = corrected
 		}
 
 		c := claimant{
@@ -305,29 +324,29 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			noIdentity:   importID == "",
 		}
 
-		if entry, ok := decl.entryFor(typeName, escaped); ok {
+		if entry, ok := decl.entryFor(bindType, escaped); ok {
 			entry.claimants = append(entry.claimants, c)
 			continue
 		}
-		if decl.declares(typeName, escaped) {
+		if decl.declares(bindType, escaped) {
 			// GitHub issue #244, half 2 - the same check discovery.go's own
 			// scan loop makes at the same point, for the same reason. See
 			// displaced.go.
-			if want, displaced := decl.displacedFrom(typeName, escaped, c); displaced {
-				diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, c)))
+			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
+				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
 			}
 			continue
 		}
-		if cb := decl.countBlockFor(typeName, escaped); cb != nil {
+		if cb := decl.countBlockFor(bindType, escaped); cb != nil {
 			cb.extra = append(cb.extra, c)
 			continue
 		}
-		if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+		if blk, ok := decl.blocks[bindType][escaped]; ok && blk.keyed {
 			blk.claimants = append(blk.claimants, c)
 			continue
 		}
 		res.Orphans = append(res.Orphans, OwnedResource{
-			TypeName:     typeName,
+			TypeName:     bindType,
 			ImportID:     importID,
 			IdentityAttr: "id",
 			Marker:       raw,
