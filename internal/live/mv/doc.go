@@ -31,8 +31,15 @@
 //     resource of the type is enumerated and the one carrying this estate's
 //     tofu-estate tag and the old escaped address is the subject, because the
 //     marker is the only thing connecting a live ID to an address. A type in
-//     this position that the provider cannot list is not findable at all, and
-//     that is a named error rather than a silent miss.
+//     this position that the provider cannot list falls back to the estate's
+//     record store (GitHub issue #364; [mover.locateByRecord]): a migration
+//     records an identity for every stamped instance, taggable or not, so an
+//     estate that has migrated is not actually unfindable here, only the
+//     sweep was. The record is a cache, never trusted on its own - it is
+//     read BY through the same ImportResourceState/ReadResource pair the
+//     identity path uses, and the live object's own tofu-address and
+//     tofu-estate still have to confirm it. No record at all, or no record
+//     store configured, is the named error the sweep-only wall always was.
 //
 // The identity path also lists, when the provider offers it, for one thing:
 // answering whether anything else already claims the destination address. A

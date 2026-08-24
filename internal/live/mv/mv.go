@@ -79,6 +79,19 @@ type Request struct {
 	// client degrades to the pre-#266 behavior, exactly as an ordinary
 	// discovery pass degrades when it has none.
 	Tagging *cloudcontrol.Client
+
+	// RecordStore is the estate's record envelope store (GitHub issue #364),
+	// opened the same way live-plan and live-import open theirs. It is what
+	// [mover.find] consults, keyed by [Request.Old], before refusing a
+	// provider-assigned type the provider cannot list: a migration writes
+	// this same store a kind=identity record for EVERY stamped instance
+	// (internal/live/liveimport/stamp.go's seedIdentityFor), which is
+	// exactly the authoritative-identity-without-List-support case the
+	// no-search-path refusal used to have no answer for. Nil is a
+	// configuration with no record_store block, or a caller (today, only
+	// this package's own unit tests) that has not wired one in; either way
+	// the refusal behaves exactly as it did before this field existed.
+	RecordStore *projection.RecordStore
 }
 
 // Path is how the live resource was found.
@@ -519,6 +532,9 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 	if resolution.Class == identity.ClassNeedsDiscovery {
 		m.res.Path = PathList
 		if !listable {
+			if obj, recDiags, tried := m.locateByRecord(ctx); tried {
+				return obj, diags.Append(recDiags)
+			}
 			return nil, diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"No marker search path for this resource type",
@@ -848,6 +864,65 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, marker, m.res.OldMarker, m.res.Old),
 		))
 	}
+}
+
+// locateByRecord is the record-primary fallback (rfc/20260823-foundation-
+// order-ruling.md, "The order" item 1; GitHub issue #364) for a
+// provider-assigned type this provider cannot list: before find refuses for
+// lack of a marker search path, it asks the estate's record store for an
+// identity recorded under the OLD address. A migration writes exactly this
+// record for every stamped instance, taggable or not
+// (internal/live/liveimport/stamp.go's seedIdentityFor), so a type in this
+// position is not actually unfindable once an estate has migrated - only
+// the marker sweep was.
+//
+// tried is false whenever nothing was consulted at all: no record store
+// configured, or the store holds no identity for the old address. Both
+// leave find's caller to raise its ordinary, unmodified "No marker search
+// path" refusal - the boundary this fix must not blur, since a record that
+// was never written is exactly the case the refusal still describes
+// correctly.
+//
+// tried is true from the moment a record was found, and from there the
+// record is a cache, never an authority on its own (HANDOFF.md, "a wrong
+// marker outranks a missing one"): what it buys is an import identity to
+// read the live object BY, through [mover.locateByIdentity] and, beneath
+// it, [mover.materialize]'s ImportResourceState/ReadResource pair - never a
+// List call. locateByIdentity is reused rather than duplicated so a
+// record-verified identity is held to the exact verification a
+// configuration-derived one already is: the object's own tofu-address must
+// still name m.req.Old and its tofu-estate must still name this estate, or
+// the rename refuses with locateByIdentity's own honest, distinct message
+// (a stale record, a corrupt marker, a different owner) rather than
+// authorizing a write on the record's say-so alone.
+func (m *mover) locateByRecord(ctx context.Context) (*states.ResourceInstanceObject, tfdiags.Diagnostics, bool) {
+	if m.req.RecordStore == nil {
+		return nil, nil, false
+	}
+
+	rec, _, _, identityFound, err := m.req.RecordStore.GetIdentity(ctx, m.req.Old)
+	if err != nil {
+		var diags tfdiags.Diagnostics
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Recorded identity could not be read",
+			fmt.Sprintf(
+				"This estate's record store holds a key for %s, but it could not be read: %s. Nothing was searched further and nothing was written.",
+				m.req.Old, err),
+		)), true
+	}
+	if !identityFound {
+		return nil, nil, false
+	}
+
+	m.res.Path = PathIdentity
+	obj, diags := m.locateByIdentity(ctx, identity.Resolution{
+		Addr:           m.res.Anchor,
+		Class:          identity.ClassConcrete,
+		ImportID:       rec.ImportID,
+		IdentityValues: rec.Components,
+	})
+	return obj, diags, true
 }
 
 // materialize reads the live object exactly as a projection does, through the
