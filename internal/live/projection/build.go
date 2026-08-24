@@ -1365,29 +1365,19 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// [configuredTagsSeed] could not statically evaluate - a managed-
 	// resource reference (#395's own shape) or a data-source reference
 	// (aws_launch_configuration.user_data_base64's) - from this estate's
-	// residue record, when one exists and the name is one only
-	// configuration could ever have set ([residueConfigSourced]).
+	// residue record, when one exists, the name is one only configuration
+	// could ever have set ([residueConfigSourced]), and the record's own
+	// captured identity does not disagree with w's (issue #398). This loop
+	// used to appear twice in a row, back to back, over the identical
+	// call - a merge artifact from #395 and #376 landing the same seed
+	// independently - which cost one redundant record-store read per
+	// instance and would have doubled issue #398's own extra read; removed
+	// rather than kept as insurance, since the second copy could only ever
+	// re-add names the first loop had already claimed.
 	// Configuration wins whenever both name the same attribute: it is read
 	// fresh on every run, where a residue record can be stale, so a name
 	// already in attrsSeed is left exactly as configuration produced it.
-	for name, val := range b.residueSeedFor(ctx, addr, schema) {
-		if _, ok := attrsSeed[name]; ok {
-			continue
-		}
-		if attrsSeed == nil {
-			attrsSeed = make(map[string]cty.Value)
-		}
-		attrsSeed[name] = val
-	}
-
-	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed]
-	// could not statically evaluate - a managed-resource reference,
-	// chiefly (see its own doc comment) - from this estate's residue
-	// record, when one exists. Configuration wins whenever both name the
-	// same attribute: it is read fresh on every run, where a residue
-	// record can be stale, so a name already in attrsSeed is left exactly
-	// as configuration produced it.
-	for name, val := range b.residueSeedFor(ctx, addr, schema) {
+	for name, val := range b.residueSeedFor(ctx, w, schema) {
 		if _, ok := attrsSeed[name]; ok {
 			continue
 		}

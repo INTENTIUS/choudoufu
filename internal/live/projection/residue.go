@@ -255,12 +255,53 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 // [builder.fillResidueFor] re-reads the same record and raises
 // [SummaryResidueUnreadable] if something is genuinely wrong, so a second
 // warning here would only be an echo.
-func (b *builder) residueSeedFor(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) map[string]cty.Value {
+//
+// # Staleness (issue #398)
+//
+// A residue attribute is keyed only by ADDRESS, with nothing tying it to
+// the physical object it was captured from - unlike the ownership check
+// [builder.checkOwnership] runs for a recordFirst identity, which verifies
+// the live object's own tofu-address marker before trusting the record
+// ([ownershipStale] in ownership.go). Nothing analogous ever ran here: an
+// object destroyed and recreated outside choudoufu, at an address whose
+// import path still resolves (a name-based identity, or a marker re-applied
+// by something else), would have its OLD residue - a stale ARN reference,
+// chiefly - fed straight into the NEW object's read as PriorState. An
+// SDKv2 resource that only preserves such an attribute from prior state
+// (never reads it from the remote - this file's own [carriesNoInformation]
+// is the same shape) round-trips that stale value into the read result,
+// which the run then reclassifies and re-records: self-reinforcing, and
+// invisible to every verdict-level check, because the plan stays clean.
+//
+// This does not need a new field to close: [LocatedRecordFrom]'s
+// best-effort identity recording (GitHub issue #364 unit A2) already
+// writes an Identity member into every instance's record envelope -
+// residue's OWN envelope, at the SAME write - for any type it can derive
+// one for, taggable or not. That is already "the identity this residue was
+// captured against"; using it is reading what write-back already
+// committed, not inventing a second store of the same fact the way a
+// residue-local import-ID field would.
+//
+// w's OWN identity for THIS materialize attempt (w.importID / w.values,
+// resolved before this call from the marker sweep, the static evaluator or
+// a record - never from residue) is what the captured identity is checked
+// against. Absence on EITHER side is read permissively, not as evidence of
+// staleness: a legacy record written before this check existed, or a type
+// [LocatedRecordFrom] cannot derive an identity for, carries no captured
+// identity to disagree with, and the seed proceeds exactly as it always
+// has - this is what keeps a matching, already-working object's seed
+// (corpus-eks-basic's launch-config user_data leg, corpus-ecs-fargate's
+// task_definition reference) unchanged. Disagreement between two identities
+// that ARE both present is the one case this refuses to seed from.
+func (b *builder) residueSeedFor(ctx context.Context, w wanted, schema providers.Schema) map[string]cty.Value {
 	if b.opts.RecordStore == nil || schema.Block == nil {
 		return nil
 	}
-	attrs, _, _, residueFound, err := b.opts.RecordStore.GetResidue(ctx, addr)
+	attrs, _, _, residueFound, err := b.opts.RecordStore.GetResidue(ctx, w.addr)
 	if err != nil || !residueFound {
+		return nil
+	}
+	if b.residueIdentityStale(ctx, w) {
 		return nil
 	}
 	configSourced := residueConfigSourced(schema)
@@ -275,6 +316,60 @@ func (b *builder) residueSeedFor(ctx context.Context, addr addrs.AbsResourceInst
 		out[name] = val
 	}
 	return out
+}
+
+// residueIdentityStale reports whether w's record-envelope identity - the
+// same envelope [b.opts.RecordStore.GetResidue] just read residue from,
+// written at the same apply or migrate by [LocatedRecordFrom]'s
+// best-effort recording - disagrees with w's own identity for THIS
+// materialize attempt. See [residueSeedFor]'s doc comment for why this is
+// the check and not a new field, and why absence on either side answers
+// false (not stale) rather than true.
+//
+// Every failure is read the same permissive way: [RecordStore.GetIdentity]
+// treats a malformed Identity member as an error (an empty component,
+// specifically) precisely so a caller that TRUSTS the identity - the
+// recordFirst binding path - never silently uses a broken one. This
+// caller does not trust it, only compares it, so a read it cannot use is
+// exactly like one that was never captured: no disagreement is provable,
+// and residueSeedFor keeps seeding rather than refusing a nicety over a
+// record it cannot even parse.
+func (b *builder) residueIdentityStale(ctx context.Context, w wanted) bool {
+	if b.opts.RecordStore == nil {
+		return false
+	}
+	captured, _, _, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, w.addr)
+	if err != nil || !identityFound {
+		return false
+	}
+	current := LocatedRecord{ImportID: w.importID, Components: w.values}
+	return !identitiesAgree(current, captured)
+}
+
+// identitiesAgree reports whether two [LocatedRecord] values name the same
+// object, read permissively: either side being [LocatedRecord.Empty] means
+// there is nothing to compare, so they are read as agreeing rather than as
+// disagreeing. A single-string identity is compared by that string; a
+// composite identity is compared component by component, exactly the
+// values [identity.LocatedIdentity] and its siblings produce, so an
+// instance whose captured form is a Components map is never coerced
+// through ImportID's empty-string case and mistaken for a real mismatch.
+func identitiesAgree(current, captured LocatedRecord) bool {
+	if current.Empty() || captured.Empty() {
+		return true
+	}
+	if current.ImportID != "" || captured.ImportID != "" {
+		return current.ImportID == captured.ImportID
+	}
+	if len(current.Components) != len(captured.Components) {
+		return false
+	}
+	for name, val := range current.Components {
+		if captured.Components[name] != val {
+			return false
+		}
+	}
+	return true
 }
 
 // SummaryResidueUnreadable is the summary of the warning

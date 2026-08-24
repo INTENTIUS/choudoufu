@@ -37,7 +37,7 @@ jobs:
       # true, and says what to do if an upstream sync ever breaks it.
       - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live internal/command internal/engine/applying)"
+          out="$(gofmt -l internal/live cmd site tools live internal/command internal/engine/applying internal/tofu)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
@@ -53,7 +53,7 @@ jobs:
       # (issue #164). TestCIRunsEveryForkOwnedTestPackage in ./live keeps
       # this list honest; add a package here, or exclude it by name there.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/ ./internal/tofu/...
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
