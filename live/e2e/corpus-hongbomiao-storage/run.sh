@@ -89,7 +89,10 @@ set -uo pipefail
 #                 live/floci-image.
 #   BREAK         set to 1 to corrupt stage 2's identity assertion and
 #                 tamper a second object ahead of stage 5's, proving both
-#                 are load-bearing.
+#                 are load-bearing. Set to "rename" to exercise day2_rename's
+#                 own break control instead - renaming module kafka_kms_key
+#                 WITHOUT a moved block, which must not reproduce the real
+#                 legs' zero-churn result.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -301,6 +304,55 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two of the three module calls: a `moved` block renames the WHOLE module
+# call "hm_production_bucket" (its own aws_s3_bucket.main is the only
+# taggable object it carries), and "choudoufu live-mv" (below, after
+# drift_reconverge) renames the whole module call "kafka_kms_key" with no
+# moved block at all - its aws_kms_key.main is the only taggable object;
+# its sibling aws_kms_alias.main carries no `tags` argument in the provider
+# schema and is untaggable by design, the same as harbor's inline policy
+# and labelbox's CORS configuration. "s3_bucket_iot_data" is left untouched
+# as a negative control (it is also stage 5's own drifted object). Neither
+# leaf module's own source is touched (DELTA discipline). Both S3 bucket
+# modules carry `lifecycle { prevent_destroy = true }` on aws_s3_bucket.main
+# in the real module, so BREAK=rename's rename-without-moved control below
+# renames the KMS key, never a bucket. The stock oracle (real tofu - stock
+# terraform cannot see this .tofu-only estate at all, see header) runs the
+# same two renames, through moved blocks only, on a copy of cold_deploy's
+# own state - before choudoufu or live-import ever touch these objects.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+sed -i.bak 's/module "hm_production_bucket" {/module "hm_production_bucket_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+sed -i.bak 's/module "kafka_kms_key" {/module "kafka_kms_key_renamed" {/' "$PLAIN_ORACLE/main.tofu"
+rm -f "$PLAIN_ORACLE/main.tofu.bak"
+cat >> "$PLAIN_ORACLE/main.tofu" <<'EOF'
+
+moved {
+  from = module.hm_production_bucket
+  to   = module.hm_production_bucket_renamed
+}
+
+moved {
+  from = module.kafka_kms_key
+  to   = module.kafka_kms_key_renamed
+}
+EOF
+( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -483,6 +535,102 @@ log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "the plan proposed fixing $N_CHANGED object(s) after the out-of-band tag mutation: $CHANGED_ADDRS"
 log ""
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+log "  bucket $PROD_BUCKET_NAME (module.hm_production_bucket), key $KMS_KEY_ID (module.kafka_kms_key)"
+
+if [ "${BREAK:-}" = "rename" ]; then
+  log "=== D1 (BREAK=rename). rename module kafka_kms_key -> kafka_kms_key_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "kafka_kms_key" {/module "kafka_kms_key_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Unlike corpus-hongbomiao-harbor's aws_iam_user (client-named, so
+  # discovery can derive a candidate identity for the new address and find
+  # it collides with the live object still marked under the old one),
+  # aws_kms_key has no user-set unique argument at all - only tags - so
+  # there is nothing in the renamed config to derive a candidate identity
+  # from. The plan simply cannot see the live key under its old, no-longer-
+  # declared address (a stateless plan only walks currently-declared
+  # addresses) and proposes CREATING a brand new one at the new address
+  # instead - not zero churn, and the load-bearing thing this control
+  # actually needs to prove.
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit proposing a create (see header)"; }
+  grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the plan proposes destroying the live key under its old address - a wrong marker could have been written"; }
+  grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_key\.main will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block did not propose creating a new key at the renamed address - this stage's check is not load-bearing"; }
+  log "  BREAK=rename: correctly proposes CREATING module.kafka_kms_key_renamed.aws_kms_key.main outright (not zero churn) and never destroys the live key's old marker - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module hm_production_bucket -> hm_production_bucket_renamed ==="
+  sed -i.bak 's/module "hm_production_bucket" {/module "hm_production_bucket_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  cat >> "$ESTATE/main.tofu" <<'EOF'
+
+moved {
+  from = module.hm_production_bucket
+  to   = module.hm_production_bucket_renamed
+}
+EOF
+  # Renaming a MODULE CALL (not a resource label) changes the module
+  # instance registry .terraform tracks, unlike a plain resource rename -
+  # a re-init is required even though the source path itself is unchanged.
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.hm_production_bucket_renamed\.aws_s3_bucket\.main will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to the renamed bucket"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.hm_production_bucket\.aws_s3_bucket\.main" +-> +"module\.hm_production_bucket_renamed\.aws_s3_bucket\.main"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the bucket's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  PROD_ADDR_D_AFTER="$(awsl s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$PROD_ADDR_D_AFTER" = "module.hm_production_bucket_renamed.aws_s3_bucket.main" ] \
+    || fail "the bucket carries tofu-address=$PROD_ADDR_D_AFTER after the rename, not module.hm_production_bucket_renamed.aws_s3_bucket.main"
+  log "  $PROD_BUCKET_NAME unchanged, tofu-address now module.hm_production_bucket_renamed.aws_s3_bucket.main - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module kafka_kms_key -> kafka_kms_key_renamed, no moved block at all ==="
+  sed -i.bak 's/module "kafka_kms_key" {/module "kafka_kms_key_renamed" {/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" module.kafka_kms_key.aws_kms_key.main module.kafka_kms_key_renamed.aws_kms_key.main 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.kafka_kms_key.aws_kms_key.main" -> "module.kafka_kms_key_renamed.aws_kms_key.main"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  KMS_ADDR_D_AFTER="$(awsl kms list-resource-tags --key-id "$KMS_KEY_ID" --query "Tags[?TagKey=='tofu-address'].TagValue | [0]" --output text)"
+  [ "$KMS_ADDR_D_AFTER" = "module.kafka_kms_key_renamed.aws_kms_key.main" ] \
+    || fail "the key carries tofu-address=$KMS_ADDR_D_AFTER after live-mv, not module.kafka_kms_key_renamed.aws_kms_key.main"
+  log "  $KMS_KEY_ID unchanged, tofu-address now module.kafka_kms_key_renamed.aws_kms_key.main - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
+  [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
