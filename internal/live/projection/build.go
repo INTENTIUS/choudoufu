@@ -1353,7 +1353,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		seedEval = seedEval.WithDataResults(lookup)
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
-	attrsSeed := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema)
+	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema)
 	if tagsSeedOK {
 		if attrsSeed == nil {
 			attrsSeed = make(map[string]cty.Value, 1)
@@ -1387,7 +1387,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		attrsSeed[name] = val
 	}
 
-	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, attrsSeed)
+	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, attrsSeed, attrsSeedMarks)
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
 		// The record's binding did not pan out - the provider found
@@ -2106,9 +2106,19 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // attribute: [importAndRead] falls back to ImportResourceState's own
 // answer for it, exactly as before this existed. That is the same "refuse
 // rather than guess" choice [PlanInstances] makes for the same reason.
-func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) map[string]cty.Value {
+// configMarks are the sensitivity marks that were actually on the
+// CONFIGURATION expression for one of the returned seeds, before
+// [configuredAttrSeed] stripped them for the wire - see that function's own
+// doc comment for why they have to come off, and [importAndRead]'s doc
+// comment for GitHub issue #401 family 3, which this exists to close: a
+// config-derived mark that never comes back on is what turns a genuinely
+// unchanged value into a perpetual sensitivity-only diff. Each entry's Path
+// is relative to the whole resource object (attribute name first), ready to
+// merge straight into [readImported]'s own schema-mark reconciliation with
+// [combineValueMarks].
+func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
 	if eval == nil || rc == nil || schema.Block == nil {
-		return nil
+		return nil, nil
 	}
 	identityAttrs := residueIdentityAttrs(schema)
 
@@ -2119,6 +2129,7 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 	}
 
 	var out map[string]cty.Value
+	var marks []cty.PathValueMarks
 	for name, attr := range schema.Block.Attributes {
 		if attr == nil || name == "tags" || identityAttrs[name] {
 			// "tags" stays configuredTagsSeed's own name, with its own
@@ -2144,7 +2155,7 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			// cannot answer safely from these two flags alone.
 			continue
 		}
-		val, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name)
+		val, localMarks, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name)
 		if !ok {
 			continue
 		}
@@ -2152,8 +2163,14 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			out = make(map[string]cty.Value)
 		}
 		out[name] = val
+		for _, pvm := range localMarks {
+			marks = append(marks, cty.PathValueMarks{
+				Path:  append(cty.GetAttrPath(name), pvm.Path...),
+				Marks: pvm.Marks,
+			})
+		}
 	}
-	return out
+	return out, marks
 }
 
 // configuredAttrSeed is [configuredAttrsSeed]'s per-attribute decode, split
@@ -2161,10 +2178,18 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 // is a subprocess doing arbitrary work on a value this package built, the
 // same hazard [PlanInstances]'s planOne guards) never loses every other
 // attribute's seed on the same resource.
-func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, ident configs.StaticIdentifier, rc *configs.Resource, attr *configschema.Attribute, name string) (val cty.Value, ok bool) {
+//
+// marks is what [configuredAttrsSeed] threads on to [readImported]: the
+// paths inside val (relative to val itself - empty for val being marked as
+// a whole) that were marked before this function stripped them. Recovering
+// them here, right where the config value is still in hand, is the only
+// place they can be recovered at all - by the time importAndRead's provider
+// round trip returns, the value has been off the wire and back, and the
+// wire has nowhere to put a mark.
+func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, ident configs.StaticIdentifier, rc *configs.Resource, attr *configschema.Attribute, name string) (val cty.Value, marks []cty.PathValueMarks, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			val, ok = cty.NilVal, false
+			val, marks, ok = cty.NilVal, nil, false
 		}
 	}()
 
@@ -2174,11 +2199,11 @@ func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, iden
 
 	refs, refDiags := lang.References(addrs.ParseRef, hcldec.Variables(rc.Config, spec))
 	if refDiags.HasErrors() {
-		return cty.NilVal, false
+		return cty.NilVal, nil, false
 	}
 	hclCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
 	if ctxDiags.HasErrors() {
-		return cty.NilVal, false
+		return cty.NilVal, nil, false
 	}
 	if hclCtx == nil {
 		hclCtx = &hcl.EvalContext{}
@@ -2186,7 +2211,7 @@ func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, iden
 
 	configVal, _, valDiags := hcldec.PartialDecode(rc.Config, spec, hclCtx)
 	if valDiags.HasErrors() || configVal == cty.NilVal || configVal.IsNull() || !configVal.Type().HasAttribute(name) {
-		return cty.NilVal, false
+		return cty.NilVal, nil, false
 	}
 
 	// Unmarked here, unconditionally, and BEFORE anything else reads the
@@ -2194,15 +2219,17 @@ func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, iden
 	// (GitHub issue #287, TestConfiguredTagsSeedUnmarksASensitiveTagValue):
 	// the seed goes straight into ReadResourceRequest.PriorState, and cty's
 	// msgpack encoder refuses a marked value outright. Nothing sensitive is
-	// retained from here: the seed is written into the import stub only for
-	// the duration of the ReadResource call, and what the projection
-	// persists is that call's own answer, re-marked from the schema by
-	// [readImported]'s own schema.Block.ValueMarks.
-	attrVal, _ := configVal.GetAttr(name).UnmarkDeep()
+	// lost by unmarking here, though: the paths this call captures on the
+	// way off travel back to the caller as marks below, and
+	// [readImported] puts them back on the object this package persists,
+	// alongside whatever the schema itself marks (GitHub issue #401 family
+	// 3 - a config-derived mark, such as a value read through a Sensitive
+	// data source attribute, that never came back on before this).
+	attrVal, localMarks := configVal.GetAttr(name).UnmarkDeepWithPaths()
 	if attrVal.IsNull() || !attrVal.IsWhollyKnown() {
-		return cty.NilVal, false
+		return cty.NilVal, nil, false
 	}
-	return attrVal, true
+	return attrVal, localMarks, true
 }
 
 // configuredTagsSeed statically evaluates a taggable resource's own,
@@ -2473,7 +2500,7 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -2545,7 +2572,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
-				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, diags)
+				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
 			}
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
@@ -2595,7 +2622,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		return nil, cty.NilVal, statusAbsent, diags
 	}
 
-	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, diags)
+	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
 }
 
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
@@ -2605,7 +2632,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 // path can reach the exact same attribute-seeding, sensitivity-marking and
 // conformance-checking rules an ordinarily-imported instance already gets,
 // with no second copy to drift from the first.
-func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	// GitHub issue #287 item 8 (tags), #395 and #376 (every other
 	// non-Computed attribute - see [configuredAttrsSeed]'s doc comment).
 	// ImportResourceState commonly leaves a non-Computed argument null or
@@ -2702,9 +2729,7 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	}
 
 	// Sensitivity declared by the schema has to be carried on the value,
-	// because that is where the plan renderer looks for it. Marks that
-	// come from configuration are not applied here: they need an
-	// evaluation context, and a projection is built before one exists.
+	// because that is where the plan renderer looks for it.
 	//
 	// This line is the concrete-cloud half of what a skipped refresh owes the
 	// plan, and it is the same call upstream's own refresh ends with
@@ -2718,8 +2743,27 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// TestMaterializeMarksASensitiveAttributeFromTheSchema is the test that
 	// was genuinely missing. Deleting this line turns that test red, which is
 	// how the reading was settled.
-	if pvms := schema.Block.ValueMarks(newVal, nil, nil); len(pvms) > 0 {
-		newVal = newVal.MarkWithPaths(pvms)
+	//
+	// configMarks is the OTHER half, GitHub issue #401 family 3: a mark that
+	// came from the CONFIGURATION expression rather than from this type's own
+	// schema - the common case is an argument set from a Sensitive attribute
+	// of a data source, aws_instance.ami reading
+	// data.aws_ssm_parameter.*.value being the estate that found it, since
+	// that data source's own "value" is unconditionally Sensitive in every
+	// provider version regardless of what it names, and nothing about "ami"
+	// is sensitive on its own. configuredAttrsSeed captured those paths off
+	// the config value before stripping them for the ReadResource round
+	// trip (a marked value cannot cross the plugin channel, so this is the
+	// only point they can be recovered at all); this is where they go back
+	// on, exactly as internal/tofu's graphNodeImportStateSub.Execute's own
+	// "Insert marks from configuration" step does for `choudoufu import`
+	// upstream. Without
+	// it, the CONFIG-evaluated side of every later plan carries the mark
+	// (the ordinary dynamic evaluator propagates it same as this one did)
+	// and this projected PRIOR side never does, so a value that is byte-for-
+	// byte unchanged plans as an update, forever, on every single run.
+	if marks := combineValueMarks(schema.Block.ValueMarks(newVal, nil, nil), configMarks); len(marks) > 0 {
+		newVal = newVal.MarkWithPaths(marks)
 	}
 
 	return &states.ResourceInstanceObject{
