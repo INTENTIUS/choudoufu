@@ -816,17 +816,60 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 # diagnostic and nothing else; the markerless-type fix alone printed 20 more
 # (2026-08-22); family A's three each.value widenings brought that to 12
 # (2026-08-22); family B's four fixes plus family A's own side effect (see
-# header) bring it to these 3 (2026-08-23).
+# header) bring it to these 3 (2026-08-23) - THAT count is still right, but
+# 2026-08-24 (this unit) found its own COMPOSITION was two different bugs
+# layered on top of each other, and this oracle was stale about which three
+# sites they were:
 #
-# All 3 are still HANDOFF's first or fifth row and every resource they BLOCK
+#   1. local.lambda_target_groups's function_name (family A's one remaining
+#      site as of 2026-08-23 - merge(v, {lambda_function_name = split(":",
+#      v.target_id)[6]}), a value clause needing v's own structural
+#      expression substituted into the call) is FIXED as of this unit:
+#      internal/live/identity gained instScope.exprVars, generalizing
+#      [instScope.eachValueExpr]'s #260 asymmetry (an element known
+#      structurally but not as a whole VALUE) from each.value specifically
+#      to a plain for-comprehension's own value variable under any name, at
+#      whatever depth of nesting bound it - plus two of the same blind spot
+#      in the structural walkers that asymmetry depends on
+#      (forCondIncludesTolerant proving a for-expression's own FILTER only
+#      from a key's ABSENCE, never its presence; objectLacksKey's identical
+#      gap for the SIBLING each.value.<attr> selectors this same element
+#      answers - qualifier, statement_id, action, principal,
+#      source_account, event_source_token). See the commit for the full
+#      account; none of the three names a concrete aws_* type.
+#   2. Fixing (1) exposed that module.alb.aws_lb_listener_certificate.this[
+#      "ex-https/0"].certificate_arn - which the 2026-08-23 unit's own
+#      commit (84dcbabea9) recorded as resolving "through unmodified
+#      machinery" - was verified there under CHOUDOUFU_NODE_RESOLVE=1 only.
+#      Flag-off, it never stopped being a Non-static identity argument: the
+#      SAME fix that closed the Cognito-misattribution crosstalk bug
+#      (managedFromExprAt now declines the instant its own chase names a
+#      "module" root, rather than risk a second wrong attribution) declines
+#      this site too, by the identical rule - `try(
+#      aws_acm_certificate_validation.this[0].certificate_arn,
+#      aws_acm_certificate.this[0].arn, "")`, terraform-aws-modules/acm's
+#      own output, is a MODULE OUTPUT reference, and HANDOFF's own rule ("a
+#      missing attribution outranks a wrong one") applies flag-off exactly
+#      as it applies flag-on. Confirmed by diff: three separate flag-off
+#      live-plan captures taken across this unit's whole session, before
+#      any code changed and after every commit, are BYTE-IDENTICAL on this
+#      site - it was never fixed flag-off, only the record was wrong. Not a
+#      regression this unit introduced; a stale claim this unit corrected.
+#      Still HANDOFF's first row (choudoufu refuses where stock proceeds)
+#      and not attempted here - the fix belongs to whatever unit widens
+#      managedFromExprAt to see THROUGH a module boundary rather than
+#      decline at it, which 84dcbabea9's own commit message already flagged
+#      as "considered and rejected for THAT unit... a future unit can widen
+#      this to a correct attribution instead of a decline if the value is
+#      worth it."
+#
+# All 3 remain HANDOFF's first or fifth row and every resource they BLOCK
 # is UNTAGGABLE, whose identity has to come from configuration because there
 # is no tag to recover it from:
 #
-#   - local.lambda_target_groups's function_name (family A's one remaining
-#     site - a merge(v, {...}) value clause needing v's own structural
-#     expression substituted into the call, a genuinely new piece of
-#     machinery; see header) is HANDOFF's first row, choudoufu refuses where
-#     stock proceeds, and is not attempted here.
+#   - module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn
+#     (see (2) above) is HANDOFF's first row, choudoufu refuses where stock
+#     proceeds, and is not attempted here.
 #   - the two aws_lb_target_group_attachment.this ports are HANDOFF's fifth
 #     row read the other way: a lambda-type target genuinely has no port in
 #     real AWS, so "Null identity argument" is the honest answer, not a
@@ -869,6 +912,18 @@ log "      appear in live-plan's output at all. #309's last site is gone."
 # a wrong marker or a false create, just an honest cause. NOT
 # load-sensitive: 4/4 flag-on runs on an otherwise idle machine, 0/4
 # flag-off.
+#
+# CORRECTION (2026-08-24, this unit): the paragraph above's flag-off claim
+# ("these 3" being function_name + both ports) was never quite right -
+# module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn
+# was always the third flag-off site, not function_name; see 3b's own
+# numbered account above for the diff evidence and the cause. This unit
+# fixed function_name generically (instScope.exprVars) and did not touch
+# internal/tofu or internal/live/projection/noimporter, so it makes no
+# claim about whether the flag-on behavior this paragraph describes still
+# holds against the node-noimporter landing (8adb279dd7) merged after it -
+# that is unverified here and belongs to whichever unit next runs this
+# estate under CHOUDOUFU_NODE_RESOLVE=1.
 NODE_RESOLVE="${CHOUDOUFU_NODE_RESOLVE:-}"
 if [ -n "$NODE_RESOLVE" ]; then
   WANT_DIAG_N=2
@@ -883,10 +938,16 @@ if [ -n "$NODE_RESOLVE" ]; then
 else
   WANT_DIAG_N=3
   declare -a WANT_SITES=(
-    # A's one remaining site - see header for what fixed the other 11 (three
-    # each.value widenings for 10, family B's own side effect for the
-    # eleventh) and for what is different about this one.
-    'module.alb.aws_lambda_permission.this["ex-lambda-without-trigger"].function_name'
+    # family A's own remaining site (3b's numbered item 2 above): a module
+    # OUTPUT reference beside a direct one declines rather than risk a wrong
+    # sibling-apply attribution (84dcbabea9), and that decline applies
+    # flag-off exactly as it applies flag-on - this was never fixed
+    # flag-off, only misrecorded as such. local.lambda_target_groups's own
+    # function_name (the OTHER site this list used to name) is FIXED as of
+    # this unit - see 3b's item 1 - and no longer appears anywhere in
+    # live-plan's output; expecting it here would fail this loop, which is
+    # the point of listing sites by name and not just by count.
+    'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
     # Adjacent to A, exposed only once the fixes above stopped refusing the
     # WHOLE resource outright: a genuinely null port for a lambda-type target,
     # which AWS's own API has none of. Not a poisoned-leaf collapse. This is a
@@ -920,6 +981,14 @@ for site in "${WANT_SITES[@]}"; do
   grep -qF "$site" <<< "$PLAN_OUT" \
     || { printf '%s\n' "$PLAN_OUT"; fail "expected $site among the stage-3 refusal sites"; }
 done
+
+# Flag-off only: function_name is the site this fix generalized away, and
+# its absence is the load-bearing half of 3b's item 1 - a diagnostic that
+# merely changed its wording would still pass the count checks below.
+if [ -z "$NODE_RESOLVE" ]; then
+  grep -qF 'aws_lambda_permission.this["ex-lambda-without-trigger"].function_name' <<< "$PLAN_OUT" \
+    && { printf '%s\n' "$PLAN_OUT"; fail "aws_lambda_permission.this[\"ex-lambda-without-trigger\"].function_name still appears in live-plan's output - instScope.exprVars is not resolving it"; }
+fi
 
 DIAG_N="$(grep -c '^Error:' <<< "$PLAN_OUT")"
 [ "$DIAG_N" = "$WANT_DIAG_N" ] \
@@ -993,11 +1062,13 @@ if [ -n "$NODE_RESOLVE" ]; then
   gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess."
 else
   log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
-  log "diagnostics on untaggable resources (families A and B, see header). The"
+  log "diagnostics on untaggable resources (family A's own remaining site,"
+  log "and family B's fifth-row read of two null lambda-target ports). The"
   log "markerless-type wall that used to be the only thing this estate could"
-  log "print is gone, and these were behind it."
+  log "print is gone, and family A's other 11 sites (2026-08-22/23) - the"
+  log "function_name site included, fixed 2026-08-24 - are gone too."
   log ""
-  gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output), family A's module-input-poisoning wall is down from 20 to 12 diagnostics (2026-08-22, three each.value widenings, none naming a concrete aws_* type), and family B - aws_acm_certificate.this[0].domain_validation_options minted by ACM and driving aws_route53_record.validation[0]'s name and type in both certificate module instances - is now fixed (2026-08-23), down to these 3: internal/live/projection's PlanInstances now plans a resource whose count expression resolves statically to a known integer (planCounted), not only an uncounted one; identity.resolver.managedFromExpr now chases a local's or a module variable's own defining expression for a covered-but-unknown managed reference, guarded by namesAnUnprovenVariable (a var with its own default cannot be issue #183's synthetic-unknown hazard) and by declining outright when more than one distinct resource is found rather than guessing; resolver.tolerantManagedValue evaluates the whole identity argument through the same tolerant evaluator a module output already gets, gated on that attribution succeeding first; and managedUnknownAt's own selectReferencedValue isolates the one attribute a reference names before asking ContainsMarked/IsWhollyKnown, so aws_acm_certificate's unrelated sensitive private_key no longer vetoes attribution to domain_validation_options. None names a concrete aws_* type. A side effect, not a fifth fix: module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn (family A's own remaining site) reads the same certificate through aws_acm_certificate_validation's fallback and now resolves too, through unmodified machinery, because the certificate it depends on stopped being invisible - family A is down to 1 of its original 12. The 3 that remain: local.lambda_target_groups's function_name (family A, a merge(v, {...}) value clause needing v's own structural expression substituted into the call, a genuinely new piece of machinery, not attempted here) and the two aws_lb_target_group_attachment ports (HANDOFF's fifth row read the other way - a lambda target genuinely has no port in real AWS, so the null is the honest answer, not a defect these fixes reach or should). Re-verified 2026-08-23 on an idle machine (this unit): #388's open edge 1 (a NEW aws_acm_certificate_validation 'Cannot import for projection' error, 2/2 flag-on vs 0/3 flag-off) is NOT load-sensitive - 4/4 flag-on runs reproduce it, 0/4 flag-off - and is root-caused and fixed generically (internal/live/projection/build.go, see the flag-on branch of this script's own stage-3 oracle for the mechanism and the fix). Flag-off truth here is unaffected: this estate's projection has never run to completion even once at flag-off, because the same 3 sites above have always kept identity.Result.HasErrors() true and aborted PriorState before projection.BuildWith runs."
+  gauntlet_stage test_plan fail "3 Error diagnostics, each named and explained, not a bare count: (1) module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn - Non-static identity argument. terraform-aws-modules/acm's own output try(aws_acm_certificate_validation.this[0].certificate_arn, aws_acm_certificate.this[0].arn, \"\") is a MODULE OUTPUT reference beside a direct one, and managedFromExprAt (84dcbabea9, 2026-08-24) declines the instant its own chase names a module root rather than risk a second wrong sibling-apply attribution - the same rule that closed this estate's Cognito-misattribution crosstalk bug applies here too, by design (HANDOFF: a missing attribution outranks a wrong one). 84dcbabea9's own commit recorded this site as resolving 'through unmodified machinery', but that verification was CHOUDOUFU_NODE_RESOLVE=1 only; flag-off it was never fixed, confirmed by a byte-identical diff across three flag-off live-plan captures spanning this unit's whole session. HANDOFF's first row (choudoufu refuses where stock proceeds), not attempted here - the fix is chasing through a module boundary instead of declining at it, which 84dcbabea9 itself flagged as future work. (2) and (3) module.alb.aws_lb_target_group_attachment.this[\"ex-lambda-with-trigger\"/\"ex-lambda-without-trigger\"].port - Null identity argument, both. A lambda-type target genuinely has no port in real AWS, so null is the honest value, not a defect; whether the identity table's port component should be OmitIfAbsent for target_type=lambda is a ratification question for the maintainer (#190-style), not something this pass changes. FIXED this unit, and so no longer among the 3: local.lambda_target_groups's function_name (merge(v, {lambda_function_name = split(\":\", v.target_id)[6]}) - family A's own remaining site as of 2026-08-23) now resolves through instScope.exprVars, [instScope.eachValueExpr]'s #260 asymmetry generalized from each.value specifically to a plain for-comprehension's own value variable under any name, plus fixes to two identical blind spots in forCondIncludesTolerant (a for-expression filter clause read only a key's ABSENCE, never a present literal's own value) and objectLacksKey (the same gap, for the sibling each.value.<attr> selectors - qualifier, statement_id, action, principal, source_account, event_source_token - this same element answers). None of the three fixes names a concrete aws_* type in control flow. Verified against the real migrated estate (own scratch harness reusing run.sh's own steps): function_name is absent from live-plan's output entirely, not merely uncounted, and none of the six sibling each.value selectors it exposed newly refuse either."
 fi
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
