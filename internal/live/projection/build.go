@@ -2161,8 +2161,8 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 				tfdiags.Error,
 				"Resource type has no classic Importer",
 				fmt.Sprintf(
-					"%s cannot be projected: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes. A type in this position is admitted for naming and reference purposes only (see identity.Derivable and issue #331); it cannot be read back through a live plan, so this run refuses rather than propose a create for an object it cannot verify one way or the other.",
-					typeName, detail,
+					"The %s with identity %q cannot be projected: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes. A type in this position is admitted for naming and reference purposes only (see identity.Derivable and issue #331); it cannot be read back through a live plan, so this run refuses rather than propose a create for an object it cannot verify one way or the other.",
+					typeName, importID, detail,
 				),
 			))
 			return nil, statusFailed, diags
