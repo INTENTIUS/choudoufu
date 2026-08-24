@@ -757,6 +757,69 @@ MARKED="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-ad
 log "  cluster $CLUSTER_NAME is ACTIVE, confirmed unmarked via the AWS CLI directly ($MARKED tofu-address tags)"
 gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarked"
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two of the three root security groups this example declares outside the
+# eks/vpc modules (worker_group_mgmt_one is left untouched as a negative
+# control): a `moved` block renames aws_security_group.worker_group_mgmt_two,
+# and "choudoufu live-mv" renames aws_security_group.all_worker_mgmt with no
+# moved block at all. Both are referenced exactly once, inside module "eks"'s
+# own argument list (additional_security_group_ids /
+# worker_additional_security_group_ids), which the same sed pass updates.
+# The stock oracle for both runs on a copy of cold_deploy's own state, PLANNED
+# right after stage 1 (this block sits between "gauntlet_stage cold_deploy
+# pass" and migrate) - before choudoufu or live-import ever touch these
+# shared objects, through the same linux/amd64 hashicorp/terraform:1.9
+# container stage 1 itself used (real terraform on this host cannot resolve
+# hashicorp/template for darwin_arm64 - see this script's header, item 1).
+#
+# BREAK=1 exercises this stage's own break control instead of the real
+# checks: renaming aws_security_group.all_worker_mgmt WITHOUT a moved block,
+# which must make choudoufu propose destroying the old address and creating
+# the new one - the opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+ORACLE_REL="oracle/eks/examples/basic"
+rsync -a "$WORK/plain/" "$WORK/oracle/"
+ORACLE_EST="$WORK/$ORACLE_REL"
+oracle_terraform_run() {
+  docker run --rm --platform linux/amd64 --network "$NET" \
+    -v "$WORK:/work" -w "/work/$ORACLE_REL" \
+    -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
+    -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
+    hashicorp/terraform:1.9 "$@"
+}
+sed -i.bak 's/resource "aws_security_group" "worker_group_mgmt_two" {/resource "aws_security_group" "worker_group_mgmt_two_renamed" {/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/aws_security_group\.worker_group_mgmt_two\.id/aws_security_group.worker_group_mgmt_two_renamed.id/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/resource "aws_security_group" "all_worker_mgmt" {/resource "aws_security_group" "all_worker_mgmt_renamed" {/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/aws_security_group\.all_worker_mgmt\.id/aws_security_group.all_worker_mgmt_renamed.id/' "$ORACLE_EST/main.tf"
+rm -f "$ORACLE_EST/main.tf.bak"
+cat >> "$ORACLE_EST/main.tf" <<'EOF'
+
+moved {
+  from = aws_security_group.worker_group_mgmt_two
+  to   = aws_security_group.worker_group_mgmt_two_renamed
+}
+
+moved {
+  from = aws_security_group.all_worker_mgmt
+  to   = aws_security_group.all_worker_mgmt_renamed
+}
+EOF
+oracle_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-init.log 2>&1 || {
+  tail -40 /tmp/eks-basic-oracle-init.log; fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(oracle_terraform_run plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
 # ── 4. STAGE 2: migrate ─────────────────────────────────────────────────────
 CURRENT_STAGE=migrate
 log "=== 4. STAGE 2 - migrate: choudoufu live-import against the cold state ==="
@@ -1225,6 +1288,98 @@ else
   log "  reconverged: VPC $VPC_ID's Name tag is back to its configured value ($FIXED_VALUE)"
   gauntlet_stage drift_reconverge pass "one object tampered (VPC's Name tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Name tag reconverged"
 fi
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live ids a rename must not disturb ==="
+SG2_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.worker_group_mgmt_two"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$SG2_ID_D" ] && [ "$SG2_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (worker_group_mgmt_two)"
+SGALL_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.all_worker_mgmt"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$SGALL_ID_D" ] && [ "$SGALL_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (all_worker_mgmt)"
+log "  $SG2_ID_D (aws_security_group.worker_group_mgmt_two), $SGALL_ID_D (aws_security_group.all_worker_mgmt)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_security_group.all_worker_mgmt -> .all_worker_mgmt_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/resource "aws_security_group" "all_worker_mgmt" {/resource "aws_security_group" "all_worker_mgmt_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_security_group\.all_worker_mgmt\.id/aws_security_group.all_worker_mgmt_renamed.id/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-break-init.log 2>&1 || {
+    tail -40 /tmp/eks-basic-break-init.log; fail "the BREAK=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.all_worker_mgmt will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_security_group.all_worker_mgmt - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_security_group\.all_worker_mgmt_renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_security_group.all_worker_mgmt_renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_security_group.all_worker_mgmt and creating aws_security_group.all_worker_mgmt_renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_security_group.worker_group_mgmt_two -> .worker_group_mgmt_two_renamed ==="
+  sed -i.bak 's/resource "aws_security_group" "worker_group_mgmt_two" {/resource "aws_security_group" "worker_group_mgmt_two_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_security_group\.worker_group_mgmt_two\.id/aws_security_group.worker_group_mgmt_two_renamed.id/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  cat >> "$ADOPTED/main.tf" <<'EOF'
+
+moved {
+  from = aws_security_group.worker_group_mgmt_two
+  to   = aws_security_group.worker_group_mgmt_two_renamed
+}
+EOF
+  tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-d1-init.log 2>&1 || {
+    tail -40 /tmp/eks-basic-d1-init.log; fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # aws_security_group\.worker_group_mgmt_two_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to aws_security_group.worker_group_mgmt_two_renamed"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" = "aws_security_group\.worker_group_mgmt_two" -> "aws_security_group\.worker_group_mgmt_two_renamed"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the security group's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(tofu_run "$ADOPTED_REL" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  SG2_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SG2_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$SG2_ID_D_AFTER" = "$SG2_ID_D" ] || fail "the security group's id changed across the rename ($SG2_ID_D -> $SG2_ID_D_AFTER) - it was destroyed and recreated, not renamed"
+  SG2_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG2_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$SG2_ADDR_D_AFTER" = "aws_security_group.worker_group_mgmt_two_renamed" ] \
+    || fail "the security group carries tofu-address=$SG2_ADDR_D_AFTER after the rename, not aws_security_group.worker_group_mgmt_two_renamed"
+  log "  $SG2_ID_D unchanged, tofu-address now aws_security_group.worker_group_mgmt_two_renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_security_group.all_worker_mgmt -> .all_worker_mgmt_renamed, no moved block at all ==="
+  sed -i.bak 's/resource "aws_security_group" "all_worker_mgmt" {/resource "aws_security_group" "all_worker_mgmt_renamed" {/' "$ADOPTED/main.tf"
+  sed -i.bak 's/aws_security_group\.all_worker_mgmt\.id/aws_security_group.all_worker_mgmt_renamed.id/' "$ADOPTED/main.tf"
+  rm -f "$ADOPTED/main.tf.bak"
+  tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-d2-init.log 2>&1 || {
+    tail -40 /tmp/eks-basic-d2-init.log; fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(tofu_run "$ADOPTED_REL" live-mv -estate="$ESTATE" aws_security_group.all_worker_mgmt aws_security_group.all_worker_mgmt_renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_security_group.all_worker_mgmt" -> "aws_security_group.all_worker_mgmt_renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  SGALL_ID_D_AFTER="$(awsl ec2 describe-security-groups --group-ids "$SGALL_ID_D" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$SGALL_ID_D_AFTER" = "$SGALL_ID_D" ] || fail "the security group's id changed across live-mv ($SGALL_ID_D -> $SGALL_ID_D_AFTER) - it was destroyed and recreated, not renamed"
+  SGALL_ADDR_D_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SGALL_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$SGALL_ADDR_D_AFTER" = "aws_security_group.all_worker_mgmt_renamed" ] \
+    || fail "the security group carries tofu-address=$SGALL_ADDR_D_AFTER after live-mv, not aws_security_group.all_worker_mgmt_renamed"
+  log "  $SGALL_ID_D unchanged, tofu-address now aws_security_group.all_worker_mgmt_renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
 
 CURRENT_STAGE=""
 gauntlet_end
