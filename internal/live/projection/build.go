@@ -2165,7 +2165,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 					typeName, importID, detail,
 				),
 			))
-			return nil, statusFailed, diags
+			return nil, cty.NilVal, statusFailed, diags
 		}
 		// The provider could not answer the question. That is different
 		// from answering "there is no such object", which is either an

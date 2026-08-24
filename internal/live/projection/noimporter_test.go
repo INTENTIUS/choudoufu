@@ -69,7 +69,7 @@ func TestNoClassicImporterRefusesAccuratelyRatherThanClaimingAProviderError(t *t
 			}
 
 			target := providers.ImportTarget{ID: "arn:aws:acm:eu-west-1:000000000000:certificate/deadbeef"}
-			_, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, cty.NilVal, false)
+			_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, cty.NilVal, false)
 
 			if status != statusFailed {
 				t.Fatalf("status = %v, want statusFailed - a type with no classic Importer must still refuse rather than propose a create for an object this run cannot verify", status)
@@ -115,7 +115,7 @@ func TestGenuineProviderErrorStillUsesTheGenericRefusal(t *testing.T) {
 	}
 
 	target := providers.ImportTarget{ID: "arn:aws:acm:eu-west-1:000000000000:certificate/deadbeef"}
-	_, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, cty.NilVal, false)
+	_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, cty.NilVal, false)
 
 	if status != statusFailed {
 		t.Fatalf("status = %v, want statusFailed", status)
