@@ -23,6 +23,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mv"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -143,6 +145,25 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		return nil, diags
 	}
 
+	// The estate's record store, opened the same way live-plan opens its
+	// own (recordStoreForReads, live_plan.go) - GitHub issue #364's
+	// consult point for a provider-assigned type this provider cannot
+	// list: mv.Move reads it, keyed by the OLD address, before refusing
+	// for lack of a marker search path. A store that will not open is not
+	// this command's error to fail on: the record consult is one more way
+	// to find a resource, not the only one, and a run with no live block
+	// or no record_store block leaves recordStore nil, which degrades
+	// live-mv to exactly its pre-existing behavior for such a type.
+	var recordStore staterecord.Store
+	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
+		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
+		if storeErr != nil {
+			log.Printf("[WARN] live-mv: could not open the record store: %s", storeErr)
+		} else {
+			recordStore = store
+		}
+	}
+
 	coreOpts, err := c.contextOpts(ctx)
 	if err != nil {
 		diags = diags.Append(err)
@@ -235,6 +256,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		DryRun:             args.dryRun,
 		AllowMissingConfig: args.allowMissing,
 		Tagging:            tagging,
+		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags
