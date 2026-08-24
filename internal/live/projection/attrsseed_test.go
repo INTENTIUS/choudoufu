@@ -222,10 +222,10 @@ func TestProjectionSurvivesTheLaunchConfigurationUserDataShape(t *testing.T) {
 func stubLaunchConfigWithDataSchema() providers.Schema {
 	return providers.Schema{Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
-			"id":                {Type: cty.String, Computed: true},
-			"name":              {Type: cty.String, Required: true},
-			"user_data":         {Type: cty.String, Optional: true, Computed: true},
-			"user_data_base64":  {Type: cty.String, Optional: true},
+			"id":               {Type: cty.String, Computed: true},
+			"name":             {Type: cty.String, Required: true},
+			"user_data":        {Type: cty.String, Optional: true, Computed: true},
+			"user_data_base64": {Type: cty.String, Optional: true},
 		},
 	}}
 }
