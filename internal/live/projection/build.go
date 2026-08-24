@@ -1333,11 +1333,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return true
 	}
 
-	// GitHub issue #287 item 8: seed BEFORE the read, not after, because the
-	// gap this closes is in what [providers.Configured.ImportResourceState]
-	// hands the provider going into [providers.Configured.ReadResource], not
-	// in anything this package does with the result. See
-	// [configuredTagsSeed]'s doc comment for the mechanism.
+	// GitHub issue #287 item 8 (and #395, #376): seed BEFORE the read, not
+	// after, because the gap this closes is in what
+	// [providers.Configured.ImportResourceState] hands the provider going
+	// into [providers.Configured.ReadResource], not in anything this
+	// package does with the result. See [configuredAttrsSeed]'s doc
+	// comment for the mechanism, and [configuredTagsSeed]'s for why tags
+	// keeps its own, separately gated seed rather than folding into the
+	// general one.
 	//
 	// seedEval augments modEval with [Options.DataResults] when this run
 	// has any - see [Options.DataResults]'s own doc comment for why:
@@ -1351,45 +1354,33 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
 	attrsSeed := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema)
-
-	// A second seed source, read here rather than derived from
-	// configuration: [b.opts.RecordStore]'s own residue record for addr, if
-	// one exists. [fillResidueFor] already reads and applies this same
-	// record, but only AFTER this call's own ReadResource has already run -
-	// too late for a GetOk-conditional provider whose Read computes a WRONG,
-	// NON-NULL value for a SIBLING attribute when the one this seeds arrives
-	// null. aws_launch_configuration is the confirmed case:
-	// user_data_base64 is exactly what [classifyResidue] already proved, at
-	// MIGRATE time, is something hashicorp/aws's Read only ever PRESERVES
-	// from whatever prior it is given - the identical claim a persisted
-	// state file's own PriorState would make - so seeding THIS run's bare
-	// import stub with it before the read is safe on the same proof residue
-	// capture already relied on, not a new one. Without it,
-	// user_data_base64 arrives null in PriorState, GetOk fails, and the
-	// provider computes `user_data = hash(the live UserData response)` - a
-	// value fillResidueFor's own null-only fill can no longer undo,
-	// because carriesNoInformation only fills what currently reads as
-	// null, and this hash is neither null nor the type's zero value.
-	//
-	// A config-derived value already in attrsSeed wins over a residue
-	// snapshot from migrate time, which could in principle be stale if the
-	// configuration's own declaration changed since - configuredAttrsSeed's
-	// answer is the CURRENT desired value, and current outranks recorded
-	// wherever both exist for the same name.
-	if b.opts.RecordStore != nil {
-		if residueAttrs, _, _, found, err := b.opts.RecordStore.GetResidue(ctx, addr); err == nil && found && len(residueAttrs) > 0 {
-			if attrsSeed == nil {
-				attrsSeed = make(map[string]cty.Value, len(residueAttrs))
-			}
-			for name, v := range residueAttrs {
-				if _, already := attrsSeed[name]; !already {
-					attrsSeed[name] = v
-				}
-			}
+	if tagsSeedOK {
+		if attrsSeed == nil {
+			attrsSeed = make(map[string]cty.Value, 1)
 		}
+		attrsSeed["tags"] = tagsSeed
 	}
 
-	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, tagsSeed, tagsSeedOK, attrsSeed)
+	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed] and
+	// [configuredTagsSeed] could not statically evaluate - a managed-
+	// resource reference (#395's own shape) or a data-source reference
+	// (aws_launch_configuration.user_data_base64's) - from this estate's
+	// residue record, when one exists and the name is one only
+	// configuration could ever have set ([residueConfigSourced]).
+	// Configuration wins whenever both name the same attribute: it is read
+	// fresh on every run, where a residue record can be stale, so a name
+	// already in attrsSeed is left exactly as configuration produced it.
+	for name, val := range b.residueSeedFor(ctx, addr, schema) {
+		if _, ok := attrsSeed[name]; ok {
+			continue
+		}
+		if attrsSeed == nil {
+			attrsSeed = make(map[string]cty.Value)
+		}
+		attrsSeed[name] = val
+	}
+
+	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, attrsSeed)
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
 		// The record's binding did not pan out - the provider found
@@ -1887,6 +1878,205 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // why. This package's own behavior, wording and every test below are
 // unchanged - only the two functions' bodies moved.
 
+// configuredAttrsSeed generalizes what this function used to do for "tags"
+// alone (GitHub issue #287 item 8) to every attribute sharing the one
+// property that made tags safe to seed: NOT Computed. See this function's
+// own reasoning below for why that property, not the attribute's name, is
+// what makes seeding sound - GitHub issues #395 and #376 are the two
+// confirmed instances that were still broken with the tags-only version.
+//
+// # The original case, generalized
+//
+// Issue #287 item 8: a stamped resource with a provider-level default_tags
+// block showed a permanent, spurious "tags" in-place diff, re-adding the
+// same keys on every single plan. Verified directly against a live floci
+// build rather than inferred from the plan output (see the issue and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// GetRole both correctly return every tag, default_tags merged client-side
+// by terraform-provider-aws before the request ever reaches the emulator.
+// The gap is upstream of both. [providers.Configured.ImportResourceState]
+// answers a bare identity with no configuration in hand, so a provider
+// whose ReadResource distinguishes "explicitly declared" tags from
+// "arrived through the provider's own default_tags" using only the prior
+// state it is given sees an empty PriorState.tags and falls back to
+// comparing raw tag VALUES against its default_tags config - misclassifying
+// any tag the configuration also declares explicitly if it happens to
+// duplicate a default_tags entry.
+//
+// Issues #395 and #376 are the same shape with a different provider
+// quirk on the reading end. #395: hashicorp/aws's aws_ecs_service Read
+// preserves the FORMAT (short "family:revision" vs full ARN) of whatever
+// task_definition value it finds in PriorState, and falls back to the
+// short form when PriorState carries none - confirmed directly (see
+// TestReadImportedSeedsEveryNonComputedAttribute and this package's own
+// build_seed_test.go): floci's DescribeServices always returns the full
+// ARN on the wire, but choudoufu's import stub leaves task_definition
+// null (ImportResourceState has no configuration to draw it from), so
+// every stateless replan re-triggers the short-form fallback forever.
+// #376: hashicorp/aws's aws_ecs_task_definition Read never sources
+// track_latest or skip_destroy from the API at all - both are
+// client-side-only arguments, confirmed by the issue - so a null
+// PriorState comes back as the SDK's own zero-valued default (false),
+// discarding whatever the configuration actually declared.
+//
+// Both are the identical defect: choudoufu has no persisted state, so
+// [importAndRead] re-derives "prior state" through ImportResourceState on
+// every single plan, and that stub is far barer than what an ordinary,
+// state-backed OpenTofu run would have handed ReadResource - a real state
+// file's PriorState carries the FULL, LAST-APPLIED value of every argument,
+// not just the identity. This is what re-seeds the missing signal, for
+// every argument where doing so cannot possibly be wrong.
+//
+// # Why "not Computed" is the right property, and the only one asked
+//
+// An attribute the schema marks Computed is one the protocol allows the
+// PROVIDER to answer independently of configuration - that is what Computed
+// means. An attribute that is Required, or Optional without Computed, is
+// the opposite: nothing but configuration can ever produce its value, by
+// the same protocol contract that lets [objchange.ProposedNew] always use
+// the configured value for such an attribute regardless of what a prior
+// read produced. So a persisted state file's PriorState for a non-Computed
+// attribute is ALWAYS whatever was last configured - there is no other
+// value it could hold - and handing [importAndRead] the CURRENT
+// configuration's own value for such an attribute is not a guess, it is
+// reconstructing exactly what state-backed OpenTofu's own PriorState
+// already carries for it. It cannot mask real drift, because a
+// non-Computed attribute has no drift a provider could introduce
+// independent of configuration to begin with; the live system either
+// matches what was configured or the type would not be able to keep
+// Computed off that attribute at all.
+//
+// tags itself already satisfies this rule on nearly every AWS type ("tags"
+// is Optional, never Computed - only "tags_all" carries the default_tags
+// merge and is Computed), so the old tags-only version is strictly
+// subsumed: dropping the tags_all gate here changes nothing about which
+// resources' tags get seeded, only which OTHER attributes now do too.
+//
+// An Optional+Computed attribute is deliberately left out, even when
+// configuration sets it to a concrete value: telling such an attribute's
+// provenance apart from a value the provider might independently rewrite
+// (a normalizing Read, a diff-suppress-only difference) needs more than a
+// single schema flag can say, and issues #395 and #376 do not need that
+// population to be fixed. A narrower, correct rule beats a broader,
+// unproven one.
+//
+// # The population this reaches
+//
+// Measured against the AWS provider's own schema (6.59.0): every top-level,
+// flat (no NestedType), non-WriteOnly attribute that is Required or
+// Optional-without-Computed on every admitted resource type - hundreds of
+// types beyond aws_ecs_service and aws_ecs_task_definition, because the
+// shape ("an argument only configuration can ever set") is one of the most
+// common in the schema, not an ECS peculiarity. Block-typed arguments
+// (schema.Block.BlockTypes) are deliberately out of scope: they need their
+// own nested-decode handling the way [residueEligibleBlock] gives residue,
+// and neither #395 nor #376 needs it.
+//
+// # Per-attribute, not per-resource, and why
+//
+// Each eligible attribute is decoded with its OWN [hcldec.PartialDecode]
+// call and its OWN [configs.StaticEvaluator.EvalContext], exactly as the
+// original tags-only version did, and deliberately never combined into one
+// multi-attribute decode: this estate's own aws_iam_role.this and
+// aws_iam_openid_connect_provider.this resources have OTHER arguments
+// referencing a data source that is never statically evaluable, and
+// [configs.StaticEvaluator.EvalContext] fails outright the moment ANY of
+// the references it was asked to resolve cannot be - which would turn one
+// unresolvable sibling attribute into a lost seed for every OTHER,
+// perfectly resolvable attribute on the same resource. A resource whose
+// task_definition is a plain literal but whose desired_count references an
+// unresolvable value must still get task_definition seeded.
+//
+// A resource whose eligible attribute is not statically evaluable at all -
+// it references another resource's computed attribute the module-level
+// evaluator has no repetition data for, or an each/count value this pass
+// cannot resolve - simply does not appear in the returned map for that
+// attribute: [importAndRead] falls back to ImportResourceState's own
+// answer for it, exactly as before this existed. That is the same "refuse
+// rather than guess" choice [PlanInstances] makes for the same reason.
+func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) map[string]cty.Value {
+	if eval == nil || rc == nil || schema.Block == nil {
+		return nil
+	}
+
+	ident := configs.StaticIdentifier{
+		Module:    modPath,
+		Subject:   rc.Addr().String(),
+		DeclRange: rc.DeclRange,
+	}
+
+	var out map[string]cty.Value
+	for name, attr := range schema.Block.Attributes {
+		if attr == nil || attr.Computed || attr.WriteOnly || attr.NestedType != nil {
+			continue
+		}
+		if !attr.Required && !attr.Optional {
+			// Neither settable by configuration nor computed is not a real
+			// schema shape, but this loop asks nothing of the schema it
+			// cannot answer safely from these two flags alone.
+			continue
+		}
+		val, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]cty.Value)
+		}
+		out[name] = val
+	}
+	return out
+}
+
+// configuredAttrSeed is [configuredAttrsSeed]'s per-attribute decode, split
+// out so a panic recovered from ONE attribute's decode (a provider plugin
+// is a subprocess doing arbitrary work on a value this package built, the
+// same hazard [PlanInstances]'s planOne guards) never loses every other
+// attribute's seed on the same resource.
+func configuredAttrSeed(ctx context.Context, eval *configs.StaticEvaluator, ident configs.StaticIdentifier, rc *configs.Resource, attr *configschema.Attribute, name string) (val cty.Value, ok bool) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			val, ok = cty.NilVal, false
+		}
+	}()
+
+	spec := hcldec.ObjectSpec{
+		name: &hcldec.AttrSpec{Name: name, Type: attr.Type, Required: false},
+	}
+
+	refs, refDiags := lang.References(addrs.ParseRef, hcldec.Variables(rc.Config, spec))
+	if refDiags.HasErrors() {
+		return cty.NilVal, false
+	}
+	hclCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
+	if ctxDiags.HasErrors() {
+		return cty.NilVal, false
+	}
+	if hclCtx == nil {
+		hclCtx = &hcl.EvalContext{}
+	}
+
+	configVal, _, valDiags := hcldec.PartialDecode(rc.Config, spec, hclCtx)
+	if valDiags.HasErrors() || configVal == cty.NilVal || configVal.IsNull() || !configVal.Type().HasAttribute(name) {
+		return cty.NilVal, false
+	}
+
+	// Unmarked here, unconditionally, and BEFORE anything else reads the
+	// value - see [configuredAttrsSeed]'s doc comment's history for why
+	// (GitHub issue #287, TestConfiguredTagsSeedUnmarksASensitiveTagValue):
+	// the seed goes straight into ReadResourceRequest.PriorState, and cty's
+	// msgpack encoder refuses a marked value outright. Nothing sensitive is
+	// retained from here: the seed is written into the import stub only for
+	// the duration of the ReadResource call, and what the projection
+	// persists is that call's own answer, re-marked from the schema by
+	// [readImported]'s own schema.Block.ValueMarks.
+	attrVal, _ := configVal.GetAttr(name).UnmarkDeep()
+	if attrVal.IsNull() || !attrVal.IsWhollyKnown() {
+		return cty.NilVal, false
+	}
+	return attrVal, true
+}
+
 // configuredTagsSeed statically evaluates a taggable resource's own,
 // AS-WRITTEN "tags" argument - before [stamp.Stamp] ever touches it - for
 // GitHub issue #287 item 8: a stamped resource with a provider-level
@@ -2067,131 +2257,6 @@ func configuredTagsSeed(ctx context.Context, eval *configs.StaticEvaluator, modP
 	return tagsVal, true
 }
 
-// configuredAttrsSeed generalizes [configuredTagsSeed]'s mechanism (GitHub
-// issue #287 item 8) from "tags" specifically to every flat, non-identity
-// attribute the resource's own configuration statically sets: whatever the
-// configuration declares there is exactly what a genuinely persisted state
-// file would already hold, and seeding the import stub with it before
-// ReadResource closes the same class of ambiguity "tags" closes, for any
-// provider whose Read branches on "was this argument already present in
-// prior state" rather than reading it from the remote at all.
-//
-// aws_launch_configuration.user_data_base64 is the instance that demanded
-// this, found crossing corpus-eks-basic: hashicorp/aws's own Read does
-//
-//	if _, ok := d.GetOk("user_data_base64"); ok {
-//	        d.Set("user_data_base64", v)
-//	} else {
-//	        d.Set("user_data", userDataHashSum(v))
-//	}
-//
-// so a bare import stub - user_data_base64 always null, because
-// ImportResourceState has no configuration to consult - takes the "else"
-// branch on the very first live-plan after a migrate, computing a
-// user_data HASH a real, state-backed refresh would never have shown
-// (real state already carries user_data_base64 from the original apply,
-// so GetOk succeeds and Read leaves user_data alone). Stock OpenTofu never
-// asks this question: its refresh always has a real prior state to hand
-// ReadResource. The property behind the fix is not this one type's
-// ConflictsWith pair - it is "an attribute the configuration sets
-// statically", which reaches any attribute of any type sharing the same
-// prior-state-conditional Read shape, not a name list.
-//
-// Deliberately narrower than a whole-block decode for [PlanInstances]'s own
-// reason (planOne's doc comment): one dynamic sibling argument must not
-// blank out every other attribute's seed. Each candidate attribute gets its
-// own [hcldec.PartialDecode] call, exactly [configuredTagsSeed]'s own
-// per-attribute isolation, so a resource with some dynamic arguments still
-// seeds whichever of its OTHER arguments resolve statically.
-//
-// What is deliberately excluded:
-//
-//   - Every identity attribute ([residueIdentityAttrs]): seeding one would
-//     put this mechanism in a position to influence WHICH object a plan
-//     binds to, which is the one thing HANDOFF.md's safety rule reserves
-//     for the record and the marker alone.
-//   - "tags": [configuredTagsSeed] already seeds it, with its own
-//     default_tags-aware reasoning; seeding it twice from two independent
-//     paths is exactly the drift a single mechanism is supposed to
-//     prevent.
-//   - WriteOnly attributes: the plugin protocol forbids a provider ever
-//     returning one, so a prior state - real or seeded - must never carry
-//     one either; [residueCandidates] excludes the same population for the
-//     same reason.
-//   - NestedType attributes and block types: out of scope for this pass,
-//     matching [configuredTagsSeed]'s own flat-attribute-only reach; a
-//     nested value's own sensitivity paths have no single-attribute
-//     recoverability proof to lean on here any more than they do in
-//     [residueCandidates].
-//
-// Sensitivity is handled exactly as [configuredTagsSeed] handles it:
-// unmarked before it is ever compared or returned, because the seed goes
-// straight into ReadResourceRequest.PriorState and cty's msgpack encoder
-// refuses a marked value outright. Nothing is leaked by this that a real
-// apply would not already send the same provider in the clear - see
-// [configuredTagsSeed]'s own doc comment, "Nothing sensitive is retained
-// from here", which applies here unchanged.
-func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) map[string]cty.Value {
-	if eval == nil || rc == nil || schema.Block == nil {
-		return nil
-	}
-	identityAttrs := residueIdentityAttrs(schema)
-
-	defer func() {
-		// A provider plugin is a subprocess doing arbitrary work on a value
-		// this package built; [configuredTagsSeed] and [PlanInstances]'s
-		// planOne guard the same decode the same way, for the same reason.
-		// No named return here to reset - a panic mid-loop simply means
-		// whatever this call had already collected is discarded, which the
-		// caller sees as an empty map, exactly as if none of the resource's
-		// attributes had resolved statically.
-		recover()
-	}()
-
-	out := map[string]cty.Value{}
-	for name, attr := range schema.Block.Attributes {
-		if attr == nil || name == "tags" || identityAttrs[name] {
-			continue
-		}
-		if attr.WriteOnly || attr.NestedType != nil {
-			continue
-		}
-
-		spec := hcldec.ObjectSpec{
-			name: &hcldec.AttrSpec{Name: name, Type: attr.Type, Required: false},
-		}
-		ident := configs.StaticIdentifier{
-			Module:    modPath,
-			Subject:   rc.Addr().String(),
-			DeclRange: rc.DeclRange,
-		}
-		refs, refDiags := lang.References(addrs.ParseRef, hcldec.Variables(rc.Config, spec))
-		if refDiags.HasErrors() {
-			continue
-		}
-		hclCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
-		if ctxDiags.HasErrors() {
-			continue
-		}
-		if hclCtx == nil {
-			hclCtx = &hcl.EvalContext{}
-		}
-		configVal, _, valDiags := hcldec.PartialDecode(rc.Config, spec, hclCtx)
-		if valDiags.HasErrors() || configVal == cty.NilVal || configVal.IsNull() || !configVal.Type().HasAttribute(name) {
-			continue
-		}
-		attrVal, _ := configVal.GetAttr(name).UnmarkDeep()
-		if attrVal.IsNull() || !attrVal.IsWhollyKnown() {
-			continue
-		}
-		out[name] = attrVal
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
 // withSeededTags returns a copy of v with its "tags" attribute replaced by
 // seed, when v is an object with a "tags" attribute of the exact same type
 // seed has. Any mismatch - v not an object, no "tags" attribute, a
@@ -2215,16 +2280,16 @@ func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
 	return cty.ObjectVal(attrs), true
 }
 
-// withSeededAttrs is [withSeededTags]'s general form for
-// [configuredAttrsSeed]: every name in seeds that v's object type both has
-// and agrees on the type of is overlaid onto v; a name seeds does not name,
-// or whose type disagrees, is left exactly as the stub already had it -
-// the same best-effort, never-a-correctness-requirement stance
-// [withSeededTags] documents, for the same reason (a provider whose
-// ImportResourceState returns a differently-shaped stub than expected is
-// read exactly as it always was).
-func withSeededAttrs(v cty.Value, seeds map[string]cty.Value) (cty.Value, bool) {
-	if v == cty.NilVal || v.IsNull() || !v.Type().IsObjectType() || len(seeds) == 0 {
+// withSeededAttrs is [withSeededTags]'s general form: every name in seed
+// that v's object type both has and agrees on the type of is overlaid
+// onto v; a name seed does not name, or whose type disagrees, is left
+// exactly as the stub already had it - the same best-effort, never-a-
+// correctness-requirement stance [withSeededTags] documents, for the same
+// reason (a provider whose ImportResourceState returns a differently-
+// shaped stub than expected is read exactly as it always was for the
+// attributes that mismatch).
+func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
+	if v == cty.NilVal || v.IsNull() || !v.Type().IsObjectType() || len(seed) == 0 {
 		return v, false
 	}
 	ty := v.Type()
@@ -2233,11 +2298,11 @@ func withSeededAttrs(v cty.Value, seeds map[string]cty.Value) (cty.Value, bool) 
 		attrs[name] = v.GetAttr(name)
 	}
 	seeded := false
-	for name, seed := range seeds {
-		if !ty.HasAttribute(name) || !seed.Type().Equals(ty.AttributeType(name)) {
+	for name, val := range seed {
+		if !ty.HasAttribute(name) || !val.Type().Equals(ty.AttributeType(name)) {
 			continue
 		}
-		attrs[name] = seed
+		attrs[name] = val
 		seeded = true
 	}
 	if !seeded {
@@ -2263,14 +2328,14 @@ func withSeededAttrs(v cty.Value, seeds map[string]cty.Value) (cty.Value, bool) 
 // deliberate semantic difference: where import treats a nonexistent remote
 // object as a hard error, a projection treats it as an ordinary absence.
 //
-// tagsSeed and tagsSeedOK are [configuredTagsSeed]'s answer for this
-// instance, applied to the stub object ImportResourceState returns, BEFORE
-// ReadResource sees it - see the seeding step below for why this is the one
-// place in the whole conversation it can go.
+// attrsSeed is [configuredAttrsSeed]'s answer for this instance, applied to
+// the stub object ImportResourceState returns, BEFORE ReadResource sees it -
+// see the seeding step below for why this is the one place in the whole
+// conversation it can go.
 //
 // The second return is the exact object handed to ReadResource as
-// PriorState - the import stub, tags-seeded but otherwise untouched by any
-// live read. [builder.fillResidueFor] needs it for GitHub issue #393: an
+// PriorState - the import stub, attribute-seeded but otherwise untouched by
+// any live read. [builder.fillResidueFor] needs it for GitHub issue #393: an
 // Optional, non-Computed SDKv2 attribute that ImportResourceState seeds with
 // the provider's own internal schema Default (invisible over the plugin
 // protocol, so nothing in [providers.Schema] can name it) survives
@@ -2280,7 +2345,7 @@ func withSeededAttrs(v cty.Value, seeds map[string]cty.Value) (cty.Value, bool) 
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, tagsSeed cty.Value, tagsSeedOK bool, attrsSeed map[string]cty.Value) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -2352,7 +2417,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
-				return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, attrsSeed, diags)
+				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, diags)
 			}
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
@@ -2402,40 +2467,37 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		return nil, cty.NilVal, statusAbsent, diags
 	}
 
-	return readImported(ctx, provider, schema, typeName, importID, obj, tagsSeed, tagsSeedOK, attrsSeed, diags)
+	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, diags)
 }
 
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
 // the stub either ImportResourceState produced or
 // [noimporter.SynthesizeStub] built in its place, then everything a
 // projection owes the value that comes back. Split out so the synthesized
-// path can reach the exact same tags-seeding, sensitivity-marking and
+// path can reach the exact same attribute-seeding, sensitivity-marking and
 // conformance-checking rules an ordinarily-imported instance already gets,
 // with no second copy to drift from the first.
-func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, tagsSeed cty.Value, tagsSeedOK bool, attrsSeed map[string]cty.Value, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
-	// GitHub issue #287 item 8. ImportResourceState commonly leaves "tags"
-	// null or empty on the stub it returns - it has no configuration to
+func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+	// GitHub issue #287 item 8 (tags), #395 and #376 (every other
+	// non-Computed attribute - see [configuredAttrsSeed]'s doc comment).
+	// ImportResourceState commonly leaves a non-Computed argument null or
+	// zero-valued on the stub it returns - it has no configuration to
 	// consult, only the identity it was given - and a provider whose
-	// ReadResource treats PriorState.tags as the signal for "which raw tags
-	// were explicitly declared, as opposed to arriving through the
-	// provider's own default_tags" then has no signal at all: every raw tag
-	// whose VALUE happens to match a default_tags entry reads as
-	// default-derived, even one the configuration also declares explicitly.
-	// A resource with real, persisted state never hits this - its state
-	// already carries the tags the resource was created with, so an
-	// ordinary refresh's PriorState.tags carries the same signal a live
-	// create's response would. choudoufu has no such state: every plan
-	// re-derives prior state through exactly this call, so a projection
-	// that skipped this step would hit the ambiguity on every single plan,
-	// permanently, for any stamped resource whose configuration happens to
-	// redeclare a default_tags key - precisely GitHub issue #287's repro
-	// shape. Seeding PriorState.tags with what the configuration actually
-	// declares, when that is statically known, makes this call see what a
-	// genuinely persisted state would have shown.
-	if tagsSeedOK {
-		if seeded, ok := withSeededTags(obj.Value, tagsSeed); ok {
-			obj.Value = seeded
-		}
+	// ReadResource behavior depends on what PriorState already held for
+	// such an argument (preserving a tag's provenance, preserving a
+	// format, or simply never sourcing the argument from the remote at
+	// all) then has no signal at all. A resource with real, persisted
+	// state never hits this - its state already carries the argument's
+	// own last-applied value, so an ordinary refresh's PriorState carries
+	// the same signal a live create's response would. choudoufu has no
+	// such state: every plan re-derives prior state through exactly this
+	// call, so a projection that skipped this step would hit the
+	// ambiguity on every single plan, permanently. Seeding PriorState with
+	// what the configuration actually declares, for every attribute where
+	// that is statically known and safe (never Computed), makes this call
+	// see what a genuinely persisted state would have shown.
+	if seeded, ok := withSeededAttrs(obj.Value, attrsSeed); ok {
+		obj.Value = seeded
 	}
 	if len(attrsSeed) > 0 {
 		if seeded, ok := withSeededAttrs(obj.Value, attrsSeed); ok {
