@@ -82,6 +82,48 @@ func TestSecretsFor(t *testing.T) {
 	}
 }
 
+// TestSecretsForPin extends [TestSecretsFor] with GitHub issue #365's
+// environment pin (internal/live/strict.EnvPin): test (b) and (c) of the
+// pinnable-from-environment acceptance criteria, at this function's own
+// layer. Test (a) - the loud refusal for an explicit relaxing value - is
+// internal/live/lint's, not this function's; see [SecretsFor]'s "Why the
+// pin does not clamp an explicit value" for why an explicit "store" while
+// pinned still comes back unchanged from here.
+func TestSecretsForPin(t *testing.T) {
+	t.Run("pin unset: today's behavior, byte-identical", func(t *testing.T) {
+		if got, want := SecretsFor(nil), strict.DefaultSecrets; got != want {
+			t.Errorf("SecretsFor(nil) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("pin set, configuration silent: strict applies", func(t *testing.T) {
+		t.Setenv(strict.EnvPin, "1")
+		for _, tc := range []struct {
+			name string
+			cfg  *configs.Config
+		}{
+			{"nil configuration", nil},
+			{"no live block", cfgWithStrict(nil, false)},
+			{"live block, no strict block", cfgWithStrict(nil, true)},
+			{"strict block, argument omitted", cfgWithStrict(&configs.LiveStrict{}, true)},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if got, want := SecretsFor(tc.cfg), strict.Refuse; got != want {
+					t.Errorf("SecretsFor() with the pin set = %q, want %q", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("pin set, configuration explicitly relaxes: this function still returns what the configuration wrote", func(t *testing.T) {
+		t.Setenv(strict.EnvPin, "1")
+		cfg := cfgWithStrict(&configs.LiveStrict{Secrets: "store", SecretsSet: true}, true)
+		if got, want := SecretsFor(cfg), strict.Store; got != want {
+			t.Errorf("SecretsFor() = %q, want %q - the pin's refusal for this case is internal/live/lint's, not this function's", got, want)
+		}
+	})
+}
+
 // TestSecretsForReadsOnlyTheRootModule is [SelectionFor]'s own rule applied
 // to this setting: a live block in a child module is refused outright by
 // internal/live/lint's RuleChildLiveConfig, and every other consumer of a
@@ -137,6 +179,34 @@ func TestNoSourceCreateFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNoSourceCreateForPin is [TestSecretsForPin]'s twin. Unlike secrets,
+// pinning changes nothing for a SILENT configuration here: DefaultNoSourceCreate
+// was already NoSourceRefuse before the environment pin existed, so this
+// case is worth asserting precisely because it looks like it should do
+// nothing and does.
+func TestNoSourceCreateForPin(t *testing.T) {
+	t.Run("pin unset: today's behavior, byte-identical", func(t *testing.T) {
+		if got, want := NoSourceCreateFor(nil), strict.DefaultNoSourceCreate; got != want {
+			t.Errorf("NoSourceCreateFor(nil) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("pin set, configuration silent: strict applies (unchanged from the default)", func(t *testing.T) {
+		t.Setenv(strict.EnvPin, "1")
+		if got, want := NoSourceCreateFor(cfgWithStrict(&configs.LiveStrict{}, true)), strict.NoSourceRefuse; got != want {
+			t.Errorf("NoSourceCreateFor() with the pin set = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("pin set, configuration explicitly relaxes: this function still returns what the configuration wrote", func(t *testing.T) {
+		t.Setenv(strict.EnvPin, "1")
+		cfg := cfgWithStrict(&configs.LiveStrict{NoSourceCreate: "create", NoSourceCreateSet: true}, true)
+		if got, want := NoSourceCreateFor(cfg), strict.NoSourceCreateOn; got != want {
+			t.Errorf("NoSourceCreateFor() = %q, want %q - the pin's refusal for this case is internal/live/lint's, not this function's", got, want)
+		}
+	})
 }
 
 // TestNoSourceCreateForReadsOnlyTheRootModule mirrors
