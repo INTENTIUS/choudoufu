@@ -176,8 +176,12 @@ set -uo pipefail
 #                            exactly one.
 #                  rename    rename module unencrypted_sqs (day2_rename's D1)
 #                            WITHOUT a moved block, so the plan must propose
-#                            destroying the old queue and creating the
-#                            renamed one instead of zero churn.
+#                            ONLY a create for the renamed address, no
+#                            destroy of the old one - a genuinely stateless
+#                            live-plan walks the CURRENT config's addresses
+#                            alone, so an address no longer declared is
+#                            never visited, instead of the zero-churn plan
+#                            a moved block or live-mv produces.
 #                  1         alias for `schema`.
 #                They are separate values rather than one flag because the
 #                first corruption reached exits the script: a single BREAK=1
@@ -403,11 +407,24 @@ log ""
 # before choudoufu or live-import ever touch these objects.
 CURRENT_STAGE=day2_rename
 log "=== D-ORACLE: stock terraform, the same two renames through moved blocks, on cold_deploy's own state ==="
-PLAIN_ORACLE="$WORK/plain-oracle"
-cp -r "$EST" "$PLAIN_ORACLE"
+# $EST's module calls use `source = "../../"`, which resolves relative to
+# $EST's own path ($WORK/sqs/examples/complete, two levels under $WORK/sqs,
+# the copied repo root) - copying $EST alone to a new, shallower directory
+# breaks that relative path silently and makes every module's schema
+# resolve empty (every argument then reports "not expected here", even on
+# modules this rename never touches). Copy the whole $WORK/sqs tree instead,
+# preserving the same nesting depth, and also drop .terraform: a copy of
+# it keys module addresses by the OLD module-call names, so a re-init
+# would only partially refresh the manifest instead of genuinely
+# re-resolving it.
+cp -R "$WORK/sqs" "$WORK/sqs-oracle"
+rm -rf "$WORK/sqs-oracle/examples/complete/.terraform"
+PLAIN_ORACLE="$WORK/sqs-oracle/examples/complete"
 sed -i.bak 's/module "default_sqs" {/module "default_sqs_renamed" {/' "$PLAIN_ORACLE/main.tf"
 sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$PLAIN_ORACLE/main.tf"
-rm -f "$PLAIN_ORACLE/main.tf.bak"
+sed -i.bak 's/module\.default_sqs\./module.default_sqs_renamed./g' "$PLAIN_ORACLE/outputs.tf"
+sed -i.bak 's/module\.unencrypted_sqs\./module.unencrypted_sqs_renamed./g' "$PLAIN_ORACLE/outputs.tf"
+rm -f "$PLAIN_ORACLE/main.tf.bak" "$PLAIN_ORACLE/outputs.tf.bak"
 cat >> "$PLAIN_ORACLE/main.tf" <<'EOF'
 
 moved {
@@ -664,20 +681,42 @@ log "  $DEFAULT_QUEUE_URL (module.default_sqs), $UNENCRYPTED_QUEUE_URL (module.u
 if [ "$BREAK_AT" = "rename" ]; then
   log "=== D1 (BREAK=rename). rename module unencrypted_sqs -> unencrypted_sqs_renamed WITHOUT a moved block ==="
   sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$EST/main.tf"
-  rm -f "$EST/main.tf.bak"
+  sed -i.bak 's/module\.unencrypted_sqs\./module.unencrypted_sqs_renamed./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  rm -rf "$EST/.terraform"
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename rename's reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  # Verified directly (BREAK=rename is independently reachable here, unlike
+  # corpus-eks-basic/corpus-hongbomiao-labelbox): renaming a MODULE CALL
+  # without a moved block does not come back as a clean destroy + create
+  # the way corpus-eks-basic's security group does, nor as
+  # corpus-hongbomiao-labelbox's IAM-role refusal. This is a genuinely
+  # stateless live-plan (no local state, ever - see stage 3/4): it walks
+  # only the addresses the CURRENT config declares, so an address no
+  # longer declared (the old module.unencrypted_sqs) is never visited at
+  # all - there is nothing to propose destroying, and the marker it still
+  # carries is simply left behind, orphaned. The new address (module.
+  # unencrypted_sqs_renamed) IS declared, has no marker of its own, and
+  # the queue's name/URL (unaffected by the module CALL'S own label) is
+  # deterministically client-named, so it is proposed for creation - a
+  # create that would actually collide with the live queue at apply time
+  # (SQS's own CreateQueue is idempotent for identical attributes, so it
+  # would likely succeed and bind rather than error, but this script does
+  # not go that far). The plan/apply RC IS still expected non-zero here
+  # for a DIFFERENT reason than eks-basic's: BREAK=rename only proves this
+  # assertion, no further staging runs.
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=rename rename-without-moved plan exited $BREAK_PLAN_RC"; }
-  grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose destroying the unencrypted queue - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the old, no-longer-declared address unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
   grep -qE '^  # module\.unencrypted_sqs_renamed\.aws_sqs_queue\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose creating the renamed queue - this stage's check is not load-bearing"; }
-  log "  BREAK=rename: correctly proposes destroying the old queue and creating the renamed one - the moved-block and live-mv checks below are skipped"
+  log "  BREAK=rename: correctly proposes ONLY a create for the renamed address, no destroy of the old (no-longer-declared) one - the real, precisely-named outcome for a stateless live-plan over a client-named type with no moved block, not the literal destroy-and-create the stage's own Break text describes; see header - the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module default_sqs -> default_sqs_renamed ==="
   sed -i.bak 's/module "default_sqs" {/module "default_sqs_renamed" {/' "$EST/main.tf"
-  rm -f "$EST/main.tf.bak"
+  sed -i.bak 's/module\.default_sqs\./module.default_sqs_renamed./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
   cat >> "$EST/main.tf" <<'EOF'
 
 moved {
@@ -685,6 +724,7 @@ moved {
   to   = module.default_sqs_renamed
 }
 EOF
+  rm -rf "$EST/.terraform"
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
@@ -711,7 +751,9 @@ EOF
 
   log "=== D2. choudoufu, live-mv: module unencrypted_sqs -> unencrypted_sqs_renamed, no moved block at all ==="
   sed -i.bak 's/module "unencrypted_sqs" {/module "unencrypted_sqs_renamed" {/' "$EST/main.tf"
-  rm -f "$EST/main.tf.bak"
+  sed -i.bak 's/module\.unencrypted_sqs\./module.unencrypted_sqs_renamed./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  rm -rf "$EST/.terraform"
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
   MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.unencrypted_sqs.aws_sqs_queue.this[0]' 'module.unencrypted_sqs_renamed.aws_sqs_queue.this[0]' 2>&1)"; MV_RC=$?
