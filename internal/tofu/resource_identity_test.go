@@ -425,7 +425,7 @@ resource "test_object" "a" {
 }
 
 // TestContext2Plan_resourceIdentityResolverGenuineErrorStaysFatal is edge
-//2's other half: a provider error that is NOT shaped like an ordinary
+// 2's other half: a provider error that is NOT shaped like an ordinary
 // absence - a credentials failure, a malformed request, an actual failure
 // to answer - must still abort the plan exactly as it did before this
 // edge's fix. Tolerating absence must never widen into tolerating an
