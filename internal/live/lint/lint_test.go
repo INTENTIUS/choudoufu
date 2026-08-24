@@ -251,6 +251,37 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
+			// GitHub issue #365 ruling 4. The default written out by hand,
+			// #101's lesson once more.
+			name: "strict no_source_create, the default written out explicitly",
+			dir:  "testdata/strict-nosourcecreate-refuse",
+			want: nil,
+		},
+		{
+			// The toggle turned on. Clean at this layer: it is a valid,
+			// implemented setting, and what it changes is the plan-node
+			// seam's own behavior (internal/live/projection.NodeResolver),
+			// not anything lint refuses.
+			name: "strict no_source_create, the toggle turned on",
+			dir:  "testdata/strict-nosourcecreate-create",
+			want: nil,
+		},
+		{
+			// A setting outside the vocabulary altogether. The only shape
+			// RuleStrictNoSourceCreate has - both defined settings are
+			// implemented.
+			name: "strict no_source_create outside the vocabulary",
+			dir:  "testdata/strict-nosourcecreate-invalid",
+			want: []wantIssue{
+				{
+					rule:      RuleStrictNoSourceCreate,
+					construct: `strict.no_source_create = "maybe"`,
+					file:      "testdata/strict-nosourcecreate-invalid/main.tf",
+					line:      10,
+				},
+			},
+		},
+		{
 			name: "logical resources, one per banned prefix",
 			dir:  "testdata/logical",
 			want: []wantIssue{

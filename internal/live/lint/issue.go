@@ -174,6 +174,13 @@ const (
 	// issue #365. See strict.go.
 	RuleStrictSecrets Rule = "strict-secrets"
 
+	// RuleStrictNoSourceCreate covers a live block's strict block whose
+	// no_source_create argument names something outside
+	// internal/live/strict's vocabulary. Both settings the vocabulary
+	// defines are implemented, so like [RuleStrictSecrets] there is only
+	// one shape here: a typo. GitHub issue #365, ruling 4. See strict.go.
+	RuleStrictNoSourceCreate Rule = "strict-no-source-create"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -377,6 +384,10 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictSecrets: {
 		summary: "Secrets setting is not one this fork's schema defines",
 		docsRef: `live/LIMITATIONS.md, "strict-secrets"`,
+	},
+	RuleStrictNoSourceCreate: {
+		summary: "No-source-create setting is not one this fork's schema defines",
+		docsRef: `live/LIMITATIONS.md, "strict-no-source-create"`,
 	},
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",

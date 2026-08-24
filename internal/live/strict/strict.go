@@ -323,3 +323,69 @@ func ImplementedNames() string {
 	sort.Strings(out)
 	return strings.Join(out, ", ")
 }
+
+// NoSourceCreate is what a run does when an instance has no record, no live
+// marker, and an identity nothing - neither the static evaluator nor
+// GitHub issue #388's plan-node seam - can derive from its configuration.
+// Ruling 4 of rfc/20260823-foundation-order-ruling.md.
+//
+// HANDOFF.md's safety rule is why the default refuses rather than creates:
+// a genuinely new instance and a real one this run simply cannot see yet
+// are indistinguishable from where this toggle is read, and creating a
+// second copy of a real object is the "wrong marker" failure the rule
+// exists to prevent, wearing a create's clothes instead of a marker's.
+type NoSourceCreate string
+
+const (
+	// Refuse is the default: the instance is reported, by name, as unable
+	// to be planned, naming both remedies - running `choudoufu live-import`
+	// from the stock state that already holds it, or setting this toggle.
+	NoSourceRefuse NoSourceCreate = "refuse"
+
+	// Create selects stock OpenTofu's own behavior for a resource with no
+	// prior state: plan a create. It is the toggle, not the default,
+	// because HANDOFF.md's principles are toggles and this is the first
+	// one of them - "never write a wrong marker" - pointed at a create
+	// instead of at a marker.
+	NoSourceCreateOn NoSourceCreate = "create"
+)
+
+// DefaultNoSourceCreate is what an omitted no_source_create argument means,
+// and therefore what every configuration written before this toggle
+// existed keeps getting: [NoSourceRefuse], today's behavior.
+const DefaultNoSourceCreate = NoSourceRefuse
+
+var noSourceCreateSettings = map[NoSourceCreate]bool{
+	NoSourceRefuse:   true,
+	NoSourceCreateOn: true,
+}
+
+// NoSourceCreateValid reports whether v is one of the two settings this
+// fork's schema defines.
+func NoSourceCreateValid(v NoSourceCreate) bool {
+	return noSourceCreateSettings[v]
+}
+
+// NoSourceCreateNames renders the vocabulary for a diagnostic, sorted so
+// the message is stable: `"create", "refuse"`.
+func NoSourceCreateNames() string {
+	out := make([]string, 0, len(noSourceCreateSettings))
+	for v := range noSourceCreateSettings {
+		out = append(out, `"`+string(v)+`"`)
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
+}
+
+// CreatesFromNoSource reports whether v is the setting under which a
+// no-source instance is planned as a create instead of refused.
+//
+// A function over the type rather than a `v == NoSourceCreateOn` at each call site
+// for [StoresSecrets]'s own reason: the zero value, NoSourceCreate(""),
+// answers false here while [DefaultNoSourceCreate] answers true, so a
+// layer holding no configuration never concludes the operator asked to
+// relax the refusal. Every layer that CAN read the configuration resolves
+// an omitted argument to [DefaultNoSourceCreate] first.
+func CreatesFromNoSource(v NoSourceCreate) bool {
+	return v == NoSourceCreateOn
+}

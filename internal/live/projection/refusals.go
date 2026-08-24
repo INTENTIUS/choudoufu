@@ -130,6 +130,10 @@ var refusals = []Refusal{
 		What:    "An owned-but-undeclared resource was found whose provider this run has no handle for, so its current state cannot be read. Reported as a warning: the sweep still knows the resource exists.",
 	},
 	{
+		Summary: "No source for this instance's identity",
+		What:    "GitHub issue #388's plan-node seam ([NodeResolver], ruling 4/#365) found no record, no live marker, and no identity this run could derive from the instance's own evaluated configuration. Refused by default, because nothing here can tell a genuinely new instance apart from a real one this run simply cannot see yet; strict { no_source_create = \"create\" } selects stock's own behavior (plan a create) instead.",
+	},
+	{
 		Summary: "No state returned by the provider",
 		What:    "A provider read or import returned no object at all, so there is nothing to project for that resource.",
 	},

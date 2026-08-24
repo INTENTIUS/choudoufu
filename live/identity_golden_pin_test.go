@@ -2021,7 +2021,18 @@ const (
 	// proving checkIgnoreChanges declines the per-key ignore_changes shape
 	// internal/live/stamp now synthesizes the same way it already declines
 	// the whole-tags shape.
-	identityGoldenPinDirs = 590
+	//
+	// 590 -> 595 for GitHub issue #388's wiring unit (ruling 3, the
+	// plan-node seam): five new fixture directories, none producing an
+	// admitted managed instance - internal/live/identity/testdata/
+	// node-seam-computed-boundary (the fixture proving the static
+	// evaluator refuses a shape the node-seam's ComponentsFromValue
+	// resolves), internal/live/lint/testdata/strict-nosourcecreate-refuse/
+	// -create/-invalid (GitHub issue #365 ruling 4's no_source_create
+	// toggle), and live/e2e/limits/strict-no-source-create (that toggle's
+	// limits-wing fixture). identityGoldenPinInstances is unchanged at
+	// 1695: none of the five resolves a managed instance identity.
+	identityGoldenPinDirs = 595
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

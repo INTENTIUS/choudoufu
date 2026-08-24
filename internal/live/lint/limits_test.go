@@ -86,6 +86,9 @@ var enforcedLimits = map[string]Rule{
 	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
 	// "strict-secrets".
 	"strict-secrets":   RuleStrictSecrets,
+	// GitHub issue #365 ruling 4 (rfc/20260823-foundation-order-ruling.md).
+	// See live/LIMITATIONS.md, "strict-no-source-create".
+	"strict-no-source-create": RuleStrictNoSourceCreate,
 	"policy-scope":     RulePolicyScope,
 	"policy-threshold": RulePolicyThreshold,
 	// GitHub issue #365's first strict-profile toggle. The fixture sets

@@ -77,3 +77,27 @@ func SecretsFor(cfg *configs.Config) strict.Secrets {
 	}
 	return v
 }
+
+// NoSourceCreateFor is [SecretsFor]'s twin for GitHub issue #365's ruling-4
+// toggle: an omitted argument, an absent strict block and an absent live
+// block all answer [strict.DefaultNoSourceCreate] ("refuse"), for the exact
+// reasons [SecretsFor]'s own doc comment gives for its setting - an absent
+// configuration means today's behavior, and a spelling
+// internal/live/strict does not know has already been refused by
+// internal/live/lint (RuleStrictNoSourceCreate), so a caller reaching here
+// with one has skipped lint and the honest answer is still the default
+// rather than a guess at which way the operator meant to move.
+func NoSourceCreateFor(cfg *configs.Config) strict.NoSourceCreate {
+	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil || cfg.Module.Live.Strict == nil {
+		return strict.DefaultNoSourceCreate
+	}
+	st := cfg.Module.Live.Strict
+	if !st.NoSourceCreateSet {
+		return strict.DefaultNoSourceCreate
+	}
+	v := strict.NoSourceCreate(st.NoSourceCreate)
+	if !strict.NoSourceCreateValid(v) {
+		return strict.DefaultNoSourceCreate
+	}
+	return v
+}
