@@ -52,14 +52,21 @@ func TestComponentsFromValueMatchesDocumentedImportSyntax(t *testing.T) {
 	}
 }
 
-// TestComponentsFromValuePortNullIsNotFound is HANDOFF's fifth row read
-// honestly: a Lambda target genuinely has no port in real AWS, so a null
-// port (no OmitIfAbsent on that component - see table_generated.go) must
-// report ok=false, the same refusal the static evaluator gives an absent
-// required component, not a guessed empty string. See the gauntlet detail
-// for corpus-alb-complete (live/gauntlet.json): "a lambda target genuinely
-// has no port... the null is the honest answer, not a defect."
-func TestComponentsFromValuePortNullIsNotFound(t *testing.T) {
+// TestComponentsFromValuePortNullOmits is issue #399's maintainer ruling,
+// applied to the node-seam's evaluated-value resolver the same way
+// TestTargetGroupAttachmentPortOmitIfAbsent (identity_test.go's sibling
+// file) applies it to the static one: a Lambda target genuinely has no
+// port in real AWS (botocore's elbv2 2015-12-01 model documents
+// TargetDescription.Port and CreateTargetGroupInput.Port as both not
+// applying to a Lambda-type target), and a lambda target group holds one
+// target and no port, so two attachments differing only by port is
+// structurally impossible for that shape - the collision OmitIfAbsent's
+// safety margin exists for cannot occur here. Before this ruling the port
+// component carried no OmitIfAbsent and this test pinned the refusal that
+// produced (git history: TestComponentsFromValuePortNullIsNotFound); the
+// row now carries it, so a null port omits the segment instead, the same
+// two-field form the static evaluator renders.
+func TestComponentsFromValuePortNullOmits(t *testing.T) {
 	row, _ := LookupType("aws_lb_target_group_attachment")
 
 	val := cty.ObjectVal(map[string]cty.Value{
@@ -70,8 +77,16 @@ func TestComponentsFromValuePortNullIsNotFound(t *testing.T) {
 		"quic_server_id":    cty.NullVal(cty.String),
 	})
 
-	if _, _, ok := ComponentsFromValue(row, val); ok {
-		t.Fatalf("expected not-found for a null, non-OmitIfAbsent port; a null port is not identical to zero")
+	importID, values, ok := ComponentsFromValue(row, val)
+	if !ok {
+		t.Fatalf("ComponentsFromValue reported not-found for a lambda-target instance whose two required components are both present")
+	}
+	wantID := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/example/0123456789abcdef,lambda-arn"
+	if importID != wantID {
+		t.Errorf("importID = %q, want %q - the two-field form, no trailing separator where port used to sit", importID, wantID)
+	}
+	if _, present := values["port"]; present {
+		t.Errorf("port should be absent from values (OmitIfAbsent, null), got %q", values["port"])
 	}
 }
 

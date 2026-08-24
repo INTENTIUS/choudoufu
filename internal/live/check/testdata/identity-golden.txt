@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=610 instances=1712
-# shape: class CONCRETE=824
+# shape: dirs=611 instances=1714
+# shape: class CONCRETE=826
 # shape: class NEEDS_DISCOVERY=728
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=a946bbb2d273cf74849c0aa35845ef416afbe9cfd6f91e7a08313a75d5fb3590
+# shape: body-sha256=8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -588,6 +588,8 @@ internal/live/identity/testdata/static-module/net	aws_s3_bucket.data	CONCRETE	to
 internal/live/identity/testdata/static-module/net	aws_s3_bucket_policy.data	CONCRETE	tofu-stateless-static-module-net-data	bucket=tofu-stateless-static-module-net-data
 internal/live/identity/testdata/static-module/net	module.inner.aws_s3_bucket.leaf	CONCRETE	tofu-stateless-static-module-inner-leaf	bucket=tofu-stateless-static-module-inner-leaf
 internal/live/identity/testdata/static-module/net/inner	aws_s3_bucket.leaf	CONCRETE	tofu-stateless-static-module-inner-leaf	bucket=tofu-stateless-static-module-inner-leaf
+internal/live/identity/testdata/target-group-attachment-lambda-port	aws_lb_target_group_attachment.instance	CONCRETE	arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/inst-tg/def456,i-0123456789abcdef0,80	port=80,target_group_arn=arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/inst-tg/def456,target_id=i-0123456789abcdef0
+internal/live/identity/testdata/target-group-attachment-lambda-port	aws_lb_target_group_attachment.lambda	CONCRETE	arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/lambda-tg/abc123,arn:aws:lambda:us-east-1:123456789012:function:my-function	target_group_arn=arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/lambda-tg/abc123,target_id=arn:aws:lambda:us-east-1:123456789012:function:my-function
 internal/live/identity/testdata/target-group-attachment-optional	aws_alb_target_group_attachment.base	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080	port=8080,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0
 internal/live/identity/testdata/target-group-attachment-optional	aws_lb_target_group_attachment.base	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080	port=8080,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0
 internal/live/identity/testdata/target-group-attachment-optional	aws_lb_target_group_attachment.with_az	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080,us-west-2a	availability_zone=us-west-2a,port=8080,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0

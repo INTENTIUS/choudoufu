@@ -164,9 +164,7 @@
         "identity_attr": "*"
       },
       {
-        "literal": ","
-      },
-      {
+        "literal": ",",
         "attrs": [
           "port"
         ],
@@ -7704,9 +7702,7 @@
         "identity_attr": "*"
       },
       {
-        "literal": ","
-      },
-      {
+        "literal": ",",
         "attrs": [
           "port"
         ],
