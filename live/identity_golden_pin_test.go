@@ -774,7 +774,14 @@ var identityGoldenPin = map[string]int{
 	// formula and the resolution downgrades to NEEDS_DISCOVERY rather than erroring,
 	// the same graceful path any other unresolvable-offline config-identified
 	// instance takes.
-	"NEEDS_DISCOVERY": 735,
+	//
+	// 736, up from 735 ([gauntlet:reference-ec2-vpc/greenfield]):
+	// internal/live/discovery/testdata/propagated-child-marker's
+	// aws_instance.main, a bare server-assigned EC2 instance - reference-ec2-vpc's
+	// own greenfield shape - which resolves offline to no identity at all and so
+	// defers to the live read, the way every other unmarked server-assigned
+	// instance in this file does.
+	"NEEDS_DISCOVERY": 736,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1404,7 +1411,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "026129693d81c6a714e48f6151535324a6e315cc0177a2a81f245126e87fe2c2" // merge union of gauntlet:destroy-order and [gauntlet:corpus-dynamodb-table-basic/day2_remove]: on top of the destroy-order rows, four ADDED rows (two NEEDS_DISCOVERY, two RECORD_BACKED) in the new fixtures internal/live/identity/testdata/parent-derived-parent-attr and .../parent-derived-parent-attr-unknown, golden regenerated over the merged fixture set and `git diff` against pre-merge main shows exactly those four lines added and nothing else changed. Previously "0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15" // gauntlet:destroy-order: two ADDED CONCRETE rows, aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the new fixture internal/live/moved/testdata/fork, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "c8a3aacc699c40cd9aeac65fd68018fbcc1292d19c6b2a81c806e0e8a32b46c7" // [gauntlet:reference-ec2-vpc/greenfield]: one ADDED NEEDS_DISCOVERY row, aws_instance.main in the new fixture internal/live/discovery/testdata/propagated-child-marker (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly that line added and nothing else changed - "0 identities changed, 1 added, 0 removed". Previously "026129693d81c6a714e48f6151535324a6e315cc0177a2a81f245126e87fe2c2" // merge union of gauntlet:destroy-order and [gauntlet:corpus-dynamodb-table-basic/day2_remove]: on top of the destroy-order rows, four ADDED rows (two NEEDS_DISCOVERY, two RECORD_BACKED) in the new fixtures internal/live/identity/testdata/parent-derived-parent-attr and .../parent-derived-parent-attr-unknown, golden regenerated over the merged fixture set and `git diff` against pre-merge main shows exactly those four lines added and nothing else changed. Previously "0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15" // gauntlet:destroy-order: two ADDED CONCRETE rows, aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the new fixture internal/live/moved/testdata/fork, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -2076,7 +2083,11 @@ const (
 	// two per new fixture (parent-derived-parent-attr and
 	// parent-derived-parent-attr-unknown). "0 identities changed, 4 added, 0
 	// removed" on the merge.
-	identityGoldenPinInstances = 1727
+	// Then 1727 -> 1728, [gauntlet:reference-ec2-vpc/greenfield]: one new
+	// instance, aws_instance.main in the new fixture
+	// internal/live/discovery/testdata/propagated-child-marker. "0 identities
+	// changed, 1 added, 0 removed".
+	identityGoldenPinInstances = 1728
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2419,7 +2430,10 @@ const (
 	// internal/live/identity/testdata/parent-derived-parent-attr and
 	// .../parent-derived-parent-attr-unknown (identityGoldenPinInstances
 	// moves in step - see its own note).
-	identityGoldenPinDirs = 626
+	// Then 626 -> 627, [gauntlet:reference-ec2-vpc/greenfield]: one new
+	// fixture, internal/live/discovery/testdata/propagated-child-marker
+	// (identityGoldenPinInstances moves in step - see its own note).
+	identityGoldenPinDirs = 627
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
