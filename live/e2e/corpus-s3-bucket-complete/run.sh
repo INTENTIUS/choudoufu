@@ -37,15 +37,18 @@ set -uo pipefail
 #                     makes possible to create in the first place),
 #                     replanned, asserted to propose fixing exactly that
 #                     one instance and nothing else, then reconverged.
-#   6. RENAME         (day2_rename, live/GAUNTLET.md #6) module.log_bucket
-#                     renamed to module.log_bucket_renamed through a `moved`
-#                     block; module.simple_bucket renamed to
-#                     module.simple_bucket_renamed through `choudoufu live-mv`
-#                     with no moved block at all. Both zero churn: the
-#                     bucket's own tofu-address marker is rewritten in place,
-#                     nothing is created or destroyed, and a further plan is
-#                     empty. module.cloudfront_log_bucket and module.s3_bucket
-#                     are left untouched as negative-control anchors.
+#   6. RENAME         (day2_rename, live/GAUNTLET.md #6) module.cloudfront_
+#                     log_bucket renamed to module.cloudfront_log_bucket_
+#                     renamed through a `moved` block; module.simple_bucket
+#                     renamed to module.simple_bucket_renamed through
+#                     `choudoufu live-mv` with no moved block at all. Both
+#                     zero churn: the bucket's own tofu-address marker is
+#                     rewritten in place, nothing is created or destroyed,
+#                     and a further plan is empty. module.log_bucket and
+#                     module.s3_bucket are left untouched as negative-control
+#                     anchors (module.log_bucket, specifically, because
+#                     renaming it exposes a distinct real defect - see the
+#                     ANOTHER WALL note above stage 6's own code, issue #404).
 #
 # Six real defects this estate found on first contact with a cloud. Four
 # are fixed (three landed ahead of this script on this same branch; the
@@ -756,24 +759,28 @@ gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exac
 # STAGE 6: RENAME (day2_rename, active - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
-# Two of the four real buckets: a `moved` block renames the whole
-# module.log_bucket call to module.log_bucket_renamed - moving every one of
-# its instances, the bucket itself plus its untaggable, parent-derived
-# siblings (ownership controls, the attached policies), in one statement,
-# the same way OpenTofu's own moved-block mechanism moves a whole module -
-# and "choudoufu live-mv" renames module.simple_bucket to
-# module.simple_bucket_renamed with no moved block at all, rewriting only
-# the ONE taggable instance inside it (aws_s3_bucket.this[0]; its untaggable
-# siblings carry no marker to rewrite and re-resolve against their live
-# parent bucket regardless of which address their own resource block now
-# sits at - the same "parent-derived" identity the header's stage-2 tally
-# already documents for this estate's 23 untaggable-by-design instances).
-# module.cloudfront_log_bucket and module.s3_bucket are left untouched as
-# negative-control anchors. module.simple_bucket is chosen for the live-mv
-# leg because nothing else in the estate references its module output;
-# module.log_bucket IS referenced once, by module.s3_bucket's own
-# logging.target_bucket argument, which the same sed pass below updates for
-# the moved-block leg.
+# Two of the four real buckets: a `moved` block renames
+# module.cloudfront_log_bucket's own bucket instance to
+# module.cloudfront_log_bucket_renamed, and "choudoufu live-mv" renames
+# module.simple_bucket to module.simple_bucket_renamed with no moved block
+# at all, rewriting only the ONE taggable instance inside it
+# (aws_s3_bucket.this[0]; its untaggable siblings carry no marker to
+# rewrite and re-resolve against their live parent bucket regardless of
+# which address their own resource block now sits at - the same
+# "parent-derived" identity the header's stage-2 tally already documents
+# for this estate's 23 untaggable-by-design instances). module.log_bucket
+# and module.s3_bucket are left untouched as negative-control anchors.
+#
+# Both renamed modules are picked deliberately for having no
+# aws_s3_bucket_policy of their own (neither sets any attach_*_policy
+# argument) and no external reference to their own module output - unlike
+# module.log_bucket, whose aws_s3_bucket_policy is built from several
+# data.aws_iam_policy_document sources that each read
+# aws_s3_bucket.this[0].arn (main.tf's own resource, lines 693-1147 in the
+# module source) - the SAME instance the rename just moved. A first attempt
+# at this stage renamed module.log_bucket instead and hit exactly that: a
+# real, distinct wall, not this stage's own defect - see the ANOTHER WALL
+# note below.
 #
 # Two address grammars appear below and must not be confused: the `moved`
 # block and live-mv's own command-line arguments use plain OpenTofu
@@ -783,6 +790,33 @@ gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exac
 # tofu-address MARKER value itself uses choudoufu's own serialization
 # (module.simple_bucket.aws_s3_bucket.this:0, colon-indexed - confirmed
 # against the live tag read back in stage 2b's own log above, not assumed).
+#
+# ANOTHER WALL (choudoufu, real, not this stage's to fix): renaming
+# module.log_bucket the same way - a resource-level `moved` block onto
+# module.log_bucket_renamed.aws_s3_bucket.this[0], the exact grammar this
+# stage uses for module.cloudfront_log_bucket - makes the SAME plan also
+# propose an in-place update to module.log_bucket_renamed.aws_s3_bucket_
+# policy.this[0], stripping every statement from its policy: `~ policy =
+# jsonencode({ - Statement = [ ... ] })`, planning to overwrite an
+# untouched, correct live bucket policy with an empty one. That resource is
+# not part of this rename at all (no moved block names it, and it stays at
+# its own new address - module.log_bucket_renamed.aws_s3_bucket_policy.this
+# [0] - by ordinary parent-derived re-discovery, ordinarily zero-diff, as
+# it was through every earlier stage). The mechanism: its own `policy`
+# argument is built from several data.aws_iam_policy_document sources that
+# each read aws_s3_bucket.this[0].arn - the SAME instance the moved block
+# just renamed - and something in how the renamed instance's ARN threads
+# into a SIBLING data source within the same plan pass drops every
+# statement whose principal/resource depends on it. Reproduced twice
+# (module-level and resource-level moved blocks both hit it identically),
+# confirmed address-specific (the identical resource at its OLD address
+# planned clean through stages 2c/3/4/5, immediately before this stage
+# ever ran), so this is row 2 of HANDOFF's table (the plans differ) in a
+# path this stage does not exercise for real, not a stock-parity gap - a
+# distinct wall from DELTA 3/5/6 and the acl/website gap this script's
+# header already tracks. Filed as choudoufu issue #404; out of this unit's
+# scope to fix (the two real buckets this stage DOES rename, chosen above,
+# never hit it).
 #
 # BREAK=6 exercises this stage's own break control instead of the real
 # checks (a distinct value from BREAK=1, which is already claimed by stage
@@ -802,11 +836,11 @@ log "=== STAGE 6: day2_rename - one bucket module renamed via a moved block, ano
 ESTATE_DIR="$ESTATE/examples/complete"
 
 log "=== D0. capture the tofu-address markers a rename must only rewrite, never destroy ==="
-LOG_ADDR_BEFORE="$(awsl s3api get-bucket-tagging --bucket "logs-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
-[ "$LOG_ADDR_BEFORE" = "module.log_bucket.aws_s3_bucket.this:0" ] || fail "logs-$PET carries tofu-address=$LOG_ADDR_BEFORE before the rename, not module.log_bucket.aws_s3_bucket.this:0"
+CFLOG_ADDR_BEFORE="$(awsl s3api get-bucket-tagging --bucket "cloudfront-logs-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$CFLOG_ADDR_BEFORE" = "module.cloudfront_log_bucket.aws_s3_bucket.this:0" ] || fail "cloudfront-logs-$PET carries tofu-address=$CFLOG_ADDR_BEFORE before the rename, not module.cloudfront_log_bucket.aws_s3_bucket.this:0"
 SIMPLE_ADDR_BEFORE="$(awsl s3api get-bucket-tagging --bucket "simple-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$SIMPLE_ADDR_BEFORE" = "module.simple_bucket.aws_s3_bucket.this:0" ] || fail "simple-$PET carries tofu-address=$SIMPLE_ADDR_BEFORE before the rename, not module.simple_bucket.aws_s3_bucket.this:0"
-log "  before: logs-$PET -> $LOG_ADDR_BEFORE, simple-$PET -> $SIMPLE_ADDR_BEFORE"
+log "  before: cloudfront-logs-$PET -> $CFLOG_ADDR_BEFORE, simple-$PET -> $SIMPLE_ADDR_BEFORE"
 
 if [ "${BREAK:-}" = "6" ]; then
   log "=== D1 (BREAK=6). rename module.simple_bucket -> module.simple_bucket_renamed WITHOUT a moved block or live-mv ==="
@@ -821,19 +855,17 @@ if [ "${BREAK:-}" = "6" ]; then
     || { grep -E '^  # .+ will be' "$BREAK_PLAN_LOG"; fail "BREAK=6: renaming module.simple_bucket without a moved block or live-mv did not propose creating module.simple_bucket_renamed.aws_s3_bucket.this[0] - this stage's check is not load-bearing"; }
   log "  BREAK=6: correctly proposes creating module.simple_bucket_renamed.aws_s3_bucket.this[0] with no marker rewrite - the moved-block and live-mv checks below are skipped"
 else
-  log "=== D1. choudoufu, moved block: module.log_bucket -> module.log_bucket_renamed ==="
-  sed -i.bak 's/^module "log_bucket" {/module "log_bucket_renamed" {/' "$ESTATE_DIR/main.tf"
-  sed -i.bak 's/target_bucket = module\.log_bucket\.s3_bucket_id/target_bucket = module.log_bucket_renamed.s3_bucket_id/' "$ESTATE_DIR/main.tf"
+  log "=== D1. choudoufu, moved block: module.cloudfront_log_bucket -> module.cloudfront_log_bucket_renamed ==="
+  sed -i.bak 's/^module "cloudfront_log_bucket" {/module "cloudfront_log_bucket_renamed" {/' "$ESTATE_DIR/main.tf"
   rm -f "$ESTATE_DIR/main.tf.bak"
   cat >> "$ESTATE_DIR/main.tf" <<'EOF'
 
 moved {
-  from = module.log_bucket
-  to   = module.log_bucket_renamed
+  from = module.cloudfront_log_bucket.aws_s3_bucket.this[0]
+  to   = module.cloudfront_log_bucket_renamed.aws_s3_bucket.this[0]
 }
 EOF
-  grep -q 'module "log_bucket_renamed"' "$ESTATE_DIR/main.tf" || fail "D1 sed did not rename module.log_bucket - the corpus pin has moved"
-  grep -q 'module.log_bucket_renamed.s3_bucket_id' "$ESTATE_DIR/main.tf" || fail "D1 sed did not update the logging.target_bucket reference to module.log_bucket - the corpus pin has moved"
+  grep -q 'module "cloudfront_log_bucket_renamed"' "$ESTATE_DIR/main.tf" || fail "D1 sed did not rename module.cloudfront_log_bucket - the corpus pin has moved"
 
   ( cd "$ESTATE_DIR" && "$TOFU" init -upgrade -input=false -no-color ) > /tmp/s3-day2-d1-init.log 2>&1 || {
     tail -40 /tmp/s3-day2-d1-init.log; fail "the moved-block rename's reinit failed"; }
@@ -842,11 +874,11 @@ EOF
   plan_into "$MOVED_PLAN_LOG" || { grep -vE '^[0-9]{4}-' "$MOVED_PLAN_LOG" | tail -40; fail "the moved-block rename plan exited non-zero"; }
   grep -qE '^  # .+ will be (created|destroyed)' "$MOVED_PLAN_LOG" \
     && { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block rename proposes a create or destroy - not zero churn"; }
-  grep -qE '^  # module\.log_bucket_renamed\.aws_s3_bucket\.this\[0\] will be updated in-place' "$MOVED_PLAN_LOG" \
-    || { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block plan does not propose an in-place update to module.log_bucket_renamed.aws_s3_bucket.this[0]"; }
+  grep -qE '^  # module\.cloudfront_log_bucket_renamed\.aws_s3_bucket\.this\[0\] will be updated in-place' "$MOVED_PLAN_LOG" \
+    || { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block plan does not propose an in-place update to module.cloudfront_log_bucket_renamed.aws_s3_bucket.this[0]"; }
   grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' "$MOVED_PLAN_LOG" \
     || { grep -E '^Plan:|^No changes' "$MOVED_PLAN_LOG"; fail "the moved-block rename plan is not exactly one in-place change"; }
-  grep -qE 'tofu-address.*module\.log_bucket\.aws_s3_bucket\.this:0.*->.*module\.log_bucket_renamed\.aws_s3_bucket\.this:0' "$MOVED_PLAN_LOG" \
+  grep -qE 'tofu-address.*module\.cloudfront_log_bucket\.aws_s3_bucket\.this:0.*->.*module\.cloudfront_log_bucket_renamed\.aws_s3_bucket\.this:0' "$MOVED_PLAN_LOG" \
     || { grep -E 'tofu-address' "$MOVED_PLAN_LOG"; fail "the moved-block plan does not show the bucket's tofu-address marker being rewritten from the old address to the new one"; }
   log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
 
@@ -855,10 +887,10 @@ EOF
   grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
     || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
 
-  LOG_ADDR_AFTER="$(awsl s3api get-bucket-tagging --bucket "logs-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
-  [ "$LOG_ADDR_AFTER" = "module.log_bucket_renamed.aws_s3_bucket.this:0" ] \
-    || fail "logs-$PET carries tofu-address=$LOG_ADDR_AFTER after the moved-block rename, not module.log_bucket_renamed.aws_s3_bucket.this:0"
-  log "  logs-$PET unchanged, tofu-address now module.log_bucket_renamed.aws_s3_bucket.this:0"
+  CFLOG_ADDR_AFTER="$(awsl s3api get-bucket-tagging --bucket "cloudfront-logs-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$CFLOG_ADDR_AFTER" = "module.cloudfront_log_bucket_renamed.aws_s3_bucket.this:0" ] \
+    || fail "cloudfront-logs-$PET carries tofu-address=$CFLOG_ADDR_AFTER after the moved-block rename, not module.cloudfront_log_bucket_renamed.aws_s3_bucket.this:0"
+  log "  cloudfront-logs-$PET unchanged, tofu-address now module.cloudfront_log_bucket_renamed.aws_s3_bucket.this:0"
 
   log "=== D2. choudoufu, live-mv: module.simple_bucket -> module.simple_bucket_renamed, no moved block at all ==="
   sed -i.bak 's/^module "simple_bucket" {/module "simple_bucket_renamed" {/' "$ESTATE_DIR/main.tf"
@@ -891,7 +923,7 @@ EOF
   fi
   log "  no resource action proposed. Both renames are complete and invisible to the next plan."
 
-  gauntlet_stage day2_rename pass "moved block: module.log_bucket renamed to module.log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action"
+  gauntlet_stage day2_rename pass "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action"
 fi
 CURRENT_STAGE=""
 gauntlet_end
