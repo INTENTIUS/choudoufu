@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 7,
+      "clear": 8,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 7,
+          "pass": 8,
           "fail": 0,
-          "not_run": 19
+          "not_run": 18
         },
         "day2_teardown": {
           "pass": 0,
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 24,
-          "fail": 2,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 7,
+      "clear": 8,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 7,
+          "pass": 8,
           "fail": 0,
-          "not_run": 18
+          "not_run": 17
         },
         "day2_teardown": {
           "pass": 0,
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 23,
-          "fail": 2,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -702,28 +702,29 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "81634a7f6580c16a91f86ad8cd6ab8429b9e9689",
-        "date": "2026-08-25T17:39:06Z",
-        "exit_code": 1,
+        "commit": "ddfaef3c6da32f249b97dab3922f611a54ba1a16",
+        "date": "2026-08-25T19:30:09Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration",
           "day2_remove": "choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role LabelboxRole-hm-labelbox -> LabelboxRole-hm-labelbox-v2; policy LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox -> LabelboxRole-hm-labelbox-v2:LabelboxRoleS3Policy-hm-labelbox-v2) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing.",
           "drift_reconverge": "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao",
-          "greenfield": "the greenfield apply failed",
+          "greenfield": "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared",
           "migrate": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file",
           "test_plan": "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"

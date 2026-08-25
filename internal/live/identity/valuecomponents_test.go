@@ -141,6 +141,53 @@ func TestComponentsFromValueUnknownIsNotFound(t *testing.T) {
 	}
 }
 
+// TestComponentsFromValueUnrelatedUnknownAttributeIsIgnored is
+// corpus-hongbomiao-labelbox's own greenfield wall (GitHub issue #388's
+// plan-node seam): module.labelbox_iam_role.aws_iam_role_policy's `role`
+// (a same-module sibling's `name`, a plain literal, so known at plan time)
+// and `name` (its own literal) are both known - table_generated.go's row
+// for aws_iam_role_policy names only those two components - but its THIRD
+// argument, `policy`, is a jsonencode() over a cross-module reference into
+// a sibling module's `aws_s3_bucket.id`, a Computed-only attribute that is
+// genuinely unknown until that bucket is created. Before this fix,
+// [ComponentsFromValue]'s own top-level `!val.IsWhollyKnown()` gate looked
+// at the WHOLE config object rather than only the attributes
+// t.Components actually reads, so this unrelated, not-yet-known `policy`
+// argument vetoed a derivation that never needed it, and
+// projection.NodeResolver.ResolveResourceIdentity reported "No source for
+// this instance's identity" for an instance whose identity was fully
+// determined. Reproduced directly against a real greenfield apply (no
+// choudoufu-authored config, hongbo-miao/hongbomiao.com's own unmodified
+// module) before this test existed.
+func TestComponentsFromValueUnrelatedUnknownAttributeIsIgnored(t *testing.T) {
+	row, ok := LookupType("aws_iam_role_policy")
+	if !ok {
+		t.Fatal("aws_iam_role_policy is not in DefaultTable; this test needs the real ratified row")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"id":          cty.NullVal(cty.String),
+		"name":        cty.StringVal("LabelboxRoleS3Policy-hm-labelbox"),
+		"name_prefix": cty.NullVal(cty.String),
+		"policy":      cty.UnknownVal(cty.String),
+		"role":        cty.StringVal("LabelboxRole-hm-labelbox"),
+	})
+
+	importID, values, ok := ComponentsFromValue(row, val)
+	if !ok {
+		t.Fatalf("ComponentsFromValue reported not-found even though role and name (the two components this row actually reads) are both known - an unrelated unknown attribute (policy) must never veto this")
+	}
+	if want := "LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox"; importID != want {
+		t.Errorf("importID = %q, want %q", importID, want)
+	}
+	if values["role"] != "LabelboxRole-hm-labelbox" {
+		t.Errorf("values[role] = %q, want %q", values["role"], "LabelboxRole-hm-labelbox")
+	}
+	if values["name"] != "LabelboxRoleS3Policy-hm-labelbox" {
+		t.Errorf("values[name] = %q, want %q", values["name"], "LabelboxRoleS3Policy-hm-labelbox")
+	}
+}
+
 // TestComponentsFromValueMarkedIsNotFound: a sensitive value must never
 // reach an identity string or an import call. This is the marksafe rule
 // (internal/live/marksafe) applied one layer up from an Unmark - refuse,

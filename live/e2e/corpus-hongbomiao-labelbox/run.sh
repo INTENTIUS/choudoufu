@@ -161,6 +161,17 @@ set -uo pipefail
 #                 object from the actual inventory before the count check.
 #                 Independent of the other BREAK flags - greenfield runs
 #                 before all of them, right after STAGE 1's cold deploy.
+#   BREAK_REPLACE set to 1 to run day2_replace's own break control instead
+#                 of the real replace checks: expect the wrong destroy
+#                 count on purpose and confirm the real plan-shape
+#                 assertion would have caught it (see PART F's own header
+#                 comment, "THE COLLISION-DETECTION SCOPE NOTE", for why
+#                 this proves load-bearingness differently than
+#                 corpus-ec2-instance-complete's and corpus-sqs-basic's
+#                 own BREAK=replace controls do). Independent of the other
+#                 BREAK flags and only reachable when BREAK is not 1,
+#                 because day2_replace starts from day2_rename's own real,
+#                 completed rename.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -476,6 +487,41 @@ grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role_policy\.labelbox_iam_role
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys (the role and its inline policy)"; }
 log "  stock: exactly two destroys (the IAM role and its inline policy), nothing else, on the state cold_deploy produced"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Another separate copy of cold_deploy's own state (never renamed - PART D
+# below only renames $ESTATE, not $PLAIN). labelbox_service_account_name
+# feeds aws_iam_role.labelbox_iam_role's `name` (ForceNew - AWS has no
+# UpdateRole-by-rename API, only CreateRole/DeleteRole) AND, through the
+# SAME module's own aws_iam_role_policy resource, its `role` (references
+# the sibling's name, also ForceNew) and `name` arguments both - the exact
+# untaggable-identity shape this estate's greenfield stage's own fix
+# addresses (ComponentsFromValue's whole-object IsWhollyKnown gate; see
+# git history), now under a real, already-applied replace rather than a
+# from-nothing apply. Changing the variable therefore forces BOTH
+# resources in the module to replace at their same declared addresses.
+CURRENT_STAGE=day2_replace
+REPLACE_ORACLE="$WORK/plain-replace-oracle"
+cp -r "$PLAIN" "$REPLACE_ORACLE"
+sed -i.bak 's/labelbox_service_account_name = "hm-labelbox"/labelbox_service_account_name = "hm-labelbox-v2"/' "$REPLACE_ORACLE/main.tofu"
+rm -f "$REPLACE_ORACLE/main.tofu.bak"
+grep -q 'hm-labelbox-v2' "$REPLACE_ORACLE/main.tofu" \
+  || fail "the day2_replace oracle's variable edit did not match - the corpus pin has moved"
+log "=== F-ORACLE: stock tofu, the same labelbox_service_account_name change on cold_deploy's own state (plan only, not applied - it shares $ENDPOINT's account with \$ESTATE) ==="
+( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role\.labelbox_iam_role must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing the IAM role when labelbox_service_account_name changes"; }
+grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role_policy\.labelbox_iam_role_s3_policy must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not cascade the role replace into its inline policy"; }
+grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly two replaces (the role and its inline policy)"; }
+log "  stock: exactly two replaces (the IAM role and its inline policy), nothing else, on the state cold_deploy produced"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -882,6 +928,158 @@ EOF
 
   gauntlet_stage day2_rename pass "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
   log ""
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.labelbox_iam_role_
+  # renamed (originally module.labelbox_iam_role, renamed above by
+  # live-mv) is bound and converged. labelbox_service_account_name feeds
+  # BOTH resources this module holds - aws_iam_role.labelbox_iam_role's
+  # `name` (ForceNew: AWS has no rename-role API, only
+  # CreateRole/DeleteRole) and, through that sibling's own `name`
+  # attribute, aws_iam_role_policy.labelbox_iam_role_s3_policy's `role`
+  # (also ForceNew) and its own `name` argument - so changing it forces
+  # BOTH resources to replace at their same declared addresses. This is
+  # the SAME untaggable-identity path this estate's own greenfield stage
+  # fix (ComponentsFromValue's whole-object IsWhollyKnown gate no longer
+  # letting an unrelated unknown `policy` argument veto a known role/name
+  # pair) resolves for a from-nothing apply; F0/the record-store checks
+  # below prove it also holds when the SAME instance is replaced, not
+  # created, under a real, already-applied estate.
+  #
+  # THE create_before_destroy SCOPE NOTE (corpus-ec2-instance-complete's
+  # own PART F and corpus-sqs-basic's own PART F carry the full reasoning,
+  # reproduced only in summary here): OpenTofu core rejects a `lifecycle`
+  # block on a `module` call, and patching the vendored labelbox_iam_role
+  # module's own resources to add create_before_destroy would cross this
+  # corpus's own DELTA discipline (the three leaf modules stay byte-
+  # identical to the pinned commit throughout - see this script's header),
+  # so this evidence pass exercises the default destroy-then-create
+  # ordering instead, confirmed below by the plan's own "-/+ destroy and
+  # then create replacement" legend.
+  #
+  # THE COLLISION-DETECTION SCOPE NOTE. The stage's own Break text
+  # ("skip the destroy half; the next plan must report a collision") is
+  # the shape corpus-ec2-instance-complete's and corpus-sqs-basic's own
+  # BREAK=replace controls manufacture, by tagging a second live object
+  # with the SAME tofu-slot a count-indexed resource's replace would
+  # destroy. aws_iam_role.labelbox_iam_role has no count/for_each - there
+  # is no tofu-slot to manufacture a collision on - and, confirmed by
+  # instrumenting discovery.bind() directly (not inferred from behavior
+  # alone) against this exact estate, a type whose entire declared
+  # population is already record-backed is excluded from that function's
+  # per-type claimant sweep entirely for an ordinary plan
+  # (decl.bindTypeNames() returned an empty list for this run): the
+  # engine answers this instance's identity straight from its record and
+  # never re-lists every live aws_iam_role to check for a stray second
+  # object carrying the same tag. A manufactured duplicate role therefore
+  # goes undetected by an ordinary plan today for this resource shape -
+  # a real, worth-recording finding, not something this unit fixes (that
+  # is discovery-sweep-invocation-policy work, well beyond one stage
+  # section, and exactly the kind of identity-path change HANDOFF says to
+  # stop and report rather than guess at). BREAK_REPLACE below instead
+  # proves THIS section's own plan-shape assertion is load-bearing the
+  # way STAGE 2 and STAGE 5's BREAK=1 controls already do here: expect
+  # the wrong destroy count on purpose and confirm the real assertion
+  # would have caught it.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id // empty' "$1" 2>/dev/null; }
+  record_identity_attr() { jq -r ".identity.attrs.$2 // empty" "$1" 2>/dev/null; }
+  F_ROLE_ADDR="module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role"
+  F_POLICY_ADDR="module.labelbox_iam_role_renamed.aws_iam_role_policy.labelbox_iam_role_s3_policy"
+  F_ROLE_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_role/$(record_key "$F_ROLE_ADDR")"
+  F_POLICY_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_role_policy/$(record_key "$F_POLICY_ADDR")"
+
+  log "=== F0. capture the live role, its inline policy, and their records ahead of the forced replace ==="
+  [ -f "$F_ROLE_RECORD" ] || fail "no local record file found for $F_ROLE_ADDR ahead of day2_replace"
+  F_OLD_ROLE_IMPORT_ID="$(record_import_id "$F_ROLE_RECORD")"
+  [ "$F_OLD_ROLE_IMPORT_ID" = "$ROLE_NAME" ] || fail "the record for $F_ROLE_ADDR names $F_OLD_ROLE_IMPORT_ID ahead of day2_replace, not $ROLE_NAME"
+  [ -f "$F_POLICY_RECORD" ] || fail "no local record file found for $F_POLICY_ADDR ahead of day2_replace"
+  F_OLD_POLICY_ROLE="$(record_identity_attr "$F_POLICY_RECORD" role)"
+  F_OLD_POLICY_NAME="$(record_identity_attr "$F_POLICY_RECORD" name)"
+  [ "$F_OLD_POLICY_ROLE" = "$ROLE_NAME" ] && [ "$F_OLD_POLICY_NAME" = "$POLICY_NAME" ] \
+    || fail "the record for $F_POLICY_ADDR names role=$F_OLD_POLICY_ROLE name=$F_OLD_POLICY_NAME ahead of day2_replace, not role=$ROLE_NAME name=$POLICY_NAME"
+  F_OLD_ROLE_ADDR_TAG="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_OLD_ROLE_ADDR_TAG" = "$F_ROLE_ADDR" ] || fail "$ROLE_NAME does not carry tofu-address=$F_ROLE_ADDR ahead of day2_replace (got $F_OLD_ROLE_ADDR_TAG)"
+  log "  $ROLE_NAME / $POLICY_NAME, role record import_id=$F_OLD_ROLE_IMPORT_ID, policy record role:name=$F_OLD_POLICY_ROLE:$F_OLD_POLICY_NAME, tofu-address=$F_OLD_ROLE_ADDR_TAG"
+
+  log "=== F1. choudoufu: change the ForceNew labelbox_service_account_name variable, forcing a replace at the same declared addresses ==="
+  sed -i.bak 's/labelbox_service_account_name = "hm-labelbox"/labelbox_service_account_name = "hm-labelbox-v2"/' "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  grep -q 'hm-labelbox-v2' "$ESTATE/main.tofu" || fail "changing labelbox_service_account_name did not match - the corpus pin has moved"
+  F_NEW_ROLE_NAME="LabelboxRole-hm-labelbox-v2"
+  F_NEW_POLICY_NAME="LabelboxRoleS3Policy-hm-labelbox-v2"
+
+  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.labelbox_iam_role_renamed\.aws_iam_role\.labelbox_iam_role must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing $F_ROLE_ADDR when labelbox_service_account_name changes"; }
+  grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark the role's name as forcing replacement"; }
+  grep -qE '^  # module\.labelbox_iam_role_renamed\.aws_iam_role_policy\.labelbox_iam_role_s3_policy must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the role replace into its inline policy"; }
+  grep -qE '~ +role +=.+forces replacement' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark the policy's role as forcing replacement"; }
+
+  if [ "${BREAK_REPLACE:-}" = "1" ]; then
+    log "=== F2 (BREAK_REPLACE=1). expect the wrong destroy count on purpose - this assertion must fail ==="
+    grep -qF 'Plan: 2 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+      && fail "BREAK_REPLACE=1: the plan matched the WRONG expected shape (1 to destroy) without this script noticing - the plan-shape assertion below is not load-bearing"
+    log "  BREAK_REPLACE=1: correctly did not match the wrong shape - the real plan is 2 to add, 0 to change, 2 to destroy (F1's own two \"must be replaced\" lines above), so the assertion this section relies on is load-bearing; apply and the record/marker checks below are skipped, matching this file's own BREAK=1/BREAK_REMOVE=1 convention of diverging the rest of the run rather than reverting"
+  else
+    grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own two-resource replace"; }
+    log "  choudoufu: exactly one role replace at the same declared address, cascading into its inline policy (also replaced) - matches F-ORACLE's own plan shape"
+
+    F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 2 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 2 added, 0 changed, 2 destroyed"; }
+
+    if F_OLD_STILL="$(awsl iam get-role --role-name "$ROLE_NAME" 2>&1)"; then
+      echo "$F_OLD_STILL"; fail "$ROLE_NAME still exists after the replace - the old object was orphaned, not destroyed"
+    fi
+    log "  $ROLE_NAME no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    F_NEW_ROLE_ADDR_TAG="$(awsl iam list-role-tags --role-name "$F_NEW_ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_NEW_ROLE_ADDR_TAG" = "$F_ROLE_ADDR" ] \
+      || fail "$F_NEW_ROLE_NAME carries tofu-address=$F_NEW_ROLE_ADDR_TAG after the replace, not $F_ROLE_ADDR - the marker did not move onto the new object"
+    log "  $F_NEW_ROLE_NAME (the new object) carries tofu-address=$F_NEW_ROLE_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    F_NEW_POLICY_DOC="$(awsl iam get-role-policy --role-name "$F_NEW_ROLE_NAME" --policy-name "$F_NEW_POLICY_NAME" --query 'PolicyDocument' --output json)"
+    grep -qF "$BUCKET_NAME" <<< "$F_NEW_POLICY_DOC" || fail "the new role's inline policy document does not reference $BUCKET_NAME"
+    log "  $F_NEW_POLICY_NAME exists on $F_NEW_ROLE_NAME and still scopes to $BUCKET_NAME - read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed role or
+    # policy would be exactly the wrong-marker failure that outranks a
+    # missing one).
+    F_NEW_ROLE_IMPORT_ID="$(record_import_id "$F_ROLE_RECORD")"
+    [ "$F_NEW_ROLE_IMPORT_ID" = "$F_NEW_ROLE_NAME" ] \
+      || fail "the record for $F_ROLE_ADDR names $F_NEW_ROLE_IMPORT_ID after the replace, not the new object $F_NEW_ROLE_NAME - a stale record still claiming the destroyed role"
+    [ "$F_NEW_ROLE_IMPORT_ID" != "$F_OLD_ROLE_IMPORT_ID" ] || fail "sanity: the role record's import_id at $F_ROLE_ADDR did not change at all across the replace"
+    F_NEW_POLICY_ROLE="$(record_identity_attr "$F_POLICY_RECORD" role)"
+    F_NEW_POLICY_NAME_REC="$(record_identity_attr "$F_POLICY_RECORD" name)"
+    [ "$F_NEW_POLICY_ROLE" = "$F_NEW_ROLE_NAME" ] && [ "$F_NEW_POLICY_NAME_REC" = "$F_NEW_POLICY_NAME" ] \
+      || fail "the record for $F_POLICY_ADDR names role=$F_NEW_POLICY_ROLE name=$F_NEW_POLICY_NAME_REC after the replace, not role=$F_NEW_ROLE_NAME name=$F_NEW_POLICY_NAME - a stale record still claiming the destroyed policy"
+    log "  record store: role import_id $F_OLD_ROLE_IMPORT_ID -> $F_NEW_ROLE_IMPORT_ID; policy role:name $F_OLD_POLICY_ROLE:$F_OLD_POLICY_NAME -> $F_NEW_POLICY_ROLE:$F_NEW_POLICY_NAME_REC, both at the same keys - read directly off the local record store, not through choudoufu's own report; the SAME untaggable-identity derivation this estate's greenfield stage's own fix resolves for a from-nothing apply now proven under a real apply-time replace"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan proposes a resource change"; }
+    log "  No changes. The replace is complete and invisible to the next plan - no marker collision."
+
+    ROLE_NAME="$F_NEW_ROLE_NAME"
+    POLICY_NAME="$F_NEW_POLICY_NAME"
+
+    gauntlet_stage day2_replace pass "choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role $F_OLD_ROLE_IMPORT_ID -> $F_NEW_ROLE_IMPORT_ID; policy $F_OLD_POLICY_ROLE:$F_OLD_POLICY_NAME -> $F_NEW_POLICY_ROLE:$F_NEW_POLICY_NAME_REC) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
