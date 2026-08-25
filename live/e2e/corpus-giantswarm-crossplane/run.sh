@@ -885,34 +885,38 @@ EOF
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
-  # REGRESSION found re-verifying this estate after 610511fb73 (the
-  # record-orphan-read sweep, internal/live/discovery/recordorphan_read.go,
-  # #405's day2_remove fix): this leg used to be zero churn (0 add, 2
-  # change, 0 destroy - the tagged role and policy alone) and now proposes
-  # destroying the four untaggable, composed-of-arguments children under
-  # the OLD module.crossplane address (aws_iam_role_policies_exclusive,
+  # FIXED by gauntlet:sweep-moved-alias (internal/live/discovery/recordorphan_read.go):
+  # this leg regressed after 610511fb73 (the record-orphan-read sweep, #405's
+  # day2_remove fix) - it used to be zero churn (0 add, 2 change, 0 destroy -
+  # the tagged role and policy alone) and started proposing destroying the
+  # four untaggable, composed-of-arguments children under the OLD
+  # module.crossplane address (aws_iam_role_policies_exclusive,
   # aws_iam_role_policy["extra-tagging"], aws_iam_role_policy_attachment,
   # aws_iam_role_policy_attachments_exclusive) while the role and policy
-  # move as "updated in-place" same as before. Root cause, read directly
+  # moved as "updated in-place" same as before. Root cause, read directly
   # off recordorphan_read.go with no tofu in the loop: recordOrphanReadSweep
-  # has its own rename-safety check (the `pending` map, built from
-  # res.Unbound) but that check only recognizes "a declared instance of the
-  # SAME address is unclaimed" - it never consults moved.Aliases /
+  # had its own rename-safety check (the `pending` map, built from
+  # res.Unbound) but that check only recognized "a declared instance of the
+  # SAME address is unclaimed" - it never consulted moved.Aliases /
   # moved.Honoured(req.Config) the way the marker path already does
   # (discovery.go's declared.alias* methods, threaded through movedStmts).
-  # So the moment this moved block relocates module.crossplane's children,
-  # the record-orphan-read leg reads their OLD-address kind=identity
-  # records as genuinely undeclared and proposes destroying them, even
-  # though the SAME instances stay declared one module level over and a
-  # `moved` block explicitly says so - the exact HANDOFF row 2 shape ("the
-  # plans differ"), but introduced BY the row-2 fix for day2_remove rather
-  # than fixed by it. live-mv does not hit this (RecordStore.MoveRecord
-  # re-keys the record store directly, 8bd0d47e4e), only a bare HCL
-  # `moved` block does. Not fixed here (Go change, out of scope for this
-  # script-only re-verification unit) - named precisely so day2_remove's
-  # own post-fix status for THIS estate cannot be independently
-  # re-measured until this earlier stage is fixed, since fail() below
-  # exits before Part D2 (live-mv) or Part E (day2_remove) ever run.
+  # So the moment this moved block relocated module.crossplane's children,
+  # the record-orphan-read leg read their OLD-address kind=identity
+  # records as genuinely undeclared and proposed destroying them, even
+  # though the SAME instances stayed declared one module level over and a
+  # `moved` block explicitly said so - the exact HANDOFF row 2 shape ("the
+  # plans differ"), introduced BY the row-2 fix for day2_remove rather
+  # than fixed by it. live-mv did not hit this (RecordStore.MoveRecord
+  # re-keys the record store directly, 8bd0d47e4e); only a bare HCL
+  # `moved` block did. gauntlet:sweep-moved-alias closes it generically:
+  # before classifying a record's address as an orphan, recordOrphanReadSweep
+  # now folds moved.Aliases(movedStmts, r.Addr) for every currently-declared
+  # resolution into the same "already accounted for" set it already
+  # withholds on - mirroring declaredInstances' own marker-path alias index
+  # and builder.locatedIdentityWithAliases' record-rung lookup (c5f530c48d),
+  # rather than a third, type-specific rule. This plan is now zero churn
+  # again, confirmed by the assertions below. See D3 further down for the
+  # SECOND, still-open defect this fix does not reach.
   grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
     && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now proposes destroying the four untaggable *_exclusive/role_policy/role_policy_attachment children under the OLD module.crossplane address instead of zero churn - a regression from 610511fb73's record-orphan-read sweep, which has no moved-block awareness (see the comment immediately above this assertion for the exact code-level root cause); day2_remove's own post-fix status for this estate could not be re-measured this run because of it"; }
   N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
@@ -974,8 +978,41 @@ EOF
   log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
   FINAL_PLAN_D_OUT="$(plan_into 2>&1)"; FINAL_PLAN_D_RC=$?
   [ "$FINAL_PLAN_D_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_D_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_D_RC"; }
+  # RE-VERIFIED against gauntlet:sweep-moved-alias (recordOrphanReadSweep now
+  # consults moved.Aliases/moved.Honoured, internal/live/discovery/recordorphan_read.go):
+  # D1's own assertion above is now clean - a plain `moved` block relocating
+  # module.crossplane no longer destroys the four untaggable children under
+  # the OLD address; that is this unit's own fix, confirmed working here.
+  #
+  # This D3 check still fails, on a SECOND, DIFFERENT defect the fix above
+  # does not reach and is not meant to: D2's live-mv call above only rewrites
+  # the ownership MARKER on the two taggable siblings (role, policy) it was
+  # explicitly given - live-mv has no notion of "move every record-located
+  # descendant of this module too", and D2's own module rename is a bare HCL
+  # edit with NO accompanying `moved` block (by design - that is what
+  # distinguishes the live-mv leg from D1's). So a record-located sibling
+  # whose identity needs more than one attribute-supplying component
+  # (identity.SingleParentComponent's own boundary - recordorphan_read.go's
+  # package doc names the population: aws_iam_role_policy,
+  # aws_iam_user_policy, aws_iam_group_policy, aws_lb_target_group_attachment)
+  # has its record still keyed at wherever D1's write-back last left it
+  # (module.crossplane_renamed's address) with nothing - no moved block, no
+  # live-mv call - carrying it forward to module.crossplane_final. The next
+  # plan reads that stale-keyed record as a genuine orphan and destroys it.
+  # Two of the four untaggable children hit this (aws_iam_role_policy
+  # ["extra-tagging"] and aws_iam_role_policy_attachment); the two
+  # *_exclusive types do not, because they are re-derived structurally from
+  # the live role's own current attachments each plan
+  # (parentReadSweep/foldChildReadSweep) rather than from a persisted,
+  # address-keyed record, so a module rename never disturbs them.
+  #
+  # This is a distinct generic gap from the alias-consult fix (that one is
+  # "a `moved` block exists but was never consulted"; this one is "no move
+  # statement of any kind exists for this instance's own address at all") -
+  # not fixed here, out of scope for gauntlet:sweep-moved-alias, which is
+  # scoped to the moved.Aliases consult alone.
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
-    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty"; }
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty: live-mv only rewrote the role/policy markers, leaving the untaggable aws_iam_role_policy[\"extra-tagging\"] and aws_iam_role_policy_attachment children's records stale-keyed at module.crossplane_renamed's address with no moved block or live-mv call carrying them to module.crossplane_final - a second, distinct record-located-rename gap the moved.Aliases consult fix (gauntlet:sweep-moved-alias) does not reach, since no moved statement names this hop at all"; }
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"

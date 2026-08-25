@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=620 instances=1719
-# shape: class CONCRETE=826
+# shape: dirs=622 instances=1721
+# shape: class CONCRETE=828
 # shape: class NEEDS_DISCOVERY=733
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7
+# shape: body-sha256=a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -109,6 +109,8 @@ internal/live/discovery/testdata/module-rename-withhold/child	aws_subnet.this["b
 internal/live/discovery/testdata/moved-clientnamed	aws_s3_bucket.renamed	CONCRETE	tofu-stateless-e2e-renamed	bucket=tofu-stateless-e2e-renamed
 internal/live/discovery/testdata/moved-gained-count	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-gained-count	aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/moved-record-located	aws_iam_role_policy.inline	CONCRETE	app:deploy	name=deploy,role=app
+internal/live/discovery/testdata/moved-record-located-nomoved	aws_iam_role_policy.inline	CONCRETE	app:deploy	name=deploy,role=app
 internal/live/discovery/testdata/moved-rename	aws_subnet.pair["a"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.pair["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.renamed	NEEDS_DISCOVERY		
