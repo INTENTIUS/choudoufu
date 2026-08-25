@@ -740,3 +740,157 @@ func TestDestroyParentDependency_Route53Record(t *testing.T) {
 		}
 	})
 }
+
+// TestRecordOrphanReadSweep_MovedAliasIsNotAnOrphan is the positive case:
+// a record under the OLD address, a `moved` block saying the old address
+// is now the new one, and the new address genuinely declared (already
+// present in res.Resolutions, the same "already accounted for" state
+// bind/the caller would have left it in). The old-address record must NOT
+// become a second, Undeclared destroy resolution.
+func TestRecordOrphanReadSweep_MovedAliasIsNotAnOrphan(t *testing.T) {
+	ctx := context.Background()
+	const estate = "test-estate"
+	prefix := projection.RecordKeyPrefix(estate)
+
+	cfg := loadConfig(t, "testdata/moved-record-located")
+	oldAddr := mustAddr(t, "aws_iam_role_policy.inline_old")
+	newAddr := mustAddr(t, "aws_iam_role_policy.inline")
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, prefix)
+	if _, err := projection.SeedLocatedForInstance(ctx, store, oldAddr, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		Components: map[string]string{"role": "app", "name": "deploy"},
+	}); err != nil {
+		t.Fatalf("seeding the located record under the OLD address: %s", err)
+	}
+
+	req := Request{Estate: estate, HintStore: raw, Config: cfg}
+	// Simulates the state res.Resolutions is already in by the time this
+	// leg runs (discovery.go's own comment above [known]'s construction):
+	// the NEW address is a declared block the caller's initial resolution
+	// list already carries, Undeclared left at its zero value (false).
+	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+
+	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if len(res.Resolutions) != 1 {
+		t.Fatalf("got %d resolutions, want exactly 1 (no phantom destroy for the OLD address): %#v", len(res.Resolutions), res.Resolutions)
+	}
+	if res.Resolutions[0].Addr.String() != newAddr.String() {
+		t.Errorf("the only resolution is %s, want it to remain %s unchanged", res.Resolutions[0].Addr, newAddr)
+	}
+	if res.Resolutions[0].Undeclared {
+		t.Errorf("the declared instance's own resolution was marked Undeclared - the moved-alias fix must never touch an entry it did not add")
+	}
+}
+
+// TestRecordOrphanReadSweep_NoMovedBlockStillOrphans is the mutation check:
+// the IDENTICAL fixture (same record, same components, same new-address
+// declaration), with the `moved` block removed. Nothing joins the old
+// address to the new one any more, so the record at the old address is a
+// genuine orphan and this leg's destroy proposal must stand - proving the
+// positive test above is actually exercising the moved-alias consult, not
+// some unrelated reason the destroy never fired.
+func TestRecordOrphanReadSweep_NoMovedBlockStillOrphans(t *testing.T) {
+	ctx := context.Background()
+	const estate = "test-estate"
+	prefix := projection.RecordKeyPrefix(estate)
+
+	cfg := loadConfig(t, "testdata/moved-record-located-nomoved")
+	oldAddr := mustAddr(t, "aws_iam_role_policy.inline_old")
+	newAddr := mustAddr(t, "aws_iam_role_policy.inline")
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, prefix)
+	if _, err := projection.SeedLocatedForInstance(ctx, store, oldAddr, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		Components: map[string]string{"role": "app", "name": "deploy"},
+	}); err != nil {
+		t.Fatalf("seeding the located record under the OLD address: %s", err)
+	}
+
+	req := Request{Estate: estate, HintStore: raw, Config: cfg}
+	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+
+	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if len(res.Resolutions) != 2 {
+		t.Fatalf("got %d resolutions, want exactly 2 (the declared new-address entry plus a genuine orphan destroy for the old one): %#v", len(res.Resolutions), res.Resolutions)
+	}
+	var orphan *identity.Resolution
+	for i := range res.Resolutions {
+		if res.Resolutions[i].Addr.String() == oldAddr.String() {
+			orphan = &res.Resolutions[i]
+		}
+	}
+	if orphan == nil {
+		t.Fatalf("no resolution for the old address at all; want a genuine-orphan destroy candidate: %#v", res.Resolutions)
+	}
+	if !orphan.Undeclared {
+		t.Errorf("the old-address orphan is not marked Undeclared")
+	}
+	const want = "app:deploy"
+	if orphan.ImportID != want {
+		t.Errorf("orphan ImportID = %q, want %q", orphan.ImportID, want)
+	}
+}
+
+// TestRecordOrphanReadSweep_MovedAliasDoesNotWidenToAnUnrelatedAddress is
+// the safety-rule boundary named in the unit's genuine-orphan check
+// (HANDOFF's "never write a wrong marker"): an old address that is NOT one
+// of the currently declared instance's moved-aliases must still orphan,
+// even though a moved block exists in the same configuration for a
+// completely different pair of addresses. The alias index must not widen
+// past what moved.Aliases itself returns for each declared entry.
+func TestRecordOrphanReadSweep_MovedAliasDoesNotWidenToAnUnrelatedAddress(t *testing.T) {
+	ctx := context.Background()
+	const estate = "test-estate"
+	prefix := projection.RecordKeyPrefix(estate)
+
+	cfg := loadConfig(t, "testdata/moved-record-located")
+	newAddr := mustAddr(t, "aws_iam_role_policy.inline")
+	unrelated := mustAddr(t, "aws_iam_role_policy.some_other_policy_entirely")
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, prefix)
+	if _, err := projection.SeedLocatedForInstance(ctx, store, unrelated, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		Components: map[string]string{"role": "somebody-elses-role", "name": "somebody-elses-policy"},
+	}); err != nil {
+		t.Fatalf("seeding the unrelated record: %s", err)
+	}
+
+	req := Request{Estate: estate, HintStore: raw, Config: cfg}
+	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+
+	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if len(res.Resolutions) != 2 {
+		t.Fatalf("got %d resolutions, want exactly 2 (the declared entry plus the unrelated address's own genuine orphan): %#v", len(res.Resolutions), res.Resolutions)
+	}
+	var found bool
+	for _, r := range res.Resolutions {
+		if r.Addr.String() == unrelated.String() {
+			found = true
+			if !r.Undeclared {
+				t.Errorf("the unrelated address's resolution is not marked Undeclared")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("the unrelated record was not proposed as an orphan; the moved-alias index must not have quietly widened to cover it: %#v", res.Resolutions)
+	}
+}
