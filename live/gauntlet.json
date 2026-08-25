@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "a2b7eb7f4cec7b2ae645aca0c355c1c3ac7db5b5",
+  "commit": "2b52ff8eb7414017efce87a18174a777b306a7e6",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T17:27:04Z",
+  "generated": "2026-08-25T17:29:00Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -975,8 +975,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "91281978b9b22aee298f058bb564b0685458affc",
-        "date": "2026-08-25T07:36:11Z",
+        "commit": "2b52ff8eb7414017efce87a18174a777b306a7e6",
+        "date": "2026-08-25T17:36:46Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "63 resources from stock terraform; 4 live zones confirmed unmarked",
