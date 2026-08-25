@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "10e3f76bcd1ed5c354c8d5fee375196c5918a10e",
+  "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:01:56Z",
+  "generated": "2026-08-25T18:32:42Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_teardown": {
           "pass": 0,
@@ -567,7 +567,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -577,16 +577,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "24c75b68f9f34472f79f478125b9ff981ac6568c",
-        "date": "2026-08-25T17:25:09Z",
+        "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
+        "date": "2026-08-25T18:34:37Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "10 resources added (1 vpc, 3 subnets, 1 igw, 1 route table, 3 associations, 1 dynamodb table); confirmed unmarked",
           "day2_remove": "choudoufu: deleting module.sessions_table_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), address-for-address identical to stock's oracle on cold_deploy's own state (module.sessions_table); applied cleanly (0 added, 0 changed, 1 destroyed); the table is genuinely gone from the live account (describe-table now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because no other module.sessions_table* block is declared anywhere in this config",
           "day2_rename": "moved block: module.networking renamed with zero churn (0 add, 6 change, 0 destroy), marker rewritten in place across its taggable objects including the untaggable route-table-association children resolving structurally; live-mv: module.sessions_table renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.sessions_table_renamed's ForceNew table_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old table (arn:aws:dynamodb:us-west-2:000000000000:table/evtx-development-sessions) is confirmed gone and the new table (evtx-development-sessions-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new table's name, not the destroyed one (evtx-development-sessions -> evtx-development-sessions-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update",
           "greenfield": "10 resources from nothing (1 vpc, 3 subnets, 1 igw, 1 route table, 3 untaggable associations, 1 dynamodb table), VPC marker verified via the AWS CLI, 10 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on vpc/subnets/igw/route-table/dynamodb-table",
           "migrate": "7 of 10 verified and stamped, 0 failed, 3 correctly UNTAGGABLE; markers read back via the AWS CLI",
