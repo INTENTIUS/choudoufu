@@ -1,2 +1,3 @@
-ok  	github.com/intentius/choudoufu/tools/gauntlet	0.360s
-ok  	github.com/intentius/choudoufu/live	2.239s
+ok  	github.com/intentius/choudoufu/cmd/choudoufu	6.971s
+ok  	github.com/intentius/choudoufu/internal/command	86.427s
+ok  	github.com/intentius/choudoufu/live	3.728s

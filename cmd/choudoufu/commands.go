@@ -258,23 +258,25 @@ func initCommands(
 			}, nil
 		},
 
-		// The one live-mode command that is not hidden (GitHub issue #114).
-		// Its audience is people who have not committed to the mode: it
-		// answers "will my configuration work" from a directory, with no
-		// cloud, no state and no live block in the configuration under
-		// test. A command nobody can find cannot answer that for anyone,
-		// which is the argument for listing it while its three siblings
-		// stay hidden.
+		// The first live-mode command that was made not hidden (GitHub
+		// issue #114). Its audience is people who have not committed to the
+		// mode: it answers "will my configuration work" from a directory,
+		// with no cloud, no state and no live block in the configuration
+		// under test. A command nobody can find cannot answer that for
+		// anyone, which is the argument for listing it before its siblings
+		// had each individually earned the same. All four live-mode
+		// commands are public now; none is hidden below.
 		"live-check": func() (cli.Command, error) {
 			return &command.LiveCheckCommand{
 				Meta: meta,
 			}, nil
 		},
 
-		// Experimental: stateless mode. Registered like any other command so
-		// that "choudoufu live-plan" and "choudoufu live-plan -help" work,
-		// but listed in hiddenCommands below so it stays out of the
-		// top-level help until the mode is more than a plan.
+		// Stateless mode's plan path. Public since 2026-08-18 (commit
+		// fd85ceca07): real, tested end to end, and self-labeled
+		// "(experimental)" in its own synopsis - hiding it while live-check
+		// stood in the top-level help was a discoverability bug, not a
+		// deliberate maturity gate.
 		"live-plan": func() (cli.Command, error) {
 			return &command.LivePlanCommand{
 				Meta: meta,
@@ -283,7 +285,10 @@ func initCommands(
 
 		// The rename half of the same experiment: rewriting a live
 		// resource's ownership marker is what stateless mode has instead of
-		// "moved" blocks and state surgery. Hidden for the same reason.
+		// "moved" blocks and state surgery. Public as of the
+		// [gauntlet:readme-and-unhide] maintainer ruling (2026-08-25): the
+		// day2_rename stage is active and clear fleet-wide, and the
+		// record-store move machinery it depends on has landed.
 		"live-mv": func() (cli.Command, error) {
 			return &command.LiveMvCommand{
 				Meta: meta,
@@ -292,8 +297,10 @@ func initCommands(
 
 		// The bulk migration path (issue #61): read an existing tfstate
 		// once, verify it against the live system, and stamp markers on
-		// what verifies. Hidden alongside its two siblings while the whole
-		// mode is experimental.
+		// what verifies. Public since 2026-08-18 (commit fd85ceca07),
+		// alongside live-plan: real, tested against a fresh floci
+		// container both greenfield and via migration, and self-labeled
+		// "(experimental)" in its own synopsis.
 		"live-import": func() (cli.Command, error) {
 			return &command.LiveImportCommand{
 				Meta: meta,
@@ -508,7 +515,6 @@ func initCommands(
 		"env":             {},
 		"internal-plugin": {},
 		"push":            {},
-		"live-mv":         {},
 	}
 }
 
