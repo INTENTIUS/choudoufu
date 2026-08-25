@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
+  "commit": "6250bb12fbb11257031602c96ce216d0796d952e",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T05:14:51Z",
+  "generated": "2026-08-25T06:32:13Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 13,
+      "clear": 14,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 14,
-          "fail": 12,
+          "pass": 15,
+          "fail": 11,
           "not_run": 0
         },
         "day2_rename": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 13,
+      "clear": 14,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 14,
-          "fail": 11,
+          "pass": 15,
+          "fail": 10,
           "not_run": 0
         },
         "day2_rename": {
@@ -301,7 +301,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -313,15 +313,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
-        "date": "2026-08-25T05:20:53Z",
+        "commit": "6250bb12fbb11257031602c96ce216d0796d952e",
+        "date": "2026-08-25T06:38:01Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
-          "day2_remove": "choudoufu's remove plan destroys only 1 of the 2 objects aws_instance.other_renamed's block removal should destroy; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes both (0 add, 0 change, 2 destroy: the instance and its target-group attachment). choudoufu has strictly less destroy coverage than stock here - the missing address is left live and orphaned, most likely the target-group attachment: a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class three other estates already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-alb-complete.log for the exact plan diff",
+          "day2_remove": "choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects",
           "day2_rename": "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged",
           "greenfield": "80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag",

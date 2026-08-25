@@ -7,8 +7,10 @@
 // half, found building corpus-hongbomiao-harbor's day2_remove unit): an
 // untaggable type whose identity has more than one attribute-supplying
 // Component - aws_iam_role_policy, aws_iam_user_policy,
-// aws_iam_group_policy today - carries no marker of its own AND is excluded
-// from [parentReadSweep]/[foldChildReadSweep] on purpose
+// aws_iam_group_policy, and (since gauntlet:record-located-destroy,
+// 2026-08-25) aws_lb_target_group_attachment and its aws_alb_ alias -
+// carries no marker of its own AND is excluded from
+// [parentReadSweep]/[foldChildReadSweep] on purpose
 // ([identity.SingleParentComponent] requires exactly one attribute
 // component; [TestParentReadSweepIgnoresMultiComponentTypes] pins the
 // exclusion). Neither leg can tell "the child exists" from "the child does
@@ -207,12 +209,38 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 // cty object in hand (rendering straight from it) or, like
 // [scanTypeLocatedFallback], only ever reaches a single-attribute type.
 //
-// Deliberately narrow: only a component that is plain Literal-only or plain
-// Attrs-only (no Block, no Default, no OmitIfAbsent) is composed - every
-// ratified row this leg reaches today (aws_iam_role_policy,
-// aws_iam_user_policy, aws_iam_group_policy) is exactly that shape. A row
-// with anything more, or an attribute the record's own Components map does
-// not carry, refuses (ok=false) rather than approximate.
+// Deliberately narrow: a component naming a nested Block or a documented
+// Default substitute is not composed - the record's Components map carries
+// neither a nested value nor a marker for "this was the default", so
+// guessing either would be exactly the approximation this function's own
+// doc comment refuses to make. Every OTHER component shape IS composed,
+// [identity.Component.OmitIfAbsent] included: an OmitIfAbsent component
+// contributes its Literal-plus-value when the record's Components map
+// carries it and contributes nothing at all - not even its own Literal -
+// when it does not, mirroring [resolver.resolveInstance]'s own
+// "absence is not a hard refusal" handling of the identical field
+// (internal/live/identity/resolve.go's OmitIfAbsent branch) rather than
+// re-deriving a second account of what OmitIfAbsent means.
+//
+// Until 2026-08-25 this function refused outright the instant it saw ANY
+// OmitIfAbsent component anywhere in the ratified row, whether or not that
+// component's own value was present in the record - the check tested the
+// ROW's shape, not the RECORD's content. That was sound while the only rows
+// reaching this leg were aws_iam_role_policy, aws_iam_user_policy and
+// aws_iam_group_policy, none of which has an OmitIfAbsent component at all,
+// so the distinction never mattered. It stopped being sound the moment
+// aws_lb_target_group_attachment reached this leg (corpus-alb-complete's
+// day2_remove unit, gauntlet:record-located-destroy): every instance of the
+// type, port present or not, was silently refused at the row's third
+// component (Attrs: []string{"port"}, OmitIfAbsent: true) before this
+// function ever looked at what the record actually held, so the whole type
+// composed to nothing and its destroy was never proposed - not a design
+// exclusion, a bug in this loop. Measured against live/survey-full.json's
+// ratified table (2026-08-25): 5 rows carry an OmitIfAbsent component today
+// (aws_alb_target_group_attachment, aws_lambda_permission,
+// aws_lb_target_group_attachment, aws_route53_record,
+// aws_route53_zone_association), so this fix reaches all five, not one
+// named type.
 func composeImportIDFromComponents(typeName string, components map[string]string) (string, bool) {
 	entry, ok := identity.LookupType(typeName)
 	if !ok {
@@ -220,7 +248,7 @@ func composeImportIDFromComponents(typeName string, components map[string]string
 	}
 	var b strings.Builder
 	for _, c := range entry.Components {
-		if c.Block != "" || c.Default != "" || c.OmitIfAbsent {
+		if c.Block != "" || c.Default != "" {
 			return "", false
 		}
 		if len(c.Attrs) == 0 {
@@ -235,6 +263,12 @@ func composeImportIDFromComponents(typeName string, components map[string]string
 			}
 		}
 		if !found {
+			if c.OmitIfAbsent {
+				// See [Component.OmitIfAbsent]: absent means this segment,
+				// literal prefix included, contributes nothing at all - not
+				// a reason to refuse composing the rest of the identity.
+				continue
+			}
 			return "", false
 		}
 		b.WriteString(c.Literal)
