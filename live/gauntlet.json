@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
+  "commit": "ab351cdf81e8e3acaed7952f17f0de7ad48e0830",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T00:28:05Z",
+  "generated": "2026-08-25T02:00:45Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -735,14 +735,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "5c94842ae884f295c8fca80257cb723361ca33ab",
-        "date": "2026-08-24T23:24:05Z",
+        "commit": "ab351cdf81e8e3acaed7952f17f0de7ad48e0830",
+        "date": "2026-08-25T02:01:54Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration",
           "day2_rename": "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_iot_data.aws_s3_bucket.main",
-          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 6754ef30-bebb-4190-a21f-15ab09695664 -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
+          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 3d66acba-50ed-474c-8307-21ec46e2d0d2 -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
           "test_apply": "genuine no-op: 3 objects before, 3 after, no state file either time",
           "test_plan": "empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key"
         }
