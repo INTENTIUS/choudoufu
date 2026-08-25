@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Not clear yet.**
+**Clear.** Every active stage passes.
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,16 +22,16 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file |
 | Drift and reconverge | pass | bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao |
 | Rename | pass | moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | not run |  |
+| Remove a block | pass | choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply | not run |  |
+| Greenfield apply | pass | 4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `b21c2758d3` on 2026-08-24T21:36:12Z, exit code 0.
+Last run at commit `a4449c8605` on 2026-08-25T04:05:11Z, exit code 0.
 
 Landed 2026-08-18 as the second estate in the OpenTofu-native lane and the first to clear all five stages there. Stronger OpenTofu-native evidence than corpus-sumaform-aws (which only describes itself as OpenTofu-native but ships plain .tf once its .example template is copied in): every file under infrastructure/opentofu/ genuinely uses the .tofu extension, its own justfile drives init/plan/apply/refresh/destroy exclusively via `tofu`, and common_tags carries "hm_managed_by" = "opentofu" - proven rather than asserted, since the crossing script's own stock terraform init against this estate reports "The directory has no Terraform configuration files." Scoped to the self-contained "Labelbox" slice (S3 bucket, its CORS configuration, an IAM role with an inline S3-read policy - three real leaf modules copied byte-identical from the pinned commit, diffed programmatically in the script) out of a much larger monorepo (AWS+Nebius+Cloudflare+Snowflake+EKS, cross-wired via terraform_remote_state) too large to stand up in one sitting - the same scoping convention corpus-sumaform-aws's module.base stand-in uses. All five stages verified for real: cold_deploy (tofu apply, 4 resources, confirmed unmarked via resourcegroupstaggingapi), migrate (live-import: "2 of 4 resource instance(s) are eligible for stamping" - 2 correctly UNTAGGABLE, the CORS config via provider-schema fallback and the inline policy via the generated table's composite ROLENAME:POLICYNAME identity; -approve stamped both taggable resources, markers verified directly via aws s3api get-bucket-tagging / aws iam list-role-tags), test_plan (state deleted, live-plan "No changes", identities re-checked against the AWS CLI including the two untaggable resources' own content - CORS AllowedOrigins, inline policy's Resource ARN - since they carry no tag to re-read), test_apply (genuine no-op, 2 tagged objects before and after), and drift_reconverge (the bucket's hm_team tag tampered out of band, plan proposed fixing exactly that object, apply reconverged it; BREAK=1 verified load-bearing for both stage 2's identity check and stage 5's single-object assertion, tested in isolation for stage 5 per the corpus-vpc-complete convention since the shared BREAK var fails fast at stage 2 otherwise). Two non-blocking findings documented in the script's own header rather than routed around: aws_s3_bucket/aws_iam_role report DRIFTED during verification from AWS's own deprecated cors_rule/inline_policy shadow attributes reflecting a sibling resource created after the state snapshot (harmless, resolves by plan time), and the schema-admitted aws_s3_bucket_cors_configuration triggers the already-documented "Resource type has no orphan recovery" warning (live/LIMITATIONS.md, not a new gap). No choudoufu or floci gaps found - nothing filed. Merged to local main as c7fb650f4c (fix itself: 30577f6a56); justfile gained recipe demo-corpus-hongbomiao-labelbox; live/corpus-manifest.json gained the pin (reproducibility only, same convention as the sumaform entry - contributes nothing to a corpus-gen number).
 

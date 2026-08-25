@@ -150,6 +150,17 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt stage 2's identity assertion and
 #                 tamper a second object ahead of stage 5's, proving both
 #                 are load-bearing.
+#   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
+#                 the real remove checks: keep module.labelbox_iam_role_renamed's
+#                 block in the config and assert no destroy is proposed for
+#                 it. Independent of BREAK and only reachable when BREAK is
+#                 not 1, because day2_remove starts from day2_rename's own
+#                 real, completed rename.
+#   BREAK_GREEN   set to 1 to run the greenfield stage's own break control
+#                 instead of the real object-by-object comparison: drop one
+#                 object from the actual inventory before the count check.
+#                 Independent of the other BREAK flags - greenfield runs
+#                 before all of them, right after STAGE 1's cold deploy.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -169,7 +180,7 @@ ROLE_NAME="LabelboxRole-hm-labelbox"
 POLICY_NAME="LabelboxRoleS3Policy-hm-labelbox"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -433,6 +444,155 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE A BLOCK, stock oracle (day2_remove, live/GAUNTLET.md
+# #7). Another separate copy of cold_deploy's own state. Removes
+# module.labelbox_iam_role's block entirely - a leaf no other module
+# references (unlike amazon_s3_bucket_hm_labelbox, which
+# amazon_s3_bucket_hm_labelbox_cors_configuration and labelbox_iam_role both
+# read, and which also carries `lifecycle { prevent_destroy = true }` in the
+# real module - the reason both this oracle and Part E below remove the
+# role, not the bucket). The module holds TWO resources - aws_iam_role
+# (taggable) and aws_iam_role_policy (untaggable, inline) - a real instance
+# of live/GAUNTLET.md #7's "blocks for untaggable children whose parents
+# stay" concern: the untaggable inline policy has to be destroyed ahead of
+# its own parent role in an order IAM accepts.
+CURRENT_STAGE=day2_remove
+log "=== E-ORACLE: stock tofu, delete module.labelbox_iam_role's block on cold_deploy's own state ==="
+PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
+cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
+perl -0pi -e 's/\n# Labelbox - IAM role\nmodule "labelbox_iam_role" \{.*?\n\}\n//s' "$PLAIN_REMOVE_ORACLE/main.tofu"
+grep -q 'module "labelbox_iam_role"' "$PLAIN_REMOVE_ORACLE/main.tofu" \
+  && fail "removing module.labelbox_iam_role's block from the oracle copy did not match - this script's own root wiring has moved"
+( cd "$PLAIN_REMOVE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_REMOVE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role\.labelbox_iam_role will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying the IAM role when module.labelbox_iam_role's block is removed"; }
+grep -qE '^  # module\.labelbox_iam_role\.aws_iam_role_policy\.labelbox_iam_role_s3_policy will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying the inline role policy when module.labelbox_iam_role's block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys (the role and its inline policy)"; }
+log "  stock: exactly two destroys (the IAM role and its inline policy), nothing else, on the state cold_deploy produced"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# One more, fresh floci container. STAGE 1's own container ($FLOCI_NAME on
+# $FLOCI_PORT) is reused as THIS stage's oracle: nothing between cold_deploy
+# and here has applied, changed or destroyed anything in it - the
+# day2_rename and day2_remove oracle blocks above only run `tofu plan`
+# against COPIES of cold_deploy's state (never `apply`), so it still holds
+# exactly stock's unmodified, unmarked cold-deploy inventory - the oracle
+# live/GAUNTLET.md #13 names verbatim. Greenfield applies the identical,
+# unmodified leaf modules (a live block added, nothing else) into a
+# namespace of its own with choudoufu directly - no migration at all. The
+# SAME bucket/role names are reused (a fresh, isolated floci container is a
+# separate account, so there is no collision), which makes the
+# object-by-object comparison below a byte-for-byte one.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-hongbomiao-labelbox-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+GREEN_ESTATE_NAME="hongbomiao-labelbox-greenfield"
+
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+for _ in $(seq 1 45); do
+  GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" \
+  || fail "the greenfield floci did not come up healthy (s3/iam) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT"
+
+GREEN="$WORK/greenfield"
+copy_leaf_modules "$GREEN"
+write_root "$GREEN" '
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+log "  greenfield estate written to $GREEN (same three unmodified leaf modules, a live block from the start)"
+
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; GREEN_APPLY_RC=$?
+[ "$GREEN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 4 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 4 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD 2. markers, read through the AWS CLI directly ==="
+awslg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+GREEN_WANT_BUCKET_ADDR="module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main"
+GREEN_WANT_ROLE_ADDR="module.labelbox_iam_role.aws_iam_role.labelbox_iam_role"
+GREEN_BUCKET_ADDR="$(awslg s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_BUCKET_ADDR" = "$GREEN_WANT_BUCKET_ADDR" ] || fail "the greenfield bucket carries tofu-address=$GREEN_BUCKET_ADDR, not $GREEN_WANT_BUCKET_ADDR"
+GREEN_BUCKET_ESTATE="$(awslg s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_BUCKET_ESTATE" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield bucket carries tofu-estate=$GREEN_BUCKET_ESTATE, not $GREEN_ESTATE_NAME"
+GREEN_ROLE_ADDR="$(awslg iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ROLE_ADDR" = "$GREEN_WANT_ROLE_ADDR" ] || fail "the greenfield role carries tofu-address=$GREEN_ROLE_ADDR, not $GREEN_WANT_ROLE_ADDR"
+log "  bucket $BUCKET_NAME -> tofu-address=$GREEN_BUCKET_ADDR tofu-estate=$GREEN_BUCKET_ESTATE; role $ROLE_NAME -> tofu-address=$GREEN_ROLE_ADDR - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD 3. the local record store holds one record per instance, taggable and untaggable alike (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "4" ] || fail "expected 4 records under the local record store after the greenfield apply (bucket, CORS config, role, inline policy), found $GREEN_RECORD_FILES"
+log "  4 records persisted, one per managed instance including the two untaggable ones, read directly off the local record store"
+
+log "=== PART GREENFIELD 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD 5. delete the local record store; plan a third time ==="
+rm -rf "$GREEN/.tofu-records"
+GREEN_PLAN2_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN2_RC=$?
+[ "$GREEN_PLAN2_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN2_OUT" | tail -30; fail "the third greenfield plan (no local record store) exited $GREEN_PLAN2_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN2_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN2_OUT"; fail "the third greenfield plan is not empty with no local record store - the objects are not being found by their tags alone"; }
+log "  No changes, with zero local memory of the run that created them"
+
+log "=== PART GREENFIELD 6. object-by-object against stock's own cold-deploy container (STAGE 1, untouched since) ==="
+GREEN_TAGGABLE_COUNT="$(awslg resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$GREEN_TAGGABLE_COUNT" = "2" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 2 (the bucket and the role)"
+GREEN_POLICY_DOC="$(awslg iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
+COLD_POLICY_DOC="$(awsl iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
+GREEN_TOTAL_COUNT=2
+[ -n "$GREEN_POLICY_DOC" ] && [ "$GREEN_POLICY_DOC" != "None" ] && GREEN_TOTAL_COUNT=3
+GREEN_CORS_ORIGINS="$(awslg s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins' --output json 2>/dev/null || true)"
+COLD_CORS_ORIGINS="$(awsl s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins' --output json 2>/dev/null || true)"
+[ -n "$GREEN_CORS_ORIGINS" ] && [ "$GREEN_CORS_ORIGINS" != "None" ] && GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT + 1))
+if [ "${BREAK_GREEN:-}" = "1" ]; then
+  GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT - 1))
+  log "  BREAK_GREEN=1: dropped one object from the actual inventory - the count comparison below must fail"
+fi
+[ "$GREEN_TOTAL_COUNT" = "4" ] \
+  || fail "the greenfield estate has $GREEN_TOTAL_COUNT objects (2 taggable plus the CORS config and the inline policy, if readable), expected 4 - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
+[ "$GREEN_POLICY_DOC" = "$COLD_POLICY_DOC" ] || fail "the inline role policy's document differs between the greenfield estate and stock's cold deploy"
+[ "$GREEN_CORS_ORIGINS" = "$COLD_CORS_ORIGINS" ] || fail "the CORS configuration's allowed origins differ between the greenfield estate and stock's cold deploy"
+GREEN_ROLE_TRUST="$(awslg iam get-role --role-name "$ROLE_NAME" --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition' --output json)"
+COLD_ROLE_TRUST="$(awsl iam get-role --role-name "$ROLE_NAME" --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition' --output json)"
+[ "$GREEN_ROLE_TRUST" = "$COLD_ROLE_TRUST" ] || fail "the role's trust policy condition differs between the greenfield estate and stock's cold deploy"
+log "  2 taggable objects plus the CORS config and the inline policy match stock's cold-deploy container object by object (policy document, CORS origins, role trust condition), marker tags never compared"
+
+log ""
+log "PART GREENFIELD (greenfield): PASS"
+gauntlet_stage greenfield pass "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
+log ""
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -721,6 +881,83 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+  log ""
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.labelbox_iam_role_renamed
+  # (originally module.labelbox_iam_role) is bound and converged. It is the
+  # one removed here, not module.amazon_s3_bucket_hm_labelbox_renamed - the
+  # real module carries `lifecycle { prevent_destroy = true }` on the
+  # bucket (see header), and labelbox_iam_role is a leaf nothing else
+  # references. Its block holds TWO resources - the taggable aws_iam_role
+  # and the untaggable, inline aws_iam_role_policy - so this is a real
+  # instance of live/GAUNTLET.md #7's "blocks for untaggable children whose
+  # parents stay" concern even though both are removed together: IAM
+  # refuses to delete a role with an inline policy still attached, so the
+  # destroy order the cloud accepts here is the policy first, then the
+  # role.
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live ids one more time ==="
+  E_ROLE_ADDR_BEFORE="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
+  [ "$E_ROLE_ADDR_BEFORE" = "module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role" ] \
+    || fail "$ROLE_NAME does not carry tofu-address=module.labelbox_iam_role_renamed.aws_iam_role.labelbox_iam_role before day2_remove even starts (got $E_ROLE_ADDR_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.labelbox_iam_role_renamed's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.labelbox_iam_role_renamed\..+ will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed for module.labelbox_iam_role_renamed even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.labelbox_iam_role_renamed's block ==="
+    perl -0pi -e 's/\n# Labelbox - IAM role\nmodule "labelbox_iam_role_renamed" \{.*?\n\}\n//s' "$ESTATE/main.tofu"
+    grep -q 'module "labelbox_iam_role_renamed"' "$ESTATE/main.tofu" \
+      && fail "removing module.labelbox_iam_role_renamed's block did not match - the config has moved"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of module.labelbox_iam_role_renamed as a possible rename - this is the honest wall, not a pass"
+    fi
+    grep -qE '^  # module\.labelbox_iam_role_renamed\.aws_iam_role\.labelbox_iam_role will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying the IAM role when module.labelbox_iam_role_renamed's block is deleted"; }
+    grep -qE '^  # module\.labelbox_iam_role_renamed\.aws_iam_role_policy\.labelbox_iam_role_s3_policy will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying the inline role policy when module.labelbox_iam_role_renamed's block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
+    log "  choudoufu: exactly two destroys (the IAM role and its inline policy), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys"; }
+
+    if E_STILL="$(awsl iam get-role --role-name "$ROLE_NAME" 2>&1)"; then
+      echo "$E_STILL"; fail "$ROLE_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  $ROLE_NAME no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    log ""
+    log "STAGE E (day2_remove): PASS"
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
+    log ""
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

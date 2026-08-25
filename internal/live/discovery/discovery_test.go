@@ -1390,6 +1390,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemUnreadableUniqueName,
 		ProblemAmbiguousContentMatch,
 		ProblemLocatedRecordUnreadable,
+		ProblemRecordStoreListFailed,
 	}
 	for _, kind := range kinds {
 		if problemSummaries[kind] == "" {

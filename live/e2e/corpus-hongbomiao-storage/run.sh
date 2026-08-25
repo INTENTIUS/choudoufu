@@ -94,6 +94,17 @@ set -uo pipefail
 #                 WITHOUT a moved block, which must refuse with a marker-
 #                 ambiguity error rather than reproduce the real legs'
 #                 zero-churn result.
+#   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
+#                 the real remove checks: keep module.kafka_kms_key_renamed's
+#                 block in the config and assert no destroy is proposed for
+#                 it. Independent of BREAK and only reachable when BREAK is
+#                 not 1, because day2_remove starts from day2_rename's own
+#                 real, completed rename.
+#   BREAK_GREEN   set to 1 to run the greenfield stage's own break control
+#                 instead of the real object-by-object comparison: drop one
+#                 object from the actual inventory before the count check.
+#                 Independent of the other BREAK flags - greenfield runs
+#                 before all of them, right after STAGE 1's cold deploy.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -114,7 +125,7 @@ KMS_KEY_NAME="${ESTATE_NAME}-hm-kafka-kms-key"
 KMS_ALIAS_NAME="alias/${KMS_KEY_NAME}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -352,6 +363,167 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE A BLOCK, stock oracle (day2_remove, live/GAUNTLET.md
+# #7). Another separate copy of cold_deploy's own state. Removes
+# module.kafka_kms_key's block entirely - it references nothing else and
+# nothing references it (s3_bucket_iot_data and hm_production_bucket are
+# both fully independent, see header), and it is the one taggable root in
+# this estate WITHOUT `lifecycle { prevent_destroy = true }` - both buckets
+# carry it (the real amazon_s3_bucket module, shared with the harbor and
+# labelbox crossings), so kafka_kms_key is the only real destroy day2_remove
+# can exercise here. The module holds TWO resources - aws_kms_key (taggable)
+# and aws_kms_alias (untaggable, client-named from its own `name` argument,
+# not parent-derived - see header) - so removing its block also has to
+# destroy the alias, in an order the cloud accepts.
+CURRENT_STAGE=day2_remove
+log "=== E-ORACLE: stock tofu, delete module.kafka_kms_key's block on cold_deploy's own state ==="
+PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
+cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
+perl -0pi -e 's/\n# Kafka KMS key\nmodule "kafka_kms_key" \{.*?\n\}\n//s' "$PLAIN_REMOVE_ORACLE/main.tofu"
+grep -q 'module "kafka_kms_key"' "$PLAIN_REMOVE_ORACLE/main.tofu" \
+  && fail "removing module.kafka_kms_key's block from the oracle copy did not match - this script's own root wiring has moved"
+( cd "$PLAIN_REMOVE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_REMOVE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying the KMS key when module.kafka_kms_key's block is removed"; }
+grep -qE '^  # module\.kafka_kms_key\.aws_kms_alias\.main will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying the KMS alias when module.kafka_kms_key's block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys (the key and its alias)"; }
+log "  stock: exactly two destroys (the KMS key and its alias), nothing else, on the state cold_deploy produced"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# One more, fresh floci container. STAGE 1's own container ($FLOCI_NAME on
+# $FLOCI_PORT) is reused as THIS stage's oracle: nothing between cold_deploy
+# and here has applied, changed or destroyed anything in it - the
+# day2_rename and day2_remove oracle blocks above only run `tofu plan`
+# against COPIES of cold_deploy's state (never `apply`), so it still holds
+# exactly stock's unmodified, unmarked cold-deploy inventory. Greenfield
+# applies the identical, unmodified leaf modules (a live block added,
+# nothing else) into a namespace of its own with choudoufu directly - no
+# migration at all. This estate is multi-provider (both buckets under
+# aws.production, the KMS key/alias under the default, unaliased aws), so
+# the object-by-object comparison below reads BOTH provider namespaces on
+# both endpoints - the same $ENDPOINT/$GREEN_ENDPOINT floci container
+# either way, since the alias distinguishes provider CONFIGURATION, not
+# provider ENDPOINT, and both configurations point at the same floci here.
+# The SAME bucket/key names are reused (a fresh, isolated floci container
+# is a separate account, so there is no collision).
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-hongbomiao-storage-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+GREEN_ESTATE_NAME="hongbomiao-storage-greenfield"
+
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+for _ in $(seq 1 45); do
+  GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"kms"' <<< "${GREEN_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"kms"' <<< "${GREEN_HEALTH:-}" \
+  || fail "the greenfield floci did not come up healthy (s3/kms) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT"
+
+GREEN="$WORK/greenfield"
+copy_leaf_modules "$GREEN"
+write_root "$GREEN" '
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+log "  greenfield estate written to $GREEN (same two unmodified leaf modules, a live block from the start)"
+
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; GREEN_APPLY_RC=$?
+[ "$GREEN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 4 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 4 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD 2. markers, read through the AWS CLI directly ==="
+awslg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+GREEN_WANT_PROD_ADDR="module.hm_production_bucket.aws_s3_bucket.main"
+GREEN_WANT_IOT_ADDR="module.s3_bucket_iot_data.aws_s3_bucket.main"
+GREEN_WANT_KMS_ADDR="module.kafka_kms_key.aws_kms_key.main"
+GREEN_PROD_ADDR="$(awslg s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_PROD_ADDR" = "$GREEN_WANT_PROD_ADDR" ] || fail "the greenfield production bucket carries tofu-address=$GREEN_PROD_ADDR, not $GREEN_WANT_PROD_ADDR"
+GREEN_IOT_ADDR="$(awslg s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_IOT_ADDR" = "$GREEN_WANT_IOT_ADDR" ] || fail "the greenfield IoT bucket carries tofu-address=$GREEN_IOT_ADDR, not $GREEN_WANT_IOT_ADDR"
+GREEN_KMS_KEY_ID="$(awslg kms list-aliases --query "Aliases[?AliasName=='alias/$KMS_KEY_NAME'].TargetKeyId | [0]" --output text)"
+[ -n "$GREEN_KMS_KEY_ID" ] && [ "$GREEN_KMS_KEY_ID" != "None" ] || fail "could not find the greenfield KMS key through its alias via the AWS CLI"
+GREEN_KMS_ADDR="$(awslg kms list-resource-tags --key-id "$GREEN_KMS_KEY_ID" --query "Tags[?TagKey=='tofu-address'].TagValue | [0]" --output text)"
+[ "$GREEN_KMS_ADDR" = "$GREEN_WANT_KMS_ADDR" ] || fail "the greenfield KMS key carries tofu-address=$GREEN_KMS_ADDR, not $GREEN_WANT_KMS_ADDR"
+log "  both buckets and the KMS key carry their expected tofu-address, read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD 3. the local record store holds one record per instance, taggable and untaggable alike (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "4" ] || fail "expected 4 records under the local record store after the greenfield apply (2 buckets, the KMS key, the untaggable alias), found $GREEN_RECORD_FILES"
+log "  4 records persisted, one per managed instance including the untaggable alias, read directly off the local record store"
+
+log "=== PART GREENFIELD 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD 5. delete the local record store; plan a third time ==="
+rm -rf "$GREEN/.tofu-records"
+GREEN_PLAN2_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN2_RC=$?
+[ "$GREEN_PLAN2_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN2_OUT" | tail -30; fail "the third greenfield plan (no local record store) exited $GREEN_PLAN2_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN2_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN2_OUT"; fail "the third greenfield plan is not empty with no local record store - the objects are not being found by their tags alone"; }
+log "  No changes, with zero local memory of the run that created them"
+
+log "=== PART GREENFIELD 6. object-by-object against stock's own cold-deploy container (STAGE 1, untouched since), per provider namespace ==="
+GREEN_TAGGABLE_COUNT="$(awslg resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$GREEN_TAGGABLE_COUNT" = "3" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 3 (both buckets and the KMS key)"
+GREEN_ALIAS_TARGET="$(awslg kms list-aliases --query "Aliases[?AliasName=='alias/$KMS_KEY_NAME'].TargetKeyId | [0]" --output text 2>/dev/null || true)"
+GREEN_TOTAL_COUNT=3
+[ -n "$GREEN_ALIAS_TARGET" ] && [ "$GREEN_ALIAS_TARGET" != "None" ] && GREEN_TOTAL_COUNT=4
+if [ "${BREAK_GREEN:-}" = "1" ]; then
+  GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT - 1))
+  log "  BREAK_GREEN=1: dropped one object from the actual inventory - the count comparison below must fail"
+fi
+[ "$GREEN_TOTAL_COUNT" = "4" ] \
+  || fail "the greenfield estate has $GREEN_TOTAL_COUNT objects (3 taggable plus the KMS alias, if readable), expected 4 - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
+# aws.production namespace: both buckets, object by object against the same
+# provider config on the untouched cold-deploy endpoint.
+GREEN_PROD_LOCATION="$(awslg s3api get-bucket-location --bucket "$PROD_BUCKET_NAME" --query 'LocationConstraint' --output text 2>&1 || true)"
+COLD_PROD_LOCATION="$(awsl s3api get-bucket-location --bucket "$PROD_BUCKET_NAME" --query 'LocationConstraint' --output text 2>&1 || true)"
+[ "$GREEN_PROD_LOCATION" = "$COLD_PROD_LOCATION" ] || fail "the production bucket's location differs between the greenfield estate and stock's cold deploy"
+GREEN_IOT_LOCATION="$(awslg s3api get-bucket-location --bucket "$IOT_BUCKET_NAME" --query 'LocationConstraint' --output text 2>&1 || true)"
+COLD_IOT_LOCATION="$(awsl s3api get-bucket-location --bucket "$IOT_BUCKET_NAME" --query 'LocationConstraint' --output text 2>&1 || true)"
+[ "$GREEN_IOT_LOCATION" = "$COLD_IOT_LOCATION" ] || fail "the IoT bucket's location differs between the greenfield estate and stock's cold deploy"
+# default (unaliased) aws namespace: the KMS key and its alias.
+COLD_KMS_KEY_ID="$(awsl kms list-aliases --query "Aliases[?AliasName=='alias/$KMS_KEY_NAME'].TargetKeyId | [0]" --output text)"
+GREEN_KMS_KEY_DESC="$(awslg kms describe-key --key-id "$GREEN_KMS_KEY_ID" --query 'KeyMetadata.KeyUsage' --output text)"
+COLD_KMS_KEY_DESC="$(awsl kms describe-key --key-id "$COLD_KMS_KEY_ID" --query 'KeyMetadata.KeyUsage' --output text)"
+[ "$GREEN_KMS_KEY_DESC" = "$COLD_KMS_KEY_DESC" ] || fail "the KMS key's usage differs between the greenfield estate and stock's cold deploy"
+[ "$GREEN_ALIAS_TARGET" = "$GREEN_KMS_KEY_ID" ] || fail "the greenfield alias does not target the greenfield key"
+log "  3 taggable objects plus the KMS alias match stock's cold-deploy container object by object (bucket locations under aws.production, KMS key usage and alias target under the default aws provider), marker tags never compared"
+
+log ""
+log "PART GREENFIELD (greenfield): PASS"
+gauntlet_stage greenfield pass "4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared"
+log ""
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -655,6 +827,96 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+  log ""
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.kafka_kms_key_renamed
+  # (originally module.kafka_kms_key) is bound and converged. It is the one
+  # removed here, not either bucket module - both buckets carry
+  # `lifecycle { prevent_destroy = true }` in the real amazon_s3_bucket
+  # module (see header). kafka_kms_key's block holds TWO resources - the
+  # taggable aws_kms_key and the untaggable, client-named aws_kms_alias -
+  # so removing it also has to destroy the alias, in an order the cloud
+  # accepts (the alias references the key by id, so it has to go first).
+  # This estate is the same multi-provider shape #403 fixed for day2_rename
+  # (the key module under the default aws provider, both bucket modules
+  # under aws.production) - the removal below runs entirely on the
+  # DEFAULT-provider module and touches neither bucket module nor its
+  # provider alias, so it does not exercise #403's own cross-provider
+  # dedup path at all; left as-is rather than disturbed.
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live ids one more time ==="
+  E_KMS_ADDR_BEFORE="$(awsl kms list-resource-tags --key-id "$KMS_KEY_ID" --query "Tags[?TagKey=='tofu-address'].TagValue | [0]" --output text 2>/dev/null || true)"
+  [ "$E_KMS_ADDR_BEFORE" = "module.kafka_kms_key_renamed.aws_kms_key.main" ] \
+    || fail "$KMS_KEY_ID does not carry tofu-address=module.kafka_kms_key_renamed.aws_kms_key.main before day2_remove even starts (got $E_KMS_ADDR_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.kafka_kms_key_renamed's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.kafka_kms_key_renamed\..+ will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed for module.kafka_kms_key_renamed even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.kafka_kms_key_renamed's block ==="
+    perl -0pi -e 's/\n# Kafka KMS key\nmodule "kafka_kms_key_renamed" \{.*?\n\}\n//s' "$ESTATE/main.tofu"
+    grep -q 'module "kafka_kms_key_renamed"' "$ESTATE/main.tofu" \
+      && fail "removing module.kafka_kms_key_renamed's block did not match - the config has moved"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of module.kafka_kms_key_renamed as a possible rename - this is the honest wall, not a pass"
+    fi
+    grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_key\.main will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying the KMS key when module.kafka_kms_key_renamed's block is deleted"; }
+    grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_alias\.main will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying the KMS alias when module.kafka_kms_key_renamed's block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
+    log "  choudoufu: exactly two destroys (the KMS key and its alias), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys"; }
+
+    # A KMS key is never truly gone the instant it is destroyed - AWS
+    # schedules deletion (a pending-deletion window) rather than removing it
+    # immediately, confirmed directly against floci with no tofu in the loop
+    # while building this check: describe-key on a just-destroyed key
+    # returns 200 with KeyState=PendingDeletion, not an error. The
+    # equivalent of EC2's or IAM's "no longer exists" check here is that
+    # state, not a failed call.
+    E_KEY_STATE="$(awsl kms describe-key --key-id "$KMS_KEY_ID" --query 'KeyMetadata.KeyState' --output text 2>&1)"
+    [ "$E_KEY_STATE" = "PendingDeletion" ] \
+      || fail "$KMS_KEY_ID has KeyState=$E_KEY_STATE after the destroy, not PendingDeletion - it was orphaned, not destroyed"
+    log "  $KMS_KEY_ID is PendingDeletion - confirmed via the AWS CLI, not through choudoufu's own report"
+    if E_ALIAS_STILL="$(awsl kms list-aliases --query "Aliases[?AliasName=='alias/$KMS_KEY_NAME']" --output text)" && [ -n "$E_ALIAS_STILL" ]; then
+      echo "$E_ALIAS_STILL"; fail "alias/$KMS_KEY_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  alias/$KMS_KEY_NAME no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    log ""
+    log "STAGE E (day2_remove): PASS"
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.kafka_kms_key_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable alias and its taggable parent key), applied cleanly (0 added, 0 changed, 2 destroyed) in an order the cloud accepted, the key is genuinely PendingDeletion and the alias is gone (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
+    log ""
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

@@ -141,6 +141,14 @@ set -uo pipefail
 #                be proposed"). Independent of BREAK and only reachable
 #                when BREAK_RENAME is not 1, because the day2_remove checks
 #                start from day2_rename's own real, completed rename.
+#   BREAK_GREEN  set to 1 to run the greenfield stage's own break control
+#                instead of the real object-by-object comparison: drop one
+#                policy from the expected inventory before the count check
+#                (the Break text in tools/gauntlet/stages.go for greenfield
+#                is literally "Drop one resource from the expected
+#                inventory; the comparison must fail"). Independent of
+#                BREAK, BREAK_RENAME and BREAK_REMOVE - greenfield runs
+#                before all three, right after STAGE 1's cold deploy.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -162,7 +170,7 @@ REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -350,6 +358,130 @@ grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] 
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (module.iam_policy_from_data_source's policy), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# One more, fresh floci container. STAGE 1's own container ($FLOCI_NAME on
+# $FLOCI_PORT) is reused as THIS stage's oracle rather than standing up a
+# third one: nothing between cold_deploy and here has applied, changed or
+# destroyed anything in it - the day2_rename and day2_remove oracle blocks
+# just above only run `terraform plan` against COPIES of cold_deploy's
+# state (never `apply`, never against $ENDPOINT directly with a write) - so
+# it still holds exactly stock's unmodified, unmarked cold-deploy
+# inventory, which is the oracle live/GAUNTLET.md #13 names verbatim ("the
+# cloud after stock's cold deploy"). Greenfield applies the identical,
+# unmodified example (a live block added, nothing else) into a namespace
+# of its own with choudoufu directly - no migration at all.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-iam-policy-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+GREEN_ESTATE="iam-policy-greenfield"
+
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+for _ in $(seq 1 45); do
+  GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"iam"' <<< "${GREEN_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"iam"' <<< "${GREEN_HEALTH:-}" || fail "the greenfield floci did not come up healthy (iam) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT"
+
+# .corpus is never touched: this copies the SAME pre-migrate tree ($WORK/iam,
+# still exactly as step 1's onboarding delta left it - no live block yet)
+# out a second time, so the greenfield estate carries the identical
+# emulator-flags delta and nothing of STAGE 2's migration.
+cp -R "$WORK/iam" "$WORK/iam-greenfield"
+rm -rf "$WORK/iam-greenfield/examples/iam-policy/.terraform" \
+       "$WORK/iam-greenfield/examples/iam-policy/terraform.tfstate" \
+       "$WORK/iam-greenfield/examples/iam-policy/terraform.tfstate.backup" \
+       "$WORK/iam-greenfield/examples/iam-policy/.terraform.lock.hcl"
+GREEN_EST="$WORK/iam-greenfield/examples/iam-policy"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; GREEN_APPLY_RC=$?
+[ "$GREEN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 2 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD 2. markers, read through the AWS CLI directly ==="
+awslg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+GREEN_POLICY1_ARN="arn:aws:iam::${ACCOUNT}:policy/example_from_data_source"
+GREEN_POLICY2_ARN="$(awslg iam list-policies --path-prefix / \
+  --query "Policies[?starts_with(PolicyName, 'example-') == \`true\`].Arn | [0]" --output text)"
+[ -n "$GREEN_POLICY2_ARN" ] && [ "$GREEN_POLICY2_ARN" != "None" ] || fail "could not find the greenfield name_prefix policy through the AWS CLI"
+GREEN_WANT_ADDR1="module.iam_policy_from_data_source.aws_iam_policy.policy:0"
+GREEN_WANT_ADDR2="module.iam_policy.aws_iam_policy.policy:0"
+GREEN_ADDR1="$(awslg iam list-policy-tags --policy-arn "$GREEN_POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ADDR1" = "$GREEN_WANT_ADDR1" ] || fail "$GREEN_POLICY1_ARN carries tofu-address=$GREEN_ADDR1, not $GREEN_WANT_ADDR1"
+GREEN_ADDR2="$(awslg iam list-policy-tags --policy-arn "$GREEN_POLICY2_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ADDR2" = "$GREEN_WANT_ADDR2" ] || fail "$GREEN_POLICY2_ARN carries tofu-address=$GREEN_ADDR2, not $GREEN_WANT_ADDR2"
+GREEN_TAG_EST1="$(awslg iam list-policy-tags --policy-arn "$GREEN_POLICY1_ARN" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_TAG_EST1" = "$GREEN_ESTATE" ] || fail "$GREEN_POLICY1_ARN carries tofu-estate=$GREEN_TAG_EST1, not $GREEN_ESTATE"
+log "  both policies' tofu-address and tofu-estate=$GREEN_ESTATE verified via the AWS CLI, not through choudoufu's own report"
+
+log "=== PART GREENFIELD 3. the local record store holds one record per instance (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "2" ] || fail "expected 2 records under the local record store after the greenfield apply (one per policy), found $GREEN_RECORD_FILES"
+log "  2 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART GREENFIELD 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$GREEN_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan proposes a resource change"; }
+log "  no resource change proposed"
+
+log "=== PART GREENFIELD 5. delete the local record store; plan a third time ==="
+rm -rf "$GREEN_EST/.tofu-records"
+GREEN_PLAN2_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN2_RC=$?
+[ "$GREEN_PLAN2_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN2_OUT" | tail -30; fail "the third greenfield plan (no local record store) exited $GREEN_PLAN2_RC"; }
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$GREEN_PLAN2_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$GREEN_PLAN2_OUT"; fail "the third greenfield plan proposes a resource change with no local record store - the objects are not being found by their tags alone"; }
+log "  no resource change proposed, with zero local memory of the run that created them"
+
+log "=== PART GREENFIELD 6. object-by-object against stock's own cold-deploy container (STAGE 1, untouched since) ==="
+GREEN_POLICY_COUNT_EXPECTED=2
+if [ "${BREAK_GREEN:-}" = "1" ]; then
+  GREEN_POLICY_COUNT_EXPECTED=1
+  log "  BREAK_GREEN=1: dropped one policy from the expected inventory - the count comparison below must fail"
+fi
+GREEN_POLICY_COUNT_ACTUAL="$(awslg resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$GREEN_POLICY_COUNT_ACTUAL" = "$GREEN_POLICY_COUNT_EXPECTED" ] \
+  || fail "the greenfield estate has $GREEN_POLICY_COUNT_ACTUAL objects, expected $GREEN_POLICY_COUNT_EXPECTED - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
+GREEN_DOC1="$(awslg iam get-policy-version --policy-arn "$GREEN_POLICY1_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
+COLD_DOC1="$(awsl iam get-policy-version --policy-arn "$POLICY1_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
+[ -n "$GREEN_DOC1" ] && [ "$GREEN_DOC1" = "$COLD_DOC1" ] || fail "the data-source policy's document differs between the greenfield estate and stock's cold deploy"
+GREEN_PATH1="$(awslg iam get-policy --policy-arn "$GREEN_POLICY1_ARN" --query 'Policy.Path' --output text)"
+COLD_PATH1="$(awsl iam get-policy --policy-arn "$POLICY1_ARN" --query 'Policy.Path' --output text)"
+[ "$GREEN_PATH1" = "$COLD_PATH1" ] || fail "the data-source policy's path differs between the greenfield estate and stock's cold deploy"
+GREEN_DOC2="$(awslg iam get-policy-version --policy-arn "$GREEN_POLICY2_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
+COLD_DOC2="$(awsl iam get-policy-version --policy-arn "$POLICY2_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
+[ -n "$GREEN_DOC2" ] && [ "$GREEN_DOC2" = "$COLD_DOC2" ] || fail "the name_prefix policy's document differs between the greenfield estate and stock's cold deploy"
+GREEN_PATH2="$(awslg iam get-policy --policy-arn "$GREEN_POLICY2_ARN" --query 'Policy.Path' --output text)"
+COLD_PATH2="$(awsl iam get-policy --policy-arn "$POLICY2_ARN" --query 'Policy.Path' --output text)"
+[ "$GREEN_PATH2" = "$COLD_PATH2" ] || fail "the name_prefix policy's path differs between the greenfield estate and stock's cold deploy"
+log "  both policies' documents and paths match stock's cold-deploy inventory, object by object, marker tags never compared"
+
+log ""
+log "PART GREENFIELD (greenfield): PASS"
+gauntlet_stage greenfield pass "2 resources from nothing (both aws_iam_policy), markers verified via the AWS CLI, 2 records in the local record store (#364 A2), replan empty both with and without the local record store, both policies' documents and paths match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
+log ""
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════

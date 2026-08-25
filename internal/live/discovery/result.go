@@ -691,6 +691,10 @@ const (
 	// record exists yet" - that answer is not a problem, it is an ordinary
 	// absence, and the instance is left unbound so the plan proposes a
 	// create.
+	//
+	// [recordOrphanReadSweep] reuses the same kind for the same failure on
+	// its own, undeclared side of the record store: a key it cannot read
+	// while deciding whether a destroy is safe to propose.
 	ProblemLocatedRecordUnreadable ProblemKind = "LOCATED_RECORD_UNREADABLE"
 
 	// ProblemUnresolvedAccount is the owner-id trap: every listed identity
@@ -702,6 +706,14 @@ const (
 
 	// ProblemListFailed is a provider error while listing a type.
 	ProblemListFailed ProblemKind = "LIST_FAILED"
+
+	// ProblemRecordStoreListFailed is [recordOrphanReadSweep]'s own list
+	// failure: the estate's record store could not be listed at all, so
+	// this run cannot say whether any untaggable, multi-component-identity
+	// resource (an inline aws_iam_role_policy/aws_iam_user_policy/
+	// aws_iam_group_policy, today) whose configuration block was removed
+	// exists to propose destroying.
+	ProblemRecordStoreListFailed ProblemKind = "RECORD_STORE_LIST_FAILED"
 
 	// ProblemUncomposableIdentifier is a Cloud Control ListResources
 	// identifier this package refuses to hand out as an import ID: a
