@@ -1014,8 +1014,23 @@ sg_shape() { # $1=endpoint $2=security-group-id
   aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups --group-ids "$2" \
     --query "SecurityGroups[0].[length(IpPermissions),length(IpPermissionsEgress)]" --output text 2>/dev/null
 }
-GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
-STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
+# module.asg_sg's own `name` argument is local.name (basename(path.cwd)),
+# not a literal "asg_sg" - the group's real AWS name is "complete-<hash>"
+# in every copy of this estate (plain, adopted, green all share the same
+# basename), so a group-name filter for "*asg_sg*" can never match
+# anything and this whole comparison was dead code until the greenfield
+# stage started clearing PART GREENFIELD: 4's replan check (this floci
+# repin). Confirmed directly against the API with no tofu in the loop: a
+# fresh apply of this same corpus example produces exactly two non-default
+# security groups, "complete-<hash>" (module.alb's, Description "Security
+# group for complete application load balancer") and another
+# "complete-<hash>" (module.asg_sg's) - module.asg_sg is the only one
+# whose main.tf sets `description = "A security group"` (main.tf:861),
+# and that literal is unique across the whole example, so it identifies
+# the group in both namespaces without relying on any choudoufu-specific
+# marker tag (stock's own plain apply writes no tofu-address tag at all).
+GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
+STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
 [ -n "$GREEN_SG_ID" ] && [ "$GREEN_SG_ID" != "None" ] || fail "no asg_sg security group found in the greenfield namespace"
 [ -n "$STOCK_SG_ID" ] && [ "$STOCK_SG_ID" != "None" ] || fail "no asg_sg security group found in stock's own cold-deploy namespace"
 GREEN_SG_SHAPE="$(sg_shape "$GREEN_ENDPOINT" "$GREEN_SG_ID")"
