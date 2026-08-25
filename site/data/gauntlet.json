@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "fa3e790ec342b6d3a640bdc3c6a1a25368101f4f",
+  "commit": "2ce2eac21ed26562ff309357ed908fb665761d3d",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T03:57:26Z",
+  "generated": "2026-08-25T04:36:50Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 4,
-          "fail": 0,
-          "not_run": 22
+          "fail": 1,
+          "not_run": 21
         },
         "day2_rename": {
           "pass": 26,
@@ -179,8 +179,8 @@
         },
         "greenfield": {
           "pass": 3,
-          "fail": 0,
-          "not_run": 23
+          "fail": 1,
+          "not_run": 22
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 4,
-          "fail": 0,
-          "not_run": 21
+          "fail": 1,
+          "not_run": 20
         },
         "day2_rename": {
           "pass": 25,
@@ -256,8 +256,8 @@
         },
         "greenfield": {
           "pass": 3,
-          "fail": 0,
-          "not_run": 22
+          "fail": 1,
+          "not_run": 21
         },
         "migrate": {
           "pass": 25,
@@ -1228,12 +1228,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "fail",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1243,13 +1243,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
-        "date": "2026-08-24T19:29:30Z",
-        "exit_code": 0,
+        "commit": "2ce2eac21ed26562ff309357ed908fb665761d3d",
+        "date": "2026-08-25T04:41:37Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
+          "day2_remove": "choudoufu does not propose destroying module.server.module.server.module.host.aws_instance.instance[0] when module.server's block is deleted",
           "day2_rename": "moved block: aws_eip.crossing_nat renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_route_table.crossing_public renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected",
+          "greenfield": "the greenfield replan is not empty",
           "migrate": "7 stamped, 2 recorded (markers = record honoured at migrate time, GitHub issue #365 slice 2), 0 failed, 2 skipped",
           "test_apply": "genuine no-op: 7 tagged objects before, 7 after, no state file either time; module.server's record-based instance and volume identities unchanged",
           "test_plan": "Items 4, 5 and 6 (this script's header) are all FIXED and the plan is genuinely empty (\"No changes. Your infrastructure matches the configuration.\"): live-import honours markers = record (located records for aws_instance.instance[0] and aws_ebs_volume.data_disk[0], confirmed at the store and by value against the AWS CLI both right after migrate and again after this empty replan), residue now covers NestingList/NestingSet/NestingMap blocks (internal/live/projection's residueEligibleBlock, widened from the block's SHAPE - whether carriesNoInformation can tell its absence from a real empty answer - never from a type name), and lex00/floci#103 (published in ghcr.io/lex00/floci@sha256:e16d9007a03093b6a6edd22273dee9d8253131f18581b0fa20ae6d34178a3079) now honours RunInstances' BlockDeviceMapping.Ebs.VolumeSize for the root device, closing the one line (root_block_device.volume_size = 8 -> 200) that was this crossing's own last wall. Plan moved 3 to add/0/0 (the original ABSENT gap) -> 2 to add/0/2 to destroy (item 4 fixed, item 5's replacement exposed) -> 0 to add/1 to change/0 to destroy (item 5 fixed) -> empty (item 6 fixed by the emulator)."
