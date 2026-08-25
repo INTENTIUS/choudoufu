@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -70,6 +71,30 @@ type Request struct {
 	// Nil (the default) matches every caller before this field existed:
 	// nothing is excluded, and the demand this pass builds is unchanged.
 	RecordBackedAddrs map[string]bool
+
+	// DeposedRecords is GitHub issue #361's crash-window recovery input,
+	// keyed by [addrs.AbsResourceInstance.String] and then by the deposed
+	// object's own key (states.DeposedKey's string form): every deposed
+	// object this estate's record names, for the declared addresses a
+	// caller chose to ask about. Populated in
+	// internal/command/live_plan.go from the estate's already-open record
+	// store, before [Discover] runs - see that file's own comment for why
+	// this has to happen ahead of the scan rather than lazily inside it.
+	//
+	// Consulted only in bind()'s collision branch (two-or-more claimants
+	// for one declared address - exactly the shape a create-before-destroy
+	// crash produces while the new and old object both still carry the
+	// address's marker): if exactly one claimant matches one recorded
+	// deposed candidate for that address, it is pulled out of collision
+	// consideration and reported in [Result.DeposedBindings] instead, and
+	// the remaining single claimant binds through the ordinary case-1
+	// path. Zero matches, or more than one, still raise
+	// [ProblemCollision] exactly as before this field existed.
+	//
+	// Nil (every caller before this field existed) disables the
+	// disambiguation entirely: every collision raises [ProblemCollision],
+	// byte-identical to before.
+	DeposedRecords map[string]map[string]projection.DeposedRecord
 
 	// Resolutions is the identity package's output for the whole
 	// configuration, needs-discovery instances included. The
@@ -2742,33 +2767,41 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 					diags = diags.Append(problemDiag(res, p))
 				}
 			case 1:
-				c := entry.claimants[0]
-				if c.noIdentity {
-					diags = diags.Append(problemDiag(res, Problem{
-						Kind:     ProblemNoIdentity,
-						TypeName: typeName,
-						Addr:     entry.res.Addr,
-						Marker:   escaped,
-						Detail: fmt.Sprintf(
-							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
-							typeName, entry.res.Addr, identityAttrNames(typeName)),
-					}))
-					continue
+				if diag, hasProblem := bindClaimant(res, bound, typeName, escaped, entry.res.Addr, entry.claimants[0]); hasProblem {
+					diags = diags.Append(diag)
 				}
-				b := Binding{
-					Addr:         entry.res.Addr,
-					TypeName:     typeName,
-					ImportID:     c.importID,
-					IdentityAttr: c.identityAttr,
-					Marker:       c.marker,
-					Normalized:   c.normalized,
-					Slot:         c.slot,
-					DisplayName:  c.displayName,
-					Identity:     c.identity,
-				}
-				res.Bindings = append(res.Bindings, b)
-				bound[entry.res.Addr.String()] = b
 			default:
+				// GitHub issue #361's crash-window recovery: a
+				// create-before-destroy replace interrupted after the new
+				// object commits but before the old one is destroyed
+				// leaves BOTH objects carrying this address's marker,
+				// which is exactly this shape. If the estate's record
+				// names a deposed object for this address, and exactly
+				// one of the claimants here is that object (already
+				// live-read and marker-verified by this pass, ahead of
+				// ever consulting the record - #361's design comment,
+				// section 4), it is not a genuine collision: pull it out
+				// and bind the remaining single claimant through the
+				// ordinary case-1 path. Any other count - zero matches,
+				// or the record naming an object none of these claimants
+				// is - falls through to the ordinary collision refusal
+				// below unchanged.
+				if rec, dk, idx, ok := matchDeposedClaimant(req, entry.res.Addr, entry.claimants); ok {
+					remainingIdx, remainingCount := -1, 0
+					for i := range entry.claimants {
+						if i == idx {
+							continue
+						}
+						remainingIdx, remainingCount = i, remainingCount+1
+					}
+					if remainingCount == 1 {
+						res.DeposedBindings = append(res.DeposedBindings, projection.NewDeposedBinding(entry.res.Addr, dk, rec))
+						if diag, hasProblem := bindClaimant(res, bound, typeName, escaped, entry.res.Addr, entry.claimants[remainingIdx]); hasProblem {
+							diags = diags.Append(diag)
+						}
+						break
+					}
+				}
 				diags = diags.Append(problemDiag(res, collisionProblem(req, typeName, entry)))
 			}
 		}
@@ -2931,6 +2964,99 @@ func quotedList(vals []string) string {
 // collisionProblem distinguishes the two ways several live resources come to
 // claim one address: a genuine ownership collision, and a set of count
 // instances that phase 3's slot markers exist to tell apart.
+// bindClaimant turns one claimant into a [Binding] and records it in res and
+// bound, or raises [ProblemNoIdentity] when the claimant carries no usable
+// identity - the same construction bind()'s own case-1 arm always did,
+// factored out so the deposed-disambiguation arm can reuse it exactly
+// rather than the two diverging over time. hasProblem is false whenever a
+// Binding was recorded; diag is only meaningful when it is true.
+func bindClaimant(res *Result, bound map[string]Binding, typeName, escaped string, addr addrs.AbsResourceInstance, c claimant) (diag tfdiags.Diagnostic, hasProblem bool) {
+	if c.noIdentity {
+		return problemDiag(res, Problem{
+			Kind:     ProblemNoIdentity,
+			TypeName: typeName,
+			Addr:     addr,
+			Marker:   escaped,
+			Detail: fmt.Sprintf(
+				"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+				typeName, addr, identityAttrNames(typeName)),
+		}), true
+	}
+	b := Binding{
+		Addr:         addr,
+		TypeName:     typeName,
+		ImportID:     c.importID,
+		IdentityAttr: c.identityAttr,
+		Marker:       c.marker,
+		Normalized:   c.normalized,
+		Slot:         c.slot,
+		DisplayName:  c.displayName,
+		Identity:     c.identity,
+	}
+	res.Bindings = append(res.Bindings, b)
+	bound[addr.String()] = b
+	return nil, false
+}
+
+// matchDeposedClaimant is GitHub issue #361's crash-window disambiguation:
+// it checks addr's claimants against req.DeposedRecords, returning the one
+// (deposed key, record) pair a claimant matched and that claimant's own
+// index into claimants - but only when EXACTLY one (claimant, candidate)
+// pair matches across the whole set. Any other count - no recorded
+// candidate for addr, no claimant matching any of them, or more than one
+// match - returns ok false: [collisionProblem] is the correct, safe
+// default for every one of those, and this function guesses through none
+// of them.
+func matchDeposedClaimant(req Request, addr addrs.AbsResourceInstance, claimants []claimant) (rec projection.DeposedRecord, deposedKey string, claimantIdx int, ok bool) {
+	perAddr := req.DeposedRecords[addr.String()]
+	if len(perAddr) == 0 {
+		return projection.DeposedRecord{}, "", -1, false
+	}
+	matches := 0
+	claimantIdx = -1
+	for dk, candidate := range perAddr {
+		for i, c := range claimants {
+			if deposedClaimantMatches(candidate, c) {
+				matches++
+				rec, deposedKey, claimantIdx = candidate, dk, i
+			}
+		}
+	}
+	if matches != 1 {
+		return projection.DeposedRecord{}, "", -1, false
+	}
+	return rec, deposedKey, claimantIdx, true
+}
+
+// deposedClaimantMatches reports whether a live claimant is the object rec
+// names: by import ID for a type identified by one server-minted string, or
+// by every named identity-schema component for a composite type. Generic by
+// construction - no resource type name appears in this function, only the
+// property (identified by one string, or by several named components) every
+// admitted type already has one of.
+func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
+	if rec.ImportID != "" {
+		return rec.ImportID == c.importID
+	}
+	if len(rec.Components) == 0 {
+		return false
+	}
+	if c.identity == cty.NilVal || c.identity.IsNull() || !c.identity.IsKnown() || !c.identity.Type().IsObjectType() {
+		return false
+	}
+	ty := c.identity.Type()
+	for name, want := range rec.Components {
+		if !ty.HasAttribute(name) {
+			return false
+		}
+		v := c.identity.GetAttr(name)
+		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
+			return false
+		}
+	}
+	return true
+}
+
 func collisionProblem(req Request, typeName string, entry *declaredEntry) Problem {
 	ids := claimantIDs(entry.claimants)
 
