@@ -1474,32 +1474,36 @@ EOF
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
-    # RE-VERIFIED against current main (re-verify-day2_remove unit,
-    # 2026-08): this used to be zero churn. Root cause is now precisely
-    # named: 610511fb73 (internal/live/discovery/recordorphan_read.go,
-    # #405's day2_remove fix) added recordOrphanReadSweep, which reads the
-    # record store for any UNTAGGABLE type's undeclared old-address record
-    # and proposes destroying it - generically, since its filter is
-    # "untaggable + has a persisted identity record", not tied to any
-    # specific type. Its own rename-safety check (the `pending` map, built
-    # from res.Unbound) only recognizes "a declared instance of the SAME
-    # address is unclaimed" - it never consults
-    # moved.Aliases/moved.Honoured(req.Config) the way the marker path
-    # already does. So this moved block, relocating module.overture_tiles,
-    # now destroys EIGHT untaggable children under the OLD address instead
-    # of matching them under the new one: aws_iam_role_policy (x2),
-    # aws_iam_role_policy_attachment (x2), aws_route, aws_route_table_
-    # association, aws_s3_bucket_policy and aws_s3_bucket_public_access_
-    # block - the widest blast radius of this generic gap seen in this
-    # unit, spanning IAM, VPC/routing and S3 types in one estate. SAME
-    # root cause, independently confirmed on corpus-giantswarm-crossplane,
-    # corpus-ec2-instance-complete, corpus-rds-complete-postgres,
-    # corpus-security-group-complete, corpus-dynamodb-table-basic,
-    # corpus-autoscaling-complete and corpus-s3-bucket-complete in this
-    # same unit. Not fixed here - a Go change, out of scope for this
-    # script-only re-verification unit.
+    # FIXED by gauntlet:sweep-moved-alias (internal/live/discovery/
+    # recordorphan_read.go, merged 43556706d6): this leg regressed after
+    # 610511fb73 (the record-orphan-read sweep, #405's day2_remove fix)
+    # added recordOrphanReadSweep, which reads the record store for any
+    # UNTAGGABLE type's undeclared old-address record and proposes
+    # destroying it - generically, since its filter is "untaggable + has a
+    # persisted identity record", not tied to any specific type. Its own
+    # rename-safety check (the `pending` map, built from res.Unbound) only
+    # recognized "a declared instance of the SAME address is unclaimed" -
+    # it never consulted moved.Aliases/moved.Honoured(req.Config) the way
+    # the marker path already did. So this moved block, relocating
+    # module.overture_tiles, started destroying EIGHT untaggable children
+    # under the OLD address instead of matching them under the new one:
+    # aws_iam_role_policy (x2), aws_iam_role_policy_attachment (x2),
+    # aws_route, aws_route_table_association, aws_s3_bucket_policy and
+    # aws_s3_bucket_public_access_block - the widest blast radius of this
+    # generic gap seen in that unit, spanning IAM, VPC/routing and S3
+    # types in one estate. SAME root cause, independently confirmed on
+    # corpus-giantswarm-crossplane, corpus-ec2-instance-complete,
+    # corpus-rds-complete-postgres, corpus-security-group-complete,
+    # corpus-dynamodb-table-basic, corpus-autoscaling-complete and
+    # corpus-s3-bucket-complete in that same unit.
+    #
+    # RE-VERIFIED against current main (alias-wave-b unit, 2026-08): this
+    # leg is zero churn again (0 add, 0 destroy, sixteen in-place tag
+    # updates - the assertion below already went from failing to passing;
+    # the stale comment above is what changed here). See D2 below for a
+    # SEPARATE, still-open gap this fix does not reach.
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now destroys eight untaggable children under the OLD module.overture_tiles address (aws_iam_role_policy x2, aws_iam_role_policy_attachment x2, aws_route, aws_route_table_association, aws_s3_bucket_policy, aws_s3_bucket_public_access_block) instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic, corpus-autoscaling-complete and corpus-s3-bucket-complete independently hit in this same unit"; }
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename destroys untaggable children under the OLD module.overture_tiles address instead of zero churn - see the comment immediately above this assertion for the (fixed) root cause"; }
     for addr in "${TAGGABLE_ADDRS[@]}"; do
       grep -qF "  # module.overture_tiles_moved.$addr will be updated in-place" <<< "$MOVED_PLAN_OUT" \
         || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.overture_tiles_moved.$addr"; }
@@ -1628,8 +1632,28 @@ EOF
 
     MOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVE_APPLY_RC=$?
     [ "$MOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVE_APPLY_OUT" | tail -40; fail "the D2 moved-block-only apply (for ${NO_LIVE_MV[*]}) exited $MOVE_APPLY_RC"; }
-    grep -qE "Resources: 0 added, ${#NO_LIVE_MV[@]} changed, 0 destroyed" <<< "$MOVE_APPLY_OUT" \
-      || { grep -E 'Apply complete' <<< "$MOVE_APPLY_OUT"; fail "the D2 moved-block-only apply was not exactly ${#NO_LIVE_MV[@]} in-place change(s)"; }
+    if ! grep -qE "Resources: 0 added, ${#NO_LIVE_MV[@]} changed, 0 destroyed" <<< "$MOVE_APPLY_OUT"; then
+      # RE-VERIFIED against current main (alias-wave-b unit, 2026-08): D1's
+      # module-level moved block (module.overture_tiles -> _moved) is
+      # structural HCL and covers every one of the 26 children, taggable
+      # and untaggable alike, automatically. D2 has no equivalent: the
+      # module is renamed a second time (_moved -> _final) via a mix of
+      # live-mv calls (14 taggable addresses) and two per-resource moved
+      # blocks (NO_LIVE_MV, above) - neither of which names the OTHER ten
+      # untaggable/config-derived children at all. Those never got a moved
+      # statement or a live-mv call carrying them from _moved to _final,
+      # so this apply proposes real action on them - the SAME generic gap
+      # 63c0a18858 named for corpus-giantswarm-crossplane's D2 ("a second,
+      # distinct record-located-rename gap the moved.Aliases consult fix
+      # does not reach, since no moved statement names this hop at all"),
+      # here reaching a wider spread across this estate's own untaggable
+      # set. Not fixed in this re-verification pass.
+      MOVE_APPLY_ACTIONS="$(grep -E ': (Destroying|Destruction complete|Creating|Creation complete)' <<< "$MOVE_APPLY_OUT")"
+      printf '%s\n' "$MOVE_APPLY_ACTIONS"
+      grep -E 'Apply complete' <<< "$MOVE_APPLY_OUT"
+      MOVE_APPLY_SUMMARY="$(grep -E 'Apply complete' <<< "$MOVE_APPLY_OUT")"
+      fail "the D2 moved-block-only apply was not exactly ${#NO_LIVE_MV[@]} in-place change(s): $MOVE_APPLY_SUMMARY; per-resource actions: $(tr '\n' ';' <<< "$MOVE_APPLY_ACTIONS"); the ten untaggable/config-derived children (nine plus the OAC) have no moved statement or live-mv call carrying their record from module.overture_tiles_moved to module.overture_tiles_final - the SAME generic gap 63c0a18858 named for corpus-giantswarm-crossplane's D2, not fixed here"
+    fi
 
     COMPUTE_ENV_ADDR="$(awsl batch list-tags-for-resource --resource-arn "$COMPUTE_ENV_ARN" --query 'tags."tofu-address"' --output text)"
     [ "$COMPUTE_ENV_ADDR" = "module.overture_tiles_final.aws_batch_compute_environment.tiles" ] \

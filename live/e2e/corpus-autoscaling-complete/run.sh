@@ -842,7 +842,28 @@ EOF
     TAGGED_BEFORE="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
 
     REMOVE_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
-    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    if [ "$REMOVE_APPLY_RC" -ne 0 ]; then
+      printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40
+      # RE-VERIFIED against current main (alias-wave-b unit, 2026-08): the plan
+      # matches the stock oracle's own count (2 destroys, module.default's LT
+      # and ASG, both undeclared/record-orphan now that the block is gone),
+      # but the APPLY itself fails mid-destroy: real AWS's own ASG-delete
+      # path (scale to 0 before deleting instances/the group) rejects the
+      # UpdateAutoScalingGroup call because the launch template the ASG still
+      # references has already been deleted - i.e. the sibling launch
+      # template was destroyed before the ASG that depends on it, the
+      # opposite of the order a normal dependency-graph destroy enforces.
+      # module.default's ASG and LT have no HCL left to derive that edge from
+      # once the block is removed (both are undeclared orphans discovered by
+      # address, not by a live dependency graph), so this looks like the same
+      # family 91281978b9 named for corpus-mastino-dns ("give an undeclared
+      # record-orphan a destroy-before-parent ordering hint") one hop further
+      # out: a same-level (sibling) reference between two undeclared orphans,
+      # not a parent/child one - NOT fixed in this re-verification pass; the
+      # actual AWS diagnostic is captured below for whoever picks this up.
+      REMOVE_APPLY_ERR="$(grep -E '^Error: ' <<< "$REMOVE_APPLY_OUT" | head -1)"
+      fail "the day2_remove apply exited $REMOVE_APPLY_RC - ${REMOVE_APPLY_ERR:-no 'Error:' line found}; plan matched the stock oracle's destroy count ($ORACLE_REMOVE_N) but the apply itself failed destroying module.default's undeclared orphan pair (its launch template and its ASG), most likely a destroy-order gap between two sibling undeclared orphans with no HCL left to derive the ASG-references-LT edge from - see live/gauntlet/logs/corpus-autoscaling-complete.log"
+    fi
     grep -qE "Resources: 0 added, 0 changed, $ORACLE_REMOVE_N destroyed" <<< "$REMOVE_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly $ORACLE_REMOVE_N destroys"; }
 

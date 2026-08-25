@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,13 +153,13 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 16,
-          "fail": 10,
+          "pass": 17,
+          "fail": 9,
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 22,
-          "fail": 4,
+          "pass": 24,
+          "fail": 2,
           "not_run": 0
         },
         "day2_replace": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 14,
+      "clear": 15,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,13 +230,13 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 15,
-          "fail": 10,
+          "pass": 16,
+          "fail": 9,
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 21,
-          "fail": 4,
+          "pass": 23,
+          "fail": 2,
           "not_run": 0
         },
         "day2_replace": {
@@ -346,7 +346,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -360,13 +360,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3a76c2df6efac9877a5148de72d09448d8e099d3",
-        "date": "2026-08-25T06:03:35Z",
+        "commit": "43556706d62ebc00089c12fba98987696921eb1f",
+        "date": "2026-08-25T08:37:05Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
-          "day2_remove": "choudoufu's remove plan destroys only 1 of module.default's resources; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes 2 destroys for the same module (0 add, 0 change, 2 destroy). choudoufu has strictly less destroy coverage than stock here - the missing address(es) are left live and orphaned, most likely module.default's own aws_autoscaling_group: it carries no ownership marker at all (the `tag` nested-block shape, not the top-level tags map internal/live/markers.TagSurface requires) and may also be admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\", the same class corpus-dynamodb-table-basic's day2_remove hits on aws_dynamodb_resource_policy). Not fixed in this script-only pass; see live/gauntlet/logs/corpus-autoscaling-complete.log for the exact plan diff",
-          "day2_rename": "choudoufu defect: the moved-block rename of module.asg_sg proposes a create for its untaggable child aws_security_group_rule.egress_rules[0] instead of matching it structurally under the parent's new address - not zero churn. Root cause: 610511fb73's recordOrphanReadSweep has no moved-block awareness (see the comment immediately above this assertion) - the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete and corpus-dynamodb-table-basic independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it.",
+          "day2_remove": "the day2_remove apply exited 1 - Error: setting Auto Scaling Group (default-b2e4cc44c5e0b50d0358998e99) capacity to 0: operation error Auto Scaling: UpdateAutoScalingGroup, https response error StatusCode: 400, RequestID: f4bfbcdd-e7ea-489f-b45e-6d95dc914ce5, api error ValidationError: The specified launch template does not exist.; plan matched the stock oracle's destroy count (2) but the apply itself failed destroying module.default's undeclared orphan pair (its launch template and its ASG), most likely a destroy-order gap between two sibling undeclared orphans with no HCL left to derive the ASG-references-LT edge from - see live/gauntlet/logs/corpus-autoscaling-complete.log",
+          "day2_rename": "moved block: module.asg_sg renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "greenfield": "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): aws_ec2_capacity_reservation.targeted will be created;module.warm_pool.aws_autoscaling_group.this[0] will be updated in-place;module.warm_pool.aws_launch_template.this[0] will be updated in-place;. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. 68/68 objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.",
           "migrate": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 41 objects carry tofu-estate=autoscaling-complete-crossing",
@@ -1018,13 +1018,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23ce3de050f182ba70c1244ca71badbf1a0da2ef",
-        "date": "2026-08-25T06:40:25Z",
+        "commit": "a1b4b86e8a5267248088d460ea2f51965be4cbb2",
+        "date": "2026-08-25T08:56:31Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
           "day2_remove": "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]",
-          "day2_rename": "the moved-block rename now destroys eight untaggable children under the OLD module.overture_tiles address (aws_iam_role_policy x2, aws_iam_role_policy_attachment x2, aws_route, aws_route_table_association, aws_s3_bucket_policy, aws_s3_bucket_public_access_block) instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic, corpus-autoscaling-complete and corpus-s3-bucket-complete independently hit in this same unit",
+          "day2_rename": "the D2 moved-block-only apply was not exactly 2 in-place change(s): Apply complete! Resources: 0 added, 2 changed, 4 destroyed.; per-resource actions: module.overture_tiles_moved.aws_iam_role_policy.execution_logs: Destroying... [id=overture-tiles-crossing-execution-45e7db560bd5adfea09754ed0d:overture-tiles-crossing-execution-logs-policy];module.overture_tiles_moved.aws_iam_role_policy.job_s3: Destroying... [id=overture-tiles-crossing-job-c723f36d69db72970d8ef4e654:overture-tiles-crossing-job-s3-policy];module.overture_tiles_moved.aws_iam_role_policy_attachment.execution_ecr: Destroying... [id=overture-tiles-crossing-execution-45e7db560bd5adfea09754ed0d/arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly];module.overture_tiles_moved.aws_iam_role_policy_attachment.ecs_instance: Destroying... [id=overture-tiles-crossing-ecs-instance-992fe08a495ad9dc516d3fbf41/arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role];module.overture_tiles_moved.aws_iam_role_policy_attachment.execution_ecr: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy.job_s3: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy.execution_logs: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy_attachment.ecs_instance: Destruction complete after 0s;; the ten untaggable/config-derived children (nine plus the OAC) have no moved statement or live-mv call carrying their record from module.overture_tiles_moved to module.overture_tiles_final - the SAME generic gap 63c0a18858 named for corpus-giantswarm-crossplane's D2, not fixed here",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "greenfield": "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
@@ -1091,8 +1091,8 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_remove": "pass",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1103,16 +1103,16 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23ce3de050f182ba70c1244ca71badbf1a0da2ef",
-        "date": "2026-08-25T06:59:11Z",
-        "exit_code": 1,
+        "commit": "cd1148ab80f1cfd59a4c50941636868c24aaf192",
+        "date": "2026-08-25T08:44:02Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
-          "day2_remove": "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket_public_access_block.this[0] - the untaggable, parent-derived sibling stock also destroys (issue #410, see header)",
-          "day2_rename": "the moved-block rename now destroys module.cloudfront_log_bucket.aws_s3_bucket_public_access_block.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic and corpus-autoscaling-complete independently hit in this same unit",
+          "day2_remove": "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-glowing-joey now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched",
+          "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
           "greenfield": "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
