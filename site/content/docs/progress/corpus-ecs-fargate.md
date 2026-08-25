@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 46 tofu-estate-tagged objects before, 46 after, no state file either time |
 | Drift and reconverge | pass | one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged |
 | Rename | pass | moved block: module.alb renamed with zero churn (0 add, 9 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `de120d18d3` on 2026-08-24T20:22:11Z, exit code 0.

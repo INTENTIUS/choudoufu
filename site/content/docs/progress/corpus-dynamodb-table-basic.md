@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op: 1 objects before, 1 after, no state file either time |
 | Drift and reconverge | pass | one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-amused-chicken's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag |
 | Rename | pass | moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `1b71d0682a` on 2026-08-24T21:54:15Z, exit code 0.

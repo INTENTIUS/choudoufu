@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 7, no state file |
 | Drift and reconverge | pass | VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update |
 | Rename | pass | moved block: module.networking renamed with zero churn (0 add, 6 change, 0 destroy), marker rewritten in place across its taggable objects including the untaggable route-table-association children resolving structurally; live-mv: module.sessions_table renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `5c94842ae8` on 2026-08-24T23:25:12Z, exit code 0.

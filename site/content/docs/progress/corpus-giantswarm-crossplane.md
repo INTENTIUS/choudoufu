@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, both exclusive sets unchanged |
 | Drift and reconverge | pass | role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured |
 | Rename | pass | moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `5c94842ae8` on 2026-08-24T23:26:05Z, exit code 0.

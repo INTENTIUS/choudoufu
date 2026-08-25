@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 3; markers and record store intact |
 | Drift and reconverge | pass | one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128 |
 | Rename | pass | moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's "Record-backed instance with no record store") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `afae3a2ce4` on 2026-08-24T22:12:35Z, exit code 0.

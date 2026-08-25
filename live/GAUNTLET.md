@@ -82,7 +82,7 @@ Oracle: Stock with the same `moved` block plans zero churn. The two plans, norma
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
 
-### 7. Remove a block (`day2_remove`, planned)
+### 7. Remove a block (`day2_remove`, active)
 
 Proves: Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.
 
@@ -130,7 +130,7 @@ Oracle: Stock's planfile applies in the unchanged case; in the changed case chou
 
 Break: Apply the planfile after a mutation and expect success; the run must refuse.
 
-### 13. Greenfield apply (`greenfield`, planned)
+### 13. Greenfield apply (`greenfield`, active)
 
 Proves: Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.
 

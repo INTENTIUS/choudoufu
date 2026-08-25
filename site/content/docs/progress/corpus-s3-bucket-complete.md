@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4 |
 | Drift and reconverge | pass | accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty |
 | Rename | pass | moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `6d93053c6e` on 2026-08-25T01:23:10Z, exit code 0.

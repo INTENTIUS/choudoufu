@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file |
 | Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
 | Rename | pass | moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `e921449d48` on 2026-08-24T19:26:13Z, exit code 0.

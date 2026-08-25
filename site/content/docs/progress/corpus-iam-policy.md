@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op: 2 objects before, 2 after, no state file either time |
 | Drift and reconverge | pass | one object tampered (arn:aws:iam::000000000000:policy/example_from_data_source's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag |
 | Rename | pass | moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI |
-| Remove a block (planned) | pass | choudoufu: deleting module.iam_policy_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.5) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy even though module.iam_policy_renamed2's policy shares the same block key, because that surviving instance is bound, not unclaimed |
+| Remove a block | pass | choudoufu: deleting module.iam_policy_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.5) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy even though module.iam_policy_renamed2's policy shares the same block key, because that surviving instance is bound, not unclaimed |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `3d86063868` on 2026-08-25T01:39:10Z, exit code 0.

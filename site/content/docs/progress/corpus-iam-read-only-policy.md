@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op: 1 objects before, 1 after, no state file either time |
 | Drift and reconverge | pass | one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-27690b21f890397fe7b1b1bb92's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag |
 | Rename | pass | moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `00acf1c9ba` on 2026-08-24T22:50:09Z, exit code 0.
