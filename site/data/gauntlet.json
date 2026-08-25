@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "18c070d9c95deb3b30fdf659d605b4507bc81e03",
+  "commit": "38d6c2506127bc7b5c38220fafcd424093e91eef",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T03:39:08Z",
+  "generated": "2026-08-25T03:58:53Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 1,
-          "not_run": 23
+          "fail": 2,
+          "not_run": 22
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 1,
-          "not_run": 22
+          "fail": 2,
+          "not_run": 21
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "migrate": {
           "pass": 25,
@@ -972,12 +972,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -987,13 +987,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bed239dbb33b94d5559c8c968119aee06de3837c",
-        "date": "2026-08-25T00:04:20Z",
-        "exit_code": 0,
+        "commit": "38d6c2506127bc7b5c38220fafcd424093e91eef",
+        "date": "2026-08-25T04:04:36Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
+          "day2_remove": "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]",
           "day2_rename": "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
+          "greenfield": "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact",
           "test_plan": "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
