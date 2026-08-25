@@ -514,14 +514,19 @@ FLUENTBIT_PARAM="/aws/service/aws-for-fluent-bit/stable"
 # Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13),
 # same pattern as corpus-sqs-basic's own: one namespace choudoufu applies
 # into directly with no migration, and a separate namespace stock applies the
-# identical corpus example into as that stage's own oracle. Offset by 10/20
-# rather than 1/2 so this estate's own [main, green, oracle] triple never
-# collides with a sibling estate's triple even when FLOCI_PORT is overridden
-# to a value one apart from another estate's (as the four day2_remove/
-# greenfield batch estates' assigned ports are).
-FLOCI_GREEN_PORT=$((FLOCI_PORT + 10))
+# identical corpus example into as that stage's own oracle. Offset by
+# 1000/2000 rather than 1/2: a live run collided at FLOCI_PORT+20 with an
+# unrelated concurrent session's own arbitrary port override for a
+# different estate entirely (corpus-sqs-basic's main container, bound to
+# 4925 - nothing to do with this estate's own assigned range), so a small
+# offset is not safely reserved even within one estate's own triple. 1000/
+# 2000 moves this estate's green/oracle pair into a range no other e2e
+# script defaults into (every existing FLOCI_PORT default in live/e2e is
+# under 4800) and keeps this estate's own [main, green, oracle] triple
+# disjoint from a sibling estate's triple one port over.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1000))
 FLOCI_GREEN_NAME="choudoufu-corpus-ecs-fargate-green-$$"
-FLOCI_ORACLE_PORT=$((FLOCI_PORT + 20))
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2000))
 FLOCI_ORACLE_NAME="choudoufu-corpus-ecs-fargate-green-oracle-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
