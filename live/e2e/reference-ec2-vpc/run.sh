@@ -81,10 +81,12 @@ set -uo pipefail
 #                security group's Name tag) is also tampered out of band,
 #                and the single-object assertion must then correctly fail
 #                to hold (it is skipped in favor of confirming more than
-<<<<<<< HEAD
-#                one object is proposed). This same BREAK also switches
-#                Part D (day2_rename) to its own negative control - see
-#                that part's header.
+#                one object is proposed); (3) before the greenfield-stage
+#                oracle comparison, the internet gateway is dropped from the
+#                expected inventory on the greenfield side, and the
+#                object-by-object match must then correctly fail to hold.
+#                This same BREAK also switches Part D (day2_rename) to its
+#                own negative control - see that part's header.
 #   BREAK_REMOVE set to 1 to run day2_remove's own negative control instead
 #                of the real checks: keep the internet-gateway block in the
 #                config and assert no destroy is proposed for it (the
@@ -93,12 +95,6 @@ set -uo pipefail
 #                Independent of BREAK and only reachable when BREAK is not
 #                1, because Part E starts from Part D's real, completed
 #                rename - see Part E's header.
-=======
-#                one object is proposed); (3) before the greenfield-stage
-#                oracle comparison, the internet gateway is dropped from the
-#                expected inventory on the greenfield side, and the
-#                object-by-object match must then correctly fail to hold.
->>>>>>> gauntlet/greenfield-evidence
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
