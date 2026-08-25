@@ -706,6 +706,43 @@ grep -qE '^  # module\.cratesio_com\.aws_route53_zone\.zone will be destroyed' <
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (module.cratesio_com's zone), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
+# same reason day2_remove's own oracle sits before migrate (above): a
+# throwaway copy of cold_deploy's own state, module.areweasyncyet_rs's
+# `domain` argument changed to a different literal - `domain` sets aws_
+# route53_zone.zone's own `name`, which is ForceNew (Route 53 has no
+# rename-hosted-zone API), so this forces a replace at the SAME declared
+# address, cascading into the zone's own one A record (its `zone_id`
+# argument is ForceNew too, and its own `name` also interpolates var.
+# domain). module.areweasyncyet_rs is the smallest real zone in this
+# estate - one A record, no CNAME/MX/TXT - and day2_rename/day2_remove
+# (above) target module.rustaceans_org and module.cratesio_com, never it,
+# so this section has no ordering dependency on either. PLAN ONLY, never
+# applied: this copy shares floci's account with $ESTATE.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.areweasyncyet_rs's zone via its ForceNew domain argument, on cold_deploy's own state ==="
+REPLACE_ORACLE="$WORK/replace-oracle"
+copy_estate "$REPLACE_ORACLE" ""
+cp "$PLAIN/terraform.tfstate" "$REPLACE_ORACLE/terraform.tfstate"
+sed -i.bak 's/domain  = "areweasyncyet\.rs"/domain  = "areweasyncyet-replaced.rs"/' "$REPLACE_ORACLE/areweasyncyet.rs.tf"
+rm -f "$REPLACE_ORACLE/areweasyncyet.rs.tf.bak"
+grep -q 'domain  = "areweasyncyet-replaced.rs"' "$REPLACE_ORACLE/areweasyncyet.rs.tf" \
+  || fail "changing module.areweasyncyet_rs's domain argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_zone\.zone must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.areweasyncyet_rs's zone when its ForceNew domain argument changes"; }
+grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_record\.a\["@"\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not cascade the zone replace into its A record"; }
+grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own two-resource cascade (zone + its one A record, both replaced)"; }
+log "  stock: exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1023,6 +1060,109 @@ else
     || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
   log "  reconverged: TTL is back to $WANT_TTL, $RECORDS record sets still there, the parent zone's marker intact - all read via the AWS CLI"
   gauntlet_stage drift_reconverge pass "one untaggable record drifted, exactly $DRIFT_ADDR proposed and applied, TTL reconverged to $WANT_TTL, $RECORDS records and the parent marker intact"
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # Placed right after STAGE 5 and BEFORE PART D (day2_rename, below) on
+  # purpose, the same convention corpus-ec2-instance-complete's own PART F
+  # uses: module.areweasyncyet_rs is never touched by PART D's rename
+  # (that stage's own two targets are module.rustaceans_org and module.
+  # cratesio_com), so this section has no dependency on PART D's outcome.
+  # module.areweasyncyet_rs's `domain` argument changes from
+  # "areweasyncyet.rs" to "areweasyncyet-replaced.rs" - `domain` sets aws_
+  # route53_zone.zone's own `name`, which is ForceNew (Route 53 has no
+  # rename-hosted-zone API) - forcing a replace at the SAME declared
+  # address. One resource cascades from the SAME dependency edge F-ORACLE
+  # (above, right after cold_deploy) already names: the zone's own one A
+  # record (its zone_id argument is ForceNew, and its own name also
+  # interpolates var.domain) - a real, two-object shape, not a bug.
+  #
+  # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+  # for the full reasoning, reproduced only in summary here): OpenTofu core
+  # rejects a `lifecycle` block on a `module` call, and patching this
+  # estate's own vendored ./impl module to add create_before_destroy would
+  # cross this corpus's reduction-only convention, so this evidence pass
+  # exercises the default destroy-then-create ordering instead.
+  #
+  # NO BREAK=replace LEG: aws_route53_zone is ServerAssigned (Route 53
+  # assigns the zone id; the domain name is not its import identity - the
+  # same shape aws_instance/aws_security_group have, unlike aws_s3_bucket's
+  # or aws_db_instance's own config-derived identity), so the manufactured-
+  # coexistence check would hit the SAME fungible-slot regression
+  # corpus-security-group-complete's own day2_replace section found and
+  # documented in this same unit (a valid record short-circuits the
+  # duplicate-slot claimant matcher before it ever runs) - not
+  # re-measured here.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.areweasyncyet_rs.aws_route53_zone.zone"
+  F_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_zone/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live zone and its record ahead of the forced replace ==="
+  F_OLD_ZONE_ID="$(zone_by_marker 'module.areweasyncyet_rs.aws_route53_zone.zone')"
+  [ -n "$F_OLD_ZONE_ID" ] || fail "no live zone found by tofu-address=module.areweasyncyet_rs.aws_route53_zone.zone ahead of day2_replace"
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$F_OLD_ZONE_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_OLD_ZONE_ID"
+  log "  $F_OLD_ZONE_ID, record import_id=$F_OLD_IMPORT_ID"
+
+  log "=== F1. choudoufu: change the ForceNew domain argument, forcing a replace at the same declared address ==="
+  sed -i.bak 's/domain  = "areweasyncyet\.rs"/domain  = "areweasyncyet-replaced.rs"/' "$ESTATE/areweasyncyet.rs.tf"
+  rm -f "$ESTATE/areweasyncyet.rs.tf.bak"
+  grep -q 'domain  = "areweasyncyet-replaced.rs"' "$ESTATE/areweasyncyet.rs.tf" || fail "changing module.areweasyncyet_rs's domain argument did not match - the corpus pin has moved"
+
+  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_zone\.zone must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.areweasyncyet_rs's zone when its ForceNew domain argument changes"; }
+  grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark the zone's name as forcing replacement"; }
+  grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_record\.a\["@"\] must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the zone replace into its A record"; }
+  grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own two-resource cascade"; }
+  log "  choudoufu: exactly one zone replace at the same declared address, cascading into its one A record - matches F-ORACLE's own plan shape"
+
+  F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Resources: 2 added, 0 changed, 2 destroyed' <<< "$F_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 2 added, 2 destroyed"; }
+
+  awsl route53 get-hosted-zone --id "$F_OLD_ZONE_ID" >/dev/null 2>&1 \
+    && fail "$F_OLD_ZONE_ID (the old zone) still exists after the replace - it was orphaned, not destroyed"
+  log "  $F_OLD_ZONE_ID (the old zone) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  F_NEW_ZONE_ID="$(zone_by_marker 'module.areweasyncyet_rs.aws_route53_zone.zone')"
+  [ -n "$F_NEW_ZONE_ID" ] && [ "$F_NEW_ZONE_ID" != "$F_OLD_ZONE_ID" ] \
+    || fail "could not find a new, different zone carrying module.areweasyncyet_rs's tofu-address after the replace (got '$F_NEW_ZONE_ID')"
+  log "  $F_NEW_ZONE_ID (the new object) carries tofu-address=module.areweasyncyet_rs.aws_route53_zone.zone - the marker moved onto the new object, read via the AWS CLI"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed zone would
+  # be exactly the wrong-marker failure that outranks a missing one). The
+  # local record file at the SAME address must now hold the NEW zone's id,
+  # not the one captured in F0.
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_ZONE_ID" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ZONE_ID - a stale record still claiming the destroyed zone, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+  log "=== F2. one more plan: config and reality agree, no marker collision ==="
+  F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+  if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$F_FINAL_PLAN_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$F_FINAL_PLAN_OUT"
+    fail "the post-replace plan proposes a resource change"
+  fi
+  log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
+
+  gauntlet_stage day2_replace pass "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone ($F_OLD_ZONE_ID) is confirmed gone and the new zone ($F_NEW_ZONE_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+  CURRENT_STAGE=""
 
   # ════════════════════════════════════════════════════════════════════════
   # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)

@@ -233,6 +233,81 @@ resource "aws_instance" "main" {
 EOF
 }
 
+# resource_block_ami_replaced() is resource_block() with aws_instance.main's
+# `ami` argument changed - the day2_replace stage's own target. `ami` is
+# ForceNew on aws_instance (AWS has no in-place image swap for a running
+# instance), and nothing else in this estate's five resources references
+# the instance's own attributes, so this is a genuinely isolated,
+# single-resource replace: no EIP, no volume attachment, no sibling to
+# cascade into (unlike corpus-ec2-instance-complete's own module.ec2_
+# complete, which has both). Both AMI strings are the estate's own kind of
+# literal (cold_deploy already applies "ami-12345678" with no real AMI
+# lookup - floci accepts any aws_instance.ami value without validating it
+# exists, confirmed by that stage passing today), so "ami-87654321" needs
+# no fixed-catalog id the way a real-AMI-lookup estate would.
+resource_block_ami_replaced() {
+  cat <<'EOF'
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "ec2-reference-igw"
+  }
+}
+
+resource "aws_security_group" "main" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "ami-87654321"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+}
+EOF
+}
+
 # resource_block_sg_renamed() is resource_block() with aws_security_group.main
 # renamed to aws_security_group.renamed (and the instance's reference to it
 # updated to match) - the day2_rename stage's first half, exercised through a
@@ -972,6 +1047,58 @@ ORACLE_SG0_AFTER_UP="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 des
   --group-ids "$ORACLE_SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
 [ "$ORACLE_SG0_AFTER_UP" = "$ORACLE_SG0_ID" ] || fail "stock's count_test[0] changed id across the scale-up"
 log "  stock: exactly one create (count_test[1], new id $ORACLE_SG1_NEW_ID, was $ORACLE_SG1_ID), count_test[0]=$ORACLE_SG0_ID unchanged throughout"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
+# same reason B1.5/B1.6's own oracles sit before migrate (above): a
+# SEPARATE copy of cold_deploy's own state, aws_instance.main's `ami`
+# argument changed - ForceNew on aws_instance, forcing a replace at the
+# SAME declared address. No cascade: this estate's aws_instance.main has
+# no EIP, no volume attachment, nothing else referencing its own
+# attributes - see resource_block_ami_replaced()'s own header comment.
+#
+# THE DOWNSTREAM AMI NOTE: this section's own real leg (below, after PART
+# C) runs a genuine apply on $ADOPTED that leaves the live instance
+# carrying ami-87654321, permanently, before PART D/PART E ever run. Every
+# call to resource_block_sg_renamed/resource_block_both_renamed/resource_
+# block_igw_removed AFTER that point is piped through `sed
+# 's/ami-12345678/ami-87654321/'` so the config those stages generate
+# matches what is actually live - found the hard way (day2_rename's own
+# moved-block check failed with an extra, unexplained instance replace
+# until this was added). B1.5/B1.6's own oracle calls to the SAME
+# functions (above, before this section) are deliberately left
+# unpatched: they run against $PLAIN_ORACLE/$PLAIN_ORACLE_REMOVE, copies
+# of cold_deploy's state from BEFORE this section's replace ever touches
+# anything, so ami-12345678 is still their own live truth.
+CURRENT_STAGE=day2_replace
+log "=== B1.8. day2_replace stock oracle: change aws_instance.main's ForceNew ami argument, on cold_deploy's own state ==="
+PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
+{
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+EOF
+  provider_block
+  echo
+  resource_block_ami_replaced
+} > "$PLAIN_ORACLE_REPLACE/main.tf"
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # aws_instance\.main must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing aws_instance.main when its ForceNew ami argument changes"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan is not exactly one isolated replace"; }
+log "  stock: exactly one instance replace at the same declared address, nothing else - 1 to add, 1 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 mkdir -p "$ADOPTED"
@@ -1109,6 +1236,127 @@ fi
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART C2: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed right after PART C and BEFORE PART D (day2_rename, below) on
+# purpose, the same convention corpus-ec2-instance-complete's own PART F
+# uses: aws_instance.main is never renamed by PART D (that stage's own
+# two targets are aws_security_group.main and aws_internet_gateway.main),
+# so this section has no dependency on PART D's outcome. Its `ami`
+# argument changes from "ami-12345678" to "ami-87654321" - ForceNew on
+# aws_instance (AWS has no in-place image swap for a running instance) -
+# forcing a replace at the SAME declared address. No cascade: unlike
+# corpus-ec2-instance-complete's own module.ec2_complete (which has both
+# an EIP and a volume attachment referencing the instance), this
+# hand-written reference estate's aws_instance.main has neither, so this
+# is a genuinely isolated, single-resource replace.
+#
+# THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+# for the full reasoning, reproduced only in summary here): a lifecycle
+# block on this bare resource is technically legal (unlike a module call),
+# but adding one here would be a THIRD estate-wide reduction convention
+# with no precedent in this hand-written reference script, so this
+# evidence pass exercises the default destroy-then-create ordering
+# instead, matching every other corpus-* day2_replace section in this
+# same unit.
+#
+# NO BREAK=replace LEG: aws_instance is ServerAssigned (EC2 assigns the
+# instance id; none of its own arguments are its import identity), so the
+# manufactured-coexistence check would hit the SAME fungible-slot
+# regression corpus-security-group-complete's own day2_replace section
+# found and documented in this same unit (a valid record short-circuits
+# the duplicate-slot claimant matcher before it ever runs) - not
+# re-measured here.
+CURRENT_STAGE=day2_replace
+record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+record_import_id() { jq -r '.identity.import_id' "$1"; }
+F_ADDR="aws_instance.main"
+F_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_instance/$(record_key "$F_ADDR")"
+
+log "=== F0. capture the live instance and its record ahead of the forced replace ==="
+[ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_OLD_IMPORT_ID" = "$PLAIN_INSTANCE_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $PLAIN_INSTANCE_ID"
+F_OLD_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags --filters "Name=resource-id,Values=$PLAIN_INSTANCE_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$F_OLD_ADDR_TAG" = "aws_instance.main" ] || fail "$PLAIN_INSTANCE_ID does not carry tofu-address=aws_instance.main ahead of day2_replace"
+log "  $PLAIN_INSTANCE_ID, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+log "=== F1. choudoufu: change the ForceNew ami argument, forcing a replace at the same declared address ==="
+{
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+  provider_block
+  echo
+  resource_block_ami_replaced
+} > "$ADOPTED/main.tf"
+
+F_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+[ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+grep -qE '^  # aws_instance\.main must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing aws_instance.main when its ForceNew ami argument changes"; }
+grep -qE '~ +ami +=.+forces replacement' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark ami as forcing replacement"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one isolated replace, matching B1.8's own plan shape"; }
+log "  choudoufu: exactly one instance replace at the same declared address, nothing else - matches B1.8's own plan shape"
+
+F_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+[ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 1 added, 1 destroyed"; }
+
+F_OLD_STATE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$PLAIN_INSTANCE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>&1)"
+[ "$F_OLD_STATE" = "terminated" ] || fail "$PLAIN_INSTANCE_ID is not terminated after the replace (state=$F_OLD_STATE) - the old object was orphaned, not destroyed"
+log "  $PLAIN_INSTANCE_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
+
+F_NEW_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances \
+  --filters "Name=tag:tofu-address,Values=aws_instance.main" "Name=instance-state-name,Values=running,pending" \
+  --query "Reservations[0].Instances[0].InstanceId" --output text)"
+[ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] && [ "$F_NEW_ID" != "$PLAIN_INSTANCE_ID" ] \
+  || fail "could not find a new, different, running instance carrying aws_instance.main's tofu-address after the replace (got '$F_NEW_ID')"
+F_NEW_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$F_NEW_ADDR_TAG" = "aws_instance.main" ] \
+  || fail "$F_NEW_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not aws_instance.main - the marker did not move onto the new object"
+log "  $F_NEW_ID (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+# THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+# #398-guard shape: a stale record still naming the destroyed instance
+# would be exactly the wrong-marker failure that outranks a missing one).
+F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_NEW_IMPORT_ID" = "$F_NEW_ID" ] \
+  || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ID - a stale record still claiming the destroyed instance, the #398-guard shape"
+[ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+  || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+log "=== F2. one more plan: config and reality agree, no marker collision ==="
+F_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+[ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan proposes a resource change"; }
+log "  No changes. The replace is complete and invisible to the next plan - no marker collision."
+
+PLAIN_INSTANCE_ID="$F_NEW_ID"
+gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance ($F_OLD_IMPORT_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6, issue #357)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -1160,7 +1408,7 @@ terraform {
 EOF
     provider_block
     echo
-    resource_block_sg_renamed
+    resource_block_sg_renamed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
   } > "$ADOPTED/main.tf"
   BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
@@ -1191,7 +1439,7 @@ terraform {
 EOF
     provider_block
     echo
-    resource_block_sg_renamed
+    resource_block_sg_renamed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
     cat <<'EOF'
 
 moved {
@@ -1249,7 +1497,7 @@ terraform {
 EOF
     provider_block
     echo
-    resource_block_both_renamed
+    resource_block_both_renamed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
     cat <<'EOF'
 
 moved {
@@ -1353,7 +1601,7 @@ terraform {
 EOF
       provider_block
       echo
-      resource_block_igw_removed
+      resource_block_igw_removed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
     } > "$ADOPTED/main.tf"
     REMOVE_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
@@ -1448,7 +1696,7 @@ terraform {
 EOF
       provider_block
       echo
-      resource_block_igw_removed
+      resource_block_igw_removed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
       echo
       count_test_block 2 "aws_vpc.main.id"
     } > "$ADOPTED/main.tf"
@@ -1502,7 +1750,7 @@ terraform {
 EOF
       provider_block
       echo
-      resource_block_igw_removed
+      resource_block_igw_removed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
       echo
       count_test_block 1 "aws_vpc.main.id"
     } > "$ADOPTED/main.tf"
@@ -1561,7 +1809,7 @@ terraform {
 EOF
         provider_block
         echo
-        resource_block_igw_removed
+        resource_block_igw_removed | sed 's/ami-12345678/ami-87654321/' # post-day2_replace: the live instance's real ami is now ami-87654321
         echo
         count_test_block 2 "aws_vpc.main.id"
       } > "$ADOPTED/main.tf"

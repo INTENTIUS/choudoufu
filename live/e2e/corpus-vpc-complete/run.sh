@@ -555,6 +555,42 @@ grep -qF '  # module.vpc_endpoints.aws_vpc_endpoint.this["dynamodb"] will be des
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (the dynamodb endpoint), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
+# same reason day2_remove's own oracle sits before migrate (above): a
+# throwaway copy of cold_deploy's own state, module.vpc's customer_
+# gateways["IP1"] entry changed its `ip_address` - ForceNew on aws_
+# customer_gateway (EC2 assigns the gateway's own id; the on-prem ip_
+# address/bgp_asn/type arguments describe the device but are not the
+# resource's identity), so this forces a replace at the SAME declared
+# for_each key. No cascade: nothing else in this config references
+# aws_customer_gateway.this - no vpn_gateway/vpn_connection is declared
+# here - so this is a genuinely isolated, single-resource replace, unlike
+# module.vpc's other inputs (cidr, subnets, ...) which would cascade
+# across the whole VPC. module.vpc is chosen because day2_rename/day2_
+# remove (above) target module.vpc_endpoints and aws_security_group.rds,
+# never it, so this section has no ordering dependency on either. PLAN
+# ONLY, never applied: this copy shares floci's account with $ADOPTED.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.vpc's customer_gateways[\"IP1\"] via its ForceNew ip_address argument, on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
+cp -r "$WORK/plain" "$REPLACE_ORACLE_ROOT"
+REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/vpc/examples/complete"
+sed -i.bak 's/ip_address  = "1\.2\.3\.4"/ip_address  = "9.9.9.9"/' "$REPLACE_ORACLE/main.tf"
+rm -f "$REPLACE_ORACLE/main.tf.bak"
+grep -q 'ip_address  = "9.9.9.9"' "$REPLACE_ORACLE/main.tf" \
+  || fail "changing customer_gateways[\"IP1\"]'s ip_address in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qF '  # module.vpc.aws_customer_gateway.this["IP1"] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing customer_gateways[\"IP1\"] when its ForceNew ip_address argument changes"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan is not exactly one isolated replace"; }
+log "  stock: exactly one customer gateway replace at the same declared for_each key, nothing else - 1 to add, 1 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the plain state file
@@ -782,6 +818,118 @@ else
   gauntlet_stage drift_reconverge pass "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete"
 fi
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed right after STAGE 5 and BEFORE PART D (day2_rename, below) on
+# purpose, the same convention corpus-ec2-instance-complete's own PART F
+# uses: module.vpc.aws_customer_gateway.this["IP1"] is never touched by
+# PART D's rename (that stage's own two targets are module.vpc_endpoints
+# and aws_security_group.rds), so this section has no dependency on PART
+# D's outcome. Its `ip_address` argument changes from "1.2.3.4" to
+# "9.9.9.9" - ForceNew on aws_customer_gateway (EC2 assigns the gateway's
+# own id; the on-prem device attributes describe it but are not the
+# resource's identity) - forcing a replace at the SAME declared for_each
+# key. No cascade: nothing else in this config references aws_customer_
+# gateway.this at all (no vpn_gateway/vpn_connection is declared here), so
+# this is a genuinely isolated, single-resource replace - unlike module.
+# vpc's other inputs (cidr, subnets, ...), which would cascade across the
+# whole VPC and are out of scope for a surgical day2_replace evidence pass.
+#
+# THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+# for the full reasoning, reproduced only in summary here): OpenTofu core
+# rejects a `lifecycle` block on a `module` call, and patching the
+# vendored terraform-aws-vpc module's own aws_customer_gateway resource to
+# add create_before_destroy would cross this corpus's reduction-only
+# convention, so this evidence pass exercises the default destroy-then-
+# create ordering instead.
+#
+# NO BREAK=replace LEG: aws_customer_gateway is ServerAssigned (EC2
+# assigns the gateway id; none of its own arguments are its import
+# identity - the same shape aws_instance/aws_security_group have), so the
+# manufactured-coexistence check would hit the SAME fungible-slot
+# regression corpus-security-group-complete's own day2_replace section
+# found and documented in this same unit (a valid record short-circuits
+# the duplicate-slot claimant matcher before it ever runs) - not
+# re-measured here.
+CURRENT_STAGE=day2_replace
+record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+record_import_id() { jq -r '.identity.import_id' "$1"; }
+F_ADDR='module.vpc.aws_customer_gateway.this["IP1"]'
+F_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_customer_gateway/$(record_key "$F_ADDR")"
+
+log "=== F0. capture the live customer gateway and its record ahead of the forced replace ==="
+F_OLD_CGW_ID="$(awsl ec2 describe-customer-gateways --filters "Name=tag:tofu-address,Values=module.vpc.aws_customer_gateway.this:IP1" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$F_OLD_CGW_ID" ] && [ "$F_OLD_CGW_ID" != "None" ] || fail "no live customer gateway found by tofu-address=module.vpc.aws_customer_gateway.this:IP1 ahead of day2_replace"
+if [ -f "$F_RECORD" ]; then
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$F_OLD_CGW_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_OLD_CGW_ID"
+  log "  $F_OLD_CGW_ID, record import_id=$F_OLD_IMPORT_ID"
+else
+  log "  $F_OLD_CGW_ID (no local record file at $F_RECORD - this estate declares no record_store; identity resolves from the live marker alone, same as every other stamped instance here)"
+fi
+
+log "=== F1. choudoufu: change the ForceNew ip_address argument, forcing a replace at the same declared for_each key ==="
+sed -i.bak 's/ip_address  = "1\.2\.3\.4"/ip_address  = "9.9.9.9"/' "$ADOPTED/main.tf"
+rm -f "$ADOPTED/main.tf.bak"
+grep -q 'ip_address  = "9.9.9.9"' "$ADOPTED/main.tf" || fail "changing customer_gateways[\"IP1\"]'s ip_address did not match - the corpus pin has moved"
+
+F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+[ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+grep -qF '  # module.vpc.aws_customer_gateway.this["IP1"] must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing customer_gateways[\"IP1\"] when its ForceNew ip_address argument changes"; }
+grep -qE '~ +ip_address +=.+forces replacement' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark ip_address as forcing replacement"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one isolated replace, matching F-ORACLE's own plan shape"; }
+log "  choudoufu: exactly one customer gateway replace at the same declared for_each key, nothing else - matches F-ORACLE's own plan shape"
+
+F_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+[ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 1 added, 1 destroyed"; }
+
+F_OLD_STATE="$(awsl ec2 describe-customer-gateways --customer-gateway-ids "$F_OLD_CGW_ID" --query 'CustomerGateways[0].State' --output text 2>&1)"
+# A deleted customer gateway is not just marked "deleted" and left
+# queryable (unlike, say, an EC2 instance) - floci (matching real AWS)
+# drops it from DescribeCustomerGateways entirely, so the query errors
+# NotFound. Found empirically: the first cut of this assertion expected a
+# lingering "deleted" state string and failed on a genuinely correct
+# destroy.
+[ "$F_OLD_STATE" = "deleted" ] || grep -qF 'InvalidCustomerGatewayID.NotFound' <<< "$F_OLD_STATE" \
+  || fail "$F_OLD_CGW_ID is not gone after the replace (state=$F_OLD_STATE) - the old object was orphaned, not destroyed"
+log "  $F_OLD_CGW_ID (the old customer gateway) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+
+F_NEW_CGW_ID="$(awsl ec2 describe-customer-gateways --filters "Name=tag:tofu-address,Values=module.vpc.aws_customer_gateway.this:IP1" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$F_NEW_CGW_ID" ] && [ "$F_NEW_CGW_ID" != "None" ] && [ "$F_NEW_CGW_ID" != "$F_OLD_CGW_ID" ] \
+  || fail "could not find a new, different, available customer gateway carrying the same tofu-address after the replace (got '$F_NEW_CGW_ID')"
+log "  $F_NEW_CGW_ID (the new object) carries tofu-address=module.vpc.aws_customer_gateway.this:IP1 - the marker moved onto the new object, read via the AWS CLI"
+
+if [ -f "$F_RECORD" ]; then
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed gateway
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one).
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_CGW_ID" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_CGW_ID - a stale record still claiming the destroyed gateway, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+fi
+
+log "=== F2. one more plan: config and reality agree, no marker collision ==="
+F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+[ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$F_FINAL_PLAN_OUT"; then
+  grep -E '^  # .+ (will be|must be)' <<< "$F_FINAL_PLAN_OUT"
+  fail "the post-replace plan proposes a resource change"
+fi
+log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
+
+gauntlet_stage day2_replace pass "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway ($F_OLD_CGW_ID) is confirmed gone/deleted and the new gateway ($F_NEW_CGW_ID) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
