@@ -601,6 +601,21 @@ type declaredEntry struct {
 	// inCount is set for an instance of a count block, whose binding is the
 	// set matcher's business rather than this entry's own.
 	inCount bool
+
+	// recordBacked is set for an entry filed under [declared.recordBacked]
+	// rather than [declared.types] - this instance's identity already came
+	// from the estate's record (edge 3, GitHub issue #388), so it was
+	// deliberately excluded from the scan and will always have zero
+	// claimants here, by construction, not because nothing live answers
+	// for it. bindCountByAddress and bindCountBySlot read this so a
+	// zero-claimant record-backed entry is never appended to
+	// [Result.Unbound] - see those functions' own comments for what
+	// happens when it is: classifyOrphans's rename guard withholds a
+	// genuine removal of a SIBLING block sharing the same [blockKey],
+	// because "an unclaimed declared instance of this block" is exactly
+	// what Unbound is read to mean, and a record-backed instance is
+	// neither unclaimed nor a candidate for a rename pairing.
+	recordBacked bool
 }
 
 // claimant is one live resource carrying a marker that named a declared
@@ -937,7 +952,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			if d.recordBacked[typeName] == nil {
 				d.recordBacked[typeName] = make(map[string]*declaredEntry)
 			}
-			d.recordBacked[typeName][escaped] = &declaredEntry{res: r, escaped: escaped}
+			d.recordBacked[typeName][escaped] = &declaredEntry{res: r, escaped: escaped, recordBacked: true}
 			continue
 		}
 		typeName := r.Type()

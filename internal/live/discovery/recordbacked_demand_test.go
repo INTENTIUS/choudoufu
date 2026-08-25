@@ -175,7 +175,17 @@ func TestDiscover_recordBackedWholeCountBlockStillMintsSlot(t *testing.T) {
 	if len(res.Orphans) != 0 {
 		t.Errorf("no orphan should have been produced: %v", res.Orphans)
 	}
-	assertSlotTable(t, res, map[string]string{"aws_eip.pool:0": "0"})
+	// The #388 default-flip's own regression (corpus-iam-policy's
+	// day2_remove stage): a record-backed entry with zero claimants is not
+	// genuinely unbound - it was excluded from the scan, not left
+	// unanswered by it - and reporting it Unbound anyway makes
+	// classifyOrphans's rename guard read this block as "still has an
+	// unclaimed declared instance," withholding a genuine removal on any
+	// SIBLING block sharing the same blockKey (type.name, no module path).
+	// See declaredEntry.recordBacked's own doc comment.
+	if len(res.Unbound) != 0 {
+		t.Errorf("a record-backed instance was reported Unbound: %v", res.Unbound)
+	}
 }
 
 // TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots is
