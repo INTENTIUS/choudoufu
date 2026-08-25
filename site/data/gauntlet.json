@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "cfc0148f6a1fd7dc7125dd14dd983bcfae18419c",
+  "commit": "73186428759ccc8a92ebaffd2042a6c86799f72f",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T19:24:57Z",
+  "generated": "2026-08-25T19:37:47Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 20
+          "not_run": 19
         },
         "day2_teardown": {
           "pass": 0,
@@ -526,7 +526,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -536,16 +536,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "ab52115aecbfe43efbe000ca7f85f2b7c6c4b174",
-        "date": "2026-08-25T17:36:35Z",
+        "commit": "73186428759ccc8a92ebaffd2042a6c86799f72f",
+        "date": "2026-08-25T19:47:56Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
           "day2_remove": "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed 2 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address (Plan: 3 to add, 1 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-85ac4699fb03213c4) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-ebe176649fb986981 -> sg-85ac4699fb03213c4); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 1 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit.",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "greenfield": "54 resources from nothing, cluster marker verified via the AWS CLI, 54 records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count",
           "migrate": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)",
