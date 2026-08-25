@@ -850,6 +850,58 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both zone moves report only their move, no attribute diff at all"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# "Stock's replace of the same resource leaves the same single object."
+# aws_route53_record.status (a plain standalone CNAME under the production
+# zone, main.tf; untouched by Part D's zone renames - those only rewrite
+# the ZONE's own address, never a child record's, since Route 53 record
+# sets carry no tags and derive identity from the parent zone's marker -
+# and by Part E's own removal, which only ever touches the eu zone/eu-ns)
+# is forced to replace via its `name` argument, one of the three
+# components of its own ZONEID_NAME_TYPE identity (table_generated.go).
+# NOT aws_route53_record.com-ns/eu-ns, the apex NS records DELTA 5's own
+# allow_overwrite manages: confirmed directly against this same floci
+# image that Route 53 refuses outright to delete the NS or SOA record at
+# a zone's apex ("Deleting the SOA or NS record at the zone apex is not
+# permitted"), so an apex NS record can never actually be replaced by
+# destroy-then-create - a genuinely different shape from every other
+# record in this estate, not this stage's to exercise. Route 53 has no API
+# to rename an ordinary record set in place either - only
+# ChangeResourceRecordSets' UPSERT (same name+type) or DELETE+CREATE
+# (different name or type) - so name is ForceNew in the provider's own
+# schema for a non-apex record, confirmed empirically below by the plan's
+# own "must be replaced" annotation, not assumed. The record's own zone_id
+# and its `records` value are untouched, so this is a genuinely isolated
+# single-object replace with no cascade into the zone or any of the
+# estate's other 58 record instances. A fresh copy of cold_deploy's own
+# state (same as D-ORACLE above), before the real script's own zone
+# renames ever touch $EST.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace aws_route53_record.status via its ForceNew name argument, on cold_deploy's own state ==="
+REPLACE_PLAIN_ORACLE="$WORK/replace-plain-oracle"
+cp -r "$PLAIN" "$REPLACE_PLAIN_ORACLE"
+sed -i.bak '/resource "aws_route53_record" "status" {/,/^}/ s/name    = "status.datacite.org"/name    = "status2.datacite.org"/' "$REPLACE_PLAIN_ORACLE/main.tf"
+rm -f "$REPLACE_PLAIN_ORACLE/main.tf.bak"
+grep -q 'status2.datacite.org' "$REPLACE_PLAIN_ORACLE/main.tf" \
+  || fail "changing aws_route53_record.status's name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # aws_route53_record\.status must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing aws_route53_record.status when its name argument changes"; }
+grep -qE '~ +name +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark the record's name as forcing replacement - it may not be ForceNew after all"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
+# PLAN ONLY, never applied - same convention as D-ORACLE above: this
+# oracle's copy shares floci's account with $EST, so actually applying
+# here would destroy and recreate the real record $EST's own later stages
+# still depend on.
+log "  stock: exactly one replace at the same declared address (aws_route53_record.status), plan only, never applied"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state
@@ -1356,6 +1408,147 @@ EOF
   log "  No changes. Both zone renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # aws_route53_record.status (a plain standalone CNAME under the
+  # production zone, main.tf - untouched by Part D's two zone renames,
+  # which only ever rewrite the ZONE's own address, and left untouched by
+  # Part E below, which only ever removes the eu zone/eu-ns) is forced to
+  # replace via its `name` argument, one of the three components of its
+  # own ZONEID_NAME_TYPE identity. F-ORACLE above already confirmed,
+  # empirically, that stock marks name as forcing replacement on
+  # cold_deploy's own state - and confirmed, also empirically, that this
+  # is NOT true of the four apex NS records DELTA 5's own allow_overwrite
+  # manages (com-ns/eu-ns/production-ns/internal-ns): Route 53 refuses
+  # outright to delete the NS or SOA record at a zone's apex, so those
+  # four can never actually be replaced by destroy-then-create - status
+  # was chosen instead for exactly that reason. The record's own zone_id
+  # and its `records` value are untouched, so this is a genuinely isolated
+  # single-object replace with no cascade into the zone or any of the
+  # estate's other 58 record instances.
+  #
+  # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+  # header for the fuller discussion). status is a plain top-level
+  # resource, not a module-call child, but this corpus's own DELTA
+  # discipline (header: DataCite's published text is only ever reduced or
+  # given the documented allow_overwrite/emulator deltas, never given
+  # library-internal lifecycle blocks it didn't already declare) applies
+  # just as much here, so this exercises OpenTofu's DEFAULT replace
+  # ordering (destroy-then-create) rather than create_before_destroy, the
+  # same choice every other estate in this unit makes. BREAK=replace below
+  # manufactures the coexistence a skipped destroy half would leave.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  # aws_route53_record's own record file is "kind": "identity" - a
+  # component-derived identity, not a marker-backed single import_id
+  # string - so its identity.attrs carries zone_id/name/type separately
+  # (confirmed by reading a real record file directly, not assumed from
+  # the ARN/name-string convention the other four estates in this unit
+  # use). Joined the same way this script's own want_identity does
+  # (ZONEID_NAME_TYPE).
+  record_import_id() {
+    jq -r '.identity.attrs.zone_id + "_" + .identity.attrs.name + "_" + .identity.attrs.type' "$1"
+  }
+  F_ADDR="aws_route53_record.status"
+  F_RECORD="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record/$(record_key "$F_ADDR")"
+  F_OLD_IDENTITY="${PROD_ZONE}_status.datacite.org_CNAME"
+
+  log "=== F0. capture the live record and its record store entry ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$F_OLD_IDENTITY" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_OLD_IDENTITY"
+  F_OLD_TTL="$(live_record_ttl "$PROD_ZONE" 'status.datacite.org' CNAME)"
+  [ "$F_OLD_TTL" = "3600" ] || fail "aws_route53_record.status does not carry TTL=3600 ahead of day2_replace (got $F_OLD_TTL) - this estate has drifted since the baseline was last measured"
+  log "  $F_OLD_IDENTITY, record import_id=$F_OLD_IMPORT_ID, TTL=$F_OLD_TTL"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy half would leave behind ==="
+    # A second, distinct live record set carrying the SAME name+type under
+    # the SAME zone as the one a genuine replace would destroy - Route 53
+    # itself refuses two record sets sharing (zone, name, type) with no
+    # set_identifier, so the collision is manufactured one component over:
+    # a residue record file claiming the SAME identity string
+    # ($F_OLD_IDENTITY) at a DIFFERENT address, the untaggable-record
+    # equivalent of two tagged objects sharing one tofu-address - this
+    # estate's own aws_route53_record.dkim-cm is a real, live, differently-
+    # identified record already in the account under the SAME production
+    # zone, so its record file is temporarily repointed at status's
+    # identity to manufacture the collision without creating any new live
+    # object.
+    OTHER_RECORD="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record/$(record_key aws_route53_record.dkim-cm)"
+    [ -f "$OTHER_RECORD" ] || fail "BREAK=replace: no local record file found for aws_route53_record.dkim-cm to manufacture the collision from"
+    cp "$OTHER_RECORD" "$OTHER_RECORD.orig"
+    python3 -c "
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d['identity']['attrs']['zone_id'] = sys.argv[2]
+d['identity']['attrs']['name'] = sys.argv[3]
+d['identity']['attrs']['type'] = sys.argv[4]
+json.dump(d, open(p, 'w'))
+" "$OTHER_RECORD" "$PROD_ZONE" "status.datacite.org" "CNAME"
+    BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    mv "$OTHER_RECORD.orig" "$OTHER_RECORD"
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two records claiming the same identity - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one address' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the identity collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one address) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+    sed -i.bak '/resource "aws_route53_record" "status" {/,/^}/ s/name    = "status.datacite.org"/name    = "status2.datacite.org"/' "$EST/main.tf"
+    rm -f "$EST/main.tf.bak"
+    grep -q 'status2.datacite.org' "$EST/main.tf" || fail "changing aws_route53_record.status's name argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # aws_route53_record\.status must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing aws_route53_record.status when its name argument changes"; }
+    grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name as forcing replacement"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add and one destroy at the same address"; }
+    log "  choudoufu: exactly one forced replace at the same declared address (aws_route53_record.status), name forces replacement, nothing else in the estate's other 58 record instances touched"
+
+    F_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add and one destroy"; }
+
+    F_OLD_N="$(awsl route53 list-resource-record-sets --hosted-zone-id "$PROD_ZONE" --query "length(ResourceRecordSets[?Name=='status.datacite.org.' && Type=='CNAME'])" --output text)"
+    [ "$F_OLD_N" = "0" ] || fail "aws_route53_record.status (status.datacite.org./CNAME) still exists after the replace - the old object was orphaned, not destroyed"
+    log "  status.datacite.org./CNAME no longer exists under the production zone (confirmed via the AWS CLI, not through choudoufu's own report)"
+
+    F_NEW_N="$(awsl route53 list-resource-record-sets --hosted-zone-id "$PROD_ZONE" --query "length(ResourceRecordSets[?Name=='status2.datacite.org.' && Type=='CNAME'])" --output text)"
+    [ "$F_NEW_N" = "1" ] || fail "status2.datacite.org./CNAME does not exist under the production zone after the replace (found $F_NEW_N)"
+    F_NEW_IDENTITY="${PROD_ZONE}_status2.datacite.org_CNAME"
+    log "  $F_NEW_IDENTITY (the new object) exists under the production zone - read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object's
+    # identity would be exactly the wrong-marker failure that outranks a
+    # missing one). The local record file at the SAME address must now
+    # hold the NEW object's identity string, not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_IDENTITY" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object's identity $F_NEW_IDENTITY - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no identity collision ==="
+    F_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  No changes, no identity collision. The replace is complete and invisible to the next plan."
+
+    gauntlet_stage day2_replace pass "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object ($F_NEW_IDENTITY) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
