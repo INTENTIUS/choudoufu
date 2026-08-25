@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
+  "commit": "0819c0d87d54207e2233fb0fe2f897733628e86b",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T09:35:37Z",
+  "generated": "2026-08-25T12:16:52Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -448,14 +448,14 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "d6720d9fcee1544c82c31ec2d6d9e2f29e884f73",
-        "date": "2026-08-25T09:48:50Z",
+        "commit": "0819c0d87d54207e2233fb0fe2f897733628e86b",
+        "date": "2026-08-25T12:21:08Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
-          "day2_remove": "the day2_remove plan exited 1",
+          "day2_remove": "the post-remove plan exited 1",
           "day2_rename": "moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-0317c34132d5a5023 -> i-6b2f204f68bd1355d); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one.",
+          "day2_replace": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-28de8ef242adb111d -> i-16a19a79e3d809e48); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one.",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
           "greenfield": "35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag",
           "migrate": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply",

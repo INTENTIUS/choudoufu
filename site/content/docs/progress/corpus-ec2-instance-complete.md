@@ -22,16 +22,16 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file |
 | Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
 | Rename | pass | moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | FAIL | the day2_remove plan exited 1 |
+| Remove a block | FAIL | the post-remove plan exited 1 |
 | Change count (planned) | not run |  |
-| Replace with create_before_destroy (planned) | pass | choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-0317c34132d5a5023 -> i-6b2f204f68bd1355d); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
+| Replace with create_before_destroy (planned) | pass | choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-28de8ef242adb111d -> i-16a19a79e3d809e48); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
 | Greenfield apply | pass | 35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `d6720d9fce` on 2026-08-25T09:48:50Z, exit code 1.
+Last run at commit `0819c0d87d` on 2026-08-25T12:21:08Z, exit code 1.
 
 ## Reproduce it
 
