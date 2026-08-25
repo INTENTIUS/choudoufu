@@ -546,6 +546,18 @@ export TF_VAR_project="$PROJECT"
 export TF_VAR_is_account_owner=true
 export TF_VAR_account_alias="xancloud-dev"
 export TF_VAR_vpcs='{"main":{"cidr":"10.10.0.0/16","azs":2,"single_nat":true,"vpc_endpoints":["s3","ssm","ssmmessages","ecr.api","ecr.dkr","logs"],"flow_logs_destination":"cloudwatch"}}'
+# VPCS_JSON_UP/_DOWN: day2_count's own toggle (issue #359, PART F/F-ORACLE,
+# far below) - "logs" present vs. dropped from var.vpcs.main.vpc_endpoints,
+# which is the module's own documented lever for
+# aws_vpc_endpoint.interface's for_each set
+# (modules/networking/vpc/main.tf's local.interface_endpoints_map). Defined
+# here, next to TF_VAR_vpcs itself, but never exported: every command that
+# needs the "down" shape passes TF_VAR_vpcs="$VPCS_JSON_DOWN" inline, so
+# the global export above (and every stage before day2_count) is
+# undisturbed.
+VPCS_JSON_UP="$TF_VAR_vpcs"
+VPCS_JSON_DOWN="${VPCS_JSON_UP/,\"logs\"/}"
+[ "$VPCS_JSON_DOWN" != "$VPCS_JSON_UP" ] || fail "VPCS_JSON_DOWN: removing \"logs\" from vpc_endpoints did not change the JSON - the corpus pin's variable shape may have moved"
 export TF_VAR_cloudtrail_enabled=false
 export TF_VAR_iam_baseline_enable_s3_block=false
 export TF_VAR_iam_baseline_enable_password_policy=false
@@ -771,6 +783,79 @@ grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_O
 grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's remove plan does not target the same object"; }
 log "  stock: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]) on cold_deploy's own state, nothing else"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
+# issue #359 - a gauntlet evidence unit, planned stage, does not count
+# toward clear)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The "harder shape" this crossing offers for day2_count: a real for_each
+# set, aws_vpc_endpoint.interface (modules/networking/vpc/main.tf's
+# local.interface_endpoints_map), keyed by "${vpc_key}-${service}" and
+# built from var.vpcs.main.vpc_endpoints filtered to the non-gateway
+# services - currently ssm, ssmmessages, ecr.api, ecr.dkr, logs (s3 and
+# dynamodb are gateway-type, excluded by local.gateway_endpoints). "logs"
+# is dropped from that list and added back through the module's own
+# documented variable - VPCS_JSON_DOWN/_UP, defined above next to
+# TF_VAR_vpcs itself - the same discipline as remove_vpc_endpoint_s3_block
+# above: patch the estate's own input, never hand-edit the module. Because
+# a for_each member's identity is its own string key rather than a
+# shiftable numeric position, only the dropped key should ever move; every
+# sibling key should be untouched by construction - which is exactly what
+# PART G's OTHER_TOUCHED_* checks confirm on the choudoufu side, below.
+# Same timing discipline as D-ORACLE/E-ORACLE: a copy of $PLAIN's own
+# state, before choudoufu or live-import ever touch these objects. AND -
+# unlike D-ORACLE/E-ORACLE, which is what makes this plan-only rather than
+# apply-and-verify like B1.7's oracle in reference-ec2-vpc/run.sh - this
+# copy's state still points at the SAME real objects in the SAME shared
+# $ENDPOINT account every later stage (migrate onward) depends on finding
+# undisturbed. An apply here would for-real destroy/recreate the live
+# main-logs endpoint out from under $PLAIN's own terraform.tfstate, which
+# STAGE 2 (migrate) reads right after this - exactly the mistake an
+# earlier version of this section made (a real EXIT=1 run confirmed it:
+# STAGE 3 came back proposing a create for module.vpc.aws_vpc_endpoint.
+# interface["main-logs"] because the id F-ORACLE's apply left behind no
+# longer matched the one $PLAIN's state remembered). So both directions
+# below are PLAN-ONLY, never applied - the down-plan reads directly off
+# cold_deploy's untouched state (matches the real cloud), and the
+# up-plan's "the member is not there yet" starting point is simulated
+# with `tofu state rm` on a SEPARATE copy - a pure local state edit, no
+# provider API call, so it can never touch a live object. TF_VAR_vpcs is
+# overridden per-command here, never exported, so the global value every
+# stage below this one relies on is undisturbed.
+CURRENT_STAGE=day2_count
+PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
+cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
+log "=== F-ORACLE: stock tofu, dropping then restoring \"logs\" from var.vpcs.main.vpc_endpoints, on cold_deploy's own state (plan-only - see header) ==="
+( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+
+ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_DOWN" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
+[ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
+grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-logs"\] will be destroyed' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy main-logs"; }
+ORACLE_OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interface\[' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -v 'main-logs' || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_DOWN"; fail "stock's scale-down plan touches an interface endpoint other than main-logs"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+log "  stock (plan-only): exactly one destroy proposed (main-logs), every other interface endpoint untouched"
+
+PLAIN_COUNT_ORACLE_UP="$WORK/plain-count-oracle-up"
+cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE_UP"
+( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+STATE_RM_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu state rm 'module.vpc.aws_vpc_endpoint.interface["main-logs"]' 2>&1)"; STATE_RM_RC=$?
+[ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
+ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
+[ "$ORACLE_COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_COUNT_UP_PLAN_RC"; }
+grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-logs"\] will be created' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create main-logs"; }
+ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interface\[' <<< "$ORACLE_COUNT_UP_PLAN_OUT" | grep -v 'main-logs' || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_UP" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_UP"; fail "stock's scale-up plan touches an interface endpoint other than main-logs"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+log "  stock (plan-only): exactly one create proposed (main-logs, state simulated with 'tofu state rm' - no live object ever touched), every other interface endpoint untouched"
 
 CURRENT_STAGE=migrate
 
@@ -1275,6 +1360,113 @@ else
   log "  No changes. The removal is complete and invisible to the next plan."
 
   gauntlet_stage day2_remove pass "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; the E-ORACLE stock oracle (on cold_deploy's own state, before any tag was ever written) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART G: CHANGE COUNT (day2_count, planned stage - live/GAUNTLET.md #8,
+  # issue #359 - a gauntlet evidence unit; the runner records this verdict
+  # but a planned stage does not count toward "clear" until its status is
+  # flipped to active in tools/gauntlet/stages.go, a maintainer decision)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part E's real, completed state: the plan is empty (E2).
+  # aws_vpc_endpoint.interface has been live since STAGE 1/migrate - a
+  # real for_each set (main-ssm, main-ssmmessages, main-ecr.api,
+  # main-ecr.dkr, main-logs) keyed by "${vpc_key}-${service}" from
+  # var.vpcs.main.vpc_endpoints. "logs" is dropped from that list and
+  # added back through the module's own documented variable
+  # (VPCS_JSON_DOWN/_UP, defined next to TF_VAR_vpcs itself, far above);
+  # F-ORACLE, right after cold_deploy, is the stock oracle for the
+  # identical change on cold_deploy's own state. TF_VAR_vpcs is
+  # overridden inline, per command, never exported, so every stage before
+  # this one is undisturbed.
+  #
+  # BREAK_DAY2_COUNT=1 exercises this stage's own Break control instead:
+  # after the real scale-down plan, assert the WRONG member (main-ssm
+  # rather than main-logs) was the one destroyed - the Break text in
+  # tools/gauntlet/stages.go for day2_count, verbatim: "Expect a
+  # different instance to be destroyed; the assertion must fail."
+
+  CURRENT_STAGE=day2_count
+  log "=== F0. capture the live interface endpoints a for_each scale must partly disturb ==="
+  VPCE_LOGS_NAME="${NAME_PREFIX}-main-vpce-logs"
+  VPCE_SSM_NAME="${NAME_PREFIX}-main-vpce-ssm"
+  VPCE_LOGS_ID="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_LOGS_NAME" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text)"
+  [ -n "$VPCE_LOGS_ID" ] && [ "$VPCE_LOGS_ID" != "None" ] || fail "no live, available main-logs interface endpoint found by its Name tag before day2_count starts"
+  VPCE_SSM_ID="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_SSM_NAME" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text)"
+  [ -n "$VPCE_SSM_ID" ] && [ "$VPCE_SSM_ID" != "None" ] || fail "no live, available main-ssm interface endpoint found by its Name tag before day2_count starts"
+  VPCE_SSM_ADDR_BEFORE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPCE_SSM_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  log "  main-logs=$VPCE_LOGS_ID, sibling main-ssm=$VPCE_SSM_ID (tofu-address=$VPCE_SSM_ADDR_BEFORE) - must stay untouched throughout"
+
+  log "=== F1. scale the for_each down: drop \"logs\" from var.vpcs.main.vpc_endpoints ==="
+  COUNT_DOWN_PLAN_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_DOWN" "$TOFU" live-plan -input=false -no-color 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+  [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+  if [ "${BREAK_DAY2_COUNT:-}" = "1" ]; then
+    log "  BREAK_DAY2_COUNT=1: asserting the WRONG member (main-ssm) was destroyed instead of main-logs"
+    if grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-ssm"\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
+      fail "BREAK_DAY2_COUNT=1: the plan actually destroys main-ssm - this assertion is not load-bearing"
+    fi
+    log "  BREAK_DAY2_COUNT=1: correctly does NOT destroy main-ssm - the wrong-instance assertion above fails to hold, as it must"
+  else
+    grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-logs"\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy main-logs"; }
+    OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interface\[' <<< "$COUNT_DOWN_PLAN_OUT" | grep -v 'main-logs' || true)"
+    [ -z "$OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$OTHER_TOUCHED_DOWN"; fail "choudoufu's scale-down plan touches an interface endpoint other than main-logs"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (main-logs), every sibling untouched"
+
+    COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_DOWN" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+    [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+    VPCE_LOGS_STATE_AFTER_DOWN="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$VPCE_LOGS_ID" --query 'VpcEndpoints[0].State' --output text 2>/dev/null || echo "gone")"
+    case "$VPCE_LOGS_STATE_AFTER_DOWN" in
+      gone|None|deleted|deleting) : ;;
+      *) fail "main-logs ($VPCE_LOGS_ID) is still State=$VPCE_LOGS_STATE_AFTER_DOWN after the scale-down destroy - it was orphaned, not destroyed" ;;
+    esac
+    VPCE_SSM_ID_AFTER_DOWN="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$VPCE_SSM_ID" --query "VpcEndpoints[0].VpcEndpointId" --output text 2>/dev/null || true)"
+    [ "$VPCE_SSM_ID_AFTER_DOWN" = "$VPCE_SSM_ID" ] || fail "the sibling main-ssm's live id changed across the scale-down ($VPCE_SSM_ID -> $VPCE_SSM_ID_AFTER_DOWN)"
+    VPCE_SSM_ADDR_AFTER_DOWN="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPCE_SSM_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$VPCE_SSM_ADDR_AFTER_DOWN" = "$VPCE_SSM_ADDR_BEFORE" ] || fail "the sibling main-ssm's tofu-address tag changed across the scale-down: $VPCE_SSM_ADDR_BEFORE -> $VPCE_SSM_ADDR_AFTER_DOWN"
+    log "  main-logs ($VPCE_LOGS_ID) is gone (State=$VPCE_LOGS_STATE_AFTER_DOWN); main-ssm ($VPCE_SSM_ID) unchanged id and marker - all read via the AWS CLI"
+
+    log "=== F2. scale back up: add \"logs\" back to var.vpcs.main.vpc_endpoints ==="
+    COUNT_UP_PLAN_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" "$TOFU" live-plan -input=false -no-color 2>&1)"; COUNT_UP_PLAN_RC=$?
+    [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -40; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+    grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-logs"\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create main-logs"; }
+    OTHER_TOUCHED_UP="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interface\[' <<< "$COUNT_UP_PLAN_OUT" | grep -v 'main-logs' || true)"
+    [ -z "$OTHER_TOUCHED_UP" ] || { printf '%s\n' "$OTHER_TOUCHED_UP"; fail "choudoufu's scale-up plan touches an interface endpoint other than main-logs"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+    log "  choudoufu: exactly one create (main-logs), every sibling untouched"
+
+    COUNT_UP_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+    [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+    VPCE_LOGS_NEW_ID="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_LOGS_NAME" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text)"
+    [ -n "$VPCE_LOGS_NEW_ID" ] && [ "$VPCE_LOGS_NEW_ID" != "None" ] || fail "no live, available main-logs interface endpoint found after the scale-up"
+    [ "$VPCE_LOGS_NEW_ID" != "$VPCE_LOGS_ID" ] || fail "main-logs came back with the SAME id ($VPCE_LOGS_ID) it had before being destroyed - the destroy in F1 was not real"
+    VPCE_LOGS_NEW_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPCE_LOGS_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$VPCE_LOGS_NEW_ADDR" = 'module.vpc.aws_vpc_endpoint.interface:main-logs' ] || fail "the recreated main-logs ($VPCE_LOGS_NEW_ID) carries tofu-address=$VPCE_LOGS_NEW_ADDR, not module.vpc.aws_vpc_endpoint.interface:main-logs"
+    VPCE_SSM_ID_AFTER_UP="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$VPCE_SSM_ID" --query "VpcEndpoints[0].VpcEndpointId" --output text 2>/dev/null || true)"
+    [ "$VPCE_SSM_ID_AFTER_UP" = "$VPCE_SSM_ID" ] || fail "the sibling main-ssm's live id changed across the scale-up ($VPCE_SSM_ID -> $VPCE_SSM_ID_AFTER_UP)"
+    log "  main-logs recreated under a new id ($VPCE_LOGS_NEW_ID, was $VPCE_LOGS_ID), tofu-address=$VPCE_LOGS_NEW_ADDR; main-ssm ($VPCE_SSM_ID) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+
+    log "=== F3. one more plan: config and reality agree, nothing left to propose ==="
+    COUNT_FINAL_PLAN_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" "$TOFU" live-plan -input=false -no-color 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+    [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+    log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+    gauntlet_stage day2_count pass "choudoufu: dropping \"logs\" from var.vpcs.main.vpc_endpoints destroyed exactly module.vpc.aws_vpc_endpoint.interface[\"main-logs\"] (0 add, 0 change, 1 destroy), leaving every sibling for_each member (main-ssm's live id and tofu-address marker checked directly) untouched; adding it back created exactly the same key under a NEW live id (0 add -> 1 add, 0 change, 0 destroy) while main-ssm stayed untouched throughout; the next plan is empty; the F-ORACLE stock oracle on the identical for_each set, applied on cold_deploy's own state, shows the identical shape: destroy the dropped key only, create it back under a new id, every sibling key's id unchanged both times"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end
