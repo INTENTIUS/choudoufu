@@ -1003,7 +1003,15 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 // propagateModuleRename re-keys every record this estate's store holds
 // under the module boundary req.Old -> req.New actually renamed, once
 // [m.rewrite] has already made the live write for the one instance this
-// call was asked to rename.
+// call was asked to rename. It also, unconditionally and first, moves
+// req.Old's own record to req.New regardless of whether a module boundary
+// changed at all - GitHub issue #412: an ordinary same-module rename (no
+// module step differs) gives [moduleRenameBoundary] nothing to find, so
+// without that first, unconditional step, a bare resource rename never
+// reached [RecordStore.MoveRecord] for its own key and left it stale
+// forever. See the unconditional call at the top of this function's body
+// for the detail; everything else below is the module-boundary sweep for
+// everything else that lives under a renamed module.
 //
 // A live-mv rename is a single-resource operation: req.Old and req.New name
 // one instance, and the caller may not even know what else lives under the
@@ -1078,6 +1086,42 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	store := m.req.RecordStore
 	if store == nil {
 		return diags
+	}
+
+	// The renamed resource's OWN record, if it has one, has to follow to
+	// req.New unconditionally - independent of whether this rename crossed
+	// a module boundary at all. An ordinary same-module rename
+	// (aws_sqs_queue.this -> .this_renamed, or an index change with no
+	// module step differing) gives [moduleRenameBoundary] below nothing to
+	// find, so the module-prefix sweep never runs for it; before this call,
+	// req.Old's own kind=identity record (stamped by
+	// internal/live/liveimport/stamp.go's seedIdentityFor for every stamped
+	// instance, taggable or not - [projection.RecordStore.MoveRecord]'s own
+	// doc comment names this exact case) was left stale at its pre-rename
+	// key forever, even though the live marker and the returned Result both
+	// correctly name req.New. GitHub issue #412 (found on corpus-
+	// autoscaling-complete's, corpus-eks-basic's and corpus-ecs-fargate's
+	// day2_rename/day2_replace stages): renaming the same instance a second
+	// time would then look for its record under an address the store no
+	// longer holds anything at.
+	//
+	// [projection.RecordStore.MoveRecord] is a no-op, with no error, when
+	// req.Old has no record at all - the ordinary case for a markable
+	// resource that carries no record-backed identity, so this call costs
+	// nothing when there is nothing to move. When the module-boundary sweep
+	// below also applies (a real module rename), it reaches req.Old's own
+	// key again through the group it falls into; by then this call has
+	// already moved it, so MoveRecord finds nothing left at req.Old and
+	// no-ops on the second pass - the same idempotent shape a re-run after
+	// a crash relies on (this function's own doc comment above).
+	if _, err := store.MoveRecord(ctx, m.req.Old, m.req.New); err != nil {
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"This resource's own record could not be moved",
+			fmt.Sprintf(
+				"Renaming %s to %s could not move its own record in this estate's record store: %s. The live write already completed; run the same live-mv command again to finish moving this estate's records once this is resolved - moving a record is safe to retry.",
+				m.req.Old, m.req.New, err),
+		))
 	}
 
 	oldPrefix, newPrefix, ok := moduleRenameBoundary(m.req.Old.Module, m.req.New.Module)
