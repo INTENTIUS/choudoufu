@@ -718,7 +718,7 @@ const (
 	// has nowhere to be found except the estate's record store, and reading
 	// that store failed - a corrupt record, a store the process can no
 	// longer reach, or a version this build does not understand
-	// ([projection.LocatedStore.Get]'s own refusals). It is never "no
+	// ([projection.RecordStore.GetIdentity]'s own refusals). It is never "no
 	// record exists yet" - that answer is not a problem, it is an ordinary
 	// absence, and the instance is left unbound so the plan proposes a
 	// create.

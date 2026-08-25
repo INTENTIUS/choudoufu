@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "6250bb12fbb11257031602c96ce216d0796d952e",
+  "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T06:32:13Z",
+  "generated": "2026-08-25T05:14:51Z",
   "stages": [
     {
       "id": "cold_deploy",
