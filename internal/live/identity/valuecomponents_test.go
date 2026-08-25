@@ -491,6 +491,179 @@ func TestComponentsServerAssignedIfAbsent_StopsAtTheFirstFailure(t *testing.T) {
 	}
 }
 
+// TestComponentsCloudPending_TrueForRealAwsSqsQueueRow is corpus-sqs-basic's
+// own greenfield regression, reduced to the identity table alone: the real
+// ratified aws_sqs_queue row's url component chain reads region and
+// account-id ([identity.CloudContext]) before it ever reaches name, so
+// ComponentsFromValue hard-fails on the region component regardless of
+// whether name is set - a structural gap in this evaluator, not an
+// ambiguous instance. Proven against name PRESENT (the ordinary case a
+// brand-new greenfield queue actually has), because that is what the
+// gauntlet's own regression looked like: a resource whose configuration is
+// completely unambiguous still fell into ruling 4's "No source" refusal.
+func TestComponentsCloudPending_TrueForRealAwsSqsQueueRow(t *testing.T) {
+	row, ok := LookupType("aws_sqs_queue")
+	if !ok {
+		t.Fatal("aws_sqs_queue is not in DefaultTable; this test needs the real ratified row")
+	}
+	hasCloud := false
+	for _, c := range row.Components {
+		if c.Cloud != CloudNone {
+			hasCloud = true
+		}
+	}
+	if !hasCloud {
+		t.Fatal("aws_sqs_queue's row no longer names a Cloud component; this test's premise has changed")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.StringVal("my-queue"),
+	})
+
+	if !ComponentsCloudPending(row, val) {
+		t.Fatalf("ComponentsCloudPending = false for aws_sqs_queue with a fully-known name; want true - the region component blocks first")
+	}
+	// And ComponentsFromValue itself still reports not-found, exactly as it
+	// did before this exemption existed - ComponentsCloudPending narrows
+	// WHY it failed, it does not change whether it failed.
+	if _, _, ok := ComponentsFromValue(row, val); ok {
+		t.Fatalf("ComponentsFromValue reported found=true for aws_sqs_queue; the node has no CloudContext to have derived a url from")
+	}
+	// The other exemptions must NOT already cover this - if either did, the
+	// bug this function fixes would never have shipped.
+	if ComponentsUnknown(row, val) {
+		t.Errorf("ComponentsUnknown = true for aws_sqs_queue; want false - the region component hard-fails, it is not merely unknown")
+	}
+	if ComponentsServerAssignedIfAbsent(row, val) {
+		t.Errorf("ComponentsServerAssignedIfAbsent = true for aws_sqs_queue; want false - the walk stops at the region component, before name is ever reached")
+	}
+}
+
+// TestComponentsCloudPending_FalseWhenGenuinelyAmbiguousComesFirst proves
+// this signal does not widen into a general amnesty for absence: a
+// synthetic row with a real ambiguity (no OmitIfAbsent, no Default, no
+// ServerAssignedIfAbsent) BEFORE its Cloud component must still report
+// false, because [ComponentsFromValue]'s own walk would have stopped at the
+// ambiguous component first and never reached the Cloud one - the same
+// precision [ComponentsServerAssignedIfAbsent]'s own
+// TestComponentsServerAssignedIfAbsent_StopsAtTheFirstFailure test pins for
+// its sibling exemption.
+func TestComponentsCloudPending_FalseWhenGenuinelyAmbiguousComesFirst(t *testing.T) {
+	row := TypeIdentity{
+		Type: "test_ambiguous_then_cloud",
+		Components: []Component{
+			{Attrs: []string{"ambiguous_first"}, IdentityAttr: "*"},
+			{Literal: "_"},
+			{Cloud: CloudAccountID, IdentityAttr: "*"},
+		},
+	}
+	val := cty.ObjectVal(map[string]cty.Value{
+		"ambiguous_first": cty.NullVal(cty.String),
+	})
+
+	if ComponentsCloudPending(row, val) {
+		t.Fatalf("ComponentsCloudPending = true when a genuinely ambiguous component comes BEFORE the Cloud one; want false - the walk never reaches the Cloud component")
+	}
+
+	// And the mirror: swap the order so Cloud is first and genuinely reached.
+	rowFirst := TypeIdentity{
+		Type: "test_cloud_first",
+		Components: []Component{
+			{Cloud: CloudAccountID, IdentityAttr: "*"},
+			{Attrs: []string{"ambiguous_second"}, IdentityAttr: "*"},
+		},
+	}
+	valFirst := cty.ObjectVal(map[string]cty.Value{
+		"ambiguous_second": cty.NullVal(cty.String),
+	})
+	if !ComponentsCloudPending(rowFirst, valFirst) {
+		t.Fatalf("ComponentsCloudPending = false when the FIRST component the walk reaches IS Cloud; want true")
+	}
+}
+
+// TestComponentsCloudPending_FalseWhenOtherHardFailComesFirst proves a
+// different hard-fail reason (a marked, sensitive value) reached before any
+// Cloud component is never reported as cloud-pending - that would let a
+// genuinely sensitive value's refusal be silently withheld for the wrong
+// reason.
+func TestComponentsCloudPending_FalseWhenOtherHardFailComesFirst(t *testing.T) {
+	row := TypeIdentity{
+		Type: "test_marked_then_cloud",
+		Components: []Component{
+			{Attrs: []string{"secret_first"}, IdentityAttr: "*"},
+			{Cloud: CloudRegion, IdentityAttr: "*"},
+		},
+	}
+	val := cty.ObjectVal(map[string]cty.Value{
+		"secret_first": cty.StringVal("shh").Mark("sensitive"),
+	})
+
+	if ComponentsCloudPending(row, val) {
+		t.Fatalf("ComponentsCloudPending = true when a marked value hard-fails BEFORE the Cloud component; want false")
+	}
+}
+
+// TestComponentsCloudPending_FalseWhenFullyResolved proves this signal does
+// not fire on a row with no Cloud component at all - the ordinary success
+// or ordinary-ambiguity path is untouched.
+func TestComponentsCloudPending_FalseWhenFullyResolved(t *testing.T) {
+	row, ok := LookupType("aws_dynamodb_table")
+	if !ok {
+		t.Fatal("aws_dynamodb_table is not in DefaultTable")
+	}
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.StringVal("my-table"),
+	})
+	if ComponentsCloudPending(row, val) {
+		t.Fatalf("ComponentsCloudPending = true for a row with no Cloud component; want false")
+	}
+}
+
+// TestComponentsCloudPending_PerElementNeverExempted proves PerElement is
+// deliberately excluded: [ComponentsFromValue]'s own doc comment gives no
+// evidence a PerElement hard-fail is this same "structurally never
+// derivable" shape, so a synthetic PerElement component must not be waved
+// through by this function.
+func TestComponentsCloudPending_PerElementNeverExempted(t *testing.T) {
+	row := TypeIdentity{
+		Type: "test_per_element",
+		Components: []Component{
+			{PerElement: true, IdentityAttr: "*"},
+		},
+	}
+	if ComponentsCloudPending(row, cty.EmptyObjectVal) {
+		t.Fatalf("ComponentsCloudPending = true for a PerElement component; want false - PerElement is not this exemption's business")
+	}
+}
+
+// TestComponentsCloudPending_ServerAssignedAndRecordBackedNever mirrors the
+// same boundary test both sibling exemptions carry: these two shapes are
+// already unconditionally exempt from the "No source" refusal before this
+// signal is ever consulted.
+func TestComponentsCloudPending_ServerAssignedAndRecordBackedNever(t *testing.T) {
+	saRow, ok := LookupType("aws_vpc")
+	if !ok {
+		t.Fatal("aws_vpc is not in DefaultTable; this test needs a real ServerAssigned row")
+	}
+	if !saRow.ServerAssigned {
+		t.Fatal("aws_vpc is expected to be ServerAssigned")
+	}
+	if ComponentsCloudPending(saRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsCloudPending = true for a ServerAssigned row; want false")
+	}
+
+	rbRow, ok := LookupType("random_pet")
+	if !ok {
+		t.Skip("random_pet is not in DefaultTable; this test needs a real RecordBacked row")
+	}
+	if !rbRow.RecordBacked {
+		t.Fatal("random_pet is expected to be RecordBacked")
+	}
+	if ComponentsCloudPending(rbRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsCloudPending = true for a RecordBacked row; want false")
+	}
+}
+
 // TestComponentsServerAssignedIfAbsent_ServerAssignedAndRecordBackedNever
 // mirrors TestComponentsUnknown_ServerAssignedAndRecordBackedNeverUnknown:
 // these two shapes are already unconditionally exempt from the "No

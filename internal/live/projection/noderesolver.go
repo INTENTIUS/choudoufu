@@ -323,12 +323,37 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 	// be missing" shape a whole-type ServerAssigned row already gets
 	// exempted for above - just discovered one component at a time.
 	// Caught by corpus-autoscaling-complete's own greenfield stage:
-	// aws_iam_role.this and aws_sqs_queue.this both use this convention
-	// (use_name_prefix defaults to true in the upstream module), and their
-	// name argument's value is a known null, not unknown.
+	// aws_iam_role.this uses this convention (use_name_prefix defaults to
+	// true in the upstream module), and its name argument's value is a
+	// known null, not unknown. (aws_sqs_queue.this, named here in an
+	// earlier version of this comment, is NOT actually reached by this
+	// exemption - see the sixth case below for why, and
+	// corpus-sqs-basic's own greenfield stage for where that claim was
+	// checked against the real table row and found wrong.)
+	//
+	// A sixth case, [identity.ComponentsCloudPending]: a CONFIG-IDENTIFIED
+	// type's row names a component this evaluator can never answer at the
+	// node AT ALL, for ANY instance - one built from [identity.CloudContext]
+	// (the AWS account ID, chiefly: this seam has no CloudContext, and per
+	// [identity.CloudContext]'s own doc comment neither does the rest of
+	// this fork's pipeline, which passes its zero value throughout and lets
+	// the discovery sweep answer these types from the live object's marker
+	// instead). This is not ruling 4's ambiguity - "this instance's
+	// derivation usually works but failed this time" - it is the same "no
+	// source to be missing" shape a whole-type ServerAssigned row already
+	// gets exempted for above, just discovered because the row's OWN
+	// evaluator support stops short, not because this instance's
+	// configuration does. aws_sqs_queue.this is exactly this: its url
+	// component chain reads region and account-id from CloudContext before
+	// it ever reaches name, so no instance of the type - name present,
+	// absent, or name_prefix's null alike - could ever resolve here,
+	// applied or brand new. An already-live queue is still found first, by
+	// step (b) above (the marker sweep), the identical protection a
+	// ServerAssigned row's brand-new instances rely on.
 	sourceExpected := hasRow && !row.ServerAssigned && !row.RecordBacked &&
 		!identity.ComponentsUnknown(row, config) &&
-		!identity.ComponentsServerAssignedIfAbsent(row, config)
+		!identity.ComponentsServerAssignedIfAbsent(row, config) &&
+		!identity.ComponentsCloudPending(row, config)
 	if !sourceExpected {
 		return providers.ImportTarget{}, false, diags
 	}

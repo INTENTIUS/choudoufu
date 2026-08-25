@@ -183,10 +183,14 @@ func ComponentsUnknown(t TypeIdentity, val cty.Value) bool {
 // comment states - never as a reason to invent an identity.
 //
 // Found via corpus-autoscaling-complete's own greenfield gauntlet stage:
-// module.complete.aws_iam_role.this[0] and aws_sqs_queue.this both use
-// the *_prefix convention (use_name_prefix defaults to true in the
-// upstream module), so their "name" component is a known null, not
-// unknown - [ComponentsUnknown] alone does not cover this shape.
+// module.complete.aws_iam_role.this[0] uses the *_prefix convention
+// (use_name_prefix defaults to true in the upstream module), so its "name"
+// component is a known null, not unknown - [ComponentsUnknown] alone does
+// not cover this shape. (An earlier version of this comment also named
+// aws_sqs_queue.this here; it is NOT actually reached by this function -
+// see [ComponentsCloudPending]'s own doc comment for why: its row's region
+// component hard-fails this walk before name is ever reached, regardless
+// of name_prefix.)
 func ComponentsServerAssignedIfAbsent(t TypeIdentity, val cty.Value) bool {
 	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
 		return false
@@ -212,6 +216,100 @@ func ComponentsServerAssignedIfAbsent(t TypeIdentity, val cty.Value) bool {
 				continue
 			}
 			return c.ServerAssignedIfAbsent
+		}
+	}
+	return false
+}
+
+// ComponentsCloudPending is [ComponentsUnknown] and
+// [ComponentsServerAssignedIfAbsent]'s third sibling: it reports whether
+// [ComponentsFromValue]'s walk stops, for THIS instance, at a component
+// naming [CloudContext] (region or account-id) - not because the value is
+// wrong, absent, or ambiguous, but because this seam has no CloudContext at
+// all ([ComponentsFromValue]'s own doc comment) and never will for a plan
+// node: unlike the static evaluator's resolver (resolve.go's
+// cloudValueFor), which can answer CloudRegion from a resource's own
+// `region` argument or its provider block, and answers CloudAccountID from
+// a caller-supplied [CloudContext] that this fork's own pipeline always
+// passes as the zero value (see [CloudContext]'s doc comment: "the account
+// ID first becomes knowable one phase later still"), this evaluator
+// implements neither at all ([componentFromValue] hard-fails on ANY
+// Component.Cloud unconditionally, before even looking at val).
+//
+// That makes a config-identified row naming Cloud structurally unlike every
+// other config-identified row: it is not that THIS instance's derivation
+// failed unusually (ruling 4 (#365)'s real ambiguity, which the "No source"
+// refusal exists for) - no instance of the type could EVER succeed through
+// this evaluator, applied or not, real or genuinely new. An already-live
+// object of such a type is never at risk from this exemption: its marker
+// carries the estate's tag and the discovery sweep - step (b) in
+// noderesolver.go, which runs before step (c) ever reaches this function -
+// finds it first, exactly the same protection a whole-type ServerAssigned
+// row already relies on for the identical reason (EC2's instance ID is also
+// never derivable from configuration, at the node or anywhere in this
+// evaluator, and that row's brand-new instances are never refused either).
+// A genuinely new instance has nothing to have collided with, and this is
+// that, not a widened create.
+//
+// Found via corpus-sqs-basic's own greenfield gauntlet stage:
+// aws_sqs_queue's row builds its ARN-shaped url from
+// "https://sqs." + {Cloud: "region"} + ".amazonaws.com/" + {Cloud:
+// "account-id"} + "/" + name, so EVERY instance - name present, absent, or
+// name_prefix's ServerAssignedIfAbsent null alike - hits the region
+// component's unconditional Cloud hard-fail before the walk ever reaches
+// name. corpus-autoscaling-complete's own sqs queue was never actually
+// exempted by [ComponentsServerAssignedIfAbsent] the way its doc comment
+// once claimed (that function's own walk stops at the SAME region
+// component, before name, regardless of name_prefix) - it happened not to
+// regress only because an earlier, less complete aws_sqs_queue row had no
+// Cloud component at all; the row grew the two Cloud components as part of
+// the schema-first table effort, and this function is what the node-side
+// walk needed to still treat the type as "no source to be missing" rather
+// than "no source when there should be one."
+//
+// PerElement is deliberately excluded from this exemption for the same
+// reason [ComponentsFromValue]'s own doc comment gives for not implementing
+// it here at all: no ratified row this fork resolves at the node today
+// needs its set-canonicalization, so there is no evidence yet that a
+// PerElement hard-fail is this same "structurally never derivable" shape
+// rather than a genuine gap this evaluator should eventually close instead
+// of paper over.
+//
+// A caller must use this ONLY to decide whether to WITHHOLD the "No
+// source" refusal, the same restriction [ComponentsUnknown] and
+// [ComponentsServerAssignedIfAbsent] both state - never as a reason to
+// invent an identity.
+func ComponentsCloudPending(t TypeIdentity, val cty.Value) bool {
+	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
+		return false
+	}
+	if val == cty.NilVal || val.IsNull() || val.IsMarked() {
+		return false
+	}
+	if !val.Type().IsObjectType() {
+		return false
+	}
+	for _, c := range t.Components {
+		_, _, _, present, hardFail, _ := componentFromValue(c, val)
+		if hardFail {
+			// Mirrors [ComponentsServerAssignedIfAbsent]'s own precision:
+			// the walk stops HERE, at whatever this component turns out to
+			// be. Only a Cloud component (never PerElement, see above) is
+			// this function's business; every other hard-fail reason
+			// (marked, unknown, a SoleElement mismatch, a value that will
+			// not convert to string) is a real problem with THIS instance's
+			// data, not a structural gap in the evaluator, and must not be
+			// waved through.
+			return c.Cloud != CloudNone && !c.PerElement
+		}
+		if !present {
+			if c.OmitIfAbsent || c.Default != "" {
+				continue
+			}
+			// A genuinely ambiguous absence reached before any Cloud
+			// component - ruling 4's own real case - must not be masked by
+			// a Cloud component sitting later in the list.
+			return false
 		}
 	}
 	return false

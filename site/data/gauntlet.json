@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "10e3f76bcd1ed5c354c8d5fee375196c5918a10e",
+  "commit": "6157e0b4fee76a8d98494a0d9b7eab8fd4bfeaa8",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:01:56Z",
+  "generated": "2026-08-25T18:25:38Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 23,
-          "fail": 3,
+          "pass": 24,
+          "fail": 2,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 22,
-          "fail": 3,
+          "pass": 23,
+          "fail": 2,
           "not_run": 0
         },
         "migrate": {
@@ -1229,26 +1229,26 @@
         "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "63a71a62ec2ae851459ff9eb95d6fd09243f9079",
-        "date": "2026-08-25T18:01:25Z",
-        "exit_code": 1,
+        "commit": "6157e0b4fee76a8d98494a0d9b7eab8fd4bfeaa8",
+        "date": "2026-08-25T18:32:23Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
           "day2_remove": "choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it)",
           "day2_rename": "moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "day2_replace": "choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default) is confirmed gone and the new object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default -> https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $EST); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
-          "greenfield": "the greenfield apply failed",
+          "greenfield": "6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues",
           "migrate": "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file",
           "test_plan": "no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS"
