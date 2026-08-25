@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
+  "commit": "4ec294bf4d5464ad5d849fdf430bf2f2b60722bd",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T09:35:37Z",
+  "generated": "2026-08-25T11:14:30Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1284,8 +1284,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "55ed4a8ca9af542122bed2541c711fcddc24902a",
-        "date": "2026-08-25T07:21:53Z",
+        "commit": "4ec294bf4d5464ad5d849fdf430bf2f2b60722bd",
+        "date": "2026-08-25T11:19:50Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
