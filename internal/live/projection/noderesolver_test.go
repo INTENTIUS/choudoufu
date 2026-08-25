@@ -142,6 +142,88 @@ func TestNodeResolver_PrecedenceOrder(t *testing.T) {
 	}
 }
 
+// TestNodeResolver_UnownedBlocksAllThreeSteps is the flip's own regression
+// (TestLivePlan_unownedNameIsNotAdopted and
+// TestLivePlan_otherEstatesResourceIsNotAdopted, internal/command/
+// live_plan_test.go, once CHOUDOUFU_NODE_RESOLVE defaulted on 2026-08-25):
+// n.Unowned has to gate every one of the three steps, not only step (c),
+// because [NewMarkerIndex]'s input is not restricted to genuine
+// marker-sweep matches - it also carries every config-derived ClassConcrete
+// resolution the static evaluator produced for a type discovery never
+// touches (a config-identified type like aws_s3_bucket), the exact same
+// ownership-blind guess step (c) makes. A record is included too,
+// defensively, even though RecordStore only ever holds this estate's own
+// writes in practice: see [NodeResolver.Unowned]'s own doc comment.
+func TestNodeResolver_UnownedBlocksAllThreeSteps(t *testing.T) {
+	ctx := context.Background()
+	addr := locatedTestAddr(t, "aws_s3_bucket", "data")
+	config := cty.ObjectVal(map[string]cty.Value{
+		"bucket": cty.StringVal("tofu-stateless-unit-data"),
+	})
+
+	t.Run("blocks the record", func(t *testing.T) {
+		store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("my-estate"))
+		if _, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+			env.Identity = &identityPayload{ImportID: "tofu-stateless-unit-data"}
+		}); err != nil {
+			t.Fatalf("mergeEnvelope: %s", err)
+		}
+		resolver := &NodeResolver{
+			RecordStore: store,
+			Unowned:     map[string]bool{addr.String(): true},
+		}
+		_, found, diags := resolver.ResolveResourceIdentity(ctx, addr, config, providers.Schema{})
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		if found {
+			t.Error("an unowned address was found via the record")
+		}
+	})
+
+	t.Run("blocks the marker index", func(t *testing.T) {
+		resolver := &NodeResolver{
+			MarkerIndex: map[string]providers.ImportTarget{
+				addr.String(): {ID: "tofu-stateless-unit-data"},
+			},
+			Unowned: map[string]bool{addr.String(): true},
+		}
+		_, found, diags := resolver.ResolveResourceIdentity(ctx, addr, config, providers.Schema{})
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		if found {
+			t.Error("an unowned address was found via the marker index - this is the exact shape TestLivePlan_otherEstatesResourceIsNotAdopted caught: a config-identified type's ClassConcrete resolution reaches the marker index with no ownership check of its own")
+		}
+	})
+
+	t.Run("blocks the table over the evaluated value", func(t *testing.T) {
+		resolver := &NodeResolver{
+			Unowned: map[string]bool{addr.String(): true},
+		}
+		_, found, diags := resolver.ResolveResourceIdentity(ctx, addr, config, providers.Schema{})
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		if found {
+			t.Error("an unowned address was found via the identity table over the evaluated configuration")
+		}
+	})
+
+	t.Run("a different address is unaffected", func(t *testing.T) {
+		resolver := &NodeResolver{
+			Unowned: map[string]bool{"aws_s3_bucket.other": true},
+		}
+		_, found, diags := resolver.ResolveResourceIdentity(ctx, addr, config, providers.Schema{})
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Err())
+		}
+		if !found {
+			t.Error("an address absent from Unowned was blocked anyway")
+		}
+	})
+}
+
 // TestNodeResolver_NoSourceDefaultRefuses is ruling 4 (#365): an instance
 // with no record, no marker and no derivable identity refuses by default,
 // with a diagnostic naming both remedies (live-import, or the toggle) -

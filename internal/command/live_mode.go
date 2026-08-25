@@ -271,6 +271,23 @@ func nodeResolveEnabled() bool {
 	return os.Getenv("CHOUDOUFU_NODE_RESOLVE") != "0"
 }
 
+// nodeResolverUnownedSet builds a [projection.NodeResolver.Unowned] set from
+// a completed projection's own [projection.Result.Unowned] list, keyed by
+// [addrs.AbsResourceInstance.String] - the shared helper both
+// statelessBegin (live_mode.go) and LivePlanCommand's "-estate" form
+// (live_plan.go) call once projResult exists, at the two population sites
+// that field's own doc comment points to.
+func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
+	if len(unowned) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(unowned))
+	for _, u := range unowned {
+		out[u.Addr.String()] = true
+	}
+	return out
+}
+
 // testStatelessRunner, when set, is handed every runner as it is built. It
 // exists so that a test can assert about the state manager afterwards - in
 // particular that PersistState was called and still wrote nothing, which is
@@ -818,6 +835,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 
 	r.view.Omissions(statelessOmissions(projResult))
 	r.view.Unowned(statelessUnownedReport(projResult, estate))
+
+	// GitHub issue #388's plan-node seam: r.resolver's ownership guard
+	// (NodeResolver.Unowned, noderesolver.go step (c)'s own doc comment)
+	// can only be set now, not alongside RecordStore/MarkerIndex/Estate
+	// above, because projResult - the pre-walk projection that actually
+	// decided ownership - did not exist yet at that point in this
+	// function. See that field's own doc comment for why leaving it unset
+	// would let the node adopt a client-named resource this run does not
+	// own.
+	if r.nodeResolve {
+		r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+	}
 
 	var classified *foreign.Result
 	if disco != nil {

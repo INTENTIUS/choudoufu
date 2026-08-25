@@ -572,6 +572,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	statelessView.Omissions(statelessOmissions(projResult))
 	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
+	// GitHub issue #388's plan-node seam: resolver's ownership guard
+	// (NodeResolver.Unowned, noderesolver.go step (c)'s own doc comment)
+	// can only be set now, not alongside RecordStore/MarkerIndex/Estate
+	// above, because projResult - the pre-walk projection that actually
+	// decided ownership - did not exist yet at that point in this
+	// function. See that field's own doc comment for why leaving it unset
+	// would let the node adopt a client-named resource this run does not
+	// own.
+	if resolver != nil {
+		resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+	}
+
 	// classified and foreignReq are kept in outer scope, past the section
 	// they were computed for: the lookalike guard below needs the same
 	// classification and the same request (for its region and endpoint) once
