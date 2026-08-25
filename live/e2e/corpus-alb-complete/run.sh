@@ -916,6 +916,47 @@ grep -qE '^  # aws_instance\.other will be destroyed' <<< "$REMOVE_ORACLE_PLAN_O
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -15; fail "stock's remove plan does not propose exactly two destroys (the instance and its target-group attachment)"; }
 log "  stock: exactly 2 destroys (aws_instance.other and its target-group attachment), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A THIRD
+# fresh copy of $PLAIN (same nesting-depth requirement as the two oracles
+# above), so this oracle also runs on cold_deploy's own state, before any
+# rename or migration ever touches it. Changes aws_instance.this's `ami`
+# argument (a real, upstream-declared ForceNew argument on aws_instance -
+# the provider does not allow swapping a live instance's AMI in place) from
+# the SSM-parameter data source reference to a different literal AMI id
+# also present in floci's fixed image catalog (ami-0abcdef1234567891, the
+# Amazon Linux 2023 entry - confirmed distinct from what the SSM parameter
+# al2 resolves to, ami-0abcdef1234567890, in floci's own SSM fixture),
+# which forces stock to replace the SAME declared address rather than
+# propose a destroy-and-create pair at two different addresses. aws_
+# instance.this's id is referenced exactly once outside its own block -
+# module.alb's target_groups entry (target_id = aws_instance.this.id) -
+# so the new instance id is expected to cascade into that target-group
+# attachment too (its own target_id argument has no update API in ELBv2,
+# only Register/DeregisterTargets, so it is expected to replace as well -
+# confirmed below by the plan itself, not assumed).
+CURRENT_STAGE=day2_replace
+log "=== day2_replace ORACLE. stock: force-replace aws_instance.this via its ForceNew ami argument, on cold_deploy's own state ==="
+REPLACE_ORACLE="$WORK/replace-oracle"
+cp -R "$PLAIN" "$REPLACE_ORACLE"
+rm -rf "$REPLACE_ORACLE/alb/examples/complete-alb/.terraform"
+REPLACE_ORACLE_EST="$REPLACE_ORACLE/alb/examples/complete-alb"
+perl -0pi -e 's/resource "aws_instance" "this" \{\n  ami           = data\.aws_ssm_parameter\.al2\.value\n/resource "aws_instance" "this" {\n  ami           = "ami-0abcdef1234567891"\n/' "$REPLACE_ORACLE_EST/main.tf"
+[ "$(grep -c 'ami-0abcdef1234567891' "$REPLACE_ORACLE_EST/main.tf")" = "1" ] \
+  || fail "changing aws_instance.this's ami argument in the replace-oracle copy did not match exactly once - the corpus pin has moved"
+( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # aws_instance\.this must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing aws_instance.this when its ami argument changes"; }
+REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
+[ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
+log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces aws_instance.this at the same declared address, on the state cold_deploy produced - plan only, not applied (same convention as the two oracles above: this copy shares floci's account with \$ADOPTED_EST, and actually applying here would destroy the real instance the estate's later stages still depend on)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1685,6 +1726,129 @@ EOF
     log "  No changes. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed state: aws_instance.this_renamed
+    # (originally aws_instance.this) is bound and converged. Its `ami`
+    # argument - a real, upstream-declared ForceNew argument on aws_
+    # instance (the provider does not allow swapping a live instance's AMI
+    # in place) - changes from the SSM-parameter data source reference to
+    # a different literal AMI id also present in floci's fixed image
+    # catalog (ami-0abcdef1234567891, see the ORACLE's own header comment
+    # above), forcing a replacement at the SAME declared address (aws_
+    # instance.this_renamed never changes) while the physical live
+    # instance behind it is destroyed and a new one created. The new
+    # instance's id is expected to cascade into module.alb's own
+    # target-group attachment for it (target_id = aws_instance.this_
+    # renamed.id, no update API in ELBv2 for a registered target, only
+    # Register/DeregisterTargets), confirmed below by the plan itself.
+    #
+    # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
+    # instance-complete's and corpus-sqs-basic's own Part F): aws_instance
+    # is a bare, top-level resource here (not module-wrapped), so a
+    # `lifecycle { create_before_destroy = true }` block COULD in
+    # principle be added directly to it - but doing so would leave this
+    # estate's config permanently diverged from the upstream module
+    # example everywhere else in this script depends on the reduction
+    # staying faithful (see the header's THE REDUCTION), and OpenTofu's
+    # own default destroy-then-create ordering is what the plan's "-/+
+    # destroy and then create replacement" legend below actually proves.
+    # BREAK=replace manufactures the coexistence a skipped destroy would
+    # leave behind directly via the AWS CLI (day2_crash, stage 10, owns
+    # testing a real interrupted apply).
+    CURRENT_STAGE=day2_replace
+    record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+    record_import_id() { jq -r '.identity.import_id' "$1"; }
+    F_ADDR="aws_instance.this_renamed"
+    F_RECORD="$ADOPTED_EST/.tofu-records/tofu-records/$ESTATE/aws_instance/$(record_key "$F_ADDR")"
+
+    log "=== F0. capture the live instance and its record ahead of the forced replace ==="
+    [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+    F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_OLD_IMPORT_ID" = "$INST_THIS_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $INST_THIS_ID"
+    F_OLD_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INST_THIS_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$F_OLD_ADDR_TAG" = "aws_instance.this_renamed" ] \
+      || fail "$INST_THIS_ID does not carry tofu-address=aws_instance.this_renamed ahead of day2_replace"
+    log "  $INST_THIS_ID, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+    F_OLD_ID="$INST_THIS_ID"
+
+    if [ "${BREAK:-}" = "replace" ]; then
+      log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+      # A second, distinct live instance carrying the SAME tofu-address
+      # and tofu-slot as the one a genuine replace would destroy - the
+      # state "skip the destroy half" of a create-before-destroy replace
+      # would leave, produced directly via the AWS CLI rather than by
+      # actually interrupting an apply (day2_crash's own job).
+      VPC_SUBNET="$(awsl ec2 describe-instances --instance-ids "$INST_THIS_ID" --query "Reservations[0].Instances[0].SubnetId" --output text)"
+      BREAK_COLLISION_ID="$(awsl ec2 run-instances --image-id ami-0abcdef1234567890 --instance-type t3.nano --subnet-id "$VPC_SUBNET" \
+        --tag-specifications "ResourceType=instance,Tags=[{Key=tofu-estate,Value=$ESTATE},{Key=tofu-address,Value=aws_instance.this_renamed},{Key=tofu-slot,Value=0}]" \
+        --query "Instances[0].InstanceId" --output text)"
+      BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+      awsl ec2 terminate-instances --instance-ids "$BREAK_COLLISION_ID" >/dev/null 2>&1 || true
+      [ "$BREAK_PLAN_RC" -ne 0 ] \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+      grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+      log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+    else
+      log "=== F1. choudoufu: change the ForceNew ami argument, forcing a replace at the same declared address ==="
+      perl -0pi -e 's/resource "aws_instance" "this_renamed" \{\n  ami           = data\.aws_ssm_parameter\.al2\.value\n/resource "aws_instance" "this_renamed" {\n  ami           = "ami-0abcdef1234567891"\n/' "$ADOPTED_EST/main.tf"
+      [ "$(grep -c 'ami-0abcdef1234567891' "$ADOPTED_EST/main.tf")" = "1" ] \
+        || fail "changing aws_instance.this_renamed's ami argument did not match exactly once - the corpus pin has moved"
+
+      F_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+      [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+      grep -qE '^  # aws_instance\.this_renamed must be replaced' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing aws_instance.this_renamed when its ForceNew ami argument changes"; }
+      grep -qE '~ +ami +=.+forces replacement' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark ami as forcing replacement"; }
+      F_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$F_PLAN_OUT")"
+      [ -n "$F_PLAN_LINE" ] || { printf '%s\n' "$F_PLAN_OUT" | tail -15; fail "the day2_replace plan has no summary line"; }
+      log "  choudoufu: $F_PLAN_LINE - exactly one forced replace at the same declared address (aws_instance.this_renamed), ami forces replacement"
+
+      F_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+      [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+      grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$F_APPLY_OUT" \
+        || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not report a clean apply"; }
+      log "  $(grep -E 'Apply complete' <<< "$F_APPLY_OUT")"
+
+      F_OLD_STATE="$(awsl ec2 describe-instances --instance-ids "$INST_THIS_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>&1)"
+      [ "$F_OLD_STATE" = "terminated" ] || fail "$INST_THIS_ID is not terminated after the replace (state=$F_OLD_STATE) - the old object was orphaned, not destroyed"
+      log "  $INST_THIS_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
+
+      F_NEW_ID="$(awsl ec2 describe-instances --filters "Name=tag:tofu-address,Values=aws_instance.this_renamed" "Name=instance-state-name,Values=pending,running" --query "Reservations[0].Instances[0].InstanceId" --output text)"
+      [ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] || fail "no live instance found carrying tofu-address=aws_instance.this_renamed after the replace"
+      F_NEW_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+      [ "$F_NEW_ADDR_TAG" = "aws_instance.this_renamed" ] \
+        || fail "$F_NEW_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not aws_instance.this_renamed - the marker did not move onto the new object"
+      log "  $F_NEW_ID (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+      # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+      # #398-guard shape: a stale record still naming the destroyed
+      # instance would be exactly the wrong-marker failure that outranks
+      # a missing one). The local record file at the SAME address must
+      # now hold the NEW instance's id, not the one captured in F0.
+      F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+      [ "$F_NEW_IMPORT_ID" = "$F_NEW_ID" ] \
+        || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ID - a stale record still claiming the destroyed object, the #398-guard shape"
+      [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+        || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+      log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+      log "=== F2. one more plan: config and reality agree, no marker collision ==="
+      F_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+      [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+      log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+      INST_THIS_ID="$F_NEW_ID"
+      gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old instance ($F_OLD_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+    fi
+    CURRENT_STAGE=""
 
     # ════════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
