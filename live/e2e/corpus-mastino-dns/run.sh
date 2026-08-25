@@ -719,11 +719,33 @@ EOF
 }
 
 GREEN="$WORK/green"
+# DELTA 7 (issue #388's plan-node seam, ruling 4 / #365): a from-scratch
+# apply plans aws_route53_zone.production before any aws_route53_record
+# under it, so every record's own zone_id argument is still Unknown - a
+# genuinely first-ever value, not drift or an existing object this run
+# cannot see - the moment NodeResolver tries to derive that record's
+# identity from configuration. NodeResolver cannot yet tell that shape
+# apart from "a real object this run simply failed to identify" (the
+# ambiguity ruling 4 exists for), and its own doc comment
+# (internal/live/projection/noderesolver.go's ResolveResourceIdentity)
+# names exactly this as flagged, unaddressed follow-on work: "making it
+# safe for a not-yet-applied estate needs an absence-tolerant import ...
+# beyond this unit's scope". This is that estate: a brand-new namespace,
+# seconds old, with categorically nothing live in it yet, so there is no
+# real ambiguity to protect against here. strict.no_source_create = "create"
+# is the sanctioned toggle ruling 4 ships for exactly this shape - it
+# selects stock's own plain-create behavior instead of refusing - and is
+# scoped to this disposable green/oracle fixture namespace only, never to
+# $EST (migrate onward), where every zone already exists and this
+# refusal never fires.
 build_green_copy "$GREEN" "$GREEN_ENDPOINT" '
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }'
 
