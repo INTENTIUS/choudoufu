@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1e14e60cfb812f90ed2ae5bf8ef144222d5b6043",
+  "commit": "1cb2431712cfbdd42cf524d89e8066a3f3db5e60",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:45:20Z",
+  "generated": "2026-08-25T23:53:43Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -675,8 +675,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f91a12b3f3c66f47a56e10faa889af3b2cc62902",
-        "date": "2026-08-25T18:54:03Z",
+        "commit": "1cb2431712cfbdd42cf524d89e8066a3f3db5e60",
+        "date": "2026-08-25T23:56:01Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-harbor-crossing before migration",
