@@ -1038,8 +1038,19 @@ log ""
     [ "$F_OLD_STATE" = "terminated" ] || fail "$INSTANCE_ID is not terminated after the replace (state=$F_OLD_STATE) - the old object was orphaned, not destroyed"
     log "  $INSTANCE_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
 
-    F_NEW_ID="$(cd "$EST" && "$TOFU" output -raw ec2_complete_id 2>/dev/null || true)"
-    [ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "$INSTANCE_ID" ] || fail "could not read a new, different instance id from choudoufu output after the replace"
+    # NOT "choudoufu output": this estate writes no terraform.tfstate at
+    # all under the live block (record-based), and "output -raw" against
+    # that is a real, separate, already-documented finding (PART
+    # GREENFIELD's own note, above) - "No outputs found" under a
+    # stateless record-backed run. Found by its marker instead: the new
+    # instance is the one carrying the SAME tofu-address in running/
+    # pending state, in an account with only one other (now-terminated)
+    # instance under that estate ever having claimed it.
+    F_NEW_ID="$(awsl ec2 describe-instances \
+      --filters "Name=tag:tofu-address,Values=module.ec2_complete.aws_instance.this:0" "Name=instance-state-name,Values=running,pending" \
+      --query "Reservations[0].Instances[0].InstanceId" --output text)"
+    [ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] && [ "$F_NEW_ID" != "$INSTANCE_ID" ] \
+      || fail "could not find a new, different, running instance carrying module.ec2_complete's tofu-address after the replace (got '$F_NEW_ID')"
     F_NEW_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
     [ "$F_NEW_ADDR_TAG" = "module.ec2_complete.aws_instance.this:0" ] \
       || fail "$F_NEW_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.ec2_complete.aws_instance.this:0 - the marker did not move onto the new object"
