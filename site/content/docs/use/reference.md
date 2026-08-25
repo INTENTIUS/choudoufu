@@ -121,19 +121,28 @@ today's behavior. A configuration with no `strict` block, and one whose
 "compatible out of the box" true by construction rather than by review.
 Turning a toggle on is the setup step.
 
+<!-- toggles-gen:begin strict-toggles -->
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
-| `marker_repair` | `"repair"`, `"report"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. `"repair"` writes the declared value over it, as the plan's ordinary in-place tags update. `"report"` leaves it and names what it would have written. `"never"` leaves it silently, for an estate where something else owns the tags. |
-| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. `"store"` keeps it the way stock OpenTofu keeps it. `"refuse"` keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
-| `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. `"refuse"` reports it, by name, and names both remedies: `choudoufu live-import` from a stock state that already holds it, or this toggle. `"create"` selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
+| `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
+| `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
+<!-- toggles-gen:end strict-toggles -->
 
-None of the three `marker_repair` settings affects a resource being created. A create is stamped
+None of the settings above affects a resource being created. A create is stamped
 whatever the setting says: the safety rule has no converse permitting an
 unmarked create, and a create writes a marker that is new rather than one
 that disagrees with anything.
 
-`"report"` is refused by lint in this build, and so is `"never"` on its own.
-The reason is in the `strict-marker-repair` entry in
+The table's `marker_repair` values leave out `"report"` on purpose: it is
+still valid `strict { marker_repair = ... }` grammar (this fork's decoder
+parses it and refuses it with a "not implemented yet" detail, rather than
+a generic typo message), but no build gives it a mechanism, and unlike
+`"never"` it has no path to one - not even the conditional one a `markers
+"record"` selection gives `"never"`. Declaring it as a usable setting
+would be the same false "you are fine" HANDOFF.md warns against, so this
+page does not. `"never"` on its own (no selection) is refused for the
+reason in the `strict-marker-repair` entry in
 [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-marker-repair):
 marker repair is not a switch anywhere. Markers are repaired by the plan's
 ordinary tags diff, and suppressing that per key is what
