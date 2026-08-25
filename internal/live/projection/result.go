@@ -86,6 +86,56 @@ type RecordVersion struct {
 	Version string
 }
 
+// DeposedBinding is GitHub issue #361's crash-window recovery output:
+// discovery's collision-breaking branch names one live object, already
+// found by an ordinary list-and-read pass, as the deposed object recorded
+// for addr - not a fresh guess conjured from the record alone (see #361's
+// design comment, section 4's safety argument). [BuildWith] folds each one
+// into the constructed state's Instances[key].Deposed[dk], which is stock's
+// own [states.Resource] shape: from there, stock's completely unmodified
+// node_resource_deposed.go / transform_state.go graph machinery re-reads
+// the object once more (ReadResource) and proposes its destroy - the
+// second, independent verification the design's safety argument rests on.
+type DeposedBinding struct {
+	// Addr is the current (non-deposed) instance address the deposed
+	// object shares, per record.go's own "same physical key" design.
+	Addr addrs.AbsResourceInstance
+
+	// DeposedKey is the deposed object's own key, read from the record.
+	DeposedKey states.DeposedKey
+
+	// ImportID / Components are the deposed object's own identity, exactly
+	// as [LocatedRecord] carries a current object's.
+	ImportID   string
+	Components map[string]string
+
+	// Provider is the deposed object's own managing provider
+	// configuration, parsed from [DeposedRecord.Provider]. The zero value
+	// (Provider.Type == "") means none was recorded or it failed to parse;
+	// [BuildWith] then falls back to the current instance's own resolved
+	// provider, the same rule an ordinary current-object binding uses.
+	Provider addrs.AbsProviderConfig
+}
+
+// NewDeposedBinding builds a [DeposedBinding] from a record read through
+// [RecordStore.GetDeposed] - deposedKey is that map's own string key,
+// converted to [states.DeposedKey] here so a caller outside this package
+// (discovery.go) never has to import internal/states purely to spell the
+// conversion.
+func NewDeposedBinding(addr addrs.AbsResourceInstance, deposedKey string, rec DeposedRecord) DeposedBinding {
+	provider, diags := addrs.ParseAbsProviderConfigStr(rec.Provider)
+	if diags.HasErrors() {
+		provider = addrs.AbsProviderConfig{}
+	}
+	return DeposedBinding{
+		Addr:       addr,
+		DeposedKey: states.DeposedKey(deposedKey),
+		ImportID:   rec.ImportID,
+		Components: rec.Components,
+		Provider:   provider,
+	}
+}
+
 // PolicyOutcome is one declared instance whose admission or tag handling a
 // non-default policy verb changed.
 type PolicyOutcome struct {

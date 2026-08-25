@@ -58,6 +58,10 @@ var refusals = []Refusal{
 		What:    "A record read from the record store could not be decoded into the type it describes - a record written by a different version of this tool, or one edited by hand.",
 	},
 	{
+		Summary: "Cannot encode a deposed object",
+		What:    "GitHub issue #361's crash-window recovery read a deposed object discovery matched against this estate's record, but the result could not be encoded against the provider's schema for its type; the deposed object is left recorded but not folded into this plan.",
+	},
+	{
 		Summary: "Cannot encode a projected object",
 		What:    "A live object read from the cloud could not be encoded against the provider's schema for its type.",
 	},
@@ -84,6 +88,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Cannot read a persisted record",
 		What:    "The record store could not be read.",
+	},
+	{
+		Summary: "Cannot read a recorded deposed object",
+		What:    "GitHub issue #361's crash-window recovery could not read, live, a deposed object discovery matched against this estate's record - the provider errored. The deposed object is left recorded but not folded into this plan; a later run tries again.",
 	},
 	{
 		Summary: "Cannot read for projection",
@@ -136,6 +144,10 @@ var refusals = []Refusal{
 	{
 		Summary: "No provider access",
 		What:    "Projection was given no configured provider handle to read live state with. A caller error, not a configuration one.",
+	},
+	{
+		Summary: "No provider for a deposed object",
+		What:    "GitHub issue #361's crash-window recovery matched a deposed object against this estate's record, but neither the record nor the current resource block names a provider to read it through. The deposed object is left recorded but unread.",
 	},
 	{
 		Summary: "No provider for an undeclared resource",
