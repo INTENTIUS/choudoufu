@@ -141,6 +141,13 @@ set -uo pipefail
 #                be proposed"). Independent of BREAK and only reachable
 #                when BREAK_RENAME is not 1, because the day2_remove checks
 #                start from day2_rename's own real, completed rename.
+#   BREAK        also accepts "replace" to run day2_replace's own break
+#                control instead of the real replace checks: manufacture
+#                the coexistence a skipped destroy would leave behind (see
+#                PART F). Independent of BREAK=1 and BREAK_RENAME/
+#                BREAK_REMOVE - a separate value on the same variable,
+#                checked one at a time the same way BREAK_RENAME already
+#                is.
 #   BREAK_GREEN  set to 1 to run the greenfield stage's own break control
 #                instead of the real object-by-object comparison: drop one
 #                policy from the expected inventory before the count check
@@ -360,6 +367,41 @@ grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_O
 log "  stock: exactly one destroy (module.iam_policy_from_data_source's policy), nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=""
 log ""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9): "Stock's replace of the
+# same resource leaves the same single object." Another SEPARATE copy of
+# cold_deploy's own state, so this replace has nothing to do with the
+# rename/remove ones above. Targets module.iam_policy (the name_prefix
+# policy) - changing `name_prefix` is a real, upstream-declared ForceNew
+# argument on aws_iam_policy (IAM has no rename-policy API; confirmed
+# already by corpus-giantswarm-crossplane's own F-ORACLE for the plain
+# `name` argument on the same type - `name_prefix` reaches the identical
+# provider field once the random suffix is appended). No dependent
+# resources reference this policy (unlike Labelbox/harbor's IAM
+# role+policy pairs), so this is a clean, single-resource replace with no
+# cascade. Same directory-naming note as STAGE 1.5/1.5.5 above.
+CURRENT_STAGE=day2_replace
+log "=== STAGE 1.5.6: day2_replace stock oracle: force-replace module.iam_policy's policy via its ForceNew name_prefix argument, on cold_deploy's own state ==="
+mkdir -p "$WORK/oracle-replace-tree/iam/examples" "$WORK/oracle-replace-tree/iam/modules"
+EST_ORACLE_REPLACE="$WORK/oracle-replace-tree/iam/examples/iam-policy"
+cp -r "$EST" "$EST_ORACLE_REPLACE"
+cp -R "$SRC_MODULE" "$WORK/oracle-replace-tree/iam/modules/iam-policy"
+sed -i.bak 's/name_prefix = "example-"/name_prefix = "example-v2-"/' "$EST_ORACLE_REPLACE/main.tf"
+rm -f "$EST_ORACLE_REPLACE/main.tf.bak"
+grep -q 'name_prefix = "example-v2-"' "$EST_ORACLE_REPLACE/main.tf" \
+  || fail "changing module.iam_policy's name_prefix argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REPLACE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.iam_policy\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.iam_policy's policy when name_prefix changes"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
+log "  stock: exactly one replace proposed (destroy the old example-* policy, create a new example-v2-* one) at the same declared address, on the state cold_deploy produced - plan only, not applied"
+CURRENT_STAGE=""
+log ""
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -825,6 +867,175 @@ EOF
   log ""
   log "STAGE D (day2_rename): PASS"
   gauntlet_stage day2_rename pass "moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active stage - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Targets module.iam_policy_renamed2 (originally module.iam_policy, the
+  # name_prefix policy), never module.iam_policy_renamed - PART E above
+  # already removes that one, and outputs.tf references only
+  # iam_policy_renamed2, so this section starts from Part D's real,
+  # completed state and is otherwise untouched by anything else in this
+  # script. `name_prefix` is a real, upstream-declared ForceNew argument on
+  # aws_iam_policy (IAM has no rename-policy API - the same fact
+  # corpus-giantswarm-crossplane's own PART F establishes for the plain
+  # `name` argument on the same type), so changing it forces a replace at
+  # the SAME declared address. No other resource references this policy,
+  # so this is a clean, single-resource replace with no cascade.
+  #
+  # THE create_before_destroy SCOPE NOTE (full reasoning in corpus-sqs-
+  # basic's own PART F). OpenTofu core rejects a `lifecycle` block on a
+  # `module` call, and this corpus's own module source
+  # (.corpus/iam/modules/iam-policy) is copied byte-identical rather than
+  # patched, so this evidence pass exercises the default
+  # destroy-then-create ordering instead. BREAK=replace manufactures the
+  # create-before-destroy collision shape directly via the AWS CLI, the
+  # same way corpus-sqs-basic's does.
+  #
+  # aws_iam_policy.policy is declared with `count = var.create ? 1 : 0`
+  # (this instance is policy[0]) - a fungible, count-indexed set, the SAME
+  # shape corpus-sqs-basic's aws_sqs_queue.this[0] is, not the scalar
+  # shape corpus-evoteum-modules/corpus-giantswarm-crossplane/corpus-
+  # hongbomiao-harbor's own PART F sections document. Tried first against
+  # the assumption a manufactured collision here would take corpus-sqs-
+  # basic's own fungible-set "Two live resources claiming one slot" hard-
+  # refusal path - VERIFIED (see the BREAK=replace branch below for the
+  # full finding) that it does not: aws_iam_policy's ServerAssigned/ARN
+  # identity is resolved record-primary, so the plan proceeds silently
+  # (rc=0, bare "No changes.") with the second, decoy object never
+  # mentioned at all. Not fixed in this script-only unit.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.iam_policy_renamed2.aws_iam_policy.policy[0]"
+  F_RECORD="$EST/.tofu-records/tofu-records/$ESTATE/aws_iam_policy/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live policy and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$D_POLICY2_ARN" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $D_POLICY2_ARN"
+  F_OLD_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$D_POLICY2_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.iam_policy_renamed2.aws_iam_policy.policy:0" ] \
+    || fail "$D_POLICY2_ARN does not carry tofu-address=module.iam_policy_renamed2.aws_iam_policy.policy:0 ahead of day2_replace"
+  log "  $D_POLICY2_ARN, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+    # A second, distinct live policy carrying the SAME tofu-address and
+    # tofu-slot as the one a genuine replace would destroy - the state
+    # "skip the destroy half" of a create-before-destroy replace would
+    # leave, produced directly via the AWS CLI rather than by actually
+    # interrupting an apply (day2_crash's own job).
+    #
+    # VERIFIED FINDING, not fixed in this script-only unit. Tried first
+    # against the assumption this would match corpus-sqs-basic's own
+    # fungible-set "Two live resources claiming one slot" hard refusal
+    # (aws_iam_policy.policy[0] is count-indexed the same way
+    # aws_sqs_queue.this[0] is) - it does not. Reproduced directly, no
+    # BREAK-branch code in the loop (a fresh floci container, the
+    # collision policy created and tagged exactly as below, then a plan
+    # run by hand): the plan exits 0 with a bare "No changes." and never
+    # mentions the collision policy's ARN at all - genuinely silent, not
+    # even a warning. Root cause read directly off the two other shapes'
+    # own findings in this same unit: aws_iam_policy's identity is
+    # ServerAssigned/ARN (table_generated.go), resolved record-primary
+    # (#364) rather than re-derived from configuration every plan the way
+    # a client-named type is. The record already names the REAL policy's
+    # ARN; since that object still exists and still satisfies the config,
+    # the plan proceeds straight from the record and never compares it
+    # against the marker sweep's OWN independent read of "what carries
+    # this address" the way a client-named type's derivation does - so a
+    # second object carrying a duplicate marker is simply never looked at.
+    # This is a materially different, and weaker, guarantee than either
+    # corpus-evoteum-modules/corpus-giantswarm-crossplane/corpus-
+    # hongbomiao-harbor's named "displaced" warning or corpus-sqs-basic's
+    # hard refusal, and it plausibly reaches every ServerAssigned/ARN-
+    # identity type under a fungible (count/for_each) set - not narrowed
+    # further here; worth its own follow-on issue. Asserted below by its
+    # own exact, verified shape (silent success), not by what the Break
+    # text says SHOULD happen, so a future fix landing here breaks this
+    # assertion first.
+    BREAK_COLLISION_DOC='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"ec2:DescribeInstances","Resource":"*"}]}'
+    BREAK_COLLISION_ARN="$(awsl iam create-policy --policy-name "example-collision" \
+      --policy-document "$BREAK_COLLISION_DOC" \
+      --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=module.iam_policy_renamed2.aws_iam_policy.policy:0" "Key=tofu-slot,Value=0" \
+      --query 'Policy.Arn' --output text)"
+    [ -n "$BREAK_COLLISION_ARN" ] && [ "$BREAK_COLLISION_ARN" != "None" ] || fail "BREAK=replace: could not create the collision policy"
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    awsl iam delete-policy --policy-arn "$BREAK_COLLISION_ARN" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -eq 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: this estate's own verified finding (see the comment immediately above) has changed - the plan now exits $BREAK_PLAN_RC instead of 0; re-check whether a fix landed"; }
+    grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: this estate's own verified finding has changed - the plan no longer reports a bare no-op; re-check whether a fix landed"; }
+    if grep -qF "$BREAK_COLLISION_ARN" <<< "$BREAK_PLAN_OUT"; then
+      log "  BREAK=replace: the plan now DOES mention the collision policy ($BREAK_COLLISION_ARN) - the gap this section's own header documents may have closed; re-verify and update the comment/assertions above"
+    else
+      log "  BREAK=replace: VERIFIED FINDING (not fixed here, see this section's own header) - choudoufu proceeds silently (rc=0, bare \"No changes.\") with the manufactured collision policy never mentioned at all; a materially weaker outcome than corpus-sqs-basic's hard refusal or corpus-evoteum-modules'/corpus-giantswarm-crossplane's/corpus-hongbomiao-harbor's named warning, traced to aws_iam_policy's ServerAssigned/ARN identity being resolved record-primary rather than re-derived from configuration"
+    fi
+  else
+    log "=== F1. choudoufu: change the ForceNew name_prefix argument, forcing a replace at the same declared address ==="
+    sed -i.bak 's/name_prefix = "example-"/name_prefix = "example-v2-"/' "$EST/main.tf"
+    rm -f "$EST/main.tf.bak"
+    grep -q 'name_prefix = "example-v2-"' "$EST/main.tf" || fail "changing module.iam_policy_renamed2's name_prefix argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.iam_policy_renamed2\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.iam_policy_renamed2's policy when its ForceNew name_prefix argument changes"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add and one destroy at the same address"; }
+    log "  choudoufu: exactly one forced replace at the same declared address (module.iam_policy_renamed2.aws_iam_policy.policy[0]), name_prefix forces replacement"
+
+    F_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add and one destroy"; }
+
+    if F_OLD_STILL="$(awsl iam get-policy --policy-arn "$D_POLICY2_ARN" 2>&1)"; then
+      echo "$F_OLD_STILL"; fail "$D_POLICY2_ARN still exists after the replace - the old object was orphaned, not destroyed"
+    fi
+    grep -qi 'NoSuchEntity' <<< "$F_OLD_STILL" \
+      || { echo "$F_OLD_STILL"; fail "get-policy for $D_POLICY2_ARN failed with an unexpected error, not NoSuchEntity - it may still exist"; }
+    log "  $D_POLICY2_ARN no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    F_NEW_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'example-v2-') == \`true\`].Arn | [0]" --output text)"
+    [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "could not find the replaced name_prefix policy (example-v2-*) through the AWS CLI"
+    F_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$F_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.iam_policy_renamed2.aws_iam_policy.policy:0" ] \
+      || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.iam_policy_renamed2.aws_iam_policy.policy:0 - the marker did not move onto the new object"
+    log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object
+    # would be exactly the wrong-marker failure that outranks a missing
+    # one). The local record file at the SAME address must now hold the
+    # NEW object's ARN, not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_ARN" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ARN - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  No changes. The replace is complete and invisible to the next plan."
+
+    # Nothing downstream in this script reads $D_POLICY2_ARN again - PART E
+    # above already ran, and the only remaining stage this affects is this
+    # section's own gauntlet_stage report below.
+    D_POLICY2_ARN="$F_NEW_ARN"
+
+    gauntlet_stage day2_replace pass "choudoufu: changing module.iam_policy_renamed2's ForceNew name_prefix argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old policy ($F_OLD_IMPORT_ID) is confirmed gone and the new policy ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's ARN, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.6) also proposes exactly one replace at the same address (plan only, not applied). Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one; (2) BREAK=replace's manufactured marker collision is NOT reported for this type - VERIFIED FINDING, not fixed here: aws_iam_policy's ServerAssigned/ARN identity is resolved record-primary, so a second live object carrying a duplicate tofu-address/tofu-slot marker is never compared against the record and the plan proceeds silently (rc=0, bare 'No changes.'), unlike corpus-sqs-basic's fungible-set hard refusal or corpus-evoteum-modules'/corpus-giantswarm-crossplane's/corpus-hongbomiao-harbor's named warning - see PART F's own header and its BREAK=replace branch for the full reasoning; plausibly reaches every ServerAssigned/ARN-identity type under a fungible set."
+  fi
+  CURRENT_STAGE=""
+  log ""
+
   log ""
 
   # ══════════════════════════════════════════════════════════════════════
