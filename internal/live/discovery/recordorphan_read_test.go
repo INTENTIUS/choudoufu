@@ -7,6 +7,8 @@ package discovery
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -330,5 +332,257 @@ func TestRecordOrphanReadSweep_TargetGroupAttachmentAlreadyKnownIsNotDuplicated(
 	}
 	if res.Resolutions[0].ImportID != "already-found-elsewhere" {
 		t.Errorf("the pre-existing resolution was overwritten: ImportID = %q", res.Resolutions[0].ImportID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// gauntlet:parent-scoped-sweep's own addition (corpus-mastino-dns's
+// day2_remove unit, 2026-08-25): the OTHER real ratified row this same fix
+// reaches, aws_route53_record. Found independently, against the real
+// on-disk record store a migrate run wrote (kind=identity, Components
+// {name, type, zone_id}, no set_identifier for an ordinary apex NS record) -
+// see the fix's own doc comment above and recordorphan_read.go's function
+// comment for the shared root cause. These tests exercise a DIFFERENT
+// Components shape than the target-group-attachment tests above (three
+// REQUIRED leading components, one OmitIfAbsent TRAILING one, rather than
+// two required plus three trailing optionals) and, for the sweep-level
+// pair below, go through the full [Discover] pipeline against a real
+// parsed configuration rather than calling [recordOrphanReadSweep]
+// directly - independent proof the fix reaches all the way through
+// identity resolution and binding, not only the sweep leg in isolation.
+
+// recordOrphanProviderAddr is the provider configuration every fixture
+// below resolves to - the same constant shape recordFallbackProviderAddr
+// (internal/live/mv) and awsProvider (internal/live/projection) use.
+var recordOrphanProviderAddr = addrs.AbsProviderConfig{
+	Module:   addrs.RootModule,
+	Provider: addrs.NewDefaultProvider("aws"),
+}
+
+// TestComposeImportIDFromComponents_Route53Record_OmitIfAbsent is the
+// table-test twin of TestComposeImportIDFromComponents_TargetGroupAttachment_*
+// above, against aws_route53_record's own ratified row instead
+// (Components: zone_id, "_", name, "_", type, "_"+set_identifier
+// OmitIfAbsent) - the exact row corpus-mastino-dns's day2_remove found
+// composing to nothing for every one of its 59 untaggable record sets.
+func TestComposeImportIDFromComponents_Route53Record_OmitIfAbsent(t *testing.T) {
+	tests := []struct {
+		name       string
+		components map[string]string
+		wantID     string
+		wantOK     bool
+	}{
+		{
+			name: "no set_identifier: the OmitIfAbsent segment and its separator are both dropped",
+			components: map[string]string{
+				"zone_id": "ZJB88OBW3J7TXGA",
+				"name":    "datacite.eu",
+				"type":    "NS",
+			},
+			wantID: "ZJB88OBW3J7TXGA_datacite.eu_NS",
+			wantOK: true,
+		},
+		{
+			name: "set_identifier present: the OmitIfAbsent segment is included",
+			components: map[string]string{
+				"zone_id":        "ZJB88OBW3J7TXGA",
+				"name":           "www.datacite.org",
+				"type":           "A",
+				"set_identifier": "primary",
+			},
+			wantID: "ZJB88OBW3J7TXGA_www.datacite.org_A_primary",
+			wantOK: true,
+		},
+		{
+			name: "a required (non-OmitIfAbsent) component missing entirely refuses",
+			components: map[string]string{
+				"zone_id": "ZJB88OBW3J7TXGA",
+				"type":    "NS",
+				// "name" missing: not OmitIfAbsent, so this must refuse
+				// rather than compose a string with a hole in it.
+			},
+			wantOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := composeImportIDFromComponents("aws_route53_record", tt.components)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v (id=%q)", ok, tt.wantOK, got)
+			}
+			if ok && got != tt.wantID {
+				t.Errorf("id = %q, want %q", got, tt.wantID)
+			}
+		})
+	}
+}
+
+// route53RecordOrphanFixture writes a minimal configuration: one taggable,
+// admitted aws_route53_zone, with its apex NS aws_route53_record either
+// still declared or (the day2_remove shape) removed entirely - the same
+// "block deleted, anchor left standing" shape parentReadFixture and
+// foldReadFixture use for their own legs, mirrored here for the leg
+// neither of those can reach (aws_route53_record has no native list schema
+// and is not Cloud-Control-listable, so it cannot go through
+// [parentReadSweep] or [foldChildReadSweep] at all - see the header of
+// live/e2e/corpus-mastino-dns/run.sh's PART E).
+func route53RecordOrphanFixture(t *testing.T, withRecord bool) string {
+	t.Helper()
+	dir := t.TempDir()
+	src := `
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+resource "aws_route53_zone" "eu" {
+  name = "datacite.eu"
+}
+`
+	if withRecord {
+		src += `
+resource "aws_route53_record" "eu-ns" {
+  zone_id         = aws_route53_zone.eu.zone_id
+  name            = "datacite.eu"
+  type            = "NS"
+  ttl             = 172800
+  records         = ["ns-1.example.com"]
+  allow_overwrite = true
+}
+`
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// recordOrphanHintStore opens a real local record store - the same
+// staterecord.Store shape a live block's record_store "local" backend
+// opens - and returns both the raw store ([Request.HintStore]'s own type)
+// and a [*projection.RecordStore] wrapping it at this estate's own key
+// prefix, for seeding.
+func recordOrphanHintStore(t *testing.T) (staterecord.Store, *projection.RecordStore) {
+	t.Helper()
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	return raw, projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix(estateName))
+}
+
+// TestRecordOrphanReadSweep_UndeclaredRoute53RecordProposesDestroy is the
+// full-pipeline headline: aws_route53_record.eu-ns's block is gone, but
+// migrate (or an earlier apply) already wrote its identity into the
+// estate's own record store - the SAME kind=identity write
+// [projection.SeedLocatedForInstance] performs, with the provider's real
+// composite identity shape (zone_id, name, type; no set_identifier,
+// matching an ordinary apex NS record). Discover must find it, compose its
+// import ID correctly, and feed it into res.Resolutions as the same
+// Undeclared, ClassConcrete shape classifyOrphans already produces for a
+// tag-found orphan - what [builder.run]'s existing materialize/import-and-
+// read/destroy path consumes, so a plan actually proposes the destroy
+// rather than merely reporting one.
+func TestRecordOrphanReadSweep_UndeclaredRoute53RecordProposesDestroy(t *testing.T) {
+	cfg := loadConfig(t, route53RecordOrphanFixture(t, false))
+	resolutions := resolveOrFail(t, cfg).All()
+
+	rawStore, seedStore := recordOrphanHintStore(t)
+	recordAddr := mustAddr(t, "aws_route53_record.eu-ns")
+	if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, recordAddr, recordOrphanProviderAddr, projection.LocatedRecord{
+		Components: map[string]string{
+			"zone_id": "ZJB88OBW3J7TXGA",
+			"name":    "datacite.eu",
+			"type":    "NS",
+		},
+	}); err != nil {
+		t.Fatalf("seeding the record fixture: %s", err)
+	}
+
+	cloud := newFakeCloud()
+	cloud.own("aws_route53_zone", "ZJB88OBW3J7TXGA", "aws_route53_zone.eu")
+
+	res, diags := Discover(t.Context(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolutions,
+		Provider:    cloud,
+		Sweep:       true,
+		HintStore:   rawStore,
+	})
+	assertNoErrors(t, diags)
+
+	var found bool
+	for _, r := range res.Resolutions {
+		if r.Addr.String() != recordAddr.String() {
+			continue
+		}
+		found = true
+		if !r.Undeclared {
+			t.Errorf("resolution for %s is not marked Undeclared: %+v", recordAddr, r)
+		}
+		if r.Class != identity.ClassConcrete {
+			t.Errorf("resolution for %s has class %v, want ClassConcrete", recordAddr, r.Class)
+		}
+		const wantID = "ZJB88OBW3J7TXGA_datacite.eu_NS"
+		if r.ImportID != wantID {
+			t.Errorf("resolution for %s has ImportID %q, want %q", recordAddr, r.ImportID, wantID)
+		}
+	}
+	if !found {
+		t.Fatalf("no resolution produced for the orphaned %s; the record-orphan-read leg did not find it:\n%s", recordAddr, res)
+	}
+}
+
+// TestRecordOrphanReadSweep_DeclaredRoute53RecordIsLeftAlone is the
+// positive control, through the same full [Discover] pipeline: the SAME
+// record store entry as above, but the block is still declared. The leg
+// must never add a second, Undeclared resolution for an address the
+// configuration itself still owns - that would be a duplicate claim on one
+// live object, the same "materializes last and supersedes" hazard issue
+// #404 already guards elsewhere in this package.
+func TestRecordOrphanReadSweep_DeclaredRoute53RecordIsLeftAlone(t *testing.T) {
+	cfg := loadConfig(t, route53RecordOrphanFixture(t, true))
+	resolutions := resolveOrFail(t, cfg).All()
+
+	rawStore, seedStore := recordOrphanHintStore(t)
+	recordAddr := mustAddr(t, "aws_route53_record.eu-ns")
+	if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, recordAddr, recordOrphanProviderAddr, projection.LocatedRecord{
+		Components: map[string]string{
+			"zone_id": "ZJB88OBW3J7TXGA",
+			"name":    "datacite.eu",
+			"type":    "NS",
+		},
+	}); err != nil {
+		t.Fatalf("seeding the record fixture: %s", err)
+	}
+
+	cloud := newFakeCloud()
+	cloud.own("aws_route53_zone", "ZJB88OBW3J7TXGA", "aws_route53_zone.eu")
+
+	res, diags := Discover(t.Context(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolutions,
+		Provider:    cloud,
+		Sweep:       true,
+		HintStore:   rawStore,
+	})
+	assertNoErrors(t, diags)
+
+	var undeclaredCount int
+	for _, r := range res.Resolutions {
+		if r.Addr.String() == recordAddr.String() && r.Undeclared {
+			undeclaredCount++
+		}
+	}
+	if undeclaredCount != 0 {
+		t.Errorf("%s is still declared but got %d Undeclared resolution(s) from the record-orphan-read leg; a still-declared block must never be treated as an orphan of itself", recordAddr, undeclaredCount)
 	}
 }
