@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -128,7 +129,7 @@ func TestClassifyOrphansRefusesTypeConfusedDestroy(t *testing.T) {
 		Normalized: `aws_eip.pool:0`,
 	}}
 
-	diags := classifyOrphans(Request{
+	diags := classifyOrphans(context.Background(), Request{
 		Estate:      estateName,
 		Config:      cfg,
 		Resolutions: resolveOrFail(t, cfg).All(),
