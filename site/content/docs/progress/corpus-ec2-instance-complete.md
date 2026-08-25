@@ -31,7 +31,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Greenfield apply | pass | 35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `6b0a765b40` on 2026-08-25T05:56:28Z, exit code 1.
+Last run at commit `cdedeb2ea6` on 2026-08-25T08:30:09Z, exit code 1.
 
 ## Reproduce it
 

@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "43556706d62ebc00089c12fba98987696921eb1f",
+  "commit": "cdedeb2ea660e0647ba23df7fa1a34953723561b",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T08:24:06Z",
+  "generated": "2026-08-25T08:27:41Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -448,8 +448,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6b0a765b4037f858329cba406ae5b4a5fe441be4",
-        "date": "2026-08-25T05:56:28Z",
+        "commit": "cdedeb2ea660e0647ba23df7fa1a34953723561b",
+        "date": "2026-08-25T08:30:09Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
