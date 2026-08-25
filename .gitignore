@@ -103,6 +103,7 @@ site/public/
 /selected-go-version
 /survey-gen
 /tagverbs-gen
+/toggles-gen
 /wo-sweep
 
 # The #102 corpus: third-party configurations pinned in live/corpus-manifest.json
