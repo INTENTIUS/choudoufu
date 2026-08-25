@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "7fb1993c9d0be81de16a5c13b2e2b2781f40a077",
+  "commit": "a2e11fa735ca46f01f02db10d119b1612332c1b8",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:51:52Z",
+  "generated": "2026-08-25T18:57:44Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 3,
+      "clear": 4,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 3,
+      "clear": 4,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_teardown": {
           "pass": 0,
@@ -921,7 +921,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -931,16 +931,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "20afe6d42dfc1a6ac0231e2de23ed8149bd72aa9",
-        "date": "2026-08-25T17:28:16Z",
+        "commit": "a2e11fa735ca46f01f02db10d119b1612332c1b8",
+        "date": "2026-08-25T18:58:42Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration",
           "day2_remove": "choudoufu: deleting the CloudFront alarm's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-alarms on its name no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because the S3-requests alarm, the surviving aws_cloudwatch_metric_alarm instance, is bound, not unclaimed",
           "day2_rename": "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing s3_requests_spike_renamed's ForceNew alarm_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (S3GetRequestsSpike) is confirmed gone and the new object (arn:aws:cloudwatch:us-west-2:000000000000:alarm:S3GetRequestsSpikeV2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (S3GetRequestsSpike -> S3GetRequestsSpikeV2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description",
           "greenfield": "3 resources from nothing (2 tagged alarms + the untaggable dashboard), both alarm markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on both alarms",
           "migrate": "2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI",

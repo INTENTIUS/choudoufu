@@ -627,6 +627,49 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# "Stock's replace of the same resource leaves the same single object."
+# aws_cloudwatch_metric_alarm.s3_requests_spike (this estate's other
+# taggable root, untouched here) is forced to replace via its own
+# `alarm_name` argument: CloudWatch has no RenameAlarm API - only
+# PutMetricAlarm (upsert by name) and DeleteAlarms - so alarm_name is
+# ForceNew in the provider's own schema, confirmed empirically below by
+# the plan's own "must be replaced" annotation, not assumed. A fresh copy
+# of cold_deploy's own state (same as D-ORACLE above), on the ORIGINAL
+# resource name before the real script's own rename ever touches $ESTATE,
+# with the same -target exclusion of aws_budgets_budget every command in
+# this script uses (see header - a real, confirmed floci gap, not this
+# script's to route around).
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE: stock tofu, force-replace s3_requests_spike via its ForceNew alarm_name argument, on cold_deploy's own state ==="
+REPLACE_PLAIN_ORACLE="$WORK/replace-plain-oracle"
+cp -r "$PLAIN" "$REPLACE_PLAIN_ORACLE"
+sed -i.bak 's/alarm_name          = "S3GetRequestsSpike"/alarm_name          = "S3GetRequestsSpikeV2"/' "$REPLACE_PLAIN_ORACLE/modules/monitoring/main.tofu"
+rm -f "$REPLACE_PLAIN_ORACLE/modules/monitoring/main.tofu.bak"
+grep -q 'S3GetRequestsSpikeV2' "$REPLACE_PLAIN_ORACLE/modules/monitoring/main.tofu" \
+  || fail "changing s3_requests_spike's alarm_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+REPLACE_ORACLE_TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
+                         -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
+                         -target=module.monitoring.aws_cloudwatch_dashboard.site)
+( cd "$REPLACE_PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_PLAIN_ORACLE" && tofu plan -input=false -no-color "${REPLACE_ORACLE_TARGETS[@]}" 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.s3_requests_spike must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing s3_requests_spike when its alarm_name argument changes"; }
+grep -qE '~ +alarm_name +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark alarm_name as forcing replacement - it may not be ForceNew after all"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
+# PLAN ONLY, never applied - same convention as D-ORACLE above: this
+# oracle's copy shares floci's account with $ESTATE, so actually applying
+# here would destroy and recreate the real alarm $ESTATE's own later
+# stages still depend on.
+log "  stock: exactly one replace at the same declared address (module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike), plan only, never applied"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -986,6 +1029,134 @@ PYEOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed rename: aws_cloudwatch_metric_
+  # alarm.s3_requests_spike_renamed is bound and converged. Its `alarm_name`
+  # argument changes to a new literal - a real, upstream-immutable argument
+  # (CloudWatch has no RenameAlarm API, only PutMetricAlarm/DeleteAlarms) -
+  # forcing a replace at the SAME declared address. F-ORACLE above already
+  # confirmed, empirically, that stock marks alarm_name as forcing
+  # replacement on cold_deploy's own state. cf_requests_spike_renamed and
+  # the dashboard are untouched.
+  #
+  # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+  # header for the fuller discussion). This estate's two alarms are plain
+  # top-level resources, not module-call children, so a `lifecycle` block
+  # COULD be added here without crossing the module-boundary line the sqs/
+  # ec2/lambda estates in this same unit hit - but this corpus's own DELTA
+  # discipline (header: the module source is only ever reduced, e.g. the
+  # aws_budgets_budget exclusion, never given library-internal lifecycle
+  # blocks it didn't already declare) applies just as much to a resource
+  # living in the module's own copied source as to one inside a `module`
+  # call, so this exercises OpenTofu's DEFAULT replace ordering
+  # (destroy-then-create) rather than create_before_destroy, the same
+  # choice every other estate in this unit makes. BREAK=replace below
+  # manufactures the coexistence a skipped destroy half would leave.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed"
+  F_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_cloudwatch_metric_alarm/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live alarm and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  # aws_cloudwatch_metric_alarm's import ID is the alarm NAME, not its ARN
+  # (live/survey.json's own ImportSyntax=ALARMNAME) - checked against the
+  # record file directly, the same correction corpus-lambda-simple's own
+  # log-group leg needed in this unit.
+  [ "$F_OLD_IMPORT_ID" = "S3GetRequestsSpike" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not S3GetRequestsSpike"
+  F_OLD_ADDR_TAG="$(awsl cloudwatch list-tags-for-resource --resource-arn "$S3_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed" ] \
+    || fail "$S3_ALARM_ARN does not carry tofu-address=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed ahead of day2_replace"
+  log "  $S3_ALARM_ARN, record import_id=$F_OLD_IMPORT_ID (the alarm's name, not its ARN), tofu-address=$F_OLD_ADDR_TAG"
+
+  TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed
+           -target=module.monitoring.aws_cloudwatch_dashboard.site)
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy half would leave behind ==="
+    # A second, distinct live alarm carrying the SAME tofu-address as the
+    # one a genuine replace would destroy - the state "skip the destroy
+    # half" of a create-before-destroy replace would leave, produced
+    # directly via the AWS CLI rather than by actually interrupting an
+    # apply (day2_crash, stage 10, owns testing a real interruption).
+    BREAK_COLLISION_NAME="S3GetRequestsSpikeCollision"
+    awsl cloudwatch put-metric-alarm --alarm-name "$BREAK_COLLISION_NAME" \
+      --comparison-operator GreaterThanThreshold --evaluation-periods 1 --period 3600 \
+      --statistic Sum --threshold 100000 --metric-name GetRequests --namespace AWS/S3 \
+      >/dev/null || fail "BREAK=replace: could not create the collision alarm"
+    BREAK_COLLISION_ARN="$(awsl cloudwatch describe-alarms --alarm-names "$BREAK_COLLISION_NAME" --query 'MetricAlarms[0].AlarmArn' --output text)"
+    awsl cloudwatch tag-resource --resource-arn "$BREAK_COLLISION_ARN" \
+      --tags "Key=tofu-estate,Value=$ESTATE_NAME" "Key=tofu-address,Value=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed" \
+      >/dev/null || fail "BREAK=replace: could not tag the collision alarm"
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    awsl cloudwatch delete-alarms --alarm-names "$BREAK_COLLISION_NAME" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one address' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the address collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one address) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew alarm_name argument, forcing a replace at the same declared address ==="
+    sed -i.bak 's/alarm_name          = "S3GetRequestsSpike"/alarm_name          = "S3GetRequestsSpikeV2"/' "$ESTATE/modules/monitoring/main.tofu"
+    rm -f "$ESTATE/modules/monitoring/main.tofu.bak"
+    grep -q 'S3GetRequestsSpikeV2' "$ESTATE/modules/monitoring/main.tofu" || fail "changing s3_requests_spike_renamed's alarm_name argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.s3_requests_spike_renamed must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing s3_requests_spike_renamed when its alarm_name argument changes"; }
+    grep -qE '~ +alarm_name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark alarm_name as forcing replacement"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add and one destroy at the same address"; }
+    log "  choudoufu: exactly one forced replace at the same declared address (module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed), alarm_name forces replacement"
+
+    F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color "${TARGETS[@]}" 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add and one destroy"; }
+
+    if F_OLD_STILL="$(awsl cloudwatch describe-alarms --alarm-names S3GetRequestsSpike --query 'MetricAlarms[0].AlarmArn' --output text 2>&1)"; [ -n "$F_OLD_STILL" ] && [ "$F_OLD_STILL" != "None" ]; then
+      echo "$F_OLD_STILL"; fail "S3GetRequestsSpike still exists after the replace - the old object was orphaned, not destroyed"
+    fi
+    log "  S3GetRequestsSpike no longer exists (confirmed via the AWS CLI, not through choudoufu's own report)"
+
+    F_NEW_ARN="$(awsl cloudwatch describe-alarms --alarm-names S3GetRequestsSpikeV2 --query 'MetricAlarms[0].AlarmArn' --output text)"
+    [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "no alarm found by its new name through the AWS CLI after the replace"
+    F_NEW_ADDR_TAG="$(awsl cloudwatch list-tags-for-resource --resource-arn "$F_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed" ] \
+      || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed - the marker did not move onto the new object"
+    log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object
+    # would be exactly the wrong-marker failure that outranks a missing
+    # one). The local record file at the SAME address must now hold the
+    # NEW object's import_id (its name), not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "S3GetRequestsSpikeV2" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object's name S3GetRequestsSpikeV2 - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  No changes, no marker collision. The replace is complete and invisible to the next plan."
+
+    gauntlet_stage day2_replace pass "choudoufu: changing s3_requests_spike_renamed's ForceNew alarm_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (S3GetRequestsSpike) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
