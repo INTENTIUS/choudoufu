@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `17918d156f` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T02:08:43Z.
+Measured at commit `648f2c2140` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T03:58:34Z.
 
 ## The stages
 
@@ -66,7 +66,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run pass |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
-| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | no | pass pass pass pass pass pass not run not run |
 
