@@ -743,6 +743,35 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE A BLOCK, stock oracle (day2_remove, live/GAUNTLET.md #7)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Same timing discipline as D-ORACLE, immediately above, and for the same
+# reason: this copy of $PLAIN is taken here, before choudoufu or
+# live-import ever touch these objects, because a LATER copy would carry
+# none of $PLAIN's own terraform.tfstate knowledge of the tofu-address/
+# tofu-estate marker tags choudoufu adds afterward - a plan against such a
+# copy would see those as unmanaged tags to strip on every taggable
+# resource (22 of them), not the single clean destroy this oracle exists to
+# confirm. The real removal (Part E, after day2_rename) runs choudoufu's
+# own live-plan/apply against $ESTATE; this only has to show stock proposes
+# the same single destroy for the same object, on cold_deploy's own state.
+CURRENT_STAGE=day2_remove
+PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
+cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
+remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
+( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+log "=== E-ORACLE: stock tofu, the same block removed, on cold_deploy's own state ==="
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan does not propose exactly one destroy for the same object"; }
+grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's remove plan does not target the same object"; }
+log "  stock: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]) on cold_deploy's own state, nothing else"
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1181,7 +1210,11 @@ CURRENT_STAGE=""
 # target is aws_vpc_endpoint.s3 - see remove_vpc_endpoint_s3_block's own
 # comment, above, for why this leaf was chosen over the flow-logs chain,
 # and why classifyOrphans has no other declared instance of this block to
-# confuse it with.
+# confuse it with. The stock oracle for this same removal already ran,
+# above, as PART E-ORACLE, right after cold_deploy and before migrate ever
+# tagged a live object - see that part's own header for why the timing
+# matters (a copy of $PLAIN taken this late would see 22 spurious tag
+# diffs, one per taggable resource, instead of the single clean destroy).
 #
 # BREAK_DAY2_REMOVE=1 exercises this stage's own Break control instead:
 # keep the block, and assert the plan proposes no destroy for it at all -
@@ -1234,28 +1267,14 @@ else
   esac
   log "  $VPCE_ID_E is gone (State=$VPCE_STATE_AFTER) - confirmed via the AWS CLI, not through choudoufu's own report"
 
-  log "=== E2. stock oracle: the same block removed from cold_deploy's own state ==="
-  PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
-  cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
-  remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
-  ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
-  REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
-  [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
-  grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
-    || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan does not propose exactly one destroy for the same object"; }
-  grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
-    || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's remove plan does not target the same object"; }
-  log "  stock oracle on cold_deploy's own state: also exactly one destroy for the same object"
-
-  log "=== E3. one more plan: config and reality agree, nothing left to propose ==="
+  log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
   E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
   [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
     || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
   log "  No changes. The removal is complete and invisible to the next plan."
 
-  gauntlet_stage day2_remove pass "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config"
+  gauntlet_stage day2_remove pass "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; the E-ORACLE stock oracle (on cold_deploy's own state, before any tag was ever written) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config"
 fi
 CURRENT_STAGE=""
 gauntlet_end
