@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "43556706d62ebc00089c12fba98987696921eb1f",
+  "commit": "cd1148ab80f1cfd59a4c50941636868c24aaf192",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T08:32:42Z",
+  "generated": "2026-08-25T08:37:47Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,13 +153,13 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 16,
-          "fail": 10,
+          "pass": 17,
+          "fail": 9,
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 21,
-          "fail": 5,
+          "pass": 22,
+          "fail": 4,
           "not_run": 0
         },
         "day2_replace": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 14,
+      "clear": 15,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,13 +230,13 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 15,
-          "fail": 10,
+          "pass": 16,
+          "fail": 9,
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 20,
-          "fail": 5,
+          "pass": 21,
+          "fail": 4,
           "not_run": 0
         },
         "day2_replace": {
@@ -1091,8 +1091,8 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_remove": "pass",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1103,16 +1103,16 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23ce3de050f182ba70c1244ca71badbf1a0da2ef",
-        "date": "2026-08-25T06:59:11Z",
-        "exit_code": 1,
+        "commit": "cd1148ab80f1cfd59a4c50941636868c24aaf192",
+        "date": "2026-08-25T08:44:02Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
-          "day2_remove": "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket_public_access_block.this[0] - the untaggable, parent-derived sibling stock also destroys (issue #410, see header)",
-          "day2_rename": "the moved-block rename now destroys module.cloudfront_log_bucket.aws_s3_bucket_public_access_block.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic and corpus-autoscaling-complete independently hit in this same unit",
+          "day2_remove": "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-glowing-joey now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched",
+          "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
           "greenfield": "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
