@@ -920,15 +920,11 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 			return diags
 		}
 		if corrected == typeName {
-			return diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemMalformedMarker,
-				TypeName: typeName,
-				Marker:   raw,
-				LiveIDs:  liveIDs(c.importID),
-				Detail: fmt.Sprintf(
-					"A live %s (via the tag sweep) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-					typeName, req.Estate, raw, markerType, typeName),
-			}))
+			// sweep is true unconditionally: this leg IS the estate-wide
+			// tag sweep, and [partitionSweepTypes] is the only thing that
+			// routes a type to it.
+			return diags.Append(problemDiag(res, crossTypeMarkerProblem(
+				decl, req.Estate, typeName, markerType, raw, liveIDs(c.importID), " (via the tag sweep)", true)))
 		}
 		bindType = corrected
 		if fixedImportID != "" {

@@ -665,6 +665,33 @@ const (
 	// missing or unparseable tofu-address. Not foreign and not owned.
 	ProblemMalformedMarker ProblemKind = "MALFORMED_MARKER"
 
+	// ProblemUndeclaredCrossTypeMarker is the estate-wide sweep finding a
+	// live resource of a type the configuration declares no instance of,
+	// carrying this estate's marker for an address of some OTHER type.
+	//
+	// A warning, not an error, and it proposes nothing. The same shape on a
+	// type the configuration DOES declare is [ProblemMalformedMarker] and
+	// still fails the run: there an instance of that very type is waiting
+	// to be found, so a marker naming another type's address is a conflict
+	// a human has to settle. Under the sweep, with the type absent from the
+	// configuration entirely, there is no instance the object could ever
+	// bind to and no address it could be an orphan of - a destroy at an
+	// address of another type is what classifyOrphans refuses outright -
+	// so nothing in the run acts on it either way, and failing every plan
+	// the estate ever runs over it is the same over-reaction
+	// [SweepGapObjectUntagged] already declines to make one branch away.
+	//
+	// The ordinary cause is not a hand-edited tag at all: AWS copies a
+	// resource's tags onto the dependent objects it creates for it, and
+	// those objects are types of their own. An autoscaling group's
+	// propagate_at_launch tags land on the instances it launches; an ECS
+	// service with propagate_tags = SERVICE puts its tags on the tasks and
+	// the network interfaces created for them. The marker on such an object
+	// is a COPY of the marked resource's own marker, and the resource it
+	// names is elsewhere in this estate, correctly marked and correctly
+	// bound.
+	ProblemUndeclaredCrossTypeMarker ProblemKind = "UNDECLARED_CROSS_TYPE_MARKER"
+
 	// ProblemDisplacedMarker is a live resource carrying this estate's
 	// marker for an address the configuration still declares, whose own
 	// identity is not the identity that address resolves to - so a second,
@@ -884,7 +911,8 @@ const (
 // operator may be perfectly correct.
 func (k ProblemKind) Severity() Severity {
 	switch k {
-	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker, ProblemUnreadableMarker:
+	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker, ProblemUnreadableMarker,
+		ProblemUndeclaredCrossTypeMarker:
 		return SeverityWarning
 	}
 	return SeverityError

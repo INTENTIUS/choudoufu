@@ -1909,15 +1909,14 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// which address it belongs to. (Audit finding C4: this used
 				// to match the declared-address set, which carried no type,
 				// and the resource was silently dropped.)
-				diags = diags.Append(problemDiag(res, Problem{
-					Kind:     ProblemMalformedMarker,
-					TypeName: typeName,
-					Marker:   raw,
-					LiveIDs:  liveIDs(importID),
-					Detail: fmt.Sprintf(
-						"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-						typeName, req.Estate, raw, markerType, typeName),
-				}))
+				//
+				// [crossTypeMarkerProblem] splits that answer by what the
+				// configuration declares: an error for a type an instance
+				// is waiting on, a warning naming the same object for a
+				// type the configuration never mentions, where the sweep is
+				// the only reason anybody looked at it. Neither is silent.
+				diags = diags.Append(problemDiag(res, crossTypeMarkerProblem(
+					decl, req.Estate, typeName, markerType, raw, liveIDs(importID), "", sweep)))
 				continue
 			}
 		}
@@ -2413,6 +2412,63 @@ func partitionSweepTypes(req Request, decl *declared) (tagging, native []string)
 		}
 	}
 	return tagging, native
+}
+
+// undeclaredCrossTypeMarker reports whether a live object carrying this
+// estate's marker for an address of ANOTHER type is one this run can do
+// nothing about, and so reports at warning severity ([Problem] kind
+// [ProblemUndeclaredCrossTypeMarker]) rather than failing the plan.
+//
+// Two conditions, and both are about what the CONFIGURATION says rather
+// than about which type was found: the estate-wide sweep found the object
+// (sweep - no declared instance was waiting for it), and the configuration
+// declares no instance of its type at all. Together they say there is
+// nothing in the run the object could ever be: not a binding (no instance
+// of the type is declared), not an orphan (an orphan is a resource an
+// address describes, and this address describes another type - see
+// TestClassifyOrphansRefusesTypeConfusedDestroy), not unclaimed (it carries
+// a marker). A type the configuration DOES declare keeps the error: there
+// an instance of that very type is waiting to be found, and a marker naming
+// another type's address is a conflict only a human can settle. That is
+// audit finding C4's case and it is unchanged.
+//
+// This names no type. It reaches every admitted, cloud-observable type
+// outside the configuration - [sweepTypes]' whole universe - which is what
+// makes it a rule rather than an exception: the shape appears wherever AWS
+// copies a resource's tags onto a dependent object it creates for it, and
+// the dependent object is a type of its own (see
+// [ProblemUndeclaredCrossTypeMarker]'s own doc comment for the AWS
+// mechanisms).
+func undeclaredCrossTypeMarker(decl *declared, typeName string, sweep bool) bool {
+	return sweep && len(decl.types[typeName]) == 0
+}
+
+// crossTypeMarkerProblem is the one description of the cross-type-marker
+// shape all three list legs file, so which leg found an object never
+// changes what the run does with it - the bug class issue #394 closed for
+// the sibling pairs, kept closed here. via names the leg for an operator
+// ("", " (via the tag sweep)", " (via Cloud Control)").
+func crossTypeMarkerProblem(decl *declared, estate, typeName, markerType, raw string, ids []string, via string, sweep bool) Problem {
+	if undeclaredCrossTypeMarker(decl, typeName, sweep) {
+		return Problem{
+			Kind:     ProblemUndeclaredCrossTypeMarker,
+			TypeName: typeName,
+			Marker:   raw,
+			LiveIDs:  ids,
+			Detail: fmt.Sprintf(
+				"A live %s%s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. This configuration declares no %s at all, so no instance of it is waiting to be found and nothing in this run is proposed for it. AWS copies a resource's tags onto the dependent objects it creates for it - an autoscaling group's propagate_at_launch tags onto the instances it launches, an ECS service's onto the network interfaces created for its tasks - so a marker reaching an object of another type this way is a copy of the marked resource's own marker, and %s itself is marked and bound elsewhere in this estate. If this object should instead be managed here, declare it and retag it with its own address, or remove the marker to disown it.",
+				typeName, via, estate, raw, markerType, typeName, typeName, raw),
+		}
+	}
+	return Problem{
+		Kind:     ProblemMalformedMarker,
+		TypeName: typeName,
+		Marker:   raw,
+		LiveIDs:  ids,
+		Detail: fmt.Sprintf(
+			"A live %s%s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+			typeName, via, estate, raw, markerType, typeName),
+	}
 }
 
 // sweepBindType decides which of an overlapping-list-call sibling pair a
@@ -3612,27 +3668,28 @@ func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 }
 
 var problemSummaries = map[ProblemKind]string{
-	ProblemCollision:               "Two live resources claiming one address",
-	ProblemMalformedMarker:         "Malformed ownership marker",
-	ProblemDisplacedMarker:         "Live resource displaced from the address it is marked for",
-	ProblemNeedsSlotMarkers:        "Indistinguishable instances without per-instance markers",
-	ProblemMixedSlots:              "Partial slot markers on a count set",
-	ProblemMalformedSlot:           "Malformed slot marker",
-	ProblemDuplicateSlot:           "Two live resources claiming one slot",
-	ProblemSlotExhausted:           "No slot left to mint",
-	ProblemNoIdentity:              "Listed resource with no identity",
-	ProblemNoTags:                  "Listed resource with no tags",
-	ProblemTypeNotListable:         "Unlistable marker-discovered type",
-	ProblemLocatedRecordUnreadable: "Located identity record unreadable",
-	ProblemUnresolvedAccount:       "No AWS account ID from the provider",
-	ProblemListFailed:              "Failed to list a resource type",
-	ProblemRecordStoreListFailed:   "Cannot list the record store",
-	ProblemUncomposableIdentifier:  "Cloud Control identifier could not be composed",
-	ProblemAmbiguousUniqueName:     "Unique name matched more than one resource",
-	ProblemUnreadableUniqueName:    "Listed resource with no readable name",
-	ProblemUnresolvedTaggedARN:     "Tagged resource's ARN could not be joined to a resource type",
-	ProblemUnsweepableOwnedType:    "Owned resource of a type the sweep cannot cover",
-	ProblemAmbiguousTagJoin:        "Listed resource matched more than one tagged resource",
-	ProblemUnreadableMarker:        "Unbound instance with unreadable live markers of its type",
-	ProblemAmbiguousContentMatch:   "Content match found more than one live candidate",
+	ProblemCollision:                 "Two live resources claiming one address",
+	ProblemMalformedMarker:           "Malformed ownership marker",
+	ProblemUndeclaredCrossTypeMarker: "Cross-type marker on an undeclared type",
+	ProblemDisplacedMarker:           "Live resource displaced from the address it is marked for",
+	ProblemNeedsSlotMarkers:          "Indistinguishable instances without per-instance markers",
+	ProblemMixedSlots:                "Partial slot markers on a count set",
+	ProblemMalformedSlot:             "Malformed slot marker",
+	ProblemDuplicateSlot:             "Two live resources claiming one slot",
+	ProblemSlotExhausted:             "No slot left to mint",
+	ProblemNoIdentity:                "Listed resource with no identity",
+	ProblemNoTags:                    "Listed resource with no tags",
+	ProblemTypeNotListable:           "Unlistable marker-discovered type",
+	ProblemLocatedRecordUnreadable:   "Located identity record unreadable",
+	ProblemUnresolvedAccount:         "No AWS account ID from the provider",
+	ProblemListFailed:                "Failed to list a resource type",
+	ProblemRecordStoreListFailed:     "Cannot list the record store",
+	ProblemUncomposableIdentifier:    "Cloud Control identifier could not be composed",
+	ProblemAmbiguousUniqueName:       "Unique name matched more than one resource",
+	ProblemUnreadableUniqueName:      "Listed resource with no readable name",
+	ProblemUnresolvedTaggedARN:       "Tagged resource's ARN could not be joined to a resource type",
+	ProblemUnsweepableOwnedType:      "Owned resource of a type the sweep cannot cover",
+	ProblemAmbiguousTagJoin:          "Listed resource matched more than one tagged resource",
+	ProblemUnreadableMarker:          "Unbound instance with unreadable live markers of its type",
+	ProblemAmbiguousContentMatch:     "Content match found more than one live candidate",
 }

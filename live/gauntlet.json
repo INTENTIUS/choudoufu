@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "e064df463058d0b3a4aff496c96d8661a4238c39",
+  "commit": "97b048dfa06b4d68dac5f87e59d9645f719cc7a9",
   "emulator": "ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad",
-  "generated": "2026-08-25T14:39:33Z",
+  "generated": "2026-08-25T15:09:52Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 23,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 24,
-          "fail": 2,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 22,
+      "clear": 23,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 23,
-          "fail": 2,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -1404,26 +1404,26 @@
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e064df463058d0b3a4aff496c96d8661a4238c39",
-        "date": "2026-08-25T14:40:11Z",
+        "commit": "97b048dfa06b4d68dac5f87e59d9645f719cc7a9",
+        "date": "2026-08-25T15:12:28Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
-          "day2_count": "the day2_count oracle's terraform init failed",
+          "day2_count": "choudoufu's scale-down plan does not destroy count_test[1]",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
-          "greenfield": "the second plan exited 1",
+          "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
           "test_plan": "post-adoption plan is empty; markers read back through the AWS CLI in part A"

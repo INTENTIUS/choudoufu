@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=626 instances=1727
+# shape: dirs=627 instances=1728
 # shape: class CONCRETE=830
-# shape: class NEEDS_DISCOVERY=735
+# shape: class NEEDS_DISCOVERY=736
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=026129693d81c6a714e48f6151535324a6e315cc0177a2a81f245126e87fe2c2
+# shape: body-sha256=c8a3aacc699c40cd9aeac65fd68018fbcc1292d19c6b2a81c806e0e8a32b46c7
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -115,6 +115,7 @@ internal/live/discovery/testdata/moved-rename	aws_subnet.pair["a"]	NEEDS_DISCOVE
 internal/live/discovery/testdata/moved-rename	aws_subnet.pair["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.renamed	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.untouched	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/propagated-child-marker	aws_instance.main	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/tagging-e2e	aws_iam_role.demo	CONCRETE	tagging-e2e-demo	name=tagging-e2e-demo
 internal/live/identity/testdata/cloud-default-attr	aws_cloudfront_realtime_log_config.logs	NEEDS_DISCOVERY		
 internal/live/identity/testdata/cloud-default-attr	aws_glue_catalog_database.maybe	NEEDS_DISCOVERY		
