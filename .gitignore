@@ -138,3 +138,7 @@ site/public/
 # CI gate scratch files a worker leaves in its worktree; never tracked.
 ci.out
 ci.rc
+
+# worker scratch repros and local record stores never belong in the repo
+.repro/
+.tofu-records/
