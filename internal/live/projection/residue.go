@@ -1335,6 +1335,108 @@ func isAmbientEcho(v cty.Value, ambient map[string]cty.Value) bool {
 	return false
 }
 
+// scrubAmbientEcho is GitHub issue #402's fix for the population
+// [classifyResidue]'s own guard cannot reach: a Required-or-plain-Optional
+// (never Computed) flat attribute whose provider Read returns the run's own
+// ambient account id or region UNCONDITIONALLY - identically whether the
+// prior it was handed carried nothing, an identity-only stub, or the fully
+// applied object - so the two-read discriminator's own first branch
+// ("read A already equals applied, so the provider reads this from the
+// remote") reads as ordinary live drift-tracking and never asks the
+// question [isAmbientEcho] answers at all.
+//
+// Confirmed the source of corpus-s3-bucket-complete's forced-replacement
+// regression directly against a live floci + hashicorp/aws 6.59.0, no
+// residue store or classify path in the loop: aws_s3_bucket_cors_
+// configuration's (and its _object_lock_configuration, _server_side_
+// encryption_configuration and _versioning siblings') deprecated
+// expected_bucket_owner argument comes back "000000000000" from
+// ReadResource even when PriorState carries nothing for it at all - the
+// AWS SDK attaches x-amz-expected-bucket-owner from its own resolved
+// session to the underlying API call before the request is even sent,
+// unconditionally, and the emitted state simply reflects that header back.
+// [builder.materialize] takes that raw read as an untaggable, record-first
+// instance's entire prior state on every single plan (issue #364 unit B's
+// own new read path, which never went through a real ReadResource for this
+// population before), so a real, non-null value for an argument nothing in
+// configuration sets - and which the plugin protocol's own contract says
+// can ONLY ever be what configuration sets, because it is neither Computed
+// nor anything else - turns into a forced replacement (ForceNew) every
+// time configuration omits the argument, which never converges: the next
+// plan reads the identical unconditional echo right back.
+//
+// # Why this is not the same fix as [classifyResidue]'s guard
+//
+// That guard stops an ambient echo from being CAPTURED and REPLAYED by the
+// residue store; it never had anything to capture here; classifyResidue's
+// own read-A/read-B pair, run against this exact provider behavior,
+// already declines to record these four types' expected_bucket_owner
+// (confirmed by trace: read A already equals applied even from a bare
+// stub, which is [classifyResidue]'s "the provider reads this from the
+// remote, not ours to remember" branch - correct, as far as it goes). The
+// defect is upstream of residue entirely: the raw value [importAndRead]
+// returns becomes the plan's prior VERBATIM, with nothing else in the
+// pipeline ever asking whether a config-only argument's live answer could
+// be real.
+//
+// # Why configuredSeed decides "config-absent" here
+//
+// attrsSeed (this function's configuredSeed) is [configuredAttrsSeed]'s and
+// [builder.residueSeedFor]'s already-merged answer to "what does this run's
+// own configuration - statically, or through a residue record a prior
+// choudoufu apply already resolved a reference to - genuinely supply for
+// this instance", the identical seed [importAndRead] itself just used to
+// build the read's own PriorState. A name present there is left exactly as
+// read: configuration set it, honestly, whether or not the value it
+// resolved to happens to equal this run's own ambient account (a
+// deliberate same-account echo is not a guess) or legitimately differs (a
+// real cross-account expected_bucket_owner is not this function's business
+// either way - see [isAmbientEcho]). Only a name ABSENT from configuredSeed
+// - nothing this run's configuration could produce for it, by any means
+// this package already trusts - and whose value nonetheless equals the
+// run's own ambient identity is scrubbed.
+//
+// Scoped to [residueConfigSourced]'s population for the identical protocol
+// reason [classifyResidue]'s own format-only widening cites: Computed is
+// the one flag that lets a provider answer independently of configuration
+// at all, so a Computed candidate is left untouched here - a real,
+// provider-managed value is exactly what Computed promises, and nulling
+// one out would manufacture a diff a plain refresh would never show.
+func scrubAmbientEcho(schema providers.Schema, obj cty.Value, identityObj cty.Value, configuredSeed map[string]cty.Value) cty.Value {
+	if schema.Block == nil || obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || obj.IsMarked() {
+		return obj
+	}
+	ambient := ambientIdentityValues(schema, identityObj)
+	if len(ambient) == 0 {
+		return obj
+	}
+	var seed map[string]cty.Value
+	for name := range residueConfigSourced(schema) {
+		if _, configured := configuredSeed[name]; configured {
+			continue
+		}
+		if !obj.Type().HasAttribute(name) {
+			continue
+		}
+		v := obj.GetAttr(name)
+		if !isAmbientEcho(v, ambient) {
+			continue
+		}
+		if seed == nil {
+			seed = make(map[string]cty.Value)
+		}
+		seed[name] = cty.NullVal(v.Type())
+	}
+	if len(seed) == 0 {
+		return obj
+	}
+	scrubbed, ok := withSeededAttrs(obj, seed)
+	if !ok {
+		return obj
+	}
+	return scrubbed
+}
+
 // residueReader is the one provider call [classifyResidue] makes, narrowed
 // to what it needs so a test can supply two answers without a provider.
 type residueReader func(prior cty.Value) (cty.Value, error)

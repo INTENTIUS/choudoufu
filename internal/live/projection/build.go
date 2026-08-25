@@ -1442,6 +1442,21 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return true
 	}
 
+	// GitHub issue #402: scrub before anything downstream (ownership,
+	// residue fill, the plan itself) ever sees the raw read. See
+	// [scrubAmbientEcho]'s own doc comment for the defect this closes -
+	// hashicorp/aws's S3 bucket sub-resource types echo the run's own
+	// ambient AWS account id into a deprecated, non-Computed,
+	// expected_bucket_owner-shaped argument on every read, unconditionally,
+	// even when attrsSeed (computed above from this instance's own static
+	// configuration) proves configuration set nothing for it - turning a
+	// value nothing ever asked for into a forced replacement the moment
+	// configuration omits the argument. Ahead of normalizeIdentityAttrs and
+	// checkOwnership on purpose: neither reads this population of
+	// attributes, and obj.Value is what every trace line and every
+	// downstream comparison from here on reports.
+	obj.Value = scrubAmbientEcho(schema, obj.Value, obj.Identity, attrsSeed)
+
 	// Adopt the provider's own spelling of an identity-bearing attribute
 	// before anything downstream compares it to configuration - see
 	// [builder.normalizeIdentityAttrs] (GitHub issue #281). Ahead of the
