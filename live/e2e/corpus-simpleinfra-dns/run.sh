@@ -100,6 +100,11 @@ set -uo pipefail
 #                  stage 2.
 #   BREAK_STAGE5=1 drifts a SECOND record before stage 5's plan. Must fail
 #                  stage 5's exactly-one-instance assertion.
+#   BREAK_REMOVE=1 day2_remove's own break control (PART E, after the real
+#                  rename): keep module.cratesio_com_final's block in the
+#                  config; the plan below must propose no destroy for it
+#                  at all - the Break text in tools/gauntlet/stages.go,
+#                  verbatim.
 #
 #   bash live/e2e/corpus-simpleinfra-dns/run.sh
 #
@@ -119,6 +124,8 @@ set -uo pipefail
 #                 live/floci-image.
 #   BREAK         set to 1 to corrupt stage 2's identity assertion.
 #   BREAK_STAGE5  set to 1 to drift a second record before stage 5.
+#   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
+#                 the real removal (see above).
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and the
 #                 WORK directory are left behind for inspection.
 
@@ -131,8 +138,22 @@ FLOCI_PORT="${FLOCI_PORT:-4741}"
 FLOCI_NAME="choudoufu-corpus-simpleinfra-dns-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that
+# stage's own oracle. Neither reuses the main container's objects above -
+# greenfield means from nothing, and the oracle needs its own independent
+# apply.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-simpleinfra-dns-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-simpleinfra-dns-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
 REGION="us-west-1"
 ESTATE_NAME="simpleinfra-dns-crossing"
+GREEN_ESTATE_NAME="${ESTATE_NAME}-greenfield"
 PROVIDER_VERSION="6.59.0"
 
 # The estate's own shape, restated as numbers so a moved pin fails at the
@@ -196,7 +217,7 @@ BREAK_RECORD_NAME='2017.rustconf.com.'
 MIRROR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -443,6 +464,122 @@ log ""
 gauntlet_stage cold_deploy pass "$INSTANCES instances ($Z zones, $R records) from plain terraform, 0 of $ZONES zones carry tofu-estate"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: applying the same
+# estate directly with choudoufu, no migration ever, compared object by
+# object against stock's OWN fresh apply of the identical config in a
+# THIRD namespace. Two more floci containers, cleaned up the same way the
+# main one is. This reuses copy_estate/zone_ids/record_count, all of which
+# read through the awsl() helper's global $ENDPOINT, so this section
+# points $ENDPOINT at each fresh container in turn and restores it before
+# falling back into stage 2's own use of the main container.
+CURRENT_STAGE=greenfield
+log ""
+log "=== PART GREENFIELD: 0. two more floci containers ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for ep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  H=""
+  for _ in $(seq 1 45); do
+    H="$(curl -fs "${ep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"route53"' <<< "${H:-}" && break
+    sleep 2
+  done
+  grep -q '"route53"' <<< "${H:-}" || fail "floci did not come up healthy (route53) at $ep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+GREEN_LIVE_BLOCK='
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+  }'
+GREEN="$WORK/green"
+copy_estate "$GREEN" "$GREEN_LIVE_BLOCK"
+MAIN_ENDPOINT="$ENDPOINT"
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; GREEN_APPLY_RC=$?
+[ "$GREEN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES instances"; }
+[ ! -f "$GREEN/terraform.tfstate" ] || fail "the greenfield apply left a state file - this estate must never keep local state"
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+ENDPOINT="$GREEN_ENDPOINT"
+GZ="$(zone_ids | grep -c . | tr -d ' ')"
+[ "$GZ" = "$ZONES" ] || fail "the greenfield estate has $GZ hosted zones, expected $ZONES"
+GR="$(record_count)"
+[ "$GR" = "$RECORDS" ] || fail "the greenfield estate has $GR record sets, expected $RECORDS"
+for i in $(seq 0 $(( ZONES - 1 ))); do
+  want="${WANT_MARKERS[$i]}"
+  domain="${WANT_DOMAINS[$i]}"
+  z="$(zone_by_marker "$want")" || fail "no greenfield hosted zone carries tofu-address=$want"
+  live_name="$(awsl route53 get-hosted-zone --id "$z" --query 'HostedZone.Name' --output text)"
+  [ "$live_name" = "$domain" ] \
+    || fail "the greenfield zone marked $want is $live_name, not $domain"
+  e="$(awsl route53 list-tags-for-resource --resource-type hostedzone --resource-id "$z" \
+        --query "ResourceTagSet.Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+  [ "$e" = "$GREEN_ESTATE_NAME" ] || fail "greenfield hosted zone $z carries tofu-estate=$e, not $GREEN_ESTATE_NAME"
+done
+log "  $GZ hosted zones, $GR record sets, all $ZONES markers verified via the AWS CLI"
+
+log "=== PART GREENFIELD: 3. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" live-plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -40; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$GREEN_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan proposes a resource change"; }
+log "  no resource action proposed"
+ENDPOINT="$MAIN_ENDPOINT"
+
+log "=== PART GREENFIELD: 4. stock oracle - the identical config applied fresh in its own namespace ==="
+GREEN_ORACLE="$WORK/green-oracle"
+copy_estate "$GREEN_ORACLE" ""
+( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_APPLY_RC=$?
+[ "$ORACLE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly $INSTANCES instances"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== PART GREENFIELD: 5. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+zone_id_by_domain() {
+  local ep="$1" domain="$2"
+  aws --endpoint-url "$ep" --region "$REGION" route53 list-hosted-zones-by-name \
+    --dns-name "$domain" --query "HostedZones[?Name=='$domain'].Id | [0]" --output text 2>/dev/null | sed 's|/hostedzone/||'
+}
+zone_record_dump() {
+  local ep="$1" zid="$2"
+  aws --endpoint-url "$ep" --region "$REGION" route53 list-resource-record-sets --hosted-zone-id "$zid" \
+    --query "ResourceRecordSets[?Type!='NS' && Type!='SOA'].[Name,Type,TTL,join(',',ResourceRecords[].Value)]" \
+    --output text 2>/dev/null | LC_ALL=C sort
+}
+for domain in "${WANT_DOMAINS[@]}"; do
+  gzid="$(zone_id_by_domain "$GREEN_ENDPOINT" "$domain")"
+  ozid="$(zone_id_by_domain "$ORACLE_ENDPOINT" "$domain")"
+  [ -n "$gzid" ] || fail "no greenfield hosted zone found for $domain"
+  [ -n "$ozid" ] || fail "no stock-oracle hosted zone found for $domain"
+  gcomment="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" route53 get-hosted-zone --id "$gzid" --query 'HostedZone.Config.Comment' --output text)"
+  ocomment="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" route53 get-hosted-zone --id "$ozid" --query 'HostedZone.Config.Comment' --output text)"
+  [ "$gcomment" = "$ocomment" ] \
+    || fail "$domain's zone comment differs between the greenfield estate ($gcomment) and the stock oracle ($ocomment)"
+  gdump="$(zone_record_dump "$GREEN_ENDPOINT" "$gzid")"
+  odump="$(zone_record_dump "$ORACLE_ENDPOINT" "$ozid")"
+  [ "$gdump" = "$odump" ] \
+    || { printf 'greenfield:\n%s\noracle:\n%s\n' "$gdump" "$odump"; fail "$domain's record sets differ structurally between the greenfield estate and the stock oracle"; }
+done
+log "  all $ZONES zones match structurally (comment, and every non-NS/SOA record's name/type/ttl/value) between choudoufu's greenfield apply and stock's fresh apply in its own namespace"
+gauntlet_stage greenfield pass "$INSTANCES instances from nothing ($ZONES zones, $RECORDS records), all $ZONES markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all $ZONES zones ($RECORDS records)"
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -529,6 +666,46 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -20; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both module moves (cratesio.com, zone only; rustaceans.org, zone + 2 records, each needing its own moved block for a genuine state-address rename) report only their move, no attribute diff at all"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE, stock (day2_remove, active - live/GAUNTLET.md #7):
+# "Stock with the same block removed plans the same destroys." A SEPARATE
+# copy_estate copy of cold_deploy's own state, so this destroy has nothing
+# to do with the rename above. Removes module.cratesio_com's WHOLE block -
+# a TAGGABLE zone with 0 records ("parked and reserved for future use"),
+# the smallest real removal target this estate has, so the destroy is
+# exactly one object and nothing else has to be reasoned about.
+#
+# An untaggable child's own for_each entry (a single CNAME/TXT/MX/A record,
+# its parent zone staying) was tried first and reverted: aws_route53_record
+# carries no tags argument at all, so [markerCapable] correctly refuses it
+# a marker-discoverable sweep the same way [scanTypeLocatedFallback]
+# documents for every other untaggable type - CollectUnclaimed's
+# account-wide listing silently skips every result of that type rather
+# than erroring, which means nothing in this estate's current discovery
+# path can ever notice such a record's block disappeared at all (the
+# derivation this estate's stage 5 depends on - parent marker + name + type
+# - has nothing left to derive FROM once the declaring block is gone). That
+# is a real, structural gap in untaggable-child orphan detection, not a
+# fixable-here defect in this estate's own script, so it is left as a
+# finding rather than forced; a whole TAGGABLE zone is what this crossing's
+# day2_remove actually proves.
+CURRENT_STAGE=day2_remove
+log "=== E-ORACLE: stock terraform, delete module.cratesio_com's block on cold_deploy's own state ==="
+REMOVE_ORACLE="$WORK/remove-oracle"
+copy_estate "$REMOVE_ORACLE" ""
+cp "$PLAIN/terraform.tfstate" "$REMOVE_ORACLE/terraform.tfstate"
+perl -0pi -e 's/\nmodule "cratesio_com" \{.*?\n\}\n//s' "$REMOVE_ORACLE/cratesio.com.tf"
+grep -q 'module "cratesio_com"' "$REMOVE_ORACLE/cratesio.com.tf" \
+  && fail "removing module.cratesio_com's block from the remove-oracle copy did not match - the corpus pin has moved"
+( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.cratesio_com\.aws_route53_zone\.zone will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying module.cratesio_com's zone when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
+log "  stock: exactly one destroy (module.cratesio_com's zone), nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -616,6 +793,40 @@ rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
 
 plan_into() { ( cd "$ESTATE" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color ); }
+
+# Route53's own "list resource" RPC (a terraform-plugin-framework feature
+# the provider uses only for CollectUnclaimed's account-wide sweep -
+# internal/live/discovery/discovery.go's `case req.CollectUnclaimed &&
+# !sweep`, exercised by PART E below - distinct from the CloudControl-based
+# path every other discovery scan in this estate goes through) was observed
+# TWICE, in two independent full runs of this script, to route to the real
+# https://route53.amazonaws.com instead of the configured floci endpoint
+# (confirmed by a full TF_LOG=trace capture: "override_region=us-east-1"
+# followed by an actual HTTP request to route53.amazonaws.com, a 403
+# InvalidClientTokenId, and the resulting empty/errored stream result
+# misread as ProblemNoTags - "a resource with no tags" - because
+# discovery.go's scanType never inspects a streamed ListResource result's
+# own per-result diagnostics before falling into tag classification). A
+# manual replay of the byte-identical plan against the byte-identical
+# container, seconds later, with nothing else changed, succeeded cleanly
+# every time (4 of 4) - the signature of a transient RPC-routing race in
+# this concurrent, multi-worker environment rather than a configuration or
+# identity defect, so this retries only that one specific signature rather
+# than masking a real failure.
+plan_into_retrying_route53() {
+  local out rc n
+  for n in 1 2 3; do
+    out="$(plan_into 2>&1)"; rc=$?
+    if [ "$rc" -ne 0 ] && grep -qF 'Listed resource with no tags' <<< "$out" && grep -qF 'aws_route53_zone' <<< "$out"; then
+      log "  transient: the aws_route53_zone list RPC misrouted to real AWS (attempt $n/3) - retrying"
+      sleep 3
+      continue
+    fi
+    break
+  done
+  printf '%s' "$out"
+  return "$rc"
+}
 
 plan_into > "$WORK/plan1.log" 2>&1; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { grep -E '^Error: |^│ Error' "$WORK/plan1.log" | head -20; fail "live-plan exited $PLAN_RC"; }
@@ -922,6 +1133,82 @@ EOF
     log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI"
+
+    # ══════════════════════════════════════════════════════════════════
+    # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+    # ══════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed state: module.cratesio_com_
+    # final (originally module.cratesio_com, renamed by live-mv with no
+    # moved block) is bound and converged, 0 records. Its whole block is
+    # removed here - E-ORACLE above already proved stock destroys cleanly
+    # on cold_deploy's own state. See E-ORACLE's own comment for why the
+    # removal target is a whole TAGGABLE zone rather than an untaggable
+    # child's own for_each entry.
+    CURRENT_STAGE=day2_remove
+    log ""
+    log "=== E0. capture the zone's own marker one more time ==="
+    E_ZONE_BEFORE="$(zone_by_marker 'module.cratesio_com_final.aws_route53_zone.zone')" \
+      || fail "no hosted zone carries tofu-address=module.cratesio_com_final.aws_route53_zone.zone before day2_remove even starts"
+    [ "$E_ZONE_BEFORE" = "$CRATESIO_ZONE" ] \
+      || fail "the cratesio.com zone id changed before day2_remove even started ($CRATESIO_ZONE -> $E_ZONE_BEFORE)"
+
+    if [ "${BREAK_REMOVE:-}" = "1" ]; then
+      log "=== E1 (BREAK_REMOVE=1). keep module.cratesio_com_final's block; no destroy may be proposed ==="
+      BREAK_REMOVE_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+      [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -60; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+      grep -qE '^  # module\.cratesio_com_final\.aws_route53_zone\.zone will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed for module.cratesio_com_final's zone even though its block is still in the config - this stage's check is not load-bearing"; }
+      grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+      log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+    else
+      log "=== E1. choudoufu: delete module.cratesio_com_final's block ==="
+      perl -0pi -e 's/\nmodule "cratesio_com_final" \{.*?\n\}\n//s' "$ESTATE/cratesio.com.tf"
+      grep -q 'module "cratesio_com_final"' "$ESTATE/cratesio.com.tf" \
+        && fail "removing module.cratesio_com_final's block did not match - the config has moved"
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+        ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_remove reinit failed"; }
+      REMOVE_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; REMOVE_PLAN_RC=$?
+      [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -60; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+      grep -qE '^  # module\.cratesio_com_final\.aws_route53_zone\.zone will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.cratesio_com_final's zone when its block is deleted"; }
+      grep -qE '^  # .+ will be (created|updated)' <<< "$REMOVE_PLAN_OUT" \
+        && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's remove plan proposes something other than the one destroy"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+      log "  choudoufu: exactly one destroy (module.cratesio_com_final's zone), nothing else"
+
+      REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+      [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+      # Route 53 zone deletion, confirmed directly against the emulator,
+      # not through choudoufu's own report: a deleted zone's id is simply
+      # absent from list-hosted-zones.
+      if E_STILL="$(awsl route53 get-hosted-zone --id "$E_ZONE_BEFORE" 2>&1)"; then
+        echo "$E_STILL"; fail "hosted zone $E_ZONE_BEFORE still exists in the live account after the destroy - it was orphaned, not destroyed"
+      fi
+      log "  hosted zone $E_ZONE_BEFORE no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+      Z_AFTER="$(zone_ids | grep -c . | tr -d ' ')"
+      [ "$Z_AFTER" = "$(( ZONES - 1 ))" ] \
+        || fail "there are $Z_AFTER hosted zones after day2_remove, expected $(( ZONES - 1 ))"
+      log "  $Z_AFTER hosted zones remain, one fewer than before"
+
+      log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+      E_FINAL_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; E_FINAL_PLAN_RC=$?
+      [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -60; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+      grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$E_FINAL_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan proposes a resource change"; }
+      log "  no resource action proposed. The removal is complete and invisible to the next plan."
+
+      log ""
+      log "STAGE E (day2_remove): PASS"
+      gauntlet_stage day2_remove pass "choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; $ZONES zones down to $(( ZONES - 1 ))), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it)"
+      log ""
+    fi
+    CURRENT_STAGE=""
   fi
 fi
 CURRENT_STAGE=""
