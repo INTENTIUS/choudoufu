@@ -904,7 +904,7 @@ EOF
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
-  grep -qF '"module.simple_bucket.aws_s3_bucket.this[0]" -> "module.simple_bucket_renamed.aws_s3_bucket.this[0]"' <<< "$MV_OUT" \
+  grep -qE 'tofu-address +"module\.simple_bucket\.aws_s3_bucket\.this:0" -> "module\.simple_bucket_renamed\.aws_s3_bucket\.this:0"' <<< "$MV_OUT" \
     || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
   log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
 
