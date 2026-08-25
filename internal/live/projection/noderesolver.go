@@ -294,7 +294,25 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 	// what a real gauntlet run of reference-ec2-vpc under this flag
 	// caught - see this file's own tests, which now pin the boundary by
 	// address.
-	sourceExpected := hasRow && !row.ServerAssigned && !row.RecordBacked
+	//
+	// A fourth case joins those three, keyed the same way: a
+	// CONFIG-IDENTIFIED type whose own identity argument reads a sibling
+	// this SAME run has not applied yet - a genuinely new estate's own
+	// aws_dynamodb_table.this[0], say, whose `name` reads
+	// random_pet.this.id before random_pet has ever been created.
+	// [identity.ComponentsUnknown] reports this precisely: not "the value
+	// is there and unusable" (an ordinary derivation failure, still
+	// ambiguous, still refused) but "the value does not exist for ANYONE
+	// yet," the same reason resolve.go's static evaluator classifies this
+	// instance [identity.ClassParentDerived] rather than concrete. There
+	// is no candidate identity string here for a real, undiscovered
+	// object to have collided with - ruling 4's whole ambiguity is about
+	// telling "genuinely new" apart from "real, undiscoverable," and a
+	// value nothing has computed yet cannot be either one. Stock plans the
+	// same resource the same way, the attribute shown "(known after
+	// apply)"; this is that, not a widened create.
+	sourceExpected := hasRow && !row.ServerAssigned && !row.RecordBacked &&
+		!identity.ComponentsUnknown(row, config)
 	if !sourceExpected {
 		return providers.ImportTarget{}, false, diags
 	}

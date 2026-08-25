@@ -64,7 +64,7 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 	values = make(map[string]string)
 	var sb strings.Builder
 	for _, c := range t.Components {
-		segment, attrName, rendered, present, hardFail := componentFromValue(c, val)
+		segment, attrName, rendered, present, hardFail, _ := componentFromValue(c, val)
 		if hardFail {
 			return "", nil, false
 		}
@@ -109,6 +109,50 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 	return importID, values, true
 }
 
+// ComponentsUnknown reports whether [ComponentsFromValue] would fail t
+// specifically because an attribute one of t.Components needs is not yet
+// known, rather than because the value is absent, malformed, marked, or a
+// shape this evaluator does not approximate. [ComponentsFromValue] itself
+// does not distinguish these - "ok=false" means "nothing to say" for every
+// one of those reasons alike, which is right for that function's own
+// callers (a wrong guess and no guess must read identically to them). This
+// is for a caller with a different question: GitHub issue #388's
+// plan-node seam (rfc/20260823-foundation-order-ruling.md, ruling 3, ruling
+// 4/#365), deciding whether a config-identified type's own missing source
+// is the ambiguous case ruling 4 refuses by default - a real object this
+// run simply could not derive the identity of - or a case with no
+// ambiguity to refuse over at all: a genuinely new instance whose identity
+// argument reads a sibling that has not been applied yet in THIS SAME run
+// (a formula over a record-backed resource, [identity.ClassParentDerived]
+// in the static evaluator's own terms), so the identity string does not
+// exist for anyone - this run, a human, or a duplicate of a real object -
+// to have collided with. Stock plans that resource exactly the same way,
+// with the same attribute shown "(known after apply)"; there is nothing
+// here to check against, so there is nothing to refuse over.
+//
+// A caller must use this ONLY to decide whether to WITHHOLD the "No
+// source" refusal - never as a reason to invent an identity. The instance
+// still resolves through the ordinary "found=false, no diagnostic, stock's
+// own create behavior applies" path; nothing here writes a marker or an
+// import target of its own.
+func ComponentsUnknown(t TypeIdentity, val cty.Value) bool {
+	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
+		return false
+	}
+	if val == cty.NilVal || val.IsNull() || val.IsMarked() {
+		return false
+	}
+	if !val.Type().IsObjectType() {
+		return false
+	}
+	for _, c := range t.Components {
+		if _, _, _, _, hardFail, unknown := componentFromValue(c, val); hardFail && unknown {
+			return true
+		}
+	}
+	return false
+}
+
 // componentFromValue resolves one component's contribution against val,
 // which is either the instance's whole configuration value or (when a
 // caller nested into a Block) that block's one element.
@@ -121,36 +165,46 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 // with anything but one element - and the caller treats it exactly like
 // the static evaluator's own outright refusal: the whole resolution is
 // "not found", never a partial or guessed one.
-func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered string, present, hardFail bool) {
+//
+// unknown is only meaningful when hardFail is also true, and narrows WHY:
+// true means the attribute this component needed is not yet known - it
+// will exist once whatever it depends on is applied, which is not this
+// resolution's business to guess at - as opposed to every other hardFail
+// reason (PerElement/Cloud, a marked value, a SoleElement collection of
+// the wrong length, a value that will not convert to string), which mean
+// the value IS there and this evaluator still cannot use it. See
+// [ComponentsUnknown]'s own doc comment for what the caller does with the
+// distinction.
+func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered string, present, hardFail, unknown bool) {
 	if c.PerElement || c.Cloud != CloudNone {
-		return "", "", "", false, true
+		return "", "", "", false, true, false
 	}
 	if len(c.Attrs) == 0 {
 		// A pure literal: Literal is the component's whole contribution
 		// (see [Component.Literal]), and it supplies no identity
 		// attribute of its own.
-		return c.Literal, "", "", true, false
+		return c.Literal, "", "", true, false, false
 	}
 
 	source := val
 	if c.Block != "" {
 		if !source.Type().IsObjectType() || !source.Type().HasAttribute(c.Block) {
-			return "", "", "", false, false
+			return "", "", "", false, false, false
 		}
 		blockVal := source.GetAttr(c.Block)
 		if blockVal.IsNull() || !blockVal.IsWhollyKnown() || blockVal.IsMarked() {
-			return "", "", "", false, false
+			return "", "", "", false, false, false
 		}
 		if !blockVal.CanIterateElements() || blockVal.LengthInt() == 0 {
 			// A genuinely optional nested block the configuration left
 			// out. Whether that means "absent" or "refuse" is the same
 			// OmitIfAbsent/Default/hard-refuse decision every other
 			// absent component gets, made by the caller.
-			return "", "", "", false, false
+			return "", "", "", false, false, false
 		}
 		source = blockVal.Index(cty.NumberIntVal(0))
 		if !source.Type().IsObjectType() {
-			return "", "", "", false, true
+			return "", "", "", false, true, false
 		}
 	}
 
@@ -165,7 +219,7 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		if !attrVal.IsWhollyKnown() {
 			// Not absent - not yet known. Not a fact this evaluator may
 			// treat as "the argument was omitted."
-			return "", "", "", false, true
+			return "", "", "", false, true, true
 		}
 		// Guards attrVal for every mark-unsafe cty method this function
 		// calls on it below - LengthInt/ElementIterator inside the
@@ -175,13 +229,13 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		// mark-unsafe cty method: a marked value must refuse here, never
 		// flow into an identity component or a cloud-facing import call.
 		if attrVal.IsMarked() {
-			return "", "", "", false, true
+			return "", "", "", false, true, false
 		}
 		if c.SoleElement {
 			t := attrVal.Type()
 			if t.IsListType() || t.IsSetType() || t.IsTupleType() {
 				if attrVal.LengthInt() != 1 {
-					return "", "", "", false, true
+					return "", "", "", false, true, false
 				}
 				var only cty.Value
 				for it := attrVal.ElementIterator(); it.Next(); {
@@ -189,7 +243,7 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 				}
 				attrVal = only
 				if !attrVal.IsWhollyKnown() {
-					return "", "", "", false, true
+					return "", "", "", false, true, true
 				}
 			}
 		}
@@ -202,16 +256,16 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		// guard nested inside an inner block only proves its subject to
 		// the end of THAT block, never past it.
 		if attrVal.IsMarked() {
-			return "", "", "", false, true
+			return "", "", "", false, true, false
 		}
 		str, err := convert.Convert(attrVal, cty.String)
 		if err != nil {
-			return "", "", "", false, true
+			return "", "", "", false, true, false
 		}
 		rendered = str.AsString()
-		return c.Literal + rendered, c.identityAttrFor(name), rendered, true, false
+		return c.Literal + rendered, c.identityAttrFor(name), rendered, true, false, false
 	}
-	return "", "", "", false, false
+	return "", "", "", false, false, false
 }
 
 // SensitiveComponentsAttr names the first attribute t.Components would read

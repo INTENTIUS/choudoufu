@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 18,
+      "clear": 19,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 20,
-          "fail": 6,
+          "pass": 21,
+          "fail": 5,
           "not_run": 0
         },
         "day2_rename": {
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 22,
-          "fail": 4,
+          "pass": 23,
+          "fail": 3,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 17,
+      "clear": 18,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 19,
-          "fail": 6,
+          "pass": 20,
+          "fail": 5,
           "not_run": 0
         },
         "day2_rename": {
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 21,
-          "fail": 4,
+          "pass": 22,
+          "fail": 3,
           "not_run": 0
         },
         "migrate": {
@@ -389,30 +389,30 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f09fc595df739385215bc1dde851292a584b7419",
-        "date": "2026-08-25T07:44:29Z",
+        "commit": "a6eee94de44b467645730d07e32045e66839c629",
+        "date": "2026-08-25T12:19:38Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=dynamodb-table-basic-crossing before migration",
-          "day2_remove": "choudoufu's remove plan destroys module.dynamodb_table_final's table but never mentions its resource policy at all when the block is deleted: aws_dynamodb_resource_policy is admitted by the provider's own identity schema rather than by the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), so the estate-wide destroy sweep does not know the type exists and proposes nothing for it - the object is left live and orphaned. Stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes exactly two destroys for the same two objects (0 add, 0 change, 2 destroy); choudoufu here has strictly less destroy coverage than stock, a real gap tracked at live/LIMITATIONS.md, not fixed in this script-only pass",
+          "day2_remove": "choudoufu: deleting module.dynamodb_table_final's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the table and its untaggable resource policy), applied cleanly (0 added, 0 changed, 2 destroyed), the table is genuinely gone from the live account (dynamodb describe-table on the old name now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly two destroys for the same two objects; classifyOrphans did not withhold either destroy because module.disabled_dynamodb_table declares zero instances of the same block key (create_table=false), so nothing is ever pending against it",
           "day2_rename": "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI",
-          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-maximum-walrus's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
-          "greenfield": "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)",
+          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-capital-mustang's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "greenfield": "3 resources from nothing (random_pet + table + resource policy), the table's markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on key schema/attributes/table class/deletion protection/on-demand billing/GSI/resource policy",
           "migrate": "1 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped.; Apply complete! Resources: 0 added, 0 changed, 1 destroyed. (tofu-slot convergence)",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
