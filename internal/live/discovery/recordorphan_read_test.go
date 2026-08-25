@@ -894,3 +894,67 @@ func TestRecordOrphanReadSweep_MovedAliasDoesNotWidenToAnUnrelatedAddress(t *tes
 		t.Errorf("the unrelated record was not proposed as an orphan; the moved-alias index must not have quietly widened to cover it: %#v", res.Resolutions)
 	}
 }
+
+// TestRecordOrphanReadSweep_MovedAliasBothEndpointsRemoved is
+// gauntlet:corpus-security-group-complete/day2_remove's own reproduction: a
+// `moved` block still names a rename (from=inline_old, to=inline), but the
+// RENAMED block has since been deleted too - exactly what that estate's
+// script does to its own Part D rename in Part E: module.postgresql is
+// renamed to module.postgresql_renamed with a moved block, and then
+// module.postgresql_renamed's whole block is deleted while the moved block
+// stays in main.tf. Neither address is declared here, so the "declared
+// instance's own moved aliases" loop just above [pending]'s construction
+// (which is what TestRecordOrphanReadSweep_MovedAliasIsNotAnOrphan
+// exercises) never runs - there is no declared instance to walk aliases
+// from. The record is still filed under the OLD address (a bare `moved`
+// block never re-keys it - see this file's own package comment), and
+// before this fix its destroy was proposed under that stale address
+// instead of the one the `moved` block itself names as current, which is
+// invisible to any check scoped to the new address (the estate's own
+// script counts destroys under module.postgresql_renamed specifically, and
+// found 4 instead of 5 for exactly this reason).
+func TestRecordOrphanReadSweep_MovedAliasBothEndpointsRemoved(t *testing.T) {
+	ctx := context.Background()
+	const estate = "test-estate"
+	prefix := projection.RecordKeyPrefix(estate)
+
+	cfg := loadConfig(t, "testdata/moved-record-located-blockremoved")
+	oldAddr := mustAddr(t, "aws_iam_role_policy.inline_old")
+	newAddr := mustAddr(t, "aws_iam_role_policy.inline")
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, prefix)
+	if _, err := projection.SeedLocatedForInstance(ctx, store, oldAddr, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		Components: map[string]string{"role": "app", "name": "deploy"},
+	}); err != nil {
+		t.Fatalf("seeding the located record under the OLD address: %s", err)
+	}
+
+	req := Request{Estate: estate, HintStore: raw, Config: cfg}
+	// Nothing declares either address any more: the caller's initial
+	// resolution list (what a plan already knows before this leg runs) is
+	// empty, exactly the "whole block deleted" shape.
+	res := &Result{}
+
+	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if len(res.Resolutions) != 1 {
+		t.Fatalf("got %d resolutions, want exactly 1: %#v", len(res.Resolutions), res.Resolutions)
+	}
+	got := res.Resolutions[0]
+	if got.Addr.String() != newAddr.String() {
+		t.Errorf("the orphan's destroy is proposed under %s, want it translated forward to %s (the moved block's own destination, via moved.Newest) - proposing it under the stale address is invisible to any check scoped to the new one", got.Addr, newAddr)
+	}
+	if !got.Undeclared {
+		t.Errorf("the orphan's resolution is not marked Undeclared")
+	}
+	const want = "app:deploy"
+	if got.ImportID != want {
+		t.Errorf("orphan ImportID = %q, want %q", got.ImportID, want)
+	}
+}

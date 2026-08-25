@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=622 instances=1721
-# shape: class CONCRETE=828
+# shape: dirs=624 instances=1723
+# shape: class CONCRETE=830
 # shape: class NEEDS_DISCOVERY=733
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=25
-# shape: body-sha256=a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9
+# shape: body-sha256=0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -868,6 +868,8 @@ internal/live/moved/testdata/estate	module.renamed.aws_sqs_queue.doi	NEEDS_DISCO
 internal/live/moved/testdata/estate	module.renamed.aws_sqs_queue.stray	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate/modules/queues	aws_sqs_queue.doi	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate/modules/queues	aws_sqs_queue.stray	NEEDS_DISCOVERY		
+internal/live/moved/testdata/fork	aws_s3_bucket.x	CONCRETE	x	bucket=x
+internal/live/moved/testdata/fork	aws_s3_bucket.y	CONCRETE	y	bucket=y
 internal/live/moved/testdata/refused	aws_s3_bucket.still_here	CONCRETE	still-here	bucket=still-here
 internal/live/moved/testdata/refused	aws_s3_bucket.target	CONCRETE	target	bucket=target
 internal/live/moved/testdata/refused	aws_s3_bucket_versioning.other_type	CONCRETE	target	bucket=target

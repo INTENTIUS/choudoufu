@@ -934,9 +934,16 @@ var fakeAttrs = map[string][]string{
 	"aws_vpc_security_group_ingress_rule": {"id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"},
 	"aws_vpc_security_group_egress_rule":  {"id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"},
 	"aws_launch_template":                 {"id", "arn", "name", "image_id", "instance_type"},
-	"aws_acm_certificate":                 {"id", "arn", "domain_name", "validation_method"},
-	"aws_sfn_state_machine":               {"id", "arn", "name", "role_arn", "definition"},
-	"aws_ebs_volume":                      {"id", "arn", "availability_zone", "size"},
+	// gauntlet:destroy-order: the caricature has no nested-block support
+	// (objectWithTags only ever fills flat string attributes), so
+	// launch_template_id stands in for the real provider's nested
+	// `launch_template { id = ... }` block - a plain attribute is enough
+	// to exercise [containsStringValue]'s generic string-leaf scan, which
+	// does not care whether the match sits at the top level or nested.
+	"aws_autoscaling_group": {"id", "arn", "name", "launch_template_id"},
+	"aws_acm_certificate":   {"id", "arn", "domain_name", "validation_method"},
+	"aws_sfn_state_machine": {"id", "arn", "name", "role_arn", "definition"},
+	"aws_ebs_volume":        {"id", "arn", "availability_zone", "size"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real
