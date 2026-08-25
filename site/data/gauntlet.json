@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
-  "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T09:35:37Z",
+  "commit": "8bbd0833aeb97955d8aa3771a99a37d1722c0e40",
+  "emulator": "ghcr.io/lex00/floci@sha256:80fedce33f0eaabf8dd2b197f1c7695d9ae671cc6f5c5374e90ecc58e6dfcc17",
+  "generated": "2026-08-25T11:31:32Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 17,
+      "clear": 18,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -144,8 +144,8 @@
         },
         "day2_count": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 26
+          "fail": 1,
+          "not_run": 25
         },
         "day2_crash": {
           "pass": 0,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 19,
-          "fail": 7,
+          "pass": 20,
+          "fail": 6,
           "not_run": 0
         },
         "day2_rename": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 16,
+      "clear": 17,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -221,8 +221,8 @@
         },
         "day2_count": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 25
+          "fail": 1,
+          "not_run": 24
         },
         "day2_crash": {
           "pass": 0,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 18,
-          "fail": 7,
+          "pass": 19,
+          "fail": 6,
           "not_run": 0
         },
         "day2_rename": {
@@ -1136,7 +1136,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -1148,15 +1148,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8149b2fdcc88a9bdaaaa7377ce331955606a1e5e",
-        "date": "2026-08-25T10:54:05Z",
-        "exit_code": 1,
+        "commit": "8bbd0833aeb97955d8aa3771a99a37d1722c0e40",
+        "date": "2026-08-25T11:22:24Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
-          "day2_remove": "the post-remove plan is not empty - a confirmed floci gap (lex00/floci#136, fixed on branch fix/revoke-security-group-rule-by-id, not yet repinned): RevokeSecurityGroupIngress/Egress called by SecurityGroupRuleId (what aws_vpc_security_group_ingress_rule/egress_rule's Delete always sends) returns Return: true but does not remove the rule, reproduced directly against the query API with no tofu in the loop; the security group itself IS gone, confirmed above via the AWS CLI - only its 3 taggable rules survive the apply",
+          "day2_remove": "choudoufu: deleting module.postgresql_renamed's block proposed exactly 5 destroys (0 add, 0 change, 5 destroy: SG + 2 ingress + 1 egress + 1 untaggable rules_exclusive), applied cleanly (0 added, 0 changed, 5 destroyed), the security group is genuinely gone from the live account (0 matches on describe-security-groups for the old id, read via the AWS CLI, not choudoufu's own report), and the next plan proposes nothing; stock oracle on cold_deploy's own state (D-ORACLE remove) also proposes exactly 5 destroys for the same 5 objects; classifyOrphans did not withhold the untaggable rules_exclusive destroy even though module.security_group's and module.consul's own rules_exclusive instances share its block key, because both surviving instances are bound, not unclaimed",
           "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
           "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
@@ -1397,7 +1397,7 @@
       "script": "live/e2e/reference-ec2-vpc/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "fail",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -1414,11 +1414,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c7edb12bd1d3c1921d536de7950fbc4e64fb1749",
-        "date": "2026-08-25T03:58:24Z",
-        "exit_code": 0,
+        "commit": "8bbd0833aeb97955d8aa3771a99a37d1722c0e40",
+        "date": "2026-08-25T11:33:29Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
+          "day2_count": "the day2_count oracle's terraform init failed",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
