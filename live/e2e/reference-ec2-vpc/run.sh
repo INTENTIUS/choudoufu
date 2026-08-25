@@ -17,10 +17,21 @@ set -uo pipefail
 #
 #   GREENFIELD  write the config with a live block from the start, apply,
 #               every object gets a real marker (read back through the AWS
-#               CLI directly, never through choudoufu's own report), plan
+#               CLI directly, never through choudoufu's own report), the
+#               local record store holds one record per instance (#364 A2 -
+#               apply writes a record too, not just live-import), plan
 #               again - empty. Delete the local record_store entirely and
 #               plan a third time - still empty, proving the objects are
-#               found by their tags and not remembered locally.
+#               found by their tags and not remembered locally. Then the
+#               gauntlet's own greenfield-stage oracle (live/GAUNTLET.md
+#               #13): stock applies the IDENTICAL resource_block() fresh in
+#               its own namespace (part B's second floci container, before
+#               it is touched by anything else), and the two clouds'
+#               structural inventories - cidr blocks, the subnet's AZ and
+#               public-IP flag, the igw's existence, the security group's
+#               rules, the instance's AMI and type - are compared object by
+#               object via the AWS CLI on both endpoints, marker tags never
+#               part of the comparison.
 #
 #   ADOPTION    the identical resource shapes, applied first with PLAIN
 #               stock terraform (a real state file, zero choudoufu
@@ -70,6 +81,7 @@ set -uo pipefail
 #                security group's Name tag) is also tampered out of band,
 #                and the single-object assertion must then correctly fail
 #                to hold (it is skipped in favor of confirming more than
+<<<<<<< HEAD
 #                one object is proposed). This same BREAK also switches
 #                Part D (day2_rename) to its own negative control - see
 #                that part's header.
@@ -81,6 +93,12 @@ set -uo pipefail
 #                Independent of BREAK and only reachable when BREAK is not
 #                1, because Part E starts from Part D's real, completed
 #                rename - see Part E's header.
+=======
+#                one object is proposed); (3) before the greenfield-stage
+#                oracle comparison, the internet gateway is dropped from the
+#                expected inventory on the greenfield side, and the
+#                object-by-object match must then correctly fail to hold.
+>>>>>>> gauntlet/greenfield-evidence
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -546,6 +564,11 @@ EST_TAG="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-tags \
 [ "$EST_TAG" = "$ESTATE" ] || fail "the instance carries tofu-estate=$EST_TAG, not $ESTATE"
 log "  instance $INSTANCE_ID carries tofu-address=$ADDR_TAG tofu-estate=$EST_TAG - read via the AWS CLI, not choudoufu's own report"
 
+log "=== A2b. the record store holds every instance (#364 A2: apply writes a record too, not just live-import) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "5" ] || fail "expected 5 records under the local record store after the greenfield apply (one per instance: vpc, subnet, igw, sg, instance), found $GREEN_RECORD_FILES"
+log "  5 records persisted, one per managed instance, read directly off the local record store"
+
 log "=== A3. the next plan proposes nothing ==="
 PLAN_OUT="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "the second plan exited $PLAN_RC"; }
@@ -575,9 +598,6 @@ fi
 # ══════════════════════════════════════════════════════════════════════════
 # PART B: COLD ADOPTION
 # ══════════════════════════════════════════════════════════════════════════
-
-gauntlet_stage greenfield not_run "Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet"
-CURRENT_STAGE=""
 
 log "=== B0. a second floci on :$FLOCI_ADOPT_PORT, standing in for infra nobody marked ==="
 docker run -d --rm -p "${FLOCI_ADOPT_PORT}:4566" --name "$FLOCI_ADOPT_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -625,6 +645,72 @@ UNMARKED_TAGS="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 des
 [ "$UNMARKED_TAGS" = "0" ] || fail "the plain-terraform instance already carries a tofu-address tag before migration - this test proves nothing"
 log "  confirmed unmarked: $PLAIN_INSTANCE_ID carries no tofu-address tag"
 gauntlet_stage cold_deploy pass "5 resources from plain terraform, a real terraform.tfstate, zero markers"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART B1.5: GREENFIELD ORACLE (greenfield, live/GAUNTLET.md #13, planned
+# stage - this is the crossing that wires the evidence for it)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Both floci containers are still up at this point: $ENDPOINT still holds
+# the greenfield estate part A applied directly from a live block (5
+# objects, markers written on create, already replanned empty twice), and
+# $ADOPT_ENDPOINT just got stock's cold deploy of the IDENTICAL
+# resource_block() (B1, above) in its own separate namespace - zero
+# choudoufu involvement, confirmed unmarked. That is exactly the oracle the
+# stage asks for: "the cloud after stock's cold deploy, compared object by
+# object with marker tags normalised out." resource_shape() reads structural
+# facts straight off the AWS CLI on each endpoint - cidr blocks, the
+# subnet's AZ and public-IP flag, the igw's existence, the security group's
+# ingress/egress rules, the instance's AMI and type - never through tofu
+# state on either side, so the comparison cannot be fooled by choudoufu's
+# own bookkeeping agreeing with itself.
+CURRENT_STAGE=greenfield
+log "=== B1.5. greenfield oracle: the greenfield estate (part A) against stock's cold deploy (B1), object by object ==="
+resource_shape() { # $1 = endpoint
+  local ep="$1"
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-vpcs \
+    --filters "Name=tag:Name,Values=ec2-reference-vpc" \
+    --query "Vpcs[0].CidrBlock" --output text 2>/dev/null | sed 's/^/vpc cidr=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-subnets \
+    --filters "Name=tag:Name,Values=ec2-reference-subnet" \
+    --query "Subnets[0].[CidrBlock,AvailabilityZone,MapPublicIpOnLaunch]" --output text 2>/dev/null \
+    | awk '{print "subnet cidr="$1" az="$2" pub="$3}'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-internet-gateways \
+    --filters "Name=tag:Name,Values=ec2-reference-igw" \
+    --query "length(InternetGateways)" --output text 2>/dev/null | sed 's/^/igw n=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=group-name,Values=ec2-reference-sg" \
+    --query "SecurityGroups[0].IpPermissions[].[IpProtocol,FromPort,ToPort]" --output text 2>/dev/null \
+    | sort | awk '{print "sg-in proto="$1" from="$2" to="$3}'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=group-name,Values=ec2-reference-sg" \
+    --query "SecurityGroups[0].IpPermissionsEgress[].[IpProtocol]" --output text 2>/dev/null \
+    | sort | awk '{print "sg-eg proto="$1}'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-instances \
+    --filters "Name=tag:Name,Values=ec2-reference-instance" "Name=instance-state-name,Values=running,pending" \
+    --query "Reservations[0].Instances[0].[ImageId,InstanceType]" --output text 2>/dev/null \
+    | awk '{print "instance ami="$1" type="$2}'
+}
+GREEN_SHAPE="$(resource_shape "$ENDPOINT" | sort)"
+if [ "${BREAK:-}" = "1" ]; then
+  GREEN_SHAPE="$(resource_shape "$ENDPOINT" | grep -v '^igw ' | sort)"
+  log "  BREAK=1: dropped the internet gateway from the expected inventory - the comparison below must fail"
+fi
+ORACLE_SHAPE="$(resource_shape "$ADOPT_ENDPOINT" | sort)"
+if [ "${BREAK:-}" = "1" ]; then
+  if [ "$GREEN_SHAPE" = "$ORACLE_SHAPE" ]; then
+    fail "BREAK=1: dropping the internet gateway from the expected inventory should have made the comparison fail, but it still matched - this stage's check is not load-bearing"
+  fi
+  log "  BREAK=1: correctly mismatched with one resource dropped from the expected inventory - the real comparison below is skipped"
+else
+  if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+    diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+    fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object"
+  fi
+  log "  object-by-object match: vpc cidr, subnet cidr/az/public-ip, igw count, security-group ingress+egress rules, instance ami+type - identical between the greenfield estate and stock's cold deploy, marker tags normalised out (never compared)"
+  gauntlet_stage greenfield pass "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store"
+fi
+CURRENT_STAGE=""
 
 # day2_rename's stock oracle (live/GAUNTLET.md #6, tracked as issue #357):
 # "Stock with the same moved block plans zero churn." Run against a COPY of
