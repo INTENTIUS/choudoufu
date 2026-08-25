@@ -66,6 +66,36 @@ type Toggle struct {
 	// move away from while the pin is active (see [PinRefusal]). Empty
 	// when !Pinnable.
 	SafeValue string
+
+	// Values is the settable spellings this registry declares for the
+	// toggle, in the order [site/content/docs/use/reference.md]'s
+	// generated table renders them (tools/toggles-gen). Default is always
+	// a member (see TestToggleValuesContainDefault).
+	//
+	// This is deliberately NOT the same set as this package's own Valid
+	// (or SecretsValid / NoSourceCreateValid) predicate for every toggle.
+	// [MarkerRepair]'s Values is the one place the two differ: [Report] is
+	// grammar the decoder still parses and [Valid] still recognizes - so a
+	// configuration that writes it gets [unimplementedRepairDetail]'s
+	// specific "not yet implemented" refusal rather than a generic typo
+	// one - but no build implements it and, unlike [Never], it has no
+	// conditional path through a `markers "record"` selection either (see
+	// [ImplementedWithSelection]): there is no mechanism this registry can
+	// honestly tell an operator to reach for. A 2026-08-24 audit of GitHub
+	// issue #365 found the registry declaring it anyway, described the
+	// same way as [Never]'s selection-gated case, which overstated report
+	// mode into looking like ordinary unfinished-but-reachable work. It is
+	// therefore left out of Values here - not out of the language, only
+	// out of what this registry advertises as usable - until it either
+	// gets a real mechanism (report mode implemented) or [Valid] drops it
+	// too. See Relaxes below for the same point made in the rendered doc.
+	Values []string
+
+	// Meaning is the table cell an operator reads to know what the
+	// argument controls, independent of Relaxes (which is written from
+	// the non-default setting's point of view and is also read outside
+	// the table, by [PinRefusal]).
+	Meaning string
 }
 
 // Toggles is the whole schema: every toggle a `strict` block accepts today,
@@ -83,9 +113,19 @@ var Toggles = []Toggle{
 		Default: string(DefaultMarkerRepair),
 		Relaxes: `"never" gives up automatic repair of a drifted ownership marker on the resources a paired ` +
 			`markers "record" selection covers, trading marker-based governability for tolerance of an estate ` +
-			`where something else owns the tags; "report" is defined but not yet implemented (see [Implemented]).`,
+			`where something else owns the tags. "report" is grammar this fork's decoder still parses and Valid ` +
+			`still recognizes, but no build implements it, and unlike "never" it has no markers "record" ` +
+			`selection - or any other mechanism - that would make it usable (see [Implemented] and ` +
+			`[ImplementedWithSelection]); it is refused unconditionally and is not counted among this toggle's ` +
+			`declared Values below.`,
 		Doc:      `live/LIMITATIONS.md, "strict-marker-repair"`,
 		Pinnable: false,
+		Values:   []string{string(Repair), string(Never)},
+		Meaning: `What a run does about an ownership marker on a live object that disagrees with the marker ` +
+			`this configuration declares. "repair" writes the declared value over it, as the plan's ordinary ` +
+			`in-place tags update. "never" leaves it silently, for an estate where something else owns the ` +
+			`tags, and only once a markers "record" selection gives the resource an identity source that is ` +
+			`not the marker.`,
 	},
 	{
 		Name:    "secrets",
@@ -96,6 +136,10 @@ var Toggles = []Toggle{
 		Doc:       `live/LIMITATIONS.md, "strict-secrets"`,
 		Pinnable:  true,
 		SafeValue: string(Refuse),
+		Values:    []string{string(Store), string(Refuse)},
+		Meaning: `What a run does with the secret material a configuration generates or sets. "store" keeps ` +
+			`it the way stock OpenTofu keeps it. "refuse" keeps none of it: a secret-generating type is ` +
+			`refused outright, and a sensitive settable argument is never recorded.`,
 	},
 	{
 		Name:    "no_source_create",
@@ -106,6 +150,11 @@ var Toggles = []Toggle{
 		Doc:       `live/LIMITATIONS.md, "strict-no-source-create"`,
 		Pinnable:  true,
 		SafeValue: string(NoSourceRefuse),
+		Values:    []string{string(NoSourceRefuse), string(NoSourceCreateOn)},
+		Meaning: `What a run does with an instance that has no record, no live marker and no identity ` +
+			`anything can derive from configuration. "refuse" reports it, by name, and names both remedies: ` +
+			`"choudoufu live-import" from a stock state that already holds it, or this toggle. "create" ` +
+			`selects stock OpenTofu's own behavior for a resource with no prior state: plan a create.`,
 	},
 }
 

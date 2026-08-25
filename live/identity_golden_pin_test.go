@@ -2344,7 +2344,17 @@ const (
 	// Then 618 -> 619 for the same unit's record-rung fix: one new fixture,
 	// internal/live/identity/testdata/record-fallback-sibling-apply, with no
 	// module sources of its own.
-	identityGoldenPinDirs = 619
+	//
+	// Then 619 -> 620 for issue #365's closeout audit: one new fixture,
+	// live/e2e/limits/strict-secrets-refusal (a random_password refused by
+	// an ACTUALLY-SET strict { secrets = "refuse" }, proving the toggle
+	// rather than the invalid-value typo case the older strict-secrets
+	// fixture covers). identityGoldenPinInstances is unchanged at 1719:
+	// confirmed by regenerating with -update and reading
+	// TestIdentityGolden's own "no instance's identity did [differ]"
+	// check, which only the header's dirs= line failed before the
+	// regeneration.
+	identityGoldenPinDirs = 620
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

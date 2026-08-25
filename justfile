@@ -1176,7 +1176,7 @@ corpus init_bin="terraform":
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.
-tables: mapping row-emit convergence identity-sources survey-render limits harness
+tables: mapping row-emit convergence identity-sources survey-render limits harness toggles
     @git status --porcelain || true
 
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
@@ -1200,6 +1200,13 @@ iamref:
 # botocore -> live/tag-verbs.json and reference.md's tagging-verb span.
 tagverbs:
     env -u PWD go run ./tools/tagverbs-gen
+
+# internal/live/strict.Toggles (registry.go, #365) -> reference.md's strict
+# block toggle table. No network, no artifact - rendered straight from the
+# already-committed Go source, so it is a derived stage like the rest of
+# `tables` rather than a fetch like tagverbs above it.
+toggles:
+    env -u PWD go run ./tools/toggles-gen
 
 # The record-store effects providers' own schemas -> live/logical-schemas.json,
 # the evidence every RecordBacked row is derived from (see

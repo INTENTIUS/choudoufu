@@ -333,11 +333,25 @@ var strictSecretsLocatedExclusion = map[string]bool{
 // [TypeIdentity.SecretMaterial]'s own doc comment names three places a
 // RECORD_BACKED type's version of this same toggle has to be asked:
 // internal/live/lint (the gate a configuration meets first),
-// [resolver.classify] (the layer that acts, asked again so a caller that
-// skipped lint still gets a refusal rather than a record it did not agree
-// to), and internal/live/liveimport's ratifyOne (which runs no lint pass and
-// builds no resolver at all). This is the same question for the
-// record-LOCATED route, asked the same three places.
+// [resolver.resolveInstance] (the layer that acts, asked again so a caller
+// that skipped lint still gets a refusal rather than a record it did not
+// agree to), and internal/live/liveimport's ratifyOne (which runs no lint
+// pass and builds no resolver at all).
+//
+// The record-LOCATED route this function serves is NOT asked at all three
+// of those places, and that asymmetry was an audit finding
+// (2026-08-24, issue #365) rather than a design choice worth keeping
+// silent: this function is called from internal/live/lint's
+// checkManagedResources and from [resolver.resolveInstance], but
+// liveimport's ratifyOne calls neither this function nor
+// [strictSecretsLocatedExclusion] anywhere on the record-LOCATED path
+// ([locatedByProviderSchema] asks only [LocatedType]). So `choudoufu
+// live-import` can migrate an aws_iam_access_key's record-located identity
+// into the record store under `strict { secrets = "refuse" }` today,
+// unlike the RECORD_BACKED route, whose ratifyOne branch does ask the
+// equivalent question through secretMaterialType. Closing that gap is
+// liveimport's to do, not this comment's; it is not a marker-writing
+// change and is out of scope for the identifier fix this comment received.
 //
 // Only called where [LocatedType] has already said the schema allows the
 // route; a type LocatedType refuses needs no second reason, and this

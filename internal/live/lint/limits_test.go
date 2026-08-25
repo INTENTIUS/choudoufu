@@ -86,6 +86,12 @@ var enforcedLimits = map[string]Rule{
 	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
 	// "strict-secrets".
 	"strict-secrets": RuleStrictSecrets,
+	// GitHub issue #365's own principle, not the typo case above: a real
+	// secret-generating type (random_password) refused because the toggle
+	// is actually set, with the Detail naming the setting by value.
+	// TestStrictSecretsRefusalToggleIsTheObstacle is this directory's
+	// mutation check. See live/LIMITATIONS.md, "strict-secrets-refusal".
+	"strict-secrets-refusal": RuleLogicalResource,
 	// GitHub issue #365 ruling 4 (rfc/20260823-foundation-order-ruling.md).
 	// See live/LIMITATIONS.md, "strict-no-source-create".
 	"strict-no-source-create": RuleStrictNoSourceCreate,
@@ -188,12 +194,13 @@ func TestLimitsEnforced(t *testing.T) {
 // (TestLimitsEnforced already pins that), but that the new per-type
 // classification (GitHub issue #73's groundwork) reached the message.
 var logicalLimitsClasses = map[string]LogicalClass{
-	"null-resource":        ClassRecordAdmitted,
-	"terraform-data":       ClassRecordAdmitted,
-	"time-sleep":           ClassRecordAdmitted,
-	"random-password":      ClassSecretRefused,
-	"local-sensitive-file": ClassSecretRefused,
-	"local-file":           ClassExternalAdmitted,
+	"null-resource":          ClassRecordAdmitted,
+	"terraform-data":         ClassRecordAdmitted,
+	"time-sleep":             ClassRecordAdmitted,
+	"random-password":        ClassSecretRefused,
+	"local-sensitive-file":   ClassSecretRefused,
+	"local-file":             ClassExternalAdmitted,
+	"strict-secrets-refusal": ClassSecretRefused,
 }
 
 // TestLogicalLimitsDetailsRender checks that every logical-resource limits
@@ -242,6 +249,57 @@ func TestLogicalLimitsDetailsRender(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// stripStrictBlock removes the `strict { ... }` block from src by deleting
+// everything from the literal "strict {" through its matching closing
+// brace, assuming - as every limits-wing fixture's strict block does - that
+// no nested `{` appears inside it. Used only to build a mutation-check
+// twin of an already-committed fixture from its own text, so the twin can
+// never drift from what is actually committed under live/e2e/limits.
+func stripStrictBlock(t *testing.T, src string) string {
+	t.Helper()
+	start := strings.Index(src, "strict {")
+	if start < 0 {
+		t.Fatalf("stripStrictBlock: no \"strict {\" found in:\n%s", src)
+	}
+	end := strings.Index(src[start:], "}")
+	if end < 0 {
+		t.Fatalf("stripStrictBlock: no closing brace found after \"strict {\" in:\n%s", src)
+	}
+	return src[:start] + src[start+end+1:]
+}
+
+// TestStrictSecretsRefusalToggleIsTheObstacle is
+// live/e2e/limits/strict-secrets-refusal's mutation check: GitHub issue
+// #365's own audit criterion, "a fixture proving it refuses exactly what
+// it names", read literally. TestLimitsEnforced already proves the
+// committed fixture (strict { secrets = "refuse" } set) is refused; this
+// proves the SAME resource, with only that block removed, is not - so the
+// refusal in TestLimitsEnforced is provably caused by the toggle and
+// nothing else about the fixture (no record_store block of its own, no
+// live block quirk, nothing).
+func TestStrictSecretsRefusalToggleIsTheObstacle(t *testing.T) {
+	fixture := filepath.Join(limitsDir(t), "strict-secrets-refusal")
+	src, err := os.ReadFile(filepath.Join(fixture, "main.tf")) //nolint:gosec // a fixed path under the checkout
+	if err != nil {
+		t.Fatalf("reading %s: %s", fixture, err)
+	}
+
+	mutated := stripStrictBlock(t, string(src))
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(mutated), 0o600); err != nil {
+		t.Fatalf("writing mutated fixture: %s", err)
+	}
+
+	cfg := loadConfigDir(t, dir)
+	issues := CheckContext(t.Context(), cfg)
+	for _, issue := range issues {
+		if issue.Rule == RuleLogicalResource {
+			t.Errorf("random_password.db was still refused after removing strict { secrets = \"refuse\" }: %s", issue)
+		}
 	}
 }
 

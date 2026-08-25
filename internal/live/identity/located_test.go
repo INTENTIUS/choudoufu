@@ -663,7 +663,7 @@ func TestTheSecretsSettingNowReachesTheLocatedCredentialException(t *testing.T) 
 }
 
 // TestResolverRefusesAccessKeyOnlyUnderStrictSecrets is #365 ruling 5 proved
-// at the layer that acts, [resolver.classify]: aws_iam_access_key resolves
+// at the layer that acts, [resolver.resolveInstance]: aws_iam_access_key resolves
 // [ClassRecordLocated] under the default secrets setting (its record holds
 // only "id", never the secret - the whole reason the old exclusion was
 // retired, see located.go's own commit for the finding), and is refused at

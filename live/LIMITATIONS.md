@@ -1715,6 +1715,51 @@ thing standing between `"refuse"` and a stock state file's generated password
 landing in the record store, and what that path writes is the instance's
 whole prior object rather than an identity.
 
+### strict-secrets-refusal
+
+**Construct.** A configuration that actually sets `strict { secrets =
+"refuse" }`, naming a secret-generating logical type - not the invalid-value
+shape `strict-secrets` above tests, which never reaches this behavior at
+all.
+
+```hcl
+terraform {
+  live {
+    estate = "my-estate"
+    strict {
+      secrets = "refuse"
+    }
+  }
+}
+
+resource "random_password" "db" {
+  length = 16
+}
+```
+
+**Why bounded.** `random_password` is `SECRET_REFUSED`
+(`hashicorp/random` 3.9.0 marks `bcrypt_hash` and `result` sensitive), and a
+live block's implied local record store admits it under the default
+`secrets` setting - the way stock OpenTofu's own state file holds
+`random_password.result` in clear. `strict { secrets = "refuse" }` is the
+one thing that refuses it: HANDOFF.md's "no secrets stored by the tool"
+principle, turned into a setting that names itself, by value, in the
+`Detail` an operator reads.
+
+**Forwarding address.** Remove the `strict { secrets = "refuse" }`
+argument to get the default, which stores the value the way stock does; or
+generate and store the secret in a secret manager instead and have
+configuration reference it by ARN or path, never by value.
+
+**Enforcement.** `RuleLogicalResource`, `internal/live/lint/logical_type.go`
+(`secretRefusedDetail`'s `!strict.StoresSecrets` branch), against
+`internal/live/strict`'s `StoresSecrets`. Fixture at
+`live/e2e/limits/strict-secrets-refusal/`.
+`TestStrictSecretsRefusalToggleIsTheObstacle`
+(`internal/live/lint/limits_test.go`) is this fixture's mutation check: the
+identical resource, with the `strict` block removed, resolves clean under
+the default - proving the toggle is the obstacle and nothing else is.
+
 ### strict-no-source-create
 
 **Construct.** A `strict { no_source_create = "..." }` argument naming
