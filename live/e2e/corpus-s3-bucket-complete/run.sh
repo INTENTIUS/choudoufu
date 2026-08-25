@@ -202,6 +202,19 @@ set -uo pipefail
 #                address rather than the zero-churn rename the real checks
 #                assert (a distinct value from 1 because stage 3's own
 #                BREAK=1 control fails and exits before stage 6 ever runs).
+#                Set to "replace" to exercise day2_replace's own negative
+#                control instead (PART F, after STAGE 5, before STAGE 6):
+#                manufacture the exact coexistence "skip the destroy half"
+#                describes directly - a second live bucket is created via
+#                the AWS CLI, carrying the SAME tofu-address/tofu-slot as
+#                the bucket a genuine replace would have destroyed - and
+#                the next plan must report the collision loudly (for this
+#                name-derived-identity type: a "Live resource displaced
+#                from the address it is marked for" warning naming the
+#                manufactured bucket, proposing nothing for it - not the
+#                fungible-set "Two live resources claiming one slot"
+#                EC2/SQS's own marker-sweep-only identity produces), not
+#                silently propose nothing.
 #   DEBUG_KEEP   set to 1 to skip the exit trap: the floci container and the
 #                WORK directory (both estate copies, every plan log) are
 #                left behind for inspection instead of being torn down.
@@ -660,6 +673,54 @@ grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_O
 log "  stock oracle: exactly two destroys proposed for module.simple_bucket's own bucket and its public_access_block (computed now, before anything below writes a live tag)"
 CURRENT_STAGE=""
 
+# day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
+# same reason day2_remove's own oracle sits before migrate (above): a
+# throwaway copy of cold_deploy's own (never re-applied) state, module.
+# log_bucket's `bucket` argument changed to a different literal name -
+# `bucket` is ForceNew on aws_s3_bucket (S3 has no rename-bucket API), so
+# this forces a replace at the same declared address, cascading into
+# log_bucket's own ownership_controls, policy and public_access_block
+# children (all three carry the bucket name/id as a ForceNew argument
+# too) plus one in-place update to module.s3_bucket's own
+# aws_s3_bucket_logging (its target_bucket argument names logs-$PET by
+# value, not by reference, so a plain diff, not a replace). module.
+# log_bucket is chosen because day2_rename/day2_remove (below) never touch
+# it - module.cloudfront_log_bucket and module.simple_bucket are that
+# stage's own two targets - so day2_replace has no ordering dependency on
+# either and PLACES ITS OWN real leg right after STAGE 5, before STAGE 6,
+# the same convention corpus-ec2-instance-complete's PART F uses. PLAN
+# ONLY, never applied: this copy shares floci's account with $ESTATE, and
+# applying here would destroy the real live bucket $ESTATE's own later
+# stages still depend on (corpus-ec2-instance-complete's and corpus-sqs-
+# basic's own day2_replace oracles found this out the hard way - see
+# their headers).
+CURRENT_STAGE=day2_replace
+log "=== STAGE 1.6: day2_replace stock oracle: change module.log_bucket's ForceNew bucket argument on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/oracle-replace"
+cp -R "$PLAIN" "$REPLACE_ORACLE_ROOT"
+sed -i.bak 's/bucket        = "logs-\${random_pet\.this\.id}"/bucket        = "logs-${random_pet.this.id}-replaced"/' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf"
+rm -f "$REPLACE_ORACLE_ROOT/examples/complete/main.tf.bak"
+grep -q 'logs-${random_pet.this.id}-replaced' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf" \
+  || fail "changing module.log_bucket's bucket argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE_ROOT/examples/complete" && terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE_ROOT/examples/complete" && terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_ROOT/examples/complete" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.log_bucket\.aws_s3_bucket\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ (will be|must be)' <<< "$REPLACE_ORACLE_PLAN_OUT"; fail "stock does not propose replacing module.log_bucket's bucket when its ForceNew bucket argument changes"; }
+grep -qE '^  # module\.log_bucket\.aws_s3_bucket_ownership_controls\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ (will be|must be)' <<< "$REPLACE_ORACLE_PLAN_OUT"; fail "stock does not cascade the bucket replace into its ownership_controls"; }
+grep -qE '^  # module\.log_bucket\.aws_s3_bucket_policy\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ (will be|must be)' <<< "$REPLACE_ORACLE_PLAN_OUT"; fail "stock does not cascade the bucket replace into its policy"; }
+grep -qE '^  # module\.log_bucket\.aws_s3_bucket_public_access_block\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ (will be|must be)' <<< "$REPLACE_ORACLE_PLAN_OUT"; fail "stock does not cascade the bucket replace into its public_access_block"; }
+grep -qE '^  # module\.s3_bucket\.aws_s3_bucket_logging\.this\[0\] will be updated in-place' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ (will be|must be)' <<< "$REPLACE_ORACLE_PLAN_OUT"; fail "stock does not cascade the bucket rename into module.s3_bucket's own logging target_bucket"; }
+grep -qF 'Plan: 4 to add, 1 to change, 4 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own five-resource cascade (log_bucket's bucket + 3 children replaced, s3_bucket's logging target updated in place)"; }
+log "  stock: exactly one bucket replace at the same declared address, cascading into its ownership_controls/policy/public_access_block (all replaced) and module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
+CURRENT_STAGE=""
+
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
@@ -976,6 +1037,159 @@ if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-final-notr
 fi
 log "  final plan: no resource action proposed"
 gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed right after STAGE 5 and BEFORE STAGE 6 (day2_rename, below) on
+# purpose, the same convention corpus-ec2-instance-complete's own PART F
+# uses: module.log_bucket is never touched by STAGE 6's rename (that stage
+# renames module.cloudfront_log_bucket and module.simple_bucket, module.
+# log_bucket and module.s3_bucket are its own negative-control anchors,
+# per this script's header), so this section has no dependency on STAGE
+# 6's outcome. module.log_bucket's `bucket` argument changes from
+# "logs-$PET" to "logs-$PET-replaced" - `bucket` is ForceNew on
+# aws_s3_bucket (S3 has no rename-bucket API) - forcing a replace at the
+# SAME declared address. Three resources cascade from the SAME dependency
+# edges F-ORACLE (above, right after cold_deploy) already names: log_
+# bucket's own ownership_controls, policy and public_access_block (all
+# three carry the bucket id as a ForceNew argument too), plus one
+# in-place update to module.s3_bucket's own aws_s3_bucket_logging (its
+# target_bucket argument names the bucket by literal value, not by
+# reference, so a plain diff rather than a replace) - a real, five-object
+# shape, not a bug; F-ORACLE shows stock proposing the identical cascade
+# on its own copy of the same state.
+#
+# THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+# for the full reasoning, reproduced only in summary here): OpenTofu core
+# rejects a `lifecycle` block on a `module` call, and patching the
+# vendored terraform-aws-s3-bucket module's own aws_s3_bucket resource to
+# add create_before_destroy would cross this corpus's reduction-only
+# convention, so this evidence pass exercises the default destroy-then-
+# create ordering instead. BREAK=replace manufactures the create-before-
+# destroy collision shape directly via the AWS CLI, the same way corpus-
+# ec2-instance-complete's and corpus-sqs-basic's own BREAK=replace legs do.
+CURRENT_STAGE=day2_replace
+record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+record_import_id() { jq -r '.identity.import_id' "$1"; }
+F_ADDR="module.log_bucket.aws_s3_bucket.this[0]"
+F_RECORD="$ESTATE/examples/complete/.tofu-records/tofu-records/$ESTATE_NAME/aws_s3_bucket/$(record_key "$F_ADDR")"
+
+log "=== F0. capture the live bucket and its record ahead of the forced replace ==="
+[ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_OLD_IMPORT_ID" = "logs-$PET" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not logs-$PET"
+F_OLD_ADDR_TAG="$(awsl s3api get-bucket-tagging --bucket "logs-$PET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$F_OLD_ADDR_TAG" = "module.log_bucket.aws_s3_bucket.this:0" ] \
+  || fail "logs-$PET does not carry tofu-address=module.log_bucket.aws_s3_bucket.this:0 ahead of day2_replace"
+log "  logs-$PET, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+if [ "${BREAK:-}" = "replace" ]; then
+  log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+  # A second, distinct live bucket carrying the SAME tofu-address and
+  # tofu-slot as the one a genuine replace would destroy - the state
+  # "skip the destroy half" of a create-before-destroy replace would
+  # leave, produced directly via the AWS CLI (day2_crash, stage 10, owns
+  # testing a real interrupted apply).
+  BREAK_COLLISION_BUCKET="logs-$PET-collision"
+  awsl s3api create-bucket --bucket "$BREAK_COLLISION_BUCKET" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null 2>&1 \
+    || awsl s3api create-bucket --bucket "$BREAK_COLLISION_BUCKET" >/dev/null 2>&1 \
+    || fail "BREAK=replace: could not create the collision bucket"
+  awsl s3api put-bucket-tagging --bucket "$BREAK_COLLISION_BUCKET" --tagging "TagSet=[{Key=tofu-estate,Value=$ESTATE_NAME},{Key=tofu-address,Value=module.log_bucket.aws_s3_bucket.this:0},{Key=tofu-slot,Value=0}]" \
+    || fail "BREAK=replace: could not tag the collision bucket"
+  BREAK_PLAN_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  awsl s3api delete-bucket --bucket "$BREAK_COLLISION_BUCKET" >/dev/null 2>&1 || true
+  # aws_s3_bucket's identity is name-derived (the `bucket` argument IS the
+  # import id, resolvable straight from config, unlike EC2/SQS's marker-
+  # sweep-only resolution) - so this type's own diagnostic for the
+  # manufactured coexistence is NOT "Two live resources claiming one
+  # slot" (that summary is for a fungible SET where no config value can
+  # disambiguate). Read directly off a real run rather than assumed from
+  # the EC2/SQS templates: the plan still exits 0 (the REST of the estate
+  # binds fine, because logs-$PET, the object the config's OWN computed
+  # name still names, resolves normally), but it prints "Live resource
+  # displaced from the address it is marked for" naming the manufactured
+  # collision bucket by its live identity, and proposes NOTHING for that
+  # marker-holder - loudly reported, not silently treated as absent, the
+  # Break text's own outcome for a name-derived type. The diagnostic's
+  # own prose is hard-wrapped at a fixed column (its wrap point shifts
+  # with $PET's own variable length), so every substring check below
+  # reads a WHITESPACE-FLATTENED copy rather than $BREAK_PLAN_OUT itself
+  # - a phrase spanning a wrap point is two real lines, not one, in the
+  # raw text.
+  BREAK_PLAN_FLAT="$(tr -s ' \t\n' ' ' <<< "$BREAK_PLAN_OUT")"
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=replace: the plan itself failed rather than warning about the displaced marker - this stage's check is not load-bearing"; }
+  grep -qF 'Warning: Live resource displaced from the address it is marked for' <<< "$BREAK_PLAN_FLAT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=replace: the plan did not warn about the manufactured collision bucket being displaced from its marked address"; }
+  grep -qF "$BREAK_COLLISION_BUCKET" <<< "$BREAK_PLAN_FLAT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=replace: the displaced-marker warning did not name the manufactured collision bucket"; }
+  grep -qF 'not read, not changed and not destroyed' <<< "$BREAK_PLAN_FLAT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "BREAK=replace: the plan did not confirm nothing is proposed for the displaced marker holder"; }
+  log "  BREAK=replace: choudoufu correctly warns \"Live resource displaced from the address it is marked for\" naming $BREAK_COLLISION_BUCKET and proposes nothing for it, rather than silently ignoring the coexistence or guessing which object is which - the Break text's own outcome, in the shape this name-derived type actually produces (not the fungible-set \"Two live resources claiming one slot\" EC2/SQS's own marker-sweep-only identity produces)"
+else
+  log "=== F1. choudoufu: change the ForceNew bucket argument, forcing a replace at the same declared address ==="
+  sed -i.bak 's/bucket        = "logs-\${local\.pinned_pet}"/bucket        = "logs-${local.pinned_pet}-replaced"/' "$ESTATE/examples/complete/main.tf"
+  rm -f "$ESTATE/examples/complete/main.tf.bak"
+  grep -q 'logs-${local.pinned_pet}-replaced' "$ESTATE/examples/complete/main.tf" || fail "changing module.log_bucket's bucket argument did not match - the corpus pin has moved"
+
+  plan_into "$WORK/plan-replace.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan-replace.log" | tail -40; fail "the day2_replace plan exited non-zero"; }
+  grep -qE '^  # module\.log_bucket\.aws_s3_bucket\.this\[0\] must be replaced' "$WORK/plan-replace.log" \
+    || { grep -E '^  # .+ (will be|must be)' "$WORK/plan-replace.log"; fail "choudoufu does not propose replacing module.log_bucket's bucket when its ForceNew bucket argument changes"; }
+  grep -qE '~ +bucket +=.+forces replacement' "$WORK/plan-replace.log" \
+    || { grep -B2 -A2 -E 'bucket +=' "$WORK/plan-replace.log"; fail "the plan does not mark bucket as forcing replacement"; }
+  grep -qE '^  # module\.log_bucket\.aws_s3_bucket_ownership_controls\.this\[0\] must be replaced' "$WORK/plan-replace.log" \
+    || { grep -E '^  # .+ (will be|must be)' "$WORK/plan-replace.log"; fail "choudoufu does not cascade the bucket replace into its ownership_controls"; }
+  grep -qE '^  # module\.log_bucket\.aws_s3_bucket_policy\.this\[0\] must be replaced' "$WORK/plan-replace.log" \
+    || { grep -E '^  # .+ (will be|must be)' "$WORK/plan-replace.log"; fail "choudoufu does not cascade the bucket replace into its policy"; }
+  grep -qE '^  # module\.log_bucket\.aws_s3_bucket_public_access_block\.this\[0\] must be replaced' "$WORK/plan-replace.log" \
+    || { grep -E '^  # .+ (will be|must be)' "$WORK/plan-replace.log"; fail "choudoufu does not cascade the bucket replace into its public_access_block"; }
+  grep -qE '^Plan: 4 to add, [0-9]+ to change, 4 to destroy' "$WORK/plan-replace.log" \
+    || { grep -E '^Plan:|^No changes' "$WORK/plan-replace.log"; fail "the day2_replace plan does not match F-ORACLE's own cascade shape (4 to add, 4 to destroy)"; }
+  log "  choudoufu: exactly one bucket replace at the same declared address, cascading into its ownership_controls/policy/public_access_block - matches F-ORACLE's own plan shape"
+
+  F_APPLY_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Resources: 4 added, [0-9]+ changed, 4 destroyed' <<< "$F_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 4 added, 4 destroyed"; }
+
+  awsl s3api head-bucket --bucket "logs-$PET" >/dev/null 2>&1 \
+    && fail "logs-$PET (the old bucket) still exists after the replace - it was orphaned, not destroyed"
+  log "  logs-$PET (the old bucket) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  F_NEW_BUCKET="logs-$PET-replaced"
+  awsl s3api head-bucket --bucket "$F_NEW_BUCKET" >/dev/null 2>&1 \
+    || fail "the new bucket $F_NEW_BUCKET does not exist after the replace"
+  F_NEW_ADDR_TAG="$(awsl s3api get-bucket-tagging --bucket "$F_NEW_BUCKET" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_NEW_ADDR_TAG" = "module.log_bucket.aws_s3_bucket.this:0" ] \
+    || fail "$F_NEW_BUCKET carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.log_bucket.aws_s3_bucket.this:0 - the marker did not move onto the new object"
+  log "  $F_NEW_BUCKET (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed bucket
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one). The local record file at the SAME address must now hold the
+  # NEW bucket's name, not the one captured in F0.
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_BUCKET" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_BUCKET - a stale record still claiming the destroyed bucket, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+  log "=== F2. one more plan: config and reality agree, no marker collision ==="
+  plan_into "$WORK/plan-replace-final.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan-replace-final.log" | tail -40; fail "the post-replace plan exited non-zero"; }
+  grep -vE '^[0-9]{4}-' "$WORK/plan-replace-final.log" > "$WORK/plan-replace-final-notrace.log"
+  if grep -qE '^  # .+ will be (created|updated|destroyed)|must be replaced' "$WORK/plan-replace-final-notrace.log"; then
+    grep -E '^  # .+ (will be|must be)' "$WORK/plan-replace-final-notrace.log"
+    fail "the post-replace plan proposes a resource change"
+  fi
+  log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
+
+  gauntlet_stage day2_replace pass "choudoufu: changing module.log_bucket's ForceNew bucket argument proposed exactly one bucket replace at the same declared address, cascading into its ownership_controls, policy and public_access_block (all replaced) plus module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old bucket ($F_OLD_IMPORT_ID) is confirmed gone and the new bucket ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new bucket, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Live resource displaced from the address it is marked for\", naming the manufactured bucket, proposing nothing for it) rather than silently proposed as nothing - the name-derived-identity shape of this diagnostic, distinct from EC2/SQS's fungible-set \"Two live resources claiming one slot\" because aws_s3_bucket's identity resolves straight from the config's own computed name rather than only through a marker sweep. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones."
+fi
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 6: RENAME (day2_rename, active - live/GAUNTLET.md #6)
