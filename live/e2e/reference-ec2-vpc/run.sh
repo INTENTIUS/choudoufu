@@ -70,8 +70,8 @@ set -uo pipefail
 #   FLOCI_PORT   host port for the greenfield emulator (default 4712).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to run two negative controls instead of the real
-#                checks, proving both are load-bearing rather than a grep
+#   BREAK        set to 1 to run three negative controls instead of the real
+#                checks, proving each is load-bearing rather than a grep
 #                that always matches: (1) before the greenfield "no local
 #                record store" replan, the instance's Name tag is tampered
 #                out of band via the AWS CLI, and the expected empty-plan
