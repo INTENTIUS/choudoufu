@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `f91a12b3f3` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T18:51:30Z.
+Measured at commit `f2a5623437` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T18:57:12Z.
 
 ## The stages
 
@@ -53,7 +53,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run FAIL |
-| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL not run pass |

@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "f91a12b3f3c66f47a56e10faa889af3b2cc62902",
+  "commit": "f2a562343760b29db0506863cf27be449e9f7a8b",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:51:30Z",
+  "generated": "2026-08-25T18:57:12Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 20
+          "not_run": 19
         },
         "day2_teardown": {
           "pass": 0,
@@ -746,7 +746,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -756,19 +756,20 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "24b7a008e96b5b0c1ae03ef383b2b1c1b41a8032",
-        "date": "2026-08-25T17:27:21Z",
+        "commit": "f2a562343760b29db0506863cf27be449e9f7a8b",
+        "date": "2026-08-25T18:59:41Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration",
           "day2_remove": "choudoufu: deleting module.kafka_kms_key_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable alias and its taggable parent key), applied cleanly (0 added, 0 changed, 2 destroyed) in an order the cloud accepted, the key is genuinely PendingDeletion and the alias is gone (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key) is confirmed gone and the new alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2) points at the SAME key (a0fb2c16-8568-4a3d-a419-ffb8cd549413, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one (alias/hongbomiao-storage-crossing-hm-kafka-kms-key -> alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape.",
           "drift_reconverge": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_iot_data.aws_s3_bucket.main",
           "greenfield": "4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared",
-          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key a99ac700-93aa-4714-9b11-0e0e1e8a7f5e -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
+          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key a0fb2c16-8568-4a3d-a419-ffb8cd549413 -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
           "test_apply": "genuine no-op: 3 objects before, 3 after, no state file either time",
           "test_plan": "empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key"
         }
