@@ -294,6 +294,66 @@ var arnJoinCoverage = func() map[string]bool {
 // to cfnType.
 func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 
+// sweepTaggableOverride corrects live/registry.json's tagging.taggable for
+// exactly the CFN type keys [arnJoinTable] deliberately borrows for a
+// resource CloudFormation itself models differently than the AWS service
+// API does. "AWS::IAM::Policy" is the row [arnJoinTable]'s own "iam" entry
+// uses as aws_iam_policy's join key (its comment says why: no other IAM CFN
+// type shares the "policy" ARN segment) - but that CFN resource models an
+// INLINE policy attached to a role/user/group, which is genuinely
+// untaggable, while aws_iam_policy creates a standalone MANAGED policy,
+// which IAM's own TagPolicy/UntagPolicy API tags and untags directly (every
+// earlier stage of live/e2e/corpus-iam-read-only-policy/run.sh reads and
+// writes this exact object's tags through the AWS CLI). The mismatch is
+// CloudFormation's, not the live object's: [arnJoinTable] borrows the CFN
+// type purely as an ARN-join key, and live/registry.json's tagging.taggable
+// answers a question about the CFN resource CloudFormation would create,
+// not about the real object behind this key.
+//
+// Found via corpus-iam-read-only-policy's day2_remove stage: the estate's
+// only real object is this type, so removing its block left the estate
+// with zero declared instances of it anywhere, which routes discovery
+// entirely through [sweepViaTagging]'s estate-wide GetResources sweep - the
+// config-driven per-type scan ([scanType], sweep=false) that every other
+// aws_iam_policy-owning estate's day2_remove goes through instead never
+// consults Taggable() at all, which is why corpus-iam-policy's own Part E
+// (a sibling module instance still declared and bound) never hit this gap.
+// Without this override the sweep silently omits every remaining
+// aws_iam_policy from the "types this run could destroy an orphan of" set,
+// with no diagnostic naming which type or why - the same class of silent
+// gap the "policy" ARN-join entry above closed for the join step itself,
+// one step later in the same pipeline. Reaches every one of the four
+// CFN type keys [arnJoinTable] borrows this way for a resource whose real
+// service API tags and untags it directly - confirmed against the AWS API
+// documentation for each, not merely against this one estate's floci
+// reproduction: aws_iam_policy ("AWS::IAM::Policy", iam:TagPolicy /
+// iam:UntagPolicy), aws_iam_role ("AWS::IAM::Role", iam:TagRole /
+// iam:UntagRole - registry.json marks this taggable already, but the
+// override list carries it too so a future registry regeneration that
+// narrows the CFN row cannot silently reopen this gap), aws_sns_topic
+// ("AWS::SNS::Topic", sns:TagResource / sns:UntagResource - registry.json
+// marks this taggable already for the same reason), and aws_s3_bucket
+// ("AWS::S3::Bucket", s3:PutBucketTagging / s3:GetBucketTagging -
+// registry.json marks this taggable already for the same reason). Every
+// entry here is registered in live/derivation_guard_test.go's hand-wired
+// type registry.
+var sweepTaggableOverride = map[string]bool{
+	"AWS::IAM::Policy": true,
+	"AWS::IAM::Role":   true,
+	"AWS::SNS::Topic":  true,
+	"AWS::S3::Bucket":  true,
+}
+
+// sweepTaggable is [registry.Roster.Taggable], corrected by
+// [sweepTaggableOverride] for the CFN type keys the registry disagrees with
+// the real service API about.
+func sweepTaggable(roster *registry.Roster, cfnType string) bool {
+	if sweepTaggableOverride[cfnType] {
+		return true
+	}
+	return roster.Taggable(cfnType)
+}
+
 // joinARNToCFNType joins a parsed ARN's service and resource-type segment
 // against [arnJoinTable]. cfnType is set only when the join is unique;
 // candidates lists what it found instead when it was not (nil for "found
@@ -746,7 +806,7 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 					typeName),
 			}))
 			continue
-		case !req.Roster.Taggable(cfnType):
+		case !sweepTaggable(req.Roster, cfnType):
 			_, known := req.Roster.TaggableKnown(cfnType)
 			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 			continue

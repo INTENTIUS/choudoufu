@@ -89,13 +89,21 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt the address stage 5's drift assertion
-#                expects (see above), proving it is load-bearing.
+#   BREAK        set to 1 to corrupt the address stage 3/5's identity and
+#                drift assertions expect (see above), proving they are
+#                load-bearing; set to 2 to exercise day2_rename's own break
+#                control (rename module.read_only_iam_policy WITHOUT a moved
+#                block); set to 3 to exercise the greenfield stage's own
+#                break control (tamper the expected greenfield policy path
+#                before the structural comparison against the stock oracle).
+#   BREAK_REMOVE set to 1 to exercise day2_remove's own break control: keep
+#                module.read_only_iam_policy_final's block and assert no
+#                destroy is proposed. Only reachable when BREAK is not 2,
+#                because Part E starts from Part D's real, completed rename.
 #
-# Exit codes: 0 on a real pass of all five stages, non-zero on a real
-# failure. Every assertion reads command output, an exit code, or the
-# emulator's own answer through the AWS CLI, never choudoufu's own report of
-# itself.
+# Exit codes: 0 on a real pass of all stages, non-zero on a real failure.
+# Every assertion reads command output, an exit code, or the emulator's own
+# answer through the AWS CLI, never choudoufu's own report of itself.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CORPUS_DIR="${CORPUS_DIR:-$ROOT/.corpus}"
@@ -108,11 +116,23 @@ FLOCI_NAME="choudoufu-corpus-roiam-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that stage's
+# own oracle. Neither reuses the crossing container above.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-roiam-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-roiam-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+
 ESTATE="iam-read-only-policy-crossing"
+GREEN_ESTATE="iam-read-only-policy-greenfield"
 REGION="eu-west-1"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -219,6 +239,124 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, active - live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches the objects STAGE 1's plain terraform apply
+# created (those get migrated in STAGE 2, below). choudoufu applies the
+# identical example (module.read_only_iam_policy is this estate's only
+# module call that contributes a real resource - see this script's header)
+# directly, with a live block from the start, no migration, no state file
+# ever existing; the record store must hold one record; and the estate's own
+# oracle is stock applying the SAME config fresh in a THIRD, independent
+# namespace, compared structurally via the AWS CLI on both endpoints, never
+# through tofu state.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"iam"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"iam"' <<< "${GH:-}" || fail "floci did not come up healthy (iam) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+mkdir -p "$WORK/iam-greenfield/examples" "$WORK/iam-greenfield/modules"
+cp -R "$SRC_EXAMPLE" "$WORK/iam-greenfield/examples/iam-read-only-policy"
+cp -R "$SRC_MODULE" "$WORK/iam-greenfield/modules/iam-read-only-policy"
+GREEN_EST="$WORK/iam-greenfield/examples/iam-read-only-policy"
+rm -rf "$GREEN_EST/.terraform" "$GREEN_EST/.terraform.lock.hcl"
+perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$GREEN_EST/main.tf"
+grep -q 's3_use_path_style' "$GREEN_EST/main.tf" || fail "the greenfield emulator delta did not match main.tf - the corpus pin has moved"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 1 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 1 resource"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_POLICY_ARN="$(awsg iam list-policies --path-prefix /example/ \
+  --query "Policies[?starts_with(PolicyName, '$NAME_PREFIX') == \`true\`].Arn | [0]" --output text)"
+[ -n "$GREEN_POLICY_ARN" ] && [ "$GREEN_POLICY_ARN" != "None" ] \
+  || fail "no live greenfield policy found by its name prefix through the AWS CLI"
+GREEN_ADDR="$(awsg iam list-policy-tags --policy-arn "$GREEN_POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ADDR" = "module.read_only_iam_policy.aws_iam_policy.policy:0" ] || fail "the greenfield policy carries tofu-address=$GREEN_ADDR, not module.read_only_iam_policy.aws_iam_policy.policy:0"
+GREEN_EST_TAG="$(awsg iam list-policy-tags --policy-arn "$GREEN_POLICY_ARN" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_EST_TAG" = "$GREEN_ESTATE" ] || fail "the greenfield policy carries tofu-estate=$GREEN_EST_TAG, not $GREEN_ESTATE"
+log "  $GREEN_POLICY_ARN carries tofu-address=$GREEN_ADDR tofu-estate=$GREEN_EST_TAG - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds one record (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "1" ] || fail "expected 1 record under the local record store after the greenfield apply, found $GREEN_RECORD_FILES"
+log "  1 record persisted, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$GREEN_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan proposes a resource change"; }
+log "  no resource change proposed (this estate's outputs quirk means a permanent Changes-to-Outputs section is expected - see the header - so the check is the absence of a resource-action header)"
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
+mkdir -p "$WORK/iam-greenfield-oracle/examples" "$WORK/iam-greenfield-oracle/modules"
+cp -R "$SRC_EXAMPLE" "$WORK/iam-greenfield-oracle/examples/iam-read-only-policy"
+cp -R "$SRC_MODULE" "$WORK/iam-greenfield-oracle/modules/iam-read-only-policy"
+ORACLE_EST="$WORK/iam-greenfield-oracle/examples/iam-read-only-policy"
+rm -rf "$ORACLE_EST/.terraform"
+perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ORACLE_EST/main.tf"
+grep -q 's3_use_path_style' "$ORACLE_EST/main.tf" || fail "the greenfield oracle's emulator delta did not match main.tf"
+( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 1 added' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 1 resource"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+policy_shape() { # $1=endpoint $2=arn - a normalised structural fact sheet,
+                  # read via the AWS CLI, never through tofu state.
+  local ep="$1" arn="$2" ver doc
+  ver="$(aws --endpoint-url "$ep" --region "$REGION" iam get-policy --policy-arn "$arn" \
+    --query 'Policy.DefaultVersionId' --output text 2>/dev/null)"
+  doc="$(aws --endpoint-url "$ep" --region "$REGION" iam get-policy-version --policy-arn "$arn" --version-id "$ver" \
+    --query 'PolicyVersion.Document' --output json 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" iam get-policy --policy-arn "$arn" \
+    --query 'Policy.[Path,Description]' --output json 2>/dev/null \
+  | jq -S --argjson doc "${doc:-null}" '{path: .[0], description: .[1], document: $doc}'
+}
+
+log "=== PART GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+ORACLE_POLICY_ARN="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam list-policies --path-prefix /example/ \
+  --query "Policies[?starts_with(PolicyName, '$NAME_PREFIX') == \`true\`].Arn | [0]" --output text)"
+[ -n "$ORACLE_POLICY_ARN" ] && [ "$ORACLE_POLICY_ARN" != "None" ] || fail "no oracle policy found by its name prefix through the AWS CLI"
+GREEN_SHAPE="$(policy_shape "$GREEN_ENDPOINT" "$GREEN_POLICY_ARN")"
+if [ "${BREAK:-}" = "3" ]; then
+  GREEN_SHAPE="$(jq -S '.path = "/tampered-by-BREAK/"' <<< "$GREEN_SHAPE")"
+  log "  BREAK=3: tampered the expected greenfield path - the comparison below must fail"
+fi
+ORACLE_SHAPE="$(policy_shape "$ORACLE_ENDPOINT" "$ORACLE_POLICY_ARN")"
+[ "$GREEN_SHAPE" = "$ORACLE_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_SHAPE" "$ORACLE_SHAPE"; fail "the greenfield policy differs structurally from the stock oracle"; }
+log "  path, description and policy document match structurally between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
@@ -566,6 +704,92 @@ EOF
   log "  no resource change proposed (this estate's outputs quirk means a permanent Changes-to-Outputs section is expected here too - see the header - so the check is the absence of a resource-action header, not a summary line). Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.read_only_iam_policy_final
+  # (originally module.read_only_iam_policy) is the ONLY module call in this
+  # estate that ever contributed a real resource (module.read_only_iam_policy_doc
+  # has create_policy=false, module.read_only_iam_policy_disabled has
+  # create=false - see this script's header) - so removing its block leaves
+  # this estate with zero live objects, and its declared aws_iam_policy.policy
+  # block key has no surviving instance anywhere else in the config (the doc
+  # and disabled modules each declare the same block key but with count=0, so
+  # neither ever contributes an instance to classifyOrphans's "pending" set -
+  # there is nothing for a genuine remove here to be mistaken for a rename).
+  # outputs.tf's five root outputs all read module.read_only_iam_policy_final.* -
+  # the only module that ever produced these values - so they are removed
+  # along with the block, the same edit a person deleting this resource would
+  # make.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live ARN one more time ==="
+  E_ADDR_BEFORE="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
+  [ "$E_ADDR_BEFORE" = "module.read_only_iam_policy_final.aws_iam_policy.policy:0" ] \
+    || fail "$POLICY_ARN does not carry tofu-address=module.read_only_iam_policy_final.aws_iam_policy.policy:0 before day2_remove even starts (got $E_ADDR_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.read_only_iam_policy_final's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed for module.read_only_iam_policy_final's policy even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.read_only_iam_policy_final's block ==="
+    perl -0pi -e 's/\nmodule "read_only_iam_policy_final" \{.*?\n\}\n//s' "$EST/main.tf"
+    perl -0pi -e 's/\nmoved \{\n  from = module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\]\n  to   = module\.read_only_iam_policy_moved\.aws_iam_policy\.policy\[0\]\n\}\n//s' "$EST/main.tf"
+    grep -q 'module "read_only_iam_policy_final"' "$EST/main.tf" \
+      && fail "removing module.read_only_iam_policy_final's block did not match - the config has moved"
+    cat > "$EST/outputs.tf" <<'EOF'
+################################################################################
+# IAM Policy - outputs removed along with module.read_only_iam_policy_final's
+# block (day2_remove)
+################################################################################
+EOF
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    printf '%s\n' "$REMOVE_PLAN_OUT" > /tmp/roiam-debug-plan.txt
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of module.read_only_iam_policy_final's policy as a possible rename (discovery.go's classifyOrphans) even though no other aws_iam_policy.policy block anywhere in this config ever declares a real instance - this is the honest wall issue #358 names, not a pass"
+    fi
+    grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.read_only_iam_policy_final's policy when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (module.read_only_iam_policy_final's policy), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    if E_STILL="$(awsl iam get-policy --policy-arn "$POLICY_ARN" 2>&1)"; then
+      echo "$E_STILL"; fail "$POLICY_ARN still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  $POLICY_ARN no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$E_FINAL_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan proposes a resource change"; }
+    log "  No resource change proposed. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)"
+  fi
+  CURRENT_STAGE=""
 fi
 
 CURRENT_STAGE=""
