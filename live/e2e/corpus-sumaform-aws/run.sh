@@ -1134,6 +1134,45 @@ done
 grep -qF 'Plan: 0 to add, 0 to change, 3 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly three destroys"; }
 log "  stock: exactly three destroys (module.server's instance, EBS volume, volume attachment), nothing else, on the state cold_deploy produced"
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A THIRD
+# copy of cold_deploy's own state (same $PLAIN base as D-ORACLE and
+# E-ORACLE above). module.server's own `image` input changes from
+# "ubuntu2204" to "ubuntu2404" - both real AMI names already in floci's
+# seeded catalog (this file's own header, "A REAL FLOCI GAP, FIXED"),
+# and ubuntu2404 confirmed to actually launch (not just resolve via the
+# unconditional aws_ami lookup every one of the ~20 seeded-but-never-
+# launched entries only needed) by a direct run-instances call against
+# the pinned digest, 2026-08-25. `ami` is ForceNew on aws_instance (AWS
+# has no in-place image swap for a running instance), so this forces a
+# replace at the SAME declared address, cascading into the EBS volume
+# attachment (`instance_id` is ForceNew there too; the EBS volume itself
+# is untouched - its own arguments never reference the instance). PLAN
+# ONLY, never applied - same convention as D-ORACLE/E-ORACLE: this copy
+# shares floci's ACCOUNT with $EST, and corpus-sqs-basic's own
+# day2_replace section found out the hard way that applying an oracle
+# here collaterally destroys the object $EST's later stages still
+# depend on.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE: stock: force-replace module.server's instance via its image input, on cold_deploy's own state ==="
+REPLACE_ORACLE="$WORK/replace-oracle"
+cp -r "$PLAIN" "$REPLACE_ORACLE"
+sed -i.bak 's/image = "ubuntu2204"/image = "ubuntu2404"/' "$REPLACE_ORACLE/main.tf"
+rm -f "$REPLACE_ORACLE/main.tf.bak"
+grep -q 'image = "ubuntu2404"' "$REPLACE_ORACLE/main.tf" \
+  || fail "changing module.server's image input in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && "$TF_COLD" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && "$TF_COLD" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && "$TF_COLD" plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.server\.module\.server\.module\.host\.aws_instance\.instance\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.server's instance when its image input changes"; }
+grep -qE '^  # module\.server\.module\.server\.module\.host\.aws_volume_attachment\.data_disk_attachment\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not cascade the instance replace into the volume attachment (instance_id is ForceNew there too)"; }
+grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan does not propose exactly 2 to add, 0 to change, 2 to destroy"; }
+log "  stock: exactly 2 to add, 0 to change, 2 to destroy - module.server's instance and its volume attachment, nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1527,6 +1566,114 @@ else
     || fail "the located record for module.server's instance holds importID='$GOT_INSTANCE_IMPORT_ID_DRIFT' after drift+reconverge, want '$INSTANCE_ID'"
   log "  module.server's instance identity unchanged throughout drift and reconverge."
   gauntlet_stage drift_reconverge pass "the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed right after STAGE 5 and before PART D, mirroring
+# corpus-ec2-instance-complete's own placement: module.server is never
+# touched by either rename PART D performs, so this section has no
+# dependency on PART D's outcome. $INSTANCE_ID, captured back at STAGE 1,
+# still names the live instance here.
+#
+# THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+# for the full reasoning, reproduced only in summary here): OpenTofu core
+# rejects a `lifecycle` block on a `module` call, and module.server's own
+# `image` input is the only thing this script can reach from outside the
+# vendored sumaform modules without patching them (this corpus's
+# reduction-only convention), so this evidence pass exercises the default
+# destroy-then-create ordering instead, exactly like the other two
+# day2_replace sections. BREAK=replace manufactures the create-before-
+# destroy collision shape directly via the AWS CLI, the same way theirs do.
+CURRENT_STAGE=day2_replace
+F_ADDR="module.server.module.server.module.host.aws_instance.instance[0]"
+
+log "=== F0. capture the live instance and its record ahead of the forced replace ==="
+F_OLD_IMPORT_ID="$(located_import_id "$F_ADDR")"
+[ "$F_OLD_IMPORT_ID" = "$INSTANCE_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $INSTANCE_ID"
+log "  $INSTANCE_ID, record import_id=$F_OLD_IMPORT_ID"
+
+if [ "${BREAK:-}" = "replace" ]; then
+  log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+  # A second, distinct live instance carrying no tag at all (module.server's
+  # instance is markers=record selected, part 2's own finding), launched
+  # directly via the AWS CLI - day2_crash (stage 10) owns testing a real
+  # interrupted apply; this is only proving the collision is reported.
+  BREAK_COLLISION_ID="$(awsl ec2 run-instances --image-id ami-ubuntu2204-amd64 --instance-type t3.medium \
+    --query 'Instances[0].InstanceId' --output text)"
+  [ -n "$BREAK_COLLISION_ID" ] && [ "$BREAK_COLLISION_ID" != "None" ] || fail "BREAK=replace: could not launch the collision instance"
+  sed -i.bak 's/image = "ubuntu2204"/image = "ubuntu2404"/' "$ESTATE/main.tf"
+  rm -f "$ESTATE/main.tf.bak"
+  BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  awsl ec2 terminate-instances --instance-ids "$BREAK_COLLISION_ID" >/dev/null 2>&1 || true
+  sed -i.bak 's/image = "ubuntu2404"/image = "ubuntu2204"/' "$ESTATE/main.tf"
+  rm -f "$ESTATE/main.tf.bak"
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live instances claiming module.server's record; it must report the collision, not propose nothing"; }
+  grep -qiE 'two live resources claiming one slot|collision' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than a named collision - this stage's check is not load-bearing"; }
+  log "  BREAK=replace: choudoufu correctly refused with a named collision rather than silently proposing nothing"
+else
+  log "=== F1. choudoufu: change module.server's image input, forcing a replace at the same declared address ==="
+  sed -i.bak 's/image = "ubuntu2204"/image = "ubuntu2404"/' "$ESTATE/main.tf"
+  rm -f "$ESTATE/main.tf.bak"
+  grep -q 'image = "ubuntu2404"' "$ESTATE/main.tf" || fail "changing module.server's image input did not match - the corpus pin has moved"
+
+  F_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.server\.module\.server\.module\.host\.aws_instance\.instance\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.server's instance when its ForceNew ami argument changes"; }
+  grep -qE '^  # module\.server\.module\.server\.module\.host\.aws_volume_attachment\.data_disk_attachment\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the instance replace into the volume attachment"; }
+  grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own two-resource cascade"; }
+  log "  choudoufu: exactly one instance replace at the same declared address, cascading into the volume attachment (instance_id is ForceNew there too) - matches F-ORACLE's own plan shape"
+
+  F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Resources: 2 added, 0 changed, 2 destroyed' <<< "$F_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 2 added, 0 changed, 2 destroyed"; }
+
+  F_OLD_STATE="$(awsl ec2 describe-instances --instance-ids "$INSTANCE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>&1)"
+  [ "$F_OLD_STATE" = "terminated" ] || fail "$INSTANCE_ID is not terminated after the replace (state=$F_OLD_STATE) - the old object was orphaned, not destroyed"
+  log "  $INSTANCE_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  # module.server's instance carries no tag at all (markers=record), so the
+  # new instance cannot be found by a tofu-address tag the way
+  # ec2-instance-complete's own F section finds its replacement. It is
+  # found instead by elimination against the AWS CLI: the one running
+  # instance in the account that is not $INSTANCE_ID and boots the new
+  # ubuntu2404 image.
+  F_NEW_ID="$(awsl ec2 describe-instances \
+    --filters "Name=image-id,Values=ami-ubuntu2404-amd64" "Name=instance-state-name,Values=running,pending" \
+    --query "Reservations[0].Instances[0].InstanceId" --output text)"
+  [ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] && [ "$F_NEW_ID" != "$INSTANCE_ID" ] \
+    || fail "could not find a new, different, running ubuntu2404 instance after the replace (got '$F_NEW_ID')"
+  log "  $F_NEW_ID (the new object) is running the ubuntu2404 image, confirmed via the AWS CLI"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed instance
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one). The record at the SAME address must now hold the NEW instance's
+  # id, not the one captured in F0.
+  F_NEW_IMPORT_ID="$(located_import_id "$F_ADDR")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_ID" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ID - a stale record still claiming the destroyed instance, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR)"
+
+  log "=== F2. one more plan: config and reality agree, no marker collision ==="
+  F_FINAL_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan proposes a resource change"; }
+  log "  No changes. The replace is complete and invisible to the next plan - no marker collision."
+
+  INSTANCE_ID="$F_NEW_ID"
+  gauntlet_stage day2_replace pass "choudoufu: changing module.server's image input (ubuntu2204 -> ubuntu2404, both real, both in floci's seeded AMI catalog) proposed exactly one instance replace at the same declared address, cascading into the volume attachment (instance_id is ForceNew there too) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated via the AWS CLI and the new instance is confirmed running the new image; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
 fi
 
 # ══════════════════════════════════════════════════════════════════════════
