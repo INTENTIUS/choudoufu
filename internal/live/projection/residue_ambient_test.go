@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -224,13 +225,14 @@ func TestClassifyResiduePathsRefusesAnAmbientAccountEcho(t *testing.T) {
 func TestScrubAmbientEchoNullsAnUnconfiguredAmbientValue(t *testing.T) {
 	schema := corsLikeSchema()
 	identityObj := s3AmbientIdentity("bucket-name", "000000000000", "eu-west-1")
+	ambient := ambientIdentityValues(schema, identityObj)
 	raw := cty.ObjectVal(map[string]cty.Value{
 		"id":                    cty.StringVal("bucket-name"),
 		"bucket":                cty.StringVal("bucket-name"),
 		"expected_bucket_owner": cty.StringVal("000000000000"),
 	})
 
-	scrubbed := scrubAmbientEcho(schema, raw, identityObj, nil)
+	scrubbed := scrubAmbientEcho(schema, raw, ambient, nil)
 	if got := scrubbed.GetAttr("expected_bucket_owner"); !got.IsNull() {
 		t.Fatalf("expected expected_bucket_owner to be nulled as an ambient echo config never set, got %#v", got)
 	}
@@ -243,7 +245,7 @@ func TestScrubAmbientEchoNullsAnUnconfiguredAmbientValue(t *testing.T) {
 	// account (a deliberate same-account expected_bucket_owner is real,
 	// not a guess) - and it must be left exactly as read.
 	configuredSeed := map[string]cty.Value{"expected_bucket_owner": cty.StringVal("000000000000")}
-	notScrubbed := scrubAmbientEcho(schema, raw, identityObj, configuredSeed)
+	notScrubbed := scrubAmbientEcho(schema, raw, ambient, configuredSeed)
 	if got := notScrubbed.GetAttr("expected_bucket_owner"); !got.RawEquals(cty.StringVal("000000000000")) {
 		t.Fatalf("expected a configured value to survive untouched even though it matches ambient context, got %#v", got)
 	}
@@ -257,15 +259,17 @@ func TestScrubAmbientEchoNullsAnUnconfiguredAmbientValue(t *testing.T) {
 		"bucket":                cty.StringVal("bucket-name"),
 		"expected_bucket_owner": cty.StringVal("111111111111"),
 	})
-	notAmbient := scrubAmbientEcho(schema, crossAccount, identityObj, nil)
+	notAmbient := scrubAmbientEcho(schema, crossAccount, ambient, nil)
 	if got := notAmbient.GetAttr("expected_bucket_owner"); !got.RawEquals(cty.StringVal("111111111111")) {
 		t.Fatalf("expected a value that does not match ambient context to survive untouched, got %#v", got)
 	}
 
-	// Mutation check 3: no identity object at all (every pre-identity
-	// provider, or a type whose identity schema names neither attribute) -
-	// scrub must be a complete no-op rather than nulling on no evidence.
-	noIdentity := scrubAmbientEcho(schema, raw, cty.NilVal, nil)
+	// Mutation check 3: no ambient context at all (every pre-identity
+	// provider, or a type whose identity schema names neither attribute,
+	// or - [builder.ambientContext]'s own case - a run where no sibling
+	// instance through the same provider has served one either) - scrub
+	// must be a complete no-op rather than nulling on no evidence.
+	noIdentity := scrubAmbientEcho(schema, raw, nil, nil)
 	if got := noIdentity.GetAttr("expected_bucket_owner"); !got.RawEquals(cty.StringVal("000000000000")) {
 		t.Fatalf("expected no scrub at all with no identity object in hand, got %#v", got)
 	}
@@ -280,8 +284,53 @@ func TestScrubAmbientEchoNullsAnUnconfiguredAmbientValue(t *testing.T) {
 		"bucket":                cty.StringVal("bucket-name"),
 		"expected_bucket_owner": cty.StringVal("000000000000"),
 	})
-	computedScrubbed := scrubAmbientEcho(computedSchema, computedRaw, identityObj, nil)
+	computedScrubbed := scrubAmbientEcho(computedSchema, computedRaw, ambient, nil)
 	if got := computedScrubbed.GetAttr("expected_bucket_owner"); !got.RawEquals(cty.StringVal("000000000000")) {
 		t.Fatalf("expected a Computed candidate to be left untouched by scrubAmbientEcho, got %#v", got)
+	}
+}
+
+// TestBuilderAmbientContextRemembersAcrossInstances is
+// [builder.ambientContext]'s own fixture, GitHub issue #402's second
+// gap: aws_s3_bucket_object_lock_configuration's own Read echoes the
+// identical ambient account id its cors/versioning/server_side_encryption
+// siblings do, but - confirmed against a live floci + hashicorp/aws
+// 6.59.0 - its own ReadResource response carries no NewIdentity at all, so
+// [ambientIdentityValues] applied to ITS OWN read alone finds nothing to
+// guard with. A sibling instance materialized earlier in the SAME run,
+// through the SAME provider connection, already proved what the ambient
+// account is; this is what lets that proof reach an instance whose own
+// read never volunteers it.
+func TestBuilderAmbientContextRemembersAcrossInstances(t *testing.T) {
+	b := &builder{}
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
+	schema := corsLikeSchema()
+
+	// First instance (cors_configuration-shaped): its own read DOES carry
+	// a native identity. ambientContext both learns from it and returns it.
+	corsIdentity := s3AmbientIdentity("bucket-a", "000000000000", "eu-west-1")
+	got1 := b.ambientContext(provAddr, schema, corsIdentity)
+	if v, ok := got1["account_id"]; !ok || !v.RawEquals(cty.StringVal("000000000000")) {
+		t.Fatalf("expected the first instance's own identity to be returned directly, got %#v", got1)
+	}
+
+	// Second instance (object_lock_configuration-shaped): no identity of
+	// its own (cty.NilVal, exactly what a nil NewIdentity decodes to), but
+	// the SAME provider connection. ambientContext must still return what
+	// the first instance already proved.
+	got2 := b.ambientContext(provAddr, schema, cty.NilVal)
+	if v, ok := got2["account_id"]; !ok || !v.RawEquals(cty.StringVal("000000000000")) {
+		t.Fatalf("expected the second instance to inherit the first's ambient account id, got %#v", got2)
+	}
+
+	// Mutation check: a DIFFERENT provider connection (a second aliased
+	// provider configuration, a genuinely different account) must not
+	// inherit the first provider's cache - proving this is keyed by
+	// provider connection, not shared globally across every instance in
+	// the run.
+	otherProvAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws"), Alias: "other"}
+	got3 := b.ambientContext(otherProvAddr, schema, cty.NilVal)
+	if len(got3) != 0 {
+		t.Fatalf("expected a distinct provider connection to start with no cached ambient context, got %#v", got3)
 	}
 }

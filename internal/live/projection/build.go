@@ -336,7 +336,51 @@ type builder struct {
 	// block, since every instance of a resource shares one.
 	depsByType map[string][]addrs.ConfigResource
 
+	// ambientByProvider is GitHub issue #402's cross-instance memory: the
+	// account id and region [ambientIdentityValues] reads off ANY
+	// instance's own resource-identity object, keyed by provider config
+	// address, so a sibling type whose Read echoes the identical ambient
+	// value into a deprecated argument but never itself returns a native
+	// identity (aws_s3_bucket_object_lock_configuration, confirmed against
+	// floci: its own read carries no [providers.ReadResourceResponse]
+	// NewIdentity at all, unlike its cors/versioning/server_side_encryption
+	// siblings, even though its Read echoes the identical account id) is
+	// not left unguarded just because IT never served the evidence.
+	//
+	// This is not a guess and not new plumbing from outside the package:
+	// every value that ever enters it came from a real read through THIS
+	// SAME provider connection, earlier in this SAME run - see
+	// [builder.ambientContext].
+	ambientByProvider map[string]map[string]cty.Value
+
 	diags tfdiags.Diagnostics
+}
+
+// ambientContext is [scrubAmbientEcho]'s ambient input, GitHub issue #402:
+// this instance's own resource identity, merged into and then read back
+// from [builder.ambientByProvider] so an instance whose OWN read carries no
+// native identity still benefits from what a sibling instance through the
+// identical provider connection already proved. Merging before reading
+// keeps a single-instance estate (nothing else to learn from) exactly as
+// safe as a multi-instance one: this instance's own evidence, if it has
+// any, is always in the map by the time this function returns it.
+func (b *builder) ambientContext(providerAddr addrs.AbsProviderConfig, schema providers.Schema, identityObj cty.Value) map[string]cty.Value {
+	own := ambientIdentityValues(schema, identityObj)
+	key := providerAddr.String()
+	if len(own) > 0 {
+		if b.ambientByProvider == nil {
+			b.ambientByProvider = make(map[string]map[string]cty.Value)
+		}
+		cached := b.ambientByProvider[key]
+		if cached == nil {
+			cached = make(map[string]cty.Value, len(own))
+		}
+		for name, v := range own {
+			cached[name] = v
+		}
+		b.ambientByProvider[key] = cached
+	}
+	return b.ambientByProvider[key]
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
@@ -1455,7 +1499,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// checkOwnership on purpose: neither reads this population of
 	// attributes, and obj.Value is what every trace line and every
 	// downstream comparison from here on reports.
-	obj.Value = scrubAmbientEcho(schema, obj.Value, obj.Identity, attrsSeed)
+	obj.Value = scrubAmbientEcho(schema, obj.Value, b.ambientContext(providerAddr, schema, obj.Identity), attrsSeed)
 
 	// Adopt the provider's own spelling of an identity-bearing attribute
 	// before anything downstream compares it to configuration - see

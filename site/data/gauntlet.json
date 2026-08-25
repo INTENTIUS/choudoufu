@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "70be3535d5f4e7b5a4ec92e6413363bf584ca156",
+  "commit": "10d1515361224ed56b3b26d4be3c8a45439c5d92",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T23:05:49Z",
+  "generated": "2026-08-25T00:26:10Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -183,8 +183,8 @@
           "not_run": 26
         },
         "migrate": {
-          "pass": 25,
-          "fail": 1,
+          "pass": 26,
+          "fail": 0,
           "not_run": 0
         },
         "plan_approval": {
@@ -260,8 +260,8 @@
           "not_run": 25
         },
         "migrate": {
-          "pass": 24,
-          "fail": 1,
+          "pass": 25,
+          "fail": 0,
           "not_run": 0
         },
         "plan_approval": {
@@ -1058,7 +1058,7 @@
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "not_run",
-        "migrate": "fail",
+        "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1067,12 +1067,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a5b8d810dad1f5a523ffcbccec58bfbc2c18fb01",
-        "date": "2026-08-24T22:15:28Z",
-        "exit_code": 1,
+        "commit": "10d1515361224ed56b3b26d4be3c8a45439c5d92",
+        "date": "2026-08-25T00:28:47Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
-          "migrate": "the residue-classification apply added or destroyed a resource - it should only ever change"
+          "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
+          "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4",
+          "test_plan": "no resource action proposed; 29 rendered identity occurrences (11 distinct), all naming known roots"
         }
       },
       "notes": "Landed 1398574b03 (2026-08-18); re-verified for real 2026-08-18 in an isolated worktree against local main bcf78bacbd, full pipeline reproduced clean twice in a row. #306 is fixed (lex00/floci S3ControlController.tagResource now reads-merges-writes; reconciled into the currently-pinned floci image; internal/live/lifecycle/marker_tag_merge_live_test.go's TestMarkerSurvivesIncrementalTagUpdate passes live against it). DELTA 6 (the tags-removal workaround) reverted - module.s3_bucket's real tags = { Owner = \"Anton\" } is back, unmodified, and the stage 2c residue-classification apply leaves all four buckets' markers intact with it restored. DELTA 5 (expected_bucket_owner) is UNCHANGED, for a reason independent of #306: it is ForceNew on most of these sub-resource types with no live representation at all (a request-header assertion, not a stored property), so a discovery-rebuilt prior would force a real replace on the very first onboarding apply - the same shape as DELTA 3's random_pet. The prior investigation's other open question - module.s3_bucket's canned acl and website.routing_rules - was checked for real rather than assumed fixed, and DOES still block test_plan after #306's fix, confirmed reproducibly. Traced past \"the provider's Read() needs a genuinely-remembered prior\" (the prior investigation's framing, which attributed this to #306 too - a conflation this session's trace evidence rules out, since the mechanism is unrelated to tags/floci entirely): issue #275's residue mechanism (internal/live/projection/residue.go) DOES run here and DOES try to classify acl - TF_LOG=trace on the stage 2c apply shows 'residue candidate \"acl\": readA=cty.StringVal(\"private\") readB=cty.StringVal(\"private\") applied=cty.StringVal(\"private\")', and classifyResidue's own documented rule reads that as \"the provider answers this from the remote\", so nothing is recorded as residue. Yet the SAME attribute, read moments later by internal/live/projection/build.go's importAndRead (the function stage 3's plan actually uses), comes back empty and proposes '+ acl = \"private\"'. The two reads disagree because their prior is built two different ways: residue.go's identityOnly nulls every non-identity attribute outright, while importAndRead's prior is whatever provider.ImportResourceState() returned - a zero-value stub (acl = \"\", not null) for this SDKv2 resource. The provider's Read() treats an explicit null differently from an SDKv2 zero-value string for this attribute; reconciling the two prior constructions is real work but importAndRead is the read path every projected resource in this fork goes through, so a fix needs corpus-wide validation, not a one-estate patch - out of scope here. SCOPED OUT instead (module.s3_bucket's acl and website inputs removed, applied to BOTH the cold-deploy and choudoufu copies so the crossing tests one genuinely-reduced estate throughout, not choudoufu silently abandoning management of something the cold deploy still created) - same discipline corpus-sumaform-aws uses for its own two structural refusals. Estate is now 30 instances across 14 aws_s3_bucket_* types (down from 32/15; aws_s3_bucket_acl survives elsewhere via module.cloudfront_log_bucket's own grant/owner-driven ACL). Also hit and fixed IN THIS SCRIPT (no choudoufu/floci change needed): THE OUTPUTS QUIRK already documented in corpus-iam-read-only-policy and corpus-root-dns-zones - module.s3_bucket's outputs, re-exported at root, have no prior baseline across a stateless live-plan, so every run shows a permanent 'Changes to Outputs' section and OpenTofu's renderer never prints a 'Plan: N to add...' line while that is true, empty of resource changes or not. Stage 3/5's empty-plan assertions now check for the absence of a resource action header ('will be (created|updated|destroyed)') instead of grepping for 'No changes.'/'Plan: 0 to add...', matching those two scripts' own pattern; this was never exercised before since stage 3 had never previously reached an actually-empty-of-resource-changes plan. Also fixed the rendered-import-identity count check (N_IDS), which had silently never been exercised either: several of module.s3_bucket's own sub-resource types (ownership_controls, versioning, policy, logging, cors_configuration, lifecycle_configuration, object_lock_configuration, public_access_block, accelerate_configuration, request_payment_configuration) import by the bucket's own id alone, so after sort -u only 10 distinct strings remain for 30 instances - the raw (pre-dedup) occurrence count (29) is what actually approximates \"one per instance\" and is now what the sanity floor checks; the deduplicated set is still what ids_all_name_known_roots validates."

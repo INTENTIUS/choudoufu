@@ -566,8 +566,17 @@ grep -qE '^Plan:' "$WORK/plan-residue.log" || { cat "$WORK/plan-residue.log" | t
 log "  $(grep -E '^Plan:' "$WORK/plan-residue.log")"
 APPLY_RESIDUE="$(cd "$ESTATE/examples/complete" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_RESIDUE" | grep -E '^Error' -A5 | head -60; fail "the residue-classification apply failed"; }
-grep -qE '^Apply complete! Resources: 0 added' <<< "$APPLY_RESIDUE" \
-  || { grep -E 'Apply complete' <<< "$APPLY_RESIDUE"; fail "the residue-classification apply added or destroyed a resource - it should only ever change"; }
+# GitHub issue #402's own scouting: this used to anchor only the "0 added"
+# prefix and never inspected the destroyed count, so "0 added, 0 changed, 1
+# destroyed" - random_pet.this, DELTA 3's own known gap (live-import does
+# not migrate untaggable effects resources, see header) - passed silently
+# on every run, undetected, alongside whatever else might have been
+# destroyed beside it. Pinned to the exact count instead: this apply may
+# destroy random_pet.this and NOTHING else, so a regression that destroys
+# an unrelated resource (or 2+, or 0 when random_pet's own gap is finally
+# closed) now fails loudly rather than passing this same permissive check.
+grep -qE '^Apply complete! Resources: 0 added, 0 changed, 1 destroyed\.$' <<< "$APPLY_RESIDUE" \
+  || { grep -E 'Apply complete' <<< "$APPLY_RESIDUE"; fail "the residue-classification apply did not destroy exactly random_pet.this and nothing else (0 added, 0 changed, 1 destroyed expected - issue #340's own known gap, see header) - it should only ever change, plus that one pre-existing destroy"; }
 log "  $(grep -E 'Apply complete' <<< "$APPLY_RESIDUE" | head -1)"
 for b in "${BUCKETS[@]}"; do
   EST="$(awsl s3api get-bucket-tagging --bucket "$b" --query "TagSet[?Key=='tofu-estate'].Value | [0]" --output text 2>/dev/null)"

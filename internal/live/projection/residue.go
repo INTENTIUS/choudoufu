@@ -1402,11 +1402,15 @@ func isAmbientEcho(v cty.Value, ambient map[string]cty.Value) bool {
 // at all, so a Computed candidate is left untouched here - a real,
 // provider-managed value is exactly what Computed promises, and nulling
 // one out would manufacture a diff a plain refresh would never show.
-func scrubAmbientEcho(schema providers.Schema, obj cty.Value, identityObj cty.Value, configuredSeed map[string]cty.Value) cty.Value {
+// ambient is [ambientIdentityValues]'s output, computed by the caller
+// rather than by this function directly - [builder.ambientContext] widens
+// what a single instance's own read would give
+// ([classifyResidue]/[classifyResiduePaths] use the narrower, per-instance
+// form directly, having no comparable cross-instance memory to draw on).
+func scrubAmbientEcho(schema providers.Schema, obj cty.Value, ambient map[string]cty.Value, configuredSeed map[string]cty.Value) cty.Value {
 	if schema.Block == nil || obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || obj.IsMarked() {
 		return obj
 	}
-	ambient := ambientIdentityValues(schema, identityObj)
 	if len(ambient) == 0 {
 		return obj
 	}
