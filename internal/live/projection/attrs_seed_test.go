@@ -424,7 +424,7 @@ func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
 	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-boundary"))
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, lambdaLikeSchema(), lambdaApplied(), strict.DefaultSecrets, sdkv2LikeRead)
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, lambdaLikeSchema(), lambdaApplied(), strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}
