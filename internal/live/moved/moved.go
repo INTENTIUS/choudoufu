@@ -295,6 +295,71 @@ func Aliases(stmts []Statement, declared addrs.AbsResourceInstance) []addrs.AbsR
 	return out
 }
 
+// Newest walks addr forward through stmts - the mirror of [Origins], which
+// walks a currently declared address backward to find every OLD address a
+// marker could still carry - and returns the address the chain ends at.
+//
+// It exists for the one shape [Origins] cannot answer: a source of truth
+// that a `moved` block never rewrites at all, so it goes on naming the OLD
+// address even after a honoured statement has moved the resource on
+// (gauntlet:destroy-order, corpus-security-group-complete's day2_remove
+// unit). internal/live/discovery/recordorphan_read.go's untaggable-orphan
+// leg is the first caller: a record-store key is written once, under
+// whatever address was declared at the time, and nothing re-keys it for a
+// bare HCL `moved` block the way [projection.RecordStore.MoveRecord] does
+// for `live-mv` (see that file's own package comment). Reading such a key
+// straight, with no forward translation, proposes destroying the object
+// under a stale module path a `moved` block already retired - which this
+// estate's own rename earlier in the same run leaves not currently
+// declared either, so nothing else in the discovery pass ever notices or
+// corrects it.
+//
+// addr is returned unchanged, with ok true, when no statement moves it at
+// all - the ordinary case for every OTHER key this leg reads. ok is false
+// only when the chain forks: two different statements each move today's
+// position on to a different address, and preferring one over the other
+// would be a guess this package's own "never approximated" discipline (see
+// [Origins]'s sibling doc comment on maxOrigins) refuses to make; the
+// caller keeps addr as it read it, which is exactly today's behavior for
+// that case.
+func Newest(stmts []Statement, addr addrs.AbsResourceInstance) (addrs.AbsResourceInstance, bool) {
+	cur := addr
+	seen := map[string]bool{cur.String(): true}
+	for i := 0; i < maxOrigins; i++ {
+		var next addrs.AbsResourceInstance
+		matches := 0
+		for _, stmt := range stmts {
+			// The endpoints are handed over in DECLARATION order here,
+			// the opposite of [Origins]' swap: "what does the object
+			// currently named cur become" rather than "what could the
+			// object now at cur have been called."
+			dst, ok := cur.MoveDestination(stmt.From, stmt.To)
+			if !ok {
+				continue
+			}
+			next = dst
+			matches++
+		}
+		switch matches {
+		case 0:
+			return cur, true
+		case 1:
+			if seen[next.String()] {
+				// A cycle, which a well-formed configuration's own move
+				// graph should never contain; stop rather than loop
+				// forever, and report what was found before the cycle
+				// closed.
+				return cur, true
+			}
+			seen[next.String()] = true
+			cur = next
+		default:
+			return addr, false
+		}
+	}
+	return cur, true
+}
+
 // Accepts reports whether observed - an escaped tofu-address marker value
 // read off a live object, never decoded - names declared: either declared's
 // own address, or an address a honoured `moved` block says moved here.
