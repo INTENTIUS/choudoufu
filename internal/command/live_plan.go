@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -947,6 +948,15 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	if needsDiags.HasErrors() {
 		return nil, noProvider, nil, diags
 	}
+	// needsSet is [needsProviders] as a membership test, built once: it is
+	// what tells [statelessDiscoverProviderUnavailable] whether a provider
+	// that could not be configured is one some declared instance's own
+	// IDENTITY depends on (fatal - see that function's doc comment) or one
+	// the estate-wide sweep alone would have used (downgradable).
+	needsSet := make(map[string]bool, len(needsProviders))
+	for _, addr := range needsProviders {
+		needsSet[addr.String()] = true
+	}
 
 	sweepProviders := statelessManagedResourceProviders(config)
 	if len(sweepProviders) == 0 {
@@ -962,6 +972,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
 		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
+		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
+			diags = diags.Append(warn)
+			return nil, noProvider, nil, diags
+		}
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -985,6 +999,22 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
 		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
+		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
+			// Sweep-only provider, unusable for the same reason stock never
+			// asks this question in one shot either: its own configuration
+			// depends on a managed resource this run has not created yet.
+			// Nothing under it could have been swept for before this
+			// moment - there is no way to have listed a Kubernetes object
+			// in a cluster that does not exist - so this pass contributes
+			// no orphans and binds nothing, exactly like a pass over an
+			// estate with zero managed resources of its own. The real
+			// resource graph configures this provider for real once its
+			// dependency is known, the same deferred order stock's own
+			// graph already gives it; skipping the pass here does not
+			// change what gets created, only when its identity is verified.
+			diags = diags.Append(warn)
+			continue
+		}
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -994,6 +1024,19 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 			Region:   provs.region(providerAddr),
 			Result:   res,
 		})
+	}
+	if len(passes) == 0 {
+		// Every provider configuration among the sweep's candidates was
+		// downgraded above: none of them could be reached, and none of
+		// them was needed for any declared instance's own identity either,
+		// or this loop would have returned fatally already. [discovery.
+		// Merge] with zero passes hands back a Result whose Resolutions is
+		// nil, and the caller's `if disco != nil { merged =
+		// disco.Resolutions }` would then overwrite the estate's whole,
+		// already-config-derived resolution set with nothing - so this
+		// case is reported exactly like "nothing waiting on discovery"
+		// (len(sweepProviders) == 0 above) rather than handed to Merge.
+		return nil, noProvider, nil, diags
 	}
 
 	merged, providerOf, mergeDiags := discovery.Merge(estate, passes)
@@ -1014,6 +1057,82 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		primary = needsProviders[0]
 	}
 	return merged, primary, providerOf, diags
+}
+
+// summaryProviderConfigNotEvaluableForSweep is [statelessDiscoverOne]'s
+// diagnostic Summary specifically for a [projection.
+// ProviderConfigNotEvaluable] failure - never for a schema-read or
+// plugin-launch failure, which keep the generic "Provider unavailable for
+// marker discovery" summary and stay fatal regardless of needsSet. It
+// exists so [statelessDiscoverProviderUnavailable] matches on a summary
+// this file alone produces for exactly this typed error, rather than on
+// rendered error text.
+const summaryProviderConfigNotEvaluableForSweep = "Provider configuration not evaluable for marker discovery"
+
+// statelessDiscoverProviderUnavailable is [statelessDiscover]'s single
+// downgrade rule, generic over every provider a config can name rather than
+// specific to any one of them: a provider configuration that could not be
+// built for the marker-discovery pass is fatal for the whole estate UNLESS
+// every one of these holds -
+//
+//   - no declared instance's own IDENTITY resolution depends on this
+//     provider (providerAddr is absent from needsSet, [statelessDiscover]'s
+//     own needsProviders membership test) - if it did, "could not verify"
+//     really does mean "cannot tell whether this instance already exists",
+//     which stays the fatal case ratifyOne (internal/live/liveimport/
+//     ratify.go) is the migrate-time analogue of, per instance rather than
+//     per pass;
+//   - discoDiags carries errors at all;
+//   - and the diagnostic is [statelessDiscoverOne]'s own "Provider
+//     unavailable for marker discovery" - not some other failure (a bad
+//     schema read, a plugin crash) this function must not paper over.
+//
+// The estate-wide sweep exists to find live objects a declared block does
+// not mention; a provider whose own configuration cannot yet be evaluated
+// because it reads a managed resource this same run has not created has
+// necessarily never been reachable by any tool before this moment either -
+// there is no way to have listed a Kubernetes object in a cluster that does
+// not exist - so skipping its pass loses no coverage anything could have
+// had. This is [statelessDiscover]'s side of GitHub issue #313's
+// provider-configuration dependency-order boundary: [statelessProviderData
+// Reads] already resolves such a provider's config once its dependency has
+// SOME prior identity to read (a record, a migrated marker); when it has
+// none - the first-ever create, corpus-eks-basic's own greenfield stage -
+// the real resource graph still configures the provider for real once its
+// dependency is known, the same deferred order stock's own graph gives it,
+// and this function is what keeps the stateless PRE-pass from refusing a
+// question stock never has to answer either.
+//
+// ok is false whenever discoDiags carries no error, or carries an error
+// this function does not recognize as downgradable; the caller's existing
+// fatal handling is unchanged in both cases. warn is meaningful only when
+// ok is true: the same information as a Warning instead of an Error, so an
+// operator still sees exactly what could not be swept and why.
+func statelessDiscoverProviderUnavailable(providerAddr addrs.AbsProviderConfig, needsSet map[string]bool, discoDiags tfdiags.Diagnostics) (tfdiags.Diagnostics, bool) {
+	if needsSet[providerAddr.String()] {
+		return nil, false
+	}
+	if !discoDiags.HasErrors() {
+		return nil, false
+	}
+	for _, d := range discoDiags {
+		if d.Severity() != tfdiags.Error || d.Description().Summary != summaryProviderConfigNotEvaluableForSweep {
+			return nil, false
+		}
+	}
+	var warn tfdiags.Diagnostics
+	for _, d := range discoDiags {
+		desc := d.Description()
+		warn = warn.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Provider unavailable for the estate-wide sweep",
+			fmt.Sprintf(
+				"%s No declared instance's identity depends on this provider configuration, so this is not fatal: nothing under it could have been swept before now either, since the provider itself could not be reached. Its declared instances proceed; the real apply configures this provider once its own dependency is known, the same order stock's plan graph already gives it.",
+				desc.Detail,
+			),
+		))
+	}
+	return warn, true
 }
 
 // statelessDiscoverOne runs [discovery.Discover] through one provider
@@ -1038,9 +1157,20 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
+		// A distinct Summary for the one class [statelessDiscoverProvider
+		// Unavailable] may downgrade ([projection.ProviderConfigNotEvaluable]:
+		// this provider's own block could not be statically evaluated, not
+		// a broken plugin or missing credentials) so that function's match
+		// is on the typed error, not on rendered text; every other failure
+		// keeps the summary it has always had and stays fatal.
+		summary := "Provider unavailable for marker discovery"
+		var notEvaluable *projection.ProviderConfigNotEvaluable
+		if errors.As(err, &notEvaluable) {
+			summary = summaryProviderConfigNotEvaluableForSweep
+		}
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Provider unavailable for marker discovery",
+			summary,
 			fmt.Sprintf("Finding the live resources of this estate needs provider %s, which could not be used: %s.", providerAddr, err),
 		))
 	}
@@ -2998,7 +3128,14 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 
 	configVal, cfgDiags := p.providerConfigValue(ctx, addr, block.DecoderSpec())
 	if cfgDiags.HasErrors() {
-		return nil, fmt.Errorf("cannot evaluate the configuration of provider %s: %w", addr, cfgDiags.Err())
+		// A typed error, not just a wrapped one: [projection.
+		// ProviderConfigNotEvaluable]'s own doc comment is the caller-side
+		// half of this - it is what lets statelessDiscoverProviderUnavailable
+		// and internal/live/projection's materialize family tell "this
+		// provider's own block depends on a value nothing has yet" apart
+		// from a genuinely broken plugin or missing credentials (the two
+		// error paths below, both left as plain errors on purpose).
+		return nil, &projection.ProviderConfigNotEvaluable{Provider: addr, Err: cfgDiags.Err()}
 	}
 
 	provider, diags := p.mgr.NewConfiguredProvider(ctx, addr.Provider, configVal)
