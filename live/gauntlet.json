@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "10d1515361224ed56b3b26d4be3c8a45439c5d92",
+  "commit": "ce67940b86feae0343df28f09360742eeae319a6",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-25T00:26:10Z",
+  "generated": "2026-08-25T01:14:28Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 24,
+      "clear": 25,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 23,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 23,
+          "pass": 24,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
@@ -1055,7 +1055,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1066,14 +1066,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "10d1515361224ed56b3b26d4be3c8a45439c5d92",
-        "date": "2026-08-25T00:28:47Z",
+        "commit": "ce67940b86feae0343df28f09360742eeae319a6",
+        "date": "2026-08-25T01:17:41Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
+          "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4",
