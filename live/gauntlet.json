@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "df0cc6a0759627fddb8a3d12cc275a3eec20d9e3",
+  "commit": "7ff51b84d3e509f8d8d387c182098b1ead29dc9d",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T17:20:48Z",
+  "generated": "2026-08-25T17:25:44Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -624,8 +624,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
-        "date": "2026-08-25T09:36:35Z",
+        "commit": "7ff51b84d3e509f8d8d387c182098b1ead29dc9d",
+        "date": "2026-08-25T17:26:53Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resource instances added, 0 already tofu-estate-marked before migration",
