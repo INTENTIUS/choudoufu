@@ -539,32 +539,31 @@ if [ "${BREAK:-}" = "rename" ]; then
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # Verified directly (isolated BREAK=rename run - day2_rename's own break
-  # lever, distinct from stage 2/5's BREAK=1, so it is reachable without
-  # tripping an earlier stage's exit), and re-verified across FIVE back-to-
-  # back runs because the first three disagreed with each other: aws_iam_user's
-  # identity is deterministically client-named (its own `name` argument), so
-  # choudoufu's discovery finds the SAME live user twice - once by the marker
-  # still naming the old, no-longer-declared address, once as the derivable
-  # candidate for the new address the renamed module now wants. This is a
-  # GENUINE nondeterminism, not a flaky assertion - recorded here rather than
-  # chased (script-only unit; see the PR, and the class this plausibly
-  # matches in .claude/agents/live-markers.md's "Go map order as hidden
-  # nondeterminism" trap - not confirmed as the root cause). Two independent
-  # things vary run to run: whether the ambiguity WARNING ("Live resource
-  # marked for another address", naming both addresses) fires at all (2 of 5
-  # runs), and whether the plan proposes CREATING
-  # module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user outright
-  # (4 of 5 runs, including one run where the warning fired AND the create
-  # was still proposed anyway - the warning does not reliably gate the plan
-  # node's own decision). The one invariant across all five runs, and the one
-  # this assertion actually enforces, is the dangerous case that must never
-  # happen: the plan must never propose DESTROYING the live user under its
-  # old, still-marked address (that would orphan a marked object). Beyond
-  # that, this control only needs to prove day2_rename's real checks below
-  # are load-bearing - i.e. that skipping the moved block does NOT reproduce
-  # their zero-churn result - which every one of the five runs did (either by
-  # warning with nothing proposed, or by proposing a create).
+  # GitHub issue #403 part 1 re-checked this control's earlier finding of
+  # GENUINE cross-run nondeterminism (warning fires or not, create is
+  # proposed or not, independently) and could not reproduce it: TEN
+  # consecutive isolated BREAK=rename runs against the current main and the
+  # current emulator image came back byte-identical (warning=1, create=1
+  # every time - see the PR for the exact repro). Reading every map range
+  # in internal/live/discovery's decision path (bind, classifyOrphans,
+  # indexCountBlocks, typeNames/bindTypeNames) - the sweep the earlier
+  # finding suspected but had not done - found none left unsorted where a
+  # decision or a message depends on it: every map-ordered accumulation
+  # there flows into a sort.Strings/sort.Slice call before anything reads
+  # it back, or only sets an idempotent flag. The mechanism that actually
+  # fires (internal/live/projection/ownership.go's addressNames, GitHub
+  # issue #244) is a single deterministic per-instance comparison with no
+  # map in it at all. Left un-narrowed here (aws_iam_user's identity being
+  # client-named is what makes BOTH the warning and the create fire
+  # together, not two independent coin flips), but the load-bearing check
+  # below is unchanged and deliberately still tolerant of either shape:
+  # the one invariant that actually matters, and the one this assertion
+  # enforces, is the dangerous case that must never happen - the plan must
+  # never propose DESTROYING the live user under its old, still-marked
+  # address (that would orphan a marked object). Beyond that, this control
+  # only needs to prove day2_rename's real checks below are load-bearing -
+  # i.e. that skipping the moved block does NOT reproduce their zero-churn
+  # result - which it does, stably, by proposing a create.
   [ "$BREAK_PLAN_RC" -eq 0 ] \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit (see header)"; }
   grep -qE '^  # module\.harbor_iam_user\.aws_iam_user\.hm_harbor_iam_user will be destroyed' <<< "$BREAK_PLAN_OUT" \
