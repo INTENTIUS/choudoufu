@@ -84367,6 +84367,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Re-probed against this digest 2026-08-25 (lex00/floci#139/#140, PortAllocator cross-namespace fix): create-domain returns Processing=false immediately and delete-domain returns Deleted=true, the same daemonless-control-plane round trip as every prior digest. The search data plane remains unverifiable without the docker socket.",
+          "source": "hand probe against this digest"
+        },
+        {
           "type": "aws_opensearchserverless_access_policy",
           "mechanism": "cloudcontrol-list-scoped",
           "status": "unimplemented",
@@ -84535,6 +84541,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest 2026-08-25 (lex00/floci#139/#140, PortAllocator cross-namespace fix): a real, SigV4-shaped GET /ledgers with Host: qldb.us-east-1.amazonaws.com issued directly via curl. Result: clean UnknownOperationException (\"Unknown operation: GET /ledgers\"), same as every prior digest - still no QLDB handler.",
+          "source": "hand probe against this digest"
+        },
+        {
           "type": "aws_quicksight_analysis",
           "mechanism": "cloudcontrol-list-scoped",
           "status": "unimplemented",
@@ -84652,6 +84664,12 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::RDS::DBShardGroup, {}) made a resource but the following ListResources(AWS::RDS::DBShardGroup) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "status": "implemented",
+          "evidence": "Re-probed against this digest 2026-08-25 (lex00/floci#139/#140, PortAllocator cross-namespace fix): redshift create-cluster (single-node, dc2.large) succeeds and returns ClusterStatus \"available\" - unchanged from every prior digest. Cloud Control's List route is still what is broken here, not the type itself.",
+          "source": "hand probe against this digest"
         },
         {
           "type": "aws_redshift_cluster",
