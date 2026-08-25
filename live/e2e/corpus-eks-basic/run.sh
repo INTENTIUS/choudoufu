@@ -817,133 +817,6 @@ log "  cluster $CLUSTER_NAME is ACTIVE, confirmed unmarked via the AWS CLI direc
 gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarked"
 
 # ══════════════════════════════════════════════════════════════════════════
-# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
-# containers on the same $NET (real EKS mode's k3s/EC2-simulation sibling
-# containers need to reach whichever floci they belong to by name over one
-# network, so a second network buys nothing). choudoufu applies the
-# unreduced corpus example directly with a live block from the start, no
-# migration, no state file ever existing; the estate's own oracle is stock
-# applying the identical config fresh in a third, independent namespace,
-# compared structurally via the AWS CLI on both endpoints, never through
-# tofu state, never through choudoufu's own report.
-# ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=greenfield
-log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
-docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
-  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
-  --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
-  || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
-  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
-  --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
-  || fail "docker run for $FLOCI_ORACLE_NAME failed"
-for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
-  GH=""
-  for _ in $(seq 1 45); do
-    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
-    grep -q '"eks"' <<< "${GH:-}" && break
-    sleep 2
-  done
-  grep -q '"eks"' <<< "${GH:-}" || fail "floci did not come up healthy (eks) at $gep"
-done
-log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
-
-mkdir -p "$WORK/green" "$WORK/green-oracle"
-cp -R "$SRC" "$WORK/green/eks"
-cp -R "$SRC" "$WORK/green-oracle/eks"
-rm -rf "$WORK/green/eks/.git" "$WORK/green/eks/.github" "$WORK/green-oracle/eks/.git" "$WORK/green-oracle/eks/.github"
-apply_deltas "$WORK/green" 0
-apply_deltas "$WORK/green-oracle" 0
-perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/main.tf"
-grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
-  || fail "the greenfield live-block delta did not match main.tf - the corpus pin has moved"
-
-log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
-green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
-  tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
-GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
-  fail "the greenfield apply failed"
-}
-grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$GREEN_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 54 resources"; }
-log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
-
-awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
-awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
-
-log "=== G2. the cluster's marker, read through the AWS CLI directly ==="
-GREEN_CLUSTER_NAME="$(awsg eks list-clusters --query 'clusters[0]' --output text)"
-[ -n "$GREEN_CLUSTER_NAME" ] && [ "$GREEN_CLUSTER_NAME" != "None" ] || fail "no EKS cluster found on the greenfield endpoint"
-GREEN_CLUSTER_ADDR="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-address\"" --output text)"
-[ "$GREEN_CLUSTER_ADDR" = "module.eks.aws_eks_cluster.this[0]" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.eks.aws_eks_cluster.this[0]"
-GREEN_CLUSTER_ESTATE="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-estate\"" --output text)"
-[ "$GREEN_CLUSTER_ESTATE" = "$GREEN_ESTATE" ] || fail "the greenfield cluster carries tofu-estate=$GREEN_CLUSTER_ESTATE, not $GREEN_ESTATE"
-log "  $GREEN_CLUSTER_NAME carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
-
-log "=== G3. the record store holds what the current record-writer can (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
-[ "$GREEN_RECORD_FILES" -ge 1 ] || fail "expected at least one record under the implied local record store after the greenfield apply, found $GREEN_RECORD_FILES"
-log "  $GREEN_RECORD_FILES records persisted under the implied local record store (not asserted against an exact expected count here - see corpus-ecs-fargate's own greenfield stage for the numeric-wire-identity-component gap that makes an exact count estate-specific)"
-
-log "=== G4. the next plan proposes nothing ==="
-GREEN_PLAN_OUT="$(green_tofu_run plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
-[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -60; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
-  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
-log "  No changes."
-
-log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
-oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
-  tail -60 /tmp/eks-basic-green-oracle-init.log; fail "the greenfield oracle's init failed"; }
-ORACLE_APPLY_OUT="$(oracle_green_terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$ORACLE_APPLY_OUT" | grep -E '^Error|^│' | head -60
-  fail "the greenfield oracle apply failed"
-}
-grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$ORACLE_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 54 resources"; }
-log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
-
-log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
-eks_basic_shape() { # $1 = endpoint - a normalised structural fact sheet,
-                     # read via the AWS CLI, never through tofu state.
-  local ep="$1" cn
-  cn="$(aws --endpoint-url "$ep" --region "$REGION" eks list-clusters --query 'clusters[0]' --output text 2>/dev/null)"
-  aws --endpoint-url "$ep" --region "$REGION" eks describe-cluster --name "$cn" \
-    --query "cluster.[status,version]" --output text 2>/dev/null | awk '{print "cluster status="$1" version="$2}'
-  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
-    --query "length(AutoScalingGroups)" --output text 2>/dev/null | sed 's/^/asg_count=/'
-  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
-    --query "sort(AutoScalingGroups[].DesiredCapacity)" --output text 2>/dev/null | tr '\t' ',' | sed 's/^/asg_desired_sorted=/'
-  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-security-groups \
-    --filters "Name=tag:kubernetes.io/cluster/${cn},Values=owned" \
-    --query "length(SecurityGroups)" --output text 2>/dev/null | sed 's/^/cluster_owned_sg_count=/'
-}
-GREEN_SHAPE="$(eks_basic_shape "$GREEN_ENDPOINT" | sort)"
-ORACLE_SHAPE="$(eks_basic_shape "$ORACLE_ENDPOINT" | sort)"
-if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
-  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
-  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
-fi
-log "  object-by-object match: cluster status/version, autoscaling-group count and sorted desired capacities, and the cluster-owned security-group count - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
-
-gauntlet_stage greenfield pass "54 resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
-CURRENT_STAGE=""
-
-# The green/oracle floci containers, and whatever k3s/EC2-simulation sibling
-# containers they spawned, are deliberately left running rather than swept
-# here: a blanket "docker ps --filter name=floci-eks-" sweep cannot tell
-# THEIR sibling containers apart from the MAIN cluster's own (already
-# running since cold_deploy, still needed by every stage below), so it
-# would kill the wrong cluster. cleanup()'s exit trap does the blanket
-# sweep once, after everything in this script is done with all three floci
-# instances.
-
-# ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -1694,6 +1567,133 @@ fi
 CURRENT_STAGE=""
 
 CURRENT_STAGE=""
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
+# containers on the same $NET (real EKS mode's k3s/EC2-simulation sibling
+# containers need to reach whichever floci they belong to by name over one
+# network, so a second network buys nothing). choudoufu applies the
+# unreduced corpus example directly with a live block from the start, no
+# migration, no state file ever existing; the estate's own oracle is stock
+# applying the identical config fresh in a third, independent namespace,
+# compared structurally via the AWS CLI on both endpoints, never through
+# tofu state, never through choudoufu's own report.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=greenfield
+log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
+docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
+  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
+  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"eks"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"eks"' <<< "${GH:-}" || fail "floci did not come up healthy (eks) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+mkdir -p "$WORK/green" "$WORK/green-oracle"
+cp -R "$SRC" "$WORK/green/eks"
+cp -R "$SRC" "$WORK/green-oracle/eks"
+rm -rf "$WORK/green/eks/.git" "$WORK/green/eks/.github" "$WORK/green-oracle/eks/.git" "$WORK/green-oracle/eks/.github"
+apply_deltas "$WORK/green" 0
+apply_deltas "$WORK/green-oracle" 0
+perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/main.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
+  || fail "the greenfield live-block delta did not match main.tf - the corpus pin has moved"
+
+log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
+  tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
+  fail "the greenfield apply failed"
+}
+grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 54 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== G2. the cluster's marker, read through the AWS CLI directly ==="
+GREEN_CLUSTER_NAME="$(awsg eks list-clusters --query 'clusters[0]' --output text)"
+[ -n "$GREEN_CLUSTER_NAME" ] && [ "$GREEN_CLUSTER_NAME" != "None" ] || fail "no EKS cluster found on the greenfield endpoint"
+GREEN_CLUSTER_ADDR="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-address\"" --output text)"
+[ "$GREEN_CLUSTER_ADDR" = "module.eks.aws_eks_cluster.this[0]" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.eks.aws_eks_cluster.this[0]"
+GREEN_CLUSTER_ESTATE="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-estate\"" --output text)"
+[ "$GREEN_CLUSTER_ESTATE" = "$GREEN_ESTATE" ] || fail "the greenfield cluster carries tofu-estate=$GREEN_CLUSTER_ESTATE, not $GREEN_ESTATE"
+log "  $GREEN_CLUSTER_NAME carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
+
+log "=== G3. the record store holds what the current record-writer can (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -ge 1 ] || fail "expected at least one record under the implied local record store after the greenfield apply, found $GREEN_RECORD_FILES"
+log "  $GREEN_RECORD_FILES records persisted under the implied local record store (not asserted against an exact expected count here - see corpus-ecs-fargate's own greenfield stage for the numeric-wire-identity-component gap that makes an exact count estate-specific)"
+
+log "=== G4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(green_tofu_run plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -60; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
+oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
+  tail -60 /tmp/eks-basic-green-oracle-init.log; fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(oracle_green_terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | grep -E '^Error|^│' | head -60
+  fail "the greenfield oracle apply failed"
+}
+grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 54 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
+eks_basic_shape() { # $1 = endpoint - a normalised structural fact sheet,
+                     # read via the AWS CLI, never through tofu state.
+  local ep="$1" cn
+  cn="$(aws --endpoint-url "$ep" --region "$REGION" eks list-clusters --query 'clusters[0]' --output text 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" eks describe-cluster --name "$cn" \
+    --query "cluster.[status,version]" --output text 2>/dev/null | awk '{print "cluster status="$1" version="$2}'
+  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
+    --query "length(AutoScalingGroups)" --output text 2>/dev/null | sed 's/^/asg_count=/'
+  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
+    --query "sort(AutoScalingGroups[].DesiredCapacity)" --output text 2>/dev/null | tr '\t' ',' | sed 's/^/asg_desired_sorted=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=tag:kubernetes.io/cluster/${cn},Values=owned" \
+    --query "length(SecurityGroups)" --output text 2>/dev/null | sed 's/^/cluster_owned_sg_count=/'
+}
+GREEN_SHAPE="$(eks_basic_shape "$GREEN_ENDPOINT" | sort)"
+ORACLE_SHAPE="$(eks_basic_shape "$ORACLE_ENDPOINT" | sort)"
+if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
+fi
+log "  object-by-object match: cluster status/version, autoscaling-group count and sorted desired capacities, and the cluster-owned security-group count - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
+
+gauntlet_stage greenfield pass "54 resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
+CURRENT_STAGE=""
+
+# The green/oracle floci containers, and whatever k3s/EC2-simulation sibling
+# containers they spawned, are deliberately left running rather than swept
+# here: a blanket "docker ps --filter name=floci-eks-" sweep cannot tell
+# THEIR sibling containers apart from the MAIN cluster's own (already
+# running since cold_deploy and still live at this point in the script), so it
+# would kill the wrong cluster. cleanup()'s exit trap does the blanket
+# sweep once, after everything in this script is done with all three floci
+# instances.
+
 gauntlet_end
 
 log ""
