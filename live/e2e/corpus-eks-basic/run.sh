@@ -1705,9 +1705,27 @@ green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 
 #      namespace (lex00/floci PR #140, DockerClient-aware port allocation,
 #      a regression test proven load-bearing) and PUSHED TO ORIGIN ONLY -
 #      publishing the image and repinning live/floci-image is the shared-
-#      layer step the orchestrator batches, not done here. This stage
-#      stays fail, honestly, until that repin lands; re-run it once it
-#      has, before touching this comment again.
+#      layer step the orchestrator batches, not done here.
+# UPDATE 2026-08-25 (gauntlet:eks-basic/greenfield re-measure): main now
+# carries both halves this estate was waiting on - 7f48ff1086 (walls 1+2
+# above) and 2da22751de (the repin to sha256:670a8783, including
+# lex00/floci#139's PortAllocator fix, wall 3 above). Re-run against both:
+# the apply itself now succeeds, all 54 resources created, no floci port
+# collision. One more wall, found by this re-run, is NOT a choudoufu
+# defect: G2's own assertion below expected the cluster's tofu-address tag
+# in bare HCL bracket syntax ("module.eks.aws_eks_cluster.this[0]"), but
+# the marker spec (internal/live/markers/markers.go's EscapeAddress, used
+# by every stamp - see internal/live/projection/nodestamp.go) has always
+# escaped an instance key's "[0]" to ":0" in the tag VALUE itself; every
+# sibling corpus script that checks an indexed resource's live tofu-
+# address tag already expects the colon form (corpus-autoscaling-
+# complete's own LT_ADDR="module.complete.aws_launch_template.this:0" is
+# the same pattern). Confirmed via the AWS CLI directly against the live
+# tag (no tofu in the loop for the comparison): the cluster genuinely
+# carries "module.eks.aws_eks_cluster.this:0". This script's own G2
+# assertion was simply never updated to the escaped form - fixed to match
+# every other estate's own convention, not a marker/stamp change. With
+# that one-line fix the stage passes end to end.
 GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
   fail "the greenfield apply failed - see live/gauntlet/logs/corpus-eks-basic.log for the full diagnostic"
@@ -1723,7 +1741,7 @@ log "=== G2. the cluster's marker, read through the AWS CLI directly ==="
 GREEN_CLUSTER_NAME="$(awsg eks list-clusters --query 'clusters[0]' --output text)"
 [ -n "$GREEN_CLUSTER_NAME" ] && [ "$GREEN_CLUSTER_NAME" != "None" ] || fail "no EKS cluster found on the greenfield endpoint"
 GREEN_CLUSTER_ADDR="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-address\"" --output text)"
-[ "$GREEN_CLUSTER_ADDR" = "module.eks.aws_eks_cluster.this[0]" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.eks.aws_eks_cluster.this[0]"
+[ "$GREEN_CLUSTER_ADDR" = "module.eks.aws_eks_cluster.this:0" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.eks.aws_eks_cluster.this:0"
 GREEN_CLUSTER_ESTATE="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-estate\"" --output text)"
 [ "$GREEN_CLUSTER_ESTATE" = "$GREEN_ESTATE" ] || fail "the greenfield cluster carries tofu-estate=$GREEN_CLUSTER_ESTATE, not $GREEN_ESTATE"
 log "  $GREEN_CLUSTER_NAME carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
