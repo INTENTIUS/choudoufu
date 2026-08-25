@@ -805,13 +805,29 @@ log "  stock: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]) on 
 # sibling key should be untouched by construction - which is exactly what
 # PART G's OTHER_TOUCHED_* checks confirm on the choudoufu side, below.
 # Same timing discipline as D-ORACLE/E-ORACLE: a copy of $PLAIN's own
-# state, before choudoufu or live-import ever touch these objects.
-# TF_VAR_vpcs is overridden per-command here, never exported, so the
-# global value every stage below this one relies on is undisturbed.
+# state, before choudoufu or live-import ever touch these objects. AND -
+# unlike D-ORACLE/E-ORACLE, which is what makes this plan-only rather than
+# apply-and-verify like B1.7's oracle in reference-ec2-vpc/run.sh - this
+# copy's state still points at the SAME real objects in the SAME shared
+# $ENDPOINT account every later stage (migrate onward) depends on finding
+# undisturbed. An apply here would for-real destroy/recreate the live
+# main-logs endpoint out from under $PLAIN's own terraform.tfstate, which
+# STAGE 2 (migrate) reads right after this - exactly the mistake an
+# earlier version of this section made (a real EXIT=1 run confirmed it:
+# STAGE 3 came back proposing a create for module.vpc.aws_vpc_endpoint.
+# interface["main-logs"] because the id F-ORACLE's apply left behind no
+# longer matched the one $PLAIN's state remembered). So both directions
+# below are PLAN-ONLY, never applied - the down-plan reads directly off
+# cold_deploy's untouched state (matches the real cloud), and the
+# up-plan's "the member is not there yet" starting point is simulated
+# with `tofu state rm` on a SEPARATE copy - a pure local state edit, no
+# provider API call, so it can never touch a live object. TF_VAR_vpcs is
+# overridden per-command here, never exported, so the global value every
+# stage below this one relies on is undisturbed.
 CURRENT_STAGE=day2_count
 PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
-log "=== F-ORACLE: stock tofu, dropping then restoring \"logs\" from var.vpcs.main.vpc_endpoints, on cold_deploy's own state ==="
+log "=== F-ORACLE: stock tofu, dropping then restoring \"logs\" from var.vpcs.main.vpc_endpoints, on cold_deploy's own state (plan-only - see header) ==="
 ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
 
@@ -823,13 +839,15 @@ ORACLE_OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interf
 [ -z "$ORACLE_OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_DOWN"; fail "stock's scale-down plan touches an interface endpoint other than main-logs"; }
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
-ORACLE_COUNT_DOWN_APPLY_OUT="$(cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_DOWN" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$ORACLE_COUNT_DOWN_APPLY_OUT" | tail -40; fail "the day2_count stock oracle's scale-down apply failed"; }
-grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_COUNT_DOWN_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$ORACLE_COUNT_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
-log "  stock: exactly one destroy (main-logs), every other interface endpoint untouched"
+log "  stock (plan-only): exactly one destroy proposed (main-logs), every other interface endpoint untouched"
 
-ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
+PLAIN_COUNT_ORACLE_UP="$WORK/plain-count-oracle-up"
+cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE_UP"
+( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+STATE_RM_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu state rm 'module.vpc.aws_vpc_endpoint.interface["main-logs"]' 2>&1)"; STATE_RM_RC=$?
+[ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
+ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
 [ "$ORACLE_COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_COUNT_UP_PLAN_RC"; }
 grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.interface\["main-logs"\] will be created' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create main-logs"; }
@@ -837,11 +855,7 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interfac
 [ -z "$ORACLE_OTHER_TOUCHED_UP" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_UP"; fail "stock's scale-up plan touches an interface endpoint other than main-logs"; }
 grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
-ORACLE_COUNT_UP_APPLY_OUT="$(cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$ORACLE_COUNT_UP_APPLY_OUT" | tail -40; fail "the day2_count stock oracle's scale-up apply failed"; }
-grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_UP_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$ORACLE_COUNT_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
-log "  stock: exactly one create (main-logs) on the way back up, every other interface endpoint untouched throughout"
+log "  stock (plan-only): exactly one create proposed (main-logs, state simulated with 'tofu state rm' - no live object ever touched), every other interface endpoint untouched"
 
 CURRENT_STAGE=migrate
 
