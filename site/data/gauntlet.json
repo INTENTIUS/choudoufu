@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "f2747c30117678221632ce9cbda523f89eb64b08",
+  "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T09:28:07Z",
+  "generated": "2026-08-25T09:35:37Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 16,
+      "clear": 17,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 17,
-          "fail": 9,
+          "pass": 18,
+          "fail": 8,
           "not_run": 0
         },
         "day2_rename": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 16,
-          "fail": 9,
+          "pass": 17,
+          "fail": 8,
           "not_run": 0
         },
         "day2_rename": {
@@ -608,7 +608,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -620,15 +620,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "cddae6c9194b6c9a116985a2b5383aac3b05d51b",
-        "date": "2026-08-25T08:50:19Z",
-        "exit_code": 1,
+        "commit": "632d8f71efb3b048ebb2b85e4ffe34ed6414e9df",
+        "date": "2026-08-25T09:36:35Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resource instances added, 0 already tofu-estate-marked before migration",
-          "day2_remove": "choudoufu's day2_remove plan differs from stock's oracle ONLY in module name (module.crossplane_final vs module.crossplane) - the instance set and action set are byte-for-byte identical (see the comment immediately above this assertion): the oracle was built from cold_deploy's own never-renamed state, so this comparison was always going to disagree on the module name once day2_rename's own children actually resolve; not a choudoufu defect, and this assertion itself is what needs fixing, not this script-only unit's own scope",
+          "day2_remove": "choudoufu: deleting module.crossplane_final's block proposed 6 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured",
           "greenfield": "6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy",

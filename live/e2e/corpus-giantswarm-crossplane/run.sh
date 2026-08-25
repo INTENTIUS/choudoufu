@@ -1073,44 +1073,37 @@ EOF
     # named, neither is fixed in this script-only unit.
     grep -qF "module.crossplane_final.aws_iam_role.giantswarm_crossplane_role will be destroyed" <<< "$REMOVE_CHANGES" \
       || { printf '%s\n' "$REMOVE_CHANGES"; fail "choudoufu proposes no destroy at all for module.crossplane_final's block (not even the role itself, tagged though it is) - see the comment immediately above this assertion for the reproduced root cause (an estate whose configuration declares zero resource/module blocks is never swept for its own orphaned tagged objects)"; }
-    [ "$REMOVE_CHANGES" = "$REMOVE_ORACLE_CHANGES" ] \
+    # FIXED (gauntlet:rename-beneficiaries, 2026-08-25) - the oracle-
+    # comparison design issue named below by gauntlet:giantswarm-mv-children.
+    # PLAIN_ORACLE_REMOVE is deliberately built from $PLAIN, cold_deploy's
+    # OWN, never-renamed state (module.crossplane throughout - see the
+    # D-ORACLE comment above STAGE 2), so that this stage's oracle answers
+    # "what does stock destroy when the block is removed" with nothing else
+    # in play, the same isolation principle the day2_rename D-ORACLE above
+    # applies to the rename question alone. By the time this stage runs,
+    # choudoufu's own estate has gone through Part D's real, verified
+    # rename chain (module.crossplane -> .crossplane_renamed ->
+    # .crossplane_final), so a literal string comparison of the two plans'
+    # addresses was always going to disagree on the module name alone,
+    # independent of whether the underlying instance set and action set
+    # genuinely match. The stage's own Oracle text (live/GAUNTLET.md #7)
+    # asks whether stock "plans the same destroys in a working order," not
+    # whether the two plans share a label a real, separately-verified
+    # rename legitimately changed - day2_rename's own Oracle text next to
+    # it already normalises marker tags before comparing, so normalising
+    # the module prefix here is the same convention, not a new one.
+    # Normalise choudoufu's own module prefix back to the oracle's
+    # un-renamed one before comparing; REMOVE_CHANGES itself (used above,
+    # and in the pass detail below) stays untouched, so the log and the
+    # role-destroy assertion still show what choudoufu genuinely proposed
+    # under module.crossplane_final.
+    REMOVE_CHANGES_NORMALIZED="$(sed -E 's/^module\.crossplane_final\./module.crossplane./' <<< "$REMOVE_CHANGES")"
+    [ "$REMOVE_CHANGES_NORMALIZED" = "$REMOVE_ORACLE_CHANGES" ] \
       || {
-        printf 'choudoufu (%s):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"
-        # STALE as of gauntlet:giantswarm-mv-children (day2_rename's own
-        # fix, internal/live/mv/mv.go's propagateModuleRename now chasing a
-        # `moved`-block hop and reconciling a superseded record duplicate):
-        # this comment used to describe a genuine discovery gap - "choudoufu
-        # proposes no destroy at all for the four composed-of-arguments
-        # untaggable children" - which is no longer what happens. Re-run for
-        # real, byte for byte: choudoufu proposes the SAME six actions as
-        # the oracle, address for address apart from the module name and
-        # action for action (both destroy aws_iam_policy,
-        # aws_iam_role_policies_exclusive, aws_iam_role_policy_attachment,
-        # aws_iam_role_policy_attachments_exclusive, aws_iam_role_policy
-        # ["extra-tagging"] and aws_iam_role.giantswarm_crossplane_role) -
-        # the mv-children fix's own record reconciliation is what now lets
-        # every composed-of-arguments child re-derive correctly under
-        # module.crossplane_final. What still fails this assertion is the
-        # comparison itself, not either runner: PLAIN_ORACLE_REMOVE (this
-        # script's day2_remove oracle) is built from $PLAIN, cold_deploy's
-        # OWN state, which is NEVER renamed - its module stays
-        # "crossplane" throughout - while choudoufu's estate has, by this
-        # point in the script, gone through Part D's real rename chain
-        # (module.crossplane -> .crossplane_renamed -> .crossplane_final).
-        # A literal string comparison of the two plans' addresses was
-        # always going to disagree on the module name alone, independent of
-        # whether the underlying instance set and action set genuinely
-        # match - which they now do. This is an apples-to-oranges oracle
-        # comparison built into this script's own test design, not a
-        # choudoufu defect and not fixed here (out of scope for
-        # gauntlet:giantswarm-mv-children, which is day2_rename's own
-        # unit): the fix belongs to this assertion, either by building
-        # PLAIN_ORACLE_REMOVE from the RENAMED plain state instead of
-        # cold_deploy's own, or by normalizing both sides' module prefix
-        # before comparing.
-        fail "choudoufu's day2_remove plan differs from stock's oracle ONLY in module name (module.crossplane_final vs module.crossplane) - the instance set and action set are byte-for-byte identical (see the comment immediately above this assertion): the oracle was built from cold_deploy's own never-renamed state, so this comparison was always going to disagree on the module name once day2_rename's own children actually resolve; not a choudoufu defect, and this assertion itself is what needs fixing, not this script-only unit's own scope"
+        printf 'choudoufu (%s, module-normalised):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES_NORMALIZED" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"
+        fail "choudoufu's day2_remove plan differs from stock's oracle on the instance set or action set, module name normalised out of both sides (module.crossplane_final -> module.crossplane) - a real difference, not the module-name artifact this assertion used to trip on"
       }
-    log "  choudoufu: $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state"
+    log "  choudoufu: $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state (module name normalised: module.crossplane_final -> module.crossplane, the label Part D's own verified rename chain legitimately changed)"
 
     REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
     [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
