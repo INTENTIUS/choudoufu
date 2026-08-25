@@ -737,7 +737,14 @@ grep -q 'DELTA 1' "$GREEN_EST/main.tf" || fail "the greenfield DELTA 1 did not m
 perl -0pi -e 's/\n  vpc_associations = \{\n    secondary = \{\n      vpc_id = module\.vpc_secondary\.vpc_id\n    \}\n  \}\n\n/\n  # DELTA 2 (EMULATOR GAP, lex00\/floci#57): cross-VPC association removed.\n\n/' "$GREEN_EST/main.tf"
 grep -q '^  vpc_associations = {' "$GREEN_EST/main.tf" && fail "the greenfield DELTA 2 left a vpc_associations block behind"
 perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$GREEN_EST/versions.tf"
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n  }\n}/" "$GREEN_EST/versions.tf"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 log "  DELTA 1+2+3 applied to a fresh copy: emulator flags, vpc_associations removed, live block (estate=$GREEN_ESTATE)"
 

@@ -610,12 +610,25 @@ old = """  required_providers {
 }"""
 assert old in s, "greenfield: versions.tf required_providers block not found - the corpus pin has moved"
 name = os.environ["GREEN_ESTATE_NAME"]
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create,
+# not a lost record. Same fix, same precedent as corpus-alb-complete's own
+# 898091b8f2 (this exact toggle, this exact reason) - not a workaround
+# invented here.
 new = old[:-1] + """
   live {
     estate = "%s"
 
     record_store "local" {
       path = ".tofu-records"
+    }
+
+    strict {
+      no_source_create = "create"
     }
   }
 }""" % name

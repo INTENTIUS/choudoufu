@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `148c3e9ed4` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T05:14:51Z.
+Measured at commit `6b0a765b40` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T05:53:59Z.
 
 ## The stages
 
@@ -46,7 +46,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass FAIL pass pass pass FAIL pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass FAIL |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
@@ -59,9 +59,9 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
 | [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL pass |
-| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL pass |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
-| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL pass |
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL FAIL |
