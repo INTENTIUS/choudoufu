@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+  "commit": "4ac5ca4425d7b53c6dc2b8287b2c9fdb2fa4f05d",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T22:05:33Z",
+  "generated": "2026-08-25T23:10:32Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 25,
+      "clear": 26,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,8 +158,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 25,
-          "fail": 1,
+          "pass": 26,
+          "fail": 0,
           "not_run": 0
         },
         "day2_replace": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 24,
+      "clear": 25,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,8 +235,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 24,
-          "fail": 1,
+          "pass": 25,
+          "fail": 0,
           "not_run": 0
         },
         "day2_replace": {
@@ -1200,7 +1200,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "pass",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1211,17 +1211,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
-        "date": "2026-08-25T22:01:55Z",
-        "exit_code": 1,
+        "commit": "4ac5ca4425d7b53c6dc2b8287b2c9fdb2fa4f05d",
+        "date": "2026-08-25T23:17:08Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate",
           "day2_remove": "choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; 7 zones down to 6), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it)",
-          "day2_rename": "the post-rename plan proposes a resource change",
-          "day2_replace": "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZTX87R497QSW40H) is confirmed gone and the new zone (ZGF36LLH274K678) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_rename": "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZVJXK1CU3OXGKNA) is confirmed gone and the new zone (ZSKMYPT2IKS7QIS) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname[\"2016\"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact",
           "greenfield": "35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records)",
           "migrate": "7 stamped, 7 distinct hosted zones, one per module call",
