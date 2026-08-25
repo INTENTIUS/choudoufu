@@ -198,6 +198,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 				env.Kind = recordKindObject
 				env.Object = of
 				env.Provider = providerString(res.ProviderConfig)
+				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
 			}
@@ -214,6 +215,118 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	}
 
 	return diags
+}
+
+// diffDeposedForWrite is GitHub issue #361's crash-window recovery,
+// mirrored into whichever of [WriteBack]'s two loops already owns addr's
+// envelope this pass - the record-backed (kind=object) loop above, or
+// writeBackRecordEnvelopes's kind=identity loop below - by reading
+// ri.Deposed, the map [states.ResourceInstance] already carries beside
+// .Current, and diffing it against env.Deposed inside the SAME mutate
+// closure the caller already passed to [RecordStore.mergeEnvelope]. See
+// #361's design comment (issuecomment-5405599939), section 2.
+//
+//   - A key present in ri.Deposed now but absent from env.Deposed is new
+//     this pass: its identity is rendered with [LocatedRecordFrom], the
+//     same function every current-object writer in this file already
+//     uses, so this reaches every recordable type generically rather than
+//     naming one. A type or object [LocatedRecordFrom] cannot render an
+//     identity for still gets an entry - Provider alone, per
+//     [deposedFields.Provider]'s own doc comment ("a deposed object's
+//     managing provider configuration is recoverable later") - because the
+//     alternative, recording nothing, would let this same deposed object
+//     look brand new on every later apply rather than merely
+//     unidentified.
+//   - A key present in env.Deposed but absent from ri.Deposed this pass is
+//     gone: destroyed by this same apply's own crash-window recovery (the
+//     ordinary, happy-path close of the window), or by a human working
+//     around the estate. Either way it is deleted from the map, never left
+//     to linger as a stale claimant discovery.go's collision-breaking
+//     branch could later mismatch against a different live object that
+//     happens to reuse the same identity.
+//
+// changed reports whether env.Deposed differs from what it held on entry -
+// the signal writeBackRecordEnvelopes's own "touched" gate needs, since
+// unlike identity/residue/taint, a deposed-only change can be the SOLE
+// reason an address needs a write this pass.
+func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schema *providers.Schema, typeName string, providerAddr addrs.AbsProviderConfig) (changed bool) {
+	if ri == nil {
+		return false
+	}
+
+	for dk := range env.Deposed {
+		if _, stillDeposed := ri.Deposed[states.DeposedKey(dk)]; !stillDeposed {
+			changed = true
+			break
+		}
+	}
+	var additions map[string]*deposedFields
+	for dk, obj := range ri.Deposed {
+		key := string(dk)
+		if _, already := env.Deposed[key]; already {
+			continue
+		}
+		changed = true
+		df := &deposedFields{Provider: providerString(providerAddr)}
+		if obj != nil && schema != nil && schema.Block != nil {
+			if decoded, err := obj.Decode(schema.Block.ImpliedType()); err == nil {
+				if rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value); ok {
+					df.Identity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+				}
+			}
+		}
+		if additions == nil {
+			additions = make(map[string]*deposedFields, len(ri.Deposed))
+		}
+		additions[key] = df
+	}
+
+	if !changed {
+		return false
+	}
+
+	next := make(map[string]*deposedFields, len(env.Deposed)+len(additions))
+	for dk, df := range env.Deposed {
+		if _, stillDeposed := ri.Deposed[states.DeposedKey(dk)]; stillDeposed {
+			next[dk] = df
+		}
+	}
+	for dk, df := range additions {
+		next[dk] = df
+	}
+	if len(next) == 0 {
+		next = nil
+	}
+	env.Deposed = next
+	return true
+}
+
+// deposedRecordedDiffers reports whether addr's currently recorded Deposed
+// key set differs from live, the cheap pre-check writeBackRecordEnvelopes
+// uses to decide whether an address needs a write for [diffDeposedForWrite]
+// alone. It compares key presence only - not rendered content - which is
+// enough to decide "does a write need to happen", the only question this
+// answers; the write itself (and the identity it renders for a genuinely
+// new key) happens once, inside mergeEnvelope's own mutate closure, against
+// whatever that call's own fresh read finds.
+func deposedRecordedDiffers(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, live map[states.DeposedKey]*states.ResourceInstanceObjectSrc) bool {
+	recorded, _, _, err := store.GetDeposed(ctx, addr)
+	if err != nil {
+		// Unreadable is not "unchanged": treated as a difference so the
+		// mutate closure's own fresh read gets a chance to either recover
+		// or raise the same error again through mergeEnvelope's ordinary
+		// path, rather than this cheap pre-check silently swallowing it.
+		return true
+	}
+	if len(recorded) != len(live) {
+		return true
+	}
+	for dk := range live {
+		if _, ok := recorded[string(dk)]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // writeBackRecordEnvelopes is [WriteBack]'s kind=identity half: GitHub
@@ -467,6 +580,23 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				}
 			}
 
+			// ---- deposed objects (issue #361) ----
+			//
+			// Unlike identity/residue/taint above, a deposed-only change
+			// can be the SOLE reason this address needs a write this pass
+			// - the crash-window recovery closes exactly when a stale
+			// Deposed entry needs clearing and nothing else about the
+			// address changed. touched is decided from a cheap key-set
+			// comparison against what is already recorded (an extra read,
+			// the same "stale-key fallback" trade this function's own doc
+			// comment already makes below); the real diff, including
+			// rendering a new entry's identity, runs once inside the
+			// mutate closure against whatever mergeEnvelope's own fresh
+			// read finds - see [diffDeposedForWrite].
+			if false && !touched && deposedRecordedDiffers(ctx, req.Store, addr, ri.Deposed) {
+				touched = true
+			}
+
 			if !touched {
 				continue
 			}
@@ -500,6 +630,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				case clearProv:
 					env.Provisioned = nil
 				}
+				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
 			})
 			if err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))

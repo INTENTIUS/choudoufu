@@ -177,6 +177,30 @@ func (p *identityPayload) empty() bool {
 	return p == nil || (p.ImportID == "" && len(p.Attrs) == 0)
 }
 
+// deposedFields is one entry of [recordEnvelope.Deposed]: GitHub issue
+// #361's crash-window recovery for a single deposed object.
+type deposedFields struct {
+	// Identity is the deposed object's own identity, the same shape a
+	// current object's Identity member carries. Nil when the pass that
+	// found this deposed object could not derive one - see writeback.go's
+	// diffDeposedForWrite - which still leaves Provider below recoverable;
+	// an entry with neither populated is never written (see empty()) and
+	// is instead simply not added.
+	Identity *identityPayload `json:"identity,omitempty"`
+
+	// Provider is this deposed object's OWN managing provider
+	// configuration ([addrs.AbsProviderConfig.String]), independent of the
+	// envelope's top-level Provider field - which names the CURRENT
+	// object's provider, and may already have moved on (a provider alias
+	// change, a moved provider block) by the time this deposed entry is
+	// read.
+	Provider string `json:"provider,omitempty"`
+}
+
+func (d *deposedFields) empty() bool {
+	return d == nil || (d.Identity.empty() && d.Provider == "")
+}
+
 // objectFields is [recordEnvelope.Object]: the whole of a record-backed
 // resource instance's value, since for that class the record IS the object.
 // It is today's recordPayload, unchanged field for field - only the
@@ -276,6 +300,25 @@ type recordEnvelope struct {
 	Residue     *residueFields     `json:"residue,omitempty"`
 	Provisioned *provisionedFields `json:"provisioned,omitempty"`
 
+	// Deposed is GitHub issue #361's crash-window recovery: every deposed
+	// object write-back finds recorded for this address, keyed by
+	// [states.DeposedKey]'s string form - the SAME physical key as the
+	// current object's own envelope, rather than a key of its own. See
+	// #361's design comment (issuecomment-5405599939): a second physical
+	// key would mean "the new object exists" and "the old one is now
+	// deposed" commit through two independent CAS writes instead of one,
+	// which reopens the crash window a second write later rather than
+	// closing it. One envelope, one [RecordStore.mergeEnvelope] call, one
+	// PutIfVersion makes the two facts atomic by construction.
+	//
+	// Nil for every envelope written before this field existed, and for a
+	// v1 payload, which predates the whole envelope; [decodeEnvelope]
+	// tolerates its absence exactly as it tolerates [recordEnvelope.Provider]'s.
+	// [RecordStore.MoveRecord] needs no change for this member: it
+	// re-marshals the whole decoded envelope with only Address rewritten,
+	// so Deposed rides along unchanged, same as every other member.
+	Deposed map[string]*deposedFields `json:"deposed,omitempty"`
+
 	// The four fields below are v1's flat shape, decode-only. A v1
 	// record-backed payload carried these at the envelope's own top level
 	// under exactly these names (recordPayload's original tags); nothing in
@@ -294,7 +337,7 @@ type recordEnvelope struct {
 // [RecordStore.mergeEnvelope] uses to delete a key rather than write back an
 // envelope with nothing left in it.
 func (env recordEnvelope) isEmpty() bool {
-	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty()
+	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0
 }
 
 // providerString renders p as [recordEnvelope.Provider]'s value, "" for a
@@ -348,8 +391,26 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	if env.Provisioned.empty() {
 		env.Provisioned = nil
 	}
+	// Deposed's own normalization: a map value json.Unmarshal allocated for
+	// a "deposed" key that carried no real Identity and no real Provider -
+	// the same vacuous-pointer shape the block above closes for Identity,
+	// Residue and Provisioned, but here per map entry rather than once.
+	// [RecordStore.mergeEnvelope]'s own writer never produces such an
+	// entry (diffDeposedForWrite only ever adds one with Identity or
+	// Provider set), so this only ever fires on a hand-edited or foreign
+	// payload - never silently accepting it here would leave a vacuous
+	// entry defeating the all-empty check just below, the same hole
+	// 2026-08-23's audit found and closed for the other three members.
+	for dk, df := range env.Deposed {
+		if df.empty() {
+			delete(env.Deposed, dk)
+		}
+	}
+	if len(env.Deposed) == 0 {
+		env.Deposed = nil
+	}
 
-	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil {
+	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil {
 		if len(env.LegacyValueType) == 0 {
 			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
 			// kind, no member at all) - a payload this package cannot
@@ -404,8 +465,14 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		if env.Object != nil {
 			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it also carries an object, which only %q ever carries", recordKindIdentity, recordKindObject)
 		}
-		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil {
-			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification or a provisioner taint - not a payload this package ever wrote", recordKindIdentity)
+		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 {
+			// A GitHub issue #361-only envelope - an ordinary taggable
+			// instance whose only recorded fact this pass is a deposed
+			// object from an interrupted create-before-destroy - is a
+			// legitimate kind=identity shape, not an error: see
+			// writeback.go's diffDeposedForWrite, which can be the sole
+			// reason [RecordStore.mergeEnvelope] wrote this key at all.
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint or a deposed object - not a payload this package ever wrote", recordKindIdentity)
 		}
 	default:
 		return recordEnvelope{}, fmt.Errorf("the stored record names kind %q, which this version of choudoufu does not understand", env.Kind)
@@ -640,6 +707,59 @@ func (s *RecordStore) GetIdentity(ctx context.Context, addr addrs.AbsResourceIns
 		}
 	}
 	return out, version, true, true, nil
+}
+
+// DeposedRecord is one deposed object recorded for an address: the same
+// identity shape [LocatedRecord] carries, plus the provider configuration
+// that managed this specific deposed object - see [deposedFields.Provider].
+type DeposedRecord struct {
+	ImportID   string
+	Components map[string]string
+	Provider   string
+}
+
+// Empty reports whether this record says nothing at all about the deposed
+// object it names.
+func (r DeposedRecord) Empty() bool {
+	return r.ImportID == "" && len(r.Components) == 0 && r.Provider == ""
+}
+
+// GetDeposed reads addr's Deposed member - GitHub issue #361's crash-window
+// recovery: every deposed object recorded for this address, keyed by
+// [states.DeposedKey]'s string form. keyExists carries [GetIdentity]'s same
+// distinction: the physical key may exist for Object/Residue/Provisioned/
+// Identity alone, carrying no Deposed member at all, in which case the
+// returned map is nil.
+func (s *RecordStore) GetDeposed(ctx context.Context, addr addrs.AbsResourceInstance) (deposed map[string]DeposedRecord, version string, keyExists bool, err error) {
+	if s == nil {
+		return nil, "", false, nil
+	}
+	env, version, exists, err := s.getRaw(ctx, addr)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if !exists {
+		return nil, "", false, nil
+	}
+	if len(env.Deposed) == 0 {
+		return nil, version, true, nil
+	}
+	out := make(map[string]DeposedRecord, len(env.Deposed))
+	for dk, df := range env.Deposed {
+		if df.empty() {
+			continue
+		}
+		rec := DeposedRecord{Provider: df.Provider}
+		if df.Identity != nil {
+			rec.ImportID = df.Identity.ImportID
+			rec.Components = df.Identity.Attrs
+		}
+		out[dk] = rec
+	}
+	if len(out) == 0 {
+		return nil, version, true, nil
+	}
+	return out, version, true, nil
 }
 
 // getResidue reads addr's Residue member - GitHub issue #275's argument

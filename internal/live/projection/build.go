@@ -167,6 +167,20 @@ type Options struct {
 	// resolves, only var/local/path/terraform/managed-resource-argument
 	// references do.
 	DataResults map[string]cty.Value
+
+	// DeposedBindings is GitHub issue #361's crash-window recovery input:
+	// [discovery.Result.DeposedBindings], the deposed objects discovery's
+	// collision-breaking branch matched against this estate's record.
+	// [buildFrom] reads each one live (the same import+read machinery an
+	// ordinary current-object binding uses) and folds the result into
+	// Instances[key].Deposed[dk] on the constructed state - see
+	// [DeposedBinding]'s own doc comment for why that is the whole of what
+	// this does: everything downstream (refresh, the proposed destroy) is
+	// stock's own unmodified deposed-object graph machinery.
+	//
+	// Nil (every caller before this field existed) folds nothing in,
+	// leaving BuildWith's output byte-identical to before.
+	DeposedBindings []DeposedBinding
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -216,6 +230,10 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 
 	b := newBuilder(ctx, cfg, provs, opts)
 	b.run(ctx, resolutions)
+
+	for _, db := range opts.DeposedBindings {
+		b.materializeDeposed(ctx, db)
+	}
 
 	sortOmissions(b.omissionList)
 	sort.Slice(b.materialized, func(i, j int) bool {
@@ -1729,6 +1747,99 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	}
 	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, traceImportID(typeName, importID, obj.Value))
 	return true
+}
+
+// materializeDeposed is GitHub issue #361's crash-window recovery: reads
+// one deposed object discovery's collision-breaking branch matched against
+// this estate's record ([DeposedBinding]) and, on success, folds it into
+// the constructed state as Instances[key].Deposed[db.DeposedKey] via
+// [states.Module.SetResourceInstanceDeposed] - stock's own shape, from
+// which stock's own completely unmodified node_resource_deposed.go graph
+// machinery takes over: a second, independent ReadResource before the
+// destroy it proposes is finalized (design comment, section 4).
+//
+// Deliberately narrower than [builder.materialize]: no ownership check (the
+// claimant this binding came from was already live-read and marker-checked
+// by discovery before the record was ever consulted - see #361's design
+// comment, section 4, item 1), no residue fill and no provisioner-taint
+// application, because a deposed object is never updated - only refreshed
+// and destroyed - so neither concern has anywhere to apply.
+//
+// A failure here (no provider, no schema, a read error) is reported and
+// the binding is simply not folded in: the deposed object stays recorded
+// but unread, which is the same "left recorded but unread" outcome
+// [RecordStore.GetDeposed]'s own callers already tolerate elsewhere, never
+// a reason to fail the whole projection. A live "absent" answer - the
+// object was already destroyed, by a previous run's own recovery or by a
+// human working around the estate - folds in nothing either, on purpose:
+// [diffDeposedForWrite] clears the stale record entry on this same run's
+// own write-back.
+func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
+	addr := db.Addr
+	typeName := addr.Resource.Resource.Type
+
+	providerAddr := db.Provider
+	if providerAddr.Provider.Type == "" {
+		// No provider was recorded for this deposed object specifically
+		// (or it failed to parse) - fall back to whatever provider serves
+		// the current instance's own resource block, the same rule
+		// [builder.materialize]'s own providerFor call uses.
+		modPath := addr.Module.Module()
+		var rc *configs.Resource
+		if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
+			rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+		}
+		var ok bool
+		providerAddr, ok = b.providerFor(rc, modPath, typeName, addr)
+		if !ok {
+			detail := fmt.Sprintf(
+				"%s carries a recorded deposed object (%s) from an earlier interrupted replace, but nothing says which provider to read it through: its own record carries no provider and the current resource block declares none either. The deposed object is left recorded but unread.",
+				addr, db.DeposedKey,
+			)
+			b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, "No provider for a deposed object", detail))
+			return
+		}
+	}
+
+	entry, err := b.providers.get(ctx, providerAddr)
+	if err != nil {
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Provider unavailable", fmt.Sprintf(
+			"Reading the deposed object recorded for %s (%s) needs provider %s, which could not be used: %s.", addr, db.DeposedKey, providerAddr, err,
+		)))
+		return
+	}
+	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
+	if schemaDiags.HasErrors() {
+		b.diags = b.diags.Append(schemaDiags)
+		return
+	}
+
+	w := wanted{addr: addr, importID: db.ImportID, values: db.Components}
+	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil)
+	switch status {
+	case statusAbsent:
+		log.Printf("[TRACE] projection: %s's recorded deposed object %s (%s) no longer exists live; not folded into the projection", addr, db.DeposedKey, traceImportID(typeName, db.ImportID, cty.NilVal))
+		return
+	case statusFailed:
+		detail := fmt.Sprintf("Reading the deposed object recorded for %s (%s) failed.", addr, db.DeposedKey)
+		if len(matDiags) > 0 {
+			detail = fmt.Sprintf("Reading the deposed object recorded for %s (%s) failed: %s.", addr, db.DeposedKey, matDiags[0].Description().Summary)
+		}
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a recorded deposed object", detail))
+		return
+	}
+	b.diags = b.diags.Append(matDiags)
+
+	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), uint64(schema.IdentitySchemaVersion))
+	if err != nil {
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot encode a deposed object", fmt.Sprintf(
+			"The deposed object recorded for %s (%s) could not be encoded into the projection: %s.", addr, db.DeposedKey, err,
+		)))
+		return
+	}
+
+	b.state.EnsureModule(addr.Module).SetResourceInstanceDeposed(addr.Resource, db.DeposedKey, src, providerAddr, addrs.NoKey)
+	log.Printf("[TRACE] projection: folded in the recorded deposed object for %s (%s) from import identity %q", addr, db.DeposedKey, db.ImportID)
 }
 
 // traceImportID is what [builder.materialize]'s own trace line prints in

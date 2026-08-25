@@ -451,11 +451,21 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		recordShrinkStore = recordStoreForReads
 	}
 
+	// GitHub issue #361's crash-window recovery: one GetDeposed read per
+	// needs-discovery address, from recordStoreForReads - the same
+	// unconditionally-open envelope store [statelessProviderDataReads]
+	// already reads directly, above, and NOT recordShrinkStore, which
+	// stays gated on the CHOUDOUFU_NODE_RESOLVE=1 migration flag for edge
+	// 3's own unrelated reason. Read here, before [discovery.Discover]
+	// ever runs, and handed to it through [discovery.Request.DeposedRecords]
+	// - see that field's own doc comment for what consumes it.
+	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, resolutions.NeedsDiscovery())
+
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -542,6 +552,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// [projection.Options.DataResults]'s doc comment for why the
 		// projection's own tags/attrs seeding wants it too.
 		DataResults: dataResults,
+		// GitHub issue #361's crash-window recovery, wired for the same
+		// "kept rather than omitted" reason this Options block's own
+		// RecordStore comment gives: this form never reaches it today
+		// (hintStore is nil whenever this function does), but the day
+		// that stops being true, this path should not silently regress.
+		DeposedBindings: disco.DeposedBindingsList(),
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is
@@ -776,6 +792,40 @@ func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projec
 	return out, diags
 }
 
+// collectDeposedRecords is GitHub issue #361's crash-window recovery: one
+// [projection.RecordStore.GetDeposed] read per needs-discovery address,
+// from the estate's already-open record envelope store, well before
+// [discovery.Discover] ever runs - see discovery.Request.DeposedRecords'
+// own doc comment for what consumes the result. A store that will not open
+// (nil, the same "the run proceeds hintless" fallback every other read of
+// recordStoreForReads in this file already takes) or an address with
+// nothing recorded simply contributes nothing: this is a hint discovery's
+// collision branch may use to disambiguate, never authority, the same
+// discipline [statelessRecordBackedNeedsDiscoveryAddrs] just above already
+// follows for the identity half. Unlike that function, a read error here
+// is not raised as a diagnostic: this recovery is best-effort by design
+// (#361's design comment, section 4 - "a stale Deposed entry ... simply
+// fails to match any claimant"), and failing the whole plan over an
+// unreadable deposed-object hint would turn a recovery path into a new way
+// for an estate to be blocked.
+func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) map[string]map[string]projection.DeposedRecord {
+	if store == nil || len(needs) == 0 {
+		return nil
+	}
+	var out map[string]map[string]projection.DeposedRecord
+	for _, r := range needs {
+		deposed, _, _, err := store.GetDeposed(ctx, r.Addr)
+		if err != nil || len(deposed) == 0 {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]map[string]projection.DeposedRecord)
+		}
+		out[r.Addr.String()] = deposed
+	}
+	return out
+}
+
 // recordBackedNeedsDiscoveryBlocks reduces
 // [statelessRecordBackedNeedsDiscoveryAddrs]'s own per-INSTANCE record
 // check to block granularity, for [statelessStampGaps]' escalation gate:
@@ -866,7 +916,7 @@ func recordBackedNeedsDiscoveryBlocks(ctx context.Context, store *projection.Rec
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -911,7 +961,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -934,7 +984,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -983,7 +1033,7 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 	return projection.RecordStoreKeyPrefix(config.Module.Live.RecordStore, estate)
 }
 
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -999,6 +1049,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Estate:            estate,
 		Config:            config,
 		RecordBackedAddrs: recordBacked,
+		DeposedRecords:    deposedRecords,
 		Resolutions:       resolutions,
 		Provider:          provider,
 		Region:            provs.region(providerAddr),

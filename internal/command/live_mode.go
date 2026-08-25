@@ -727,7 +727,15 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if r.nodeResolve {
 		recordShrinkStore = r.recordStore
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore)
+	// GitHub issue #361's crash-window recovery: read from r.recordStore -
+	// the same unconditionally-open store just above, never
+	// recordShrinkStore, which stays gated on r.nodeResolve for edge 3's
+	// own unrelated reason - well before discovery.Discover runs. See
+	// live_plan.go's own identical call for the fuller comment; this is
+	// the "plain choudoufu plan/apply" path the comment two paragraphs up
+	// already says carries the record store for real.
+	deposedRecords := collectDeposedRecords(ctx, r.recordStore, resolutions.NeedsDiscovery())
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -807,6 +815,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// [projection.Options.DataResults]'s doc comment for why the
 		// projection's own tags/attrs seeding wants it too.
 		DataResults: dataResults,
+		// GitHub issue #361's crash-window recovery: the deposed objects
+		// discovery's collision branch matched against deposedRecords,
+		// above. disco.DeposedBindingsList() is nil-safe for a disco this
+		// pass never produced.
+		DeposedBindings: disco.DeposedBindingsList(),
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are

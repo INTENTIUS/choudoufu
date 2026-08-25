@@ -2236,6 +2236,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
+| - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
@@ -2244,6 +2245,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot read a located record | error | `internal/live/projection` | "Cannot read a located record" |
 | - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
 | - | - | projection | Cannot read a persisted record | error | `internal/live/projection` | "Cannot read a persisted record" |
+| - | - | projection | Cannot read a recorded deposed object | error | `internal/live/projection` | "Cannot read a recorded deposed object" |
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Cannot set ownership markers on a marked configuration value | error | `internal/live/projection` | "Cannot set ownership markers on a marked configuration value" |
@@ -2259,6 +2261,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No configuration to project | error | `internal/live/projection` | "No configuration to project" |
 | - | - | projection | No identity resolutions to project | error | `internal/live/projection` | "No identity resolutions to project" |
 | - | - | projection | No provider access | error | `internal/live/projection` | "No provider access" |
+| - | - | projection | No provider for a deposed object | error | `internal/live/projection` | "No provider for a deposed object" |
 | - | - | projection | No provider for an undeclared resource | error | `internal/live/projection` | "No provider for an undeclared resource" |
 | - | - | projection | No source for this instance's identity | error | `internal/live/projection` | "No source for this instance's identity" |
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
@@ -2283,7 +2286,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**213 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**216 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3379,6 +3382,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot encode a deposed object
+
+**What.** GitHub issue #361's crash-window recovery read a deposed object discovery matched against this estate's record, but the result could not be encoded against the provider's schema for its type; the deposed object is left recorded but not folded into this plan.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot encode a projected object
 
 **What.** A live object read from the cloud could not be encoded against the provider's schema for its type.
@@ -3438,6 +3449,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot read a persisted record
 
 **What.** The record store could not be read.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot read a recorded deposed object
+
+**What.** GitHub issue #361's crash-window recovery could not read, live, a deposed object discovery matched against this estate's record - the provider errored. The deposed object is left recorded but not folded into this plan; a later run tries again.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -3558,6 +3577,14 @@ reserved for the limits wing's fixture directories, and
 #### No provider access
 
 **What.** Projection was given no configured provider handle to read live state with. A caller error, not a configuration one.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No provider for a deposed object
+
+**What.** GitHub issue #361's crash-window recovery matched a deposed object against this estate's record, but neither the record nor the current resource block names a provider to read it through. The deposed object is left recorded but unread.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 // Result is everything one discovery pass learned.
@@ -142,6 +143,25 @@ type Result struct {
 	// false. A type here is not swept this run; an orphan of it surfaces at
 	// the next full or verification sweep instead of this one.
 	GuidedSweepSkipped []string
+
+	// DeposedBindings is GitHub issue #361's crash-window recovery: every
+	// address whose collision (two-or-more claimants for one declared
+	// address - the shape a create-before-destroy crash produces while the
+	// new and old object both still carry the address's marker) was broken
+	// by matching exactly one claimant against a deposed object this
+	// estate's record names for that address ([Request.DeposedRecords]).
+	// The matched claimant is excluded from collision consideration
+	// entirely; the remaining single claimant is bound through the
+	// ordinary case-1 path and appears in [Result.Bindings], not here.
+	//
+	// [projection.BuildWith] folds each one into the constructed state's
+	// own Instances[key].Deposed[dk] - see [projection.DeposedBinding]'s
+	// own doc comment for what happens from there. Empty whenever
+	// [Request.DeposedRecords] is nil (every caller before this existed),
+	// or whenever it named a candidate that zero or two-or-more claimants
+	// matched: those cases still raise [ProblemCollision] exactly as
+	// before this existed - see bind()'s own collision-breaking code.
+	DeposedBindings []projection.DeposedBinding
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
@@ -576,6 +596,17 @@ func (r *Result) Removals() []OwnedResource {
 		}
 	}
 	return out
+}
+
+// DeposedBindingsList returns [Result.DeposedBindings], nil-safely - the
+// same "a nil Result behaves like an empty one" convention [SlotTable]
+// already follows, for a caller (internal/command's [projection.BuildWith]
+// call sites) that may not have run discovery at all this pass.
+func (r *Result) DeposedBindingsList() []projection.DeposedBinding {
+	if r == nil {
+		return nil
+	}
+	return r.DeposedBindings
 }
 
 // MarkerVerified is the set of instance addresses this pass established
