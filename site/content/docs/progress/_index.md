@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `3aa44293e6` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T17:48:44Z.
+Measured at commit `57013bfa28` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T17:59:56Z.
 
 ## The stages
 
@@ -62,7 +62,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL pass pass |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
