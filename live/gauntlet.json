@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "4ac5ca4425d7b53c6dc2b8287b2c9fdb2fa4f05d",
+  "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:10:32Z",
+  "generated": "2026-08-25T23:37:20Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -361,14 +361,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "cfc0148f6a1fd7dc7125dd14dd983bcfae18419c",
-        "date": "2026-08-25T19:31:47Z",
+        "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
+        "date": "2026-08-25T23:44:30Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
           "day2_remove": "choudoufu: deleting module.default's block proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle's own count and applied cleanly; the live ASG count dropped by exactly one and the tagged object count dropped too, both confirmed via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same module",
           "day2_rename": "moved block: module.asg_sg renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address (Plan: 3 to add, 2 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-59b4d2ace03efa771) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-c4bd3ac194c8613dd -> sg-59b4d2ace03efa771); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 2 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and eks-basic's/ecs-fargate's matching ones in this same unit.",
+          "day2_replace": "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address (Plan: 3 to add, 2 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-70b723c14d95ae295) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-380a205d6e3945b15 -> sg-70b723c14d95ae295); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 2 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and eks-basic's/ecs-fargate's matching ones in this same unit.",
           "drift_reconverge": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "greenfield": "68 resources from nothing, matching stock's own cold-deploy count (68); the sqs queue's markers verified via the AWS CLI; 68 records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; 41 objects carry the estate tag",
           "migrate": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 41 objects carry tofu-estate=autoscaling-complete-crossing",
