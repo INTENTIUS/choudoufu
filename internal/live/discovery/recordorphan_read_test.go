@@ -894,3 +894,101 @@ func TestRecordOrphanReadSweep_MovedAliasDoesNotWidenToAnUnrelatedAddress(t *tes
 		t.Errorf("the unrelated record was not proposed as an orphan; the moved-alias index must not have quietly widened to cover it: %#v", res.Resolutions)
 	}
 }
+
+// TestRecordOrphanReadSweep_MarkersRecordSelectedTaggableTypeReachesIt is
+// gauntlet:sumaform-clear's own day2_remove finding: before this fix, this
+// leg's typeTaggable(schemas, typeName) check assumed the ordinary tag
+// sweep already covers every taggable type's own population, which is true
+// for a MARKED instance but not for one an operator's own root
+// `markers "record"` selection opted out of a tag - that instance was never
+// tagged in the first place, so it fell through both the tag sweep AND this
+// leg (taggable, so skipped) the moment its declaring block was removed.
+// Reproduced here with a real, taggable resource schema (aws_vpc, via
+// [newFakeCloud]) and a root live block selecting it by type - the same
+// shape corpus-sumaform-aws's own `strict { markers "record" { types =
+// ["aws_instance", "aws_ebs_volume"] } }` block hit for real, with a
+// module.server block deleted underneath it.
+//
+// Asserted by value (the resolved ImportID), not existence alone, and the
+// resolution's own [identity.Resolution.RecordRooted] is checked too:
+// [projection.builder]'s own undeclaredConcrete pass reads that field to
+// decide whether to trust this identity unconditionally
+// (internal/live/projection/markers_record_test.go's
+// TestMarkersRecordUndeclaredRecordRootedInstanceIsDestroyed is the other
+// half, proving what happens once this resolution reaches the projection).
+func TestRecordOrphanReadSweep_MarkersRecordSelectedTaggableTypeReachesIt(t *testing.T) {
+	ctx := context.Background()
+	const estate = "record-selected-taggable-estate"
+	prefix := projection.RecordKeyPrefix(estate)
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, prefix)
+
+	addr := mustAddr(t, "aws_vpc.main")
+	const liveID = "vpc-0123456789abcdef0"
+	if _, err := projection.SeedLocatedForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		ImportID: liveID,
+	}); err != nil {
+		t.Fatalf("seeding the located record: %s", err)
+	}
+
+	dir := t.TempDir()
+	src := `
+terraform {
+  live {
+    estate = "` + estate + `"
+
+    record_store "local" {}
+
+    strict {
+      marker_repair = "never"
+
+      markers "record" {
+        types = ["aws_vpc"]
+      }
+    }
+  }
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+	// Deliberately no aws_vpc resource block: this is the shape right
+	// after the declaring block (or, in the real estate, the module that
+	// called it) has been removed from configuration.
+	cfg := loadConfig(t, dir)
+
+	schemas, sdiags := listclient.ListSchemas(ctx, newFakeCloud())
+	if sdiags.HasErrors() {
+		t.Fatalf("ListSchemas: %s", sdiags.Err())
+	}
+	if !typeTaggable(schemas, "aws_vpc") {
+		t.Fatal("test setup: aws_vpc must be taggable per the fake cloud's schema, or this test proves nothing")
+	}
+
+	req := Request{Estate: estate, Config: cfg, HintStore: raw}
+	res := &Result{}
+	diags := recordOrphanReadSweep(ctx, req, schemas, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if len(res.Resolutions) != 1 {
+		t.Fatalf("got %d resolutions, want exactly 1 (the markers=record-selected aws_vpc.main): %#v", len(res.Resolutions), res.Resolutions)
+	}
+	got := res.Resolutions[0]
+	if got.Addr.String() != addr.String() {
+		t.Errorf("resolved address = %s, want %s", got.Addr, addr)
+	}
+	if got.ImportID != liveID {
+		t.Errorf("ImportID = %q, want %q", got.ImportID, liveID)
+	}
+	if !got.Undeclared {
+		t.Error("Undeclared = false, want true - nothing in configuration declares this instance any more")
+	}
+	if !got.RecordRooted {
+		t.Error("RecordRooted = false, want true - this leg's whole population is sourced from the record store, and internal/live/projection's checkOwnership must be told so or it silently omits the destroy")
+	}
+}

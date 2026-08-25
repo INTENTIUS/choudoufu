@@ -274,6 +274,14 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			ImportID:         importID,
 			Undeclared:       true,
 			DestroyDependsOn: dependsOn,
+			// See [identity.Resolution.RecordRooted]'s doc comment: this
+			// leg's whole population, taggable or not, is read from the
+			// record store rather than a tag, so builder.checkOwnership
+			// must trust it the same way it trusts a declared
+			// ClassRecordLocated identity - never re-derive ownership from
+			// a tag that a markers=record selection may have deliberately
+			// never written.
+			RecordRooted: true,
 		})
 		known[addr.String()] = true
 	}
