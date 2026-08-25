@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "9c1ec36174336dbe6145fd15ce3d7d530e740d86",
+  "commit": "df0cc6a0759627fddb8a3d12cc275a3eec20d9e3",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T17:04:49Z",
+  "generated": "2026-08-25T17:26:33Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -316,8 +316,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6250bb12fbb11257031602c96ce216d0796d952e",
-        "date": "2026-08-25T06:38:01Z",
+        "commit": "df0cc6a0759627fddb8a3d12cc275a3eec20d9e3",
+        "date": "2026-08-25T17:32:35Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
