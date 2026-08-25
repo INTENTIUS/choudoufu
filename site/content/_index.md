@@ -7,10 +7,10 @@ type: docs
 
 OpenTofu with one permission model.
 
-Each resource carries its own ownership record as ordinary cloud tags. AWS
-can tell you what an estate contains, and your IAM already decides who may
-read or change it. Nothing else to permission, and no lock to manage.
-Experimental, AWS only.
+Two tags on each resource, written by the apply and read live at plan time.
+AWS can tell you what an estate contains, and your IAM already decides who
+may read or change it. Nothing else to permission, nothing to go stale, and
+no lock to manage. Experimental, AWS only.
 
 A fork of OpenTofu.
 
@@ -46,6 +46,15 @@ plain reference estate — pinned by tag, meant to reach 100%. **All** adds
 every other real estate as it's crossed, with no pin and no target.
 
 {{< gauntlet-bars >}}
+
+## Migrating
+
+Your Terraform code stays where it is. Adoption stamps the two tags onto
+the live estate; from then on a reorganisation is a tag rename, not a state
+move, and the orchestration bill is your own CI plus
+[one IAM policy]({{< relref "/docs/use/ownership-policy" >}}).
+Because plans read the tags live, there is no inventory to drift out of
+date. [How migration works]({{< relref "/docs/use/migrate" >}}).
 
 ## Check yours
 
