@@ -1540,35 +1540,31 @@ EOF
       ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
-    # RE-VERIFIED against current main (re-verify-day2_remove unit,
-    # 2026-08): this used to be zero churn. Root cause is now precisely
-    # named: 610511fb73 (internal/live/discovery/recordorphan_read.go,
-    # #405's day2_remove fix) added recordOrphanReadSweep, which reads the
-    # record store for any UNTAGGABLE type's undeclared old-address record
-    # and proposes destroying it - generically, since its filter is
-    # "untaggable + has a persisted identity record", not tied to any
-    # specific type. Its own rename-safety check (the `pending` map, built
-    # from res.Unbound) only recognizes "a declared instance of the SAME
-    # address is unclaimed" - it never consults
+    # FIXED (gauntlet:destroy-order, 2026-08-25): this WAS the regression
+    # the comment used to describe here - 610511fb73's recordOrphanReadSweep
+    # (internal/live/discovery/recordorphan_read.go) reads the record store
+    # for any UNTAGGABLE type's undeclared old-address record and proposes
+    # destroying it, but its own rename-safety check only recognized "a
+    # declared instance of the SAME address is unclaimed," never consulting
     # moved.Aliases/moved.Honoured(req.Config) the way the marker path
-    # already does. So this moved block, relocating module.postgresql, now
-    # destroys module.postgresql.module.security_group.
+    # already does - so this moved block, relocating module.postgresql,
+    # destroyed module.postgresql.module.security_group.
     # aws_vpc_security_group_rules_exclusive.this[0] under the OLD address
-    # instead of matching it under the new one; the tagged security group
-    # and its rules still move correctly via the marker path, which DOES
-    # follow moved blocks. SAME root cause, independently confirmed on
-    # corpus-giantswarm-crossplane (aws_iam_role_policy family),
-    # corpus-ec2-instance-complete (aws_route/aws_route_table_association)
-    # and corpus-rds-complete-postgres (aws_security_group_rule) in this
-    # same unit - a generic gap reaching at least these four estates.
-    # live-mv does not hit this (RecordStore.MoveRecord re-keys the store
-    # directly, 8bd0d47e4e); only a bare HCL `moved` block does. Not fixed
-    # here - a Go change, out of scope for this script-only
-    # re-verification unit. Because fail() exits immediately, day2_remove's
-    # own post-fix status for this estate could not be independently
-    # re-measured this run.
+    # instead of moving it. The leg now translates a decoded key forward
+    # through moved.Newest (the mirror of moved.Aliases/Origins, which walk
+    # backward) before deciding whether it is a genuine orphan, so the
+    # SAME record now resolves under module.postgresql_renamed and this
+    # rename shows zero churn again, asserted below. The three sibling
+    # estates this same root cause reached
+    # (corpus-giantswarm-crossplane's aws_iam_role_policy family,
+    # corpus-ec2-instance-complete's aws_route/aws_route_table_association,
+    # corpus-rds-complete-postgres's aws_security_group_rule) share the
+    # identical fix, since it is generic over any untaggable/record-only
+    # type - nothing here names rules_exclusive or any other aws_* type in
+    # control flow. live-mv never hit this (RecordStore.MoveRecord re-keys
+    # the store directly, 8bd0d47e4e); only a bare HCL `moved` block did.
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now proposes destroying module.postgresql.module.security_group.aws_vpc_security_group_rules_exclusive.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete and corpus-rds-complete-postgres independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it."; }
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes destroying or creating something instead of zero churn - a regression in moved.Newest's forward translation (internal/live/moved/moved.go) or recordorphan_read.go's own consult of it; see the comment immediately above this assertion for the shape this once was."; }
     N_MOVED_CHANGED="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
     [ "$N_MOVED_CHANGED" -ge 1 ] \
       || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan proposes no in-place update at all - the marker rewrite the moved block should complete is missing"; }
@@ -1630,38 +1626,36 @@ EOF
     # for the identical removal: the SG, its 2 taggable ingress rules, its 1
     # taggable egress rule, and its 1 UNTAGGABLE rules_exclusive enforcer.
     #
-    # REAL DEFECT, choudoufu, NOT YET FIXED (found by this check, reproduced
-    # twice - the dev run and the official run agree byte for byte).
-    # choudoufu's own plan proposes only 4 of those 5 destroys: the SG and
-    # its 3 taggable children, never the untaggable rules_exclusive
-    # instance - and NOT as a named refusal or a "may be the same resource
-    # under a new instance key" withhold either (classifyOrphans's own
-    # diagnostic, internal/live/discovery/discovery.go); it is silently
-    # absent from the plan, as if the config had never declared it. Read
-    # (no edit) against discovery.go: classifyOrphans only ever iterates
-    # res.Orphans, and res.Orphans is populated purely from a MARKER/TAG
-    # scan of live objects (see the orphan-scan callers above classifyOrphans
-    # in the same file) - an untaggable type such as
-    # aws_vpc_security_group_rules_exclusive carries no tag and so can never
-    # be discovered as an orphan by that scan, regardless of whether its
-    # record still names an address the current config no longer declares.
-    # The record-primary identity path (#364, HANDOFF's "The order" item 1:
-    # "the record holds the identity of every instance ... a plan reads it
-    # first") reads records forward, to BIND a declared instance; nothing
-    # symmetric reads the record store BACKWARD, to notice a record whose
-    # address no config block declares any more and propose destroying it.
-    # That is a generic gap, not specific to rules_exclusive: any
-    # untaggable/record-only type whose declaring block is removed should
-    # reach it. This is HANDOFF's second table row ("the plans ... differ" -
-    # defect, fix it), not the "possible rename" ambiguity #358 and this
-    # estate's own D2/E comments were originally written to watch for - that
-    # mechanism was never reached at all, because the object never entered
-    # orphan detection in the first place. Left as an honest, reproducible
-    # fail rather than guessed at further or patched here: this splinter
-    # unit is script-only by its own brief, and a fix belongs in
-    # internal/live/discovery (the orphan-scan/classifyOrphans path needs a
-    # record-store-driven leg beside its marker-scan one), not in this
-    # script. File a follow-up issue in the #358 family before landing a fix.
+    # gauntlet:destroy-order (2026-08-25): the two choudoufu-side defects
+    # this comment used to describe are both fixed. The plan now proposes
+    # all 5 destroys under the RIGHT address
+    # (internal/live/discovery/recordorphan_read.go's leg now translates a
+    # record-store key forward through moved.Newest, the mirror of
+    # moved.Aliases/Origins - a bare `moved` block never re-keys the
+    # record itself, only a `live-mv` does, so rules_exclusive's record was
+    # still filed under module.postgresql and needed forward translation to
+    # module.postgresql_renamed), and the destroy graph orders the taggable
+    # rules before the security group with no cycle
+    # (internal/live/projection/build.go's deriveUndeclaredReferenceEdges,
+    # a generic live-value scan for sibling undeclared orphans - see its own
+    # doc comment for the two shared-identity shapes rules_exclusive's
+    # identity-equals-its-security-group's-id property produced and how the
+    # mutual-match rule resolves both without naming any aws_* type).
+    #
+    # REMAINING WALL: the emulator. Confirmed with no tofu in the loop,
+    # straight against the query API: floci's RevokeSecurityGroupIngress/
+    # Egress, called with SecurityGroupRuleId (the id-based revoke every
+    # aws_vpc_security_group_ingress_rule/egress_rule Delete always sends,
+    # since a rule's own id is its whole identity), returns Return: true
+    # and does not remove the rule - the query handler only ever read
+    # IpPermissions.N, so an id-only revoke forwarded zero permissions and
+    # nothing happened. lex00/floci#136, fixed on branch
+    # fix/revoke-security-group-rule-by-id (origin only, awaiting an image
+    # publish and live/floci-image repin, which this unit does not do).
+    # Until that repin lands, applying this stage's own plan destroys the
+    # security group cleanly (confirmed via the AWS CLI) but leaves its 3
+    # taggable rules live, so the very next plan finds them again - the
+    # E2 check below.
     #
     # Deletion semantics confirmed directly against floci with no tofu in
     # the loop before writing the check below: describe-security-groups on
@@ -1725,7 +1719,8 @@ EOF
       E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
       [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
       grep -qE '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT" \
-        && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+        && { printf '%s\n' "$E_FINAL_PLAN_OUT" | grep -E '^  # .+ will be';
+             fail "the post-remove plan is not empty - a confirmed floci gap (lex00/floci#136, fixed on branch fix/revoke-security-group-rule-by-id, not yet repinned): RevokeSecurityGroupIngress/Egress called by SecurityGroupRuleId (what aws_vpc_security_group_ingress_rule/egress_rule's Delete always sends) returns Return: true but does not remove the rule, reproduced directly against the query API with no tofu in the loop; the security group itself IS gone, confirmed above via the AWS CLI - only its 3 taggable rules survive the apply"; }
       log "  no resource change proposed. The removal is complete and invisible to the next plan."
 
       log ""
