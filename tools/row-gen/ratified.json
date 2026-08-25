@@ -1288,6 +1288,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
@@ -3737,6 +3738,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
@@ -4227,6 +4229,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
@@ -5476,6 +5479,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
@@ -5500,6 +5504,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
@@ -9752,6 +9757,7 @@
         "attrs": [
           "name"
         ],
+        "server_assigned_if_absent": true,
         "identity_attr": "*"
       }
     ],
