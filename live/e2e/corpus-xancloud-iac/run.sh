@@ -227,6 +227,14 @@ set -uo pipefail
 #                 gateway's Name tag, alongside the VPC's), proving the
 #                 single-object assertion is load-bearing - same convention
 #                 as live/e2e/corpus-mastino-dns/run.sh's own BREAK_STAGE5.
+#   BREAK_DAY2_REMOVE  set to 1 to run day2_remove's own negative control:
+#                 keep the aws_vpc_endpoint.s3 block in the config and
+#                 assert no destroy is proposed for it (the Break text in
+#                 tools/gauntlet/stages.go for day2_remove, verbatim).
+#   BREAK_GREENFIELD  set to 1 to drop the flow-logs IAM role from the
+#                 greenfield stage's expected per-type inventory before the
+#                 structural comparison against cold_deploy's own account -
+#                 that comparison must then correctly fail.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -235,19 +243,29 @@ SRC="$ROOT/.corpus/xancloud-iac"
 WORK="$(mktemp -d)"
 PLAIN="$WORK/plain"
 ESTATE="$WORK/estate"
+GREEN="$WORK/green"
 FLOCI_PORT="${FLOCI_PORT:-4727}"
 FLOCI_NAME="choudoufu-corpus-xancloud-iac-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+# greenfield (live/GAUNTLET.md #13) needs a genuinely empty account, never
+# $ENDPOINT's - that account already holds $PLAIN's cold-deployed objects
+# by the time greenfield runs, and those objects double as this stage's own
+# stock oracle (no third floci needed: it is literally the same "cloud
+# after stock's cold deploy" the stage's own oracle text names).
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-xancloud-iac-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 REGION="us-west-2"
 PROJECT="xancloud"
 ENVIRONMENT="dev"
 ESTATE_NAME="xancloud-iac-crossing"
+GREEN_ESTATE_NAME="xancloud-iac-crossing-greenfield"
 NAME_PREFIX="${PROJECT}-${ENVIRONMENT}"
 VPC_NAME="${NAME_PREFIX}-main-vpc"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -375,6 +393,91 @@ open(p, "w").write(s.replace(old, 'region      = "$REGION"', 1))
 PYEOF
 }
 
+# remove_vpc_endpoint_s3_block <vpc_main_tf> - day2_remove's target:
+# aws_vpc_endpoint.s3, the single S3 gateway endpoint. Taggable, single-key
+# for_each (only "s3" is in var.vpcs.main.vpc_endpoints among the two
+# possible gateway endpoints - "dynamodb" is not, so this block's for_each
+# has exactly one member), and nothing else in the module references its id
+# or arn (the interface endpoints reference the security group and the
+# subnets, never a gateway endpoint) - a genuine standalone leaf, unlike
+# every candidate the flow-logs chain offers (the log group, the role, its
+# inline policy and the flow log itself all reference each other). No other
+# aws_vpc_endpoint.s3 block exists anywhere in this config for
+# classifyOrphans to confuse it with.
+#
+# aws_iam_role_policy.flow_logs was tried first and reverted: it is
+# untaggable, and its identity is record-LOCATED (identity.LocatedType),
+# not record-backed - internal/live/projection/located.go's own comment
+# says why builder.discoverOrphanedRecords deliberately proposes a destroy
+# only for a kind=object (record-backed) key, never a kind=identity
+# (record-located) one: reading an unverified located record as "this may
+# be deleted" is the same wrong-marker-shaped risk HANDOFF.md's safety rule
+# forbids for a marker, just for a record instead. Migrate DOES seed a
+# located identity record for it (issue #364 unit A2, stamp.go's
+# OutcomeSkipped branch), but a stateless live-plan correctly does not
+# destroy a record-located instance on config removal alone - this is
+# design, not a defect, and this estate's day2_remove does not need to be
+# the one that exercises that particular corner of the stage's Proves text.
+# Balanced-brace deletion (not a line-range sed) because the block's own
+# for_each is itself brace-nested.
+remove_vpc_endpoint_s3_block() {
+  local main_tf="$1"
+  python3 - "$main_tf" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+marker = 'resource "aws_vpc_endpoint" "s3" {'
+i = s.index(marker)
+assert i >= 0, "remove_vpc_endpoint_s3_block: marker not found - the corpus pin has moved"
+depth = 0
+j = i
+started = False
+while j < len(s):
+    c = s[j]
+    if c == '{':
+        depth += 1
+        started = True
+    elif c == '}':
+        depth -= 1
+        if started and depth == 0:
+            j += 1
+            break
+    j += 1
+else:
+    raise AssertionError("remove_vpc_endpoint_s3_block: no balanced closing brace found")
+end = j
+if end < len(s) and s[end] == '\n':
+    end += 1
+open(p, "w").write(s[:i] + s[end:])
+PYEOF
+}
+
+# add_live_block <versions_tf> <estate_name> - splices a live block into a
+# fresh (never-renamed, never-migrated) copy's versions.tf terraform{}
+# block, the same way the main $ESTATE copy below does, parameterized by
+# estate name so the greenfield copy gets its own, separate estate.
+add_live_block() {
+  local versions_tf="$1" estate_name="$2"
+  python3 - "$versions_tf" "$estate_name" <<'PYEOF'
+import sys
+p, estate = sys.argv[1], sys.argv[2]
+s = open(p).read()
+marker = "  }\n}\n"
+i = s.rindex(marker)
+live_block = '''
+  live {
+    estate = "%s"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+''' % estate
+s = s[:i] + "  }\n" + live_block
+open(p, "w").write(s)
+PYEOF
+}
+
 copy_estate "$PLAIN"
 delta_check "$PLAIN"
 log "  DELTA confirmed: blueprints/landing-zone-basic and all three modules are byte-identical to the pinned commit"
@@ -475,6 +578,117 @@ log ""
 gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarked"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART F: GREENFIELD (greenfield, live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Right here, deliberately, and nowhere later: $PLAIN's 28 objects on
+# $ENDPOINT are still exactly stock's pristine cold deploy - nothing past
+# this point has migrated, renamed or removed anything yet - so they double
+# as this stage's own oracle with no third floci container needed. A
+# SEPARATE, genuinely empty account (FLOCI_GREEN_PORT) is where choudoufu
+# applies the identical reduced blueprint directly, live block from the
+# start, no migration, no state file ever existing.
+CURRENT_STAGE=greenfield
+log "=== PART F: 0. a second floci, a genuinely empty namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+GREEN_HEALTH=""
+for _ in $(seq 1 45); do
+  GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"s3"' <<< "${GREEN_HEALTH:-}" || fail "the greenfield floci did not come up healthy (s3) at $GREEN_ENDPOINT"
+log "  healthy: $GREEN_ENDPOINT"
+
+copy_estate "$GREEN"
+delta_check "$GREEN"
+provider_and_backend_patch "$GREEN"
+region_patch "$GREEN"
+add_live_block "$GREEN/blueprints/landing-zone-basic/versions.tf" "$GREEN_ESTATE_NAME"
+log "  greenfield copy written to $GREEN (DELTA confirmed, live block added to versions.tf's terraform{} block, estate=$GREEN_ESTATE_NAME)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART F: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 28 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 28 resources - the same count stage 1's stock cold deploy produced"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART F: 2. markers, read through the AWS CLI directly ==="
+GREEN_VPC_ID="$(awsg ec2 describe-vpcs --filters "Name=tag:Name,Values=$VPC_NAME" --query 'Vpcs[0].VpcId' --output text)"
+[ -n "$GREEN_VPC_ID" ] && [ "$GREEN_VPC_ID" != "None" ] || fail "no live VPC found by its Name tag in the greenfield account"
+GREEN_VPC_ADDR="$(awsg ec2 describe-vpcs --vpc-ids "$GREEN_VPC_ID" --query "Vpcs[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_VPC_ADDR" = "module.vpc.aws_vpc.this:main" ] || fail "the greenfield VPC carries tofu-address=$GREEN_VPC_ADDR, not module.vpc.aws_vpc.this:main"
+GREEN_VPC_ESTATE_TAG="$(awsg ec2 describe-vpcs --vpc-ids "$GREEN_VPC_ID" --query "Vpcs[0].Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_VPC_ESTATE_TAG" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield VPC carries tofu-estate=$GREEN_VPC_ESTATE_TAG, not $GREEN_ESTATE_NAME"
+GREEN_ROLE_ARN="$(awsg iam get-role --role-name "${NAME_PREFIX}-main-flow-logs-role" --query 'Role.Arn' --output text 2>/dev/null || true)"
+[ -n "$GREEN_ROLE_ARN" ] && [ "$GREEN_ROLE_ARN" != "None" ] || fail "no live flow-logs role found in the greenfield account"
+GREEN_ROLE_ADDR="$(awsg iam list-role-tags --role-name "${NAME_PREFIX}-main-flow-logs-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ROLE_ADDR" = "module.vpc.aws_iam_role.flow_logs:main" ] || fail "the greenfield flow-logs role carries tofu-address=$GREEN_ROLE_ADDR, not module.vpc.aws_iam_role.flow_logs:main"
+log "  VPC $GREEN_VPC_ID and the flow-logs role both carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART F: 3. the record store holds every instance, including the untaggable ones (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/blueprints/landing-zone-basic/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "28" ] || fail "expected 28 records under the local record store after the greenfield apply (one per instance, including the untaggable iam_role_policy, account_alias and the 4 route-table associations), found $GREEN_RECORD_FILES"
+log "  28 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART F: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART F: 5. object-by-object comparison against stock's cold deploy, still pristine on \$ENDPOINT ==="
+# local.common_tags applies Project=$PROJECT to every taggable resource
+# regardless of choudoufu - real config-owned data, not a choudoufu marker -
+# so filtering both accounts on it and comparing the taggable-object count
+# is a fair, marker-free structural comparison; a handful of per-type CLI
+# reads (never through tofu state on either side) narrow it further.
+GREEN_TAGGED_N="$(awsg resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=Project,Values=$PROJECT" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+PLAIN_TAGGED_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=Project,Values=$PROJECT" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+if [ "${BREAK_GREENFIELD:-}" = "1" ]; then
+  GREEN_TAGGED_N=$((GREEN_TAGGED_N - 1))
+  log "  BREAK_GREENFIELD=1: subtracted one from the greenfield count on purpose - the comparison below must fail"
+fi
+[ "$GREEN_TAGGED_N" != "0" ] && [ "$PLAIN_TAGGED_N" != "0" ] || fail "the Project=$PROJECT tag query itself is broken (green=$GREEN_TAGGED_N plain=$PLAIN_TAGGED_N)"
+[ "$GREEN_TAGGED_N" = "$PLAIN_TAGGED_N" ] || fail "the greenfield account has $GREEN_TAGGED_N Project=$PROJECT-tagged objects, stock's cold deploy has $PLAIN_TAGGED_N - they should match"
+log "  $GREEN_TAGGED_N Project=$PROJECT-tagged objects on both sides"
+
+GREEN_CIDR="$(awsg ec2 describe-vpcs --vpc-ids "$GREEN_VPC_ID" --query 'Vpcs[0].CidrBlock' --output text)"
+PLAIN_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=$VPC_NAME" --query 'Vpcs[0].VpcId' --output text)"
+PLAIN_CIDR="$(awsl ec2 describe-vpcs --vpc-ids "$PLAIN_VPC_ID" --query 'Vpcs[0].CidrBlock' --output text)"
+[ "$GREEN_CIDR" = "$PLAIN_CIDR" ] || fail "the greenfield VPC's CIDR ($GREEN_CIDR) differs from stock's cold-deployed VPC ($PLAIN_CIDR)"
+
+GREEN_SUBNET_N="$(awsg ec2 describe-subnets --filters "Name=vpc-id,Values=$GREEN_VPC_ID" --query 'length(Subnets)' --output text)"
+PLAIN_SUBNET_N="$(awsl ec2 describe-subnets --filters "Name=vpc-id,Values=$PLAIN_VPC_ID" --query 'length(Subnets)' --output text)"
+[ "$GREEN_SUBNET_N" = "$PLAIN_SUBNET_N" ] || fail "the greenfield VPC has $GREEN_SUBNET_N subnets, stock's has $PLAIN_SUBNET_N"
+
+GREEN_NAT_N="$(awsg ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$GREEN_VPC_ID" "Name=state,Values=available" --query 'length(NatGateways)' --output text)"
+PLAIN_NAT_N="$(awsl ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$PLAIN_VPC_ID" "Name=state,Values=available" --query 'length(NatGateways)' --output text)"
+[ "$GREEN_NAT_N" = "$PLAIN_NAT_N" ] || fail "the greenfield VPC has $GREEN_NAT_N NAT gateways, stock's has $PLAIN_NAT_N"
+
+GREEN_VPCE_N="$(awsg ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$GREEN_VPC_ID" --query 'length(VpcEndpoints)' --output text)"
+PLAIN_VPCE_N="$(awsl ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$PLAIN_VPC_ID" --query 'length(VpcEndpoints)' --output text)"
+[ "$GREEN_VPCE_N" = "$PLAIN_VPCE_N" ] || fail "the greenfield VPC has $GREEN_VPCE_N VPC endpoints, stock's has $PLAIN_VPCE_N"
+
+GREEN_ALIAS="$(awsg iam list-account-aliases --query 'AccountAliases[0]' --output text)"
+PLAIN_ALIAS="$(awsl iam list-account-aliases --query 'AccountAliases[0]' --output text)"
+[ "$GREEN_ALIAS" = "$PLAIN_ALIAS" ] || fail "the greenfield account alias ($GREEN_ALIAS) differs from stock's ($PLAIN_ALIAS)"
+
+log "  matches stock's cold deploy: CIDR, $GREEN_SUBNET_N subnets, $GREEN_NAT_N NAT gateway, $GREEN_VPCE_N VPC endpoints, account alias $GREEN_ALIAS - read via the AWS CLI on both endpoints, tags normalised out"
+gauntlet_stage greenfield pass "28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on \$ENDPOINT matches on tagged-object count ($GREEN_TAGGED_N), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias"
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -528,6 +742,35 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE A BLOCK, stock oracle (day2_remove, live/GAUNTLET.md #7)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Same timing discipline as D-ORACLE, immediately above, and for the same
+# reason: this copy of $PLAIN is taken here, before choudoufu or
+# live-import ever touch these objects, because a LATER copy would carry
+# none of $PLAIN's own terraform.tfstate knowledge of the tofu-address/
+# tofu-estate marker tags choudoufu adds afterward - a plan against such a
+# copy would see those as unmanaged tags to strip on every taggable
+# resource (22 of them), not the single clean destroy this oracle exists to
+# confirm. The real removal (Part E, after day2_rename) runs choudoufu's
+# own live-plan/apply against $ESTATE; this only has to show stock proposes
+# the same single destroy for the same object, on cold_deploy's own state.
+CURRENT_STAGE=day2_remove
+PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
+cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
+remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
+( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+log "=== E-ORACLE: stock tofu, the same block removed, on cold_deploy's own state ==="
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan does not propose exactly one destroy for the same object"; }
+grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's remove plan does not target the same object"; }
+log "  stock: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]) on cold_deploy's own state, nothing else"
 
 CURRENT_STAGE=migrate
 
@@ -956,6 +1199,82 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Starts from Part D's real, completed state: the plan is empty (D3). The
+# target is aws_vpc_endpoint.s3 - see remove_vpc_endpoint_s3_block's own
+# comment, above, for why this leaf was chosen over the flow-logs chain,
+# and why classifyOrphans has no other declared instance of this block to
+# confuse it with. The stock oracle for this same removal already ran,
+# above, as PART E-ORACLE, right after cold_deploy and before migrate ever
+# tagged a live object - see that part's own header for why the timing
+# matters (a copy of $PLAIN taken this late would see 22 spurious tag
+# diffs, one per taggable resource, instead of the single clean destroy).
+#
+# BREAK_DAY2_REMOVE=1 exercises this stage's own Break control instead:
+# keep the block, and assert the plan proposes no destroy for it at all -
+# the Break text in tools/gauntlet/stages.go, verbatim.
+CURRENT_STAGE=day2_remove
+VPCE_NAME_E="${NAME_PREFIX}-main-vpce-s3"
+log "=== E0. capture the live S3 gateway endpoint one more time ==="
+VPCE_ID_E="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_NAME_E" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text 2>/dev/null || true)"
+[ -n "$VPCE_ID_E" ] && [ "$VPCE_ID_E" != "None" ] || fail "no live, available S3 gateway endpoint found by its Name tag ($VPCE_NAME_E) before day2_remove even starts"
+
+if [ "${BREAK_DAY2_REMOVE:-}" = "1" ]; then
+  log "=== E1 (BREAK_DAY2_REMOVE=1). keep the aws_vpc_endpoint.s3 block; no destroy may be proposed ==="
+  BREAK_REMOVE_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_RC=$?
+  [ "$BREAK_REMOVE_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_OUT" | tail -30; fail "the BREAK_DAY2_REMOVE=1 kept-block plan exited $BREAK_REMOVE_RC"; }
+  grep -qE '^  # .*aws_vpc_endpoint\.s3.* will be destroyed' <<< "$BREAK_REMOVE_OUT" \
+    && { printf '%s\n' "$BREAK_REMOVE_OUT" | grep -E '^  # .+ will be'; fail "BREAK_DAY2_REMOVE=1: a destroy was proposed even though the block is still in the config - this stage's check is not load-bearing"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_OUT" \
+    || { grep -E '^  #' <<< "$BREAK_REMOVE_OUT"; fail "BREAK_DAY2_REMOVE=1: the kept-block plan is not empty"; }
+  log "  BREAK_DAY2_REMOVE=1: correctly proposes nothing - the block is still declared"
+else
+  log "=== E1. choudoufu: delete the aws_vpc_endpoint.s3 block ==="
+  remove_vpc_endpoint_s3_block "$EST_VPC_MAIN"
+  REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+  [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+  if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+    printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+    fail "choudoufu withheld the destroy of aws_vpc_endpoint.s3 as a possible rename (discovery.go's classifyOrphans) even though no other aws_vpc_endpoint.s3 block exists anywhere in this config - this is an honest wall, not a pass"
+  fi
+  grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+    || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.vpc.aws_vpc_endpoint.s3[\"main\"] when its block is deleted"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+    || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+  log "  choudoufu: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]), nothing else"
+
+  REMOVE_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+  [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+  # A destroyed VPC endpoint is confirmed by STATE/COUNT, not by exit code:
+  # real AWS (and, this crossing has now confirmed, floci too) keeps a
+  # deleted endpoint's record around in describe-vpc-endpoints for a while,
+  # State=deleted rather than the id disappearing outright - so "found with
+  # State=deleted" and "not found at all" are both a genuine destroy, and
+  # "found with any other State" is not.
+  VPCE_STATE_AFTER="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$VPCE_ID_E" --query 'VpcEndpoints[0].State' --output text 2>/dev/null || echo "gone")"
+  case "$VPCE_STATE_AFTER" in
+    gone|None|deleted|deleting) : ;;
+    *) fail "the S3 gateway endpoint $VPCE_ID_E is still State=$VPCE_STATE_AFTER after the destroy - it was orphaned, not destroyed" ;;
+  esac
+  log "  $VPCE_ID_E is gone (State=$VPCE_STATE_AFTER) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+  E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+  [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+  log "  No changes. The removal is complete and invisible to the next plan."
+
+  gauntlet_stage day2_remove pass "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; the E-ORACLE stock oracle (on cold_deploy's own state, before any tag was ever written) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config"
 fi
 CURRENT_STAGE=""
 gauntlet_end

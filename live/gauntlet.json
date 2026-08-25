@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,9 +153,9 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 4,
+          "pass": 5,
           "fail": 6,
-          "not_run": 16
+          "not_run": 15
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 7,
+          "pass": 8,
           "fail": 3,
-          "not_run": 16
+          "not_run": 15
         },
         "migrate": {
           "pass": 26,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,9 +230,9 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 4,
+          "pass": 5,
           "fail": 6,
-          "not_run": 15
+          "not_run": 14
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 7,
+          "pass": 8,
           "fail": 3,
-          "not_run": 15
+          "not_run": 14
         },
         "migrate": {
           "pass": 25,
@@ -1325,28 +1325,30 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f2cf3270e92f5ad36c47327b0da58fc00877e2ea",
-        "date": "2026-08-24T21:45:41Z",
+        "commit": "648f2c21408209072817d4dbbd63c5073fdcd3bc",
+        "date": "2026-08-25T04:01:26Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
+          "day2_remove": "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; the E-ORACLE stock oracle (on cold_deploy's own state, before any tag was ever written) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config",
           "day2_rename": "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
+          "greenfield": "28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on $ENDPOINT matches on tagged-object count (21), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias",
           "migrate": "live-import -approve completed cleanly against the cold state",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 21",
           "test_plan": "no resource change proposed"
