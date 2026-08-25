@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `e064df4630` against `ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad`, 2026-08-25T14:39:33Z.
+Measured at commit `97b048dfa0` against `ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad`, 2026-08-25T15:09:52Z.
 
 ## The stages
 
@@ -67,7 +67,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | no | pass pass pass pass pass pass pass FAIL |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
