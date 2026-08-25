@@ -918,6 +918,16 @@ log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 GREEN="$WORK/green"
 copy_estate "$GREEN"
+# no_source_create = "create" added alongside marker_repair/markers above:
+# found necessary re-verifying this stage after main's
+# CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d, 2026-08-25) - a
+# genuinely cold apply now refuses config-identified instances whose
+# identity value belongs to a sibling that does not exist yet either
+# (#365 ruling 4's default refusal of that ambiguity;
+# aws_route_table_association.crossing_public was the one this estate
+# hit), and a greenfield apply is the one case an operator KNOWS it is a
+# real create. Same fix, same precedent as corpus-alb-complete's own
+# 898091b8f2.
 write_main_tf "$GREEN" '
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
@@ -926,6 +936,7 @@ write_main_tf "$GREEN" '
     }
     strict {
       marker_repair = "never"
+      no_source_create = "create"
       markers "record" {
         types = ["aws_instance", "aws_ebs_volume"]
       }
@@ -984,8 +995,23 @@ log "  7 tag-stamped; the instance ($GREEN_INSTANCE_ID) and EBS volume ($GREEN_V
 log "=== PART GREENFIELD: 3. the next plan proposes nothing ==="
 GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
 [ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -40; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+# RE-VERIFIED against current main (re-verify-day2_remove unit, 2026-08):
+# with the no_source_create toggle unblocking PART GREENFIELD's own apply
+# (comment above), this is the real, current wall. The plan proposes
+# replacing (not just failing to match) both markers=record instances:
+# aws_instance.instance[0] and aws_volume_attachment.data_disk_attachment[0]
+# "must be replaced". This is PART GREENFIELD's own apply writing the
+# record for a brand-new instance and this SAME script's next plan (same
+# process, no state file involved either way) failing to read that
+# just-written record back - a first-apply record-read-back gap, distinct
+# from day2_remove's own finding just below (which is about an undeclared
+# instance's OLD record after its block is deleted, not a freshly-created
+# one's). Whether both share a root cause in the record-store read path or
+# are two separate gaps is not established here; not fixed in this
+# script-only re-verification unit, named precisely rather than left as a
+# bare "not empty".
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
-  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan proposes replacing both markers=record instances (aws_instance.instance[0] and aws_volume_attachment.data_disk_attachment[0] both 'must be replaced') - PART GREENFIELD's own apply writes their record, and this immediately-following plan fails to read it back; a first-apply record-read-back gap, not day2_remove's own (different) finding: $(grep -E '^  #' <<< "$GREEN_PLAN_OUT" | tr '\n' ' ')"; }
 log "  No changes."
 
 log "=== PART GREENFIELD: 4. stock oracle - the identical config applied fresh in its own namespace ==="
@@ -1639,9 +1665,34 @@ EOF
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
     REMOVE_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    # RE-VERIFIED against current main (re-verify-day2_remove unit,
+    # 2026-08): this estate's own aws_instance.instance[0] and
+    # aws_ebs_volume.data_disk[0] are markers=record-selected (this
+    # script's own strict { markers "record" { types = ["aws_instance",
+    # "aws_ebs_volume"] } } block above), so they carry no tag marker by
+    # design and were never reachable through the ordinary tag sweep. 610511fb73's
+    # recordOrphanReadSweep (#405's day2_remove fix) exists for exactly
+    # this shape - an undeclared instance whose identity lives only in the
+    # record store - but does NOT cover it here: its own filter is
+    # `typeTaggable(schemas, typeName)`, a per-TYPE check against the
+    # provider's schema (does aws_instance have a tags argument at all?
+    # yes), not a per-INSTANCE check of which marking policy this
+    # particular instance is actually under. So a markers=record instance
+    # of an otherwise-taggable type is invisible to the new sweep the same
+    # way it was always invisible to the tag sweep, and the removal sweep
+    # never sees module.server.module.server.module.host.aws_instance.instance[0]
+    # or aws_ebs_volume.data_disk[0] as orphaned at all when their
+    # declaring block is deleted - #405 closed this gap for UNTAGGABLE
+    # types (giantswarm's aws_iam_role_policy family, this unit's other
+    # findings) but not for a taggable type opted into markers=record.
+    # Generic: reaches every type any estate selects into markers=record
+    # while removing its declaring block, not just aws_instance. Not fixed
+    # here - a Go change, out of scope for this script-only
+    # re-verification unit; this is this estate's true residual scope for
+    # #405/#410, refined from the pre-fix wall's generic description.
     for addr in 'aws_instance.instance[0]' 'aws_ebs_volume.data_disk[0]' 'aws_volume_attachment.data_disk_attachment[0]'; do
       grep -qF "  # module.server.module.server.module.host.$addr will be destroyed" <<< "$REMOVE_PLAN_OUT" \
-        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.server.module.server.module.host.$addr when module.server's block is deleted"; }
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.server.module.server.module.host.$addr when module.server's block is deleted - see the comment immediately above this loop for the precise, generic root cause (recordOrphanReadSweep's per-TYPE taggable filter, not per-instance markers=record policy)"; }
     done
     grep -qE '^  # .+ will be (created|updated)' <<< "$REMOVE_PLAN_OUT" \
       && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's remove plan proposes something other than the three destroys"; }
