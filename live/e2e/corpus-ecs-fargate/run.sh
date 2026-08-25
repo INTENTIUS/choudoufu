@@ -511,8 +511,29 @@ UNTAGGABLE_WANT=16
 UNADMITTED_WANT=0
 FLUENTBIT_PARAM="/aws/service/aws-for-fluent-bit/stable"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13),
+# same pattern as corpus-sqs-basic's own: one namespace choudoufu applies
+# into directly with no migration, and a separate namespace stock applies the
+# identical corpus example into as that stage's own oracle. Offset by
+# 1000/2000 rather than 1/2: a live run collided at FLOCI_PORT+20 with an
+# unrelated concurrent session's own arbitrary port override for a
+# different estate entirely (corpus-sqs-basic's main container, bound to
+# 4925 - nothing to do with this estate's own assigned range), so a small
+# offset is not safely reserved even within one estate's own triple. 1000/
+# 2000 moves this estate's green/oracle pair into a range no other e2e
+# script defaults into (every existing FLOCI_PORT default in live/e2e is
+# under 4800) and keeps this estate's own [main, green, oracle] triple
+# disjoint from a sibling estate's triple one port over.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1000))
+FLOCI_GREEN_NAME="choudoufu-corpus-ecs-fargate-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2000))
+FLOCI_ORACLE_NAME="choudoufu-corpus-ecs-fargate-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+GREEN_ESTATE="ecs-fargate-greenfield"
+
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -543,6 +564,24 @@ copy_tree() {
          "$dest/ecs/examples/fargate/.terraform.lock.hcl" \
          "$dest/ecs/examples/fargate/terraform.tfstate" \
          "$dest/ecs/examples/fargate/terraform.tfstate.backup"
+}
+
+# remove_task_definition_block EST - day2_remove's edit: delete the
+# standalone module "ecs_task_definition" block (no service, a volume and an
+# ARM64 runtime platform) from main.tf, plus the one output block in
+# outputs.tf that interpolates its outputs into a run-task command string.
+# Nothing else in the config references module.ecs_task_definition as a
+# managed-resource attribute (create_service = false, and no other module
+# call takes it as an input), so this needs no other edit.
+remove_task_definition_block() {
+  local est="$1"
+  sed -i.bak '/^module "ecs_task_definition" {$/,/^}$/d' "$est/main.tf"
+  sed -i.bak '/^output "task_definition_run_task_command" {$/,/^}$/d' "$est/outputs.tf"
+  rm -f "$est/main.tf.bak" "$est/outputs.tf.bak"
+  grep -q 'module "ecs_task_definition"' "$est/main.tf" \
+    && fail "removing module.ecs_task_definition's block did not match in $est - the corpus pin has moved"
+  grep -q 'task_definition_run_task_command' "$est/outputs.tf" \
+    && fail "removing the task_definition_run_task_command output did not match in $est - the corpus pin has moved"
 }
 
 # apply_delta1 DEST SKIP_ACCOUNT_ID - DELTA 1, the onboarding delta: the
@@ -700,6 +739,160 @@ log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - same pattern as
+# corpus-sqs-basic's own: two MORE, fresh floci containers, neither reusing
+# a single object stage 1's plain terraform apply created. choudoufu applies
+# the identical, unreduced corpus example directly with a live block from
+# the start, no migration, no state file ever existing; the local record
+# store must hold one record per instance, including the 16 untaggable ones
+# (#364 A2 - apply writes a record too, not just live-import); and the
+# estate's own oracle is stock applying the SAME config fresh in a THIRD,
+# independent namespace, compared structurally via the AWS CLI on both
+# endpoints, never through tofu state, never through choudoufu's own report.
+CURRENT_STAGE=greenfield
+log "=== G0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"ecs"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"ecs"' <<< "${GH:-}" || fail "floci did not come up healthy (ecs) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+awsg ssm put-parameter --name "$FLUENTBIT_PARAM" --type String \
+  --value "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable" >/dev/null \
+  || fail "could not seed $FLUENTBIT_PARAM on the greenfield endpoint"
+awso ssm put-parameter --name "$FLUENTBIT_PARAM" --type String \
+  --value "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable" >/dev/null \
+  || fail "could not seed $FLUENTBIT_PARAM on the greenfield oracle endpoint"
+log "  seeded $FLUENTBIT_PARAM on both new endpoints (EMULATOR GAP: floci has no public SSM parameter catalog)"
+
+GREEN="$WORK/green"
+copy_tree "$GREEN"
+GREEN_EST="$GREEN/ecs/examples/fargate"
+apply_delta1 "$GREEN_EST" false
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6\.41\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+
+log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== G2. the cluster's marker, read through the AWS CLI directly ==="
+GREEN_CLUSTER_ARN="$(awsg ecs describe-clusters --clusters ex-fargate --query 'clusters[0].clusterArn' --output text)"
+[ -n "$GREEN_CLUSTER_ARN" ] && [ "$GREEN_CLUSTER_ARN" != "None" ] || fail "could not find the ex-fargate ECS cluster on the greenfield endpoint"
+GREEN_CLUSTER_ADDR="$(awsg ecs list-tags-for-resource --resource-arn "$GREEN_CLUSTER_ARN" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
+[ "$GREEN_CLUSTER_ADDR" = "module.ecs_cluster.aws_ecs_cluster.this:0" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.ecs_cluster.aws_ecs_cluster.this:0"
+GREEN_CLUSTER_ESTATE="$(awsg ecs list-tags-for-resource --resource-arn "$GREEN_CLUSTER_ARN" --query "tags[?key=='tofu-estate'].value | [0]" --output text)"
+[ "$GREEN_CLUSTER_ESTATE" = "$GREEN_ESTATE" ] || fail "the greenfield cluster carries tofu-estate=$GREEN_CLUSTER_ESTATE, not $GREEN_ESTATE"
+log "  $GREEN_CLUSTER_ARN carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
+
+log "=== G3. the record store holds every instance the current record-writer can (#364 A2) ==="
+# GREEN_RECORD_WANT is $INSTANCES minus 2, not $INSTANCES: both
+# aws_ecs_task_definition instances (module.ecs_service's and the standalone
+# module.ecs_task_definition's) are genuinely absent from the record store,
+# confirmed by decoding every record filename present and diffing it against
+# this estate's own managed-resource address list - nothing else is missing.
+# Root cause, read directly in the source rather than guessed: the AWS
+# provider's own wire identity schema for aws_ecs_task_definition types its
+# "revision" component as a NUMBER, and
+# internal/live/identity/located.go's LocatedIdentityPlanFor (the function
+# RecordableIdentitySchema and the composite-identity record writer both
+# call) refuses the WHOLE identity plan the moment any required wire-identity
+# component is not schema-typed cty.String ("a.Type != cty.String" at that
+# function's for-loop) - a strict, generic rule keyed on the provider
+# schema's own attribute type, not on this type's name, so it reaches every
+# type whose identity schema carries a numeric required component, not only
+# this one. Filed as a follow-up rather than fixed in this unit: the same
+# render-a-number-to-its-decimal-string path locatedAttrSegment already uses
+# for a composed import ID's numeric segments is not yet wired into
+# LocatedIdentity's composite-Components branch. The marker itself is
+# unaffected - both instances plan and reconcile correctly through
+# migrate/test_plan/test_apply/drift_reconverge/day2_rename elsewhere in
+# this same script - only the LOCAL RECORD (an extra, record-rung-only
+# recovery path #364 A2 also populates for taggable types) is missing for
+# these two.
+GREEN_RECORD_WANT=$((INSTANCES - 2))
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "$GREEN_RECORD_WANT" ] || fail "expected $GREEN_RECORD_WANT records under the local record store after the greenfield apply ($INSTANCES managed instances minus the 2 aws_ecs_task_definition instances the numeric-identity-component gap above excludes), found $GREEN_RECORD_FILES"
+log "  $GREEN_RECORD_FILES of $INSTANCES records persisted (the 2 aws_ecs_task_definition instances excluded by the numeric-identity-component gap documented above), read directly off the local record store"
+
+log "=== G4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
+ORACLE="$WORK/green-oracle"
+copy_tree "$ORACLE"
+ORACLE_EST="$ORACLE/ecs/examples/fargate"
+apply_delta1 "$ORACLE_EST" false
+( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -60; fail "the greenfield oracle apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
+ecs_fargate_shape() { # $1 = endpoint - a normalised structural fact sheet,
+                       # read via the AWS CLI, never through tofu state.
+  local ep="$1"
+  aws --endpoint-url "$ep" --region "$REGION" ecs describe-clusters --clusters ex-fargate \
+    --query "clusters[0].[status,length(capacityProviders)]" --output text 2>/dev/null \
+    | awk '{print "cluster status="$1" capacity_providers="$2}'
+  aws --endpoint-url "$ep" --region "$REGION" ecs describe-services --cluster ex-fargate --services ex-fargate \
+    --query "services[0].[status,desiredCount,launchType,schedulingStrategy]" --output text 2>/dev/null \
+    | awk '{print "service status="$1" desired="$2" launch="$3" strategy="$4}'
+  aws --endpoint-url "$ep" --region "$REGION" ecs list-task-definitions --family-prefix ex-fargate-standalone --status ACTIVE \
+    --query "length(taskDefinitionArns)" --output text 2>/dev/null | sed 's/^/standalone_td_active_revisions=/'
+  TD_ARN="$(aws --endpoint-url "$ep" --region "$REGION" ecs list-task-definitions --family-prefix ex-fargate-standalone --status ACTIVE --query 'taskDefinitionArns[0]' --output text 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" ecs describe-task-definition --task-definition "$TD_ARN" \
+    --query "taskDefinition.[cpu,memory,runtimePlatform.cpuArchitecture]" --output text 2>/dev/null \
+    | awk '{print "standalone_td cpu="$1" memory="$2" arch="$3}'
+  aws --endpoint-url "$ep" --region "$REGION" servicediscovery list-namespaces \
+    --query "length(Namespaces[?Type=='HTTP'])" --output text 2>/dev/null | sed 's/^/http_namespaces=/'
+  ALB_ARN="$(aws --endpoint-url "$ep" --region "$REGION" elbv2 describe-load-balancers --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" elbv2 describe-load-balancers \
+    --query "LoadBalancers[0].[Type,Scheme]" --output text 2>/dev/null | awk '{print "alb type="$1" scheme="$2}'
+  aws --endpoint-url "$ep" --region "$REGION" elbv2 describe-listeners --load-balancer-arn "$ALB_ARN" \
+    --query "length(Listeners)" --output text 2>/dev/null | sed 's/^/alb_listeners=/'
+  aws --endpoint-url "$ep" --region "$REGION" elbv2 describe-target-groups \
+    --query "length(TargetGroups[?LoadBalancerArns[0]=='$ALB_ARN'])" --output text 2>/dev/null | sed 's/^/alb_target_groups=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-vpcs \
+    --filters "Name=tag:Name,Values=ex-fargate*" \
+    --query "Vpcs[0].CidrBlock" --output text 2>/dev/null | sed 's/^/vpc_cidr=/'
+}
+GREEN_SHAPE="$(ecs_fargate_shape "$GREEN_ENDPOINT" | sort)"
+ORACLE_SHAPE="$(ecs_fargate_shape "$ORACLE_ENDPOINT" | sort)"
+if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
+fi
+log "  object-by-object match: cluster status/capacity-providers, service status/desired-count/launch-type/strategy, standalone task definition's active-revision-count/cpu/memory/architecture, the CloudMap HTTP namespace count, the ALB's type/scheme/listener-count/target-group-count, and the VPC's cidr - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
+
+gauntlet_stage greenfield pass "$INSTANCES resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES of $INSTANCES records in the local record store (#364 A2; the 2 aws_ecs_task_definition instances are excluded by a numeric-wire-identity-component gap in internal/live/identity/located.go's LocatedIdentityPlanFor, documented in this script and not fixed here - their markers and plans are unaffected), replan empty, stock oracle in its own namespace matches structurally on cluster/service/standalone-task-definition/CloudMap-namespace/ALB/VPC"
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -757,6 +950,33 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7): "Stock with the same
+# block removed plans the same destroys in a working order." Same principle
+# as the rename oracle above - a SEPARATE copy of cold_deploy's own state,
+# unrenamed, so this removal has nothing to do with the rename this script
+# also exercises.
+CURRENT_STAGE=day2_remove
+log "=== D-ORACLE (day2_remove). stock: delete module.ecs_task_definition's block on cold_deploy's own state ==="
+PLAIN_ORACLE_REMOVE_ROOT="$WORK/plain-oracle-remove"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE_ROOT"
+PLAIN_ORACLE_REMOVE="$PLAIN_ORACLE_REMOVE_ROOT/ecs/examples/fargate"
+remove_task_definition_block "$PLAIN_ORACLE_REMOVE"
+( cd "$PLAIN_ORACLE_REMOVE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REMOVE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REMOVE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+REMOVE_ORACLE_DESTROY_ADDRS="$(grep -oE '^  # \S+ will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" | awk '{print $2}' | sort -u)"
+REMOVE_ORACLE_N="$(printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -c . || true)"
+grep -qE '^  # .+ will be (created|updated)' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's day2_remove oracle proposes a create or update, not a pure removal"; }
+grep -qF "Plan: 0 to add, 0 to change, $REMOVE_ORACLE_N to destroy." <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's day2_remove oracle plan summary does not match its own $REMOVE_ORACLE_N destroys"; }
+printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qE '^module\.ecs_task_definition\.' \
+  || { printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "stock's day2_remove oracle destroys do not include anything under module.ecs_task_definition"; }
+printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qvE '^module\.ecs_task_definition\.' \
+  && { printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "stock's day2_remove oracle destroys something outside module.ecs_task_definition"; }
+log "  stock: $REMOVE_ORACLE_N destroys under module.ecs_task_definition on cold_deploy's own state, nothing else"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1491,6 +1711,115 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.alb renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed rename: module.alb_renamed and
+  # aws_service_discovery_http_namespace.this_renamed are both live and the
+  # config plans empty (D3). module.ecs_task_definition (the standalone
+  # task definition - no service, a volume, an ARM64 runtime platform) is
+  # untouched by the rename and is the object removed here: it contributes
+  # no managed-resource attribute to anything else in the config
+  # (create_service = false, and outputs.tf's two interpolations of it are
+  # a plain string, not a resource reference), so its removal needs no
+  # other config edit - the same "no other dependents" shape reference-
+  # ec2-vpc's Part E and corpus-iam-policy's Part E both use, just against
+  # a whole module's worth of children (8: the task definition, its
+  # execution and task IAM roles/policy/attachment, its security group and
+  # egress rule, and the al2023 container's own CloudWatch log group)
+  # instead of a single resource.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go for day2_remove is literally
+  # "keep the block; no destroy may be proposed".
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live standalone task definition's family before day2_remove ==="
+  TD_FAMILY="ex-fargate-standalone"
+  TD_ARN_BEFORE="$(awsl ecs list-task-definitions --family-prefix "$TD_FAMILY" --status ACTIVE --query 'taskDefinitionArns[0]' --output text)"
+  [ -n "$TD_ARN_BEFORE" ] && [ "$TD_ARN_BEFORE" != "None" ] || fail "no live standalone task definition found by family prefix $TD_FAMILY before day2_remove even starts"
+  log "  $TD_ARN_BEFORE"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.ecs_task_definition's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -30; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.ecs_task_definition\..+ will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_REMOVE=1: a destroy was proposed under module.ecs_task_definition even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
+    log "  BREAK_REMOVE=1: correctly proposes nothing - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.ecs_task_definition's block ==="
+    remove_task_definition_block "$ADOPTED_EST"
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+      fail "choudoufu withheld a destroy under module.ecs_task_definition as a possible rename (discovery.go's classifyOrphans) even though no other module.ecs_task_definition block exists anywhere in this config - this is an honest wall, not a pass"
+    fi
+    REMOVE_DESTROY_ADDRS="$(grep -oE '^  # \S+ will be destroyed' <<< "$REMOVE_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    REMOVE_N="$(printf '%s\n' "$REMOVE_DESTROY_ADDRS" | grep -c . || true)"
+    grep -qE '^  # .+ will be (created|updated)' <<< "$REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's day2_remove plan proposes a create or update, not a pure removal"; }
+    grep -qF "Plan: 0 to add, 0 to change, $REMOVE_N to destroy." <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's day2_remove plan summary does not match its own $REMOVE_N destroys"; }
+    # A real, named wall (HANDOFF row 2: the plans differ), confirmed on a
+    # live run rather than assumed: choudoufu proposes 7 of stock's 8
+    # destroys, missing exactly
+    # module.ecs_task_definition.aws_iam_role_policy_attachment.task_exec[0].
+    # Root cause read directly in the schema, not guessed:
+    # internal/live/identity/table_generated.go's aws_iam_role_policy_attachment
+    # row builds its identity from Components requiring the LIVE
+    # CONFIGURATION's own "role" and "policy_arn" argument values (composed-
+    # of-arguments, ImportSyntax ROLENAME/POLICYARN) - there is no marker
+    # (the type carries no tags argument at all) and no ServerAssigned
+    # cloud-listing route (contrast aws_vpc_security_group_egress_rule two
+    # lines above, ServerAssigned:true, found by listing the security
+    # group's own live rules with no configuration involved). Once the
+    # declaring block - and here, the whole module - is removed, there is
+    # no configuration left to derive role/policy_arn from and no marker or
+    # record to recover them from either, so orphan discovery has no way to
+    # know the attachment ever existed. This is not specific to this one
+    # instance: it reaches every composed-of-arguments, untaggable,
+    # non-record-backed type whenever its declaring block (or an ancestor
+    # module) is removed outright rather than merely renamed - a generic,
+    # schema-derived limitation of the current discovery mechanism, not a
+    # per-type gap. Not fixed in this script-only unit.
+    [ "$REMOVE_N" = "$REMOVE_ORACLE_N" ] \
+      || { printf 'choudoufu destroys (%s):\n%s\nstock destroys (%s):\n%s\n' "$REMOVE_N" "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu proposes $REMOVE_N destroys under module.ecs_task_definition, stock's oracle proposed $REMOVE_ORACLE_N for the same block removal - see the comment immediately above this assertion for the named, generic root cause (a composed-of-arguments untaggable type left orphaned with no configuration, marker or record left to derive its identity from)"; }
+    [ "$REMOVE_DESTROY_ADDRS" = "$REMOVE_ORACLE_DESTROY_ADDRS" ] \
+      || { printf 'choudoufu:\n%s\nstock:\n%s\n' "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu's destroy address set differs from stock's oracle"; }
+    log "  choudoufu: exactly $REMOVE_N destroys under module.ecs_task_definition, address-for-address identical to stock's oracle on cold_deploy's own state, nothing else"
+
+    BEFORE_REMOVE_N="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+    REMOVE_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE "Resources: 0 added, 0 changed, $REMOVE_N destroyed" <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly $REMOVE_N destroys"; }
+
+    TD_COUNT_AFTER="$(awsl ecs list-task-definitions --family-prefix "$TD_FAMILY" --status ACTIVE --query 'length(taskDefinitionArns)' --output text 2>/dev/null || echo 0)"
+    [ "$TD_COUNT_AFTER" = "0" ] || fail "the standalone task definition family $TD_FAMILY still has $TD_COUNT_AFTER active revision(s) after the destroy - it was orphaned, not destroyed"
+    log "  $TD_FAMILY has 0 active revisions - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    AFTER_REMOVE_N="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+    log "  tofu-estate-tagged objects: $BEFORE_REMOVE_N before, $AFTER_REMOVE_N after"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.ecs_task_definition's block proposed exactly $REMOVE_N destroys (0 add, 0 change, $REMOVE_N destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, $REMOVE_N destroyed); the standalone task definition family ($TD_FAMILY) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 

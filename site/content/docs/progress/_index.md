@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `c7edb12bd1` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T03:55:25Z.
+Measured at commit `4b0c75acd9` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T03:46:20Z.
 
 ## The stages
 
@@ -47,10 +47,10 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
-| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass FAIL |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
 | [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |

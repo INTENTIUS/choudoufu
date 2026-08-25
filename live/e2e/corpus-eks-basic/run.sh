@@ -393,7 +393,29 @@ FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 TOOLBOX_IMAGE="choudoufu-corpus-eks-basic-toolbox:$$"
 
+# Two more, fresh floci containers for the greenfield stage
+# (live/GAUNTLET.md #13), same $NET as the main one (real EKS mode's k3s
+# containers and this script's own toolbox both need to reach whichever
+# floci they belong to by container name over one Docker network; there is
+# no reason to stand up a second network for two more containers already
+# on it). +1000/+2000 keeps this estate's own [main, green, oracle] port
+# triple disjoint from every other live/e2e script's own FLOCI_PORT
+# default (all under 4800) and from a sibling batch estate's triple one
+# port over - see corpus-ecs-fargate's own greenfield header for the real
+# collision +10/+20 hit on a live run.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1000))
+FLOCI_GREEN_NAME="choudoufu-corpus-eks-basic-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2000))
+FLOCI_ORACLE_NAME="choudoufu-corpus-eks-basic-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+GREEN_REL="green/eks/examples/basic"
+ORACLE_GREEN_REL="green-oracle/eks/examples/basic"
+GREEN_EST="$WORK/$GREEN_REL"
+ORACLE_GREEN_EST="$WORK/$ORACLE_GREEN_REL"
+
 ESTATE="eks-basic-crossing"
+GREEN_ESTATE="eks-basic-greenfield"
 REGION="us-west-2"
 
 PLAIN_REL="plain/eks/examples/basic"
@@ -415,7 +437,7 @@ cleanup() {
   # `docker network rm` fail silently after that.
   docker ps -aq --filter "name=floci-eks-" 2>/dev/null | xargs -r docker rm -f >/dev/null 2>&1 || true
   docker ps -aq --filter "name=floci-ec2-" 2>/dev/null | xargs -r docker rm -f >/dev/null 2>&1 || true
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   docker rmi -f "$TOOLBOX_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -452,6 +474,27 @@ tofu_run() {
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
     "$TOOLBOX_IMAGE" /work/bin/choudoufu "$@"
+}
+
+# green_tofu_run / oracle_green_terraform_run - PART GREENFIELD's own
+# runners, same shape as tofu_run/terraform_run above but pointed at the
+# greenfield/oracle floci containers (by container name, over the same
+# $NET every real-mode k3s/EC2-simulation sibling container also needs)
+# instead of the main one.
+green_tofu_run() {
+  docker run --rm --platform linux/amd64 --network "$NET" \
+    -v "$WORK:/work" -w "/work/$GREEN_REL" \
+    -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
+    -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
+    "$TOOLBOX_IMAGE" /work/bin/choudoufu "$@"
+}
+
+oracle_green_terraform_run() {
+  docker run --rm --platform linux/amd64 --network "$NET" \
+    -v "$WORK:/work" -w "/work/$ORACLE_GREEN_REL" \
+    -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
+    -e AWS_ENDPOINT_URL="http://${FLOCI_ORACLE_NAME}:4566" \
+    hashicorp/terraform:1.9 "$@"
 }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -704,6 +747,22 @@ PYEOF
   find "$base" -name "*.bak" -delete
 }
 
+# remove_worker_group_mgmt_one EST - day2_remove's edit: delete
+# aws_security_group.worker_group_mgmt_one's own block, plus the one
+# argument elsewhere in this same file that references it
+# (worker_groups[0].additional_security_group_ids). worker_group_mgmt_two
+# and all_worker_mgmt are day2_rename's own two objects (a moved block and
+# live-mv respectively); worker_group_mgmt_one is the negative control
+# day2_rename's own header leaves untouched, and is what gets removed here.
+remove_worker_group_mgmt_one() {
+  local est="$1"
+  sed -i.bak '/^resource "aws_security_group" "worker_group_mgmt_one" {$/,/^}$/d' "$est/main.tf"
+  sed -i.bak 's/additional_security_group_ids = \[aws_security_group\.worker_group_mgmt_one\.id\]/additional_security_group_ids = []/' "$est/main.tf"
+  rm -f "$est/main.tf.bak"
+  grep -q 'worker_group_mgmt_one' "$est/main.tf" \
+    && fail "removing aws_security_group.worker_group_mgmt_one did not fully match in $est - the corpus pin has moved"
+}
+
 apply_deltas "$WORK/plain" 0
 apply_deltas "$WORK/adopted" 1
 DIFF_LINES="$(diff "$PLAIN/main.tf" "$ADOPTED/main.tf" | grep -c '^[<>]' || true)"
@@ -756,7 +815,6 @@ MARKED="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-ad
 [ "$MARKED" = "0" ] || fail "expected 0 objects carrying a tofu-address tag before migration, got $MARKED - this test proves nothing"
 log "  cluster $CLUSTER_NAME is ACTIVE, confirmed unmarked via the AWS CLI directly ($MARKED tofu-address tags)"
 gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarked"
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -819,6 +877,42 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7): same principle as the
+# rename oracle above - a SEPARATE copy of cold_deploy's own state,
+# untouched by the rename, so this removal has nothing to do with the
+# rename this script also exercises. worker_group_mgmt_one's security
+# group feeds one worker group's additional_security_group_ids, which
+# feeds that worker group's aws_launch_configuration (ForceNew on a
+# security_groups change) - so unlike a genuinely standalone object, this
+# oracle's own destroy set is not asserted ahead of time by name or count;
+# whatever stock proposes is read here and the real plan below is compared
+# against it address-for-address, which is robust to either shape.
+CURRENT_STAGE=day2_remove
+log "=== D-ORACLE (day2_remove). stock: delete aws_security_group.worker_group_mgmt_one's block on cold_deploy's own state ==="
+ORACLE_REMOVE_REL="oracle-remove/eks/examples/basic"
+rsync -a "$WORK/plain/" "$WORK/oracle-remove/"
+ORACLE_REMOVE_EST="$WORK/$ORACLE_REMOVE_REL"
+oracle_remove_terraform_run() {
+  docker run --rm --platform linux/amd64 --network "$NET" \
+    -v "$WORK:/work" -w "/work/$ORACLE_REMOVE_REL" \
+    -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
+    -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
+    hashicorp/terraform:1.9 "$@"
+}
+remove_worker_group_mgmt_one "$ORACLE_REMOVE_EST"
+oracle_remove_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-remove-init.log 2>&1 || {
+  tail -40 /tmp/eks-basic-oracle-remove-init.log; fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(oracle_remove_terraform_run plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -60; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+REMOVE_ORACLE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_ORACLE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
+REMOVE_ORACLE_N="$(printf '%s\n' "$REMOVE_ORACLE_CHANGES" | grep -c . || true)"
+[ "$REMOVE_ORACLE_N" -ge 1 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -30; fail "stock's day2_remove oracle proposes no resource action at all when aws_security_group.worker_group_mgmt_one's block is removed"; }
+grep -qF "aws_security_group.worker_group_mgmt_one will be destroyed" <<< "$REMOVE_ORACLE_CHANGES" \
+  || { printf '%s\n' "$REMOVE_ORACLE_CHANGES"; fail "stock's day2_remove oracle does not destroy aws_security_group.worker_group_mgmt_one itself"; }
+log "  stock: $REMOVE_ORACLE_N resource action(s) removing aws_security_group.worker_group_mgmt_one's block:"
+printf '%s\n' "$REMOVE_ORACLE_CHANGES" | while read -r line; do log "    $line"; done
+CURRENT_STAGE=""
 
 # ── 4. STAGE 2: migrate ─────────────────────────────────────────────────────
 CURRENT_STAGE=migrate
@@ -1378,10 +1472,243 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed rename: worker_group_mgmt_two and
+  # all_worker_mgmt are both renamed and the config plans empty (D3).
+  # worker_group_mgmt_one is untouched by the rename and is the object
+  # removed here - the negative control day2_rename's own header names.
+  # Unlike a genuinely standalone object, its removal also edits one
+  # argument on module "eks" itself (worker_groups[0].
+  # additional_security_group_ids, changed from a one-element list to an
+  # empty one, same as remove_worker_group_mgmt_one applied to the stock
+  # oracle above), which is itself ForceNew on the worker group's launch
+  # configuration - so this is a stronger test of "the same destroys in a
+  # working order" than a single isolated object gives: whatever stock's
+  # own cascade looks like is read from the oracle above and compared
+  # address-for-action-for-address against choudoufu's real plan, not
+  # hand-predicted.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go for day2_remove is literally
+  # "keep the block; no destroy may be proposed".
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live security group's id before day2_remove ==="
+  SG1_ID_E="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.worker_group_mgmt_one"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$SG1_ID_E" ] && [ "$SG1_ID_E" != "None" ] || fail "no live security group found by its tofu-address marker (worker_group_mgmt_one) before day2_remove even starts"
+  log "  $SG1_ID_E (aws_security_group.worker_group_mgmt_one)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep aws_security_group.worker_group_mgmt_one's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # aws_security_group\.worker_group_mgmt_one will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_REMOVE=1: a destroy was proposed for aws_security_group.worker_group_mgmt_one even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
+    log "  BREAK_REMOVE=1: correctly proposes nothing - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete aws_security_group.worker_group_mgmt_one's block ==="
+    remove_worker_group_mgmt_one "$ADOPTED"
+    tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-remove-init.log 2>&1 || {
+      tail -40 /tmp/eks-basic-remove-init.log; fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -60; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+      fail "choudoufu withheld a destroy under aws_security_group.worker_group_mgmt_one as a possible rename (discovery.go's classifyOrphans) even though no other aws_security_group.worker_group_mgmt_one block exists anywhere in this config - this is an honest wall, not a pass"
+    fi
+    REMOVE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
+    REMOVE_N="$(printf '%s\n' "$REMOVE_CHANGES" | grep -c . || true)"
+    grep -qF "aws_security_group.worker_group_mgmt_one will be destroyed" <<< "$REMOVE_CHANGES" \
+      || { printf '%s\n' "$REMOVE_CHANGES"; fail "choudoufu does not destroy aws_security_group.worker_group_mgmt_one when its block is deleted"; }
+    [ "$REMOVE_CHANGES" = "$REMOVE_ORACLE_CHANGES" ] \
+      || { printf 'choudoufu (%s):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"; fail "choudoufu's day2_remove plan differs from stock's oracle on cold_deploy's own state"; }
+    log "  choudoufu: $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state"
+
+    REMOVE_APPLY_OUT="$(tofu_run "$ADOPTED_REL" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -60; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Apply complete!' <<< "$REMOVE_APPLY_OUT" \
+      || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply did not complete"; }
+    log "  $(grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT")"
+
+    # A destroyed security group is confirmed by COUNT or by a not-found
+    # error, whichever this emulator actually answers with for a deleted
+    # id - the same "read the API directly, do not assume either shape"
+    # discipline reference-ec2-vpc's own Part E documents for internet
+    # gateways (a plain 200+empty list there, not the NotFound error real
+    # AWS documents for the same request).
+    SG1_STILL_OUT="$(awsl ec2 describe-security-groups --group-ids "$SG1_ID_E" --query 'length(SecurityGroups)' --output text 2>&1)"; SG1_STILL_RC=$?
+    if [ "$SG1_STILL_RC" -eq 0 ]; then
+      [ "$SG1_STILL_OUT" = "0" ] || fail "security group $SG1_ID_E (aws_security_group.worker_group_mgmt_one) still exists after the destroy ($SG1_STILL_OUT found) - it was orphaned, not destroyed"
+      log "  $SG1_ID_E no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report"
+    else
+      grep -qiE 'InvalidGroup|does not exist|not found|NotFound' <<< "$SG1_STILL_OUT" \
+        || { printf '%s\n' "$SG1_STILL_OUT"; fail "describe-security-groups for $SG1_ID_E failed with an unexpected error, not a not-found - it may still exist"; }
+      log "  $SG1_ID_E no longer exists ($SG1_STILL_OUT) - confirmed via the AWS CLI, not through choudoufu's own report"
+    fi
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(tofu_run "$ADOPTED_REL" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -60; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 
 CURRENT_STAGE=""
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
+# containers on the same $NET (real EKS mode's k3s/EC2-simulation sibling
+# containers need to reach whichever floci they belong to by name over one
+# network, so a second network buys nothing). choudoufu applies the
+# unreduced corpus example directly with a live block from the start, no
+# migration, no state file ever existing; the estate's own oracle is stock
+# applying the identical config fresh in a third, independent namespace,
+# compared structurally via the AWS CLI on both endpoints, never through
+# tofu state, never through choudoufu's own report.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=greenfield
+log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
+docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
+  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
+  -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"eks"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"eks"' <<< "${GH:-}" || fail "floci did not come up healthy (eks) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+mkdir -p "$WORK/green" "$WORK/green-oracle"
+cp -R "$SRC" "$WORK/green/eks"
+cp -R "$SRC" "$WORK/green-oracle/eks"
+rm -rf "$WORK/green/eks/.git" "$WORK/green/eks/.github" "$WORK/green-oracle/eks/.git" "$WORK/green-oracle/eks/.github"
+apply_deltas "$WORK/green" 0
+apply_deltas "$WORK/green-oracle" 0
+perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/main.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
+  || fail "the greenfield live-block delta did not match main.tf - the corpus pin has moved"
+
+log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
+  tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
+# A real, named wall (HANDOFF row 2: choudoufu's own result, no stock
+# comparison involved), confirmed on a real run: this estate wires the
+# kubernetes provider's config off data.aws_eks_cluster.cluster / data.
+# aws_eks_cluster_auth.cluster (main.tf's own provider "kubernetes"
+# block), which cannot resolve until the EKS cluster this same apply is
+# supposed to create already exists - a graph-deferred-provider-config
+# pattern real terraform's stage-1 cold apply tolerates but which
+# apply-from-nothing is the FIRST thing in this whole script to ask
+# choudoufu's own engine to do: migrate only adopts objects that already
+# exist (live-import, no create) and test_apply's convergence apply never
+# creates the cluster either, so this bootstrapping path was never
+# exercised through choudoufu before this stage existed. Whether
+# choudoufu's engine defers provider configuration the same way upstream
+# does is an open, generic engine question, not fixed in this
+# script-only unit.
+GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
+  fail "the greenfield apply failed - see the comment immediately above this call for the named root cause (a provider whose config depends on a data source only the same apply's own EKS cluster creation can resolve, a bootstrapping path no earlier stage in this script exercises through choudoufu)"
+}
+grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 54 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== G2. the cluster's marker, read through the AWS CLI directly ==="
+GREEN_CLUSTER_NAME="$(awsg eks list-clusters --query 'clusters[0]' --output text)"
+[ -n "$GREEN_CLUSTER_NAME" ] && [ "$GREEN_CLUSTER_NAME" != "None" ] || fail "no EKS cluster found on the greenfield endpoint"
+GREEN_CLUSTER_ADDR="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-address\"" --output text)"
+[ "$GREEN_CLUSTER_ADDR" = "module.eks.aws_eks_cluster.this[0]" ] || fail "the greenfield cluster carries tofu-address=$GREEN_CLUSTER_ADDR, not module.eks.aws_eks_cluster.this[0]"
+GREEN_CLUSTER_ESTATE="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:eks:${REGION}:000000000000:cluster/${GREEN_CLUSTER_NAME}" --query "tags.\"tofu-estate\"" --output text)"
+[ "$GREEN_CLUSTER_ESTATE" = "$GREEN_ESTATE" ] || fail "the greenfield cluster carries tofu-estate=$GREEN_CLUSTER_ESTATE, not $GREEN_ESTATE"
+log "  $GREEN_CLUSTER_NAME carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
+
+log "=== G3. the record store holds what the current record-writer can (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -ge 1 ] || fail "expected at least one record under the implied local record store after the greenfield apply, found $GREEN_RECORD_FILES"
+log "  $GREEN_RECORD_FILES records persisted under the implied local record store (not asserted against an exact expected count here - see corpus-ecs-fargate's own greenfield stage for the numeric-wire-identity-component gap that makes an exact count estate-specific)"
+
+log "=== G4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(green_tofu_run plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -60; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
+oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
+  tail -60 /tmp/eks-basic-green-oracle-init.log; fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(oracle_green_terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | grep -E '^Error|^│' | head -60
+  fail "the greenfield oracle apply failed"
+}
+grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 54 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
+eks_basic_shape() { # $1 = endpoint - a normalised structural fact sheet,
+                     # read via the AWS CLI, never through tofu state.
+  local ep="$1" cn
+  cn="$(aws --endpoint-url "$ep" --region "$REGION" eks list-clusters --query 'clusters[0]' --output text 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" eks describe-cluster --name "$cn" \
+    --query "cluster.[status,version]" --output text 2>/dev/null | awk '{print "cluster status="$1" version="$2}'
+  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
+    --query "length(AutoScalingGroups)" --output text 2>/dev/null | sed 's/^/asg_count=/'
+  aws --endpoint-url "$ep" --region "$REGION" autoscaling describe-auto-scaling-groups \
+    --query "sort(AutoScalingGroups[].DesiredCapacity)" --output text 2>/dev/null | tr '\t' ',' | sed 's/^/asg_desired_sorted=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=tag:kubernetes.io/cluster/${cn},Values=owned" \
+    --query "length(SecurityGroups)" --output text 2>/dev/null | sed 's/^/cluster_owned_sg_count=/'
+}
+GREEN_SHAPE="$(eks_basic_shape "$GREEN_ENDPOINT" | sort)"
+ORACLE_SHAPE="$(eks_basic_shape "$ORACLE_ENDPOINT" | sort)"
+if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
+fi
+log "  object-by-object match: cluster status/version, autoscaling-group count and sorted desired capacities, and the cluster-owned security-group count - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
+
+gauntlet_stage greenfield pass "54 resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
+CURRENT_STAGE=""
+
+# The green/oracle floci containers, and whatever k3s/EC2-simulation sibling
+# containers they spawned, are deliberately left running rather than swept
+# here: a blanket "docker ps --filter name=floci-eks-" sweep cannot tell
+# THEIR sibling containers apart from the MAIN cluster's own (already
+# running since cold_deploy and still live at this point in the script), so it
+# would kill the wrong cluster. cleanup()'s exit trap does the blanket
+# sweep once, after everything in this script is done with all three floci
+# instances.
+
 gauntlet_end
 
 log ""

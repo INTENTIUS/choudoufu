@@ -168,6 +168,26 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 REGION="us-west-2"
 ESTATE_NAME="evoteum-modules-crossing"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# separate namespace stock (real `tofu`, same as stage 1 - see this script's
+# header for why plain `terraform` cannot even parse this .tofu-only estate)
+# applies the identical modules into as that stage's own oracle. +1000/+2000
+# keeps this estate's own [main, green, oracle] port triple disjoint from
+# every other live/e2e script's own FLOCI_PORT default (all under 4800) and
+# from a sibling batch estate's triple one port over - see
+# corpus-ecs-fargate's own greenfield header for the real collision +20 hit
+# on a live run.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1000))
+FLOCI_GREEN_NAME="choudoufu-corpus-evoteum-modules-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2000))
+FLOCI_ORACLE_NAME="choudoufu-corpus-evoteum-modules-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+GREEN="$WORK/green"
+GREEN_ORACLE="$WORK/green-oracle"
+GREEN_ESTATE_NAME="evoteum-modules-greenfield"
+
 # The module inputs. Every one of these is a variable the modules themselves
 # declare and document; this script supplies no argument they do not define.
 PROJECT_ID="evtx"
@@ -220,7 +240,7 @@ export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -249,6 +269,22 @@ gauntlet_begin
 # tolerate.
 marker_filter() {
   printf '[{"Name":"tag:tofu-address","Values":["%s"]}]' "${1//\"/\\\"}"
+}
+
+# remove_module_block FILE NAME - day2_remove's edit: delete a whole
+# top-level `module "NAME" { ... }` block. Used on both module.sessions_table
+# (cold_deploy's own state, the stock oracle) and module.sessions_table_renamed
+# (Part D's own renamed state, the real check) - the same module, before and
+# after day2_rename's live-mv. No other module references sessions_table's
+# output (this crossing's own root wiring has no cross-module reference
+# between networking and sessions_table at all - see PART D-ORACLE's header),
+# so deleting its block needs no other edit.
+remove_module_block() {
+  local file="$1" name="$2"
+  sed -i.bak "/^module \"$name\" {\$/,/^}\$/d" "$file"
+  rm -f "$file.bak"
+  grep -q "module \"$name\"" "$file" \
+    && fail "removing module \"$name\"'s block did not match in $file - the corpus pin has moved"
 }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -464,6 +500,117 @@ gauntlet_stage cold_deploy pass "10 resources added (1 vpc, 3 subnets, 1 igw, 1 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
+# containers, neither reusing a single object stage 1's plain apply created.
+# choudoufu applies the identical two modules directly with a live block
+# from the start, no migration, no state file ever existing; the estate's
+# own oracle is stock `tofu` applying the SAME modules fresh in a third,
+# independent namespace, compared structurally via the AWS CLI on both
+# endpoints, never through tofu state.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=greenfield
+log "=== G0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"dynamodb"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"dynamodb"' <<< "${GH:-}" || fail "floci did not come up healthy (dynamodb) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+GREEN_LIVE_BLOCK='
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+copy_modules "$GREEN"
+write_root "$GREEN" "$GREEN_LIVE_BLOCK"
+copy_modules "$GREEN_ORACLE"
+write_root "$GREEN_ORACLE" ""
+
+log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 10 added, 0 changed, 0 destroyed' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 10 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== G2. the VPC's marker, read through the AWS CLI directly ==="
+GREEN_VPC_ADDR="$(awsg ec2 describe-vpcs --filters "$(marker_filter 'module.networking.aws_vpc.main')" --query "Vpcs[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_VPC_ADDR" = "module.networking.aws_vpc.main" ] || fail "the greenfield VPC carries tofu-address=$GREEN_VPC_ADDR, not module.networking.aws_vpc.main"
+GREEN_VPC_ESTATE="$(awsg ec2 describe-vpcs --filters "$(marker_filter 'module.networking.aws_vpc.main')" --query "Vpcs[0].Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_VPC_ESTATE" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield VPC carries tofu-estate=$GREEN_VPC_ESTATE, not $GREEN_ESTATE_NAME"
+log "  the greenfield VPC carries tofu-address=$GREEN_VPC_ADDR tofu-estate=$GREEN_VPC_ESTATE - read via the AWS CLI, not choudoufu's own report"
+
+log "=== G3. the record store holds every instance, including the 3 untaggable associations (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "10" ] || fail "expected 10 records under the local record store after the greenfield apply (one per managed instance), found $GREEN_RECORD_FILES"
+log "  10 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== G4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== G5. stock oracle - the identical modules applied fresh in its own namespace ==="
+( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -60; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 10 added, 0 changed, 0 destroyed' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 10 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
+evoteum_shape() { # $1 = endpoint - a normalised structural fact sheet, read
+                   # via the AWS CLI, never through tofu state.
+  local ep="$1"
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-vpcs \
+    --filters "Name=tag:Name,Values=$VPC_NAME" \
+    --query "Vpcs[0].CidrBlock" --output text 2>/dev/null | sed 's/^/vpc_cidr=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-subnets \
+    --filters "Name=tag:Name,Values=${RESOURCE_PREFIX}*" \
+    --query "sort(Subnets[].CidrBlock)" --output text 2>/dev/null | tr '\t' ',' | sed 's/^/subnet_cidrs_sorted=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-internet-gateways \
+    --filters "Name=tag:Name,Values=${RESOURCE_PREFIX}*" \
+    --query "length(InternetGateways)" --output text 2>/dev/null | sed 's/^/igw_n=/'
+  aws --endpoint-url "$ep" --region "$REGION" ec2 describe-route-tables \
+    --filters "Name=tag:Name,Values=${RESOURCE_PREFIX}*" \
+    --query "length(RouteTables[?length(Associations)>\`0\`])" --output text 2>/dev/null | sed 's/^/route_table_with_assoc_n=/'
+  aws --endpoint-url "$ep" --region "$REGION" dynamodb describe-table --table-name "$TABLE_NAME" \
+    --query "Table.[BillingModeSummary.BillingMode,length(AttributeDefinitions),length(GlobalSecondaryIndexes)]" --output text 2>/dev/null \
+    | awk '{print "table billing="$1" attrs="$2" gsis="$3}'
+  aws --endpoint-url "$ep" --region "$REGION" dynamodb describe-table --table-name "$TABLE_NAME" \
+    --query "Table.AttributeDefinitions[?AttributeName=='pk'].AttributeType | [0]" --output text 2>/dev/null | sed 's/^/pk_type=/'
+}
+GREEN_SHAPE="$(evoteum_shape "$GREEN_ENDPOINT" | sort)"
+ORACLE_SHAPE="$(evoteum_shape "$ORACLE_ENDPOINT" | sort)"
+if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
+fi
+log "  object-by-object match: vpc cidr, subnet cidrs, igw count, route-table-with-association count, and the dynamodb table's billing mode/attribute count/GSI count/pk type - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
+
+gauntlet_stage greenfield pass "10 resources from nothing (1 vpc, 3 subnets, 1 igw, 1 route table, 3 untaggable associations, 1 dynamodb table), VPC marker verified via the AWS CLI, 10 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on vpc/subnets/igw/route-table/dynamodb-table"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -510,6 +657,27 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state (moved-block relocation of a whole module, associations included) - no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7): same principle as the
+# rename oracle above - a SEPARATE copy of cold_deploy's own state,
+# unrenamed, so this removal has nothing to do with the rename this script
+# also exercises. module.sessions_table is the whole target: one resource,
+# no other module references it.
+CURRENT_STAGE=day2_remove
+log "=== D-ORACLE (day2_remove): stock tofu, delete module.sessions_table's block on cold_deploy's own state ==="
+PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
+remove_module_block "$PLAIN_ORACLE_REMOVE/main.tofu" "sessions_table"
+( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REMOVE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock does not propose destroying module.sessions_table.aws_dynamodb_table.this when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
+log "  stock: exactly one destroy (module.sessions_table.aws_dynamodb_table.this), nothing else, on cold_deploy's own state"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -843,6 +1011,78 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.networking renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place across its taggable objects including the untaggable route-table-association children resolving structurally; live-mv: module.sessions_table renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.sessions_table_renamed
+  # (originally module.sessions_table) is bound and converged. It is the
+  # whole target here too - the same single-resource, no-cross-module-
+  # reference shape the stock oracle above already confirmed, just under its
+  # renamed address now.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go for day2_remove is literally
+  # "keep the block; no destroy may be proposed".
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live table's ARN one more time ==="
+  E_TABLE_ARN="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" --query 'Table.TableArn' --output text)"
+  [ -n "$E_TABLE_ARN" ] && [ "$E_TABLE_ARN" != "None" ] || fail "no live table found by name ($TABLE_NAME) before day2_remove even starts"
+  E_ARN_BEFORE="$(awsl dynamodb list-tags-of-resource --resource-arn "$E_TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$E_ARN_BEFORE" = "module.sessions_table_renamed.aws_dynamodb_table.this" ] \
+    || fail "$TABLE_NAME does not carry tofu-address=module.sessions_table_renamed.aws_dynamodb_table.this before day2_remove even starts (got $E_ARN_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.sessions_table_renamed's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.sessions_table_renamed\.aws_dynamodb_table\.this will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_REMOVE=1: a destroy was proposed for module.sessions_table_renamed's table even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
+    log "  BREAK_REMOVE=1: correctly proposes nothing - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.sessions_table_renamed's block ==="
+    remove_module_block "$ESTATE/main.tofu" "sessions_table_renamed"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+      fail "choudoufu withheld the destroy of module.sessions_table_renamed's table as a possible rename (discovery.go's classifyOrphans) even though no other module.sessions_table* block exists anywhere in this config - this is an honest wall, not a pass"
+    fi
+    grep -qE '^  # module\.sessions_table_renamed\.aws_dynamodb_table\.this will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.sessions_table_renamed's table when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (module.sessions_table_renamed's table), nothing else, address-for-address identical to stock's oracle on cold_deploy's own state"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    if E_STILL="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" 2>&1)"; then
+      echo "$E_STILL"; fail "$TABLE_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    grep -qi 'ResourceNotFoundException' <<< "$E_STILL" \
+      || { echo "$E_STILL"; fail "describe-table for $TABLE_NAME failed with an unexpected error, not ResourceNotFoundException - it may still exist"; }
+    log "  $TABLE_NAME no longer exists (ResourceNotFoundException) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.sessions_table_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), address-for-address identical to stock's oracle on cold_deploy's own state (module.sessions_table); applied cleanly (0 added, 0 changed, 1 destroyed); the table is genuinely gone from the live account (describe-table now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because no other module.sessions_table* block is declared anywhere in this config"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

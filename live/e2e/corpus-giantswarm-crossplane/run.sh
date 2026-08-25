@@ -159,6 +159,26 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 REGION="us-west-2"
 ESTATE_NAME="giantswarm-crossplane-crossing"
 INSTALLATION="gsprereqs"
+
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# separate namespace stock (real `tofu` - see this script's header for why
+# plain `terraform` cannot even parse this .tofu-only module) applies the
+# identical module into as that stage's own oracle. +1000/+2000 keeps this
+# estate's own [main, green, oracle] port triple disjoint from every other
+# live/e2e script's own FLOCI_PORT default (all under 4800) and from a
+# sibling batch estate's triple one port over - see corpus-ecs-fargate's
+# own greenfield header for the real collision +20 hit on a live run.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1000))
+FLOCI_GREEN_NAME="choudoufu-corpus-giantswarm-crossplane-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2000))
+FLOCI_ORACLE_NAME="choudoufu-corpus-giantswarm-crossplane-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+GREEN="$WORK/green"
+GREEN_ORACLE="$WORK/green-oracle"
+GREEN_ESTATE_NAME="giantswarm-crossplane-greenfield"
+GREEN_INSTALLATION="gsgreen"
 ROLE_NAME="giantswarm-${INSTALLATION}-crossplane"
 POLICY_ARN="arn:aws:iam::000000000000:policy/giantswarm-${INSTALLATION}-crossplane"
 EXTRA_POLICY_NAME="extra-tagging"
@@ -188,7 +208,7 @@ export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -243,6 +263,19 @@ log "  crossplane module is .tofu-only: providers.tofu role.tofu variables.tofu"
 
 # copy_module <destdir>: the real, unmodified module, .tofu extension and all.
 copy_module() { mkdir -p "$1"; cp -R "$SRC" "$1/crossplane"; }
+
+# remove_module_block FILE NAME - day2_remove's edit: delete a whole
+# top-level `module "NAME" { ... }` block from a root main.tofu. This
+# estate has exactly one module call and no root-level standalone resource
+# (see PART D-ORACLE's own header), so the module call is the only
+# removable boundary, the same way it is the only renameable one.
+remove_module_block() {
+  local file="$1" name="$2"
+  sed -i.bak "/^module \"$name\" {\$/,/^}\$/d" "$file"
+  rm -f "$file.bak"
+  grep -q "module \"$name\"" "$file" \
+    && fail "removing module \"$name\"'s block did not match in $file - the corpus pin has moved"
+}
 
 # write_root <destdir> <installation> <live_block>: this crossing's own root
 # wiring. The module call below uses the module's OWN documented variable
@@ -355,6 +388,112 @@ gauntlet_stage cold_deploy pass "6 resource instances added, 0 already tofu-esta
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
+# containers, neither reusing a single object stage 1's plain apply created.
+# choudoufu applies the identical, unmodified module directly with a live
+# block from the start, no migration, no state file ever existing; the
+# estate's own oracle is stock `tofu` applying the SAME module fresh in a
+# third, independent namespace, compared structurally via the AWS CLI on
+# both endpoints, never through tofu state.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=greenfield
+log "=== G0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"iam"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"iam"' <<< "${GH:-}" || fail "floci did not come up healthy (iam) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+GREEN_LIVE_BLOCK='
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+copy_module "$GREEN"
+write_root "$GREEN" "$GREEN_INSTALLATION" "$GREEN_LIVE_BLOCK"
+copy_module "$GREEN_ORACLE"
+write_root "$GREEN_ORACLE" "$GREEN_INSTALLATION" ""
+
+GREEN_ROLE_NAME="giantswarm-${GREEN_INSTALLATION}-crossplane"
+GREEN_POLICY_ARN="arn:aws:iam::000000000000:policy/giantswarm-${GREEN_INSTALLATION}-crossplane"
+
+log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 6 added, 0 changed, 0 destroyed' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 6 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== G2. the role's marker, read through the AWS CLI directly ==="
+GREEN_ROLE_ADDR="$(awsg iam list-role-tags --role-name "$GREEN_ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ROLE_ADDR" = "module.crossplane.aws_iam_role.giantswarm_crossplane_role" ] || fail "the greenfield role carries tofu-address=$GREEN_ROLE_ADDR, not module.crossplane.aws_iam_role.giantswarm_crossplane_role"
+GREEN_ROLE_ESTATE="$(awsg iam list-role-tags --role-name "$GREEN_ROLE_NAME" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_ROLE_ESTATE" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield role carries tofu-estate=$GREEN_ROLE_ESTATE, not $GREEN_ESTATE_NAME"
+log "  $GREEN_ROLE_NAME carries tofu-address=$GREEN_ROLE_ADDR tofu-estate=$GREEN_ROLE_ESTATE - read via the AWS CLI, not choudoufu's own report"
+
+log "=== G3. the record store holds every instance, including the 4 untaggable ones (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "6" ] || fail "expected 6 records under the local record store after the greenfield apply (one per managed instance), found $GREEN_RECORD_FILES"
+log "  6 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== G4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== G5. stock oracle - the identical module applied fresh in its own namespace ==="
+( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -60; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 6 added, 0 changed, 0 destroyed' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 6 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+log "=== G6. object-by-object comparison, via the AWS CLI on both endpoints, marker tags never compared ==="
+crossplane_shape() { # $1 = endpoint $2 = role name $3 = policy arn - a
+                      # normalised structural fact sheet, read via the AWS
+                      # CLI, never through tofu state.
+  local ep="$1" role="$2" parn="$3"
+  aws --endpoint-url "$ep" --region "$REGION" iam get-role --role-name "$role" \
+    --query "Role.Description" --output text 2>/dev/null | sed 's/^/role_description=/'
+  aws --endpoint-url "$ep" --region "$REGION" iam list-attached-role-policies --role-name "$role" \
+    --query "length(AttachedPolicies)" --output text 2>/dev/null | sed 's/^/attached_policy_count=/'
+  aws --endpoint-url "$ep" --region "$REGION" iam list-role-policies --role-name "$role" \
+    --query "sort(PolicyNames)" --output text 2>/dev/null | tr '\t' ',' | sed 's/^/inline_policy_names_sorted=/'
+  aws --endpoint-url "$ep" --region "$REGION" iam get-policy --policy-arn "$parn" \
+    --query "Policy.Description" --output text 2>/dev/null | sed 's/^/policy_description=/'
+}
+GREEN_SHAPE="$(crossplane_shape "$GREEN_ENDPOINT" "$GREEN_ROLE_NAME" "$GREEN_POLICY_ARN" | sort)"
+ORACLE_SHAPE="$(crossplane_shape "$ORACLE_ENDPOINT" "$GREEN_ROLE_NAME" "$GREEN_POLICY_ARN" | sort)"
+if [ "$GREEN_SHAPE" != "$ORACLE_SHAPE" ]; then
+  diff <(printf '%s\n' "$GREEN_SHAPE") <(printf '%s\n' "$ORACLE_SHAPE") || true
+  fail "the greenfield estate's object inventory does not match stock's cold deploy, object by object, in its own namespace"
+fi
+log "  object-by-object match: role description, attached-policy count, sorted inline-policy names, and the managed policy's description - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
+
+gauntlet_stage greenfield pass "6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -404,6 +543,34 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - the chained move reports only the moves, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7): same principle as the
+# rename oracle above - a SEPARATE copy of cold_deploy's own state,
+# unrenamed, so this removal has nothing to do with the rename this script
+# also exercises. module.crossplane is the only removable boundary this
+# estate has (same as Part D-ORACLE's own header on the only renameable
+# one), so its whole block is what gets deleted - a stronger test than a
+# single object: two taggable resources plus four untaggable, composed-of-
+# arguments ones (aws_iam_role_policy, aws_iam_role_policies_exclusive,
+# aws_iam_role_policy_attachments_exclusive, aws_iam_role_policy_attachment)
+# all destroyed together.
+CURRENT_STAGE=day2_remove
+log "=== D-ORACLE (day2_remove): stock tofu, delete module.crossplane's block on cold_deploy's own state ==="
+PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
+remove_module_block "$PLAIN_ORACLE_REMOVE/main.tofu" "crossplane"
+( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REMOVE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+REMOVE_ORACLE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_ORACLE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
+REMOVE_ORACLE_N="$(printf '%s\n' "$REMOVE_ORACLE_CHANGES" | grep -c . || true)"
+[ "$REMOVE_ORACLE_N" -ge 1 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -30; fail "stock's day2_remove oracle proposes no resource action at all when module.crossplane's block is removed"; }
+grep -qF "module.crossplane.aws_iam_role.giantswarm_crossplane_role will be destroyed" <<< "$REMOVE_ORACLE_CHANGES" \
+  || { printf '%s\n' "$REMOVE_ORACLE_CHANGES"; fail "stock's day2_remove oracle does not destroy the role itself"; }
+log "  stock: $REMOVE_ORACLE_N resource action(s) removing module.crossplane's block:"
+printf '%s\n' "$REMOVE_ORACLE_CHANGES" | while read -r line; do log "    $line"; done
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -774,6 +941,115 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.crossplane_final
+  # (originally module.crossplane) is bound and converged. It is the whole
+  # target here too, same as the stock oracle above - the only removable
+  # boundary this estate has.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go for day2_remove is literally
+  # "keep the block; no destroy may be proposed".
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live ids one more time ==="
+  log "  role $ROLE_NAME, policy $POLICY_ARN (both module.crossplane_final)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.crossplane_final's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.crossplane_final\..+ will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_REMOVE=1: a destroy was proposed under module.crossplane_final even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
+    log "  BREAK_REMOVE=1: correctly proposes nothing - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.crossplane_final's block ==="
+    remove_module_block "$ESTATE/main.tofu" "crossplane_final"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+      fail "choudoufu withheld a destroy under module.crossplane_final as a possible rename (discovery.go's classifyOrphans) even though no other module.crossplane* block exists anywhere in this config - this is an honest wall, not a pass"
+    fi
+    REMOVE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
+    REMOVE_N="$(printf '%s\n' "$REMOVE_CHANGES" | grep -c . || true)"
+    # A real, named wall (HANDOFF row 2: the plans differ), reproduced
+    # directly with no tofu in the loop: with module.crossplane_final's
+    # block deleted, this estate's root config declares literally ZERO
+    # resource or module blocks (it is the only module call this estate
+    # has - see this script's own header). A standalone repro (apply this
+    # exact config, delete the module block, choudoufu live-plan again,
+    # nothing else involved) reproduces the same "No changes" answer even
+    # though all 6 objects this estate's tofu-estate tag still marks are
+    # genuinely live - discovery's estate-wide sweep does not fire when
+    # the configuration it is walking declares nothing at all, an edge
+    # case distinct from corpus-ecs-fargate's own day2_remove finding in
+    # this same batch (there, 61 OTHER resources stayed declared
+    # elsewhere in the same estate, so the sweep DID run and only the
+    # composed-of-arguments untaggable children it swept for were
+    # missed). Whether these two symptoms share one root cause or are two
+    # separate gaps is not established here; both are real, both are
+    # named, neither is fixed in this script-only unit.
+    grep -qF "module.crossplane_final.aws_iam_role.giantswarm_crossplane_role will be destroyed" <<< "$REMOVE_CHANGES" \
+      || { printf '%s\n' "$REMOVE_CHANGES"; fail "choudoufu proposes no destroy at all for module.crossplane_final's block (not even the role itself, tagged though it is) - see the comment immediately above this assertion for the reproduced root cause (an estate whose configuration declares zero resource/module blocks is never swept for its own orphaned tagged objects)"; }
+    [ "$REMOVE_CHANGES" = "$REMOVE_ORACLE_CHANGES" ] \
+      || {
+        printf 'choudoufu (%s):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"
+        # HANDOFF row 2 ("the plans differ"), named rather than left as a
+        # bare mismatch: every untaggable resource in this module
+        # (aws_iam_role_policy, aws_iam_role_policies_exclusive,
+        # aws_iam_role_policy_attachments_exclusive,
+        # aws_iam_role_policy_attachment) has a Components-built,
+        # composed-of-arguments identity (internal/live/identity/
+        # table_generated.go) with no marker and no ServerAssigned
+        # cloud-listing route - the exact same class corpus-ecs-fargate's
+        # own day2_remove stage names for
+        # aws_iam_role_policy_attachment.task_exec[0] (see that script's
+        # comment immediately before its own equivalent assertion). Once
+        # module.crossplane_final's declaring block is gone, there is no
+        # configuration left to derive role/role_name from for any of
+        # these four, so orphan discovery cannot find them - reproducing
+        # here confirms it is a generic limitation of the discovery
+        # mechanism (reaching every composed-of-arguments untaggable type
+        # whose declaring block or ancestor module is removed outright),
+        # not specific to one estate or one type. Not fixed in this
+        # script-only unit.
+        fail "choudoufu's day2_remove plan differs from stock's oracle on cold_deploy's own state - see the comment immediately above this assertion for the named, generic root cause"
+      }
+    log "  choudoufu: $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Apply complete!' <<< "$REMOVE_APPLY_OUT" \
+      || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply did not complete"; }
+    log "  $(grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT")"
+
+    if E_ROLE_STILL="$(awsl iam get-role --role-name "$ROLE_NAME" 2>&1)"; then
+      echo "$E_ROLE_STILL"; fail "$ROLE_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    grep -qi 'NoSuchEntity' <<< "$E_ROLE_STILL" \
+      || { echo "$E_ROLE_STILL"; fail "get-role for $ROLE_NAME failed with an unexpected error, not NoSuchEntity - it may still exist"; }
+    log "  $ROLE_NAME no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.crossplane_final's block proposed $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end
