@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "00acf1c9bae10eca404493498b4d5ddf65c0e282",
+  "commit": "bed239dbb33b94d5559c8c968119aee06de3837c",
   "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-24T22:49:03Z",
+  "generated": "2026-08-25T00:01:28Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 18,
+      "clear": 19,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 18,
+          "pass": 19,
           "fail": 0,
-          "not_run": 8
+          "not_run": 7
         },
         "day2_replace": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 17,
+      "clear": 18,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 17,
+          "pass": 18,
           "fail": 0,
-          "not_run": 8
+          "not_run": 7
         },
         "day2_replace": {
           "pass": 0,
@@ -967,7 +967,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -978,14 +978,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:33:06Z",
+        "commit": "bed239dbb33b94d5559c8c968119aee06de3837c",
+        "date": "2026-08-25T00:04:20Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
+          "day2_rename": "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact",

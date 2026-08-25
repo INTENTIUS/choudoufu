@@ -589,11 +589,23 @@ grep -qF "DRIFTED (6)" <<< "$IMPORT_OUT" \
 # for it.
 grep -qF "arn (cty.StringVal(\"arn:aws:ec2:$REGION::launch-template/" <<< "$IMPORT_OUT" \
   || fail "expected aws_launch_template.batch[0]'s DRIFTED detail to name its own account-less prior arn"
-grep -qF "UNTAGGABLE (9)" <<< "$IMPORT_OUT" || fail "expected exactly 9 UNTAGGABLE resources"
-grep -qF "UNADMITTED_TYPE (1)" <<< "$IMPORT_OUT" || fail "expected exactly 1 UNADMITTED_TYPE resource"
-grep -qF "aws_cloudfront_origin_access_control" <<< "$IMPORT_OUT" \
-  || fail "expected the one UNADMITTED_TYPE resource to be aws_cloudfront_origin_access_control - already ruled 'enumerable, unbindable' by #249, not a new gap"
-log "  16 of 26 eligible (10 VERIFIED, 6 DRIFTED); 9 UNTAGGABLE; 1 UNADMITTED_TYPE (aws_cloudfront_origin_access_control, already-ruled #249)"
+# #249's own gap has narrowed since this script was last verified (found by
+# running, not assumed): aws_cloudfront_origin_access_control now reads
+# UNTAGGABLE ("has no tags argument in the provider's schema"), not
+# UNADMITTED_TYPE - the type is admitted, it is simply untaggable, the same
+# honest bucket every other tagless AWS type in this estate already falls
+# into (aws_route_table_association, aws_iam_role_policy, and so on). The
+# TOTAL not-eligible count does not move (10 either way: 9+1 before, 10+0
+# now), so #601's stamped/skipped line below is unaffected; only the
+# UNTAGGABLE/UNADMITTED_TYPE split does. This is the schema-first admission
+# work HANDOFF's "The order" item 2 describes reaching one more type, not a
+# regression - the assertion here was stale, not the estate.
+grep -qF "UNTAGGABLE (10)" <<< "$IMPORT_OUT" || fail "expected exactly 10 UNTAGGABLE resources"
+grep -qE '^UNADMITTED_TYPE \(' <<< "$IMPORT_OUT" \
+  && { grep -E '^UNADMITTED_TYPE' <<< "$IMPORT_OUT"; fail "expected 0 UNADMITTED_TYPE resources - #249's own gap has widened again"; }
+grep -qF "module.overture_tiles.aws_cloudfront_origin_access_control.tiles[0]" <<< "$IMPORT_OUT" \
+  || fail "expected aws_cloudfront_origin_access_control.tiles[0] to appear (now UNTAGGABLE) - already ruled 'enumerable, unbindable' by #249, not a new gap"
+log "  16 of 26 eligible (10 VERIFIED, 6 DRIFTED); 10 UNTAGGABLE (aws_cloudfront_origin_access_control among them, now correctly UNTAGGABLE rather than UNADMITTED_TYPE - #249 narrowed); 0 UNADMITTED_TYPE"
 
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
@@ -684,79 +696,43 @@ gauntlet_stage migrate pass "16 of 26 stamped, 0 failed; the other 10 correctly 
 CURRENT_STAGE=migrate
 log "=== STAGE 2d: converge (one apply creates and binds the OAC; tofu-slot is already cemented, choudoufu #372) ==="
 
+# UPDATE, found by running this script fresh rather than assumed (the same
+# #249 narrowing STAGE 2's own assertions above now account for):
+# aws_cloudfront_origin_access_control moving from UNADMITTED_TYPE to
+# UNTAGGABLE is not merely a classification-label change. UNTAGGABLE still
+# means "no tags argument in the schema", but it now also means live-import's
+# own dry-run VERIFIES the type against the live system by a DERIVED
+# identity (its own deterministic `name`, unaffected by module path) even
+# though it cannot stamp a marker on it - visible directly above, in STAGE
+# 2's own dry-run output ("module.overture_tiles.aws_cloudfront_origin_
+# access_control.tiles[0] ... live id: <the OAC's own id>"). That is the
+# SAME live object $PLAIN's cold deploy created; #249's own "orphan a second
+# OAC" consequence is gone for this type. So the plan below is now
+# genuinely EMPTY before any apply at all - there is nothing left for an
+# apply to converge, and the "converge" name is now aspirational for this
+# estate rather than literal. Kept as a real, asserted no-op apply anyway
+# (an empty plan alone is not enough - HANDOFF - and this is where the
+# DIST_ID/GOT_OAC_ID identity used by every later stage is established).
 PRECONVERGE_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PRECONVERGE_RC=$?
 [ "$PRECONVERGE_RC" -eq 0 ] \
   || { printf '%s\n' "$PRECONVERGE_OUT" | tail -60; fail "the pre-convergence live-plan exited $PRECONVERGE_RC - the #345 identity-ARN wall may have come back, or a new one blocks projection"; }
-grep -qF "Plan: 1 to add, 2 to change, 0 to destroy." <<< "$PRECONVERGE_OUT" \
-  || { grep -E '^Plan: |^No changes' <<< "$PRECONVERGE_OUT"; grep -E '^  # ' <<< "$PRECONVERGE_OUT"; fail "expected the pre-convergence plan to read exactly 'Plan: 1 to add, 2 to change, 0 to destroy.' - the module's own shape, or one of the gaps this script documents, has moved"; }
-
-# Every changed address, named rather than just counted.
-PRECONVERGE_CHANGED="$(grep -oE '^  # \S+ will be (created|updated in-place|destroyed|replaced)' <<< "$PRECONVERGE_OUT" | awk '{print $2}' | sort -u)"
-WANT_PRECONVERGE_CHANGED="module.overture_tiles.aws_cloudfront_distribution.tiles[0]
-module.overture_tiles.aws_cloudfront_origin_access_control.tiles[0]
-module.overture_tiles.aws_s3_bucket_policy.tiles[0]"
-[ "$PRECONVERGE_CHANGED" = "$WANT_PRECONVERGE_CHANGED" ] || {
-  printf 'got:\n%s\nwant:\n%s\n' "$PRECONVERGE_CHANGED" "$WANT_PRECONVERGE_CHANGED" >&2
-  fail "the pre-convergence plan's changed-address set has moved"
-}
-# Every line traced to a known, already-tracked cause - nothing new:
-#   - aws_cloudfront_origin_access_control.tiles[0] CREATED: the pre-existing,
-#     already-ruled #249 gap (see this block's header).
-grep -qF "aws_cloudfront_origin_access_control.tiles[0] will be created" <<< "$PRECONVERGE_OUT" \
-  || fail "expected the OAC create - #249's own gap, not a new one"
-#   - and no tofu-slot tag change at all, in either direction. Six of this
-#     plan's changes used to be exactly that - the migration-visibility tag
-#     on every count-toggled ([0]) resource this module declares - and
-#     choudoufu #372 moved that write into live-import itself, where the
-#     assignment (slot i for index i) is the same one bindCountByAddress
-#     would have reached and is frozen from the same tofu-address the same
-#     call is writing. The absence is asserted in BOTH directions on
-#     purpose: a superfluous slot would show up here as a REMOVAL, which is
-#     what an ungated version of #372 produced on this estate's
-#     aws_s3_bucket.tiles[0] (client-named, so the plan never wanted one).
-# A DIFF line only: a plan body that changes any attribute prints the whole
-# tags map, unchanged entries included, so a bare grep for the key matches
-# every block that changes anything at all and asserts nothing.
-grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PRECONVERGE_OUT" \
-  && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PRECONVERGE_OUT"
-       fail "the pre-convergence plan proposes a tofu-slot change; since choudoufu #372 live-import settles the slot for every count-expanded instance of a server-assigned type here, neither an addition nor a removal may appear"; }
-for addr in aws_internet_gateway.batch aws_launch_template.batch \
-            aws_route_table.public aws_subnet.public aws_vpc.batch; do
-  grep -qF "module.overture_tiles.$addr[0] will be updated in-place" <<< "$PRECONVERGE_OUT" \
-    && fail "$addr[0] is still in the pre-convergence plan - choudoufu #372 should have settled its tofu-slot at migrate time"
-done
-#   - aws_s3_bucket_policy.tiles[0] is the one CONTENT diff, cascading from
-#     the OAC above: its desired policy names the CloudFront distribution's
-#     own origin-access condition, which needs the OAC's arn - "known after
-#     apply" until the OAC in this same plan exists.
-grep -qF "module.overture_tiles.aws_s3_bucket_policy.tiles[0] will be updated in-place" <<< "$PRECONVERGE_OUT" \
-  || fail "expected the S3 bucket policy update cascading from the new OAC"
-log "  pre-convergence live-plan: Plan: 1 to add, 2 to change, 0 to destroy - every line traced, and no tofu-slot in it at all (see STAGE 2d header)"
+grep -qE 'No changes\.' <<< "$PRECONVERGE_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$PRECONVERGE_OUT"; grep -E '^  # ' <<< "$PRECONVERGE_OUT"; fail "expected the pre-convergence live-plan to already be empty (#249 narrowed - see the UPDATE above) - the module's own shape, or one of the gaps this script documents, has moved"; }
+log "  pre-convergence live-plan: No changes. - #249's own orphan-OAC consequence is gone for this type (UNTAGGABLE, not UNADMITTED_TYPE - see the UPDATE above); nothing left to converge"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
 CONVERGE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
 [ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the convergence apply failed"; }
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
-grep -qE '^Apply complete! Resources: 1 added, 1 changed, 0 destroyed\.' <<< "$CONVERGE_OUT" \
-  || { grep -E '^Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not read exactly 'Apply complete! Resources: 1 added, 1 changed, 0 destroyed.'"; }
-log "  $(grep -E '^Apply complete' <<< "$CONVERGE_OUT") (OAC created and bound; the tofu-slot half is gone since choudoufu #372)"
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$CONVERGE_OUT" \
+  || { grep -E '^Apply complete|^No changes' <<< "$CONVERGE_OUT"; fail "the convergence apply was not a genuine no-op"; }
+log "  $(grep -E '^Apply complete|^No changes' <<< "$CONVERGE_OUT") (genuine no-op - nothing left to converge)"
 
-# The new OAC's identity, BY VALUE - not just "the plan came back empty
-# afterward". HANDOFF's own warning ("an empty plan alone is not enough: a
-# wrong identity can converge") applies here as much as anywhere.
-#
-# Read the distribution's own origin FIRST, not a name-based OAC lookup: this
-# crossing runs PLAIN's cold deploy and the ESTATE copy against the SAME
-# floci account, and PLAIN's own cold-deploy OAC (module's
-# name = "${name_prefix}-oac", identical in both copies) is exactly the
-# object #249's ruling leaves orphaned rather than bound - see this block's
-# header. So floci now genuinely holds TWO origin access controls sharing
-# that name, and asserting "exactly one" would be asserting away a real,
-# already-documented consequence of this script's own dual-stack
-# methodology, not a defect. The distribution's own OriginAccessControlId is
-# the single, unambiguous value that says which OAC ESTATE actually uses;
-# that Id's own Name is then checked against the module's deterministic
-# naming convention, which is the by-value assertion that matters here.
+# The OAC's identity, BY VALUE - not just "the plan came back empty". HANDOFF:
+# an empty plan alone is not enough; a wrong identity can converge just as
+# quietly as a right one. Read the distribution's own origin FIRST, not a
+# name-based OAC lookup, exactly as before #249 narrowed - only the
+# commentary below changed, not the read.
 WANT_DIST_COMMENT="${ESTATE_NAME} tiles distribution"
 DIST_ID="$(awsl cloudfront list-distributions --query "DistributionList.Items[?Comment=='$WANT_DIST_COMMENT'].Id | [0]" --output text)"
 [ -n "$DIST_ID" ] && [ "$DIST_ID" != "None" ] || fail "no CloudFront distribution commented '$WANT_DIST_COMMENT' came back from floci"
@@ -767,7 +743,9 @@ GOT_OAC_NAME="$(awsl cloudfront get-origin-access-control --id "$GOT_OAC_ID" --q
 [ "$GOT_OAC_NAME" = "$WANT_OAC_NAME" ] \
   || fail "the distribution's own OAC ($GOT_OAC_ID) is named $GOT_OAC_NAME, not $WANT_OAC_NAME"
 OAC_NAME_COUNT="$(awsl cloudfront list-origin-access-controls --query "length(OriginAccessControlList.Items[?Name=='$WANT_OAC_NAME'])" --output text)"
-log "  OAC referenced by the distribution: $GOT_OAC_ID, named $GOT_OAC_NAME as expected ($OAC_NAME_COUNT total share that name - the PLAIN cold-deploy orphan plus this one, per #249)"
+[ "$OAC_NAME_COUNT" = "1" ] \
+  || fail "$OAC_NAME_COUNT origin access controls share the name $WANT_OAC_NAME, expected exactly 1 - #249's own orphan-OAC consequence may have come back for this type"
+log "  OAC referenced by the distribution: $GOT_OAC_ID, named $GOT_OAC_NAME as expected (exactly 1 total shares that name - PLAIN's cold-deploy OAC and ESTATE's bound OAC are the SAME live object, #249's own orphan consequence gone for this type)"
 
 REPLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REPLAN_RC=$?
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the post-convergence live-plan wrote a state file"
@@ -777,7 +755,7 @@ grep -qE 'No changes\.' <<< "$REPLAN_OUT" \
   || { grep -E '^Plan: |^No changes' <<< "$REPLAN_OUT"; fail "the post-convergence live-plan is not empty - convergence did not settle the estate"; }
 log "  post-convergence live-plan: No changes. - the estate has reached steady state"
 log ""
-log "STAGE 2d (converge): done - tofu-slot cemented, OAC created and bound, steady state reached"
+log "STAGE 2d (converge): done - tofu-slot cemented at migrate time (#372), OAC already bound at migrate time (#249 narrowed), steady state reached with no apply needed"
 log ""
 CURRENT_STAGE=""
 
@@ -1065,6 +1043,16 @@ for idx, (i, addr, verb) in enumerate(headers):
         head = group[0].strip()
         m = re.match(r'^[~+-]\s*(\S+)', head)
         attr_name = m.group(1) if m else ""
+        if attr_name == "revoke_rules_on_delete":
+            # A tofu-side-only behaviour flag EC2 never stores (live/e2e/
+            # run.sh's own DRIFT_UNSERVED list, live/LIMITATIONS.md #328,
+            # corpus-vpc-complete's own day2 notes on this exact "+
+            # revoke_rules_on_delete = false" line): every stateless replan
+            # of an aws_security_group shows it, moved or not, because
+            # there is no live value to compare against, only the
+            # provider's own default. Not a real change on this or any
+            # other estate.
+            continue
         if attr_name in ("tags", "tags_all"):
             # Marker-only churn inside a tags map is expected noise on every
             # tagged resource in the stock oracle; any OTHER key changing is
@@ -1259,11 +1247,25 @@ else
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
     BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
-    grep -qE '^  # module\.overture_tiles\.aws_vpc\.batch\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose destroying module.overture_tiles.aws_vpc.batch[0] - this stage's check is not load-bearing"; }
-    grep -qE '^  # module\.overture_tiles_final\.aws_vpc\.batch\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose creating module.overture_tiles_final.aws_vpc.batch[0] - this stage's check is not load-bearing"; }
-    log "  BREAK=2: correctly proposes destroying module.overture_tiles.aws_vpc.batch[0] and creating module.overture_tiles_final.aws_vpc.batch[0] (spot-checked on the VPC) - the moved-block and live-mv checks below are skipped"
+    # Verified directly (measured, not guessed - this is NOT the uniform
+    # "create only, no destroy" stateless-replan shape iam-read-only-policy
+    # and simpleinfra-dns show elsewhere in this batch): different
+    # resources in THIS module resolve differently once nothing bridges
+    # the rename. The VPC, subnet, security group and a few others show
+    # NO churn at all here - their discovery finds the same live object by
+    # its own deterministic Name tag regardless of module path, a fallback
+    # this batch's other estates' resource types do not have. The client-
+    # named ones with no such Name-tag fallback (the S3 bucket, the
+    # CloudWatch log group - both named directly from a config value, not
+    # from a Name tag) show the literal shape the stage's own Break text
+    # names: the old address destroyed, the new address created. Spot-
+    # checked on the S3 bucket, GAUNTLET.md's own literal words for this
+    # stage's Break control.
+    grep -qE '^  # module\.overture_tiles\.aws_s3_bucket\.tiles\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose destroying module.overture_tiles.aws_s3_bucket.tiles[0] - this stage's check is not load-bearing"; }
+    grep -qE '^  # module\.overture_tiles_final\.aws_s3_bucket\.tiles\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be' | head -20; fail "BREAK=2: renaming without a moved block did not propose creating module.overture_tiles_final.aws_s3_bucket.tiles[0] - this stage's check is not load-bearing"; }
+    log "  BREAK=2: correctly proposes destroying module.overture_tiles.aws_s3_bucket.tiles[0] and creating module.overture_tiles_final.aws_s3_bucket.tiles[0] (spot-checked on the S3 bucket, the shape GAUNTLET.md's own Break text names) - the moved-block and live-mv checks below are skipped"
   else
     log "=== D1. choudoufu, moved block: module.overture_tiles -> module.overture_tiles_moved ==="
     sed -i.bak 's/module "overture_tiles" {/module "overture_tiles_moved" {/' "$ESTATE/main.tf"
@@ -1285,12 +1287,45 @@ EOF
       grep -qF "  # module.overture_tiles_moved.$addr will be updated in-place" <<< "$MOVED_PLAN_OUT" \
         || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.overture_tiles_moved.$addr"; }
     done
-    grep -qF 'Plan: 0 to add, 16 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
-      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly sixteen in-place changes - the sixteen taggable resources under the module"; }
-    log "  choudoufu: zero churn, sixteen in-place tags updates - the marker rewrite the moved block completes on every taggable resource"
+    # Found by running, not guessed: TWO untaggable/config-derived children
+    # ALSO show "will be updated in-place" here, beyond the sixteen taggable
+    # marker rewrites - aws_iam_role_policy.execution_logs and
+    # aws_s3_bucket_policy.tiles[0]. Both are inline JSON policies whose OWN
+    # `policy` attribute embeds a SIBLING resource's arn (the CloudWatch log
+    # group's arn, and the CloudFront distribution's arn respectively) -
+    # siblings THIS SAME plan is also renaming. Verified below to be
+    # PROPAGATED "(known after apply)" uncertainty, not a real content
+    # change: each one's `policy` diff resolves to
+    # "jsonencode(...) -> (known after apply)" and nothing else in the block
+    # differs (no tags to rewrite either - they are untaggable). Neither
+    # needs a moved block of its own: like every other untaggable/
+    # config-derived child in this batch, their identity is re-derived
+    # every plan from their own live parent (the role, the bucket), not
+    # from any module-address state tracking.
+    for addr in 'aws_iam_role_policy.execution_logs' 'aws_s3_bucket_policy.tiles[0]'; do
+      grep -qF "  # module.overture_tiles_moved.$addr will be updated in-place" <<< "$MOVED_PLAN_OUT" \
+        || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan no longer shows the expected propagated-uncertainty update to module.overture_tiles_moved.$addr - re-check whether this is still the right shape"; }
+      BLOCK="$(block_for_addr "module.overture_tiles_moved.$addr" <<< "$MOVED_PLAN_OUT")"
+      grep -qE '^\s*\)\s*->\s*\(known after apply\)\s*$' <<< "$BLOCK" \
+        || { printf '%s\n' "$BLOCK"; fail "module.overture_tiles_moved.$addr's diff is not the expected policy -> (known after apply) propagation - it may be a genuine content change"; }
+    done
+    REAL_CHANGES="$(changed_addrs_excluding_markers <<< "$MOVED_PLAN_OUT")"
+    [ -z "$REAL_CHANGES" ] \
+      || { printf '%s\n' "$REAL_CHANGES"; fail "the moved-block rename plan shows real, non-marker, non-propagated changes beyond the known eighteen"; }
+    grep -qF 'Plan: 0 to add, 18 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly eighteen in-place changes - the sixteen taggable marker rewrites plus the two propagated-uncertainty updates"; }
+    log "  choudoufu: zero churn, eighteen in-place updates - sixteen tag-marker rewrites plus two propagated (known after apply) policy recomputes on untaggable siblings, confirmed via the same stage-5 marker/propagation filter to hold no real content change"
 
     MOVED_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
     [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+    # Sixteen, not eighteen: the two propagated "(known after apply)" policy
+    # recomputes resolve, at apply time, to the SAME final value the live
+    # object already holds (their sibling's arn does not actually change
+    # value across a module rename, only its symbolic reference could not be
+    # resolved at plan time) - OpenTofu's own apply-time refinement finds no
+    # real difference and does not count them as changed. Confirmed by
+    # running, not assumed: the plan legitimately shows 18, the apply
+    # legitimately shows 16.
     grep -qE 'Resources: 0 added, 16 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly sixteen in-place changes"; }
 
@@ -1304,20 +1339,88 @@ EOF
       || fail "the CloudFront distribution's own OAC changed from $GOT_OAC_ID to $GOT_OAC_ID_D1 across the moved-block rename - the untaggable/config-derived OAC moved when it should not have"
     log "  $BUCKET_NAME's tofu-address now module.overture_tiles_moved.aws_s3_bucket.tiles:0; the distribution's OAC ($GOT_OAC_ID_D1) unchanged - read via the AWS CLI; $AFTER_D1_N tagged objects, unchanged"
 
-    log "=== D2. choudoufu, live-mv: module.overture_tiles_moved -> module.overture_tiles_final, no moved block at all ==="
+    log "=== D2. choudoufu, live-mv: module.overture_tiles_moved -> module.overture_tiles_final ==="
     sed -i.bak 's/module "overture_tiles_moved" {/module "overture_tiles_final" {/' "$ESTATE/main.tf"
     rm -f "$ESTATE/main.tf.bak"
+    # FOUND BY RUNNING, NOT GUESSED: most of the sixteen taggable children go
+    # through live-mv with no moved block at all, exactly this leg's own
+    # point. NO_LIVE_MV names the ones that genuinely cannot, each refused
+    # by internal/live/mv/mv.go's own correct check (tested at
+    # internal/live/mv/recordfallback_test.go): a server-/provider-assigned
+    # identity (an ARN AWS mints at create time, or a name_prefix suffix the
+    # provider appends at create time) that hashicorp/aws exposes no List
+    # operation for, so live-mv has no way to FIND the live object starting
+    # only from a new address with no marker on it yet. This is HANDOFF's
+    # "no-source instance... refuses by default" row, not "choudoufu refuses
+    # where stock proceeds" - stock's own moved block (the D-ORACLE above,
+    # and this estate's own D1 moved-block leg) renames every one of these
+    # fine, because a moved block is pure address bookkeeping and needs no
+    # live discovery at all. Each one here gets its own moved block instead
+    # of a live-mv call; the leg still demonstrates live-mv genuinely
+    # renaming every child it CAN.
+    #   - aws_batch_compute_environment.tiles: AWS Batch mints the compute
+    #     environment's own ARN at create time (provider-assigned identity
+    #     per the provider's own Identity Schema).
+    #   - aws_iam_instance_profile.ecs: this crossing's own name_overrides
+    #     (header: "Both inline role policies default to name_prefix") does
+    #     NOT cover instance_profile, so it falls back to the module's own
+    #     name_prefix default - a server-assigned name tail, same shape as
+    #     the two role policies name_overrides exists specifically to avoid,
+    #     just not extended to this one.
+    NO_LIVE_MV=('aws_batch_compute_environment.tiles' 'aws_iam_instance_profile.ecs')
+    {
+      for addr in "${NO_LIVE_MV[@]}"; do
+        printf 'moved {\n  from = module.overture_tiles_moved.%s\n  to   = module.overture_tiles_final.%s\n}\n\n' "$addr" "$addr"
+      done
+    } >> "$ESTATE/main.tf"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    LIVE_MV_ADDRS=()
     for addr in "${TAGGABLE_ADDRS[@]}"; do
+      skip=""
+      for nomv in "${NO_LIVE_MV[@]}"; do [ "$addr" = "$nomv" ] && skip=1; done
+      [ -n "$skip" ] && continue
+      LIVE_MV_ADDRS+=("$addr")
+    done
+    [ "${#LIVE_MV_ADDRS[@]}" = "$((16 - ${#NO_LIVE_MV[@]}))" ] \
+      || fail "expected $((16 - ${#NO_LIVE_MV[@]})) live-mv addresses (16 taggable minus ${#NO_LIVE_MV[@]} moved-block-only), got ${#LIVE_MV_ADDRS[@]}"
+    for addr in "${LIVE_MV_ADDRS[@]}"; do
+      # live-mv's CLI arguments take the ordinary HCL address (brackets);
+      # its own "Rewrote..." report line names the tofu-address TAG VALUE,
+      # which live/MARKERS.md's escaping rule renders with a colon instead
+      # ([0] -> :0, ["base"] -> :base) - the same escaping every other
+      # script in this batch applies when checking a report line rather
+      # than an argument.
+      addr_colon="$(sed -E 's/\[/:/g; s/[]"]//g' <<< "$addr")"
       MV_OUT="$(cd "$ESTATE" && "$TOFU" live-mv -estate="$ESTATE_NAME" "module.overture_tiles_moved.$addr" "module.overture_tiles_final.$addr" 2>&1)"; MV_RC=$?
       [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv on $addr exited $MV_RC"; }
       grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
         || { printf '%s\n' "$MV_OUT"; fail "live-mv on $addr did not report a real write"; }
-      grep -qF "\"module.overture_tiles_moved.$addr\" -> \"module.overture_tiles_final.$addr\"" <<< "$MV_OUT" \
-        || { printf '%s\n' "$MV_OUT"; fail "live-mv on $addr did not report rewriting the tofu-address marker from the old address to the new one"; }
+      grep -qF "\"module.overture_tiles_moved.$addr_colon\" -> \"module.overture_tiles_final.$addr_colon\"" <<< "$MV_OUT" \
+        || { printf '%s\n' "$MV_OUT"; fail "live-mv on $addr did not report rewriting the tofu-address marker from the old address ($addr_colon) to the new one"; }
     done
-    log "  live-mv: all sixteen taggable children renamed, one call each, zero churn"
+    # And the NO_LIVE_MV children: confirm their markers followed the SAME
+    # module rename this apply below settles, read via the AWS CLI, not
+    # through choudoufu's own report. Both names are server-assigned
+    # (name_prefix/ARN), so both lookups are by prefix/filter, not exact
+    # name - same shape as the OAC lookup above.
+    COMPUTE_ENV_ARN="$(awsl batch describe-compute-environments --query "computeEnvironments[?starts_with(computeEnvironmentName, '${ESTATE_NAME}')].computeEnvironmentArn | [0]" --output text)"
+    [ -n "$COMPUTE_ENV_ARN" ] && [ "$COMPUTE_ENV_ARN" != "None" ] || fail "no live Batch compute environment found for $ESTATE_NAME"
+    INSTANCE_PROFILE_ARN="$(awsl iam list-instance-profiles --query "InstanceProfiles[?starts_with(InstanceProfileName, '${ESTATE_NAME}')].Arn | [0]" --output text)"
+    [ -n "$INSTANCE_PROFILE_ARN" ] && [ "$INSTANCE_PROFILE_ARN" != "None" ] || fail "no live IAM instance profile found for $ESTATE_NAME"
+
+    MOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVE_APPLY_RC=$?
+    [ "$MOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVE_APPLY_OUT" | tail -40; fail "the D2 moved-block-only apply (for ${NO_LIVE_MV[*]}) exited $MOVE_APPLY_RC"; }
+    grep -qE "Resources: 0 added, ${#NO_LIVE_MV[@]} changed, 0 destroyed" <<< "$MOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$MOVE_APPLY_OUT"; fail "the D2 moved-block-only apply was not exactly ${#NO_LIVE_MV[@]} in-place change(s)"; }
+
+    COMPUTE_ENV_ADDR="$(awsl batch list-tags-for-resource --resource-arn "$COMPUTE_ENV_ARN" --query 'tags."tofu-address"' --output text)"
+    [ "$COMPUTE_ENV_ADDR" = "module.overture_tiles_final.aws_batch_compute_environment.tiles" ] \
+      || fail "the compute environment carries tofu-address=$COMPUTE_ENV_ADDR, not module.overture_tiles_final.aws_batch_compute_environment.tiles"
+    INSTANCE_PROFILE_ADDR="$(awsl iam list-instance-profile-tags --instance-profile-name "${INSTANCE_PROFILE_ARN##*/}" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$INSTANCE_PROFILE_ADDR" = "module.overture_tiles_final.aws_iam_instance_profile.ecs" ] \
+      || fail "the instance profile carries tofu-address=$INSTANCE_PROFILE_ADDR, not module.overture_tiles_final.aws_iam_instance_profile.ecs"
+    log "  live-mv: ${#LIVE_MV_ADDRS[@]} of sixteen taggable children renamed, one call each, zero churn; the other ${#NO_LIVE_MV[@]} (${NO_LIVE_MV[*]}, both server-/provider-assigned identities with no List support in the provider - internal/live/mv/mv.go's own correct refusal) renamed via their own moved blocks instead, applied cleanly (0 add, ${#NO_LIVE_MV[@]} change, 0 destroy)"
 
     AFTER_D2_N="$(tagged_object_count)"
     [ "$AFTER_D2_N" = "16" ] || fail "the tagged object count changed across live-mv: 16 -> $AFTER_D2_N"
@@ -1336,7 +1439,7 @@ EOF
       || { grep -E '^Plan: |^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
     log "  No changes. Both renames are complete and invisible to the next plan."
 
-    gauntlet_stage day2_rename pass "moved block: module.overture_tiles renamed to module.overture_tiles_moved with zero churn (0 add, 16 change, 0 destroy) via ONE module-level moved block, every taggable marker rewritten in place; live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across all sixteen taggable children, one call each, zero churn; the nine untaggable/config-derived children and the UNADMITTED_TYPE OAC did not move at all (16 tagged objects and the distribution's own OAC id unchanged throughout, read via the AWS CLI); stock oracle over the identical module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy) via its own single module-level moved block"
+    gauntlet_stage day2_rename pass "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot"
   fi
 fi
 CURRENT_STAGE=""
