@@ -751,6 +751,54 @@ grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_O
 log "  stock oracle: exactly two destroys proposed (the CloudFront distribution and its OAC) plus one in-place bucket-policy update (the CloudFrontOAC statement drops) - computed now, before anything below writes a live tag"
 CURRENT_STAGE=""
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# "Stock's replace of the same resource leaves the same single object."
+# aws_cloudwatch_log_group.batch (this estate's one CloudWatch log group,
+# a plain resource with no count/for_each - untouched by REMOVE-ORACLE's
+# own create_cloudfront_distribution=false toggle above) is forced to
+# replace via the module's own name_overrides.cloudwatch_log_group input
+# (variables.tf; batch.tf's local.resolved_log_group_name coalesces it
+# ahead of the name_prefix-derived default), the SAME published escape
+# hatch this crossing's own root already uses for the two inline role
+# policies (header point 4) - a variable edit, not a code edit, matching
+# this corpus's own DELTA discipline. CloudWatch Logs has no RenameLogGroup
+# API - only CreateLogGroup/DeleteLogGroup - so name is ForceNew in the
+# provider's own schema, confirmed empirically below by the plan's own
+# "must be replaced" annotation, not assumed. The SAME literal reaches two
+# real siblings whose own content embeds the log group's name/arn: aws_
+# iam_role_policy.execution_logs's policy document (iam.tf line 75:
+# ${aws_cloudwatch_log_group.batch.arn}:*) and aws_batch_job_definition.
+# tiles["base"]'s container_properties JSON (batch.tf: "awslogs-group" =
+# aws_cloudwatch_log_group.batch.name) - both real, expected changes
+# cascading from the one ForceNew change, computed here (not assumed) so
+# PART F below knows exactly what shape to expect. A FOURTH copy of
+# cold_deploy's own state (same convention as D-ORACLE/REMOVE-ORACLE
+# above), before the real script's own rename ever touches $ESTATE.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.overture_tiles's log group via its ForceNew name, on cold_deploy's own state ==="
+REPLACE_ORACLE="$WORK/replace-oracle"
+copy_module "$REPLACE_ORACLE"
+write_root "$REPLACE_ORACLE" "" true
+perl -pi -e "s{(execution_role_policy = \"${ESTATE_NAME}-execution-logs-policy\"\n)}{\$1    cloudwatch_log_group   = \"/aws/batch/${ESTATE_NAME}-v2\"\n}" "$REPLACE_ORACLE/main.tf"
+grep -q 'cloudwatch_log_group   = "/aws/batch/' "$REPLACE_ORACLE/main.tf" \
+  || fail "adding name_overrides.cloudwatch_log_group to the replace-oracle copy did not match - the corpus pin has moved"
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$REPLACE_ORACLE/.terraform.lock.hcl"
+cp "$PLAIN/terraform.tfstate" "$REPLACE_ORACLE/terraform.tfstate"
+( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.overture_tiles\.aws_cloudwatch_log_group\.batch must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing the log group when its name changes"; }
+grep -qE '~ +name +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark the log group's name as forcing replacement - it may not be ForceNew after all"; }
+printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" > "$WORK/replace-oracle-plan.log"
+log "  stock: exactly one forced replace (the log group); the cascade into its two siblings (the execution role's inline log policy, the job definition) is recorded to $WORK/replace-oracle-plan.log for PART F below to compare against, not asserted rigidly here - plan only, never applied"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1681,6 +1729,132 @@ EOF
     log "  No changes. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot"
+
+    # ══════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════
+    # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+    # ══════════════════════════════════════════════════════════════════
+    #
+    # module.overture_tiles_final's log group is forced to replace via the
+    # module's own published name_overrides.cloudwatch_log_group input -
+    # the same escape hatch this crossing's root already uses for the two
+    # inline role policies (header point 4), now supplied for the first
+    # time. F-ORACLE above already confirmed, empirically, that stock
+    # marks the log group's name as forcing replacement on cold_deploy's
+    # own state, cascading into two real in-place updates: aws_iam_role_
+    # policy.execution_logs's policy document (embeds the log group's arn)
+    # and aws_batch_job_definition.tiles["base"]'s container_properties
+    # (embeds the log group's name in its awslogs-group log option).
+    # Neither the execution role's policy nor the job definition is
+    # destroyed or created - only the log group is.
+    #
+    # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own
+    # PART F header for the fuller discussion). The log group is a plain
+    # child of module.overture_tiles_final, not itself a module call, so a
+    # `lifecycle` block could in principle sit directly on it without
+    # crossing the module-call-boundary line the sqs/ec2/lambda estates in
+    # this same unit hit - but this corpus's own DELTA discipline (header:
+    # every edit here is a published input variable, never a code edit)
+    # applies just as much, so this exercises OpenTofu's DEFAULT replace
+    # ordering (destroy-then-create) rather than create_before_destroy,
+    # the same choice every other estate in this unit makes. BREAK=replace
+    # below manufactures the coexistence a skipped destroy half would
+    # leave.
+    CURRENT_STAGE=day2_replace
+    record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+    record_import_id() { jq -r '.identity.import_id' "$1"; }
+    F_ADDR="module.overture_tiles_final.aws_cloudwatch_log_group.batch"
+    F_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_cloudwatch_log_group/$(record_key "$F_ADDR")"
+    F_OLD_LOGGROUP_NAME="/aws/batch/${ESTATE_NAME}"
+
+    log ""
+    log "=== F0. capture the live log group and its record ahead of the forced replace ==="
+    [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+    F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    # aws_cloudwatch_log_group's import ID is the log group NAME, not its
+    # ARN (the same shape corpus-lambda-simple's own log group needed in
+    # this unit) - checked against the record file directly.
+    [ "$F_OLD_IMPORT_ID" = "$F_OLD_LOGGROUP_NAME" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_OLD_LOGGROUP_NAME"
+    F_OLD_ADDR_TAG="$(awsl logs list-tags-log-group --log-group-name "$F_OLD_LOGGROUP_NAME" --query 'tags."tofu-address"' --output text)"
+    [ "$F_OLD_ADDR_TAG" = "module.overture_tiles_final.aws_cloudwatch_log_group.batch" ] \
+      || fail "$F_OLD_LOGGROUP_NAME does not carry tofu-address=module.overture_tiles_final.aws_cloudwatch_log_group.batch ahead of day2_replace"
+    log "  $F_OLD_LOGGROUP_NAME, record import_id=$F_OLD_IMPORT_ID (the log group's name, not its ARN), tofu-address=$F_OLD_ADDR_TAG"
+
+    if [ "${BREAK:-}" = "replace" ]; then
+      log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy half would leave behind ==="
+      # A second, distinct live log group carrying the SAME tofu-address
+      # as the one a genuine replace would destroy - the state "skip the
+      # destroy half" of a create-before-destroy replace would leave,
+      # produced directly via the AWS CLI rather than by actually
+      # interrupting an apply (day2_crash, stage 10, owns testing a real
+      # interruption).
+      BREAK_COLLISION_NAME="/aws/batch/${ESTATE_NAME}-collision"
+      awsl logs create-log-group --log-group-name "$BREAK_COLLISION_NAME" \
+        --tags "tofu-estate=$ESTATE_NAME,tofu-address=module.overture_tiles_final.aws_cloudwatch_log_group.batch" \
+        >/dev/null || fail "BREAK=replace: could not create the collision log group"
+      BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+      awsl logs delete-log-group --log-group-name "$BREAK_COLLISION_NAME" >/dev/null 2>&1 || true
+      [ "$BREAK_PLAN_RC" -ne 0 ] \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address - it must report the collision, not propose nothing"; }
+      grep -qF 'Two live resources claiming one address' <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the address collision - this stage's check is not load-bearing"; }
+      log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one address) rather than silently proposing nothing - the Break text's own outcome"
+    else
+      log "=== F1. choudoufu: supply name_overrides.cloudwatch_log_group, forcing a replace at the same declared address ==="
+      perl -pi -e "s{(execution_role_policy = \"${ESTATE_NAME}-execution-logs-policy\"\n)}{\$1    cloudwatch_log_group   = \"/aws/batch/${ESTATE_NAME}-v2\"\n}" "$ESTATE/main.tf"
+      grep -q 'cloudwatch_log_group   = "/aws/batch/' "$ESTATE/main.tf" || fail "adding name_overrides.cloudwatch_log_group did not match - the corpus pin has moved"
+      F_NEW_NAME="/aws/batch/${ESTATE_NAME}-v2"
+
+      F_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+      [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+      grep -qE '^  # module\.overture_tiles_final\.aws_cloudwatch_log_group\.batch must be replaced' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing the log group when its name changes"; }
+      grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark the log group's name as forcing replacement"; }
+      grep -qE '^  # module\.overture_tiles_final\.aws_iam_role_policy\.execution_logs will be updated in-place' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose updating the execution role's inline log policy in-place when the log group's arn changes"; }
+      grep -qE '^  # module\.overture_tiles_final\.aws_batch_job_definition\.tiles\["base"\] will be updated in-place' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose updating the job definition in-place when the log group's name changes - it may register a new revision as a replace instead, matching F-ORACLE's own recorded shape at \$WORK/replace-oracle-plan.log"; }
+      F_OTHER="$(grep -E '^  # .+ (will be (destroyed|created)|must be replaced)' <<< "$F_PLAN_OUT" | grep -v 'aws_cloudwatch_log_group\.batch' || true)"
+      [ -z "$F_OTHER" ] \
+        || { printf '%s\n' "$F_OTHER"; fail "choudoufu proposes a destroy, create or replace beyond the log group's own forced replace"; }
+      log "  choudoufu: exactly one forced replace at the same declared address (module.overture_tiles_final.aws_cloudwatch_log_group.batch), cascading into the expected in-place updates (execution role's inline log policy, job definition)"
+
+      F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+      [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+      grep -qE 'Apply complete' <<< "$F_APPLY_OUT" || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not complete"; }
+
+      F_OLD_STILL="$(awsl logs describe-log-groups --log-group-name-prefix "$F_OLD_LOGGROUP_NAME" --query "logGroups[?logGroupName=='$F_OLD_LOGGROUP_NAME']" --output text 2>&1)"
+      [ -z "$F_OLD_STILL" ] || { echo "$F_OLD_STILL"; fail "$F_OLD_LOGGROUP_NAME still exists after the replace - the old object was orphaned, not destroyed"; }
+      log "  $F_OLD_LOGGROUP_NAME no longer exists (confirmed via the AWS CLI, not through choudoufu's own report)"
+
+      F_NEW_ADDR_TAG="$(awsl logs list-tags-log-group --log-group-name "$F_NEW_NAME" --query 'tags."tofu-address"' --output text)"
+      [ "$F_NEW_ADDR_TAG" = "module.overture_tiles_final.aws_cloudwatch_log_group.batch" ] \
+        || fail "$F_NEW_NAME carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.overture_tiles_final.aws_cloudwatch_log_group.batch - the marker did not move onto the new object"
+      log "  $F_NEW_NAME (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+      # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+      # #398-guard shape: a stale record still naming the destroyed object
+      # would be exactly the wrong-marker failure that outranks a missing
+      # one). The local record file at the SAME address must now hold the
+      # NEW object's import_id, not the one captured in F0.
+      F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+      [ "$F_NEW_IMPORT_ID" = "$F_NEW_NAME" ] \
+        || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object's name $F_NEW_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+      [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+        || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+      log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+      log "=== F2. one more plan: config and reality agree, no marker collision ==="
+      F_FINAL_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+      [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+      grep -qE '^  # .+ will be' <<< "$F_FINAL_PLAN_OUT" \
+        && { printf '%s\n' "$F_FINAL_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the post-replace plan proposes a resource change"; }
+      log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+      gauntlet_stage day2_replace pass "choudoufu: supplying module.overture_tiles_final's name_overrides.cloudwatch_log_group proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the execution role's inline log policy, the job definition) and nothing else; applied cleanly; the old object ($F_OLD_LOGGROUP_NAME) is confirmed gone and the new object ($F_NEW_NAME) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address plus the same cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+    fi
+    CURRENT_STAGE=""
 
     # ══════════════════════════════════════════════════════════════════
     # REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7, active)

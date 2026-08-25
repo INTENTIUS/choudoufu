@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `da8a74fa9f` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T19:32:50Z.
+Measured at commit `72262e47d6` against `ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629`, 2026-08-25T19:54:02Z.
 
 ## The stages
 
@@ -58,7 +58,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |

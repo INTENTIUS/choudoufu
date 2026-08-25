@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "da8a74fa9fdffd82c25c8a9c02838e8d2f448b4b",
+  "commit": "72262e47d6a95d62937949066db381f61d2af6dd",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T19:32:50Z",
+  "generated": "2026-08-25T19:54:02Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 5,
+      "clear": 6,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 6,
+          "pass": 7,
           "fail": 0,
-          "not_run": 20
+          "not_run": 19
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 20
+          "not_run": 19
         },
         "day2_teardown": {
           "pass": 0,
@@ -1010,7 +1010,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1020,16 +1020,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a692daf0c81eca1b6dabe005e8558158d179d1e0",
-        "date": "2026-08-25T12:23:38Z",
+        "commit": "72262e47d6a95d62937949066db381f61d2af6dd",
+        "date": "2026-08-25T20:00:35Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
           "day2_remove": "choudoufu: create_cloudfront_distribution=false proposed exactly two destroys plus one in-place update (0 add, 1 change, 2 destroy: the distribution, its untaggable OAC, and the bucket policy's own CloudFrontOAC statement dropping), applied cleanly (0 added, 1 changed, 2 destroyed), the distribution is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys plus the same bucket-policy update",
           "day2_rename": "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot",
+          "day2_replace": "choudoufu: supplying module.overture_tiles_final's name_overrides.cloudwatch_log_group proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the execution role's inline log policy, the job definition) and nothing else; applied cleanly; the old object (/aws/batch/overture-tiles-crossing) is confirmed gone and the new object (/aws/batch/overture-tiles-crossing-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (/aws/batch/overture-tiles-crossing -> /aws/batch/overture-tiles-crossing-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address plus the same cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "greenfield": "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
