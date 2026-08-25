@@ -3001,9 +3001,33 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		// resolution pass non-fatal so a second one can read live values,
 		// and this is not one - the refusal it replaces is decided inside a
 		// single ordinary pass, before discovery has run at all.
+		//
+		// A PARENT-DERIVED parent ([ClassParentDerived]) joins the same
+		// three on the same argument too - a fresh estate's own greenfield
+		// apply, terraform-aws-modules/dynamodb-table's own shape:
+		// aws_dynamodb_resource_policy.this[0].resource_arn reads
+		// aws_dynamodb_table.this[0].arn, and the table's own identity
+		// (`name`) is itself a formula over random_pet.this, a
+		// record-backed sibling - so the table is not concrete YET, only
+		// resolvable. [orderWork] (internal/live/projection/build.go)
+		// topologically sorts every [ClassParentDerived] resolution by its
+		// own Formula.Parents before builder.run's derived loop touches
+		// any of them, so a table that is itself parent-derived is always
+		// rendered and materialized - imported, then ReadResource, into
+		// b.live - strictly before a child whose formula names it, exactly
+		// the same guarantee the concrete and needs-discovery cases rest
+		// on, one phase later. Where the table turns out not to exist yet
+		// (a genuine create, not yet applied), materialize omits it with
+		// ReasonAbsent rather than fabricating a value, and the child's
+		// own renderFormula lookup then fails closed with
+		// ReasonParentUnavailable - the same "propose a create, do not
+		// guess" outcome an undiscovered parent already has above. No
+		// wrong marker is possible either way: every value this defers to
+		// is read from the real provider object once it exists, never
+		// invented here.
 		_, ratifiedRow := LookupType(parent.Resource.Resource.Type)
 		deferrable := parentRes.Class == ClassRecordBacked ||
-			((parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow)
+			((parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery || parentRes.Class == ClassParentDerived) && ratifiedRow)
 		if deferrable && r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
 			return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
 		}
@@ -3020,11 +3044,11 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 			detail += fmt.Sprintf("%s keeps its whole object in this estate's record store, so any attribute its schema declares can be read - but its schema declares no string-valued %q.", parent.Resource.Resource.Type, attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
-		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow && r.schemas == nil:
+		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery || parentRes.Class == ClassParentDerived) && ratifiedRow && r.schemas == nil:
 			detail += fmt.Sprintf("%s resolves to an object that is read live before this identity is rendered, so any attribute of it can be read - but no provider schemas were available to this run to confirm that %q is one of them.", parent.String(), attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
-		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow:
+		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery || parentRes.Class == ClassParentDerived) && ratifiedRow:
 			detail += fmt.Sprintf("%s resolves to an object that is read live before this identity is rendered, so any attribute its schema declares can be read - but %s's schema declares no string-valued %q.", parent.String(), parent.Resource.Resource.Type, attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
