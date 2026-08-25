@@ -539,6 +539,7 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 			identity:   r.Identity,
 			values:     r.IdentityValues,
 			undeclared: r.Undeclared,
+			dependsOn:  r.DestroyDependsOn,
 		})
 	}
 }
@@ -699,6 +700,16 @@ type wanted struct {
 	values map[string]string
 
 	undeclared bool
+
+	// dependsOn is [identity.Resolution.DestroyDependsOn], carried through
+	// unchanged: the ordering hint an undeclared instance's own discovery
+	// leg supplied in place of the configuration reference
+	// [builder.dependencies] would ordinarily read. See that field's own
+	// doc comment for why an undeclared instance needs one at all. Nil for
+	// every declared instance (rc != nil in [builder.materialize] already
+	// computes its own, real dependency set from configuration) and for
+	// most undeclared ones (no leg has supplied one).
+	dependsOn []addrs.AbsResourceInstance
 
 	// located records that this instance's identity came out of the
 	// estate's located record store (identity.ClassRecordLocated) rather
@@ -1714,6 +1725,24 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 
 	if rc != nil {
 		obj.Dependencies = b.dependencies(rc, modPath, schema)
+	} else if len(w.dependsOn) > 0 {
+		// [wanted.dependsOn]'s own doc comment: the ordering hint a
+		// parent-scoped removal leg supplied in place of the configuration
+		// reference this function has nothing to read for an undeclared
+		// instance. Deduplicated and sorted only incidentally by going
+		// through a ConfigResource set - a leg only ever supplies at most
+		// one entry today, but nothing here assumes that stays true.
+		seen := make(map[string]addrs.ConfigResource, len(w.dependsOn))
+		for _, dep := range w.dependsOn {
+			cr := dep.ConfigResource()
+			seen[cr.String()] = cr
+		}
+		deps := make([]addrs.ConfigResource, 0, len(seen))
+		for _, cr := range seen {
+			deps = append(deps, cr)
+		}
+		sort.Slice(deps, func(i, j int) bool { return deps[i].String() < deps[j].String() })
+		obj.Dependencies = deps
 	}
 
 	// obj.Value already carries the schema's own sensitivity here, applied by

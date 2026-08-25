@@ -719,11 +719,33 @@ EOF
 }
 
 GREEN="$WORK/green"
+# DELTA 7 (issue #388's plan-node seam, ruling 4 / #365): a from-scratch
+# apply plans aws_route53_zone.production before any aws_route53_record
+# under it, so every record's own zone_id argument is still Unknown - a
+# genuinely first-ever value, not drift or an existing object this run
+# cannot see - the moment NodeResolver tries to derive that record's
+# identity from configuration. NodeResolver cannot yet tell that shape
+# apart from "a real object this run simply failed to identify" (the
+# ambiguity ruling 4 exists for), and its own doc comment
+# (internal/live/projection/noderesolver.go's ResolveResourceIdentity)
+# names exactly this as flagged, unaddressed follow-on work: "making it
+# safe for a not-yet-applied estate needs an absence-tolerant import ...
+# beyond this unit's scope". This is that estate: a brand-new namespace,
+# seconds old, with categorically nothing live in it yet, so there is no
+# real ambiguity to protect against here. strict.no_source_create = "create"
+# is the sanctioned toggle ruling 4 ships for exactly this shape - it
+# selects stock's own plain-create behavior instead of refusing - and is
+# scoped to this disposable green/oracle fixture namespace only, never to
+# $EST (migrate onward), where every zone already exists and this
+# refusal never fires.
 build_green_copy "$GREEN" "$GREEN_ENDPOINT" '
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }'
 
@@ -1348,30 +1370,48 @@ EOF
   # zone_id, so a config that keeps that reference while removing the zone
   # block does not even validate.
   #
-  # THIS STAGE DOES NOT YET PASS FOR THIS ESTATE, and the reason is a real,
-  # named gap in choudoufu's own discovery engine - not this script's to
-  # route around, and not marked pass with a footnote. aws_route53_zone.eu
-  # is taggable and natively listable, so its own orphan destroy IS found
-  # and proposed correctly, the same as every other taggable-type
-  # day2_remove target. aws_route53_record.eu-ns's destroy is not: read
-  # discovery.go's scanType directly (not assumed) - aws_route53_record has
-  # no native list schema, is not CloudControl-listable either, and carries
-  # no tags argument at all (the header's point 2 - every one of its 59
-  # instances is untaggable by construction), so scanTypeMarkerFallback
-  # (gated on taggable) never applies and scanTypeLocatedFallback - the
-  # untaggable companion - only ever re-resolves a STILL-DECLARED
-  # instance's own stored record; it never sweeps for instances with no
-  # declared block left at all. No existing discovery path can therefore
-  # ever propose a destroy for an orphaned aws_route53_record - confirmed,
-  # not guessed at: neither TOFU_DISABLE_GUIDED_DISCOVERY=1 nor dropping
-  # -target scoping (both checked crossing this unit, and both are what
-  # fixed the equivalent gap for three other estates' day2_remove units
-  # just before this one) changes the result. Closing it needs a
-  # genuinely new capability - a parent-scoped sweep that lists live
-  # record sets within every currently-declared zone and cross-references
-  # their own markers - which is real feature work, not a quick fix, and
-  # is out of this unit's scope to build safely. Reported here by name so
-  # the next worker does not have to re-diagnose it.
+  # THIS STAGE NOW PASSES (gauntlet:parent-scoped-sweep, 2026-08-25). It did
+  # not for a long time, and the reason - a real, named gap in choudoufu's
+  # own discovery engine, not this script's to route around - is left in
+  # place below rather than deleted, since it is still the accurate account
+  # of what was wrong and how it was found. aws_route53_zone.eu is taggable
+  # and natively listable, so its own orphan destroy was always found and
+  # proposed correctly, the same as every other taggable-type day2_remove
+  # target. aws_route53_record.eu-ns's destroy was not: aws_route53_record
+  # has no native list schema and is not CloudControl-listable either, and
+  # carries no tags argument at all (the header's point 2 - every one of
+  # its 59 instances is untaggable by construction), so no scanType-based
+  # discovery path could ever propose a destroy for an orphaned one.
+  #
+  # What actually closed it was NOT a new enumeration route: migrate
+  # already seeds a kind=identity record for every untaggable instance the
+  # moment its live object is confirmed (#364 unit A2), and
+  # internal/live/discovery's recordOrphanReadSweep (landed for the IAM
+  # inline-policy family by a different unit, corpus-hongbomiao-harbor/
+  # labelbox, after this file's own gap was first written up) already
+  # reads that store and feeds undeclared entries into the ordinary
+  # materialize/import-and-read/destroy path. The reason it still missed
+  # aws_route53_record specifically was one narrow bug in
+  # composeImportIDFromComponents, refusing to compose an import ID for
+  # ANY type whose ratified Components chain carries an OmitIfAbsent
+  # segment (aws_route53_record's own set_identifier) regardless of
+  # whether the record's own map actually carried it - independently
+  # found and fixed by a concurrent unit, gauntlet:record-located-destroy,
+  # for the identical defect reached through aws_lb_target_group_attachment
+  # (corpus-alb-complete). A second, separate defect surfaced once that
+  # one was fixed: the plan now proposed BOTH destroys correctly, but
+  # apply failed (NoSuchHostedZone) because an undeclared instance gets no
+  # computed destroy-ordering hint at all (nothing to read one from - its
+  # configuration is gone), and aws_route53_zone's force_destroy semantics
+  # do NOT refuse the way EC2 refuses to delete a VPC with a live subnet;
+  # they cascade-delete the zone's own record sets, so the zone and the
+  # record raced with no edge between them. Closed by
+  # identity.Resolution.DestroyDependsOn: recordOrphanReadSweep derives the
+  # record's own parent link via identity.ParentOf (the same derivation
+  # parentReadSweep already uses) and gives the projection a real ordering
+  # hint when both instances resolve in the same pass - see that field's
+  # own doc comment and internal/live/discovery/recordorphan_read.go's
+  # destroyParentDependency for the mechanism.
   #
   # aws_route53_zone.production's own 45 record children are exactly why
   # THAT zone was never the target: with 45 untouched record blocks still
@@ -1463,15 +1503,17 @@ PYEOF
       grep -qi 'HostedZoneNotEmpty\|zone.*not empty' <<< "$REMOVE_APPLY_OUT" || {
         printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply failed for a reason other than the provider's own non-empty-zone refusal"; }
       log "  the provider refused to delete a non-empty zone (HostedZoneNotEmpty) - the honest shape per force_destroy semantics, matching what stock would also do; asserting the refusal rather than the destroy"
-      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu's block proposed its destroy; apply correctly refused per the provider's own force_destroy semantics for a non-empty zone (HostedZoneNotEmpty), the same outcome stock's identical apply would produce - asserted by name, not routed around. aws_route53_record.eu-ns's own destroy is a known, named gap (untaggable, unlistable, no sweep path exists for it in discovery.go yet) - reported, not papered over."
+      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu's block proposed its destroy (and, per the fix landed in gauntlet:parent-scoped-sweep, aws_route53_record.eu-ns's own destroy alongside it); apply correctly refused per the provider's own force_destroy semantics for a non-empty zone (HostedZoneNotEmpty), the same outcome stock's identical apply would produce - asserted by name, not routed around."
       CURRENT_STAGE=""
     else
+      REMOVE_APPLY_SUMMARY="$(grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT")"
       grep -qE 'Resources: 0 added, 0 changed, [12] destroyed' <<< "$REMOVE_APPLY_OUT" \
-        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not one or two destroys"; }
+        || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply was not one or two destroys"; }
+      log "  $REMOVE_APPLY_SUMMARY"
 
       EU_STILL="$(awsl route53 list-hosted-zones --query "length(HostedZones[?Name=='datacite.eu.'])" --output text 2>/dev/null || echo 0)"
       [ "$EU_STILL" = "0" ] || fail "the eu zone still exists in the live account after the destroy ($EU_STILL found) - it was orphaned, not destroyed"
-      log "  the eu zone no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report. Route 53 itself destroys a zone's record sets along with the zone (AWS's own API, not choudoufu's), so aws_route53_record.eu-ns is genuinely gone too, independent of whether choudoufu's plan ever named it."
+      log "  the eu zone no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report. Whether the apply above shows 1 or 2 destroyed: 2 means choudoufu's own explicit destroy of aws_route53_record.eu-ns (identity.Resolution.DestroyDependsOn's ordering fix, issued BEFORE the zone's own destroy so the record still exists to delete) succeeded on its own; 1 means the record's live object was already gone by the time its destroy ran - Route 53 also removes a zone's own record sets as part of deleting the zone itself - and either way the object is confirmed gone by the AWS CLI read below, not by trusting either code path."
 
       log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
       E_FINAL_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
@@ -1480,7 +1522,7 @@ PYEOF
         || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
       log "  No changes. The removal is complete and invisible to the next plan."
 
-      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - the zone's destroy proposed and applied cleanly, the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and Route 53's own zone-delete semantics take its record with it, confirmed by the same read; the next plan is empty. aws_route53_record's own orphan-destroy path is a known, named gap this unit found and did not paper over: untaggable, unlistable natively or via CloudControl, so no discovery.go sweep path exists for it yet - a real follow-up, not a silent skip."
+      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - both destroys proposed (matching stock's own oracle exactly) and applied cleanly ($REMOVE_APPLY_SUMMARY), the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report); the next plan is empty. The parent-scoped removal sweep gap this estate named (gauntlet:parent-scoped-sweep) is closed: recordOrphanReadSweep composes aws_route53_record's identity from its migrate-seeded record correctly (composeImportIDFromComponents's OmitIfAbsent fix) and carries a destroy-before-parent ordering hint (identity.Resolution.DestroyDependsOn) so the record's own destroy is never raced against its zone's force_destroy cascade."
       CURRENT_STAGE=""
     fi
   fi

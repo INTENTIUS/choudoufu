@@ -68,6 +68,6 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
