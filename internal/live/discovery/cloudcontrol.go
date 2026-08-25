@@ -311,15 +311,8 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 				continue
 			}
 			if corrected == typeName {
-				diags = diags.Append(problemDiag(res, Problem{
-					Kind:     ProblemMalformedMarker,
-					TypeName: typeName,
-					Marker:   raw,
-					LiveIDs:  liveIDs(importID),
-					Detail: fmt.Sprintf(
-						"A live %s (via Cloud Control) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-						typeName, req.Estate, raw, markerType, typeName),
-				}))
+				diags = diags.Append(problemDiag(res, crossTypeMarkerProblem(
+					decl, req.Estate, typeName, markerType, raw, liveIDs(importID), " (via Cloud Control)", sweep)))
 				continue
 			}
 			if fixedImportID != "" {

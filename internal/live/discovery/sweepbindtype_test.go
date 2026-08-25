@@ -363,7 +363,7 @@ func TestTaggingSweepDefaultRouteTableCompanionRoutesNative(t *testing.T) {
 	}
 }
 
-// TestTaggingSweepGenuinelyUnrelatedTypeStillMalformed is the fix's mutation
+// TestTaggingSweepGenuinelyUnrelatedTypeStillRefused is the fix's mutation
 // control at the real tag-sweep path: a live object's marker names a type
 // genuinely unrelated to what the ARN join resolved it as - not any
 // admitted companion pair - so [sweepBindType] must still refuse it exactly
@@ -373,7 +373,22 @@ func TestTaggingSweepDefaultRouteTableCompanionRoutesNative(t *testing.T) {
 // tag-sweep universe, so this proves the boundary at the actual
 // [fileTaggingCandidate] call site a bug loosening [sweepBindType] would
 // widen, not merely at the unit level [TestSweepBindType] already covers.
-func TestTaggingSweepGenuinelyUnrelatedTypeStillMalformed(t *testing.T) {
+//
+// What "refused" means moved once, deliberately, and this test moved with
+// it: the object is still not bound, still not an orphan, still named in
+// the output, but the problem filed is now
+// [ProblemUndeclaredCrossTypeMarker] at WARNING severity rather than
+// [ProblemMalformedMarker] at ERROR, because this fixture's configuration
+// declares no aws_security_group and the tag sweep is the only reason
+// anybody looked at the object. The boundary this control exists for is
+// untouched - a bug that let [sweepBindType] treat an unrelated type as a
+// companion pair would bind it or file it as an orphan under
+// aws_default_route_table, and both are asserted against below. The error
+// path for a type the configuration DOES declare is
+// [TestDiscoverCrossTypeMarkerIsMalformed] (audit finding C4), which is
+// unchanged. See [undeclaredCrossTypeMarker] for why the split is by what
+// the configuration declares rather than by which leg found the object.
+func TestTaggingSweepGenuinelyUnrelatedTypeStillRefused(t *testing.T) {
 	cloud := newFakeCloud()
 
 	// The live object IS a security group (what the ARN join, and the real
@@ -405,20 +420,44 @@ func TestTaggingSweepGenuinelyUnrelatedTypeStillMalformed(t *testing.T) {
 		TaggingSweep: true,
 		Roster:       taggingRoster(t, "aws_security_group", "AWS::EC2::SecurityGroup", true),
 	})
-	if !diags.HasErrors() {
-		t.Fatalf("a genuinely cross-type marker arriving via the tag sweep produced no error:\n%s", res)
+	if diags.HasErrors() {
+		t.Fatalf("a cross-type marker on a type this configuration never declares failed the run:\n%s", renderDiags(diags))
 	}
-	problems := res.ProblemsOfKind(ProblemMalformedMarker)
+	problems := res.ProblemsOfKind(ProblemUndeclaredCrossTypeMarker)
 	if len(problems) != 1 {
-		t.Fatalf("want exactly one malformed-marker problem, got %d:\n%s", len(problems), res)
+		t.Fatalf("want exactly one undeclared-cross-type-marker problem, got %d:\n%s", len(problems), res)
+	}
+	if got := problems[0].Kind.Severity(); got != SeverityWarning {
+		t.Errorf("the problem is %s, want a warning: the run has nothing it could do about the object", got)
+	}
+	if len(res.ProblemsOfKind(ProblemMalformedMarker)) != 0 {
+		t.Errorf("the object was also filed as malformed:\n%s", res)
+	}
+	// By value, not by shape: the marker read off the object, the type it
+	// names and the type the ARN join resolved the object as all have to be
+	// in the text, or nobody can find the object being reported.
+	if got := problems[0].Marker; got != `aws_default_route_table.default` {
+		t.Errorf("the problem carries marker %q, want the exact tofu-address value read off the object", got)
+	}
+	if got := problems[0].TypeName; got != "aws_security_group" {
+		t.Errorf("the problem names type %q, want the live object's own type", got)
+	}
+	if strings.Join(problems[0].LiveIDs, ",") != "sg-confused-1" {
+		t.Errorf("the problem does not name the live resource: %v", problems[0].LiveIDs)
 	}
 	for _, want := range []string{"aws_default_route_table", "aws_security_group"} {
 		if !strings.Contains(problems[0].Detail, want) {
-			t.Errorf("the malformed-marker detail does not name %q: %q", want, problems[0].Detail)
+			t.Errorf("the detail does not name %q: %q", want, problems[0].Detail)
 		}
 	}
+	// The boundary this control exists for: nothing acted on the object.
 	if len(res.Orphans) != 0 {
 		t.Errorf("a type-confused sweep marker was also classified as an orphan:\n%s", res)
+	}
+	for _, b := range res.Bindings {
+		if b.ImportID == "sg-confused-1" {
+			t.Errorf("a type-confused sweep marker was bound to %s:\n%s", b.Addr, res)
+		}
 	}
 }
 

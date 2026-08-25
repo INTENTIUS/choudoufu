@@ -78,6 +78,10 @@ var refusals = []Refusal{
 		What:    "A declared instance of a type with no tags argument (issue #272) has more than one live object carrying the same value its own identity-bearing argument names, so content match cannot tell which one is this instance's. Binding either would risk adopting the other's resource, so none was bound.",
 	},
 	{
+		Summary: "Cross-type marker on an undeclared type",
+		What:    "The estate-wide sweep found a live resource of a type this configuration declares no instance of, carrying this estate's ownership marker for an address of another type - ordinarily a tag AWS copied from a marked resource onto a dependent object it created for it. A warning: nothing in the run binds it, destroys it or retags it.",
+	},
+	{
 		Summary: "Failed to list a resource type",
 		What:    "Listing one resource type failed - most often a permission the run does not have, or a service not available in the region. Discovery continues with the types it could list, so an estate spanning that type is only partly seen.",
 	},
