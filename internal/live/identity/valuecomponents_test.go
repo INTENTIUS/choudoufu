@@ -373,3 +373,149 @@ func TestComponentsUnknown_ServerAssignedAndRecordBackedNeverUnknown(t *testing.
 		t.Errorf("ComponentsUnknown = true for a RecordBacked row; want false")
 	}
 }
+
+// TestComponentsServerAssignedIfAbsent_TrueWhenNameOmitted is
+// corpus-autoscaling-complete's own greenfield shape: aws_iam_role's
+// "name" component carries ServerAssignedIfAbsent because the provider's
+// own Argument Reference documents IAM assigning a unique name when
+// configuration leaves it blank (the *_prefix convention). A blank name
+// here - a genuine null, not unknown - must report true, the identical
+// "no source to be missing" signal [ComponentsUnknown] gives for a
+// not-yet-computed value.
+func TestComponentsServerAssignedIfAbsent_TrueWhenNameOmitted(t *testing.T) {
+	row, ok := LookupType("aws_iam_role")
+	if !ok {
+		t.Fatal("aws_iam_role is not in DefaultTable")
+	}
+	if len(row.Components) != 1 || !row.Components[0].ServerAssignedIfAbsent {
+		t.Fatalf("aws_iam_role's row no longer matches this test's premise: %+v", row.Components)
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.NullVal(cty.String),
+	})
+
+	if !ComponentsServerAssignedIfAbsent(row, val) {
+		t.Fatalf("ComponentsServerAssignedIfAbsent = false for a blank ServerAssignedIfAbsent argument; want true")
+	}
+	if _, _, ok := ComponentsFromValue(row, val); ok {
+		t.Fatalf("ComponentsFromValue reported found=true for a null identity attribute; it must never guess")
+	}
+}
+
+// TestComponentsServerAssignedIfAbsent_FalseWhenGenuinelyAmbiguous proves
+// this signal does not widen into a general amnesty for absence:
+// aws_route's route_table_id component carries no ServerAssignedIfAbsent,
+// no Default and no OmitIfAbsent, so a null value is ruling 4 (#365)'s
+// real ambiguous case and must still report false.
+func TestComponentsServerAssignedIfAbsent_FalseWhenGenuinelyAmbiguous(t *testing.T) {
+	row, ok := LookupType("aws_route")
+	if !ok {
+		t.Fatal("aws_route is not in DefaultTable")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"route_table_id":              cty.NullVal(cty.String),
+		"destination_cidr_block":      cty.StringVal("10.0.0.0/16"),
+		"destination_ipv6_cidr_block": cty.NullVal(cty.String),
+		"destination_prefix_list_id":  cty.NullVal(cty.String),
+	})
+
+	if ComponentsServerAssignedIfAbsent(row, val) {
+		t.Fatalf("ComponentsServerAssignedIfAbsent = true for a genuinely missing, non-server-assigned argument; want false")
+	}
+}
+
+// TestComponentsServerAssignedIfAbsent_FalseWhenFullyResolved proves this
+// signal does not fire on the ordinary success path.
+func TestComponentsServerAssignedIfAbsent_FalseWhenFullyResolved(t *testing.T) {
+	row, ok := LookupType("aws_iam_role")
+	if !ok {
+		t.Fatal("aws_iam_role is not in DefaultTable")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.StringVal("my-role"),
+	})
+
+	if ComponentsServerAssignedIfAbsent(row, val) {
+		t.Fatalf("ComponentsServerAssignedIfAbsent = true for a fully-known value; want false")
+	}
+	importID, _, ok := ComponentsFromValue(row, val)
+	if !ok || importID != "my-role" {
+		t.Fatalf("ComponentsFromValue = %q, %v; want \"my-role\", true", importID, ok)
+	}
+}
+
+// TestComponentsServerAssignedIfAbsent_StopsAtTheFirstFailure is the
+// precision this function's own doc comment promises over
+// [ComponentsUnknown]'s "any" style: a genuinely ambiguous absence earlier
+// in the component list must win over a ServerAssignedIfAbsent one later
+// in it, because [ComponentsFromValue]'s own walk would have stopped at
+// the FIRST one and never reached the second. Built directly against a
+// synthetic two-component row - not a real ratified one - because no row
+// in the table happens to combine the two shapes in this order, and the
+// mechanism itself, not any particular type, is what this pins.
+func TestComponentsServerAssignedIfAbsent_StopsAtTheFirstFailure(t *testing.T) {
+	row := TypeIdentity{
+		Type: "test_two_component",
+		Components: []Component{
+			{Attrs: []string{"ambiguous_first"}, IdentityAttr: "*"},
+			{Literal: "_"},
+			{Attrs: []string{"assigned_second"}, ServerAssignedIfAbsent: true, IdentityAttr: "*"},
+		},
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"ambiguous_first": cty.NullVal(cty.String),
+		"assigned_second": cty.NullVal(cty.String),
+	})
+
+	if ComponentsServerAssignedIfAbsent(row, val) {
+		t.Fatalf("ComponentsServerAssignedIfAbsent = true when the FIRST unresolved component is genuinely ambiguous; want false - a later ServerAssignedIfAbsent component never gets reached")
+	}
+
+	// And the mirror: swap which component is ServerAssignedIfAbsent so
+	// it is the first (and only) one the walk actually reaches.
+	rowFirst := TypeIdentity{
+		Type: "test_two_component_first",
+		Components: []Component{
+			{Attrs: []string{"assigned_first"}, ServerAssignedIfAbsent: true, IdentityAttr: "*"},
+		},
+	}
+	valFirst := cty.ObjectVal(map[string]cty.Value{
+		"assigned_first": cty.NullVal(cty.String),
+	})
+	if !ComponentsServerAssignedIfAbsent(rowFirst, valFirst) {
+		t.Fatalf("ComponentsServerAssignedIfAbsent = false when the only unresolved component IS ServerAssignedIfAbsent; want true")
+	}
+}
+
+// TestComponentsServerAssignedIfAbsent_ServerAssignedAndRecordBackedNever
+// mirrors TestComponentsUnknown_ServerAssignedAndRecordBackedNeverUnknown:
+// these two shapes are already unconditionally exempt from the "No
+// source" refusal before this signal is ever consulted, and it agrees on
+// its own terms.
+func TestComponentsServerAssignedIfAbsent_ServerAssignedAndRecordBackedNever(t *testing.T) {
+	saRow, ok := LookupType("aws_vpc")
+	if !ok {
+		t.Fatal("aws_vpc is not in DefaultTable; this test needs a real ServerAssigned row")
+	}
+	if !saRow.ServerAssigned {
+		t.Fatal("aws_vpc is expected to be ServerAssigned")
+	}
+	if ComponentsServerAssignedIfAbsent(saRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsServerAssignedIfAbsent = true for a ServerAssigned row; want false")
+	}
+
+	rbRow, ok := LookupType("random_pet")
+	if !ok {
+		t.Skip("random_pet is not in DefaultTable; this test needs a real RecordBacked row")
+	}
+	if !rbRow.RecordBacked {
+		t.Fatal("random_pet is expected to be RecordBacked")
+	}
+	if ComponentsServerAssignedIfAbsent(rbRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsServerAssignedIfAbsent = true for a RecordBacked row; want false")
+	}
+}

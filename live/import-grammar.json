@@ -9,9 +9,9 @@
     "no_import_section": 0,
     "rows": 1699,
     "alias_rows": 6,
-    "composed_true": 720,
+    "composed_true": 721,
     "composed_false": 232,
-    "composed_unsure": 747,
+    "composed_unsure": 746,
     "separator_known": 437,
     "separator_unsure": 1262
   },
@@ -15637,7 +15637,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -29481,7 +29482,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -48524,7 +48526,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -54886,7 +54889,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -65989,6 +65993,7 @@
         {
           "name": "creation_token",
           "required": false,
+          "server_assigned_if_absent": true,
           "declared_unique": true
         },
         {
@@ -70762,7 +70767,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -71988,7 +71994,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -109775,8 +109782,10 @@
       "tf_type": "aws_neptune_event_subscription",
       "import_id_example": "my-event-subscription",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_neptune_event_subscription` using the event subscription name. For example:\n\n```terraform\nimport {\n  to = aws_neptune_event_subscription.example\n  id = \"my-event-subscription\"\n}\n```\n\nUsing `terraform import`, import `aws_neptune_event_subscription` using the event subscription name. For example:\n\n```console\n% terraform import aws_neptune_event_subscription.example my-event-subscription\n```",
       "example_arguments": [
         {
@@ -109838,7 +109847,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -119739,7 +119749,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -122068,7 +122079,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "permissions_mode",
@@ -155089,7 +155101,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -155193,7 +155206,8 @@
         },
         {
           "name": "statement_id",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "statement_id_prefix",

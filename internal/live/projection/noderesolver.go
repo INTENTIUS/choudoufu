@@ -311,8 +311,24 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 	// value nothing has computed yet cannot be either one. Stock plans the
 	// same resource the same way, the attribute shown "(known after
 	// apply)"; this is that, not a widened create.
+	//
+	// A fifth case, [identity.ComponentsServerAssignedIfAbsent]: a
+	// CONFIG-IDENTIFIED type's identity-relevant argument is genuinely
+	// absent (not unknown - the fourth case's own business), and the
+	// provider's own Argument Reference documents that IT assigns the
+	// argument when configuration leaves it blank (the *_prefix
+	// convention: aws_iam_role.this's `name`, say, when `name_prefix` is
+	// used instead). There is no configuration value here to have derived
+	// a guess from in the first place, so this is the same "no source to
+	// be missing" shape a whole-type ServerAssigned row already gets
+	// exempted for above - just discovered one component at a time.
+	// Caught by corpus-autoscaling-complete's own greenfield stage:
+	// aws_iam_role.this and aws_sqs_queue.this both use this convention
+	// (use_name_prefix defaults to true in the upstream module), and their
+	// name argument's value is a known null, not unknown.
 	sourceExpected := hasRow && !row.ServerAssigned && !row.RecordBacked &&
-		!identity.ComponentsUnknown(row, config)
+		!identity.ComponentsUnknown(row, config) &&
+		!identity.ComponentsServerAssignedIfAbsent(row, config)
 	if !sourceExpected {
 		return providers.ImportTarget{}, false, diags
 	}
