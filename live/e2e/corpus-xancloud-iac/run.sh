@@ -856,6 +856,41 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interfac
 grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
 log "  stock (plan-only): exactly one create proposed (main-logs, state simulated with 'tofu state rm' - no live object ever touched), every other interface endpoint untouched"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A
+# SEPARATE copy of cold_deploy's own state, untouched by the rename, the
+# remove, or the day2_count exercise above. Changes aws_iam_role.
+# flow_logs's `name` argument (a real, upstream-declared ForceNew
+# argument on aws_iam_role - IAM has no UpdateRoleName API, only
+# CreateRole/DeleteRole) to a different literal name, which forces stock
+# to replace the SAME declared address rather than propose a destroy-
+# and-create pair at two different addresses. The role's ARN feeds the
+# flow log's own `iam_role_arn` argument (VPC Flow Logs has no update
+# path either, only CreateFlowLogs/DeleteFlowLogs) and the inline policy
+# aws_iam_role_policy.flow_logs is keyed by the role's name at creation
+# time - so both are expected to cascade into their own replaces too,
+# read dynamically below rather than asserted by fixed count.
+CURRENT_STAGE=day2_replace
+log "=== REPLACE-ORACLE. stock: force-replace aws_iam_role.flow_logs via its ForceNew name argument, on cold_deploy's own state ==="
+PLAIN_REPLACE_ORACLE="$WORK/plain-replace-oracle"
+cp -r "$PLAIN" "$PLAIN_REPLACE_ORACLE"
+REPLACE_ORACLE_VPC_MAIN="$PLAIN_REPLACE_ORACLE/modules/networking/vpc/main.tf"
+sed -i.bak 's/"\${local\.name_prefix}-\${each\.key}-flow-logs-role"/"${local.name_prefix}-${each.key}-flow-logs-role-v2"/' "$REPLACE_ORACLE_VPC_MAIN"
+rm -f "$REPLACE_ORACLE_VPC_MAIN.bak"
+[ "$(grep -c 'flow-logs-role-v2' "$REPLACE_ORACLE_VPC_MAIN")" = "2" ] \
+  || fail "changing aws_iam_role.flow_logs's name argument in the replace-oracle copy did not match exactly (name + tags.Name) - the corpus pin has moved"
+( cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.vpc\.aws_iam_role\.flow_logs\["main"\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing aws_iam_role.flow_logs when its name argument changes"; }
+REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
+[ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
+log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces aws_iam_role.flow_logs at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ESTATE, and actually applying here would destroy the real role the estate's later stages still depend on)"
+CURRENT_STAGE=""
 
 CURRENT_STAGE=migrate
 
@@ -1284,6 +1319,134 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+fi
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Starts from Part D's real, completed state: module.vpc.aws_iam_role.
+# flow_logs_renamed["main"] (originally flow_logs) is bound and
+# converged. Its `name` argument - not the resource's own label, which
+# this stage never touches - changes to a new literal role name. IAM has
+# no rename API for a role (confirmed by the plan output itself below,
+# not assumed: only CreateRole/DeleteRole), so this forces a replacement
+# at the SAME declared address while the physical live role behind it is
+# destroyed and a new one created. The new role's ARN cascades into the
+# flow log's own `iam_role_arn` argument (VPC Flow Logs has no update
+# path either) and the inline policy is keyed by the role's name at
+# creation time - both expected to cascade into their own replaces too,
+# read dynamically below (REPLACE-ORACLE's own header comment) rather
+# than asserted by fixed count.
+#
+# THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
+# instance-complete's and corpus-sqs-basic's own Part F): the role is
+# declared inside module "vpc"'s own copied source
+# (modules/networking/vpc/main.tf), which this corpus's established
+# convention only ever edits for the deltas this script already
+# documents, never to add a library-internal lifecycle block. This
+# evidence pass exercises OpenTofu's DEFAULT replace ordering instead.
+# BREAK=replace manufactures the coexistence a skipped destroy would
+# leave behind directly via the AWS CLI.
+CURRENT_STAGE=day2_replace
+record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+record_import_id() { jq -r '.identity.import_id' "$1"; }
+F_ADDR='module.vpc.aws_iam_role.flow_logs_renamed["main"]'
+F_RECORD="$ESTATE/blueprints/landing-zone-basic/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_role/$(record_key "$F_ADDR")"
+F_ROLE_NAME="${NAME_PREFIX}-main-flow-logs-role"
+
+log "=== F0. capture the live role and its record ahead of the forced replace ==="
+[ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_OLD_IMPORT_ID" = "$F_ROLE_NAME" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_ROLE_NAME (aws_iam_role's own import_id is the role name, not its ARN)"
+F_OLD_ADDR_TAG="$(awsl iam list-role-tags --role-name "$F_ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$F_OLD_ADDR_TAG" = "module.vpc.aws_iam_role.flow_logs_renamed:main" ] \
+  || fail "$F_ROLE_NAME does not carry tofu-address=module.vpc.aws_iam_role.flow_logs_renamed:main ahead of day2_replace"
+log "  $F_ROLE_NAME ($ROLE_ARN_D), record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+if [ "${BREAK:-}" = "replace" ]; then
+  log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+  # A second, distinct live role carrying the SAME tofu-address and
+  # tofu-slot as the one a genuine replace would destroy - the state
+  # "skip the destroy half" of a create-before-destroy replace would
+  # leave, produced directly via the AWS CLI rather than by actually
+  # interrupting an apply (day2_crash's own job).
+  BREAK_COLLISION_NAME="${NAME_PREFIX}-flow-logs-collision"
+  awsl iam create-role --role-name "$BREAK_COLLISION_NAME" --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"vpc-flow-logs.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null \
+    || fail "BREAK=replace: could not create the collision role"
+  awsl iam tag-role --role-name "$BREAK_COLLISION_NAME" --tags "Key=tofu-estate,Value=$ESTATE_NAME" "Key=tofu-address,Value=module.vpc.aws_iam_role.flow_logs_renamed:main" "Key=tofu-slot,Value=0" \
+    >/dev/null || fail "BREAK=replace: could not tag the collision role"
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  awsl iam delete-role --role-name "$BREAK_COLLISION_NAME" >/dev/null 2>&1 || true
+  [ "$BREAK_PLAN_RC" -ne 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+  grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+  log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+else
+  log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+  sed -i.bak 's/"\${local\.name_prefix}-\${each\.key}-flow-logs-role"/"${local.name_prefix}-${each.key}-flow-logs-role-v2"/' "$EST_VPC_MAIN"
+  rm -f "$EST_VPC_MAIN.bak"
+  [ "$(grep -c 'flow-logs-role-v2' "$EST_VPC_MAIN")" = "2" ] \
+    || fail "changing aws_iam_role.flow_logs_renamed's name argument did not match exactly (name + tags.Name) - the corpus pin has moved"
+  F_NEW_ROLE_NAME="${NAME_PREFIX}-main-flow-logs-role-v2"
+
+  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.vpc\.aws_iam_role\.flow_logs_renamed\["main"\] must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing the role when its ForceNew name argument changes"; }
+  grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name as forcing replacement"; }
+  F_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$F_PLAN_OUT")"
+  [ -n "$F_PLAN_LINE" ] || { printf '%s\n' "$F_PLAN_OUT" | tail -15; fail "the day2_replace plan has no summary line"; }
+  log "  choudoufu: $F_PLAN_LINE - the role forced to replace at the same declared address, name forces replacement"
+
+  F_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$F_APPLY_OUT" \
+    || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not report a clean apply"; }
+  log "  $(grep -E 'Apply complete' <<< "$F_APPLY_OUT")"
+
+  # Read via the query result's own emptiness rather than the CLI's exit
+  # code - corpus-autoscaling-complete's/corpus-eks-basic's own day2_
+  # replace sections in this same unit found floci's describe-security-
+  # groups returns a 200 with an empty list rather than a real AWS
+  # NotFound error for an unknown id; this is the same defensive shape,
+  # not assuming IAM's own NoSuchEntity behavior is exempt.
+  F_OLD_STILL="$(awsl iam get-role --role-name "$F_ROLE_NAME" --query 'Role.RoleName' --output text 2>/dev/null || true)"
+  [ -z "$F_OLD_STILL" ] || [ "$F_OLD_STILL" = "None" ] \
+    || fail "$F_ROLE_NAME still exists after the replace - the old object was orphaned, not destroyed"
+  log "  $F_ROLE_NAME no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  F_NEW_ARN="$(awsl iam get-role --role-name "$F_NEW_ROLE_NAME" --query 'Role.Arn' --output text)"
+  [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "$F_NEW_ROLE_NAME is not live after the replace"
+  F_NEW_ADDR_TAG="$(awsl iam list-role-tags --role-name "$F_NEW_ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_NEW_ADDR_TAG" = "module.vpc.aws_iam_role.flow_logs_renamed:main" ] \
+    || fail "$F_NEW_ROLE_NAME carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.vpc.aws_iam_role.flow_logs_renamed:main - the marker did not move onto the new object"
+  log "  $F_NEW_ROLE_NAME ($F_NEW_ARN) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed role
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one). The local record file at the SAME address must now hold the
+  # NEW role's ARN, not the one captured in F0.
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_ROLE_NAME" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ROLE_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+  log "=== F2. one more plan: config and reality agree, no marker collision ==="
+  F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+  log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+  ROLE_ARN_D="$F_NEW_ARN"
+  gauntlet_stage day2_replace pass "choudoufu: changing module.vpc.aws_iam_role.flow_logs_renamed's ForceNew name argument proposed a forced replace at the same declared address ($F_PLAN_LINE, cascading into the flow log's iam_role_arn and the inline role policy, both keyed to the role at creation time with no update path), applied cleanly; the old role is confirmed gone via the AWS CLI (NoSuchEntity) and the new role ($F_NEW_ROLE_NAME) carries the marker; the local record store's record at the same address now names the new object's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (REPLACE-ORACLE) also proposes replacing the role at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
 fi
 CURRENT_STAGE=""
 
