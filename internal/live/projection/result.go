@@ -184,6 +184,18 @@ const (
 	// [ReadInstances]: a projection records instances one at a time and has
 	// no aggregate to keep whole.
 	ReasonIncompleteBlock Reason = "INCOMPLETE_BLOCK"
+
+	// ReasonSuperseded means the instance's own resolution is
+	// [identity.Resolution.Undeclared] - a live object this estate owns
+	// whose declared block is gone - AND the SAME import identity was
+	// independently claimed, in this same pass, by a currently-declared
+	// instance of the same type: an untaggable, single-parent-component
+	// child of a resource a `moved` block, or ordinary parent-derived
+	// re-discovery, relocated (GitHub issue #404). The declared instance is
+	// what keeps managing the live object; this address is not proposed for
+	// anything, and is never confused with [ReasonAbsent] (no live object)
+	// or a genuine, unclaimed removal, which stays a destroy.
+	ReasonSuperseded Reason = "SUPERSEDED"
 )
 
 // Has reports whether the projection contains an object for the given

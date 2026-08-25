@@ -197,3 +197,124 @@ func TestUndeclaredIsNotAWayAroundTheConfigCheck(t *testing.T) {
 	}
 	assertMaterialized(t, res, nil)
 }
+
+// TestUndeclaredConcreteSupersededByRelocatedDeclaredInstance is GitHub
+// issue #404: renaming a resource whose own live-discovered attribute feeds
+// a sibling's data-source computation - the estate's own module rename,
+// terraform-aws-modules/terraform-aws-s3-bucket's aws_s3_bucket_policy
+// reading its bucket's arn - showed a wider defect, found reading the
+// live-plan trace directly rather than guessed at: an untaggable,
+// single-parent-component type's identity record, written under its OLD,
+// now-undeclared address by an earlier apply (GitHub issue #364 ruling item
+// 1's recordOrphanReadSweep, internal/live/discovery), materializes as an
+// ordinary undeclared instance in the SAME pass a currently-declared block
+// re-resolves the exact same live object under its NEW address by ordinary
+// parent-derived discovery - needing no `moved` statement of its own, the
+// same property day2_rename's own e2e header documents for a renamed
+// module's untaggable children. Without a check, the OLD address plans
+// destroying the very object the NEW address is about to keep managing:
+// one live cloud object, materialized twice, with two different verdicts in
+// the SAME plan.
+//
+// aws_s3_bucket_policy.data (live/e2e/estate/storage.tf) is this shape
+// exactly - untaggable, its identity is its parent bucket's own name - so
+// this reuses the estate fixture's own declared block rather than adding a
+// synthetic one: the DECLARED resolution below is what a real parent-derived
+// second pass would render for it, and the UNDECLARED one at a different,
+// undeclared address stands in for recordOrphanReadSweep's own output for
+// the SAME live object, found under its pre-rename address.
+func TestUndeclaredConcreteSupersededByRelocatedDeclaredInstance(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t))
+
+	cloud := newFakeCloud()
+	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+		"policy": `{"Version":"2012-10-17","Statement":[{"Sid":"AllowAppRoleReadWrite"}]}`,
+	})
+
+	declaredAddr := mustAddr(t, `aws_s3_bucket_policy.data`)
+	oldAddr := mustAddr(t, `aws_s3_bucket_policy.old`)
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{
+			Addr:     declaredAddr,
+			Class:    identity.ClassConcrete,
+			ImportID: "tofu-stateless-e2e-data",
+		},
+		{
+			Addr:       oldAddr,
+			Class:      identity.ClassConcrete,
+			ImportID:   "tofu-stateless-e2e-data",
+			Undeclared: true,
+		},
+	}, cloud.providers(t), Options{UndeclaredProvider: awsProvider})
+	assertNoErrors(t, diags)
+
+	// Only the currently-declared address ends up in prior state. If the
+	// old address materialized too, the plan engine would see a
+	// prior-state entry with no configuration behind it and destroy the
+	// live object the declared address is managing.
+	assertMaterialized(t, res, []string{`aws_s3_bucket_policy.data`})
+	assertOmitted(t, res, map[string]Reason{
+		`aws_s3_bucket_policy.old`: ReasonSuperseded,
+	})
+
+	if res.Has(oldAddr) {
+		t.Fatalf("the old, undeclared address is in prior state - it would plan a destroy of the live object %s still manages:\n%s", declaredAddr, res)
+	}
+	if !res.Has(declaredAddr) {
+		t.Fatalf("the currently-declared address is missing from prior state:\n%s", res)
+	}
+}
+
+// TestUndeclaredConcreteWithDifferentIdentityStillDestroyed is the mutation
+// check for the fix above: the dedup key is the resolved import identity,
+// not "any undeclared entry of a type something else in this plan also
+// uses." An undeclared instance naming a live object NO declared instance
+// claims - a genuine removal, recordOrphanReadSweep's own original case
+// (GitHub issue #364's harbor unit) - still materializes and is still
+// destined for the ordinary undeclared-instance destroy. Deleting the
+// materializedIdentity check in build.go (or comparing only by type, not by
+// type+importID) makes this test fail exactly the way it would have caught
+// a version of the fix that suppressed every undeclared entry outright.
+func TestUndeclaredConcreteWithDifferentIdentityStillDestroyed(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t))
+
+	cloud := newFakeCloud()
+	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+		"policy": `{"Version":"2012-10-17","Statement":[{"Sid":"AllowAppRoleReadWrite"}]}`,
+	})
+	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-orphan", map[string]string{
+		"id": "tofu-stateless-e2e-orphan", "bucket": "tofu-stateless-e2e-orphan",
+		"policy": `{"Version":"2012-10-17","Statement":[]}`,
+	})
+
+	declaredAddr := mustAddr(t, `aws_s3_bucket_policy.data`)
+	orphanAddr := mustAddr(t, `aws_s3_bucket_policy.old`)
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{
+			Addr:     declaredAddr,
+			Class:    identity.ClassConcrete,
+			ImportID: "tofu-stateless-e2e-data",
+		},
+		{
+			Addr:       orphanAddr,
+			Class:      identity.ClassConcrete,
+			ImportID:   "tofu-stateless-e2e-orphan",
+			Undeclared: true,
+		},
+	}, cloud.providers(t), Options{UndeclaredProvider: awsProvider})
+	assertNoErrors(t, diags)
+
+	// A genuinely different live object: both addresses materialize, and
+	// the orphan is not omitted at all - it is a real undeclared instance
+	// destined for the ordinary "not in configuration" destroy.
+	assertMaterialized(t, res, []string{`aws_s3_bucket_policy.data`, `aws_s3_bucket_policy.old`})
+	assertOmitted(t, res, nil)
+
+	if !res.Has(orphanAddr) {
+		t.Fatalf("a genuine, unclaimed orphan was suppressed - it should still be in prior state, destined for a destroy:\n%s", res)
+	}
+}
