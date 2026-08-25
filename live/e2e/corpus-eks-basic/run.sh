@@ -486,6 +486,7 @@ green_tofu_run() {
     -v "$WORK:/work" -w "/work/$GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
+    -e TF_LOG=trace \
     "$TOOLBOX_IMAGE" /work/bin/choudoufu "$@"
 }
 
@@ -1609,31 +1610,73 @@ cp -R "$SRC" "$WORK/green-oracle/eks"
 rm -rf "$WORK/green/eks/.git" "$WORK/green/eks/.github" "$WORK/green-oracle/eks/.git" "$WORK/green-oracle/eks/.github"
 apply_deltas "$WORK/green" 0
 apply_deltas "$WORK/green-oracle" 0
-perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/main.tf"
+# strict { no_source_create = "create" }: the same delta corpus-alb-
+# complete (898091b8f2), corpus-ec2-instance-complete, corpus-ecs-fargate,
+# corpus-giantswarm-crossplane, corpus-mastino-dns, corpus-overture-tiles,
+# corpus-rds-complete-postgres, corpus-s3-bucket-complete and corpus-
+# security-group-complete's own greenfield stages already carry: #365
+# ruling 4's default refusal of a config-identified instance whose
+# identity value belongs to a SIBLING resource this same apply has not
+# created yet either (aws_route_table_association.public[2]'s own
+# route_table_id/subnet_id, aws_route's route_table_id, aws_security_
+# group_rule's security_group_id, aws_iam_role's own name-derived ARN -
+# every one of them "ordinarily computable from configuration" per the
+# refusal's own text, just not when the sibling supplying the value does
+# not exist anywhere yet). A greenfield apply is the one case an operator
+# KNOWS every declared instance is a real create, which is exactly what
+# this toggle is for; this estate's own greenfield delta had simply never
+# carried it, unlike every sibling script above.
+perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    strict {\n      no_source_create = "create"\n    }\n  }\n}/' "$GREEN_EST/main.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
   || fail "the greenfield live-block delta did not match main.tf - the corpus pin has moved"
 
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
   tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
-# A real, named wall (HANDOFF row 2: choudoufu's own result, no stock
-# comparison involved), confirmed on a real run: this estate wires the
-# kubernetes provider's config off data.aws_eks_cluster.cluster / data.
-# aws_eks_cluster_auth.cluster (main.tf's own provider "kubernetes"
-# block), which cannot resolve until the EKS cluster this same apply is
-# supposed to create already exists - a graph-deferred-provider-config
-# pattern real terraform's stage-1 cold apply tolerates but which
-# apply-from-nothing is the FIRST thing in this whole script to ask
-# choudoufu's own engine to do: migrate only adopts objects that already
-# exist (live-import, no create) and test_apply's convergence apply never
-# creates the cluster either, so this bootstrapping path was never
-# exercised through choudoufu before this stage existed. Whether
-# choudoufu's engine defers provider configuration the same way upstream
-# does is an open, generic engine question, not fixed in this
-# script-only unit.
+# UPDATE 2026-08-25 (gauntlet:eks-greenfield): FIXED. Two layered defects,
+# both real, both generic - the "row 2/choudoufu's own result" framing
+# below described the first correctly but stopped one layer short.
+#
+#   1. The kubernetes provider's config (data.aws_eks_cluster.cluster /
+#      data.aws_eks_cluster_auth.cluster, reading aws_eks_cluster.this[0] -
+#      a managed resource this same apply creates, with no record, no
+#      marker and no state anywhere yet) made statelessDiscover's
+#      multi-provider sweep pass fail to CONFIGURE provider.kubernetes at
+#      all, which internal/command/live_plan.go's statelessDiscover
+#      treated as fatal for the WHOLE estate - aborting before the real
+#      resource graph, which defers this exact provider configuration
+#      until the cluster is known (same as stock's own single-apply
+#      success on cold_deploy), ever ran. Nothing under provider.
+#      kubernetes could have been swept before this moment either way -
+#      there is no way to have listed a Kubernetes object in a cluster
+#      that does not exist - so failing to sweep it costs no real
+#      coverage. Fixed generically: internal/live/projection.
+#      ProviderConfigNotEvaluable is a new typed error, distinct from a
+#      genuinely broken plugin or missing credentials, that internal/
+#      command's statelessDiscoverProviderUnavailable and internal/live/
+#      projection/build.go's providerUnavailableSeverity both downgrade
+#      to a Warning instead of an Error - but ONLY when no declared
+#      instance's own identity resolution depends on the failing provider
+#      (needsSet), so a provider a needs-discovery instance actually
+#      needs stays fatal, unchanged.
+#   2. Once (1) let the real graph run, ten config-identified instances
+#      whose identity value belongs to a SIBLING resource this same apply
+#      had not created yet either (module.vpc's route table associations
+#      and routes, module.eks's cluster IAM role and one security group
+#      rule) hit #365 ruling 4's own default refusal - "No source for
+#      this instance's identity... set strict { no_source_create =
+#      "create" } to plan a create instead" - which every OTHER estate's
+#      greenfield stage (corpus-alb-complete, corpus-ec2-instance-
+#      complete, corpus-ecs-fargate, corpus-giantswarm-crossplane,
+#      corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-
+#      postgres, corpus-s3-bucket-complete, corpus-security-group-
+#      complete) already carries the toggle for. This estate's own
+#      greenfield delta (above) had simply never been given it - a
+#      script-only gap, not a second code defect.
 GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" > /tmp/eks-greenfield-full-apply-out.txt
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
-  fail "the greenfield apply failed - see the comment immediately above this call for the named root cause (a provider whose config depends on a data source only the same apply's own EKS cluster creation can resolve, a bootstrapping path no earlier stage in this script exercises through choudoufu)"
+  fail "the greenfield apply failed - see live/gauntlet/logs/corpus-eks-basic.log for the full diagnostic"
 }
 grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$GREEN_APPLY_OUT" \
   || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 54 resources"; }

@@ -299,7 +299,32 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 	var resolvedImport *providers.ImportTarget
 	if !importing && n.Config != nil {
 		if resolver := evalCtx.ResourceIdentityResolver(); resolver != nil {
-			if evalCtx.State().ResourceInstance(addr) == nil {
+			// A RESOLVER-matched target, unlike an import block, is answered
+			// by n.importState making a REAL live call through n.provider -
+			// the same provider n.getProvider fetched above, ALREADY
+			// configured (or not) by the time this node runs. An ordinary
+			// plan/apply walk tolerates that provider being built from an
+			// unknown value (verifyConfigIsKnown is only true for
+			// walkImport, in NodeApplyableProvider.Execute), because
+			// vanilla core never attempts a LIVE call through it for a
+			// resource with no prior state and no import block - only this
+			// resolver hook does. corpus-eks-basic's own greenfield stage
+			// is what found this: provider.kubernetes's config depends on
+			// data.aws_eks_cluster.cluster, correctly deferred to apply
+			// (planDataSource's own "configuration not fully known yet, so
+			// deferring to apply phase"), which leaves provider.kubernetes
+			// itself built from an unknown value - and without this check,
+			// n.importState went ahead and read against it anyway,
+			// producing a live network call to whatever an unknown host
+			// decodes to (localhost, for the kubernetes SDK) instead of the
+			// plain "propose a create" a resolver that found nothing at all
+			// already falls through to below. Skipping the resolver here
+			// costs nothing a later run cannot recover: the object is
+			// re-verified, correctly, the moment its provider's real
+			// dependency becomes known (a later plan/apply, once the
+			// managed resource it needs exists).
+			configKnown := n.ResolvedProvider.ConfigKnown == nil || n.ResolvedProvider.ConfigKnown(n.ResolvedProviderKey)
+			if evalCtx.State().ResourceInstance(addr) == nil && configKnown {
 				configVal, resourceSchema, evalDiags := n.evaluateConfigForIdentity(ctx, evalCtx, providerSchema)
 				diags = diags.Append(evalDiags)
 				if diags.HasErrors() {
