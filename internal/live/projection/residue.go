@@ -1150,11 +1150,11 @@ func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error), identityObj cty.Value) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
-	attrs, ok := classifyResidueAll(schema, applied, secrets, read)
+	attrs, ok := classifyResidueAll(schema, applied, secrets, read, identityObj)
 	if !ok {
 		return false, nil
 	}
@@ -1267,6 +1267,180 @@ func residueConfigSourced(schema providers.Schema) map[string]bool {
 	return out
 }
 
+// ambientIdentityValues is GitHub issue #402's escape hatch: the values a
+// resource's OWN identity object reports for the two attribute names
+// hashicorp/aws's Resource Identity feature uses, provider-wide, for the
+// caller's own account and region - "account_id" and "region", the same two
+// literal names live/identity's generated table already keys every
+// {Cloud: "account-id"} / {Cloud: "region"} component on (see
+// internal/live/identity/table_generated.go). Nil whenever identityObj
+// carries neither: every read against a provider or provider version that
+// never served a resource identity, and every type whose identity schema
+// does not name either.
+//
+// This is deliberately NOT [identity.CloudContext] plumbed in from outside.
+// The value this run is authenticated as is already sitting in the exact
+// response classifyResidue's own two reads (or [builder.materialize]'s
+// single one) just received - hashicorp/aws's SDK resolves it once at
+// Configure time and attaches it to every ReadResource/ImportResourceState
+// response that carries a native identity, unconditionally, before it has
+// looked at PriorState at all (confirmed directly against floci with
+// TF_LOG=trace: the x-amz-expected-bucket-owner header on
+// aws_s3_bucket_cors_configuration's GetBucketCors call already carries the
+// caller's own account id before the request is even sent). Reading it back
+// off the SAME response this package already holds needs no new plumbing
+// and cannot go stale relative to the run it describes.
+func ambientIdentityValues(schema providers.Schema, identityObj cty.Value) map[string]cty.Value {
+	if schema.IdentitySchema == nil || identityObj == cty.NilVal || identityObj.IsNull() || !identityObj.Type().IsObjectType() {
+		return nil
+	}
+	var out map[string]cty.Value
+	for _, name := range [...]string{"account_id", "region"} {
+		if _, ok := schema.IdentitySchema.Attributes[name]; !ok {
+			continue
+		}
+		if !identityObj.Type().HasAttribute(name) {
+			continue
+		}
+		v := identityObj.GetAttr(name)
+		if v.IsNull() || !v.IsWhollyKnown() {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]cty.Value, 2)
+		}
+		out[name] = v
+	}
+	return out
+}
+
+// isAmbientEcho reports whether v is exactly one of ambient's values - see
+// [ambientIdentityValues]. A candidate whose only source is the run's own
+// ambient cloud context is not something any configuration chose and is
+// never preservable residue, however the two-read discriminator below
+// would otherwise have classified it: the account a run is authenticated as
+// cannot "drift" relative to itself, so a real-looking answer here is
+// exactly the format-only-widening branch's premise turned on its head -
+// not a different spelling of a configured value, but a value with no
+// configured spelling at all.
+func isAmbientEcho(v cty.Value, ambient map[string]cty.Value) bool {
+	if v == cty.NilVal || v.IsNull() || v.IsMarked() || len(ambient) == 0 {
+		return false
+	}
+	for _, av := range ambient {
+		if v.RawEquals(av) {
+			return true
+		}
+	}
+	return false
+}
+
+// scrubAmbientEcho is GitHub issue #402's fix for the population
+// [classifyResidue]'s own guard cannot reach: a Required-or-plain-Optional
+// (never Computed) flat attribute whose provider Read returns the run's own
+// ambient account id or region UNCONDITIONALLY - identically whether the
+// prior it was handed carried nothing, an identity-only stub, or the fully
+// applied object - so the two-read discriminator's own first branch
+// ("read A already equals applied, so the provider reads this from the
+// remote") reads as ordinary live drift-tracking and never asks the
+// question [isAmbientEcho] answers at all.
+//
+// Confirmed the source of corpus-s3-bucket-complete's forced-replacement
+// regression directly against a live floci + hashicorp/aws 6.59.0, no
+// residue store or classify path in the loop: aws_s3_bucket_cors_
+// configuration's (and its _object_lock_configuration, _server_side_
+// encryption_configuration and _versioning siblings') deprecated
+// expected_bucket_owner argument comes back "000000000000" from
+// ReadResource even when PriorState carries nothing for it at all - the
+// AWS SDK attaches x-amz-expected-bucket-owner from its own resolved
+// session to the underlying API call before the request is even sent,
+// unconditionally, and the emitted state simply reflects that header back.
+// [builder.materialize] takes that raw read as an untaggable, record-first
+// instance's entire prior state on every single plan (issue #364 unit B's
+// own new read path, which never went through a real ReadResource for this
+// population before), so a real, non-null value for an argument nothing in
+// configuration sets - and which the plugin protocol's own contract says
+// can ONLY ever be what configuration sets, because it is neither Computed
+// nor anything else - turns into a forced replacement (ForceNew) every
+// time configuration omits the argument, which never converges: the next
+// plan reads the identical unconditional echo right back.
+//
+// # Why this is not the same fix as [classifyResidue]'s guard
+//
+// That guard stops an ambient echo from being CAPTURED and REPLAYED by the
+// residue store; it never had anything to capture here; classifyResidue's
+// own read-A/read-B pair, run against this exact provider behavior,
+// already declines to record these four types' expected_bucket_owner
+// (confirmed by trace: read A already equals applied even from a bare
+// stub, which is [classifyResidue]'s "the provider reads this from the
+// remote, not ours to remember" branch - correct, as far as it goes). The
+// defect is upstream of residue entirely: the raw value [importAndRead]
+// returns becomes the plan's prior VERBATIM, with nothing else in the
+// pipeline ever asking whether a config-only argument's live answer could
+// be real.
+//
+// # Why configuredSeed decides "config-absent" here
+//
+// attrsSeed (this function's configuredSeed) is [configuredAttrsSeed]'s and
+// [builder.residueSeedFor]'s already-merged answer to "what does this run's
+// own configuration - statically, or through a residue record a prior
+// choudoufu apply already resolved a reference to - genuinely supply for
+// this instance", the identical seed [importAndRead] itself just used to
+// build the read's own PriorState. A name present there is left exactly as
+// read: configuration set it, honestly, whether or not the value it
+// resolved to happens to equal this run's own ambient account (a
+// deliberate same-account echo is not a guess) or legitimately differs (a
+// real cross-account expected_bucket_owner is not this function's business
+// either way - see [isAmbientEcho]). Only a name ABSENT from configuredSeed
+// - nothing this run's configuration could produce for it, by any means
+// this package already trusts - and whose value nonetheless equals the
+// run's own ambient identity is scrubbed.
+//
+// Scoped to [residueConfigSourced]'s population for the identical protocol
+// reason [classifyResidue]'s own format-only widening cites: Computed is
+// the one flag that lets a provider answer independently of configuration
+// at all, so a Computed candidate is left untouched here - a real,
+// provider-managed value is exactly what Computed promises, and nulling
+// one out would manufacture a diff a plain refresh would never show.
+// ambient is [ambientIdentityValues]'s output, computed by the caller
+// rather than by this function directly - [builder.ambientContext] widens
+// what a single instance's own read would give
+// ([classifyResidue]/[classifyResiduePaths] use the narrower, per-instance
+// form directly, having no comparable cross-instance memory to draw on).
+func scrubAmbientEcho(schema providers.Schema, obj cty.Value, ambient map[string]cty.Value, configuredSeed map[string]cty.Value) cty.Value {
+	if schema.Block == nil || obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || obj.IsMarked() {
+		return obj
+	}
+	if len(ambient) == 0 {
+		return obj
+	}
+	var seed map[string]cty.Value
+	for name := range residueConfigSourced(schema) {
+		if _, configured := configuredSeed[name]; configured {
+			continue
+		}
+		if !obj.Type().HasAttribute(name) {
+			continue
+		}
+		v := obj.GetAttr(name)
+		if !isAmbientEcho(v, ambient) {
+			continue
+		}
+		if seed == nil {
+			seed = make(map[string]cty.Value)
+		}
+		seed[name] = cty.NullVal(v.Type())
+	}
+	if len(seed) == 0 {
+		return obj
+	}
+	scrubbed, ok := withSeededAttrs(obj, seed)
+	if !ok {
+		return obj
+	}
+	return scrubbed
+}
+
 // residueReader is the one provider call [classifyResidue] makes, narrowed
 // to what it needs so a test can supply two answers without a provider.
 type residueReader func(prior cty.Value) (cty.Value, error)
@@ -1363,7 +1537,7 @@ type residueReader func(prior cty.Value) (cty.Value, error)
 // PR description for the reproduce command): seeding PriorState with the
 // correct ARN before any read at all makes the provider echo it back
 // unchanged, matching this reasoning's own prediction.
-func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[string]bool, configSourced map[string]bool, read residueReader) (map[string]cty.Value, bool) {
+func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[string]bool, configSourced map[string]bool, read residueReader, ambient map[string]cty.Value) (map[string]cty.Value, bool) {
 	if len(candidates) == 0 || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil, false
 	}
@@ -1451,6 +1625,35 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 			// provider echoed something else.
 			continue
 		}
+		if isAmbientEcho(want, ambient) {
+			// GitHub issue #402. Read A returning null (the ordinary shape
+			// this whole function exists to capture) usually means "an
+			// SDKv2 resource only ever preserves this from whatever the
+			// prior held" - true residue, worth remembering. It can ALSO
+			// mean "this run's own account or region, which the provider
+			// derives from its own session and would derive identically
+			// from ANY prior, including an empty one" - aws_s3_bucket_
+			// lifecycle_configuration's own expected_bucket_owner is the
+			// confirmed case (its schema marks it Computed, so the format-
+			// only widening above never even applies, and read A still
+			// comes back null because that type's Read only fills the
+			// field in from a genuinely-held prior, exactly as an SDKv2
+			// resource's format-only case does - the two are
+			// indistinguishable from read A and read B alone). Recording
+			// the second shape as residue would replay a value nothing
+			// ever configured on every future plan, exactly the "wrong
+			// marker" this package's own header warns a stored value must
+			// never be able to cause - not to identity here, but to
+			// whether a plan the operator did not ask for keeps looking
+			// clean. want.RawEquals(ambient) is the one signal that tells
+			// the two apart without guessing what the account or region
+			// IS: an account or region a run's own configuration genuinely
+			// set to the SAME value (a deliberate same-account
+			// expected_bucket_owner, or a genuine cross-account one that
+			// simply differs from ambient) is untouched by this check -
+			// see [ambientIdentityValues] and [isAmbientEcho].
+			continue
+		}
 		out[name] = want
 	}
 	if len(out) == 0 {
@@ -1474,7 +1677,7 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 // See [classifyResidue]'s own doc comment for what each side of the
 // discriminator proves; nothing about the reasoning changes at a deeper
 // path, only the accessor.
-func classifyResiduePaths(applied cty.Value, candidates []residuePathCandidate, identityAttrs map[string]bool, read residueReader) (map[string]cty.Value, bool) {
+func classifyResiduePaths(applied cty.Value, candidates []residuePathCandidate, identityAttrs map[string]bool, read residueReader, ambient map[string]cty.Value) (map[string]cty.Value, bool) {
 	if len(candidates) == 0 || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil, false
 	}
@@ -1527,6 +1730,13 @@ func classifyResiduePaths(applied cty.Value, candidates []residuePathCandidate, 
 		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(want) {
 			continue
 		}
+		if isAmbientEcho(want, ambient) {
+			// GitHub issue #402's guard, at path granularity - see
+			// [classifyResidue]'s identical check for the reasoning. A
+			// nested leaf equal to the run's own ambient account or region
+			// is exactly as unpreservable as a flat one.
+			continue
+		}
 		key, keyErr := encodeResiduePathKey(c.Path)
 		if keyErr != nil {
 			continue
@@ -1547,7 +1757,14 @@ func classifyResiduePaths(applied cty.Value, candidates []residuePathCandidate, 
 // [encodeResidueFields] already accepts without caring which kind of key
 // it was given (a bare name is never a valid JSON array, and a path key
 // always is, so the two can never collide).
-func classifyResidueAll(schema providers.Schema, applied cty.Value, secrets strict.Secrets, read residueReader) (map[string]cty.Value, bool) {
+// identityObj is the resource's own resource-identity object - obj.Identity
+// off the same read/import this instance's applied value came from, or
+// cty.NilVal for a caller with none (every pre-identity provider, and every
+// type an identity schema does not name) - which [ambientIdentityValues]
+// turns into this run's own account and region, GitHub issue #402's guard
+// against capturing either one as residue. See that function's doc comment
+// for why this is not [identity.CloudContext] plumbed in from outside.
+func classifyResidueAll(schema providers.Schema, applied cty.Value, secrets strict.Secrets, read residueReader, identityObj cty.Value) (map[string]cty.Value, bool) {
 	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return nil, false
 	}
@@ -1556,16 +1773,17 @@ func classifyResidueAll(schema providers.Schema, applied cty.Value, secrets stri
 	if len(candidates) == 0 && len(pathCandidates) == 0 {
 		return nil, false
 	}
+	ambient := ambientIdentityValues(schema, identityObj)
 	merged := make(map[string]cty.Value)
 	if len(candidates) > 0 {
-		if attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read); ok {
+		if attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read, ambient); ok {
 			for k, v := range attrs {
 				merged[k] = v
 			}
 		}
 	}
 	if len(pathCandidates) > 0 {
-		if attrs, ok := classifyResiduePaths(applied, pathCandidates, residueIdentityAttrs(schema), read); ok {
+		if attrs, ok := classifyResiduePaths(applied, pathCandidates, residueIdentityAttrs(schema), read, ambient); ok {
 			for k, v := range attrs {
 				merged[k] = v
 			}

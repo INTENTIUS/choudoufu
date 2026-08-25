@@ -486,7 +486,7 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 		}
 		return resp.NewState, nil
 	}
-	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.providerAddr, e.schema, e.applied, secrets, read); err != nil {
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.providerAddr, e.schema, e.applied, secrets, read, e.identity); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
 			addr, err,

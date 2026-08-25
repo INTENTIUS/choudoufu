@@ -116,7 +116,7 @@ func TestClassifyResidueSeparatesFilenameFromDescription(t *testing.T) {
 		t.Fatalf("residueCandidates = %v, want %v", candidates, wantCandidates)
 	}
 
-	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
+	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for an object whose provider plainly leaves three arguments alone")
 	}
@@ -179,7 +179,7 @@ func TestClassifyResidueLeavesAZeroValueTheProviderAnswers(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(obj, residueCandidates(schema, obj, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, legacyRead)
+	got, ok := classifyResidue(obj, residueCandidates(schema, obj, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, legacyRead, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing at all; the three real residue arguments should still classify")
 	}
@@ -216,7 +216,7 @@ func TestClassifyResidueRefusesTheFrameworkNull(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, frameworkRead)
+	got, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, frameworkRead, nil)
 	if ok {
 		if _, bad := got["filename"]; bad {
 			t.Fatal("filename was recorded from a provider that answers null for it on EVERY read. " +
@@ -319,7 +319,7 @@ func TestClassifyResidueFailsClosed(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, tc.read())
+			got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, tc.read(), nil)
 			if ok || len(got) != 0 {
 				t.Fatalf("classifyResidue returned ok=%v with %v. Every one of these is a missing answer, and a missing answer must record NOTHING.", ok, sortedNames(got))
 			}
@@ -354,7 +354,7 @@ func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 
 	echo := func(prior cty.Value) (cty.Value, error) { return prior, nil }
-	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, echo)
+	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, echo, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for a provider that manages nothing; that estate would never converge")
 	}
@@ -441,7 +441,7 @@ func TestClassifyResidueRecordsAFormatOnlyDivergenceOnANonComputedAttribute(t *t
 	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 	read := taskDefFormatRead(applied, wireARN, shortForm)
 
-	got, ok := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read)
+	got, ok := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing; task_definition's format-only divergence should have been recorded")
 	}
@@ -467,7 +467,7 @@ func TestClassifyResidueRefusesTheSameShapeWithoutConfigSourced(t *testing.T) {
 	read := taskDefFormatRead(applied, wireARN, "ex-fargate:1")
 	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 
-	got, _ := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), nil, read)
+	got, _ := classifyResidue(applied, candidates, ecsServiceIdentityAttrs(), nil, read, nil)
 	if _, bad := got["task_definition"]; bad {
 		t.Error("task_definition was classified as residue with configSourced=nil; the widening must be " +
 			"opt-in through the schema property, not the default")
@@ -510,7 +510,7 @@ func TestClassifyResidueStillRejectsGenuineDriftOnANonComputedAttribute(t *testi
 	}
 
 	candidates := residueCandidates(schema, staleApplied, strict.DefaultSecrets)
-	got, _ := classifyResidue(staleApplied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read)
+	got, _ := classifyResidue(staleApplied, candidates, ecsServiceIdentityAttrs(), residueConfigSourced(schema), read, nil)
 	if _, bad := got["task_definition"]; bad {
 		t.Error("task_definition was classified as residue despite genuine drift (read B, given the stale " +
 			"applied value, answered a DIFFERENT value) - this would silently hide real drift from every " +
@@ -605,7 +605,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 
 	candidates := residueCandidates(schema, applied, strict.Store)
 	unmarked, _ := applied.UnmarkDeep()
-	attrs, ok := classifyResidue(unmarked, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
+	attrs, ok := classifyResidue(unmarked, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing for a type whose sensitive argument the provider never returns")
 	}
@@ -1035,7 +1035,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 	applied := lambdaApplied()
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, sdkv2LikeRead)
+	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), nil, sdkv2LikeRead, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
@@ -1156,7 +1156,7 @@ func TestNoSentinelValueExists(t *testing.T) {
 
 	// And the values that can reach a RECORD are the applied values
 	// themselves, never anything constructed.
-	attrs, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead)
+	attrs, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), nil, sdkv2LikeRead, nil)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
@@ -1337,7 +1337,7 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - ingress (NestingSet, non-null applied value) is now a structural candidate; egress (null applied value) is not, for its own unrelated reason", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, sgLikeRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, sgLikeRead, nil)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing")
 			}
@@ -1659,7 +1659,7 @@ func TestResidueCarriesListAndSetNestedBlocksByValue(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - both a NestingList and a NestingSet block should now be structural candidates alongside the ordinary flat ones", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead, nil)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing")
 			}
@@ -1773,7 +1773,7 @@ func TestClassifyResidueLeavesAnEmptyCollectionBlockUnrecorded(t *testing.T) {
 	// unchanged, and read B (the full applied prior) passes applied's own
 	// empty collections through unchanged - the exact pattern that made
 	// this recordable before this test's fix.
-	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead)
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostBareImportRead, nil)
 	if ok {
 		if _, bad := attrs["root_block_device"]; bad {
 			t.Error("root_block_device (empty, never configured) was recorded as residue. Nothing was ever configured here - filling it back reproduces exactly what a bare read already gives - and recording it anyway is the corpus-mastino-dns regression: 14 real residue records became 59, six empty routing-policy blocks per record, none of them carrying any information a plain read did not already have.")
@@ -1891,7 +1891,7 @@ func TestResidueLandsUnderTheMergedNamespaceOnRealDisk(t *testing.T) {
 	applied := lambdaApplied()
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, sdkv2LikeRead)
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}
@@ -2163,7 +2163,7 @@ func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
 				t.Fatalf("residueCandidates = %v, want %v - initial_lifecycle_hook (NestingSet) should be a structural candidate alongside the ordinary flat ones", candidates, want)
 			}
 
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, asgFlattenRead)
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, asgFlattenRead, nil)
 			if !ok {
 				t.Fatal("classifyResidue recorded nothing; initial_lifecycle_hook was not a residue candidate")
 			}

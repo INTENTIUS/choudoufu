@@ -438,7 +438,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 									return cty.NilVal, resp.Diagnostics.Err()
 								}
 								return resp.NewState, nil
-							})
+							}, obj.Identity)
 							if ok {
 								rf, encErr := encodeResidueFields(attrs)
 								if encErr != nil {

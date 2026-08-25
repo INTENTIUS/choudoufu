@@ -324,7 +324,7 @@ func TestClassifyResiduePathsCapturesTheSecretAndLeavesTheEchoedSiblingUnrecorde
 	identityAttrs := residueIdentityAttrs(schema)
 
 	t.Run("real provider (client_id echoed)", func(t *testing.T) {
-		attrs, ok := classifyResiduePaths(applied, candidates, identityAttrs, listenerLikeRead(true))
+		attrs, ok := classifyResiduePaths(applied, candidates, identityAttrs, listenerLikeRead(true), nil)
 		if !ok {
 			t.Fatal("classifyResiduePaths proved nothing, want the client_secret leaf")
 		}
@@ -363,7 +363,7 @@ func TestClassifyResiduePathsCapturesTheSecretAndLeavesTheEchoedSiblingUnrecorde
 		widened := append([]residuePathCandidate{}, candidates...)
 		widened = append(widened, residuePathCandidate{Path: clientIDPath, ConfigSourced: true})
 
-		attrs, ok := classifyResiduePaths(applied, widened, identityAttrs, listenerLikeRead(false))
+		attrs, ok := classifyResiduePaths(applied, widened, identityAttrs, listenerLikeRead(false), nil)
 		if !ok {
 			t.Fatal("classifyResiduePaths proved nothing, want both leaves under the mutated read")
 		}
@@ -393,7 +393,7 @@ func TestFillResiduePathsFillsTheNestedSecretAndPreservesEverythingEchoed(t *tes
 	schema := listenerLikeSchema()
 	applied := listenerApplied()
 	candidates := residueLeafPathCandidates(schema, applied, strict.DefaultSecrets)
-	attrs, ok := classifyResiduePaths(applied, candidates, residueIdentityAttrs(schema), listenerLikeRead(true))
+	attrs, ok := classifyResiduePaths(applied, candidates, residueIdentityAttrs(schema), listenerLikeRead(true), nil)
 	if !ok {
 		t.Fatal("classifyResiduePaths proved nothing")
 	}
@@ -491,7 +491,7 @@ func TestFillResiduePathsRefusesUnderSecretsRefuse(t *testing.T) {
 	schema := listenerLikeSchema()
 	applied := listenerApplied()
 	candidates := residueLeafPathCandidates(schema, applied, strict.DefaultSecrets)
-	attrs, ok := classifyResiduePaths(applied, candidates, residueIdentityAttrs(schema), listenerLikeRead(true))
+	attrs, ok := classifyResiduePaths(applied, candidates, residueIdentityAttrs(schema), listenerLikeRead(true), nil)
 	if !ok {
 		t.Fatal("classifyResiduePaths proved nothing")
 	}
@@ -531,7 +531,7 @@ func TestRecordResidueForInstanceWritesTheNestedSecretEnvelope(t *testing.T) {
 	applied := listenerApplied()
 	addr := locatedTestAddr(t, "aws_lb_listener", "ex-oidc")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, listenerLikeRead(true))
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, listenerLikeRead(true), cty.NilVal)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}
