@@ -54,7 +54,23 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
 		return "", nil, false
 	}
-	if val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
+	// Deliberately NOT val.IsWhollyKnown(): that would gate on every
+	// attribute in the whole resource, including ones no [Component] ever
+	// reads. aws_iam_role_policy is the found case (this file's own
+	// TestComponentsFromValueUnrelatedUnknownAttributeIsIgnored and
+	// corpus-hongbomiao-labelbox's greenfield stage): role and name (the
+	// two components table_generated.go's row actually names) are both
+	// known plan-time strings, but policy - jsonencode() over a sibling
+	// MODULE's output that itself reads a Computed-only attribute
+	// (aws_s3_bucket.id, unknown until create) - is unknown and is not a
+	// component at all. componentFromValue below already checks
+	// IsWhollyKnown per attribute it actually reads (and per accessed
+	// Block value), which is the right scope: an identity-relevant
+	// attribute that is not yet known must still refuse (see
+	// TestComponentsFromValueUnknownIsNotFound), but an unrelated
+	// argument's unknown value must never veto a derivation this row does
+	// not need it for.
+	if val == cty.NilVal || val.IsNull() || val.IsMarked() {
 		return "", nil, false
 	}
 	if !val.Type().IsObjectType() {
