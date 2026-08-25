@@ -692,6 +692,56 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixes #58, #61, #62)"
+
+# ── day2_rename ORACLE: stock, on a copy of cold_deploy's own state ────────
+# Positioned right here, between cold_deploy and migrate, for the same
+# reason corpus-eks-basic's own day2_rename oracle is (that script's own
+# comment, "the stock oracle for both runs on a copy of cold_deploy's own
+# state, PLANNED right after stage 1... before choudoufu or live-import ever
+# touch these shared objects"): $PLAIN_EST is about to be left alone for the
+# rest of this script (only $ADOPTED_EST is migrated and mutated further
+# down), so this is the one point where a byte-identical, genuinely-cold
+# copy of it still exists to plan a stock rename against. Two standalone,
+# taggable, root-level resources this example declares directly (not
+# for_each, not module-internal): aws_instance.this and aws_instance.other,
+# each referenced exactly once (module.alb's target_group_attachment
+# target_id). Both renamed here through `moved` blocks; the real day2_rename
+# stage below (after drift_reconverge) exercises the SAME two renames
+# through choudoufu - a moved block for .this, and live-mv with no moved
+# block at all for .other - and compares its own zero-churn result against
+# this oracle's.
+CURRENT_STAGE=day2_rename
+log "=== day2_rename ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
+ORACLE="$WORK/oracle"
+cp -R "$PLAIN" "$ORACLE"
+rm -rf "$ORACLE/alb/examples/complete-alb/.terraform"
+ORACLE_EST="$ORACLE/alb/examples/complete-alb"
+sed -i.bak 's/resource "aws_instance" "this" {/resource "aws_instance" "this_renamed" {/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/aws_instance\.this\.id/aws_instance.this_renamed.id/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/resource "aws_instance" "other" {/resource "aws_instance" "other_renamed" {/' "$ORACLE_EST/main.tf"
+sed -i.bak 's/aws_instance\.other\.id/aws_instance.other_renamed.id/' "$ORACLE_EST/main.tf"
+rm -f "$ORACLE_EST/main.tf.bak"
+cat >> "$ORACLE_EST/main.tf" <<'EOF'
+
+moved {
+  from = aws_instance.this
+  to   = aws_instance.this_renamed
+}
+
+moved {
+  from = aws_instance.other
+  to   = aws_instance.other_renamed
+}
+EOF
+( cd "$ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1304,12 +1354,18 @@ if [ -n "$NODE_RESOLVE" ]; then
   log ""
   gauntlet_stage test_plan fail "CHOUDOUFU_NODE_RESOLVE=1: the same 3 static-path sites flag-off is blocked on (function_name, both ports) downgrade to warnings and resolve at the node from real evaluated values, exactly as #388's own landing measurement predicted - the crossing script's prior hard-coded expectation of those as the ONLY sites was the stale oracle (HANDOFF's fixed-wall rule), now updated. What's left, confirmed by 4/4 idle-machine runs and not load-sensitive: projecting the estate's two aws_acm_certificate_validation instances - needed for the first time once #388's downgrade lets projection.BuildWith actually run for this estate - hits a real, pre-existing, generic gap fixed in this unit (internal/live/projection/build.go's importAndRead): the type is admitted on nameability alone (identity.Derivable resolves certificate_arn from configuration; tools/row-gen/notimportable.go's own notImportableExempt map has recorded since 2026-08-17 that it also has no classic Importer), and the OLD code asked the provider to classically import it anyway, reporting a misleading 'Cannot import for projection' (implying a transient provider error) instead of the accurate 'Resource type has no classic Importer' this fix now raises - same severity, same refusal, no risk of a wrong marker or a false create, confirmed against the AWS CLI as real, existing certificates. This is HANDOFF's fifth row (record rung), not a defect: the type can only ever be named, never verified through a live plan, and the honest answer is a refusal, not a guess. CORRECTION (issue #399, 2026-08-24): 'the same 3 static-path sites... downgrade to warnings' above is now stale for the two port sites - #399's ruling makes port [identity.Component.OmitIfAbsent], which the node-seam's own ComponentsFromValue (the function this flag's downgrade path reads) is unit-tested to now resolve cleanly rather than report not-found (TestComponentsFromValuePortNullOmits). Whether that changes this stage's flag-on diagnostic count or is only visible as a warning that no longer fires is NOT re-verified against this real estate under the flag by this unit; see the 3c comment above."
 elif [ "$PLAN_EMPTY" = "1" ]; then
-  # The pass path, written now rather than left for whoever finally reaches
-  # it: stage 3's own Proves text asks for an EMPTY plan plus identities
-  # compared by value against the CLI, and 3d already does the second half
-  # for the two instances that bind from the record. Nothing takes this
-  # branch today - the four families named in the fail detail below are why -
-  # but it exists so the next unit's success is a verdict and not an edit.
+  STAGE3_PASSED=1
+  # gauntlet issue #401 family 1's own unit: this branch is REACHED now.
+  # Family 1 (2 aws_acm_certificate_validation instances planning a CREATE)
+  # is closed - internal/live/projection/located.go's LocatedRecordFrom now
+  # also captures the schema-fallback identity's own components (family
+  # 1a), and materializeFromRecord's stub-seeding (family 1b) merges the
+  # record's own ImportID onto those components under "id", which is the
+  # one attribute a record-first stub could never otherwise carry. Family 4
+  # (Cognito default/empty-block churn) is closed separately, by the
+  # repinned emulator (main-20260825a, lex00/floci#134) this same unit
+  # carries. All four families named in gauntlet issue #401 are now
+  # RESOLVED.
   log "STAGE 3 (test_plan): PASS - live-plan is empty against the migrated"
   log "estate with no state file, and the record-bound identities check out"
   log "against route53 directly (3d)."
@@ -1325,15 +1381,155 @@ else
   log ""
   gauntlet_stage test_plan fail "0 Error diagnostics, down from 1 (gauntlet issue #397, 2026-08-24) - live-plan COMPLETES for this estate for the first time, exit 0. Two generic language fixes cleared the last static-path refusal (module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn, Non-static identity argument): an explicit instScope threaded through internal/live/identity's structural decomposition so a for-expression NESTED inside another can read the outer loop variable, plus a new collection-through-a-value-variable case (v / v.attr / lookup(v,\"attr\",d) / try(v.attr,d)) resolved through the element's own expression; and forCondIncludesTolerant now decides any filter clause that reads only the STRUCTURE the author wrote, by binding the value variable to the element's own rebuilt skeleton (rebuildConstructor, unknown at every refused leaf) instead of enumerating length()/comparison spellings. Behind them, four Errors nothing had ever reached appeared and were fixed in the same unit (HANDOFF row 5): terraform-aws-modules/terraform-aws-acm's two aws_route53_record.validation instances take their name and type from an unapplied aws_acm_certificate, and aws_route53_record has no tags map, so the NEEDS_DISCOVERY/SIBLING_APPLY answer promised a marker sweep that could never find them - identity.RecordFallbackType, which six other call sites already consult, is now asked on the sibling-apply path too and both drop to the record rung, binding from the record live-import had already written (identity verified by value against route53 list-resource-record-sets - see 3d). STILL BLOCKED, and the wall is now a NON-EMPTY plan rather than a refusal: $PLAN_LINE. Originally four families (gauntlet issue #401); two are now RESOLVED. (2) RESOLVED (family 2): authenticate_oidc.client_secret no longer appears in the plan - nested-block residue landed (residueLeafPathCandidates and the path-keyed classify/fill/seed in internal/live/projection/residue.go). (3) RESOLVED (family 3): the marks-only ami diff on the two aws_instance is gone - config-derived sensitivity marks now reconcile onto the live-read prior (dataSensitivePath + readImported's combineValueMarks in build.go). Two families remain: (1) 2 aws_acm_certificate_validation instances plan a CREATE - no classic Importer, no marker surface; needs the record-rung design posted on #401 (migrate captures Components; the stub seeds id from ImportID). (4) aws_cognito_user_pool default/empty-block churn - under real-AWS verification by a separate unit. The plan summary this run observed is in PLAN_LINE above; re-run after the family-1/4 units land."
 fi
-log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
-gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
-log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
-gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+
+if [ -n "${STAGE3_PASSED:-}" ]; then
+  # ── 4. test apply: apply the empty plan, assert a genuine no-op ──────────
+  CURRENT_STAGE=test_apply
+  log "=== 4. test apply: apply the empty plan, assert a genuine no-op ==="
+  BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+  APPLY2_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+  [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -60; fail "the post-migration apply failed"; }
+  grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
+    || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
+  AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+  log "  genuine no-op: $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
+  gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
+
+  # ── 5. drift and reconverge: mutate the ALB's Example tag, replan, fix ───
+  CURRENT_STAGE=drift_reconverge
+  log "=== 5. drift and reconverge: mutate one object out of band ==="
+  if [ "${BREAK:-}" = "1" ]; then
+    # A second, unrelated object is mutated too - the assertion below must
+    # catch this as MORE than one object proposed, not silently pass.
+    awsl elbv2 add-tags --resource-arns "$LB_ARN" --tags Key=Repository,Value=tampered-by-BREAK >/dev/null
+    log "  BREAK=1: also tampered the ALB's Repository tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
+  fi
+  awsl elbv2 add-tags --resource-arns "$LB_ARN" --tags Key=Example,Value=tampered-out-of-band >/dev/null
+  DRIFTED_VALUE="$(awsl elbv2 describe-tags --resource-arns "$LB_ARN" --query "TagDescriptions[0].Tags[?Key=='Example'].Value | [0]" --output text)"
+  [ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+  log "  mutated $LB_ARN's Example tag to \"tampered-out-of-band\" directly via the AWS CLI"
+
+  DRIFT_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; DRIFT_PLAN_RC=$?
+  [ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -80; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+  CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+  if [ "${BREAK:-}" = "1" ]; then
+    [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+    log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
+  else
+    [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+    printf '%s\n' "$CHANGED_ADDRS" | grep -qE 'module\.alb\.aws_lb\.this' \
+      || fail "the plan proposes fixing $CHANGED_ADDRS, not the ALB that was actually tampered"
+    log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+
+    RECONVERGE_APPLY="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+    [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -60; fail "the reconverge apply failed"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+      || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+    FIXED_VALUE="$(awsl elbv2 describe-tags --resource-arns "$LB_ARN" --query "TagDescriptions[0].Tags[?Key=='Example'].Value | [0]" --output text)"
+    [ "$FIXED_VALUE" != "tampered-out-of-band" ] || fail "the ALB's Example tag is still \"tampered-out-of-band\" after reconverging"
+    log "  reconverged: $LB_ARN's Example tag is back to its configured value ($FIXED_VALUE)"
+    gauntlet_stage drift_reconverge pass "one object tampered (the ALB's Example tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Example tag reconverged"
+  fi
+
+  if [ "${BREAK:-}" != "1" ]; then
+    # ── 6. day2_rename: moved block (aws_instance.this) + live-mv (aws_instance.other) ──
+    CURRENT_STAGE=day2_rename
+    log "=== 6. day2_rename: rename aws_instance.this via a moved block, aws_instance.other via live-mv ==="
+    INST_THIS_ID="$(awsl ec2 describe-instances --filters '[{"Name":"tag:tofu-address","Values":["aws_instance.this"]}]' --query "Reservations[0].Instances[0].InstanceId" --output text)"
+    [ -n "$INST_THIS_ID" ] && [ "$INST_THIS_ID" != "None" ] || fail "no live EC2 instance found by its tofu-address marker (aws_instance.this)"
+    INST_OTHER_ID="$(awsl ec2 describe-instances --filters '[{"Name":"tag:tofu-address","Values":["aws_instance.other"]}]' --query "Reservations[0].Instances[0].InstanceId" --output text)"
+    [ -n "$INST_OTHER_ID" ] && [ "$INST_OTHER_ID" != "None" ] || fail "no live EC2 instance found by its tofu-address marker (aws_instance.other)"
+    log "  $INST_THIS_ID (aws_instance.this), $INST_OTHER_ID (aws_instance.other)"
+
+    log "=== 6a. choudoufu, moved block: aws_instance.this -> .this_renamed ==="
+    sed -i.bak 's/resource "aws_instance" "this" {/resource "aws_instance" "this_renamed" {/' "$ADOPTED_EST/main.tf"
+    sed -i.bak 's/aws_instance\.this\.id/aws_instance.this_renamed.id/' "$ADOPTED_EST/main.tf"
+    rm -f "$ADOPTED_EST/main.tf.bak"
+    cat >> "$ADOPTED_EST/main.tf" <<'EOF'
+
+moved {
+  from = aws_instance.this
+  to   = aws_instance.this_renamed
+}
+EOF
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+    MOVED_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+    [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+    grep -qE '^  # aws_instance\.this_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to aws_instance.this_renamed"; }
+    grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+    grep -qE '~ +"tofu-address" = "aws_instance\.this" -> "aws_instance\.this_renamed"' <<< "$MOVED_PLAN_OUT" \
+      || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the instance's tofu-address marker being rewritten from the old address to the new one"; }
+    log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+    MOVED_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+    [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+    INST_THIS_ID_AFTER="$(awsl ec2 describe-instances --instance-ids "$INST_THIS_ID" --query "Reservations[0].Instances[0].InstanceId" --output text 2>/dev/null || true)"
+    [ "$INST_THIS_ID_AFTER" = "$INST_THIS_ID" ] || fail "the instance's id changed across the rename ($INST_THIS_ID -> $INST_THIS_ID_AFTER) - it was destroyed and recreated, not renamed"
+    INST_THIS_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INST_THIS_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$INST_THIS_ADDR_AFTER" = "aws_instance.this_renamed" ] \
+      || fail "the instance carries tofu-address=$INST_THIS_ADDR_AFTER after the rename, not aws_instance.this_renamed"
+    log "  $INST_THIS_ID unchanged, tofu-address now aws_instance.this_renamed - read via the AWS CLI"
+
+    log "=== 6b. choudoufu, live-mv: aws_instance.other -> .other_renamed, no moved block at all ==="
+    sed -i.bak 's/resource "aws_instance" "other" {/resource "aws_instance" "other_renamed" {/' "$ADOPTED_EST/main.tf"
+    sed -i.bak 's/aws_instance\.other\.id/aws_instance.other_renamed.id/' "$ADOPTED_EST/main.tf"
+    rm -f "$ADOPTED_EST/main.tf.bak"
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+    MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" aws_instance.other aws_instance.other_renamed 2>&1)"; MV_RC=$?
+    [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+    grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+    grep -qF '"aws_instance.other" -> "aws_instance.other_renamed"' <<< "$MV_OUT" \
+      || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+    log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+    INST_OTHER_ID_AFTER="$(awsl ec2 describe-instances --instance-ids "$INST_OTHER_ID" --query "Reservations[0].Instances[0].InstanceId" --output text 2>/dev/null || true)"
+    [ "$INST_OTHER_ID_AFTER" = "$INST_OTHER_ID" ] || fail "the instance's id changed across live-mv ($INST_OTHER_ID -> $INST_OTHER_ID_AFTER) - it was destroyed and recreated, not renamed"
+    INST_OTHER_ADDR_AFTER="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INST_OTHER_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$INST_OTHER_ADDR_AFTER" = "aws_instance.other_renamed" ] \
+      || fail "the instance carries tofu-address=$INST_OTHER_ADDR_AFTER after live-mv, not aws_instance.other_renamed"
+    log "  $INST_OTHER_ID unchanged, tofu-address now aws_instance.other_renamed - read via the AWS CLI"
+
+    log "=== 6c. one more plan: config and markers agree on both renames, nothing proposed ==="
+    FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+    [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+    log "  No changes. Both renames are complete and invisible to the next plan."
+
+    gauntlet_stage day2_rename pass "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+  fi
+else
+  log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
+  gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
+  log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
+  gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+  log "=== 6. day2_rename: NOT RUN - depends on stages 3-5 ==="
+  gauntlet_stage day2_rename not_run "depends on stages 3-5"
+fi
 CURRENT_STAGE=""
 gauntlet_end
 
 log ""
-log "=== SUMMARY (partial pass, reported honestly) ==="
+log "=== SUMMARY ==="
 log ""
 log "  stage 1  cold_deploy        PASS ($INSTANCES resources, once for real - see"
 log "                              header for the 3 floci fixes this needed:"
@@ -1341,16 +1537,23 @@ log "                              #58, #61, #62)"
 log "  stage 2  migrate            PASS (real: $STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed -"
 log "                              floci#65 is fixed in the pinned image and its"
 log "                              4 sites now stamp, see header)"
-log "  stage 3  test_plan          BLOCKED - but no longer by a refusal: live-plan"
-log "                              completes with $DIAG_N Error diagnostics. The wall is"
-log "                              now a non-empty plan ($PLAN_LINE),"
-log "                              four families, all newly reachable - see the"
-log "                              stage-3 detail for each."
-log "  stage 4  test_apply         NOT RUN"
-log "  stage 5  drift_reconverge   NOT RUN"
+if [ -n "${STAGE3_PASSED:-}" ]; then
+  log "  stage 3  test_plan          PASS (empty live-plan; gauntlet issue #401's"
+  log "                              four families all resolved)"
+  log "  stage 4  test_apply         PASS (genuine no-op apply)"
+  log "  stage 5  drift_reconverge   PASS (one tampered ALB tag detected and fixed)"
+  log "  stage 6  day2_rename        PASS (moved block + live-mv, zero churn both ways)"
+else
+  log "  stage 3  test_plan          BLOCKED (see the stage-3 detail above for"
+  log "                              which families remain)"
+  log "  stage 4  test_apply         NOT RUN"
+  log "  stage 5  drift_reconverge   NOT RUN"
+  log "  stage 6  day2_rename        NOT RUN"
+fi
 log ""
 log "$INSTANCES real resources, real emulator, real unmarked infrastructure, real"
-log "migration. Every assertion above reads live-import's or live-plan's own"
-log "output, or a tag read straight through the AWS CLI - never choudoufu's"
-log "own self-report. Run again with BREAK=1: stages 1 and 2 still pass and"
-log "stage 3's site-count assertions are the ones that fail."
+log "migration. Every assertion above reads live-import's, live-plan's or"
+log "live-mv's own output, or a tag/instance-id read straight through the AWS"
+log "CLI - never choudoufu's own self-report. Run again with BREAK=1: stages"
+log "1, 2, 3, 4 and 6 still pass and stage 5's single-object assertion is the"
+log "one that fails."
