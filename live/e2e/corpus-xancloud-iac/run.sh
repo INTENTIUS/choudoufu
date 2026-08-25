@@ -228,9 +228,9 @@ set -uo pipefail
 #                 single-object assertion is load-bearing - same convention
 #                 as live/e2e/corpus-mastino-dns/run.sh's own BREAK_STAGE5.
 #   BREAK_DAY2_REMOVE  set to 1 to run day2_remove's own negative control:
-#                 keep the aws_iam_role_policy.flow_logs block in the config
-#                 and assert no destroy is proposed for it (the Break text
-#                 in tools/gauntlet/stages.go for day2_remove, verbatim).
+#                 keep the aws_vpc_endpoint.s3 block in the config and
+#                 assert no destroy is proposed for it (the Break text in
+#                 tools/gauntlet/stages.go for day2_remove, verbatim).
 #   BREAK_GREENFIELD  set to 1 to drop the flow-logs IAM role from the
 #                 greenfield stage's expected per-type inventory before the
 #                 structural comparison against cold_deploy's own account -
@@ -393,27 +393,42 @@ open(p, "w").write(s.replace(old, 'region      = "$REGION"', 1))
 PYEOF
 }
 
-# remove_iam_role_policy_block <vpc_main_tf> - day2_remove's target:
-# aws_iam_role_policy.flow_logs, the module's own inline IAM policy on the
-# flow-logs role. Untaggable (aws_iam_role_policy carries no `tags`
-# argument at all in the provider schema) with a parent that stays
-# (aws_iam_role.flow_logs / .flow_logs_renamed is never touched here) -
-# exactly the "untaggable children whose parents stay" shape live/GAUNTLET.md
-# #7 names. No other resource references this block (the role's own ARN,
-# not this policy, is what aws_flow_log.cloudwatch depends on), so its
-# removal needs no other config edit and no other aws_iam_role_policy block
-# exists anywhere in this config for classifyOrphans to confuse it with.
+# remove_vpc_endpoint_s3_block <vpc_main_tf> - day2_remove's target:
+# aws_vpc_endpoint.s3, the single S3 gateway endpoint. Taggable, single-key
+# for_each (only "s3" is in var.vpcs.main.vpc_endpoints among the two
+# possible gateway endpoints - "dynamodb" is not, so this block's for_each
+# has exactly one member), and nothing else in the module references its id
+# or arn (the interface endpoints reference the security group and the
+# subnets, never a gateway endpoint) - a genuine standalone leaf, unlike
+# every candidate the flow-logs chain offers (the log group, the role, its
+# inline policy and the flow log itself all reference each other). No other
+# aws_vpc_endpoint.s3 block exists anywhere in this config for
+# classifyOrphans to confuse it with.
+#
+# aws_iam_role_policy.flow_logs was tried first and reverted: it is
+# untaggable, and its identity is record-LOCATED (identity.LocatedType),
+# not record-backed - internal/live/projection/located.go's own comment
+# says why builder.discoverOrphanedRecords deliberately proposes a destroy
+# only for a kind=object (record-backed) key, never a kind=identity
+# (record-located) one: reading an unverified located record as "this may
+# be deleted" is the same wrong-marker-shaped risk HANDOFF.md's safety rule
+# forbids for a marker, just for a record instead. Migrate DOES seed a
+# located identity record for it (issue #364 unit A2, stamp.go's
+# OutcomeSkipped branch), but a stateless live-plan correctly does not
+# destroy a record-located instance on config removal alone - this is
+# design, not a defect, and this estate's day2_remove does not need to be
+# the one that exercises that particular corner of the stage's Proves text.
 # Balanced-brace deletion (not a line-range sed) because the block's own
 # for_each is itself brace-nested.
-remove_iam_role_policy_block() {
+remove_vpc_endpoint_s3_block() {
   local main_tf="$1"
   python3 - "$main_tf" <<'PYEOF'
 import sys
 p = sys.argv[1]
 s = open(p).read()
-marker = 'resource "aws_iam_role_policy" "flow_logs" {'
+marker = 'resource "aws_vpc_endpoint" "s3" {'
 i = s.index(marker)
-assert i >= 0, "remove_iam_role_policy_block: marker not found - the corpus pin has moved"
+assert i >= 0, "remove_vpc_endpoint_s3_block: marker not found - the corpus pin has moved"
 depth = 0
 j = i
 started = False
@@ -429,7 +444,7 @@ while j < len(s):
             break
     j += 1
 else:
-    raise AssertionError("remove_iam_role_policy_block: no balanced closing brace found")
+    raise AssertionError("remove_vpc_endpoint_s3_block: no balanced closing brace found")
 end = j
 if end < len(s) and s[end] == '\n':
     end += 1
@@ -1163,67 +1178,73 @@ CURRENT_STAGE=""
 # ══════════════════════════════════════════════════════════════════════════
 #
 # Starts from Part D's real, completed state: the plan is empty (D3). The
-# target is aws_iam_role_policy.flow_logs - see remove_iam_role_policy_block's
-# own comment, above, for why this is the "untaggable children whose
-# parents stay" shape live/GAUNTLET.md #7 names, and why classifyOrphans
-# has no other declared instance of this block to confuse it with.
+# target is aws_vpc_endpoint.s3 - see remove_vpc_endpoint_s3_block's own
+# comment, above, for why this leaf was chosen over the flow-logs chain,
+# and why classifyOrphans has no other declared instance of this block to
+# confuse it with.
 #
 # BREAK_DAY2_REMOVE=1 exercises this stage's own Break control instead:
 # keep the block, and assert the plan proposes no destroy for it at all -
 # the Break text in tools/gauntlet/stages.go, verbatim.
 CURRENT_STAGE=day2_remove
-ROLE_NAME_E="${NAME_PREFIX}-main-flow-logs-role"
-POLICY_NAME_E="${NAME_PREFIX}-main-flow-logs-policy"
-log "=== E0. capture the live inline policy one more time ==="
-HAS_POLICY_BEFORE="$(awsl iam list-role-policies --role-name "$ROLE_NAME_E" --query "length(PolicyNames[?@=='$POLICY_NAME_E'])" --output text 2>/dev/null || echo 0)"
-[ "$HAS_POLICY_BEFORE" = "1" ] || fail "the inline policy $POLICY_NAME_E is not attached to $ROLE_NAME_E before day2_remove even starts"
+VPCE_NAME_E="${NAME_PREFIX}-main-vpce-s3"
+log "=== E0. capture the live S3 gateway endpoint one more time ==="
+VPCE_ID_E="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_NAME_E" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text 2>/dev/null || true)"
+[ -n "$VPCE_ID_E" ] && [ "$VPCE_ID_E" != "None" ] || fail "no live, available S3 gateway endpoint found by its Name tag ($VPCE_NAME_E) before day2_remove even starts"
 
 if [ "${BREAK_DAY2_REMOVE:-}" = "1" ]; then
-  log "=== E1 (BREAK_DAY2_REMOVE=1). keep the aws_iam_role_policy.flow_logs block; no destroy may be proposed ==="
+  log "=== E1 (BREAK_DAY2_REMOVE=1). keep the aws_vpc_endpoint.s3 block; no destroy may be proposed ==="
   BREAK_REMOVE_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_RC=$?
   [ "$BREAK_REMOVE_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_OUT" | tail -30; fail "the BREAK_DAY2_REMOVE=1 kept-block plan exited $BREAK_REMOVE_RC"; }
-  grep -qE '^  # .*aws_iam_role_policy\.flow_logs.* will be destroyed' <<< "$BREAK_REMOVE_OUT" \
+  grep -qE '^  # .*aws_vpc_endpoint\.s3.* will be destroyed' <<< "$BREAK_REMOVE_OUT" \
     && { printf '%s\n' "$BREAK_REMOVE_OUT" | grep -E '^  # .+ will be'; fail "BREAK_DAY2_REMOVE=1: a destroy was proposed even though the block is still in the config - this stage's check is not load-bearing"; }
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_OUT" \
     || { grep -E '^  #' <<< "$BREAK_REMOVE_OUT"; fail "BREAK_DAY2_REMOVE=1: the kept-block plan is not empty"; }
   log "  BREAK_DAY2_REMOVE=1: correctly proposes nothing - the block is still declared"
 else
-  log "=== E1. choudoufu: delete the aws_iam_role_policy.flow_logs block ==="
-  remove_iam_role_policy_block "$EST_VPC_MAIN"
+  log "=== E1. choudoufu: delete the aws_vpc_endpoint.s3 block ==="
+  remove_vpc_endpoint_s3_block "$EST_VPC_MAIN"
   REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
   [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
   if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
     printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
-    fail "choudoufu withheld the destroy of aws_iam_role_policy.flow_logs as a possible rename (discovery.go's classifyOrphans) even though no other aws_iam_role_policy block exists anywhere in this config - this is an honest wall, not a pass"
+    fail "choudoufu withheld the destroy of aws_vpc_endpoint.s3 as a possible rename (discovery.go's classifyOrphans) even though no other aws_vpc_endpoint.s3 block exists anywhere in this config - this is an honest wall, not a pass"
   fi
-  grep -qE '^  # module\.vpc\.aws_iam_role_policy\.flow_logs\["main"\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
-    || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.vpc.aws_iam_role_policy.flow_logs[\"main\"] when its block is deleted"; }
+  grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+    || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.vpc.aws_vpc_endpoint.s3[\"main\"] when its block is deleted"; }
   grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
     || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
-  log "  choudoufu: exactly one destroy (module.vpc.aws_iam_role_policy.flow_logs[\"main\"]), nothing else"
+  log "  choudoufu: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]), nothing else"
 
   REMOVE_APPLY_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
   [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
   grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
     || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
 
-  ROLE_ARN_E_AFTER="$(awsl iam get-role --role-name "$ROLE_NAME_E" --query 'Role.Arn' --output text 2>/dev/null || true)"
-  [ -n "$ROLE_ARN_E_AFTER" ] && [ "$ROLE_ARN_E_AFTER" != "None" ] || fail "the flow-logs role itself is gone after day2_remove - only its inline policy should have been destroyed"
-  HAS_POLICY_AFTER="$(awsl iam list-role-policies --role-name "$ROLE_NAME_E" --query "length(PolicyNames[?@=='$POLICY_NAME_E'])" --output text 2>/dev/null || echo 0)"
-  [ "$HAS_POLICY_AFTER" = "0" ] || fail "the inline policy $POLICY_NAME_E is still attached to $ROLE_NAME_E after the destroy ($HAS_POLICY_AFTER found) - it was orphaned, not destroyed"
-  log "  role $ROLE_NAME_E unchanged; its inline policy $POLICY_NAME_E is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+  # A destroyed VPC endpoint is confirmed by STATE/COUNT, not by exit code:
+  # real AWS (and, this crossing has now confirmed, floci too) keeps a
+  # deleted endpoint's record around in describe-vpc-endpoints for a while,
+  # State=deleted rather than the id disappearing outright - so "found with
+  # State=deleted" and "not found at all" are both a genuine destroy, and
+  # "found with any other State" is not.
+  VPCE_STATE_AFTER="$(awsl ec2 describe-vpc-endpoints --vpc-endpoint-ids "$VPCE_ID_E" --query 'VpcEndpoints[0].State' --output text 2>/dev/null || echo "gone")"
+  case "$VPCE_STATE_AFTER" in
+    gone|None|deleted|deleting) : ;;
+    *) fail "the S3 gateway endpoint $VPCE_ID_E is still State=$VPCE_STATE_AFTER after the destroy - it was orphaned, not destroyed" ;;
+  esac
+  log "  $VPCE_ID_E is gone (State=$VPCE_STATE_AFTER) - confirmed via the AWS CLI, not through choudoufu's own report"
 
   log "=== E2. stock oracle: the same block removed from cold_deploy's own state ==="
   PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
   cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
-  remove_iam_role_policy_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
+  remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
   ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
   REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
   [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
   grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
     || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan does not propose exactly one destroy for the same object"; }
-  grep -qE '^  # module\.vpc\.aws_iam_role_policy\.flow_logs\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  grep -qE '^  # module\.vpc\.aws_vpc_endpoint\.s3\["main"\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
     || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's remove plan does not target the same object"; }
   log "  stock oracle on cold_deploy's own state: also exactly one destroy for the same object"
 
@@ -1234,7 +1255,7 @@ else
     || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
   log "  No changes. The removal is complete and invisible to the next plan."
 
-  gauntlet_stage day2_remove pass "choudoufu: deleting aws_iam_role_policy.flow_logs's block (untaggable, its parent role stays) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the policy is genuinely gone from the live role (iam list-role-policies on the role no longer lists it, read via the AWS CLI, not choudoufu's own report) while the role itself is untouched, and the next plan is empty; stock oracle on cold_deploy's own state also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_iam_role_policy block is declared anywhere in this config"
+  gauntlet_stage day2_remove pass "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config"
 fi
 CURRENT_STAGE=""
 gauntlet_end
