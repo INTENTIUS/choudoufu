@@ -151,12 +151,26 @@ FLOCI_NAME="choudoufu-corpus-dynamodb-table-basic-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# PART GREENFIELD (live/GAUNTLET.md #13) runs two MORE floci containers,
+# each its own fresh namespace: one choudoufu applies directly with a live
+# block, one stock terraform applies the identical (delta-1'd) config. Both
+# offsets are +400/+800 from FLOCI_PORT so no combination of this script's
+# own three ports, run twice at once with two different FLOCI_PORT values
+# spaced 1 apart (as the batch runner does), can collide.
+FLOCI_GREEN_PORT="${FLOCI_GREEN_PORT:-$((FLOCI_PORT + 400))}"
+FLOCI_GREEN_ORACLE_PORT="${FLOCI_GREEN_ORACLE_PORT:-$((FLOCI_PORT + 800))}"
+FLOCI_GREEN_NAME="choudoufu-corpus-dynamodb-table-basic-green-$$"
+FLOCI_GREEN_ORACLE_NAME="choudoufu-corpus-dynamodb-table-basic-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+GREEN_ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_ORACLE_PORT}"
+GREEN_ESTATE="dynamodb-table-basic-greenfield"
+
 ESTATE="dynamodb-table-basic-crossing"
 REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 # 2026-08-21 fix: the header documents DEBUG_KEEP but the trap never
@@ -281,6 +295,149 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches the objects STAGE 1's plain terraform apply
+# created (those get migrated in STAGE 2, below). choudoufu applies the
+# reduced example directly, with a live block from the start, no migration,
+# no state file ever existing; the record store must hold one record per
+# instance (random_pet, the table, the resource policy - #364 A2, apply
+# writes a record too, not just live-import); and the estate's own oracle is
+# stock applying the SAME config fresh in a THIRD, independent namespace,
+# compared structurally via the AWS CLI on both endpoints, never through
+# tofu state. Unlike STAGE 2's migrate path below, this never needs the
+# #314 random_pet DELTA: random_pet.this is applied by the SAME run, before
+# the table, so its id is a real, already-known value by the time the
+# table's `name` argument is evaluated - the wall #314 names is specific to
+# live-import resolving an identity argument through a state-derived record,
+# a path a from-nothing apply never takes.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_GREEN_ORACLE_PORT}:4566" --name "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$GREEN_ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"dynamodb"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"dynamodb"' <<< "${GH:-}" || fail "floci did not come up healthy (dynamodb) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$GREEN_ORACLE_ENDPOINT"
+
+# Fresh copies of the WHOLE module tree, preserving the "../.." relative
+# source path examples/basic expects, one per namespace.
+mkdir -p "$WORK/green" "$WORK/green-oracle"
+cp "$SRC_ROOT/main.tf" "$SRC_ROOT/variables.tf" "$SRC_ROOT/outputs.tf" "$SRC_ROOT/versions.tf" "$SRC_ROOT/autoscaling.tf" "$WORK/green/"
+cp -R "$SRC_EXAMPLE" "$WORK/green/examples/basic"
+rm -rf "$WORK/green/examples/basic/.terraform" "$WORK/green/examples/basic/.terraform.lock.hcl"
+cp -R "$WORK/green/." "$WORK/green-oracle/"
+GF_GREEN="$WORK/green/examples/basic"
+GF_ORACLE="$WORK/green-oracle/examples/basic"
+
+for d in "$GF_GREEN" "$GF_ORACLE"; do
+  perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$d/main.tf"
+  grep -q 's3_use_path_style' "$d/main.tf" || fail "the emulator delta did not match main.tf in $d - the corpus pin has moved"
+  perl -pi -e 's/version = ">= 6\.28"/version = "= 6.59.0"/' "$d/versions.tf"
+  grep -q 'version = "= 6.59.0"' "$d/versions.tf" || fail "the provider version pin delta did not match versions.tf in $d - the corpus pin has moved"
+done
+perl -0777pi -e 's/\}\n\z/\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}\n/' "$GF_GREEN/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GF_GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+log "  DELTA  emulator flags + provider pin on both namespaces; live block added on the greenfield side only"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GF_GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GF_GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GF_GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 3 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 3 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_TABLE_ARN="$(awsg dynamodb list-tables --query 'TableNames[0]' --output text)"
+[ -n "$GREEN_TABLE_ARN" ] && [ "$GREEN_TABLE_ARN" != "None" ] || fail "no table found in the greenfield namespace"
+GREEN_TABLE_NAME="$GREEN_TABLE_ARN"
+GREEN_TABLE_ARN="$(awsg dynamodb describe-table --table-name "$GREEN_TABLE_NAME" --query 'Table.TableArn' --output text)"
+GREEN_TABLE_ADDR="$(awsg dynamodb list-tags-of-resource --resource-arn "$GREEN_TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_TABLE_ADDR" = "module.dynamodb_table.aws_dynamodb_table.this:0" ] \
+  || fail "the greenfield table carries tofu-address=$GREEN_TABLE_ADDR, not module.dynamodb_table.aws_dynamodb_table.this:0"
+GREEN_TABLE_EST="$(awsg dynamodb list-tags-of-resource --resource-arn "$GREEN_TABLE_ARN" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_TABLE_EST" = "$GREEN_ESTATE" ] || fail "the greenfield table carries tofu-estate=$GREEN_TABLE_EST, not $GREEN_ESTATE"
+log "  table $GREEN_TABLE_ARN carries tofu-address=$GREEN_TABLE_ADDR tofu-estate=$GREEN_TABLE_EST - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds every instance, including the two untaggable/record-backed types (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GF_GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "3" ] || fail "expected 3 records under the local record store after the greenfield apply (random_pet, the table, the resource policy), found $GREEN_RECORD_FILES"
+log "  3 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GF_GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical (delta-1'd) config applied fresh in its own namespace ==="
+( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 3 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+table_shape() { # $1=endpoint $2=table-name - normalised structural facts,
+                 # read via the AWS CLI, never through tofu state.
+  aws --endpoint-url "$1" --region "$REGION" dynamodb describe-table --table-name "$2" --output json 2>/dev/null \
+  | jq -S '.Table as $t | {
+      KeySchema: ($t.KeySchema | sort_by(.AttributeName)),
+      Attributes: ($t.AttributeDefinitions | sort_by(.AttributeName)),
+      TableClass: ($t.TableClassSummary.TableClass // "STANDARD"),
+      DeletionProtection: $t.DeletionProtectionEnabled,
+      OnDemand: ($t | has("OnDemandThroughput")),
+      GSIs: ([$t.GlobalSecondaryIndexes[]? | {
+        Name: .IndexName,
+        Keys: (.KeySchema | sort_by(.AttributeName)),
+        Projection: .Projection
+      }] | sort_by(.Name))
+    }'
+}
+
+log "=== PART GREENFIELD: 6. structural comparison, via the AWS CLI on both endpoints, tags/name normalised out ==="
+ORACLE_TABLE_NAME="$(aws --endpoint-url "$GREEN_ORACLE_ENDPOINT" --region "$REGION" dynamodb list-tables --query 'TableNames[0]' --output text)"
+[ -n "$ORACLE_TABLE_NAME" ] && [ "$ORACLE_TABLE_NAME" != "None" ] || fail "no table found in the greenfield oracle namespace"
+G_SHAPE="$(table_shape "$GREEN_ENDPOINT" "$GREEN_TABLE_NAME")"
+O_SHAPE="$(table_shape "$GREEN_ORACLE_ENDPOINT" "$ORACLE_TABLE_NAME")"
+if [ "${BREAK_GREEN:-}" = "1" ]; then
+  G_SHAPE="$(table_shape "$GREEN_ENDPOINT" "$GREEN_TABLE_NAME" | jq 'del(.GSIs)')"
+  log "  BREAK_GREEN=1: dropped the GSI from the greenfield table's expected shape - the comparison below must fail"
+fi
+[ "$G_SHAPE" = "$O_SHAPE" ] || { diff <(printf '%s\n' "$G_SHAPE") <(printf '%s\n' "$O_SHAPE") || true; \
+  if [ "${BREAK_GREEN:-}" = "1" ]; then log "  BREAK_GREEN=1: correctly mismatched with the GSI dropped from the expected shape"; else fail "the greenfield table differs structurally from the stock oracle's table"; fi; }
+if [ "${BREAK_GREEN:-}" = "1" ]; then
+  [ "$G_SHAPE" != "$O_SHAPE" ] || fail "BREAK_GREEN=1: dropping the GSI from the expected shape should have made the comparison fail, but it still matched - this stage's check is not load-bearing"
+else
+  log "  key schema, attributes, table class, deletion protection, on-demand billing and GSI (name/keys/projection) all match between the greenfield table and the stock oracle's table"
+  GREEN_POLICY="$(awsg dynamodb get-resource-policy --resource-arn "$GREEN_TABLE_ARN" --query Policy --output text 2>/dev/null | jq -S 'del(.Statement[].Resource)')"
+  ORACLE_TABLE_ARN="$(aws --endpoint-url "$GREEN_ORACLE_ENDPOINT" --region "$REGION" dynamodb describe-table --table-name "$ORACLE_TABLE_NAME" --query 'Table.TableArn' --output text)"
+  ORACLE_POLICY="$(aws --endpoint-url "$GREEN_ORACLE_ENDPOINT" --region "$REGION" dynamodb get-resource-policy --resource-arn "$ORACLE_TABLE_ARN" --query Policy --output text 2>/dev/null | jq -S 'del(.Statement[].Resource)')"
+  [ "$GREEN_POLICY" = "$ORACLE_POLICY" ] || { diff <(printf '%s\n' "$GREEN_POLICY") <(printf '%s\n' "$ORACLE_POLICY") || true; fail "the greenfield table's resource policy differs from the stock oracle's, with the table-ARN-specific Resource field normalised out"; }
+  log "  resource policy matches too (Sid/Effect/Principal/Action), the templated Resource field normalised out on both sides"
+  gauntlet_stage greenfield pass "3 resources from nothing (random_pet + table + resource policy), the table's markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on key schema/attributes/table class/deletion protection/on-demand billing/GSI/resource policy"
+fi
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -322,6 +479,37 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - the module move reports only its move, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7, active): "Stock with the
+# same block removed plans the same destroys." A SEPARATE copy of
+# cold_deploy's own state, so this destroy has nothing to do with the
+# rename this script also exercises (module.dynamodb_table, its ORIGINAL
+# name - not the renamed one the real day2_remove check below uses, since
+# this copy is never touched by Part D at all). outputs.tf references only
+# module.dynamodb_table's own outputs, so removing its block leaves nothing
+# for outputs.tf to reference - emptied outright rather than edited output
+# by output.
+CURRENT_STAGE=day2_remove
+log "=== D-REMOVE-ORACLE. stock: delete module.dynamodb_table's block on cold_deploy's own state ==="
+REMOVE_ORACLE_ROOT="$WORK/oracle-remove"
+cp -r "$EST" "$REMOVE_ORACLE_ROOT"
+REMOVE_ORACLE="$REMOVE_ORACLE_ROOT/examples/basic"
+rm -rf "$REMOVE_ORACLE/.terraform" "$REMOVE_ORACLE/.terraform.lock.hcl"
+perl -0777pi -e 's/module "dynamodb_table" \{.*?\n\}\n\n\n//s' "$REMOVE_ORACLE/main.tf"
+grep -q 'module "dynamodb_table"' "$REMOVE_ORACLE/main.tf" && fail "removing module.dynamodb_table's block from the day2_remove oracle copy did not match - the corpus example has moved"
+: > "$REMOVE_ORACLE/outputs.tf"
+( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying module.dynamodb_table's table when its block is removed"; }
+grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying module.dynamodb_table's resource policy when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys"; }
+log "  stock: exactly two destroys (the table and its resource policy), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
@@ -610,6 +798,87 @@ EOF
     log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed state: module.dynamodb_table_final
+    # (originally module.dynamodb_table) is bound and converged - the only
+    # real module in this estate other than module.disabled_dynamodb_table,
+    # whose create_table=false leaves it with ZERO declared instances of
+    # aws_dynamodb_table.this, so it can never be a same-blockKey ambiguity
+    # for discovery.go's classifyOrphans (there is no unclaimed declared
+    # instance of that key anywhere in the estate to withhold against, unlike
+    # corpus-iam-policy's stronger case). Removing module.dynamodb_table_
+    # final's block destroys BOTH of its resources - the table AND its
+    # resource policy, an untaggable child of the table - together, in
+    # whatever order the dependency graph requires (the policy depends on
+    # the table's ARN, so it is destroyed first); outputs.tf references only
+    # this module's own outputs, so it is emptied rather than edited output
+    # by output, the same as the D-REMOVE-ORACLE copy above.
+    CURRENT_STAGE=day2_remove
+    log "=== E0. capture the live table this removal destroys ==="
+    E_ARN_BEFORE="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
+    [ "$E_ARN_BEFORE" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
+      || fail "$TABLE_ARN does not carry tofu-address=module.dynamodb_table_final.aws_dynamodb_table.this:0 before day2_remove even starts (got $E_ARN_BEFORE)"
+
+    if [ "${BREAK_REMOVE:-}" = "1" ]; then
+      log "=== E1 (BREAK_REMOVE=1). keep module.dynamodb_table_final's block; no destroy may be proposed ==="
+      BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+      [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+      grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a resource action was proposed with the block still in the config - this stage's check is not load-bearing"; }
+      log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+    else
+      log "=== E1. choudoufu: delete module.dynamodb_table_final's block ==="
+      perl -0777pi -e 's/module "dynamodb_table_final" \{.*?\n\}\n\n\n//s' "$EX/main.tf"
+      grep -q 'module "dynamodb_table_final"' "$EX/main.tf" \
+        && fail "removing module.dynamodb_table_final's block did not match - the config has moved"
+      : > "$EX/outputs.tf"
+      ( cd "$EX" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+        ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+      REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+      [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+      if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+        printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+        fail "choudoufu withheld a destroy of module.dynamodb_table_final's resources as a possible rename (discovery.go's classifyOrphans) even though module.disabled_dynamodb_table declares zero instances of the same block key - this is the honest wall issue #358 names, not a pass"
+      fi
+      grep -qE '^  # module\.dynamodb_table_final\.aws_dynamodb_table\.this\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.dynamodb_table_final's table when its block is deleted"; }
+      grep -qE '^  # module\.dynamodb_table_final\.aws_dynamodb_resource_policy\.this\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.dynamodb_table_final's resource policy when its block is deleted"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
+      log "  choudoufu: exactly two destroys (the table and its resource policy), nothing else"
+
+      REMOVE_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+      [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys"; }
+
+      # DynamoDB, like IAM (checked directly while building corpus-iam-
+      # policy's own Part E) and unlike EC2's describe-internet-gateways,
+      # answers describe-table for a deleted table with a real
+      # ResourceNotFoundException and a non-zero exit - confirmed the same
+      # way, a standalone create/delete/describe-table sequence against
+      # floci with no tofu in the loop at all - so "the AWS CLI call
+      # succeeded" is the right test here.
+      if E_STILL="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" 2>&1)"; then
+        echo "$E_STILL"; fail "$TABLE_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+      fi
+      log "  $TABLE_NAME no longer exists (ResourceNotFoundException) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+      log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+      E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+      [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+      grep -qE '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+      log "  No changes. The removal is complete and invisible to the next plan."
+
+      gauntlet_stage day2_remove pass "choudoufu: deleting module.dynamodb_table_final's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the table and its untaggable resource policy), applied cleanly (0 added, 0 changed, 2 destroyed), the table is genuinely gone from the live account (dynamodb describe-table on the old name now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly two destroys for the same two objects; classifyOrphans did not withhold either destroy because module.disabled_dynamodb_table declares zero instances of the same block key (create_table=false), so nothing is ever pending against it"
+    fi
+    CURRENT_STAGE=""
   fi
   CURRENT_STAGE=""
 
