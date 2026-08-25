@@ -413,11 +413,21 @@ for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
 done
 log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
 
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
 GREEN_LIVE_BLOCK='
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }'
 copy_module "$GREEN"
@@ -875,8 +885,36 @@ EOF
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  # REGRESSION found re-verifying this estate after 610511fb73 (the
+  # record-orphan-read sweep, internal/live/discovery/recordorphan_read.go,
+  # #405's day2_remove fix): this leg used to be zero churn (0 add, 2
+  # change, 0 destroy - the tagged role and policy alone) and now proposes
+  # destroying the four untaggable, composed-of-arguments children under
+  # the OLD module.crossplane address (aws_iam_role_policies_exclusive,
+  # aws_iam_role_policy["extra-tagging"], aws_iam_role_policy_attachment,
+  # aws_iam_role_policy_attachments_exclusive) while the role and policy
+  # move as "updated in-place" same as before. Root cause, read directly
+  # off recordorphan_read.go with no tofu in the loop: recordOrphanReadSweep
+  # has its own rename-safety check (the `pending` map, built from
+  # res.Unbound) but that check only recognizes "a declared instance of the
+  # SAME address is unclaimed" - it never consults moved.Aliases /
+  # moved.Honoured(req.Config) the way the marker path already does
+  # (discovery.go's declared.alias* methods, threaded through movedStmts).
+  # So the moment this moved block relocates module.crossplane's children,
+  # the record-orphan-read leg reads their OLD-address kind=identity
+  # records as genuinely undeclared and proposes destroying them, even
+  # though the SAME instances stay declared one module level over and a
+  # `moved` block explicitly says so - the exact HANDOFF row 2 shape ("the
+  # plans differ"), but introduced BY the row-2 fix for day2_remove rather
+  # than fixed by it. live-mv does not hit this (RecordStore.MoveRecord
+  # re-keys the record store directly, 8bd0d47e4e), only a bare HCL
+  # `moved` block does. Not fixed here (Go change, out of scope for this
+  # script-only re-verification unit) - named precisely so day2_remove's
+  # own post-fix status for THIS estate cannot be independently
+  # re-measured until this earlier stage is fixed, since fail() below
+  # exits before Part D2 (live-mv) or Part E (day2_remove) ever run.
   grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now proposes destroying the four untaggable *_exclusive/role_policy/role_policy_attachment children under the OLD module.crossplane address instead of zero churn - a regression from 610511fb73's record-orphan-read sweep, which has no moved-block awareness (see the comment immediately above this assertion for the exact code-level root cause); day2_remove's own post-fix status for this estate could not be re-measured this run because of it"; }
   N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
   [ "$N_CHANGED_D1" = "2" ] \
     || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename plan proposes $N_CHANGED_D1 in-place changes, not 2 (the role and the managed policy)"; }

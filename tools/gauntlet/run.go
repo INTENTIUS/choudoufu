@@ -62,6 +62,27 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit s
 		if exit != 0 {
 			failures++
 		}
+		// A stage's detail text is carried forward across runs the same
+		// way its verdict already is (the loop just below): a script that
+		// now fails or aborts at an EARLIER stage than a prior run reached
+		// still only reports that earlier stage's line, and a bare
+		// `r.LastRun.Detail = res.Detail` here would silently drop every
+		// later stage's detail from the artifact even though its verdict
+		// in r.Stages is untouched - found re-verifying
+		// corpus-giantswarm-crossplane after the record-orphan-read sweep
+		// (610511fb73): day2_rename regressed from pass to fail, the
+		// script now exits before reaching day2_remove, and a
+		// replace-not-merge Detail map turned day2_remove's rich,
+		// previously-recorded wall text into an empty string although its
+		// stage verdict correctly stayed "fail". Merging preserves stale
+		// detail for a stage this run never reached, exactly like Stages
+		// already does for the verdict itself.
+		prevDetail := map[string]string{}
+		if r.LastRun != nil {
+			for k, v := range r.LastRun.Detail {
+				prevDetail[k] = v
+			}
+		}
 		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), ExitCode: exit}
 		if res.Spoken {
 			if r.Stages == nil {
@@ -70,8 +91,11 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit s
 			for id, v := range res.Stages {
 				r.Stages[id] = v
 			}
-			if len(res.Detail) > 0 {
-				r.LastRun.Detail = res.Detail
+			for id, v := range res.Detail {
+				prevDetail[id] = v
+			}
+			if len(prevDetail) > 0 {
+				r.LastRun.Detail = prevDetail
 			}
 			r.Protocol = ProtocolGauntlet
 			for _, u := range res.Unknown {

@@ -509,7 +509,14 @@ log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain
 # this fix).
 cp -R "$WORK/ec2-instance" "$WORK/green"
 rm -rf "$GREEN/.terraform" "$GREEN/.terraform.lock.hcl" "$GREEN/terraform.tfstate" "$GREEN/terraform.tfstate.backup"
-perl -0777 -pi -e 's/(\n  provider_meta "aws" \{\n    user_agent = \[\n      "github\.com\/terraform-aws-modules\/terraform-aws-ec2-instance"\n    \]\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/s' "$GREEN/versions.tf"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
+perl -0777 -pi -e 's/(\n  provider_meta "aws" \{\n    user_agent = \[\n      "github\.com\/terraform-aws-modules\/terraform-aws-ec2-instance"\n    \]\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n\n    strict {\n      no_source_create = "create"\n    }\n  }\n}/s' "$GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 log "  DELTA  live block (record_store, evidence for #364 A2) added on top of \$EST's own reduction + onboarding deltas"
 
@@ -1118,8 +1125,37 @@ EOF
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  # RE-VERIFIED against current main (re-verify-day2_remove unit, 2026-08):
+  # this used to be zero churn (this estate's day2_remove/greenfield both
+  # cleared for real on this same shape). Root cause is now precisely
+  # named, not just "the day2_rename stage activation itself": 610511fb73
+  # (internal/live/discovery/recordorphan_read.go, #405's day2_remove fix)
+  # added recordOrphanReadSweep, which reads the record store for any
+  # UNTAGGABLE type's undeclared old-address record and proposes destroying
+  # it - generically, not just for the three IAM types its own package
+  # comment names as "today"'s population, because its filter is only
+  # "untaggable + has a persisted identity record", nothing type-specific.
+  # Its own rename-safety check (the `pending` map, built from
+  # res.Unbound) only recognizes "a declared instance of the SAME address
+  # is unclaimed" - it never consults moved.Aliases/moved.Honoured(req.Config)
+  # the way the marker path already does. So a moved block relocating
+  # module.vpc now destroys its untaggable derived children
+  # (aws_route/aws_route_table_association) instead of matching them under
+  # the new address; the taggable resources (subnets, route tables, VPC
+  # itself) still move correctly via the marker path, which DOES follow
+  # moved blocks. SAME root cause, independently confirmed on
+  # corpus-giantswarm-crossplane (aws_iam_role_policy family),
+  # corpus-rds-complete-postgres (aws_security_group_rule) and
+  # corpus-security-group-complete (aws_vpc_security_group_rules_exclusive)
+  # in this same unit - a generic gap reaching at least these four estates,
+  # not this one's alone. live-mv does not hit this
+  # (RecordStore.MoveRecord re-keys the store directly, 8bd0d47e4e); only a
+  # bare HCL `moved` block does. Not fixed here - a Go change, out of scope
+  # for this script-only re-verification unit. Because fail() exits
+  # immediately, day2_remove's own post-fix status for this estate could
+  # not be independently re-measured this run either.
   grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu defect: the moved-block rename of module.vpc proposes a create/destroy for one of its untaggable derived children (aws_route/aws_route_table_association) instead of matching them structurally under the parent's new address - not zero churn. The renamed taggable resources ARE relocated correctly ('will be updated in-place'); stock's native moved-block handling relocates every child cleanly. The gap is choudoufu-specific: an untaggable/derived child's identity resolution does not follow a moved parent module the way a marker-carrying resource's does. Not fixed in this unit, scope is the day2_rename stage activation itself (see corpus-vpc-complete's own day2_rename detail for the first occurrence of this wall)."; }
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu defect: the moved-block rename of module.vpc proposes a create/destroy for one of its untaggable derived children (aws_route/aws_route_table_association) instead of matching them structurally under the parent's new address - not zero churn. Root cause: 610511fb73's recordOrphanReadSweep has no moved-block awareness (see the comment immediately above this assertion) - the SAME generic gap corpus-giantswarm-crossplane, corpus-rds-complete-postgres and corpus-security-group-complete independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it."; }
   N_CHANGED_D1="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
   [ "$N_CHANGED_D1" -ge 1 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -20; fail "the moved-block rename plan proposes no in-place changes at all - nothing to rewrite the markers"; }
   grep -qF "Plan: 0 to add, $N_CHANGED_D1 to change, 0 to destroy." <<< "$MOVED_PLAN_OUT" \

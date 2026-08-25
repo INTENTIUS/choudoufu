@@ -737,7 +737,14 @@ grep -q 'DELTA 1' "$GREEN_EST/main.tf" || fail "the greenfield DELTA 1 did not m
 perl -0pi -e 's/\n  vpc_associations = \{\n    secondary = \{\n      vpc_id = module\.vpc_secondary\.vpc_id\n    \}\n  \}\n\n/\n  # DELTA 2 (EMULATOR GAP, lex00\/floci#57): cross-VPC association removed.\n\n/' "$GREEN_EST/main.tf"
 grep -q '^  vpc_associations = {' "$GREEN_EST/main.tf" && fail "the greenfield DELTA 2 left a vpc_associations block behind"
 perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$GREEN_EST/versions.tf"
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n  }\n}/" "$GREEN_EST/versions.tf"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 log "  DELTA 1+2+3 applied to a fresh copy: emulator flags, vpc_associations removed, live block (estate=$GREEN_ESTATE)"
 
@@ -1533,8 +1540,35 @@ EOF
       ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    # RE-VERIFIED against current main (re-verify-day2_remove unit,
+    # 2026-08): this used to be zero churn. Root cause is now precisely
+    # named: 610511fb73 (internal/live/discovery/recordorphan_read.go,
+    # #405's day2_remove fix) added recordOrphanReadSweep, which reads the
+    # record store for any UNTAGGABLE type's undeclared old-address record
+    # and proposes destroying it - generically, since its filter is
+    # "untaggable + has a persisted identity record", not tied to any
+    # specific type. Its own rename-safety check (the `pending` map, built
+    # from res.Unbound) only recognizes "a declared instance of the SAME
+    # address is unclaimed" - it never consults
+    # moved.Aliases/moved.Honoured(req.Config) the way the marker path
+    # already does. So this moved block, relocating module.postgresql, now
+    # destroys module.postgresql.module.security_group.
+    # aws_vpc_security_group_rules_exclusive.this[0] under the OLD address
+    # instead of matching it under the new one; the tagged security group
+    # and its rules still move correctly via the marker path, which DOES
+    # follow moved blocks. SAME root cause, independently confirmed on
+    # corpus-giantswarm-crossplane (aws_iam_role_policy family),
+    # corpus-ec2-instance-complete (aws_route/aws_route_table_association)
+    # and corpus-rds-complete-postgres (aws_security_group_rule) in this
+    # same unit - a generic gap reaching at least these four estates.
+    # live-mv does not hit this (RecordStore.MoveRecord re-keys the store
+    # directly, 8bd0d47e4e); only a bare HCL `moved` block does. Not fixed
+    # here - a Go change, out of scope for this script-only
+    # re-verification unit. Because fail() exits immediately, day2_remove's
+    # own post-fix status for this estate could not be independently
+    # re-measured this run.
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now proposes destroying module.postgresql.module.security_group.aws_vpc_security_group_rules_exclusive.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete and corpus-rds-complete-postgres independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it."; }
     N_MOVED_CHANGED="$(grep -cE '^  # .+ will be updated in-place' <<< "$MOVED_PLAN_OUT" || true)"
     [ "$N_MOVED_CHANGED" -ge 1 ] \
       || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan proposes no in-place update at all - the marker rewrite the moved block should complete is missing"; }

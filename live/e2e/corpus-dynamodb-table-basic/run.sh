@@ -604,8 +604,33 @@ EOF
       ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    # RE-VERIFIED against current main (re-verify-day2_remove unit,
+    # 2026-08): this used to be zero churn. Root cause is now precisely
+    # named: 610511fb73 (internal/live/discovery/recordorphan_read.go,
+    # #405's day2_remove fix) added recordOrphanReadSweep, which reads the
+    # record store for any UNTAGGABLE type's undeclared old-address record
+    # and proposes destroying it - generically, since its filter is
+    # "untaggable + has a persisted identity record", not tied to any
+    # specific type. Its own rename-safety check (the `pending` map, built
+    # from res.Unbound) only recognizes "a declared instance of the SAME
+    # address is unclaimed" - it never consults
+    # moved.Aliases/moved.Honoured(req.Config) the way the marker path
+    # already does. So this moved block, relocating module.dynamodb_table,
+    # now destroys module.dynamodb_table.aws_dynamodb_resource_policy.this[0]
+    # under the OLD address instead of matching it under the new one; the
+    # tagged table itself still moves correctly via the marker path, which
+    # DOES follow moved blocks. SAME root cause, independently confirmed on
+    # corpus-giantswarm-crossplane, corpus-ec2-instance-complete,
+    # corpus-rds-complete-postgres and corpus-security-group-complete in
+    # this same unit - a generic gap now reaching at least five estates.
+    # live-mv does not hit this (RecordStore.MoveRecord re-keys the store
+    # directly, 8bd0d47e4e); only a bare HCL `moved` block does. Not fixed
+    # here - a Go change, out of scope for this script-only
+    # re-verification unit. Because fail() exits immediately, day2_remove's
+    # own post-fix status for this estate could not be independently
+    # re-measured this run.
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now destroys module.dynamodb_table.aws_dynamodb_resource_policy.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres and corpus-security-group-complete independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it."; }
     grep -qE '^  # module\.dynamodb_table_moved\.aws_dynamodb_table\.this\[0\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
       || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.dynamodb_table_moved.aws_dynamodb_table.this[0]"; }
     grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \

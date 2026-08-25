@@ -44,13 +44,13 @@ answer is and how each check is proven non-vacuous, is
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL FAIL |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL FAIL |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass FAIL pass pass pass FAIL pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass FAIL |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass FAIL FAIL pass |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
@@ -58,10 +58,10 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL pass |
-| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
-| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
-| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | no | pass pass pass pass pass FAIL FAIL pass |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL pass |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL pass |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL FAIL pass |
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL FAIL |
