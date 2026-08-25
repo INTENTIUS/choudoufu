@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
+  "commit": "9c6de78732305d68858dfb23ecb1b29819dae6d3",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:43:12Z",
+  "generated": "2026-08-25T23:46:37Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -585,8 +585,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
-        "date": "2026-08-25T18:34:37Z",
+        "commit": "9c6de78732305d68858dfb23ecb1b29819dae6d3",
+        "date": "2026-08-25T23:48:34Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "10 resources added (1 vpc, 3 subnets, 1 igw, 1 route table, 3 associations, 1 dynamodb table); confirmed unmarked",
