@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "ce67940b86feae0343df28f09360742eeae319a6",
-  "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-25T01:14:28Z",
+  "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
+  "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
+  "generated": "2026-08-25T01:19:31Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1070,8 +1070,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "ce67940b86feae0343df28f09360742eeae319a6",
-        "date": "2026-08-25T01:17:41Z",
+        "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
+        "date": "2026-08-25T01:23:10Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
