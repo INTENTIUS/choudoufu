@@ -93,7 +93,7 @@ func TestClassifyOrphans_countedModuleStepKeepsItsIndex(t *testing.T) {
 	}
 
 	req := Request{Estate: "counted-orphan", Config: cfg}
-	if d := classifyOrphans(req, result); d.HasErrors() {
+	if d := classifyOrphans(context.Background(), req, result); d.HasErrors() {
 		t.Fatalf("classifyOrphans reported errors for an ordinary deleted-block orphan: %s", d.Err())
 	}
 

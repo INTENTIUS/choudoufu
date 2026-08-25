@@ -204,6 +204,27 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		// stage's own Break control (live/GAUNTLET.md #6) went silent
 		// instead of failing loud.
 		"policy": single("AWS::IAM::Policy"),
+		// An instance profile's ARN resource-type segment is
+		// "instance-profile" (arn:aws:iam::ACCOUNT:instance-profile/NAME),
+		// unambiguous the same way "policy" above is - IAM has no second
+		// CFN type sharing that segment. live/mapping.json's own row for
+		// aws_iam_instance_profile names its CFN type
+		// "AWS::IAM::InstanceProfile" (via "name"), with no alias to pick
+		// between the way aws_iam_policy has.
+		//
+		// Found building [gauntlet:corpus-ec2-instance-complete/day2_remove]:
+		// removing module.ec2_complete's block left its instance profile -
+		// a taggable, migrate-stamped type, confirmed carrying its
+		// tofu-address marker via both DescribeTags and the Resource
+		// Groups Tagging API directly, no tofu in the loop - entirely
+		// unswept ([NO_ARN_JOIN]), the exact "type admitted by the
+		// provider's identity schema rather than joined here" shape this
+		// file's doc comment already names for aws_dynamodb_resource_policy
+		// and aws_autoscaling_group. The resource was never invisible to
+		// identity resolution or to migrate/apply - only to the
+		// estate-wide REMOVAL sweep, which walks ARNs rather than declared
+		// blocks.
+		"instance-profile": single("AWS::IAM::InstanceProfile"),
 	},
 	"s3":  {"": single("AWS::S3::Bucket")},
 	"sns": {"": single("AWS::SNS::Topic")},

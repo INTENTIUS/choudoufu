@@ -489,7 +489,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	diags = diags.Append(bind(req, decl, res))
-	diags = diags.Append(classifyOrphans(req, res))
+	diags = diags.Append(classifyOrphans(ctx, req, res))
 
 	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
 	// it reads res.Resolutions to find both which parent instances this
@@ -2481,7 +2481,7 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
 // engine's own orphan handling turns into a destroy.
-func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
+func classifyOrphans(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if len(res.Orphans) == 0 {
@@ -2504,6 +2504,44 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		o.Addr, o.Addressable = UnescapeAddress(o.Normalized)
 		if o.Addressable {
 			byAddr[o.Addr.String()] = append(byAddr[o.Addr.String()], i)
+		}
+	}
+
+	// A day2_replace (the default destroy-then-create ordering, not
+	// create_before_destroy - matchDeposedClaimant's own Deposed record is
+	// never written for this case, since state never carries a deposed
+	// object mid-replace when the old one is destroyed first) can leave a
+	// terminated instance's tags visible via the tagging API for a time
+	// after the apply that destroyed it - confirmed against the emulator
+	// directly with no tofu in the loop (aws ec2 describe-tags on the
+	// terminated id) and matching AWS's own documented tag-propagation
+	// delay, not a floci gap. Once the block that owned the address is
+	// then removed, both the stale terminated claimant and the real
+	// current one turn up as orphans of the SAME address, and the tag
+	// sweep alone cannot tell them apart.
+	//
+	// The estate's own record can: rfc/20260823-foundation-order-ruling.md
+	// item 1 makes the record authoritative for "which live object does
+	// this address own right now", written on every apply (day2_replace's
+	// own apply already overwrote this address's record with the new
+	// instance's id - see internal/live/discovery/recordorphan_read.go's
+	// doc comment for the sibling leg this mirrors, sourced from the SAME
+	// store one file over). recordCurrentClaimant is the exact discipline
+	// matchDeposedClaimant already uses for a declared address's
+	// crash-window duplicate, applied here to an undeclared one and
+	// sourced from the current identity record instead of a deposed one:
+	// disambiguate only when EXACTLY one candidate matches, and change
+	// nothing about any other collision shape. Generic by construction -
+	// no resource type name appears in it, and it reaches every orphaned
+	// address a record exists for, not only aws_instance.
+	recordSurvivor := make(map[string]int, len(byAddr))
+	for addrStr, idx := range byAddr {
+		if len(idx) < 2 {
+			continue
+		}
+		addr := res.Orphans[idx[0]].Addr
+		if survivor, ok := recordCurrentClaimant(ctx, req, res, addr, idx); ok {
+			recordSurvivor[addrStr] = survivor
 		}
 	}
 
@@ -2559,10 +2597,19 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 			}))
 			o.Withheld = "the provider served no identity for it, so it cannot be read or destroyed"
 		case len(byAddr[o.Addr.String()]) > 1:
-			diags = diags.Append(problemDiag(res, collisionOrphanProblem(req, res, byAddr[o.Addr.String()])))
-			o.Withheld = fmt.Sprintf(
-				"another live %s carries the same marker, and destroying one of two resources that claim one address would be a guess",
-				o.TypeName)
+			switch survivor, disambiguated := recordSurvivor[o.Addr.String()]; {
+			case disambiguated && i == survivor:
+				o.Removal = true
+			case disambiguated:
+				o.Withheld = fmt.Sprintf(
+					"the estate's own record for %s already names a different live %s as current, so this one is left untouched rather than guessed at (a stale duplicate the tag sweep can still see - for example a just-replaced instance's tags outliving the destroy that removed it - not a second real resource)",
+					o.Addr, o.TypeName)
+			default:
+				diags = diags.Append(problemDiag(res, collisionOrphanProblem(req, res, byAddr[o.Addr.String()])))
+				o.Withheld = fmt.Sprintf(
+					"another live %s carries the same marker, and destroying one of two resources that claim one address would be a guess",
+					o.TypeName)
+			}
 		default:
 			o.Removal = true
 		}
@@ -2644,6 +2691,79 @@ func orphanBlockKey(o *OwnedResource) string {
 	}
 	legacy, _, _ := strings.Cut(o.Normalized, ":")
 	return legacy
+}
+
+// recordCurrentClaimant is [classifyOrphans]'s record-backed
+// disambiguation for an orphaned address two or more live resources claim:
+// it reads addr's CURRENT identity record (never a Deposed one - that is
+// [matchDeposedClaimant]'s sibling leg, for a DECLARED address's
+// create_before_destroy crash window; a destroy-then-create replace never
+// writes a Deposed entry at all, since state never carries the old object
+// once the new one is created) and, when exactly one of idx's orphans
+// matches it, returns that orphan's own index into res.Orphans. Any other
+// outcome - no record, no store, no match, or more than one match - returns
+// ok false, and [collisionOrphanProblem] is the correct, safe default for
+// every one of those, the same discipline matchDeposedClaimant already
+// applies to its own leg.
+func recordCurrentClaimant(ctx context.Context, req Request, res *Result, addr addrs.AbsResourceInstance, idx []int) (survivorIdx int, ok bool) {
+	if req.HintStore == nil {
+		return -1, false
+	}
+	prefix := req.KeyPrefix
+	if prefix == "" {
+		prefix = projection.RecordKeyPrefix(req.Estate)
+	}
+	store := projection.NewRecordEnvelopeStore(req.HintStore, prefix)
+	rec, _, _, identityFound, err := store.GetIdentity(ctx, addr)
+	if err != nil || !identityFound {
+		return -1, false
+	}
+	matches := 0
+	survivorIdx = -1
+	for _, i := range idx {
+		if orphanMatchesRecord(rec, &res.Orphans[i]) {
+			matches++
+			survivorIdx = i
+		}
+	}
+	if matches != 1 {
+		return -1, false
+	}
+	return survivorIdx, true
+}
+
+// orphanMatchesRecord reports whether a live orphan is the object rec
+// names: by import ID for a type identified by one server-minted string, or
+// by every named identity-schema component for a composite type. Mirrors
+// [deposedClaimantMatches] exactly - generic by construction, no resource
+// type name appears in it, only the property (identified by one string, or
+// by several named components) every admitted type already has one of.
+func orphanMatchesRecord(rec projection.LocatedRecord, o *OwnedResource) bool {
+	if rec.ImportID != "" {
+		return rec.ImportID == o.ImportID
+	}
+	if len(rec.Components) == 0 {
+		return false
+	}
+	if o.Identity == cty.NilVal || o.Identity.IsNull() || !o.Identity.IsKnown() || o.Identity.IsMarked() || !o.Identity.Type().IsObjectType() {
+		return false
+	}
+	ty := o.Identity.Type()
+	for name, want := range rec.Components {
+		if !ty.HasAttribute(name) {
+			return false
+		}
+		v := o.Identity.GetAttr(name)
+		// v.IsMarked() before AsString(): cty panics rather than errors on
+		// a marked receiver, and a sensitive input variable is the
+		// ordinary way to produce one. A marked component simply does not
+		// match - refused, never unmarked, the same discipline
+		// [deposedClaimantMatches] applies to its own comparison.
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
+			return false
+		}
+	}
+	return true
 }
 
 // collisionOrphanProblem is the ownership collision of the undeclared: two

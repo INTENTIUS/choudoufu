@@ -111,7 +111,7 @@ func TestClassifyOrphans_renameIsWithheldAtEveryModulePath(t *testing.T) {
 				}},
 			}
 
-			diags := classifyOrphans(Request{Estate: "rename-withhold", Config: nil}, result)
+			diags := classifyOrphans(context.Background(), Request{Estate: "rename-withhold", Config: nil}, result)
 
 			o := result.Orphans[0]
 			if o.Removal {
@@ -164,7 +164,7 @@ func TestClassifyOrphans_anUndecodableMarkerStillReachesTheGuard(t *testing.T) {
 		}},
 	}
 
-	diags := classifyOrphans(Request{Estate: "rename-withhold"}, result)
+	diags := classifyOrphans(context.Background(), Request{Estate: "rename-withhold"}, result)
 
 	if diags.HasErrors() {
 		t.Errorf("a corrupt marker in a block with an unclaimed declared instance raised an error: %s", diags.Err())
@@ -215,7 +215,7 @@ func TestClassifyOrphans_aBlockMovedAcrossModulesStaysWithheld(t *testing.T) {
 				}},
 			}
 
-			if diags := classifyOrphans(Request{Estate: "rename-withhold"}, result); diags.HasErrors() {
+			if diags := classifyOrphans(context.Background(), Request{Estate: "rename-withhold"}, result); diags.HasErrors() {
 				t.Fatalf("classifying a moved-block orphan reported errors: %s", diags.Err())
 			}
 
@@ -257,7 +257,7 @@ func TestClassifyOrphans_deletedBlockInAModuleIsStillARemoval(t *testing.T) {
 				}},
 			}
 
-			if diags := classifyOrphans(Request{Estate: "rename-withhold"}, result); diags.HasErrors() {
+			if diags := classifyOrphans(context.Background(), Request{Estate: "rename-withhold"}, result); diags.HasErrors() {
 				t.Fatalf("classifying a deleted-block orphan reported errors: %s", diags.Err())
 			}
 
