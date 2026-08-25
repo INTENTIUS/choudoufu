@@ -34,11 +34,15 @@ import (
 const EnvPin = "CHOUDOUFU_STRICT_PIN"
 
 // Pinned reports whether the execution environment has pinned the strict
-// profile: EnvPin set to exactly "1", the same grammar
-// internal/command/live_mode.go's CHOUDOUFU_NODE_RESOLVE already uses,
-// rather than "any non-empty value", so a CI environment that exports the
-// variable empty (a common shell idiom for "unset for this job") reads as
-// unset rather than as a typo nobody can see.
+// profile: EnvPin set to exactly "1" - an opt-IN grammar, since Pinned's
+// default (unset) has to stay "not pinned" - rather than "any non-empty
+// value", so a CI environment that exports the variable empty (a common
+// shell idiom for "unset for this job") reads as unset rather than as a
+// typo nobody can see. internal/command/live_mode.go's
+// CHOUDOUFU_NODE_RESOLVE is the opposite shape, an opt-OUT grammar (exactly
+// "0" turns it off, since IT defaults on) - the two switches read their
+// on/off values from opposite defaults, so their grammars are deliberately
+// mirror images, not the same rule.
 func Pinned() bool {
 	return os.Getenv(EnvPin) == "1"
 }

@@ -194,7 +194,23 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 	for i, entry := range cb.entries {
 		switch len(entry.claimants) {
 		case 0:
-			res.Unbound = append(res.Unbound, entry.res.Addr)
+			// A record-backed entry (see [declaredEntry.recordBacked]'s own
+			// doc comment) ALWAYS has zero claimants here, by construction
+			// - it was excluded from the scan, not left unanswered by it -
+			// so it is not genuinely unbound and must not be reported as
+			// one: classifyOrphans's rename guard reads Unbound as "this
+			// block still has an unclaimed declared instance" and withholds
+			// a real removal on a sibling block sharing the same
+			// [blockKey] otherwise (the #388 default-flip's own regression
+			// on corpus-iam-policy's day2_remove stage - two modules'
+			// aws_iam_policy.policy blocks share a blockKey, and the
+			// surviving, record-backed one being misreported Unbound
+			// withheld the destroy for the block actually being removed).
+			// The slot still has to be minted or carried - that half of
+			// this case is unrelated to Unbound and correct either way.
+			if !entry.recordBacked {
+				res.Unbound = append(res.Unbound, entry.res.Addr)
+			}
 			res.Slots = append(res.Slots, SlotAssignment{
 				Addr: entry.res.Addr, Key: entry.escaped,
 				Slot: slots.Slot(i).String(), Origin: SlotMinted,
@@ -312,6 +328,19 @@ func bindCountBySlot(req Request, cb *countBlock, res *Result, bound map[string]
 	}
 
 	for _, d := range match.Deficit {
+		// Same guard as bindCountByAddress's own "case 0" - see
+		// [declaredEntry.recordBacked]'s doc comment. Not known to be
+		// reachable today (a record-backed instance contributes no
+		// claimant, so it never has a slot to make this set anything but
+		// ModeNone/ModeEmpty per bindCountBlock's own dispatch, and a
+		// block's members are never partly record-backed in a normal
+		// migrate - see recordBacked's own doc comment), but the entries
+		// this function reads are not restricted to non-record-backed ones
+		// by construction, so this guards the invariant rather than an
+		// observed path.
+		if cb.entries[d.Index].recordBacked {
+			continue
+		}
 		res.Unbound = append(res.Unbound, cb.entries[d.Index].res.Addr)
 	}
 

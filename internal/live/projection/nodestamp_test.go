@@ -222,6 +222,33 @@ func TestNodeResolver_AdjustConfigValue_recordSelectionSetsNothing(t *testing.T)
 	}
 }
 
+// TestNodeResolver_AdjustConfigValue_noEstateSetsNothing is the flip's own
+// regression, caught by TestLivePlan_stampingNeedsAnEstateName once
+// CHOUDOUFU_NODE_RESOLVE defaulted on (2026-08-25): a resolver with no
+// estate name - the ordinary "-estate not given, no live block names one"
+// shape internal/command/live_plan.go's statelessStamp already degrades
+// gracefully for on the HCL path (its own estate=="" branch: a single
+// "Ownership markers not stamped" warning, config untouched) - must leave
+// the configuration exactly as it found it, not write
+// tags["tofu-estate"] = "" into the plan. An empty ownership tag is not a
+// smaller version of a real one: cty.StringVal("") is a value a later run
+// reads back as "owned by an estate named the empty string," which is
+// worse than no tag at all, the same class of failure HANDOFF's "never
+// write a wrong marker" rule names on the read side.
+func TestNodeResolver_AdjustConfigValue_noEstateSetsNothing(t *testing.T) {
+	addr := locatedTestAddr(t, markersRecordTestType, "main")
+	resolver := &NodeResolver{} // Estate deliberately left as the zero value.
+	config := nodeStampTestConfig(cty.NullVal(cty.Map(cty.String)))
+
+	got, diags := resolver.AdjustConfigValue(context.Background(), addr, config, markersRecordTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if !got.RawEquals(config) {
+		t.Errorf("a no-estate run's configuration was changed:\ngot:  %#v\nwant: %#v", got, config)
+	}
+}
+
 // TestNodeResolver_AdjustConfigValue_recordSelectionOnlyAffectsSelected is
 // claim 2 of markers_record_test.go's own numbering, over this seam: a
 // selection over one type must not widen to a sibling resource of a

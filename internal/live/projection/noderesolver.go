@@ -107,6 +107,33 @@ type NodeResolver struct {
 	// assigns no slots at all - and is read exactly like an absent map
 	// entry: no tofu-slot tag written. See nodestamp.go's own doc comment.
 	Slots map[string]string
+
+	// Unowned names every declared instance [Ownership] (ownership.go)
+	// refused to admit into the pre-walk projection's prior state, keyed
+	// by [addrs.AbsResourceInstance.String] - the same set [Result.Unowned]
+	// reports (audit finding C1's own fix: "a live object enters prior
+	// state only if it carries this estate's marker"). It is NOT populated
+	// alongside RecordStore/MarkerIndex/Estate above, because projection.
+	// BuildWith - the call that actually decides ownership - runs a few
+	// steps AFTER those are set in both internal/command/live_mode.go and
+	// live_plan.go; see those files' own population sites, right after
+	// their projDiags.HasErrors() check.
+	//
+	// Step (c) below is otherwise blind to ownership entirely: it derives
+	// an import target from configuration alone, the exact shape C1's own
+	// doc comment (ownership.go's [Ownership]) warns a client-named
+	// resource is - "a configuration naming a bucket ... that already
+	// exists and belongs to somebody else." The pre-walk projection was
+	// fixed against that; without this field, step (c) reintroduces it at
+	// the node for any type PriorState's own marker sweep does not cover
+	// (config-identified types: aws_s3_bucket, not aws_vpc), because those
+	// never reach [NodeResolver.MarkerIndex] either - nothing marks them
+	// unowned there, and nothing here would have refused them. Caught by
+	// TestLivePlan_unownedNameIsNotAdopted and
+	// TestLivePlan_otherEstatesResourceIsNotAdopted once the flag defaulted
+	// on and those tests' -estate form actually exercised this path for
+	// the first time.
+	Unowned map[string]bool
 }
 
 // NewMarkerIndex builds a [NodeResolver.MarkerIndex] from a discovery
@@ -144,6 +171,30 @@ func NewMarkerIndex(resolutions []identity.Resolution) map[string]providers.Impo
 func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (providers.ImportTarget, bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	// n.Unowned first, ahead of all three steps below, not only ahead of
+	// step (c) - see [NodeResolver.Unowned]'s own doc comment for what
+	// populates it and why. It has to gate (b) too: [NewMarkerIndex]'s
+	// input (the merged resolutions PriorState hands this resolver) is
+	// NOT restricted to genuine marker-sweep matches - it also carries
+	// every ClassConcrete resolution the static evaluator produced
+	// straight from configuration text, for a config-identified type like
+	// aws_s3_bucket that discovery never touches at all. So (b) can
+	// answer "found" from the exact same ownership-blind config-derived
+	// guess (c) can, and TestLivePlan_otherEstatesResourceIsNotAdopted
+	// caught it landing there first, before this check ever reached (c) -
+	// gating only (c) planned an update onto a live object this run had
+	// already, correctly, reported as belonging to another estate. (a) is
+	// checked here too, defensively: RecordStore only ever holds THIS
+	// estate's own prior writes, so a record and a fresh Unowned verdict
+	// for the same address should not coexist in practice, but if a live
+	// object's marker changed out from under a stale record, the marker -
+	// what [Ownership] just read from the object itself, this run - is
+	// what HANDOFF's foundation section names authoritative, not a record
+	// that may now be stale.
+	if n.Unowned[addr.String()] {
+		return providers.ImportTarget{}, false, diags
+	}
+
 	// (a) The estate's record - GitHub issue #364's write half, read the
 	// same way [builder.materializeFromRecord] reads it for the pre-walk
 	// path.
@@ -173,7 +224,10 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 	// (c) The identity table applied to the REAL evaluated configuration
 	// value - ruling 3's own contribution, and the only one of the three
 	// that could never have run before the node existed: it needs a
-	// concrete value, not configuration text.
+	// concrete value, not configuration text. Not gated by n.Unowned again
+	// here - the check at the top of this function already covers it, and
+	// covers (b) too; see that check's own comment for why (b) needed it
+	// just as much as (c) does.
 	//
 	// KNOWN GAP, carried forward rather than hidden: unlike (a) and (b),
 	// nothing here confirms the guessed identity actually exists before

@@ -200,10 +200,12 @@ func statelessBegin(
 	// is populated a few steps later, at the end of PriorState, once both
 	// of those exist; managedResourceExecute never calls into it before
 	// then, because Plan()'s own graph walk is later still. When the flag
-	// is off (the default), ContextOpts.ResourceIdentityResolver is never
-	// touched and stays nil, which is the scaffold's own proven nil
-	// contract (TestContext2Plan_resourceIdentityResolverNilContract) -
-	// every existing estate's plan is unaffected byte for byte.
+	// is off (CHOUDOUFU_NODE_RESOLVE=0, the opt-out since the 2026-08-25
+	// default flip), ContextOpts.ResourceIdentityResolver is never touched
+	// and stays nil, which is the scaffold's own proven nil contract
+	// (TestContext2Plan_resourceIdentityResolverNilContract) - an estate
+	// run with the opt-out is unaffected byte for byte by anything this
+	// seam does.
 	//
 	// ConfigValueAdjuster rides the same object and the same flag - GitHub
 	// issue #388's stamp half, [projection.NodeResolver.AdjustConfigValue] -
@@ -234,16 +236,27 @@ func statelessBegin(
 // nodeResolveEnabled reports whether GitHub issue #388's plan-node seam
 // (rfc/20260823-foundation-order-ruling.md, ruling 3) routes identity
 // resolution through the node - internal/live/projection.NodeResolver,
-// installed as the run's tofu.ResourceIdentityResolver - instead of, or
-// alongside, the pre-walk static path.
+// installed as the run's tofu.ResourceIdentityResolver - instead of the
+// pre-walk static path.
 //
-// This is the migration flag HANDOFF.md's foundation item 3 names: the
-// static evaluator and the HCL-rewriting stamp retire when the gauntlet
-// holds without them, and until that day the default (this function
-// returning false) has to keep every existing estate's plan byte-identical
-// to what it is today. CHOUDOUFU_NODE_RESOLVE=1 is the whole switch, read
-// once per statelessBegin so a single CLI invocation cannot see the flag
-// change mid-run.
+// Default ON since 2026-08-25 (GitHub issue #388's comment thread carries
+// the measurement): two flag-on sweeps compared all 26 protocol-speaking
+// estates flag-on against flag-off, and the alb-flagon follow-up resolved
+// the one estate that had genuinely differed. Every estate is now either
+// byte-identical between the two paths, or - corpus-alb-complete - clears
+// more stages flag-on than flag-off with nothing that regressed. Nothing
+// about that measurement retires the static path: HANDOFF.md foundation
+// item 3's own "Done when" is the gauntlet holding with the node path on
+// AND the static path off, TestIdentityGolden re-pinned against the node
+// path, and the refusal registry smaller by the retired stage, none of
+// which has happened. This flip only changes which path an operator gets
+// with nothing set in the environment; CHOUDOUFU_NODE_RESOLVE=0 is the
+// opt-out, and it still selects the static evaluator and the HCL-rewriting
+// stamp exactly as before. Any other value, including "1" (the flag's old
+// spelling from when it defaulted off, kept working so nobody's existing
+// override silently changes meaning) and unset, resolves to the node path.
+// Read once per statelessBegin so a single CLI invocation cannot see the
+// flag change mid-run.
 //
 // It is an environment variable and not a live-block toggle for the same
 // reason [Live] itself is a configuration block and everything else here is
@@ -255,7 +268,24 @@ func statelessBegin(
 // no_source_create) stays in the live block's strict { } schema exactly as
 // #365 defines it.
 func nodeResolveEnabled() bool {
-	return os.Getenv("CHOUDOUFU_NODE_RESOLVE") == "1"
+	return os.Getenv("CHOUDOUFU_NODE_RESOLVE") != "0"
+}
+
+// nodeResolverUnownedSet builds a [projection.NodeResolver.Unowned] set from
+// a completed projection's own [projection.Result.Unowned] list, keyed by
+// [addrs.AbsResourceInstance.String] - the shared helper both
+// statelessBegin (live_mode.go) and LivePlanCommand's "-estate" form
+// (live_plan.go) call once projResult exists, at the two population sites
+// that field's own doc comment points to.
+func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
+	if len(unowned) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(unowned))
+	for _, u := range unowned {
+		out[u.Addr.String()] = true
+	}
+	return out
 }
 
 // testStatelessRunner, when set, is handed every runner as it is built. It
@@ -805,6 +835,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 
 	r.view.Omissions(statelessOmissions(projResult))
 	r.view.Unowned(statelessUnownedReport(projResult, estate))
+
+	// GitHub issue #388's plan-node seam: r.resolver's ownership guard
+	// (NodeResolver.Unowned, noderesolver.go step (c)'s own doc comment)
+	// can only be set now, not alongside RecordStore/MarkerIndex/Estate
+	// above, because projResult - the pre-walk projection that actually
+	// decided ownership - did not exist yet at that point in this
+	// function. See that field's own doc comment for why leaving it unset
+	// would let the node adopt a client-named resource this run does not
+	// own.
+	if r.nodeResolve {
+		r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+	}
 
 	var classified *foreign.Result
 	if disco != nil {

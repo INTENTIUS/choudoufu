@@ -721,6 +721,26 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixe
 # representative structural check (one EC2 instance's shape) - the same
 # "representative set, not exhaustive" standard live/GAUNTLET.md's own
 # test_plan stage already uses for identity strings.
+#
+# strict { no_source_create = "create" } on the greenfield delta (below,
+# alongside the live block): found necessary while re-verifying this stage
+# under CHOUDOUFU_NODE_RESOLVE's default flip (2026-08-25). This estate's
+# ACM+Route53 shape has instances whose identity is ordinarily derivable
+# from configuration (aws_route53_record.validation's value comes from the
+# certificate's own generated DomainValidationOptions;
+# aws_route_table_association and aws_iam_role_policy_attachment similarly)
+# but which cannot actually be derived on a genuinely cold apply, because
+# the resource it derives from does not exist yet either - exactly the
+# ambiguity #365's ruling 4 refuses by default (noderesolver.go's own
+# "sourceExpected" comment), because an ALREADY-APPLIED estate cannot tell
+# that shape apart from a real object whose identity this run simply
+# cannot derive yet. A greenfield apply is the one case an operator KNOWS
+# which of those it is - nothing has ever been applied - so the toggle is
+# exactly what #365 designed it for, not a workaround. Without it, this
+# stage fails on four "No source for this instance's identity" refusals
+# under the flag; with it, greenfield matches flag-off's own result (80
+# resources, matching stock's cold deploy) exactly. See this unit's PR for
+# the reproduce and the full refusal list.
 CURRENT_STAGE=greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -746,9 +766,9 @@ copy_tree "$GREEN"
 GREEN_EST="$GREEN/alb/examples/complete-alb"
 apply_deltas "$GREEN_EST"
 cp "$PLAIN_EST/$PKG_FILE" "$GREEN_EST/$PKG_FILE" || fail "could not copy the already-fetched Lambda deployment zip into the greenfield copy"
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
-log "  DELTA  live block (record_store, evidence for #364 A2) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
+log "  DELTA  live block (record_store, evidence for #364 A2; strict.no_source_create=create for #388's default-flip greenfield ambiguity) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" TF_PLUGIN_CACHE_DIR="$TF_PLUGIN_CACHE_DIR" TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1 "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {

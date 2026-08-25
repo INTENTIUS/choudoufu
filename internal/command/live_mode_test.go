@@ -359,18 +359,61 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	}
 }
 
-// TestStatelessBegin_nodeResolveFlagOff is GitHub issue #388's stamp half
-// (nodestamp.go's AdjustConfigValue) getting the identical flag-off nil
-// contract the resolver already has: with CHOUDOUFU_NODE_RESOLVE unset,
-// statelessBegin must never construct r.resolver at all, which is what
-// keeps BOTH local.ContextOpts.ResourceIdentityResolver and
-// local.ContextOpts.ConfigValueAdjuster nil - the two fields are only ever
-// set from that one object (live_mode.go's nodeResolveEnabled block sets
-// them together). TestContext2Plan_resourceIdentityResolverNilContract
-// pins the engine side of what a nil-nil ContextOpts does to a plan; this
-// is the live side of the same claim - the flag never lets either field be
-// touched in the first place.
-func TestStatelessBegin_nodeResolveFlagOff(t *testing.T) {
+// TestStatelessBegin_nodeResolveDefaultOn is GitHub issue #388's stamp half
+// (nodestamp.go's AdjustConfigValue) getting the identical on-by-default
+// contract the resolver now has (default flip 2026-08-25, this comment
+// thread's two flag-on sweeps plus the alb-flagon refresh): with
+// CHOUDOUFU_NODE_RESOLVE unset, statelessBegin must construct r.resolver
+// and set BOTH local.ContextOpts.ResourceIdentityResolver and
+// local.ContextOpts.ConfigValueAdjuster from it - the two fields are only
+// ever set from that one object (live_mode.go's nodeResolveEnabled block
+// sets them together). This is
+// TestStatelessMode_plainPlan_NodeResolveIsStillANoOp's own claim, checked
+// here with nothing set in the environment instead of an explicit "1", so
+// the default itself - not merely the flag's old spelling - is what is
+// pinned.
+func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	code := c.Run([]string{"-no-color", "-auto-approve"})
+	done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0", code)
+	}
+
+	if captured == nil {
+		t.Fatal("no stateless runner was installed")
+	}
+	if !captured.nodeResolve {
+		t.Error("nodeResolve is false with CHOUDOUFU_NODE_RESOLVE unset; the default flipped 2026-08-25 and should be on")
+	}
+	if captured.resolver == nil {
+		t.Error("resolver was not constructed with the flag unset; the default flipped 2026-08-25 and should construct it")
+	}
+}
+
+// TestStatelessBegin_nodeResolveOptOut is
+// TestStatelessBegin_nodeResolveDefaultOn's opposite: CHOUDOUFU_NODE_RESOLVE=0
+// is the opt-out the default flip left in place (nodeResolveEnabled's own
+// doc comment), and it must still produce the pre-flip nil contract -
+// r.resolver never constructed, so neither ContextOpts field is ever
+// touched (TestContext2Plan_resourceIdentityResolverNilContract pins the
+// engine side of what a nil-nil ContextOpts does to a plan). Proves the
+// static path the retirement in HANDOFF.md foundation item 3 has not
+// happened yet is still genuinely selectable, not merely documented as
+// selectable.
+func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
+	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "0")
+
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -392,10 +435,10 @@ func TestStatelessBegin_nodeResolveFlagOff(t *testing.T) {
 		t.Fatal("no stateless runner was installed")
 	}
 	if captured.nodeResolve {
-		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE unset")
+		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE=0")
 	}
 	if captured.resolver != nil {
-		t.Errorf("resolver was constructed with the flag off: %#v (this is the one object both ResourceIdentityResolver and ConfigValueAdjuster are set from, so a non-nil resolver here means one of them may have been touched)", captured.resolver)
+		t.Errorf("resolver was constructed with the opt-out set: %#v (this is the one object both ResourceIdentityResolver and ConfigValueAdjuster are set from, so a non-nil resolver here means one of them may have been touched)", captured.resolver)
 	}
 }
 
