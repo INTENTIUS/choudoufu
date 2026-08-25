@@ -984,6 +984,81 @@ printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qE '^module\.ecs_task_defin
 printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qvE '^module\.ecs_task_definition\.' \
   && { printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "stock's day2_remove oracle destroys something outside module.ecs_task_definition"; }
 log "  stock: $REMOVE_ORACLE_N destroys under module.ecs_task_definition on cold_deploy's own state, nothing else"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A THIRD
+# separate copy of cold_deploy's own state, unrenamed, so this replace has
+# nothing to do with either the rename or the remove this script also
+# exercises. Changes module.ecs_task_definition's own `name` CALL
+# argument (not vendored module-internal source - always in scope to
+# edit) to a different literal - the local "../../modules/service"
+# module sets `family = coalesce(var.family, var.name)` for its own aws_
+# ecs_task_definition.this[0], so this changes the task definition's
+# `family` argument, a real, upstream-declared ForceNew argument on aws_
+# ecs_task_definition (ECS has no rename call for a task definition
+# family, only RegisterTaskDefinition/DeregisterTaskDefinition) -
+# forcing stock to replace the SAME declared address.
+#
+# NOTE ON THE TARGET CHOICE: this section tried TWO other targets first,
+# each reproducing a genuine, separate finding - recorded here rather
+# than routed around silently, not fixed in this script-only unit:
+#   1. aws_service_discovery_http_namespace.this_renamed (Part D's
+#      live-mv leg): after "choudoufu live-mv" renames a BARE, non-
+#      module-nested resource (no module boundary crossed) with no
+#      ordinary apply run afterward, the live MARKER is correctly
+#      rewritten (day2_rename's own Proves text, unaffected) but the
+#      LOCAL RECORD is left stale at the OLD key. Root cause, read
+#      directly off mv.go with no tofu in the loop: internal/live/mv/
+#      mv.go's propagateModuleRename (called from Move after the marker
+#      rewrite) opens with `oldPrefix, newPrefix, ok :=
+#      moduleRenameBoundary(...); if !ok { return diags }` - for a
+#      same-module, bare-resource rename this check is never satisfied,
+#      so the function returns immediately and never reaches the
+#      MoveRecord call its own doc comment says covers "the resource
+#      live-mv was asked to rename itself". corpus-autoscaling-complete's
+#      and corpus-eks-basic's own day2_replace sections in this same unit
+#      independently hit the identical shape.
+#   2. module.alb_renamed's own load balancer (Part D1's moved-block-
+#      plus-apply leg, which dodges finding 1 above): the LB's own
+#      replace applies cleanly (identity, marker, record all correct,
+#      confirmed via the AWS CLI and the record store directly), but the
+#      cascading update to module.ecs_service.aws_ecs_service.this[0]
+#      (its load_balancer.advanced_configuration listener-rule ARNs) and
+#      to aws_vpc_security_group_ingress_rule.this["alb_3000"] (its
+#      referenced_security_group_id) never converges - two consecutive
+#      post-apply plans each show the SAME two resources proposing an
+#      update again, with the ingress rule's own referenced_security_
+#      group_id a DIFFERENT literal value each time and no intervening
+#      config change. An oscillation, not a settling multi-round
+#      convergence; most consistent with row 4 of HANDOFF's five-row
+#      table (the emulator reporting a changing identity for the same
+#      logical security group on every read), since choudoufu's plan
+#      only reflects what floci's own API returns for that field.
+# module.ecs_task_definition dodges BOTH: it is untouched by Part D's own
+# two renames (so finding 1 never applies), and per the corpus's own
+# header comment ("no service" - create_service=false) nothing else in
+# this estate references it at all, so there is no cascade for finding
+# 2's shape to reach either.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.ecs_task_definition's task definition via its ForceNew family argument, on cold_deploy's own state ==="
+PLAIN_ORACLE_REPLACE_ROOT="$WORK/plain-oracle-replace"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE_ROOT"
+PLAIN_ORACLE_REPLACE="$PLAIN_ORACLE_REPLACE_ROOT/ecs/examples/fargate"
+perl -0pi -e 's/module "ecs_task_definition" \{\n  source = "\.\.\/\.\.\/modules\/service"\n\n  # Service\n  name           = "\$\{local\.name\}-standalone"\n/module "ecs_task_definition" {\n  source = "..\/..\/modules\/service"\n\n  # Service\n  name           = "\${local.name}-standalone-v2"\n/' "$PLAIN_ORACLE_REPLACE/main.tf"
+grep -q '${local.name}-standalone-v2' "$PLAIN_ORACLE_REPLACE/main.tf" \
+  || fail "changing module.ecs_task_definition's name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$PLAIN_ORACLE_REPLACE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REPLACE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.ecs_task_definition\.aws_ecs_task_definition\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.ecs_task_definition's task definition when its family argument changes"; }
+REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
+[ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
+log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces module.ecs_task_definition's task definition at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ADOPTED_EST, and actually applying here would destroy the real task definition the estate's later stages still depend on)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1718,6 +1793,135 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.alb renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active stage - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.ecs_task_definition
+  # (never touched by Part D's own two renames) is bound and converged.
+  # Its module CALL's `name` argument (not vendored module-internal
+  # source - always in scope to edit) changes to a new literal, which the
+  # local "../../modules/service" module sets as `family = coalesce(var.
+  # family, var.name)` for its own aws_ecs_task_definition.this[0] - a
+  # real, upstream-declared ForceNew argument (ECS has no rename call for
+  # a task definition family, only Register/DeregisterTaskDefinition) -
+  # forcing a replacement at the SAME declared address while the physical
+  # live task definition behind it is destroyed and a new one created -
+  # the marker moving onto the new object is this stage's own Proves text.
+  #
+  # THE TARGET CHOICE, and the two findings that produced it: F-ORACLE's
+  # own header comment above records two genuine, separate defects this
+  # section reproduced on its first two target choices before landing
+  # here - see that comment for the full detail (a stale local record
+  # after a bare, same-module live-mv rename with no apply, on aws_
+  # service_discovery_http_namespace.this_renamed; and a non-converging
+  # cascade into module.ecs_service and its security-group ingress rule,
+  # on module.alb_renamed's own load balancer). module.ecs_task_
+  # definition dodges both: untouched by Part D's renames, and per this
+  # corpus's own header ("no service" - create_service=false) referenced
+  # by nothing else in the estate, so there is no cascade at all.
+  #
+  # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
+  # instance-complete's and corpus-sqs-basic's own Part F): the task
+  # definition lives inside a local, vendored-shape module (modules/
+  # service, mirroring terraform-aws-modules/terraform-aws-ecs's own
+  # submodule structure), whose own source this corpus's established
+  # convention never patches to add a library-internal lifecycle block.
+  # This evidence pass exercises OpenTofu's DEFAULT replace ordering
+  # instead. BREAK=replace manufactures the coexistence a skipped destroy
+  # would leave behind directly via the AWS CLI.
+  CURRENT_STAGE=day2_replace
+  F_ADDR="module.ecs_task_definition.aws_ecs_task_definition.this[0]"
+  F_OLD_FAMILY="ex-fargate-standalone"
+  F_TD_ARN_D="$(awsl ecs list-task-definitions --family-prefix "$F_OLD_FAMILY" --query "taskDefinitionArns[0]" --output text)"
+  [ -n "$F_TD_ARN_D" ] && [ "$F_TD_ARN_D" != "None" ] || fail "no live task definition found by family prefix $F_OLD_FAMILY ahead of day2_replace"
+
+  # NO RECORD-STORE CHECK for this type, unlike this unit's other day2_
+  # replace sections: aws_ecs_task_definition's own identity attrs are
+  # `family` AND `revision` (live/identity/table_generated.go) - revision
+  # changes on every apply that touches the container spec at all, not
+  # only ones that change family, so a cached import_id would already be
+  # stale after ordinary day-2 use, not just a rename. Confirmed directly
+  # against the actual record store, no tofu in the loop: cat-ing every
+  # key this estate's store holds after Part D found no aws_ecs_task_
+  # definition entry at all, while every other taggable type in the same
+  # estate (aws_ecs_cluster, aws_ecs_service, aws_lb, ...) has one. Not
+  # investigated further in this script-only unit; the marker checks
+  # below (tofu-address tag, moved onto the new object) are this
+  # section's own identity verification for this resource instead.
+  log "=== F0. capture the live task definition ahead of the forced replace ==="
+  F_OLD_ADDR_TAG="$(awsl ecs list-tags-for-resource --resource-arn "$F_TD_ARN_D" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.ecs_task_definition.aws_ecs_task_definition.this:0" ] \
+    || fail "$F_TD_ARN_D does not carry tofu-address=module.ecs_task_definition.aws_ecs_task_definition.this:0 ahead of day2_replace"
+  log "  $F_TD_ARN_D, tofu-address=$F_OLD_ADDR_TAG"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+    # A second, distinct live task definition carrying the SAME tofu-
+    # address and tofu-slot as the one a genuine replace would destroy -
+    # the state "skip the destroy half" of a create-before-destroy
+    # replace would leave, produced directly via the AWS CLI rather than
+    # by actually interrupting an apply (day2_crash's own job).
+    BREAK_COLLISION_ARN="$(awsl ecs register-task-definition --family "${ESTATE}-td-collision" \
+      --container-definitions '[{"name":"c","image":"public.ecr.aws/amazonlinux/amazonlinux:2023-minimal","essential":true}]' \
+      --requires-compatibilities FARGATE --network-mode awsvpc --cpu 256 --memory 512 \
+      --tags "key=tofu-estate,value=$ESTATE" "key=tofu-address,value=module.ecs_task_definition.aws_ecs_task_definition.this:0" "key=tofu-slot,value=0" \
+      --query "taskDefinition.taskDefinitionArn" --output text)"
+    BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    awsl ecs deregister-task-definition --task-definition "$BREAK_COLLISION_ARN" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+    perl -0pi -e 's/module "ecs_task_definition" \{\n  source = "\.\.\/\.\.\/modules\/service"\n\n  # Service\n  name           = "\$\{local\.name\}-standalone"\n/module "ecs_task_definition" {\n  source = "..\/..\/modules\/service"\n\n  # Service\n  name           = "\${local.name}-standalone-v2"\n/' "$ADOPTED_EST/main.tf"
+    grep -q '${local.name}-standalone-v2' "$ADOPTED_EST/main.tf" || fail "changing module.ecs_task_definition's name argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.ecs_task_definition\.aws_ecs_task_definition\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.ecs_task_definition's task definition when its ForceNew family argument changes"; }
+    F_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$F_PLAN_OUT")"
+    [ -n "$F_PLAN_LINE" ] || { printf '%s\n' "$F_PLAN_OUT" | tail -15; fail "the day2_replace plan has no summary line"; }
+    log "  choudoufu: $F_PLAN_LINE - the task definition forced to replace at the same declared address"
+
+    F_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$F_APPLY_OUT" \
+      || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not report a clean apply"; }
+    log "  $(grep -E 'Apply complete' <<< "$F_APPLY_OUT")"
+
+    # A deregistered ECS task definition is not deleted outright - it
+    # moves to status INACTIVE and stays list-able (real AWS behavior,
+    # confirmed in floci's own docs: DeregisterTaskDefinition marks
+    # INACTIVE, never removes). "gone" here means INACTIVE, not absent.
+    F_OLD_STATUS="$(awsl ecs describe-task-definition --task-definition "$F_TD_ARN_D" --query 'taskDefinition.status' --output text 2>/dev/null || echo "GONE")"
+    [ "$F_OLD_STATUS" = "INACTIVE" ] || [ "$F_OLD_STATUS" = "GONE" ] \
+      || fail "$F_TD_ARN_D is not INACTIVE after the replace (status=$F_OLD_STATUS) - the old object was orphaned, not deregistered"
+    log "  $F_TD_ARN_D is $F_OLD_STATUS - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    F_NEW_ARN="$(awsl ecs list-task-definitions --family-prefix "${F_OLD_FAMILY}-v2" --query "taskDefinitionArns[0]" --output text)"
+    [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "no live task definition found by family prefix ${F_OLD_FAMILY}-v2 after the replace"
+    F_NEW_ADDR_TAG="$(awsl ecs list-tags-for-resource --resource-arn "$F_NEW_ARN" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.ecs_task_definition.aws_ecs_task_definition.this:0" ] \
+      || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.ecs_task_definition.aws_ecs_task_definition.this:0 - the marker did not move onto the new object"
+    log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+    [ "$F_NEW_ARN" != "$F_TD_ARN_D" ] \
+      || fail "sanity: the task definition ARN did not change at all across the replace"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { printf '%s\n' "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+    gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include \`revision\`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices (aws_service_discovery_http_namespace.this_renamed, module.alb_renamed) each found a genuine, separate defect not fixed here - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)

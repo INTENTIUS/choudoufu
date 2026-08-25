@@ -366,6 +366,47 @@ grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] w
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys"; }
 log "  stock: exactly two destroys (the table and its resource policy), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A THIRD
+# separate copy of cold_deploy's own state (same nesting-depth requirement
+# as D-ORACLE/D-REMOVE-ORACLE above), so this oracle also runs on
+# cold_deploy's own state, before any rename or migration ever touches
+# $EX. Changes module.dynamodb_table's `name` argument (a real,
+# upstream-declared ForceNew argument on aws_dynamodb_table - DynamoDB has
+# no UpdateTable rename capability, only CreateTable/DeleteTable) to a
+# different literal name, which forces stock to replace the SAME declared
+# address rather than propose a destroy-and-create pair at two different
+# addresses (that shape is day2_rename's own BREAK=6 finding, a genuinely
+# different thing). aws_dynamodb_resource_policy's own `resource_arn`
+# argument is required and not computed in the provider's schema, and
+# DynamoDB's PutResourcePolicy/DeleteResourcePolicy APIs are keyed by the
+# table's ARN with no update path for that key, so the table's ARN
+# changing (a brand-new table, not a renamed one) is expected to cascade
+# into a forced replace of the resource policy too - confirmed below by
+# the plan itself, not assumed.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.dynamodb_table's table via its ForceNew name argument, on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/oracle-replace"
+cp -r "$EST" "$REPLACE_ORACLE_ROOT"
+REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/examples/basic"
+rm -rf "$REPLACE_ORACLE/.terraform" "$REPLACE_ORACLE/.terraform.lock.hcl"
+sed -i.bak 's/name                        = "my-table-\${random_pet\.this\.id}"/name                        = "my-table-${random_pet.this.id}-v2"/' "$REPLACE_ORACLE/main.tf"
+rm -f "$REPLACE_ORACLE/main.tf.bak"
+grep -q 'my-table-${random_pet.this.id}-v2' "$REPLACE_ORACLE/main.tf" \
+  || fail "changing module.dynamodb_table's name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.dynamodb_table's table when its name argument changes"; }
+REPLACE_ORACLE_POLICY_REPLACES=0
+grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" && REPLACE_ORACLE_POLICY_REPLACES=1
+log "  stock: replaces module.dynamodb_table's table at the same declared address (resource_arn-dependent resource_policy also replaces: $REPLACE_ORACLE_POLICY_REPLACES) on the state cold_deploy produced - plan only, not applied (same convention as D-ORACLE/D-REMOVE-ORACLE: this copy shares floci's account with \$EST, and actually applying here would destroy the real table the estate's later stages still depend on)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -680,6 +721,135 @@ EOF
     log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed state: module.dynamodb_table_final
+    # (originally module.dynamodb_table) is bound and converged. Its `name`
+    # argument - not the module CALL's own label, which this stage never
+    # touches - changes to a new literal table name. aws_dynamodb_table's
+    # `name` is ForceNew in the provider's real schema (confirmed by the
+    # plan output itself below, not assumed: DynamoDB has no rename API,
+    # only CreateTable/DeleteTable), so this forces a replacement at the
+    # SAME declared address (module.dynamodb_table_final.aws_dynamodb_
+    # table.this[0] never changes) while the physical live table behind it
+    # is destroyed and a new one created - the marker moving onto the new
+    # object is this stage's own Proves text. The resource policy's
+    # `resource_arn` argument is required and not computed, and DynamoDB's
+    # PutResourcePolicy/DeleteResourcePolicy APIs have no update path for
+    # that key, so the new table's new ARN cascades into a forced replace
+    # of the resource policy too (F-ORACLE's own finding, confirmed there).
+    #
+    # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
+    # instance-complete's and corpus-sqs-basic's own Part F): this estate's
+    # only real module wraps the terraform-aws-dynamodb-table registry
+    # module, whose own source this corpus's established convention only
+    # ever REMOVES real upstream content from, never adds library-internal
+    # lifecycle blocks to, and OpenTofu core rejects a `lifecycle` block
+    # written directly on a `module` call. So this evidence pass exercises
+    # OpenTofu's DEFAULT replace ordering instead (destroy-then-create -
+    # confirmed below by the plan's own "-/+ destroy and then create
+    # replacement" legend). BREAK=replace manufactures the coexistence a
+    # skipped destroy would leave behind directly via the AWS CLI.
+    CURRENT_STAGE=day2_replace
+    record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+    record_import_id() { jq -r '.identity.import_id' "$1"; }
+    F_ADDR="module.dynamodb_table_final.aws_dynamodb_table.this[0]"
+    F_RECORD="$EX/.tofu-records/tofu-records/$ESTATE/aws_dynamodb_table/$(record_key "$F_ADDR")"
+
+    log "=== F0. capture the live table and its record ahead of the forced replace ==="
+    [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+    F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_OLD_IMPORT_ID" = "$TABLE_NAME" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $TABLE_NAME"
+    F_OLD_ADDR_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_OLD_ADDR_TAG" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
+      || fail "$TABLE_ARN does not carry tofu-address=module.dynamodb_table_final.aws_dynamodb_table.this:0 ahead of day2_replace"
+    log "  $TABLE_ARN, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+    if [ "${BREAK:-}" = "replace" ]; then
+      log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+      # A second, distinct live table carrying the SAME tofu-address and
+      # tofu-slot as the one a genuine replace would destroy - the state
+      # "skip the destroy half" of a create-before-destroy replace would
+      # leave, produced directly via the AWS CLI rather than by actually
+      # interrupting an apply (day2_crash's own job).
+      BREAK_COLLISION_NAME="${TABLE_NAME}-collision"
+      awsl dynamodb create-table --table-name "$BREAK_COLLISION_NAME" \
+        --attribute-definitions AttributeName=id,AttributeType=N \
+        --key-schema AttributeName=id,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST \
+        --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=module.dynamodb_table_final.aws_dynamodb_table.this:0" "Key=tofu-slot,Value=0" \
+        >/dev/null || fail "BREAK=replace: could not create the collision table"
+      for _ in $(seq 1 20); do
+        [ "$(awsl dynamodb describe-table --table-name "$BREAK_COLLISION_NAME" --query 'Table.TableStatus' --output text 2>/dev/null)" = "ACTIVE" ] && break
+        sleep 1
+      done
+      BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+      awsl dynamodb delete-table --table-name "$BREAK_COLLISION_NAME" >/dev/null 2>&1 || true
+      [ "$BREAK_PLAN_RC" -ne 0 ] \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+      grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+      log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+    else
+      log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+      sed -i.bak 's/name                        = "my-table-\${local\.pinned_pet}"/name                        = "my-table-${local.pinned_pet}-v2"/' "$EX/main.tf"
+      rm -f "$EX/main.tf.bak"
+      grep -q 'my-table-${local.pinned_pet}-v2' "$EX/main.tf" || fail "changing module.dynamodb_table_final's name argument did not match - the corpus pin has moved"
+      F_NEW_NAME="my-table-${PET}-v2"
+
+      F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+      [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+      grep -qE '^  # module\.dynamodb_table_final\.aws_dynamodb_table\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.dynamodb_table_final's table when its ForceNew name argument changes"; }
+      grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+        || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name as forcing replacement"; }
+      log "  choudoufu: exactly one forced replace at the same declared address (module.dynamodb_table_final.aws_dynamodb_table.this[0]), name forces replacement"
+
+      F_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+      [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+      grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$F_APPLY_OUT" \
+        || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not report a clean apply"; }
+      log "  $(grep -E 'Apply complete' <<< "$F_APPLY_OUT")"
+
+      if F_OLD_STILL="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" 2>&1)"; then
+        echo "$F_OLD_STILL"; fail "$TABLE_NAME still exists after the replace - the old object was orphaned, not destroyed"
+      fi
+      log "  $TABLE_NAME no longer exists (ResourceNotFoundException) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+      F_NEW_ARN="$(awsl dynamodb describe-table --table-name "$F_NEW_NAME" --query 'Table.TableArn' --output text)"
+      [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "$F_NEW_NAME is not live after the replace"
+      F_NEW_ADDR_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$F_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$F_NEW_ADDR_TAG" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
+        || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.dynamodb_table_final.aws_dynamodb_table.this:0 - the marker did not move onto the new object"
+      log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+      # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+      # #398-guard shape: a stale record still naming the destroyed table
+      # would be exactly the wrong-marker failure that outranks a missing
+      # one). The local record file at the SAME address must now hold the
+      # NEW table's import_id, not the one captured in F0.
+      F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+      [ "$F_NEW_IMPORT_ID" = "$F_NEW_NAME" ] \
+        || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+      [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+        || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+      log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+      log "=== F2. one more plan: config and reality agree, no marker collision ==="
+      F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+      [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+      grep -qE '^  # .+ will be' <<< "$F_FINAL_PLAN_OUT" \
+        && { printf '%s\n' "$F_FINAL_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the post-replace plan proposes a resource change"; }
+      log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+      TABLE_NAME="$F_NEW_NAME"
+      TABLE_ARN="$F_NEW_ARN"
+      gauntlet_stage day2_replace pass "choudoufu: changing module.dynamodb_table_final's ForceNew name argument proposed exactly one table replace at the same declared address, cascading into the untaggable resource policy (its resource_arn argument follows the table's ARN and is not independently updatable, so it also replaces - F-ORACLE's own finding); applied cleanly; the old table is confirmed gone via the AWS CLI (ResourceNotFoundException) and the new table carries the marker; the local record store's record at the same address now names the new table's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the table at the same address (plan only, not applied - it shares floci's account with \$EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones."
+    fi
+    CURRENT_STAGE=""
 
     # ══════════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
