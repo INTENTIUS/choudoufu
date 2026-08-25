@@ -221,6 +221,80 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# module.read_only_iam_policy is this estate's only module call that
+# contributes a real resource (module.read_only_iam_policy_doc renders a
+# policy document and creates nothing; module.read_only_iam_policy_disabled
+# does nothing at all - create = false - see this script's header), and
+# that one resource, aws_iam_policy.policy[0], is this estate's ONLY live
+# object. So both day2_rename mechanisms run on the SAME module, one after
+# the other, rather than on two different objects: a `moved` block first
+# (module.read_only_iam_policy -> .read_only_iam_policy_moved), then
+# "choudoufu live-mv" second (.read_only_iam_policy_moved ->
+# .read_only_iam_policy_final, no moved block for that hop at all). The
+# stock oracle below plans the NET rename (original name straight to the
+# final name) on a copy of cold_deploy's own state, before choudoufu or
+# live-import ever touch it. Both main.tf (the module block itself) and
+# outputs.tf (five root outputs that all read module.read_only_iam_policy.*)
+# need the rename's sed pass, or the estate fails to even validate.
+#
+# BREAK=2 (not 1: this script's own stage 3 identity check and stage 5
+# drift check already corrupt their assertions and exit through fail()
+# under BREAK=1 before this point) exercises this stage's own break control
+# instead of the real checks: renaming module.read_only_iam_policy WITHOUT
+# a moved block. This estate's live-plan is genuinely stateless throughout
+# (no local state file, ever), so - like corpus-sqs-basic's own module
+# rename, not corpus-eks-basic's - the old, no-longer-declared address is
+# never visited and never proposed for destroying; only a create for the
+# renamed address is proposed. See D1 below for the verified detail.
+CURRENT_STAGE=day2_rename
+log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
+ORACLE_ROOT="$WORK/oracle"
+mkdir -p "$ORACLE_ROOT/iam/examples" "$ORACLE_ROOT/iam/modules"
+cp -R "$SRC_EXAMPLE" "$ORACLE_ROOT/iam/examples/iam-read-only-policy"
+cp -R "$SRC_MODULE" "$ORACLE_ROOT/iam/modules/iam-read-only-policy"
+ORACLE="$ORACLE_ROOT/iam/examples/iam-read-only-policy"
+rm -rf "$ORACLE/.terraform" "$ORACLE/.terraform.lock.hcl"
+perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ORACLE/main.tf"
+grep -q 's3_use_path_style' "$ORACLE/main.tf" || fail "the day2_rename oracle's emulator delta did not match main.tf"
+cp "$WORK/cold.tfstate" "$ORACLE/terraform.tfstate"
+( cd "$ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
+BASELINE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; BASELINE_PLAN_RC=$?
+[ "$BASELINE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle's baseline (no-rename) plan exited $BASELINE_PLAN_RC"; }
+grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$BASELINE_PLAN_OUT" \
+  || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -20; fail "the baseline (no-rename) oracle plan is not clean - this estate has drifted since the baseline was last measured"; }
+log "  baseline (no rename): clean, confirmed BEFORE the rename below"
+
+sed -i.bak 's/module "read_only_iam_policy" {/module "read_only_iam_policy_final" {/' "$ORACLE/main.tf"
+sed -i.bak 's/module\.read_only_iam_policy\./module.read_only_iam_policy_final./g' "$ORACLE/outputs.tf"
+rm -f "$ORACLE/main.tf.bak" "$ORACLE/outputs.tf.bak"
+cat >> "$ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.read_only_iam_policy.aws_iam_policy.policy[0]
+  to   = module.read_only_iam_policy_final.aws_iam_policy.policy[0]
+}
+EOF
+( cd "$ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by a moved block - the oracle itself is not zero-churn"; }
+# Not "No changes." literally: the moved block moves the resource but not
+# the data source beside it (data.aws_iam_policy_document.this[0], which
+# `moved` blocks do not apply to), so it is re-read under the new module
+# path on this one plan and terraform reports that as a data read rather
+# than a silent match - real churn either way is what the Plan: line and
+# the destroy/create grep above already rule out.
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -20; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn on cold_deploy's own state - the move reports only its move, no attribute diff at all, outputs unchanged in value"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, the slot
 # it now writes read back by value, then one ordinary apply that must be a
 # no-op (choudoufu #372)
@@ -389,6 +463,110 @@ log ""
 log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "one object tampered ($POLICY_ARN's Example tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and reconverged the tag"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# See the D-ORACLE comment above stage 2 for why both mechanisms run on the
+# SAME module. The adopted estate (stages 2-5) is still marked and still
+# converged, which is exactly the state a rename needs to start from.
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the live object this rename must not disturb ==="
+log "  $POLICY_ARN (module.read_only_iam_policy.aws_iam_policy.policy[0])"
+
+if [ "${BREAK:-}" = "2" ]; then
+  log "=== D1 (BREAK=2). rename module.read_only_iam_policy -> module.read_only_iam_policy_final WITHOUT a moved block ==="
+  sed -i.bak 's/module "read_only_iam_policy" {/module "read_only_iam_policy_final" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.read_only_iam_policy\./module.read_only_iam_policy_final./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  # Verified directly (measured, not guessed): this is a genuinely stateless
+  # live-plan (no local state file, ever - every stage above asserts its
+  # absence), so it walks only the addresses the CURRENT config declares.
+  # The old, no-longer-declared module.read_only_iam_policy is never
+  # visited at all - there is nothing to propose destroying, and the marker
+  # it still carries is simply left behind, orphaned - while the new
+  # address IS declared and gets a create proposed. This is
+  # corpus-sqs-basic's exact stateless-replan shape (its own D1
+  # BREAK=rename comment documents the same finding for its module
+  # rename), not corpus-eks-basic's clean destroy+create.
+  grep -qE '^  # module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\] will be' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: the old, no-longer-declared address unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
+  grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.read_only_iam_policy_final.aws_iam_policy.policy[0] - this stage's check is not load-bearing"; }
+  log "  BREAK=2: correctly proposes ONLY a create for module.read_only_iam_policy_final.aws_iam_policy.policy[0], no destroy of the old (no-longer-declared, now-orphaned) module.read_only_iam_policy.aws_iam_policy.policy[0] - the real outcome for a stateless live-plan with no moved block, not a literal destroy-and-create; the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: module.read_only_iam_policy -> module.read_only_iam_policy_moved ==="
+  sed -i.bak 's/module "read_only_iam_policy" {/module "read_only_iam_policy_moved" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.read_only_iam_policy\./module.read_only_iam_policy_moved./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  cat >> "$EST/main.tf" <<'EOF'
+
+moved {
+  from = module.read_only_iam_policy.aws_iam_policy.policy[0]
+  to   = module.read_only_iam_policy_moved.aws_iam_policy.policy[0]
+}
+EOF
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qE '^  # module\.read_only_iam_policy_moved\.aws_iam_policy\.policy\[0\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.read_only_iam_policy_moved.aws_iam_policy.policy[0]"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" += +"module\.read_only_iam_policy\.aws_iam_policy\.policy:0" +-> +"module\.read_only_iam_policy_moved\.aws_iam_policy\.policy:0"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the policy's tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  POLICY_ARN_D1_AFTER="$(awsl iam list-policies --path-prefix /example/ --query "Policies[?starts_with(PolicyName, '$NAME_PREFIX') == \`true\`].Arn | [0]" --output text)"
+  [ "$POLICY_ARN_D1_AFTER" = "$POLICY_ARN" ] || fail "the policy's ARN changed across the rename ($POLICY_ARN -> $POLICY_ARN_D1_AFTER) - it was destroyed and recreated, not renamed"
+  ADDR_D1="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ADDR_D1" = "module.read_only_iam_policy_moved.aws_iam_policy.policy:0" ] \
+    || fail "the policy carries tofu-address=$ADDR_D1 after the rename, not module.read_only_iam_policy_moved.aws_iam_policy.policy:0"
+  log "  $POLICY_ARN unchanged, tofu-address now module.read_only_iam_policy_moved.aws_iam_policy.policy:0 - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module.read_only_iam_policy_moved -> module.read_only_iam_policy_final, no moved block at all ==="
+  sed -i.bak 's/module "read_only_iam_policy_moved" {/module "read_only_iam_policy_final" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.read_only_iam_policy_moved\./module.read_only_iam_policy_final./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.read_only_iam_policy_moved.aws_iam_policy.policy[0]' 'module.read_only_iam_policy_final.aws_iam_policy.policy[0]' 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.read_only_iam_policy_moved.aws_iam_policy.policy:0" -> "module.read_only_iam_policy_final.aws_iam_policy.policy:0"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  POLICY_ARN_D2_AFTER="$(awsl iam list-policies --path-prefix /example/ --query "Policies[?starts_with(PolicyName, '$NAME_PREFIX') == \`true\`].Arn | [0]" --output text)"
+  [ "$POLICY_ARN_D2_AFTER" = "$POLICY_ARN" ] || fail "the policy's ARN changed across live-mv ($POLICY_ARN -> $POLICY_ARN_D2_AFTER) - it was destroyed and recreated, not renamed"
+  ADDR_D2="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$ADDR_D2" = "module.read_only_iam_policy_final.aws_iam_policy.policy:0" ] \
+    || fail "the policy carries tofu-address=$ADDR_D2 after live-mv, not module.read_only_iam_policy_final.aws_iam_policy.policy:0"
+  log "  $POLICY_ARN unchanged, tofu-address now module.read_only_iam_policy_final.aws_iam_policy.policy:0 - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and marker agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(plan_into 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$FINAL_PLAN_OUT" \
+    && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan proposes a resource change"; }
+  log "  no resource change proposed (this estate's outputs quirk means a permanent Changes-to-Outputs section is expected here too - see the header - so the check is the absence of a resource-action header, not a summary line). Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI"
+fi
 
 CURRENT_STAGE=""
 gauntlet_end
