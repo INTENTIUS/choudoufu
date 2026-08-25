@@ -1592,28 +1592,55 @@ EOF
     # (originally module.postgresql) is bound and converged. Its block is
     # the one removed here - self-contained (only its own 5 outputs.tf
     # entries reference it, removed alongside), so no other main.tf edit is
-    # needed. Destroys 5 objects: the SG, its 2 taggable ingress rules, its
-    # 1 taggable egress rule, and its 1 UNTAGGABLE rules_exclusive enforcer -
-    # whose block key ("aws_vpc_security_group_rules_exclusive.this", module
-    # path stripped - internal/live/discovery/discovery.go's blockKey) is
-    # shared with module.security_group's and module.consul's OWN
-    # rules_exclusive instances, which stay in the config and stay bound.
-    # classifyOrphans's "pending" (possible-rename) set is built only from
-    # res.Unbound, and both surviving same-block-key instances are bound
-    # (via #364's record-primary identity, not markers - they have no tags
-    # argument), so the orphaned instance must never be withheld as a
-    # possible rename; the guard right below the plan turns it into an
-    # honest, named wall instead of a silently skipped check if that
-    # reasoning is wrong. Deletion semantics confirmed directly against
-    # floci with no tofu in the loop before writing this check: describe-
-    # security-groups on a deleted group id answers 200 with an EMPTY list
-    # (not a NotFound error, unlike IAM's get-policy) - same shape
-    # reference-ec2-vpc's own Part E already documents for describe-
-    # internet-gateways, so the check below is count-based, not error-based.
+    # needed. Stock's own oracle (D-ORACLE remove, above) destroys 5 objects
+    # for the identical removal: the SG, its 2 taggable ingress rules, its 1
+    # taggable egress rule, and its 1 UNTAGGABLE rules_exclusive enforcer.
+    #
+    # REAL DEFECT, choudoufu, NOT YET FIXED (found by this check, reproduced
+    # twice - the dev run and the official run agree byte for byte).
+    # choudoufu's own plan proposes only 4 of those 5 destroys: the SG and
+    # its 3 taggable children, never the untaggable rules_exclusive
+    # instance - and NOT as a named refusal or a "may be the same resource
+    # under a new instance key" withhold either (classifyOrphans's own
+    # diagnostic, internal/live/discovery/discovery.go); it is silently
+    # absent from the plan, as if the config had never declared it. Read
+    # (no edit) against discovery.go: classifyOrphans only ever iterates
+    # res.Orphans, and res.Orphans is populated purely from a MARKER/TAG
+    # scan of live objects (see the orphan-scan callers above classifyOrphans
+    # in the same file) - an untaggable type such as
+    # aws_vpc_security_group_rules_exclusive carries no tag and so can never
+    # be discovered as an orphan by that scan, regardless of whether its
+    # record still names an address the current config no longer declares.
+    # The record-primary identity path (#364, HANDOFF's "The order" item 1:
+    # "the record holds the identity of every instance ... a plan reads it
+    # first") reads records forward, to BIND a declared instance; nothing
+    # symmetric reads the record store BACKWARD, to notice a record whose
+    # address no config block declares any more and propose destroying it.
+    # That is a generic gap, not specific to rules_exclusive: any
+    # untaggable/record-only type whose declaring block is removed should
+    # reach it. This is HANDOFF's second table row ("the plans ... differ" -
+    # defect, fix it), not the "possible rename" ambiguity #358 and this
+    # estate's own D2/E comments were originally written to watch for - that
+    # mechanism was never reached at all, because the object never entered
+    # orphan detection in the first place. Left as an honest, reproducible
+    # fail rather than guessed at further or patched here: this splinter
+    # unit is script-only by its own brief, and a fix belongs in
+    # internal/live/discovery (the orphan-scan/classifyOrphans path needs a
+    # record-store-driven leg beside its marker-scan one), not in this
+    # script. File a follow-up issue in the #358 family before landing a fix.
+    #
+    # Deletion semantics confirmed directly against floci with no tofu in
+    # the loop before writing the check below: describe-security-groups on
+    # a deleted group id answers 200 with an EMPTY list (not a NotFound
+    # error, unlike IAM's get-policy) - same shape reference-ec2-vpc's own
+    # Part E already documents for describe-internet-gateways, so the check
+    # is count-based, not error-based.
     #
     # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
     # the block, and assert the plan proposes no destroy for it at all - the
-    # Break text in tools/gauntlet/stages.go, verbatim.
+    # Break text in tools/gauntlet/stages.go, verbatim. (Independent of the
+    # real defect above: BREAK_REMOVE's own check never reaches the missing-
+    # destroy code path, since nothing is removed under it.)
     CURRENT_STAGE=day2_remove
     log "=== E0. capture the live id one more time ==="
     PG_SG_ID_E="$SG_PG_ID_D"
