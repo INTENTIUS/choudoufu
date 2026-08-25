@@ -85,7 +85,7 @@ func Stages() []Stage {
 			Break:  "Expect a different instance to be destroyed; the assertion must fail.",
 		},
 		{
-			ID: "day2_replace", Order: 9, Title: "Replace with create_before_destroy", Status: StatusPlanned,
+			ID: "day2_replace", Order: 9, Title: "Replace with create_before_destroy", Status: StatusActive,
 			Proves: "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
 			Oracle: "Stock's replace of the same resource leaves the same single object.",
 			Break:  "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",

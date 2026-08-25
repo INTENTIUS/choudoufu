@@ -98,7 +98,7 @@ Oracle: Stock's plan for the same count change, normalised.
 
 Break: Expect a different instance to be destroyed; the assertion must fail.
 
-### 9. Replace with create_before_destroy (`day2_replace`, planned)
+### 9. Replace with create_before_destroy (`day2_replace`, active)
 
 Proves: A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.
 
