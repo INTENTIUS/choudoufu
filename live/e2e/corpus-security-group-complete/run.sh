@@ -383,6 +383,23 @@ set -uo pipefail
 #                one expected unadmitted-type name, proving those
 #                assertions are load-bearing. Stages 1 and 2 are unaffected;
 #                stage 3 is the one that must fail.
+#   BREAK_GREENFIELD  set to 1 to run the greenfield stage's own negative
+#                control instead of the real comparison: drop module.consul's
+#                security group from the expected inventory before the
+#                object-by-object comparison, so the total-count check
+#                against the real cloud must then correctly fail (the Break
+#                text in tools/gauntlet/stages.go for greenfield is literally
+#                "drop one resource from the expected inventory; the
+#                comparison must fail"). Runs and exits well before stage 2
+#                even starts - independent of BREAK and BREAK_REMOVE.
+#   BREAK_REMOVE set to 1 to run day2_remove's own negative control instead
+#                of the real checks: keep module.postgresql_renamed's block
+#                in the config and assert no destroy is proposed for it (the
+#                Break text in tools/gauntlet/stages.go for day2_remove is
+#                literally "keep the block; no destroy may be proposed").
+#                Independent of BREAK and BREAK_GREENFIELD, and only
+#                reachable when BREAK is not 1, because day2_remove starts
+#                from day2_rename's real, completed rename.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice) and every delta lands on a copy.
@@ -396,7 +413,18 @@ FLOCI_NAME="choudoufu-corpus-security-group-complete-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# A second, fresh container for the greenfield stage (live/GAUNTLET.md #13):
+# its own namespace choudoufu applies into directly, no migration. It never
+# reuses $ENDPOINT's objects above - greenfield means from nothing - and it
+# is the ONLY extra container this script spins up for that stage: $ENDPOINT
+# itself, read right after stage 1's own apply and before anything else has
+# touched it, IS "the cloud after stock's cold deploy" (see PART F's header).
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-security-group-complete-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+
 ESTATE="security-group-complete-crossing"
+GREEN_ESTATE="security-group-complete-greenfield"
 REGION="eu-west-1"
 INSTANCES=67
 ELIGIBLE=58
@@ -452,7 +480,7 @@ SKIPPED=9
 IDENTITIES_RECORDED=$((ELIGIBLE + SKIPPED))
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -670,6 +698,136 @@ log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources (DELTA 2, lex00/floci#57)"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART F: GREENFIELD (greenfield, active - live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A separate namespace from everything above: choudoufu applies the SAME
+# reduced example (DELTA 1 + DELTA 2 + the version pin) directly, with a
+# live block from the start, no migration, no state file ever existing. This
+# runs here, right after stage 1 and before ANYTHING else touches $ENDPOINT
+# (stage 2's migrate is the first thing that writes a tag onto $PLAIN_EST's
+# objects; Part D's rename and Part E's remove come later still), so
+# $PLAIN_EST's own just-applied objects on $ENDPOINT double as this stage's
+# own oracle - "the cloud after stock's cold deploy" (live/GAUNTLET.md's
+# oracle text for this stage) IS what stage 1 already built, not a second,
+# independent 67-resource stock apply in a third container. Only one more
+# floci container is needed here, not two, and the record store is the
+# implied default local one (internal/live/projection/store.go's
+# defaultRecordDirName) - no explicit record_store block, same as the real
+# migrated estate (DELTA 3 above).
+CURRENT_STAGE=greenfield
+log ""
+log "=== PART F: 0. one more floci container, a fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+GREEN_HEALTH=""
+for _ in $(seq 1 45); do
+  GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"ec2"' <<< "${GREEN_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"ec2"' <<< "${GREEN_HEALTH:-}" || fail "floci did not come up healthy (ec2) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT (oracle: PLAIN_EST's own stage-1 apply on $ENDPOINT, untouched so far)"
+
+GREEN="$WORK/green"
+copy_tree "$GREEN"
+GREEN_EST="$GREEN/security-group/examples/complete"
+perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                   = "test" # DELTA 1\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$GREEN_EST/main.tf"
+grep -q 'DELTA 1' "$GREEN_EST/main.tf" || fail "the greenfield DELTA 1 did not match the provider block - the corpus pin has moved"
+perl -0pi -e 's/\n  vpc_associations = \{\n    secondary = \{\n      vpc_id = module\.vpc_secondary\.vpc_id\n    \}\n  \}\n\n/\n  # DELTA 2 (EMULATOR GAP, lex00\/floci#57): cross-VPC association removed.\n\n/' "$GREEN_EST/main.tf"
+grep -q '^  vpc_associations = {' "$GREEN_EST/main.tf" && fail "the greenfield DELTA 2 left a vpc_associations block behind"
+perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$GREEN_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n  }\n}/" "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+log "  DELTA 1+2+3 applied to a fresh copy: emulator flags, vpc_associations removed, live block (estate=$GREEN_ESTATE)"
+
+log "=== PART F: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART F: 2. markers, read through the AWS CLI directly ==="
+GREEN_MAIN_SG_ID="$(awsg ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.security_group.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$GREEN_MAIN_SG_ID" ] && [ "$GREEN_MAIN_SG_ID" != "None" ] || fail "no greenfield security group found by tofu-address=module.security_group.aws_security_group.this:0"
+GREEN_PG_SG_ID="$(awsg ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.postgresql.module.security_group.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$GREEN_PG_SG_ID" ] && [ "$GREEN_PG_SG_ID" != "None" ] || fail "no greenfield security group found by tofu-address=module.postgresql.module.security_group.aws_security_group.this:0"
+GREEN_CONSUL_SG_ID="$(awsg ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.consul.module.security_group.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$GREEN_CONSUL_SG_ID" ] && [ "$GREEN_CONSUL_SG_ID" != "None" ] || fail "no greenfield security group found by tofu-address=module.consul.module.security_group.aws_security_group.this:0"
+GREEN_APP_SG_ID="$(awsg ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.app"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$GREEN_APP_SG_ID" ] && [ "$GREEN_APP_SG_ID" != "None" ] || fail "no greenfield security group found by tofu-address=aws_security_group.app"
+GREEN_MAIN_ESTATE_TAG="$(awsg ec2 describe-tags --filters "Name=resource-id,Values=$GREEN_MAIN_SG_ID" "Name=key,Values=tofu-estate" --query "Tags[0].Value" --output text)"
+[ "$GREEN_MAIN_ESTATE_TAG" = "$GREEN_ESTATE" ] || fail "the greenfield main security group carries tofu-estate=$GREEN_MAIN_ESTATE_TAG, not $GREEN_ESTATE"
+log "  all four named security groups (main/postgresql/consul/app) found by their tofu-address markers; tofu-estate=$GREEN_MAIN_ESTATE_TAG - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART F: 3. the record store holds every instance, including the 9 untaggable ones (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "$INSTANCES" ] || fail "expected $INSTANCES records under the local record store after the greenfield apply (every instance gets one, stamped or not - #364 A2), found $GREEN_RECORD_FILES"
+log "  $INSTANCES records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART F: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART F: 5. object-by-object comparison against \$PLAIN_EST's own stage-1 apply ==="
+BASENAME_PLAIN="$(basename "$PLAIN_EST")"
+PLAIN_PG_SG_ID="$(terraform -chdir="$PLAIN_EST" output -raw postgresql_security_group_id)"
+[ -n "$PLAIN_PG_SG_ID" ] && [ "$PLAIN_PG_SG_ID" != "None" ] || fail "could not read the postgresql security group's id from terraform output"
+PLAIN_CONSUL_SG_ID="$(terraform -chdir="$PLAIN_EST" output -raw consul_security_group_id)"
+[ -n "$PLAIN_CONSUL_SG_ID" ] && [ "$PLAIN_CONSUL_SG_ID" != "None" ] || fail "could not read the consul security group's id from terraform output"
+PLAIN_APP_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=group-name,Values=ex-${BASENAME_PLAIN}-app" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$PLAIN_APP_SG_ID" ] && [ "$PLAIN_APP_SG_ID" != "None" ] || fail "could not find the app security group by its group-name on \$PLAIN_EST"
+
+sg_rule_fingerprint() { # $1=endpoint $2=sg-id - a normalised rule shape,
+                         # tags and cross-account ids stripped, read via the
+                         # AWS CLI, never through tofu state.
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-group-rules \
+    --filters "Name=group-id,Values=$2" --output json 2>/dev/null \
+  | jq -S '[.SecurityGroupRules[] | {
+      IsEgress:   .IsEgress,
+      IpProtocol: .IpProtocol,
+      FromPort:   (.FromPort // null),
+      ToPort:     (.ToPort // null),
+      HasCidr4:   (.CidrIpv4 != null),
+      HasCidr6:   (.CidrIpv6 != null),
+      HasPrefix:  (.PrefixListId != null),
+      HasRefSg:   (.ReferencedGroupInfo != null)
+    }] | sort_by(.IsEgress, .IpProtocol, .FromPort, .ToPort, .HasCidr4, .HasCidr6, .HasPrefix, .HasRefSg)'
+}
+
+EXPECTED_SGS="main:$MAIN_SG_ID:$GREEN_MAIN_SG_ID postgresql:$PLAIN_PG_SG_ID:$GREEN_PG_SG_ID consul:$PLAIN_CONSUL_SG_ID:$GREEN_CONSUL_SG_ID app:$PLAIN_APP_SG_ID:$GREEN_APP_SG_ID"
+N_EXPECTED_SG_TOTAL=6 # 4 named + 2 module-vpc/vpc_secondary aws_default_security_group adopters
+if [ "${BREAK_GREENFIELD:-}" = "1" ]; then
+  EXPECTED_SGS="main:$MAIN_SG_ID:$GREEN_MAIN_SG_ID postgresql:$PLAIN_PG_SG_ID:$GREEN_PG_SG_ID app:$PLAIN_APP_SG_ID:$GREEN_APP_SG_ID"
+  N_EXPECTED_SG_TOTAL=5
+  log "  BREAK_GREENFIELD=1: dropped module.consul's security group from the expected inventory - the total-count comparison below must fail"
+fi
+GREEN_SG_COUNT="$(awsg resourcegroupstaggingapi get-resources --resource-type-filters ec2:security-group --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$GREEN_SG_COUNT" = "$N_EXPECTED_SG_TOTAL" ] || fail "the greenfield estate has $GREEN_SG_COUNT tagged security groups, expected $N_EXPECTED_SG_TOTAL"
+
+for pair in $EXPECTED_SGS; do
+  label="${pair%%:*}"; rest="${pair#*:}"; plain_id="${rest%%:*}"; green_id="${rest#*:}"
+  G="$(sg_rule_fingerprint "$GREEN_ENDPOINT" "$green_id")"
+  P="$(sg_rule_fingerprint "$ENDPOINT" "$plain_id")"
+  [ "$G" = "$P" ] || { printf 'greenfield %s: %s\nstock     %s: %s\n' "$label" "$G" "$label" "$P"; fail "the $label security group's rule shape differs between the greenfield estate and stock's own cold deploy"; }
+done
+log "  all rule shapes (protocol, port range, cidr/prefix-list/referenced-sg presence, tags stripped) match between choudoufu's greenfield apply and \$PLAIN_EST's own stage-1 apply, for every named security group compared ($EXPECTED_SGS wc: $(wc -w <<< "$EXPECTED_SGS" | tr -d ' '))"
+
+log ""
+log "STAGE F (greenfield): PASS"
+log ""
+gauntlet_stage greenfield pass "$INSTANCES resources from nothing, all markers verified via the AWS CLI, $INSTANCES records in the local record store (#364 A2), replan empty, $N_EXPECTED_SG_TOTAL tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches \$PLAIN_EST's own stage-1 apply object by object, tags stripped"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -715,6 +873,33 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7, issue #358): "Stock with
+# the same block removed plans the same destroys." A SEPARATE fresh copy of
+# cold_deploy's own state (not the rename oracle's ORACLE_ROOT above), so
+# this destroy has nothing to do with either rename - it removes
+# module.postgresql's block (the original, pre-rename address) entirely.
+# module.postgresql is self-contained: nothing else in main.tf references
+# it (only outputs.tf does, via its own 5-output section, removed with it).
+CURRENT_STAGE=day2_remove
+log "=== D-ORACLE (remove). stock: delete module.postgresql's block on cold_deploy's own state ==="
+ORACLE_REMOVE_ROOT="$WORK/oracle-remove"
+cp -r "$PLAIN" "$ORACLE_REMOVE_ROOT"
+ORACLE_REMOVE_EST="$ORACLE_REMOVE_ROOT/security-group/examples/complete"
+rm -rf "$ORACLE_REMOVE_EST/.terraform" "$ORACLE_REMOVE_EST/.terraform.lock.hcl"
+perl -0777 -pi -e 's/\nmodule "postgresql" \{.*?\n\}\n\n################/\n################/s' "$ORACLE_REMOVE_EST/main.tf"
+grep -q 'module "postgresql"' "$ORACLE_REMOVE_EST/main.tf" && fail "removing module.postgresql's block from the oracle copy did not match - the corpus example has moved"
+perl -0777 -pi -e 's/\n# PostgreSQL preset submodule\n.*?\n# Consul preset submodule/\n# Consul preset submodule/s' "$ORACLE_REMOVE_EST/outputs.tf"
+grep -q 'module.postgresql' "$ORACLE_REMOVE_EST/outputs.tf" && fail "removing module.postgresql's outputs from the oracle copy did not match - the corpus example has moved"
+( cd "$ORACLE_REMOVE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_REMOVE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REMOVE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.postgresql\.module\.security_group\.aws_security_group\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -60; fail "stock does not propose destroying module.postgresql's security group when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 5 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly 5 destroys (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)"; }
+log "  stock: exactly 5 destroys (module.postgresql's SG, its 2 ingress rules, its 1 egress rule, its 1 rules_exclusive), nothing else, on the state cold_deploy produced"
 
 CURRENT_STAGE=migrate
 
@@ -1397,6 +1582,97 @@ EOF
     log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, $N_MOVED_CHANGED change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+    log ""
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed rename: module.postgresql_renamed
+    # (originally module.postgresql) is bound and converged. Its block is
+    # the one removed here - self-contained (only its own 5 outputs.tf
+    # entries reference it, removed alongside), so no other main.tf edit is
+    # needed. Destroys 5 objects: the SG, its 2 taggable ingress rules, its
+    # 1 taggable egress rule, and its 1 UNTAGGABLE rules_exclusive enforcer -
+    # whose block key ("aws_vpc_security_group_rules_exclusive.this", module
+    # path stripped - internal/live/discovery/discovery.go's blockKey) is
+    # shared with module.security_group's and module.consul's OWN
+    # rules_exclusive instances, which stay in the config and stay bound.
+    # classifyOrphans's "pending" (possible-rename) set is built only from
+    # res.Unbound, and both surviving same-block-key instances are bound
+    # (via #364's record-primary identity, not markers - they have no tags
+    # argument), so the orphaned instance must never be withheld as a
+    # possible rename; the guard right below the plan turns it into an
+    # honest, named wall instead of a silently skipped check if that
+    # reasoning is wrong. Deletion semantics confirmed directly against
+    # floci with no tofu in the loop before writing this check: describe-
+    # security-groups on a deleted group id answers 200 with an EMPTY list
+    # (not a NotFound error, unlike IAM's get-policy) - same shape
+    # reference-ec2-vpc's own Part E already documents for describe-
+    # internet-gateways, so the check below is count-based, not error-based.
+    #
+    # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+    # the block, and assert the plan proposes no destroy for it at all - the
+    # Break text in tools/gauntlet/stages.go, verbatim.
+    CURRENT_STAGE=day2_remove
+    log "=== E0. capture the live id one more time ==="
+    PG_SG_ID_E="$SG_PG_ID_D"
+    PG_SG_ADDR_E="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$PG_SG_ID_E" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$PG_SG_ADDR_E" = "module.postgresql_renamed.module.security_group.aws_security_group.this:0" ] \
+      || fail "$PG_SG_ID_E does not carry tofu-address=module.postgresql_renamed.module.security_group.aws_security_group.this:0 before day2_remove even starts (got $PG_SG_ADDR_E)"
+
+    if [ "${BREAK_REMOVE:-}" = "1" ]; then
+      log "=== E1 (BREAK_REMOVE=1). keep module.postgresql_renamed's block; no destroy may be proposed ==="
+      BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+      [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+      grep -qE '^  # module\.postgresql_renamed\..+ will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed under module.postgresql_renamed even though its block is still in the config - this stage's check is not load-bearing"; }
+      grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+      log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+    else
+      log "=== E1. choudoufu: delete module.postgresql_renamed's block ==="
+      perl -0777 -pi -e 's/\nmodule "postgresql_renamed" \{.*?\n\}\n\n################/\n################/s' "$ADOPTED_EST/main.tf"
+      grep -q 'module "postgresql_renamed"' "$ADOPTED_EST/main.tf" && fail "removing module.postgresql_renamed's block did not match - the config has moved"
+      perl -0777 -pi -e 's/\n# PostgreSQL preset submodule\n.*?\n# Consul preset submodule/\n# Consul preset submodule/s' "$ADOPTED_EST/outputs.tf"
+      grep -q 'module.postgresql_renamed' "$ADOPTED_EST/outputs.tf" && fail "removing module.postgresql_renamed's outputs did not match - the config has moved"
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+        ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+      REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+      [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+      if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+        printf '%s\n' "$REMOVE_PLAN_OUT" | tail -60
+        fail "choudoufu withheld a destroy under module.postgresql_renamed as a possible rename (discovery.go's classifyOrphans) even though module.security_group's and module.consul's own rules_exclusive instances are already bound, not unclaimed - this is the honest wall issue #358 names, not a pass"
+      fi
+      REMOVE_DESTROY_N="$(grep -cE '^  # module\.postgresql_renamed\..+ will be destroyed' <<< "$REMOVE_PLAN_OUT" || true)"
+      [ "$REMOVE_DESTROY_N" = "5" ] \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu proposes $REMOVE_DESTROY_N destroy(s) under module.postgresql_renamed, expected 5 (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)"; }
+      grep -qE '^  # .+ will be (created|updated)' <<< "$REMOVE_PLAN_OUT" \
+        && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the day2_remove plan proposes a create or update - not a pure removal"; }
+      log "  choudoufu: exactly 5 destroys under module.postgresql_renamed, nothing else"
+
+      REMOVE_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+      [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 5 destroyed' <<< "$REMOVE_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly 5 destroys"; }
+
+      REMOVE_STILL_COUNT="$(awsl ec2 describe-security-groups --group-ids "$PG_SG_ID_E" --query 'length(SecurityGroups)' --output text 2>/dev/null || echo -1)"
+      [ "$REMOVE_STILL_COUNT" = "0" ] || fail "$PG_SG_ID_E still exists in the live account after the destroy ($REMOVE_STILL_COUNT match(es)) - it was orphaned, not destroyed"
+      log "  $PG_SG_ID_E no longer exists (0 matches on describe-security-groups) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+      log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+      E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+      [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+      grep -qE '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+      log "  no resource change proposed. The removal is complete and invisible to the next plan."
+
+      log ""
+      log "STAGE E (day2_remove): PASS"
+      gauntlet_stage day2_remove pass "choudoufu: deleting module.postgresql_renamed's block proposed exactly 5 destroys (0 add, 0 change, 5 destroy: SG + 2 ingress + 1 egress + 1 untaggable rules_exclusive), applied cleanly (0 added, 0 changed, 5 destroyed), the security group is genuinely gone from the live account (0 matches on describe-security-groups for the old id, read via the AWS CLI, not choudoufu's own report), and the next plan proposes nothing; stock oracle on cold_deploy's own state (D-ORACLE remove) also proposes exactly 5 destroys for the same 5 objects; classifyOrphans did not withhold the untaggable rules_exclusive destroy even though module.security_group's and module.consul's own rules_exclusive instances share its block key, because both surviving instances are bound, not unclaimed"
+      log ""
+    fi
+    CURRENT_STAGE=""
   fi
 else
   log ""
@@ -1417,6 +1693,8 @@ else
   gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
   log "=== D. rename: NOT RUN - depends on stages 3-5 ==="
   gauntlet_stage day2_rename not_run "depends on stages 3-5"
+  log "=== E. remove: NOT RUN - depends on stages 3-6 ==="
+  gauntlet_stage day2_remove not_run "depends on stages 3-6"
   CURRENT_STAGE=""
 fi
 gauntlet_end
@@ -1425,15 +1703,20 @@ log ""
 log "=== SUMMARY ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
+log "  stage F  greenfield         PASS (67 resources from nothing, second namespace, structurally matches \$PLAIN_EST's own stage-1 apply)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
 if [ "$CHANGED_N" -eq 0 ]; then
   log "  stage 3  test_plan          PASS (genuinely empty; every choudoufu wall and both floci gaps #102/#104 fixed or absent)"
   log "  stage 4  test_apply         PASS (no-op apply, object count unchanged)"
   log "  stage 5  drift_reconverge   PASS (one object tampered and reconverged, confirmed via the AWS CLI)"
+  log "  stage D  day2_rename        PASS (moved block + live-mv, both zero churn)"
+  log "  stage E  day2_remove        PASS (module.postgresql_renamed's block removed, 5 destroys, matches stock oracle)"
 else
   log "  stage 3  test_plan          NOT EMPTY at $CHANGED_N changed object(s), 0 choudoufu's - see header (lex00/floci#102 fixed; what remains is logged above)"
   log "  stage 4  test_apply         NOT RUN"
   log "  stage 5  drift_reconverge   NOT RUN"
+  log "  stage D  day2_rename        NOT RUN"
+  log "  stage E  day2_remove        NOT RUN"
 fi
 log ""
 log "67 real resources, real emulator, real unmarked infrastructure, real"
