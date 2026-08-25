@@ -247,3 +247,64 @@ func TestUndeclaredSiblingSharedIdentityIsNotAReference(t *testing.T) {
 		t.Errorf("aws_vpc_security_group_rules_exclusive.postgresql got Dependencies %v from this mechanism - that edge belongs to destroyParentDependency, not deriveUndeclaredReferenceEdges, and adding it here too would be a duplicate, differently-computed source of truth", rexInst.Current.Dependencies)
 	}
 }
+
+// TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference is the second
+// shape found in the same session, in the SAME estate
+// (corpus-security-group-complete) as the direct case above: an ingress
+// rule's own live value contains its security group's id (its own
+// security_group_id attribute) - a perfectly ordinary thing for a rule to
+// carry - and because aws_vpc_security_group_rules_exclusive's whole
+// identity IS that same security group id, a naive scan reads the rule as
+// referencing rules_exclusive too, on top of whatever rules_exclusive's
+// own live value happens to enumerate about the rules it manages. Both
+// directions existing between the SAME two nodes is a cycle, and it
+// reproduced as a real "Error: Cycle: ...egress_rule..., ...ingress_rule...,
+// ...rules_exclusive..." with no security group in it at all, confirming
+// TestUndeclaredSiblingSharedIdentityIsNotAReference's direct-pair guard
+// alone did not cover it: the shared identity string here belongs to a
+// THIRD sibling (the security group), never compared against itself.
+func TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t))
+
+	cloud := newFakeCloud()
+	cloud.put("aws_security_group", "sg-0123", map[string]string{
+		"id": "sg-0123", "name": "postgresql", "vpc_id": "vpc-abc",
+	})
+	cloud.put("aws_vpc_security_group_rules_exclusive", "sg-0123", map[string]string{
+		"id": "sg-0123",
+	})
+	cloud.put("aws_vpc_security_group_ingress_rule", "sgr-ABC", map[string]string{
+		"id": "sgr-ABC", "security_group_rule_id": "sgr-ABC", "security_group_id": "sg-0123",
+		"cidr_ipv4": "10.0.0.0/16", "from_port": "5432", "to_port": "5432", "ip_protocol": "tcp",
+	})
+
+	sg := mustAddr(t, `aws_security_group.postgresql`)
+	rex := mustAddr(t, `aws_vpc_security_group_rules_exclusive.postgresql`)
+	ingress := mustAddr(t, `aws_vpc_security_group_ingress_rule.primary`)
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: sg, Class: identity.ClassConcrete, ImportID: "sg-0123", Undeclared: true},
+		{Addr: rex, Class: identity.ClassConcrete, ImportID: "sg-0123", Undeclared: true},
+		{Addr: ingress, Class: identity.ClassConcrete, ImportID: "sgr-ABC", Undeclared: true},
+	}, cloud.providers(t))
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{
+		`aws_security_group.postgresql`,
+		`aws_vpc_security_group_ingress_rule.primary`,
+		`aws_vpc_security_group_rules_exclusive.postgresql`,
+	})
+
+	mod := res.State.Module(addrs.RootModuleInstance)
+	if mod == nil {
+		t.Fatal("the projection has no root module")
+	}
+	for _, addr := range []addrs.AbsResourceInstance{sg, rex, ingress} {
+		inst := mod.ResourceInstance(addr.Resource)
+		if inst == nil || inst.Current == nil {
+			t.Fatalf("%s did not materialize into the state:\n%s", addr, res)
+		}
+		if len(inst.Current.Dependencies) != 0 {
+			t.Errorf("%s got Dependencies %v from the ambiguous shared identity \"sg-0123\" - that string does not uniquely identify any one sibling in this batch, so it must never be used as a match target", addr, inst.Current.Dependencies)
+		}
+	}
+}

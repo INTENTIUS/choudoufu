@@ -645,6 +645,37 @@ func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution)
 		return
 	}
 
+	// idCount is how many siblings in this batch answer to each identity
+	// string. Found running this fix against corpus-security-group-
+	// complete's day2_remove unit, in TWO shapes that share one root
+	// cause: aws_vpc_security_group_rules_exclusive's whole identity IS
+	// its security group's own id (identity.Component.IdentityAttr: "*"
+	// over security_group_id). The direct pair (comparing the security
+	// group's own live value against rules_exclusive's ImportID) is
+	// trivially true - a live value always contains its own id - and
+	// backwards: [destroyParentDependency] already derives
+	// rules_exclusive-depends-on-the-security-group, correctly directed,
+	// and the reverse edge here cycled against it. The INDIRECT shape is
+	// the one a same-pair check misses: every ingress/egress rule's own
+	// live value ALSO contains the security group's id (its own
+	// security_group_id attribute) - which, because rules_exclusive's
+	// ImportID equals that same string, this scan reads as "the rule
+	// references rules_exclusive" too, producing rule-depends-on-
+	// rules_exclusive on top of whatever rules_exclusive's own live value
+	// happens to enumerate about its managed rules the other way, and a
+	// FOUR-node cycle (both ingress rules, the egress rule, and
+	// rules_exclusive, no security group in it at all) was the result.
+	// Neither shape is really "resource A references resource B" - it is
+	// "two different resources answer to the same identity string," and
+	// the general fix is symmetric with the general problem: an identity
+	// string more than one sibling in this batch answers to identifies
+	// none of them uniquely, so it is never used as a match target, in
+	// either direction, for anyone.
+	idCount := make(map[string]int, len(siblings))
+	for _, s := range siblings {
+		idCount[s.importID]++
+	}
+
 	for _, from := range siblings {
 		val, ok := b.live[from.addr.String()]
 		if !ok {
@@ -655,24 +686,7 @@ func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution)
 			if to.addr.String() == from.addr.String() {
 				continue
 			}
-			if to.importID == from.importID {
-				// Two distinct instances sharing one identity string is
-				// not a reference between them: it is one type's whole
-				// identity being ANOTHER's id, the shape
-				// identity.Component.IdentityAttr: "*" gives
-				// aws_vpc_security_group_rules_exclusive (its own
-				// ImportID is literally its security group's own id -
-				// found running this fix against corpus-security-group-
-				// complete's day2_remove unit, where treating that as a
-				// "from's value contains to's id" reference produced a
-				// destroy-graph CYCLE against [destroyParentDependency]'s
-				// own, correctly-directed child-depends-on-parent edge
-				// for the identical pair). from's own live value always
-				// contains from's own id, so this match is trivial and
-				// backwards, never a genuine reference to a distinct
-				// object - that relationship is what [destroyParentDependency]
-				// (internal/live/discovery/recordorphan_read.go) and
-				// [identity.ParentOf] already derive, correctly directed.
+			if idCount[to.importID] > 1 {
 				continue
 			}
 			if containsStringValue(val, to.importID) {
