@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "e064df463058d0b3a4aff496c96d8661a4238c39",
+  "commit": "6b6c093f879a3f2aa49bbe13a8a9c950409275c0",
   "emulator": "ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad",
-  "generated": "2026-08-25T14:39:33Z",
+  "generated": "2026-08-25T15:04:52Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 23,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 24,
-          "fail": 2,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 22,
+      "clear": 23,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 23,
-          "fail": 2,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "migrate": {
@@ -526,25 +526,25 @@
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8fe2b284ad8bf5bb8e067d12d8fa9cc3b2266bba",
-        "date": "2026-08-25T13:54:34Z",
-        "exit_code": 1,
+        "commit": "6b6c093f879a3f2aa49bbe13a8a9c950409275c0",
+        "date": "2026-08-25T15:12:55Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
           "day2_remove": "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed 2 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
-          "greenfield": "the greenfield apply failed - see live/gauntlet/logs/corpus-eks-basic.log for the full diagnostic",
+          "greenfield": "54 resources from nothing, cluster marker verified via the AWS CLI, 54 records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count",
           "migrate": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 25 tofu-estate-tagged objects before, 25 after",
           "test_plan": "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"

@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `e064df4630` against `ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad`, 2026-08-25T14:39:33Z.
+Measured at commit `6b6c093f87` against `ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad`, 2026-08-25T15:04:52Z.
 
 ## The stages
 
@@ -48,7 +48,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
-| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass FAIL |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
