@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
+  "commit": "4c4c6d4a0385e1e434d5c7a0ed5dc4d495cfd51a",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T05:14:51Z",
+  "generated": "2026-08-25T08:33:27Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -158,8 +158,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 20,
-          "fail": 6,
+          "pass": 22,
+          "fail": 4,
           "not_run": 0
         },
         "day2_replace": {
@@ -235,8 +235,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 19,
-          "fail": 6,
+          "pass": 21,
+          "fail": 4,
           "not_run": 0
         },
         "day2_replace": {
@@ -448,8 +448,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6b0a765b4037f858329cba406ae5b4a5fe441be4",
-        "date": "2026-08-25T05:56:28Z",
+        "commit": "cdedeb2ea660e0647ba23df7fa1a34953723561b",
+        "date": "2026-08-25T08:30:09Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
@@ -1048,7 +1048,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1062,13 +1062,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6b0a765b4037f858329cba406ae5b4a5fe441be4",
-        "date": "2026-08-25T05:52:37Z",
+        "commit": "4c4c6d4a0385e1e434d5c7a0ed5dc4d495cfd51a",
+        "date": "2026-08-25T08:39:43Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "39 resources, once for real",
           "day2_remove": "choudoufu does not propose destroying module.db_default_renamed.module.db_instance.aws_db_instance.this[0]",
-          "day2_rename": "choudoufu defect: the moved-block rename of module.security_group proposes a create/destroy for one of its children instead of matching them structurally under the parent's new address - not zero churn. Root cause: 610511fb73's recordOrphanReadSweep has no moved-block awareness (see the comment immediately above this assertion) - the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete and corpus-security-group-complete independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it.",
+          "day2_rename": "moved block: module.security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "greenfield": "39 resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, 39 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)",
           "migrate": "26 of 39 stamped",
@@ -1136,7 +1136,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1150,13 +1150,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6b0a765b4037f858329cba406ae5b4a5fe441be4",
-        "date": "2026-08-25T05:43:54Z",
+        "commit": "43556706d62ebc00089c12fba98987696921eb1f",
+        "date": "2026-08-25T08:26:07Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "day2_remove": "choudoufu proposes 4 destroy(s) under module.postgresql_renamed, expected 5 (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)",
-          "day2_rename": "the moved-block rename now proposes destroying module.postgresql.module.security_group.aws_vpc_security_group_rules_exclusive.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete and corpus-rds-complete-postgres independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it.",
+          "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
           "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
           "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
