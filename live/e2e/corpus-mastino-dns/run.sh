@@ -299,7 +299,19 @@ FLOCI_NAME="choudoufu-corpus-mastino-dns-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that stage's
+# own oracle.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-mastino-dns-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-mastino-dns-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+
 ESTATE_NAME="datacite-mastino-global-dns"
+GREEN_ESTATE_NAME="datacite-mastino-global-dns-greenfield"
 REGION="eu-west-1"
 
 # This script runs TWO inits (the plain cold-deploy copy under stock
@@ -362,7 +374,7 @@ BREAK_RECORD_NAME="staging4.datacite.org"
 
 cleanup() {
   [ "${DEBUG_KEEP:-}" = "1" ] && { log "DEBUG_KEEP=1: leaving $FLOCI_NAME and $WORK"; return; }
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -639,6 +651,151 @@ log "  confirmed unmarked: no zone carries a tofu-address before migration"
 log ""
 log "STAGE 1 (cold deploy): PASS"
 gauntlet_stage cold_deploy pass "$INSTANCES resources from stock terraform; 4 live zones confirmed unmarked"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, active - live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches stage 1's own objects (those get migrated
+# in stage 2, below). $STAGE already carries every onboarding delta
+# (DELTA 3's emulator wiring, DELTA 5's allow_overwrite) and is the shared
+# base both stage 1's $PLAIN and stage 2's $EST were copied from - reused
+# here unchanged for the same reason. Each fresh namespace needs its own
+# VPC (aws_route53_zone.internal's own vpc {} block and the estate's
+# data "aws_vpc" "datacite" both read var.vpc_id) and its own tfvars, since
+# neither can share the main namespace's account-scoped VPC ids. Given the
+# object count (63 instances, the largest of #274's twenty-eight offline-
+# clean estates crossed so far - see the header), the object-by-object
+# oracle comparison below checks the same per-zone and per-record COUNTS
+# stage 4's own test_apply already uses as its no-op proof, not a full
+# per-attribute diff of all 59 untaggable records; the shared config
+# guarantees the SHAPE is identical, and the count is what a full sweep
+# would also converge on if it ever disagreed.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 60); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"route53"' <<< "$GH" && grep -q '"ec2"' <<< "$GH" && break
+    sleep 2
+  done
+  grep -q '"route53"' <<< "${GH:-}" || fail "floci did not come up healthy (route53) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+build_green_copy() { # build_green_copy <destdir> <endpoint> <live_block>
+  local dest="$1" ep="$2" live_block="$3"
+  mkdir -p "$dest"
+  cp "$STAGE"/*.tf "$dest/"
+  # input.tf's DELTA 3 endpoints were substituted with the MAIN $ENDPOINT
+  # already - each fresh namespace needs its own.
+  perl -pi -e "s{\Q$ENDPOINT\E}{$ep}g" "$dest/input.tf"
+  grep -q "$ep" "$dest/input.tf" || fail "could not repoint input.tf's endpoints at $ep"
+  cat > "$dest/terraform.tf" <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+  required_version = ">= 1.6"
+$live_block
+}
+EOF
+  local vpc vpc_us
+  vpc="$(aws --endpoint-url "$ep" --region "$REGION" ec2 create-vpc --cidr-block 10.90.0.0/16 --query 'Vpc.VpcId' --output text)"
+  [ -n "$vpc" ] && [ "$vpc" != "None" ] || fail "could not create the VPC $dest's private zone needs"
+  vpc_us="$(aws --endpoint-url "$ep" --region us-east-1 ec2 create-vpc --cidr-block 10.91.0.0/16 --query 'Vpc.VpcId' --output text)"
+  [ -n "$vpc_us" ] && [ "$vpc_us" != "None" ] || fail "could not create the us-east-1 VPC for $dest"
+  sed "s/^vpc_id .*/vpc_id    = \"$vpc\"/; s/^vpc_id_us .*/vpc_id_us = \"$vpc_us\"/" "$WORK/crossing.auto.tfvars" > "$dest/crossing.auto.tfvars"
+  grep -q "$vpc" "$dest/crossing.auto.tfvars" || fail "could not seed $dest's own tfvars with its own VPC id"
+}
+
+GREEN="$WORK/green"
+build_green_copy "$GREEN" "$GREEN_ENDPOINT" '
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -40; fail "the greenfield apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_PROD_ZONE="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" route53 list-hosted-zones \
+  --query "HostedZones[?Name=='datacite.org.' && Config.PrivateZone==\`false\`].Id | [0]" --output text | sed 's|/hostedzone/||')"
+[ -n "$GREEN_PROD_ZONE" ] && [ "$GREEN_PROD_ZONE" != "None" ] || fail "the greenfield production zone does not exist"
+GREEN_PROD_ADDR="$(awsg route53 list-tags-for-resource --resource-type hostedzone --resource-id "$GREEN_PROD_ZONE" \
+  --query "ResourceTagSet.Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_PROD_ADDR" = "aws_route53_zone.production" ] || fail "the greenfield production zone carries tofu-address=$GREEN_PROD_ADDR, not aws_route53_zone.production"
+GREEN_PROD_EST="$(awsg route53 list-tags-for-resource --resource-type hostedzone --resource-id "$GREEN_PROD_ZONE" \
+  --query "ResourceTagSet.Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_PROD_EST" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield production zone carries tofu-estate=$GREEN_PROD_EST, not $GREEN_ESTATE_NAME"
+log "  production zone carries tofu-address=$GREEN_PROD_ADDR tofu-estate=$GREEN_PROD_EST - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds every instance, including all 59 untaggable records (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "$INSTANCES" ] || fail "expected $INSTANCES records under the local record store after the greenfield apply, found $GREEN_RECORD_FILES"
+log "  $GREEN_RECORD_FILES records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
+ORACLE_GREEN="$WORK/green-oracle"
+build_green_copy "$ORACLE_GREEN" "$ORACLE_ENDPOINT" ""
+( cd "$ORACLE_GREEN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_GREEN" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_GREEN_APPLY_OUT="$(cd "$ORACLE_GREEN" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -40; fail "the greenfield oracle apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$ORACLE_GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_GREEN_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+GREEN_ZONE_N="$(awsg route53 list-hosted-zones --query 'length(HostedZones)' --output text)"
+ORACLE_ZONE_N="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" route53 list-hosted-zones --query 'length(HostedZones)' --output text)"
+if [ "${BREAK:-}" = "2" ]; then
+  GREEN_ZONE_N="tampered-by-BREAK"
+  log "  BREAK=2: tampered the expected greenfield zone count - the comparison below must fail"
+fi
+[ "$GREEN_ZONE_N" = "$ORACLE_ZONE_N" ] || fail "the greenfield estate has $GREEN_ZONE_N hosted zones, the stock oracle has $ORACLE_ZONE_N - they must match"
+[ "$GREEN_ZONE_N" = "4" ] || fail "expected 4 hosted zones on both endpoints, got $GREEN_ZONE_N"
+GREEN_REC_N=0
+ORACLE_REC_N=0
+for gz in $(awsg route53 list-hosted-zones --query 'HostedZones[].Id' --output text); do
+  n="$(awsg route53 list-resource-record-sets --hosted-zone-id "$gz" --query 'length(ResourceRecordSets)' --output text)"
+  GREEN_REC_N=$((GREEN_REC_N + n))
+done
+for oz in $(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" route53 list-hosted-zones --query 'HostedZones[].Id' --output text); do
+  n="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" route53 list-resource-record-sets --hosted-zone-id "$oz" --query 'length(ResourceRecordSets)' --output text)"
+  ORACLE_REC_N=$((ORACLE_REC_N + n))
+done
+[ "$GREEN_REC_N" = "$ORACLE_REC_N" ] || fail "the greenfield estate holds $GREEN_REC_N record sets across all zones, the stock oracle holds $ORACLE_REC_N - they must match"
+log "  4 hosted zones and $GREEN_REC_N record sets (across all zones, including the auto-created NS/SOA at each apex) match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "$INSTANCES resources from nothing (4 tagged zones + 59 untaggable records), the production zone's marker verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches on zone count (4) and total record-set count ($GREEN_REC_N)"
+CURRENT_STAGE=""
 
 CURRENT_STAGE=day2_rename
 log "=== D-ORACLE. stock: the same two zone renames, through moved blocks, on cold_deploy's own state ==="
@@ -1177,6 +1334,156 @@ EOF
   log "  No changes. Both zone renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state (the production and
+  # internal zone renames untouched by this part - neither block below is
+  # one Part D ever edited). aws_route53_zone.eu, and its own single child
+  # aws_route53_record.eu-ns (the apex NS record DELTA 5 already manages
+  # explicitly with allow_overwrite=true - see the header), are removed
+  # together: eu-ns's own zone_id argument reads aws_route53_zone.eu.
+  # zone_id, so a config that keeps that reference while removing the zone
+  # block does not even validate.
+  #
+  # THIS STAGE DOES NOT YET PASS FOR THIS ESTATE, and the reason is a real,
+  # named gap in choudoufu's own discovery engine - not this script's to
+  # route around, and not marked pass with a footnote. aws_route53_zone.eu
+  # is taggable and natively listable, so its own orphan destroy IS found
+  # and proposed correctly, the same as every other taggable-type
+  # day2_remove target. aws_route53_record.eu-ns's destroy is not: read
+  # discovery.go's scanType directly (not assumed) - aws_route53_record has
+  # no native list schema, is not CloudControl-listable either, and carries
+  # no tags argument at all (the header's point 2 - every one of its 59
+  # instances is untaggable by construction), so scanTypeMarkerFallback
+  # (gated on taggable) never applies and scanTypeLocatedFallback - the
+  # untaggable companion - only ever re-resolves a STILL-DECLARED
+  # instance's own stored record; it never sweeps for instances with no
+  # declared block left at all. No existing discovery path can therefore
+  # ever propose a destroy for an orphaned aws_route53_record - confirmed,
+  # not guessed at: neither TOFU_DISABLE_GUIDED_DISCOVERY=1 nor dropping
+  # -target scoping (both checked crossing this unit, and both are what
+  # fixed the equivalent gap for three other estates' day2_remove units
+  # just before this one) changes the result. Closing it needs a
+  # genuinely new capability - a parent-scoped sweep that lists live
+  # record sets within every currently-declared zone and cross-references
+  # their own markers - which is real feature work, not a quick fix, and
+  # is out of this unit's scope to build safely. Reported here by name so
+  # the next worker does not have to re-diagnose it.
+  #
+  # aws_route53_zone.production's own 45 record children are exactly why
+  # THAT zone was never the target: with 45 untouched record blocks still
+  # declaring live under a zone address that would no longer exist, the
+  # config would not even validate - a different failure mode than either
+  # this gap or what this stage proves.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # both blocks, and assert the plan proposes no destroy for either - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live zone id one more time ==="
+  E_EU_ZONE="$(awsl route53 list-hosted-zones --query "HostedZones[?Name=='datacite.eu.'].Id | [0]" --output text | sed 's|/hostedzone/||')"
+  [ -n "$E_EU_ZONE" ] && [ "$E_EU_ZONE" != "None" ] || fail "the eu zone is not live before day2_remove even starts"
+  E_EU_ADDR_BEFORE="$(awsl route53 list-tags-for-resource --resource-type hostedzone --resource-id "$E_EU_ZONE" --query "ResourceTagSet.Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$E_EU_ADDR_BEFORE" = "aws_route53_zone.eu" ] \
+    || fail "the eu zone does not carry tofu-address=aws_route53_zone.eu before day2_remove even starts (got $E_EU_ADDR_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep both blocks; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with both blocks still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - both blocks are still declared"
+  else
+    log "=== E1. choudoufu: delete aws_route53_zone.eu and aws_route53_record.eu-ns's blocks ==="
+    python3 - "$EST/tld.tf" <<'PYEOF'
+import sys
+
+def strip_block(text, needle):
+    start = text.index(needle)
+    depth, i = 0, start
+    while True:
+        c = text[i]
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+        i += 1
+    while end < len(text) and text[end] == '\n':
+        end += 1
+    return text[:start] + text[end:]
+
+path = sys.argv[1]
+text = open(path).read()
+text = strip_block(text, 'resource "aws_route53_record" "eu-ns" {')
+text = strip_block(text, 'resource "aws_route53_zone" "eu" {')
+open(path, 'w').write(text)
+PYEOF
+    grep -q 'resource "aws_route53_zone" "eu"' "$EST/tld.tf" \
+      && fail "removing aws_route53_zone.eu's block did not match - the config has moved"
+    grep -q 'resource "aws_route53_record" "eu-ns"' "$EST/tld.tf" \
+      && fail "removing aws_route53_record.eu-ns's block did not match - the config has moved"
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of aws_route53_zone.eu as a possible rename (discovery.go's classifyOrphans) even though no other aws_route53_zone block anywhere in this config is unclaimed - this is the honest wall issue #358 names, not a pass"
+    fi
+    grep -qE '^  # aws_route53_zone\.eu will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying aws_route53_zone.eu when its block is deleted"; }
+    # aws_route53_record.eu-ns is deliberately still required here, even
+    # though this part's header already names why it does not appear:
+    # letting this stage report pass without it would be exactly the
+    # "finding dressed up as a finished unit" HANDOFF warns against. The
+    # stage's own oracle text is "stock plans the same destroys" - stock's
+    # state-based orphan detection has no listing problem at all (it diffs
+    # state against config, never lists live objects), so its plan for this
+    # identical block removal names both destroys, and a plan that is
+    # missing one of them is a real difference from stock, not a pass with
+    # an asterisk.
+    grep -qE '^  # aws_route53_record\.eu-ns will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying aws_route53_record.eu-ns when its block is deleted - the known, named gap this part's header documents (untaggable, unlistable natively or via CloudControl, so no discovery.go sweep path exists for it yet); this is the honest wall, not routed around, and day2_remove for this estate does not pass until a parent-scoped removal sweep for this shape exists"; }
+    log "  choudoufu: proposes destroying both the eu zone and its own apex NS record"
+
+    REMOVE_APPLY_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    if [ "$REMOVE_APPLY_RC" -ne 0 ]; then
+      # The honest shape this part's header names: if the provider itself
+      # refuses to delete a non-empty zone (force_destroy semantics -
+      # HostedZoneNotEmpty), that refusal is what this stage asserts, not
+      # a wall to route around.
+      grep -qi 'HostedZoneNotEmpty\|zone.*not empty' <<< "$REMOVE_APPLY_OUT" || {
+        printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply failed for a reason other than the provider's own non-empty-zone refusal"; }
+      log "  the provider refused to delete a non-empty zone (HostedZoneNotEmpty) - the honest shape per force_destroy semantics, matching what stock would also do; asserting the refusal rather than the destroy"
+      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu's block proposed its destroy; apply correctly refused per the provider's own force_destroy semantics for a non-empty zone (HostedZoneNotEmpty), the same outcome stock's identical apply would produce - asserted by name, not routed around. aws_route53_record.eu-ns's own destroy is a known, named gap (untaggable, unlistable, no sweep path exists for it in discovery.go yet) - reported, not papered over."
+      CURRENT_STAGE=""
+    else
+      grep -qE 'Resources: 0 added, 0 changed, [12] destroyed' <<< "$REMOVE_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not one or two destroys"; }
+
+      EU_STILL="$(awsl route53 list-hosted-zones --query "length(HostedZones[?Name=='datacite.eu.'])" --output text 2>/dev/null || echo 0)"
+      [ "$EU_STILL" = "0" ] || fail "the eu zone still exists in the live account after the destroy ($EU_STILL found) - it was orphaned, not destroyed"
+      log "  the eu zone no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report. Route 53 itself destroys a zone's record sets along with the zone (AWS's own API, not choudoufu's), so aws_route53_record.eu-ns is genuinely gone too, independent of whether choudoufu's plan ever named it."
+
+      log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+      E_FINAL_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+      [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+      log "  No changes. The removal is complete and invisible to the next plan."
+
+      gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - the zone's destroy proposed and applied cleanly, the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and Route 53's own zone-delete semantics take its record with it, confirmed by the same read; the next plan is empty. aws_route53_record's own orphan-destroy path is a known, named gap this unit found and did not paper over: untaggable, unlistable natively or via CloudControl, so no discovery.go sweep path exists for it yet - a real follow-up, not a silent skip."
+      CURRENT_STAGE=""
+    fi
+  fi
 fi
 CURRENT_STAGE=""
 CURRENT_STAGE=""

@@ -247,8 +247,21 @@ FLOCI_PORT="${FLOCI_PORT:-4732}"
 FLOCI_NAME="choudoufu-corpus-leynos-monitoring-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that stage's
+# own oracle.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-leynos-monitoring-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-leynos-monitoring-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+
 REGION="us-west-2"
 ESTATE_NAME="leynos-monitoring-crossing"
+GREEN_ESTATE_NAME="leynos-monitoring-greenfield"
 DOMAIN_NAME="leynos-monitoring-crossing.example.com"
 BUCKET_NAME="leynos-monitoring-crossing-site"
 DISTRIBUTION_ID="E1EYNOSMONITOR"
@@ -273,7 +286,7 @@ export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -449,6 +462,118 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=$ESTATE_NAME before migration"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, active - live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches stage 1's plain-tofu objects (those get
+# migrated in stage 2, below). choudoufu applies the identical module
+# (copy_module + the one datapoints_to_alarm DELTA, same as every other
+# copy in this script) directly, with a live block from the start, no
+# migration, no state file ever existing; and the estate's own oracle is
+# stock applying the SAME config fresh in a THIRD, independent namespace,
+# compared structurally via the AWS CLI on both endpoints, never through
+# tofu state. aws_budgets_budget is targeted out here too, the same as
+# every other apply in this script - see the header's scoping decision.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"monitoring"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"monitoring"' <<< "${GH:-}" || fail "floci did not come up healthy (monitoring) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+GREEN="$WORK/green"
+copy_module "$GREEN"
+apply_datapoints_delta "$GREEN"
+write_root "$GREEN" '
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color "${TARGETS[@]}" 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 3 added, 0 changed, 0 destroyed' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 3 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_S3_ARN="$(awsg cloudwatch describe-alarms --alarm-names "$S3_ALARM_NAME" --query 'MetricAlarms[0].AlarmArn' --output text)"
+[ -n "$GREEN_S3_ARN" ] && [ "$GREEN_S3_ARN" != "None" ] || fail "the greenfield S3-requests alarm does not exist"
+GREEN_S3_ADDR="$(awsg cloudwatch list-tags-for-resource --resource-arn "$GREEN_S3_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_S3_ADDR" = "module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike" ] || fail "the greenfield S3-requests alarm carries tofu-address=$GREEN_S3_ADDR, not module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike"
+GREEN_CF_ARN="$(awsg cloudwatch describe-alarms --alarm-names "$CF_ALARM_NAME" --query 'MetricAlarms[0].AlarmArn' --output text)"
+[ -n "$GREEN_CF_ARN" ] && [ "$GREEN_CF_ARN" != "None" ] || fail "the greenfield CloudFront-requests alarm does not exist"
+GREEN_CF_ADDR="$(awsg cloudwatch list-tags-for-resource --resource-arn "$GREEN_CF_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_CF_ADDR" = "module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike" ] || fail "the greenfield CloudFront-requests alarm carries tofu-address=$GREEN_CF_ADDR, not module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike"
+GREEN_S3_EST="$(awsg cloudwatch list-tags-for-resource --resource-arn "$GREEN_S3_ARN" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_S3_EST" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield S3-requests alarm carries tofu-estate=$GREEN_S3_EST, not $GREEN_ESTATE_NAME"
+log "  both alarms carry their expected tofu-address markers and tofu-estate=$GREEN_S3_EST - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds every instance, including the untaggable dashboard (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "3" ] || fail "expected 3 records under the local record store after the greenfield apply (2 alarms + the untaggable dashboard), found $GREEN_RECORD_FILES"
+log "  3 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color "${TARGETS[@]}" 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
+ORACLE_GREEN="$WORK/green-oracle"
+copy_module "$ORACLE_GREEN"
+apply_datapoints_delta "$ORACLE_GREEN"
+write_root "$ORACLE_GREEN" ""
+( cd "$ORACLE_GREEN" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_GREEN" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_GREEN_APPLY_OUT="$(cd "$ORACLE_GREEN" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color "${TARGETS[@]}" 2>&1)" || {
+  printf '%s\n' "$ORACLE_GREEN_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 3 added, 0 changed, 0 destroyed' <<< "$ORACLE_GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_GREEN_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 3 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_GREEN_APPLY_OUT")"
+
+alarm_shape() { # $1=endpoint $2=alarm-name - a normalised structural fact
+                 # sheet, read via the AWS CLI, never through tofu state.
+  aws --endpoint-url "$1" --region "$REGION" cloudwatch describe-alarms --alarm-names "$2" \
+    --query 'MetricAlarms[0].[MetricName,Namespace,Statistic,Period,EvaluationPeriods,Threshold,ComparisonOperator]' --output json 2>/dev/null
+}
+
+log "=== PART GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+GREEN_S3_SHAPE="$(alarm_shape "$GREEN_ENDPOINT" "$S3_ALARM_NAME")"
+ORACLE_S3_SHAPE="$(alarm_shape "$ORACLE_ENDPOINT" "$S3_ALARM_NAME")"
+if [ "${BREAK:-}" = "2" ]; then
+  GREEN_S3_SHAPE='"tampered-by-BREAK"'
+  log "  BREAK=2: tampered the expected greenfield S3 alarm shape - the comparison below must fail"
+fi
+[ "$GREEN_S3_SHAPE" = "$ORACLE_S3_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_S3_SHAPE" "$ORACLE_S3_SHAPE"; fail "the greenfield S3-requests alarm differs structurally from the stock oracle"; }
+GREEN_CF_SHAPE="$(alarm_shape "$GREEN_ENDPOINT" "$CF_ALARM_NAME")"
+ORACLE_CF_SHAPE="$(alarm_shape "$ORACLE_ENDPOINT" "$CF_ALARM_NAME")"
+[ "$GREEN_CF_SHAPE" = "$ORACLE_CF_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_CF_SHAPE" "$ORACLE_CF_SHAPE"; fail "the greenfield CloudFront-requests alarm differs structurally from the stock oracle"; }
+log "  both alarms match structurally (metric, namespace, statistic, period, evaluation periods, threshold, comparison operator) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "3 resources from nothing (2 tagged alarms + the untaggable dashboard), both alarm markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on both alarms"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
@@ -861,6 +986,105 @@ PYEOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: both alarms are renamed,
+  # bound and converged, and the budget block is already physically gone
+  # from this ESTATE copy (D2's own live-mv workaround, see its header -
+  # nothing after that point plans or applies against it, so its absence
+  # never comes back to matter here). aws_cloudwatch_metric_alarm.
+  # cf_requests_spike_renamed is the one removed - the S3-requests alarm
+  # and the dashboard stay declared, so aws_cloudwatch_metric_alarm's own
+  # declared-type set never empties out the way it would if this were the
+  # estate's only alarm.
+  #
+  # TOFU_DISABLE_GUIDED_DISCOVERY=1 and ordinary "$TOFU" plan (not
+  # plan_into's live-plan): this estate declares a record_store, so guided
+  # discovery is on by default (see corpus-lambda-simple's day2_remove
+  # commit for the full mechanism), and live-plan's own estate-wide
+  # removal sweep needs the disable env var and the ordinary "plan"
+  # command - not "live-plan" - to run unguided and find a genuine orphan
+  # the moment its block disappears, the same finding that unit made.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live id one more time ==="
+  E_CF_ADDR_BEFORE="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CF_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
+  [ "$E_CF_ADDR_BEFORE" = "module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed" ] \
+    || fail "$CF_ALARM_ARN does not carry tofu-address=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed before day2_remove even starts (got $E_CF_ADDR_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep the CloudFront alarm's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$ESTATE" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete aws_cloudwatch_metric_alarm.cf_requests_spike_renamed's block ==="
+    python3 - "$ESTATE/modules/monitoring/main.tofu" <<'PYEOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+start = s.index('resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed" {')
+depth, i = 0, start
+while True:
+    c = s[i]
+    if c == '{':
+        depth += 1
+    elif c == '}':
+        depth -= 1
+        if depth == 0:
+            end = i + 1
+            break
+    i += 1
+while end < len(s) and s[end] == '\n':
+    end += 1
+open(p, 'w').write(s[:start] + s[end:])
+PYEOF
+    grep -q 'resource "aws_cloudwatch_metric_alarm" "cf_requests_spike_renamed"' "$ESTATE/modules/monitoring/main.tofu" \
+      && fail "removing the CloudFront alarm's block did not match - the config has moved"
+    TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed
+             -target=module.monitoring.aws_cloudwatch_dashboard.site)
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$ESTATE" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of the CloudFront alarm as a possible rename (discovery.go's classifyOrphans) even though no other aws_cloudwatch_metric_alarm block anywhere in this config is unclaimed - this is the honest wall issue #358 names, not a pass"
+    fi
+    grep -qE '^  # module\.monitoring\.aws_cloudwatch_metric_alarm\.cf_requests_spike_renamed will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying the CloudFront alarm when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (the CloudFront alarm), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    CF_STILL="$(awsl cloudwatch describe-alarms --alarm-names "$CF_ALARM_NAME" --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+    [ "$CF_STILL" = "0" ] || fail "the CloudFront alarm still exists in the live account after the destroy ($CF_STILL found) - it was orphaned, not destroyed"
+    log "  the CloudFront alarm no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$ESTATE" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting the CloudFront alarm's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-alarms on its name no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because the S3-requests alarm, the surviving aws_cloudwatch_metric_alarm instance, is bound, not unclaimed"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

@@ -431,12 +431,24 @@ FLOCI_NAME="choudoufu-corpus-lambda-simple-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that stage's
+# own oracle.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-lambda-simple-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-lambda-simple-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+
 ESTATE="lambda-simple-crossing"
+GREEN_ESTATE="lambda-simple-greenfield"
 REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -703,6 +715,134 @@ log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "8 resources, genuinely cold, genuinely unmarked"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, active - live/GAUNTLET.md #13)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches the objects stage 1's plain terraform apply
+# created (those get migrated in stage 2, below). choudoufu applies the
+# IDENTICAL reduced example (DELTA 1 + DELTA 2, no other change) directly,
+# with a live block from the start, no migration, no state file ever
+# existing; the record store must hold every record-backed instance
+# (random_pet.this, local_file.archive_plan, null_resource.archive,
+# terraform_data.package_filename_for_hash - the same four stage 2's own
+# migrate step records); and the estate's own oracle is stock applying the
+# SAME config fresh in a THIRD, independent namespace, compared structurally
+# via the AWS CLI on both endpoints, never through tofu state. $WORK/
+# stocklambda is already DELTA 1 + DELTA 2 with no live block and no state -
+# exactly the base both fresh copies below need - taken above right after
+# the cold apply.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"lambda"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"lambda"' <<< "${GH:-}" || fail "floci did not come up healthy (lambda) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+cp -a "$WORK/stocklambda" "$WORK/lambda-greenfield"
+GREEN_EST="$WORK/lambda-greenfield/examples/simple"
+perl -0pi -e 's/(random = \{\n      source  = "hashicorp\/random"\n      version = ">= 2.0"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 8 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 8 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+# The greenfield namespace holds exactly one function - a fresh account with
+# nothing else in it - so its own name, read straight off Lambda's own
+# ListFunctions, is what function_name actually resolved to; no need to
+# reconstruct random_pet.this's generated id from the record store.
+GREEN_FN_NAME="$(awsg lambda list-functions --query 'Functions[0].FunctionName' --output text)"
+[ -n "$GREEN_FN_NAME" ] && [ "$GREEN_FN_NAME" != "None" ] || fail "no live function found in the greenfield namespace through the AWS CLI"
+log "  function_name resolved to $GREEN_FN_NAME"
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_LAMBDA_ARN="arn:aws:lambda:${REGION}:${ACCOUNT}:function:${GREEN_FN_NAME}"
+GREEN_LAMBDA_ADDR="$(awsg lambda list-tags --resource "$GREEN_LAMBDA_ARN" --query 'Tags."tofu-address"' --output text)"
+[ "$GREEN_LAMBDA_ADDR" = "module.lambda_function.aws_lambda_function.this:0" ] || fail "the greenfield function carries tofu-address=$GREEN_LAMBDA_ADDR, not module.lambda_function.aws_lambda_function.this:0"
+GREEN_ROLE_ADDR="$(awsg iam list-role-tags --role-name "$GREEN_FN_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GREEN_ROLE_ADDR" = "module.lambda_function.aws_iam_role.lambda:0" ] || fail "the greenfield role carries tofu-address=$GREEN_ROLE_ADDR, not module.lambda_function.aws_iam_role.lambda:0"
+GREEN_LOGGROUP_ARN="arn:aws:logs:${REGION}:${ACCOUNT}:log-group:/aws/lambda/${GREEN_FN_NAME}"
+GREEN_LOGGROUP_ADDR="$(awsg logs list-tags-for-resource --resource-arn "$GREEN_LOGGROUP_ARN" --query 'tags."tofu-address"' --output text 2>/dev/null \
+  || awsg logs list-tags-log-group --log-group-name "/aws/lambda/${GREEN_FN_NAME}" --query 'tags."tofu-address"' --output text)"
+[ "$GREEN_LOGGROUP_ADDR" = "module.lambda_function.aws_cloudwatch_log_group.lambda:0" ] || fail "the greenfield log group carries tofu-address=$GREEN_LOGGROUP_ADDR, not module.lambda_function.aws_cloudwatch_log_group.lambda:0"
+log "  all three module-nested markers verified via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds every record-backed instance (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "8" ] || fail "expected 8 records under the local record store after the greenfield apply (3 taggable + random_pet + local_file + null_resource + terraform_data + one for the config-derived aws_iam_role_policy.logs), found $GREEN_RECORD_FILES"
+log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qE '^  # .+ will be' <<< "$GREEN_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan proposes a resource change"; }
+log "  no resource change proposed"
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
+cp -a "$WORK/stocklambda" "$WORK/lambda-greenfield-oracle"
+ORACLE_EST="$WORK/lambda-greenfield-oracle/examples/simple"
+( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 8 added' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 8 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+ORACLE_PET="$(python3 -c "
+import json
+s = json.load(open('$ORACLE_EST/terraform.tfstate'))
+for r in s['resources']:
+    if r['type'] == 'random_pet' and r['name'] == 'this':
+        print(r['instances'][0]['attributes']['id'])
+")"
+ORACLE_FN_NAME="${ORACLE_PET}-lambda-simple"
+
+log "=== PART GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+lambda_shape() { # $1=endpoint $2=function-name - a normalised structural
+                  # fact sheet, read via the AWS CLI, never through tofu state.
+  aws --endpoint-url "$1" --region "$REGION" lambda get-function-configuration --function-name "$2" \
+    --query '[Runtime,Handler,MemorySize,Timeout]' --output json 2>/dev/null \
+  | jq -S .
+}
+loggroup_shape() { # $1=endpoint $2=log-group-name
+  aws --endpoint-url "$1" --region "$REGION" logs describe-log-groups --log-group-name-prefix "$2" \
+    --query 'logGroups[0].retentionInDays' --output json 2>/dev/null
+}
+GREEN_LAMBDA_SHAPE="$(lambda_shape "$GREEN_ENDPOINT" "$GREEN_FN_NAME")"
+ORACLE_LAMBDA_SHAPE="$(lambda_shape "$ORACLE_ENDPOINT" "$ORACLE_FN_NAME")"
+if [ "${BREAK:-}" = "7" ]; then
+  GREEN_LAMBDA_SHAPE='"tampered-by-BREAK"'
+  log "  BREAK=7: tampered the expected greenfield function shape - the comparison below must fail"
+fi
+[ "$GREEN_LAMBDA_SHAPE" = "$ORACLE_LAMBDA_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_LAMBDA_SHAPE" "$ORACLE_LAMBDA_SHAPE"; fail "the greenfield function differs structurally (runtime/handler/memory/timeout) from the stock oracle"; }
+GREEN_LOGGROUP_SHAPE="$(loggroup_shape "$GREEN_ENDPOINT" "/aws/lambda/${GREEN_FN_NAME}")"
+ORACLE_LOGGROUP_SHAPE="$(loggroup_shape "$ORACLE_ENDPOINT" "/aws/lambda/${ORACLE_FN_NAME}")"
+[ "$GREEN_LOGGROUP_SHAPE" = "$ORACLE_LOGGROUP_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_LOGGROUP_SHAPE" "$ORACLE_LOGGROUP_SHAPE"; fail "the greenfield log group's retention differs from the stock oracle"; }
+log "  runtime, handler, memory, timeout and log-group retention match structurally between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "8 resources from nothing (3 taggable + 5 record-backed/config-derived), all three module-nested markers verified via the AWS CLI, 8 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (runtime, handler, memory, timeout, log-group retention)"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
@@ -1490,6 +1630,171 @@ EOF
   log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.lambda_function_final
+  # is bound and converged, and it is the estate's ONLY module call - the
+  # ONLY thing this estate ever creates besides random_pet.this (record-
+  # located, unaffected by this removal, live-mv does not touch it either -
+  # see Part D's own header). Deleting the module block outright removes
+  # all seven of its stateful children at once: the three taggable ones
+  # (the function, the role, the log group) plus the three record-located
+  # ones and the one config-derived child. outputs.tf's 23 root outputs all
+  # read module.lambda_function_final.* - the only module that ever
+  # produced these values - so they are removed along with the block, the
+  # same edit a person deleting this module call would make.
+  #
+  # Known, non-fabricated gap this stage's own removal-detection sweep runs
+  # into and does not paper over: this script's header already documents
+  # that floci's resourcegroupstaggingapi GetResources does not index
+  # CloudWatch Logs log groups (found building stage 4's own object count,
+  # confirmed by reading logs:list-tags-for-resource directly against the
+  # SAME live object, which answers correctly). The estate-wide removal
+  # sweep (internal/live/discovery/tagging.go's sweepViaTagging) is exactly
+  # that same GetResources call, so the log group's orphan is invisible to
+  # it the identical way. Asserted below by NAME, not glossed over: the
+  # function and the role must each get their own destroy line; the log
+  # group's is allowed to be missing, and the assertion says so rather than
+  # silently accepting "fewer destroys than expected".
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+  #
+  # TOFU_DISABLE_GUIDED_DISCOVERY=1 on every plan/apply below: this estate
+  # declares a record_store, so guided discovery (internal/live/discovery/
+  # guided.go) turns on by default, and by the time this part runs, stage
+  # 2's migrate, stage 4's test_apply, stage 5's drift replan and Part D's
+  # own three plans have all already written a fresh hint recording
+  # aws_lambda_function/aws_iam_role/aws_cloudwatch_log_group as "checked,
+  # nothing to see" - guided.go's own doc comment names exactly this trade
+  # ("a standing orphan of a hinted type may not resurface on every single
+  # routine plan, only at the next full or verification sweep"), and this
+  # part's whole job is proving the type IS a genuine orphan the moment its
+  # block disappears, not waiting out GuidedVerifyAge's window. The env var
+  # is the documented operational escape hatch (live_plan.go's own comment:
+  # "an operational lever for a run that is misbehaving, not a decision a
+  # team checks in") - forcing the full, unguided sweep this stage needs to
+  # mean anything.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live objects one more time ==="
+  E_LAMBDA_ADDR="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text 2>/dev/null || true)"
+  [ "$E_LAMBDA_ADDR" = "module.lambda_function_final.aws_lambda_function.this:0" ] \
+    || fail "$LAMBDA_ARN does not carry tofu-address=module.lambda_function_final.aws_lambda_function.this:0 before day2_remove even starts (got $E_LAMBDA_ADDR)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.lambda_function_final's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.lambda_function_final's block ==="
+    python3 - "$EST/main.tf" <<'PY' || fail "removing module.lambda_function_final's block failed"
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+m = re.search(r'\nmodule "lambda_function_final" \{\n', text)
+if not m:
+    sys.exit("module.lambda_function_final's block was not found - the config has moved")
+start = m.start()
+i = m.end()
+depth = 1
+while depth > 0:
+    if text[i] == "{":
+        depth += 1
+    elif text[i] == "}":
+        depth -= 1
+    i += 1
+# i is now just past the matching closing brace; consume the trailing newline too.
+end = i
+if text[end:end + 1] == "\n":
+    end += 1
+open(path, "w").write(text[:start] + text[end:])
+PY
+    grep -q 'module "lambda_function_final"' "$EST/main.tf" \
+      && fail "removing module.lambda_function_final's block did not match - the config has moved"
+    cat > "$EST/outputs.tf" <<'EOF'
+# All root outputs removed along with module.lambda_function_final's block
+# (day2_remove) - every one of them read module.lambda_function_final.*.
+EOF
+    # module.lambda_function_final was the only caller of hashicorp/local and
+    # hashicorp/null anywhere in this config - the root's own versions.tf
+    # never named either provider directly, only ever picking them up
+    # through the module call's own required_providers. Removing the call
+    # removes that requirement too, and without it a plan cannot instantiate
+    # either provider to reason about the local_file/null_resource records
+    # the module's own three record-located children left behind (the
+    # record store still holds them - live-import's #340 residue write never
+    # goes away just because the block that produced it did). A real
+    # operator tearing this module down keeps the provider requirement until
+    # its own leftovers are cleaned up for exactly the same reason; this is
+    # that, not a special case for the test.
+    perl -0pi -e 's/(random = \{\n      source  = "hashicorp\/random"\n      version = ">= 2\.0"\n    \}\n)(  \}\n)/$1    local = {\n      source  = "hashicorp\/local"\n      version = ">= 2.0"\n    }\n    null = {\n      source  = "hashicorp\/null"\n      version = ">= 3.0"\n    }\n$2/' "$EST/versions.tf"
+    grep -q 'source  = "hashicorp/local"' "$EST/versions.tf" \
+      || fail "the day2_remove required_providers delta did not match versions.tf - the corpus pin has moved"
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld a destroy as a possible rename (discovery.go's classifyOrphans) even though no other block anywhere in this config declares an instance of any of these types - this is the honest wall issue #358 names, not a pass"
+    fi
+    for addr in 'module\.lambda_function_final\.aws_lambda_function\.this\[0\]' \
+                'module\.lambda_function_final\.aws_iam_role\.lambda\[0\]' \
+                'module\.lambda_function_final\.local_file\.archive_plan\[0\]' \
+                'module\.lambda_function_final\.null_resource\.archive\[0\]' \
+                'module\.lambda_function_final\.terraform_data\.package_filename_for_hash\[0\]'; do
+      grep -qE "^  # ${addr} will be destroyed" <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying $addr when its block is deleted"; }
+    done
+    log "  choudoufu: destroys proposed for the function, the role and all three record-located children"
+    if grep -qE '^  # module\.lambda_function_final\.aws_cloudwatch_log_group\.lambda\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT"; then
+      log "  choudoufu ALSO proposed destroying the log group - stronger than expected (floci#? may have closed the GetResources log-group gap); not a failure"
+      WANT_DESTROY_COUNT=6
+    else
+      log "  the log group's destroy is correctly absent - the documented floci gap (GetResources does not index CloudWatch Logs), not a choudoufu defect"
+      WANT_DESTROY_COUNT=5
+    fi
+    N_DESTROY="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_PLAN_OUT")"
+    [ "$N_DESTROY" = "$WANT_DESTROY_COUNT" ] \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's remove plan proposes $N_DESTROY destroys, expected exactly $WANT_DESTROY_COUNT"; }
+    grep -qE '^  # .+ will be created' <<< "$REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's remove plan proposes a create - it should propose only destroys"; }
+
+    REMOVE_APPLY_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE "Resources: 0 added, 0 changed, $WANT_DESTROY_COUNT destroyed" <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly $WANT_DESTROY_COUNT destroys"; }
+
+    if E_LAMBDA_STILL="$(awsl lambda get-function --function-name "$FN_NAME" 2>&1)"; then
+      echo "$E_LAMBDA_STILL"; fail "$LAMBDA_ARN still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    if E_ROLE_STILL="$(awsl iam get-role --role-name "$FN_NAME" 2>&1)"; then
+      echo "$E_ROLE_STILL"; fail "the role $FN_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  the function and the role no longer exist (confirmed via the AWS CLI, not through choudoufu's own report)"
+
+    log "=== E2. one more plan: config and reality agree on what could be swept, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated)' <<< "$E_FINAL_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan proposes a create or update"; }
+    if [ "$WANT_DESTROY_COUNT" = 6 ]; then
+      grep -qE '^  # .+ will be destroyed' <<< "$E_FINAL_PLAN_OUT" \
+        && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan still proposes a destroy"; }
+    fi
+    log "  no further resource action proposed. The removal is complete."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.lambda_function_final's block proposed $WANT_DESTROY_COUNT destroys (the function, the role, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function and the role genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

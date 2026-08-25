@@ -1712,6 +1712,35 @@ func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProvid
 		addr := providerConfigAddr(modCfg, rc)
 		seen[addr.String()] = addr
 	})
+	if len(seen) == 0 {
+		// day2_remove's own shape (live/GAUNTLET.md #7), not a configuration
+		// with nothing to sweep: this walk answers "which providers does a
+		// managed resource use right now", and a block that WAS declared
+		// and got deleted this run is exactly the case a removal sweep
+		// exists to catch - it can never show up in this walk by
+		// construction, because the walk only ever sees what is still
+		// declared. Before this fallback, an estate whose last non-record-
+		// backed resource had just been removed (this walk's only
+		// remaining candidate) skipped statelessDiscover's sweep entirely,
+		// silently: the caller's own "nothing to find, nothing that could
+		// be undeclared" comment was true of the walk's OWN candidate set
+		// but false of the estate, whose orphan the sweep exists precisely
+		// to find. Falling back to the root module's own declared provider
+		// blocks - present whether or not anything currently uses them -
+		// keeps the estate-wide sweep running against the same provider(s)
+		// this estate has always planned through, the same way stock's own
+		// state-based orphan handling never depends on the CURRENT config
+		// still declaring an instance of the removed block's type. Found
+		// crossing corpus-lambda-simple's own day2_remove: the estate's
+		// sole module call is its only non-record-backed resource source,
+		// so deleting it left ONLY random_pet.this declared - record-
+		// backed, and excluded above by construction - and the sweep for
+		// the function, the role and the log group never ran at all.
+		for _, pc := range config.Module.ProviderConfigs {
+			addr := config.ResolveAbsProviderAddr(addrs.LocalProviderConfig{LocalName: pc.Name, Alias: pc.Alias}, addrs.RootModule)
+			seen[addr.String()] = addr
+		}
+	}
 	return sortedProviderConfigs(seen)
 }
 
