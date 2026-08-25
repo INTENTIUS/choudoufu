@@ -187,6 +187,12 @@ set -uo pipefail
 #                            than the greenfield estate actually created, so
 #                            the queue-count comparison against the stock
 #                            oracle namespace must fail.
+#                  remove    day2_remove's own break control (PART E, after
+#                            the real rename): keep module.unencrypted_sqs_
+#                            renamed's block in the config; the plan below
+#                            must propose no destroy for it at all - the
+#                            Break text in tools/gauntlet/stages.go,
+#                            verbatim.
 #                  1         alias for `schema`.
 #                They are separate values rather than one flag because the
 #                first corruption reached exits the script: a single BREAK=1
@@ -250,8 +256,8 @@ gauntlet_begin
 BREAK_AT="${BREAK:-}"
 [ "$BREAK_AT" = "1" ] && BREAK_AT="schema"
 case "$BREAK_AT" in
-  ""|schema|identity|drift|rename|greenfield) ;;
-  *) fail "BREAK must be one of: schema, identity, drift, rename, greenfield (1 is an alias for schema)" ;;
+  ""|schema|identity|drift|rename|greenfield|remove) ;;
+  *) fail "BREAK must be one of: schema, identity, drift, rename, greenfield, remove (1 is an alias for schema)" ;;
 esac
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -596,6 +602,43 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART E-ORACLE: REMOVE, stock oracle (day2_remove, live/GAUNTLET.md #7):
+# "Stock with the same block removed plans the same destroys." A SEPARATE
+# fresh copy of $WORK/sqs, taken here (before PART D below ever mutates
+# $EST in place) so this oracle runs on cold_deploy's own state, with
+# nothing else about the config touched - same shape as the D-ORACLE copy
+# just above and iam-policy's/reference-ec2-vpc's own remove oracles.
+# Removes module.unencrypted_sqs's block entirely (the same standalone,
+# single-queue module PART E below removes after the real rename), plus
+# its six "# Unencrypted" output blocks in outputs.tf - unlike
+# iam-policy's oracle, this estate's outputs.tf DOES reference the removed
+# module (see THE OUTPUTS QUIRK in the header), so leaving them in place
+# would fail re-init with an undefined-module reference, not a clean
+# destroy plan.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_remove
+log "=== E-ORACLE: stock terraform, delete module.unencrypted_sqs's block on cold_deploy's own state ==="
+cp -R "$WORK/sqs" "$WORK/sqs-remove-oracle"
+rm -rf "$WORK/sqs-remove-oracle/examples/complete/.terraform"
+REMOVE_ORACLE_EST="$WORK/sqs-remove-oracle/examples/complete"
+perl -0pi -e 's/module "unencrypted_sqs" \{.*?\n\}\n\n//s' "$REMOVE_ORACLE_EST/main.tf"
+grep -q 'module "unencrypted_sqs"' "$REMOVE_ORACLE_EST/main.tf" \
+  && fail "removing module.unencrypted_sqs's block from the remove-oracle copy did not match - the corpus pin has moved"
+perl -0777 -pi -e 's/\n# Unencrypted\n.*?\n# Disabled/\n# Disabled/s' "$REMOVE_ORACLE_EST/outputs.tf"
+grep -q 'module.unencrypted_sqs' "$REMOVE_ORACLE_EST/outputs.tf" \
+  && fail "removing module.unencrypted_sqs's outputs from the remove-oracle copy did not match - the corpus pin has moved"
+( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying module.unencrypted_sqs's queue when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
+log "  stock: exactly one destroy (module.unencrypted_sqs's queue), nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot (see the header's TOFU-SLOT note)
 # ══════════════════════════════════════════════════════════════════════════
@@ -925,6 +968,92 @@ EOF
   log "  no resource action proposed. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
+  # ════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.unencrypted_sqs_
+  # renamed (originally module.unencrypted_sqs, renamed here by live-mv
+  # with no moved block) is bound and converged. Its block is removed
+  # here - a single, standalone, self-contained queue with no sibling
+  # module referencing it (unlike fifo_sqs's DLQ pair), same shape
+  # E-ORACLE above already proved stock destroys cleanly on cold_deploy's
+  # own state. THE OUTPUTS QUIRK (see header): unlike iam-policy's Part E,
+  # this estate's outputs.tf DOES reference the module being removed (six
+  # "# Unencrypted" blocks), so removing the module block alone would
+  # leave a dangling reference and fail re-init with a config error, not
+  # a clean destroy plan - both are removed together below, the same
+  # move E-ORACLE already made on its own copy.
+  #
+  # BREAK=remove exercises this stage's own Break control instead: keep
+  # the block (and its outputs), and assert the plan proposes no destroy
+  # for it at all - the Break text in tools/gauntlet/stages.go, verbatim.
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live tofu-address one more time ==="
+  E_ADDR_BEFORE="$(awsl sqs list-queue-tags --queue-url "$UNENCRYPTED_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text 2>/dev/null || true)"
+  [ "$E_ADDR_BEFORE" = "module.unencrypted_sqs_renamed.aws_sqs_queue.this:0" ] \
+    || fail "$UNENCRYPTED_QUEUE_URL does not carry tofu-address=module.unencrypted_sqs_renamed.aws_sqs_queue.this:0 before day2_remove even starts (got $E_ADDR_BEFORE)"
+
+  if [ "$BREAK_AT" = "remove" ]; then
+    log "=== E1 (BREAK=remove). keep module.unencrypted_sqs_renamed's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(plan_into 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK=remove kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.unencrypted_sqs_renamed\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK=remove: a destroy was proposed for module.unencrypted_sqs_renamed's queue even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK=remove: some resource action was proposed with the block still in the config"; }
+    log "  BREAK=remove: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.unencrypted_sqs_renamed's block ==="
+    perl -0pi -e 's/module "unencrypted_sqs_renamed" \{.*?\n\}\n\n//s' "$EST/main.tf"
+    grep -q 'module "unencrypted_sqs_renamed"' "$EST/main.tf" \
+      && fail "removing module.unencrypted_sqs_renamed's block did not match - the config has moved"
+    perl -0777 -pi -e 's/\n# Unencrypted\n.*?\n# Disabled/\n# Disabled/s' "$EST/outputs.tf"
+    grep -q 'module.unencrypted_sqs_renamed' "$EST/outputs.tf" \
+      && fail "removing module.unencrypted_sqs_renamed's outputs did not match - the config has moved"
+    rm -rf "$EST/.terraform"
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of module.unencrypted_sqs_renamed's queue as a possible rename - this is the honest wall the day2_rename/day2_remove ambiguity names, not a pass"
+    fi
+    grep -qE '^  # module\.unencrypted_sqs_renamed\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.unencrypted_sqs_renamed's queue when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (module.unencrypted_sqs_renamed's queue), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    # A deleted SQS queue's get-queue-url is a real, documented error
+    # (AWS.SimpleQueueService.NonExistentQueue), confirmed the same way
+    # every other day2_remove check confirms deletion: directly via the
+    # AWS CLI against floci, not through choudoufu's own report.
+    if E_STILL="$(awsl sqs get-queue-url --queue-name "$UNENCRYPTED_QUEUE_NAME" 2>&1)"; then
+      echo "$E_STILL"; fail "$UNENCRYPTED_QUEUE_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  $UNENCRYPTED_QUEUE_NAME no longer exists (NonExistentQueue) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(plan_into 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$E_FINAL_PLAN_OUT" \
+      && { printf '%s\n' "$E_FINAL_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the post-remove plan proposes a resource change"; }
+    log "  no resource action proposed. The removal is complete and invisible to the next plan."
+
+    log ""
+    log "STAGE E (day2_remove): PASS"
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it)"
+    log ""
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end
