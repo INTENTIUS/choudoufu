@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "7a5b59aed9ae6d2a420c8ed7989cb14108cb9ff8",
+  "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T03:46:17Z",
+  "generated": "2026-08-25T05:14:51Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 11,
-          "fail": 10,
-          "not_run": 5
+          "fail": 11,
+          "not_run": 4
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 17,
+          "pass": 18,
           "fail": 4,
-          "not_run": 5
+          "not_run": 4
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 11,
-          "fail": 10,
-          "not_run": 4
+          "fail": 11,
+          "not_run": 3
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 17,
+          "pass": 18,
           "fail": 4,
-          "not_run": 4
+          "not_run": 3
         },
         "migrate": {
           "pass": 25,
@@ -301,12 +301,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -316,13 +316,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c691a22720b0625b319282bd89228c97c6a97ce6",
-        "date": "2026-08-25T01:43:08Z",
+        "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
+        "date": "2026-08-25T05:20:53Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
+          "day2_remove": "choudoufu's remove plan destroys only 1 of the 2 objects aws_instance.other_renamed's block removal should destroy; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes both (0 add, 0 change, 2 destroy: the instance and its target-group attachment). choudoufu has strictly less destroy coverage than stock here - the missing address is left live and orphaned, most likely the target-group attachment: a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class three other estates already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-alb-complete.log for the exact plan diff",
           "day2_rename": "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged",
+          "greenfield": "80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag",
           "migrate": "51 of 80 stamped, 1 recorded, 0 failed, 28 skipped",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 50 tofu-estate-tagged objects before, 50 after",
           "test_plan": "empty live-plan with no state file; 0 Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets"
