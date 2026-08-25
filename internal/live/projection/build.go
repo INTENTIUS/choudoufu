@@ -542,6 +542,192 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 			dependsOn:  r.DestroyDependsOn,
 		})
 	}
+
+	// gauntlet:destroy-order (corpus-autoscaling-complete's day2_remove
+	// unit): a reference edge BETWEEN two sibling undeclared orphans, with
+	// no HCL left on either side to read it from. See
+	// [builder.deriveUndeclaredReferenceEdges]'s own doc comment for why
+	// this has to run after every undeclaredConcrete instance above has
+	// materialized rather than being folded into [wanted.dependsOn] up
+	// front: the values being compared are each OTHER sibling's own live
+	// read, and this batch's own ordering (map iteration inside
+	// [classifyOrphans], not a guaranteed one) cannot be trusted to have
+	// read the far side first.
+	b.deriveUndeclaredReferenceEdges(undeclaredConcrete)
+}
+
+// deriveUndeclaredReferenceEdges is the mirror, for two sibling undeclared
+// orphans, of what [builder.dependencies] reads off a declared instance's
+// own configuration references, and of what [destroyParentDependency]
+// (internal/live/discovery/recordorphan_read.go) reads off one record's own
+// named component for the narrower PARENT/child case. Neither instance in
+// an undeclared pair has a resource block left to read a reference from,
+// and [identity.ParentOf] only ever links a child to its identity-deriving
+// parent - a narrower relation than "one resource's live object names
+// another's own identity somewhere in its attributes."
+//
+// Found building corpus-autoscaling-complete's day2_remove unit:
+// aws_autoscaling_group and aws_launch_template are sibling undeclared
+// orphans with no parent/child link between them at all (an ASG's launch
+// template is a plain attribute reference, not an identity component ASG's
+// own table derives from), and destroying the template first - the order
+// nothing in this pass otherwise constrains - fails against the real API
+// with "ValidationError: The specified launch template does not exist."
+// Stock never hits this: its state file remembers the ASG referenced the
+// template from the original apply and reverses that for the destroy,
+// which is exactly what this function reconstructs with no state file to
+// read it back from.
+//
+// resolved is the batch [builder.run] just finished materializing through
+// undeclaredConcrete: every genuinely undeclared, tag-found orphan in this
+// one plan. That is deliberately the whole comparison scope, the same
+// scope [destroyParentDependency] and [builder.discoverOrphanedRecords]
+// both stay inside for the identical reason - a currently DECLARED
+// resource can never reference something this pass is about to destroy,
+// since its own configuration would have nothing to evaluate the reference
+// against, so widening the comparison to every materialized address would
+// only add false edges, never recover a missing one.
+//
+// The match is generic on purpose: never a concrete aws_* type name
+// anywhere in this function, because the question is not "is this an ASG
+// and that a launch template" - it is "does this object's own live value,
+// anywhere in its structure, hold that object's own identity string."
+// [identity.Resolution.ImportID] is exactly that string, the same one
+// [destroyParentDependency] already compares by == for the narrower
+// parent/child case; here it is looked for inside the WHOLE sibling
+// object rather than inside one named record component, via
+// [containsStringValue]'s generic walk. An AWS-issued id (an ARN, or an
+// opaque id like "lt-0123...") is unique across the whole resource
+// population by construction, so an accidental string match is not a risk
+// this function has to defend against - the same trust
+// [destroyParentDependency]'s own == comparison already extends to the
+// identical kind of string.
+func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution) {
+	type sibling struct {
+		addr     addrs.AbsResourceInstance
+		importID string
+	}
+	var siblings []sibling
+	for _, r := range resolved {
+		if r.ImportID == "" {
+			// No identity string to look for elsewhere, and nothing this
+			// resolution's own object could be found holding either -
+			// [identity.Resolution.Identity]-only instances have no such
+			// string at all; see [wanted.importID]'s own doc comment.
+			continue
+		}
+		if _, ok := b.live[r.Addr.String()]; !ok {
+			// Not materialized this pass - omitted, absent, or superseded
+			// (see [builder.run]'s own undeclaredConcrete loop just above)
+			// - so there is nothing to scan and nothing to depend on.
+			continue
+		}
+		siblings = append(siblings, sibling{addr: r.Addr, importID: r.ImportID})
+	}
+	if len(siblings) < 2 {
+		return
+	}
+
+	for _, from := range siblings {
+		val, ok := b.live[from.addr.String()]
+		if !ok {
+			continue
+		}
+		var deps []addrs.ConfigResource
+		for _, to := range siblings {
+			if to.addr.String() == from.addr.String() {
+				continue
+			}
+			if containsStringValue(val, to.importID) {
+				deps = append(deps, to.addr.ConfigResource())
+			}
+		}
+		if len(deps) > 0 {
+			b.addStateDependencies(from.addr, deps)
+		}
+	}
+}
+
+// addStateDependencies merges extra into addr's already-encoded state
+// entry's own Dependencies field, deduplicated and sorted the same way
+// [builder.materialize]'s own w.dependsOn branch merges [wanted.dependsOn]
+// - the identical merge, applied after the fact, because
+// [builder.deriveUndeclaredReferenceEdges] cannot know what to merge in
+// until every sibling in its batch has already been read and written into
+// the projection. [states.ResourceInstanceObjectSrc.Dependencies] is a
+// plain Go field, never part of the encoded attributes, so mutating it
+// post-hoc changes nothing else about the already-written object.
+//
+// A silent no-op when addr is not in the state at all (should not happen
+// for an address [builder.deriveUndeclaredReferenceEdges] already found in
+// b.live, which is only ever populated alongside a state write) or has no
+// Current object - there is nothing this function could be attaching a
+// destroy-order hint to.
+func (b *builder) addStateDependencies(addr addrs.AbsResourceInstance, extra []addrs.ConfigResource) {
+	mod := b.state.Module(addr.Module)
+	if mod == nil {
+		return
+	}
+	inst := mod.ResourceInstance(addr.Resource)
+	if inst == nil || inst.Current == nil {
+		return
+	}
+	seen := make(map[string]addrs.ConfigResource, len(inst.Current.Dependencies)+len(extra))
+	for _, cr := range inst.Current.Dependencies {
+		seen[cr.String()] = cr
+	}
+	for _, cr := range extra {
+		seen[cr.String()] = cr
+	}
+	deps := make([]addrs.ConfigResource, 0, len(seen))
+	for _, cr := range seen {
+		deps = append(deps, cr)
+	}
+	sort.Slice(deps, func(i, j int) bool { return deps[i].String() < deps[j].String() })
+	inst.Current.Dependencies = deps
+}
+
+// containsStringValue reports whether obj holds target as a string leaf
+// anywhere in its structure: a plain top-level attribute, or nested inside
+// a block, list, set or map - exactly the shape an AWS provider's own
+// nested "launch_template { id = ... }" attribute takes, without this
+// function (or its one caller, [builder.deriveUndeclaredReferenceEdges])
+// ever naming that attribute or the type it belongs to.
+//
+// A marked (sensitive or ephemeral) value is skipped rather than unmarked:
+// HANDOFF's safety rule about a mark-unsafe cty accessor
+// (internal/live/marksafe) applies here exactly as it does to an identity
+// or a tag, even though this result only ever feeds a destroy-order hint
+// and never an identity component or a cloud tag - the guard costs nothing
+// and keeps this function inside the same discipline as every other cty
+// read in this package.
+func containsStringValue(obj cty.Value, target string) bool {
+	if target == "" || obj == cty.NilVal {
+		return false
+	}
+	found := false
+	_ = cty.Walk(obj, func(_ cty.Path, v cty.Value) (bool, error) {
+		if found {
+			return false, nil
+		}
+		if v.IsMarked() {
+			// Refuse rather than unmark: see this function's own doc
+			// comment. Not descending is also correct on its own terms -
+			// an object identity string sitting behind a sensitivity mark
+			// is not a shape this fork's schema-driven marking ever
+			// produces for an ordinary computed attribute like an id.
+			return false, nil
+		}
+		if v.IsNull() || !v.IsKnown() {
+			return true, nil
+		}
+		if v.Type() == cty.String && v.AsString() == target {
+			found = true
+			return false, nil
+		}
+		return true, nil
+	})
+	return found
 }
 
 // applyRecordFirst is GitHub issue #364 unit B's read half: rfc/20260823-
