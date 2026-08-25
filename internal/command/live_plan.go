@@ -267,8 +267,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	coreOpts.Hooks = view.Hooks()
 	coreOpts.Encryption = enc
 
-	// GitHub issue #388's plan-node seam, behind CHOUDOUFU_NODE_RESOLVE=1
-	// (see internal/command/live_mode.go's nodeResolveEnabled, which this
+	// GitHub issue #388's plan-node seam, on by default since 2026-08-25 and
+	// opted out of with CHOUDOUFU_NODE_RESOLVE=0 (see
+	// internal/command/live_mode.go's nodeResolveEnabled, which this
 	// command shares - the flag is a build-migration switch, not a
 	// property of one pipeline). This is the "-estate" flag form's own
 	// seam: it never goes through statelessBegin/backend_local.go's

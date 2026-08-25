@@ -49,6 +49,18 @@ commands follow.
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
 | `choudoufu live-plan` | The live plan, invoked directly. |
 
+Identity resolution and marker stamping run through the plan-node seam
+(GitHub issue #388) by default: the record, then the marker index, then the
+provider's identity schema over the plan's own evaluated configuration,
+resolved at the same graph node stock plans a resource at. `CHOUDOUFU_NODE_RESOLVE=0`
+in the environment that runs a plan or apply opts back out to the older
+pre-walk static evaluator and HCL-rewriting stamp, which choudoufu still
+ships and still runs the full estate suite against; that path is scheduled
+for retirement, not removed, so the variable is an escape hatch for an
+estate the node path does not yet handle, not a supported long-term choice.
+This is a build-migration switch, not a per-estate setting, so it belongs in
+the environment that invokes the binary, never in a `live` block.
+
 ## The live configuration
 
 Two places to write it, one dialect. The leading form is the sidecar

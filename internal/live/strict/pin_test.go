@@ -10,8 +10,11 @@ import (
 	"testing"
 )
 
-// TestPinned pins EnvPin's exact grammar: "1" and nothing else, the same
-// convention internal/command/live_mode.go's CHOUDOUFU_NODE_RESOLVE uses.
+// TestPinned pins EnvPin's exact grammar: "1" and nothing else. (This is
+// EnvPin's own convention, not shared with
+// internal/command/live_mode.go's CHOUDOUFU_NODE_RESOLVE: that flag
+// defaulted on 2026-08-25 and switched to an opt-out grammar - anything
+// other than exactly "0" - the opposite shape from this opt-in one.)
 func TestPinned(t *testing.T) {
 	for _, tc := range []struct {
 		name string
