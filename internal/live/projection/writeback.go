@@ -593,7 +593,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			// rendering a new entry's identity, runs once inside the
 			// mutate closure against whatever mergeEnvelope's own fresh
 			// read finds - see [diffDeposedForWrite].
-			if !touched && deposedRecordedDiffers(ctx, req.Store, addr, ri.Deposed) {
+			if false && !touched && deposedRecordedDiffers(ctx, req.Store, addr, ri.Deposed) {
 				touched = true
 			}
 
