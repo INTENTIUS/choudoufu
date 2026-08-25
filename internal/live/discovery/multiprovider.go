@@ -253,6 +253,14 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 	return res, providerOf, diags
 }
 
+// orphanLoc names one pass's own entry in its Orphans slice, by index -
+// [crossProviderOrphanCollisions]' and [resolveSameLiveObjectAcrossPasses]'
+// shared coordinate for "this sighting, in that pass's own account".
+type orphanLoc struct {
+	pass  int
+	index int
+}
+
 // crossProviderOrphanCollisions finds every address more than one pass's
 // Orphans claims, downgrades every one of the agreeing entries so none of
 // them is proposed as a removal, and records a [ProblemCollision] plus an
@@ -263,11 +271,6 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 // contribute their synthetic removal resolution to the merged Resolutions
 // list.
 func crossProviderOrphanCollisions(estate string, passes []Pass, res *Result, diags *tfdiags.Diagnostics) map[int]map[string]bool {
-	type orphanLoc struct {
-		pass  int
-		index int
-	}
-
 	byAddr := make(map[string][]orphanLoc)
 	for pi, p := range passes {
 		for oi, o := range p.Result.Orphans {
@@ -289,23 +292,94 @@ func crossProviderOrphanCollisions(estate string, passes []Pass, res *Result, di
 	sort.Strings(keys)
 
 	skip := make(map[int]map[string]bool)
+	markSkip := func(pass int, addr string) {
+		if skip[pass] == nil {
+			skip[pass] = make(map[string]bool)
+		}
+		skip[pass][addr] = true
+	}
+
 	for _, key := range keys {
 		locs := byAddr[key]
 
-		distinctProviders := make(map[string]bool, len(locs))
+		// Group by live identity before asking whether this address
+		// collides at all. An import ID identifies one physical object by
+		// construction, so the same ID surfacing from more than one pass is
+		// that ONE object seen through more than one provider scope - an
+		// account-global or same-region list call answers to every provider
+		// configuration that reaches it, not a proof that two live objects
+		// exist. [resolveSameLiveObjectAcrossPasses] settles which single
+		// pass's proposal survives for a group like that; what is left,
+		// one representative per distinct ID, is what a genuine collision
+		// (two DIFFERENT live objects both naming this address) is checked
+		// over below - the case [collisionOrphanProblem] cannot see because
+		// it never runs across passes, and the only case this function
+		// still errors on.
+		byID := make(map[string][]orphanLoc)
+		var idOrder []string
+		noIdentityN := 0
 		for _, loc := range locs {
+			o := &passes[loc.pass].Result.Orphans[loc.index]
+			id := o.ImportID
+			if id == "" {
+				// "no identity" is never deduplicated against anything -
+				// the same rule [claimantAlreadyPresent] applies to a
+				// single pass's own claimants - so every one of these gets
+				// its own singleton group.
+				id = fmt.Sprintf("\x00no-identity-%d", noIdentityN)
+				noIdentityN++
+			}
+			if _, seen := byID[id]; !seen {
+				idOrder = append(idOrder, id)
+			}
+			byID[id] = append(byID[id], loc)
+		}
+		sort.Strings(idOrder)
+
+		representative := make([]orphanLoc, 0, len(idOrder))
+		for _, id := range idOrder {
+			group := byID[id]
+			distinctProviders := make(map[string]bool, len(group))
+			for _, loc := range group {
+				distinctProviders[passes[loc.pass].Provider.String()] = true
+			}
+			if len(distinctProviders) >= 2 {
+				resolveSameLiveObjectAcrossPasses(passes, group, markSkip)
+			}
+			representative = append(representative, group[0])
+		}
+
+		if len(representative) < 2 {
+			// Either one live object total, or several sightings of it
+			// across passes already resolved above - not a collision.
+			continue
+		}
+		distinctProviders := make(map[string]bool, len(representative))
+		for _, loc := range representative {
 			distinctProviders[passes[loc.pass].Provider.String()] = true
 		}
 		if len(distinctProviders) < 2 {
-			// Every claimant of this address came from the same pass, which
-			// means Discover's own collisionOrphanProblem already resolved
-			// it (at most one survivor, if any) before Merge ever saw it.
+			// Every remaining distinct object came from the same pass,
+			// which means Discover's own collisionOrphanProblem already
+			// resolved it (at most one survivor, if any) before Merge ever
+			// saw it.
 			continue
 		}
 
-		ids := make([]string, 0, len(locs))
-		regions := make([]string, 0, len(locs))
-		for _, loc := range locs {
+		// A genuine collision: two or more DIFFERENT live objects (distinct
+		// import IDs) both naming this address, from two or more distinct
+		// provider passes. Every sighting of every one of those objects -
+		// not just the one representative per ID - is withheld and
+		// skipped, so a duplicate sighting folded into a colliding ID's own
+		// group reads the same way its representative does.
+		var allLocs []orphanLoc
+		for _, id := range idOrder {
+			allLocs = append(allLocs, byID[id]...)
+		}
+
+		ids := make([]string, 0, len(representative))
+		regions := make([]string, 0, len(representative))
+		for _, loc := range representative {
 			o := &passes[loc.pass].Result.Orphans[loc.index]
 			id := o.ImportID
 			if id == "" {
@@ -318,23 +392,19 @@ func crossProviderOrphanCollisions(estate string, passes []Pass, res *Result, di
 		sort.Strings(ids)
 		sort.Strings(regions)
 
-		for _, loc := range locs {
+		for _, loc := range allLocs {
 			o := &passes[loc.pass].Result.Orphans[loc.index]
 			o.Removal = false
 			o.Withheld = fmt.Sprintf(
 				"%d live %s resources across %s carry estate %q and this address; markers are address-unique estate-wide with no notion of region (live/MARKERS.md, \"Ownership semantics\"), so this is a collision needing a human, not two resources that happen to sit in different places",
-				len(locs), o.TypeName, strings.Join(regions, " and "), estate)
-
-			if skip[loc.pass] == nil {
-				skip[loc.pass] = make(map[string]bool)
-			}
-			skip[loc.pass][o.Addr.String()] = true
+				len(representative), o.TypeName, strings.Join(regions, " and "), estate)
+			markSkip(loc.pass, o.Addr.String())
 		}
 
-		first := passes[locs[0].pass].Result.Orphans[locs[0].index]
+		first := passes[representative[0].pass].Result.Orphans[representative[0].index]
 		detail := fmt.Sprintf(
 			"%d live %s resources across %s carry estate %q and the address %q: %s. A tofu-address marker names one resource per estate regardless of region or account; a human has to resolve which is the real owner before this estate can be planned. See live/MARKERS.md, \"Ownership semantics\".",
-			len(locs), first.TypeName, strings.Join(regions, " and "), estate, first.Normalized, strings.Join(ids, ", "))
+			len(representative), first.TypeName, strings.Join(regions, " and "), estate, first.Normalized, strings.Join(ids, ", "))
 		res.Problems = append(res.Problems, Problem{
 			Kind:     ProblemCollision,
 			TypeName: first.TypeName,
@@ -347,4 +417,58 @@ func crossProviderOrphanCollisions(estate string, passes []Pass, res *Result, di
 	}
 
 	return skip
+}
+
+// resolveSameLiveObjectAcrossPasses reconciles the several times ONE live
+// object was independently discovered as an orphan by more than one
+// provider pass - an account-global or same-region list call answers to
+// every provider configuration that reaches it, so a single physical object
+// can be listed by more than one pass's own sweep without belonging, in
+// configuration, to any of them. This is never the collision
+// live/MARKERS.md's "at most one live resource per address per estate"
+// names: there IS at most one live resource here, just seen twice. Only
+// [crossProviderOrphanCollisions]'s own genuine multi-identity case is that.
+//
+// Every loc in locs carries the SAME import ID (the caller's own grouping),
+// so at most one destroy proposal for it may survive into the merged plan.
+// The survivor is chosen with the same bias every other withholding rule in
+// this package gives a pass that found a live reason to hold an object
+// back: a pass whose OWN declared instance explains the sighting (a pending
+// rename it alone has the configuration in scope to see - [classifyOrphans]'
+// pending guard, run per pass, before Merge ever sees the result) always
+// wins over a pass that saw nothing but a bare orphan, because that pass
+// simply never had the configuration in scope to know better; its silence
+// is not evidence against the rename. When no pass withheld it, the choice
+// is arbitrary but has to be deterministic, so the lowest provider
+// configuration address wins - the same reasoning [orphanLoc] ordering
+// elsewhere in this file is sorted for.
+func resolveSameLiveObjectAcrossPasses(passes []Pass, locs []orphanLoc, markSkip func(pass int, addr string)) {
+	keep := locs[0]
+	for _, loc := range locs {
+		if !passes[loc.pass].Result.Orphans[loc.index].Removal {
+			keep = loc
+			break
+		}
+	}
+	if passes[keep.pass].Result.Orphans[keep.index].Removal {
+		for _, loc := range locs {
+			if passes[loc.pass].Provider.String() < passes[keep.pass].Provider.String() {
+				keep = loc
+			}
+		}
+	}
+
+	for _, loc := range locs {
+		if loc == keep {
+			continue
+		}
+		o := &passes[loc.pass].Result.Orphans[loc.index]
+		if o.Removal {
+			o.Removal = false
+			o.Withheld = fmt.Sprintf(
+				"the same live %s (identity %s) was independently found by another provider configuration's own pass (%s), which already accounts for it; only one pass's proposal for one live object survives a merge",
+				o.TypeName, o.ImportID, passes[keep.pass].label())
+			markSkip(loc.pass, o.Addr.String())
+		}
+	}
 }

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
@@ -185,6 +187,174 @@ func TestMergeCrossProviderOrphanCollision(t *testing.T) {
 	for _, r := range merged.Resolutions {
 		if r.Addr.String() == mustAddr(t, `aws_vpc.retired`).String() {
 			t.Errorf("a resolution survived the collision for the colliding address: %s", r)
+		}
+	}
+}
+
+// TestMergeCrossProviderOrphanCollisionRepeats is
+// TestMergeCrossProviderOrphanCollision run -count=20 in one process:
+// [crossProviderOrphanCollisions] iterates two Go maps it builds itself
+// (byAddr, byID) before sorting their keys - the exact "map order as hidden
+// nondeterminism" trap live-markers.md warns about (GitHub issue #403 part
+// 1's own suspicion, checked here at the unit level rather than only via a
+// flaky e2e script). If either sort were ever dropped, or a slice were
+// built straight off map iteration ahead of it, this would flake under
+// repetition; it did not, across the runs this fix was developed and
+// checked against.
+func TestMergeCrossProviderOrphanCollisionRepeats(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		TestMergeCrossProviderOrphanCollision(t)
+	}
+}
+
+// mergedResultFixture builds the two-pass Result pair
+// [TestMergeSameLiveObjectAcrossPassesIsNotACollision] and
+// [TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename] each start
+// from: one live aws_kms_key, ONE physical object (one import ID), reported
+// as an orphan by two passes under two different provider configurations -
+// exactly corpus-hongbomiao-storage's BREAK=rename shape (GitHub issue
+// #403 part 2), where the KMS key's module has no `providers = {...}`
+// override (the default "aws" provider owns it) while its sibling S3
+// buckets are declared under the "aws.production" alias, so a rename
+// without a moved block leaves the key an orphan in BOTH passes: the
+// default pass's own native scan (the type is declared there) and the
+// aliased pass's own sweep (the type is not declared there at all, so
+// [sweepTypes] does not exclude it).
+//
+// aWithheld and bWithheld set each pass's own Removal/Withheld state
+// exactly as that pass's own [classifyOrphans] would have left it before
+// Merge ever runs - empty means "nothing pending in this pass's own scope,
+// plain removal candidate", matching a pass whose declared set never
+// mentioned this type at all.
+func mergedResultFixture(t *testing.T, aWithheld, bWithheld string) (resA, resB *Result) {
+	t.Helper()
+	addr := mustAddr(t, `aws_kms_key.main`)
+	const importID = "kms-key-same-object"
+
+	build := func(withheld string) *Result {
+		o := OwnedResource{
+			TypeName:    "aws_kms_key",
+			ImportID:    importID,
+			Marker:      "aws_kms_key.main",
+			Normalized:  "aws_kms_key.main",
+			Addr:        addr,
+			Addressable: true,
+			Removal:     withheld == "",
+			Withheld:    withheld,
+		}
+		res := &Result{Orphans: []OwnedResource{o}}
+		if o.Removal {
+			// Mirrors classifyOrphans: a Resolution is only ever minted for
+			// an orphan this pass itself decided to remove.
+			res.Resolutions = append(res.Resolutions, identity.Resolution{
+				Addr:       addr,
+				Class:      identity.ClassConcrete,
+				ImportID:   importID,
+				Identity:   cty.NilVal,
+				Undeclared: true,
+			})
+		}
+		return res
+	}
+	return build(aWithheld), build(bWithheld)
+}
+
+// TestMergeSameLiveObjectAcrossPassesIsNotACollision is GitHub issue #403
+// part 2: an import ID identifies one physical live object by construction,
+// so the SAME ID surfacing from two different provider passes' own Orphans
+// is that ONE object seen through two provider scopes (an account-global or
+// same-region list call answers to any provider configuration that reaches
+// it) - never the two-different-objects ambiguity
+// live/MARKERS.md's "at most one live resource per address per estate"
+// names, and never [ProblemCollision]'s "Two live resources claiming one
+// address" message, which used to print this exact live ID twice as if
+// they were distinct claimants.
+//
+// Neither pass withheld it here (the plain-orphan sub-case: nothing pending
+// explains the sighting in either pass's own scope), so exactly one of the
+// two identical removal proposals survives the merge - never zero (that
+// would silently swallow a legitimate deletion behind a phantom
+// "collision") and never two (that would destroy the same live object
+// twice, which the provider would only tolerate by charitable accident).
+func TestMergeSameLiveObjectAcrossPassesIsNotACollision(t *testing.T) {
+	resA, resB := mergedResultFixture(t, "", "")
+
+	merged, _, mergeDiags := Merge(estateName, []Pass{
+		{Provider: testProviderAddr(t, ""), Result: resA},
+		{Provider: testProviderAddr(t, "production"), Result: resB},
+	})
+	assertNoErrors(t, mergeDiags)
+
+	if got := merged.ProblemsOfKind(ProblemCollision); len(got) != 0 {
+		t.Fatalf("one live object seen by two passes was reported as a collision:\n%s", merged)
+	}
+	if got := len(merged.Orphans); got != 2 {
+		t.Fatalf("want both sightings preserved in Orphans (2), got %d:\n%s", got, merged)
+	}
+	removals := merged.Removals()
+	if len(removals) != 1 {
+		t.Fatalf("want exactly one surviving removal for the one live object, got %d:\n%s", len(removals), merged)
+	}
+	if removals[0].ImportID != "kms-key-same-object" {
+		t.Errorf("wrong object survived as the removal: %s", removals[0])
+	}
+
+	// Both Orphans entries must agree on Removal (one true, one false) -
+	// never two Removal=true (double destroy) and never two Removal=false
+	// with nothing surviving (silently dropping a real deletion).
+	trueCount := 0
+	for _, o := range merged.Orphans {
+		if o.Removal {
+			trueCount++
+		}
+	}
+	if trueCount != 1 {
+		t.Errorf("want exactly one Orphans entry left Removal=true, got %d:\n%s", trueCount, merged)
+	}
+}
+
+// TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename is the other
+// sub-case GitHub issue #403 part 2 asks to be traced explicitly: one of
+// the two passes DOES have a live reason to hold the object back - its own
+// classifyOrphans already found a declared-but-unclaimed instance of the
+// same resource block (the pending side of a rename without a moved
+// block), the same shape corpus-hongbomiao-harbor's single-provider
+// aws_iam_user rename takes, just witnessed here from a pass whose sibling
+// provider never declared the type at all and so saw only a bare orphan.
+//
+// The pending pass's judgment must win over the other pass's silence: that
+// pass never had the configuration in scope to know better, so its
+// proposing a plain removal is not evidence against the rename, and nothing
+// survives into the merged Resolutions - matching harbor's own invariant
+// (day2_rename's BREAK=rename control) that a rename-without-moved-block
+// must never destroy the live object under its old, still-marked address.
+func TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename(t *testing.T) {
+	const pendingReason = "a declared instance of aws_kms_key.main is unclaimed, so this may be the same resource under a new instance key rather than a resource to destroy; see the rename section"
+	resA, resB := mergedResultFixture(t, pendingReason, "")
+
+	merged, _, mergeDiags := Merge(estateName, []Pass{
+		{Provider: testProviderAddr(t, ""), Result: resA},
+		{Provider: testProviderAddr(t, "production"), Result: resB},
+	})
+	assertNoErrors(t, mergeDiags)
+
+	if got := merged.ProblemsOfKind(ProblemCollision); len(got) != 0 {
+		t.Fatalf("one live object, one of two passes pending a rename, was reported as a collision:\n%s", merged)
+	}
+	if got := merged.Removals(); len(got) != 0 {
+		t.Fatalf("a pass pending a rename must veto the other pass's plain removal, got %d survivor(s):\n%s", len(got), merged)
+	}
+	for _, o := range merged.Orphans {
+		if o.Removal {
+			t.Errorf("%s still proposed for removal despite a sibling pass pending its rename", o)
+		}
+		if o.Withheld == "" {
+			t.Errorf("%s has no reason recorded for withholding its removal", o)
+		}
+	}
+	for _, r := range merged.Resolutions {
+		if r.Addr.String() == mustAddr(t, `aws_kms_key.main`).String() {
+			t.Errorf("a removal resolution survived for the object a sibling pass is holding for a rename: %s", r)
 		}
 	}
 }
