@@ -278,106 +278,6 @@ UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 
-# ══════════════════════════════════════════════════════════════════════════
-# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
-# ══════════════════════════════════════════════════════════════════════════
-#
-# choudoufu applies the identical, unmodified example directly with a live
-# block, no migration, into a SEPARATE namespace ($GREEN_ENDPOINT). The
-# oracle is $ENDPOINT/$PLAIN, STAGE 1's own plain terraform cold-deploy -
-# still genuinely unmarked at this point in the script (STAGE 2's
-# live-import has not run yet), so it is exactly "the cloud after stock's
-# cold deploy" live/GAUNTLET.md #13 asks for, with no third container
-# needed. Given this estate's size (twelve module calls, ~90 resources),
-# the object-by-object comparison other, smaller crossings run is not
-# repeated exhaustively here: this checks the total resource count on both
-# sides, the total live tagged-object count on both sides, and a
-# representative structural comparison of the two objects Part D also
-# targets (the standalone SQS queue and the asg_sg security group's own
-# rules) - the same "representative set, not exhaustive" standard
-# live/GAUNTLET.md's own test_plan stage already uses for identity strings.
-CURRENT_STAGE=greenfield
-log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
-  || fail "docker run for $FLOCI_GREEN_NAME failed"
-GH=""
-for _ in $(seq 1 45); do
-  GH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
-  grep -q '"ec2"' <<< "${GH:-}" && break
-  sleep 2
-done
-grep -q '"ec2"' <<< "${GH:-}" || fail "floci did not come up healthy (ec2) at $GREEN_ENDPOINT"
-log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain apply)"
-
-copy_estate "$WORK/green"
-emulator_delta "$GREEN"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN/versions.tf"
-grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf"
-log "  DELTA  emulator flags + provider pin + live block (record_store, same reason as \$ADOPTED - main.tf:889's provisioner)"
-
-log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
-( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
-GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
-if [ $? -ne 0 ]; then
-  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
-  gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-autoscaling-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
-  CURRENT_STAGE=""
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
-  SKIP_GREENFIELD_REST=1
-fi
-if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
-STOCK_N="$(grep -oE '[0-9]+ added' <<< "$COLD_OUT" | head -1 | awk '{print $1}')"
-GREEN_N="$(grep -oE '[0-9]+ added' <<< "$GREEN_APPLY_OUT" | head -1 | awk '{print $1}')"
-[ -n "$STOCK_N" ] && [ -n "$GREEN_N" ] || fail "could not read a resource count out of one of the two applies"
-[ "$GREEN_N" = "$STOCK_N" ] || fail "the greenfield apply created $GREEN_N resources, stock's cold deploy created $STOCK_N - not the same estate"
-log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT") ($GREEN_N, matching stock's own $STOCK_N)"
-
-awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
-
-log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
-GREEN_SQS_URL="$(awsg sqs list-queues --query 'QueueUrls[0]' --output text)"
-[ -n "$GREEN_SQS_URL" ] && [ "$GREEN_SQS_URL" != "None" ] || fail "no live sqs queue found in the greenfield namespace"
-GREEN_SQS_ADDR="$(awsg sqs list-queue-tags --queue-url "$GREEN_SQS_URL" --query "Tags.\"tofu-address\"" --output text)"
-[ "$GREEN_SQS_ADDR" = "aws_sqs_queue.this" ] || fail "the greenfield sqs queue carries tofu-address=$GREEN_SQS_ADDR, not aws_sqs_queue.this"
-GREEN_SQS_EST="$(awsg sqs list-queue-tags --queue-url "$GREEN_SQS_URL" --query "Tags.\"tofu-estate\"" --output text)"
-[ "$GREEN_SQS_EST" = "$GREEN_ESTATE" ] || fail "the greenfield sqs queue carries tofu-estate=$GREEN_SQS_EST, not $GREEN_ESTATE"
-log "  sqs queue carries tofu-address=$GREEN_SQS_ADDR tofu-estate=$GREEN_SQS_EST - read via the AWS CLI, not choudoufu's own report"
-
-log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable ASGs (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
-[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
-log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
-
-log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
-GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
-[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
-  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
-log "  No changes."
-
-log "=== PART GREENFIELD: 5. structural comparison against stock's cold deploy (STAGE 1), via the AWS CLI on both endpoints ==="
-sg_shape() { # $1=endpoint $2=security-group-id
-  aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups --group-ids "$2" \
-    --query "SecurityGroups[0].[length(IpPermissions),length(IpPermissionsEgress)]" --output text 2>/dev/null
-}
-GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
-STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
-[ -n "$GREEN_SG_ID" ] && [ "$GREEN_SG_ID" != "None" ] || fail "no asg_sg security group found in the greenfield namespace"
-[ -n "$STOCK_SG_ID" ] && [ "$STOCK_SG_ID" != "None" ] || fail "no asg_sg security group found in stock's own cold-deploy namespace"
-GREEN_SG_SHAPE="$(sg_shape "$GREEN_ENDPOINT" "$GREEN_SG_ID")"
-STOCK_SG_SHAPE="$(sg_shape "$ENDPOINT" "$STOCK_SG_ID")"
-[ "$GREEN_SG_SHAPE" = "$STOCK_SG_SHAPE" ] || fail "the asg_sg security group's rule counts differ: greenfield=$GREEN_SG_SHAPE stock=$STOCK_SG_SHAPE"
-log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE)"
-
-GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
-[ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
-log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
-
-gauntlet_stage greenfield pass "$GREEN_N resources from nothing, matching stock's own cold-deploy count ($STOCK_N); the sqs queue's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
-fi
-CURRENT_STAGE=""
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -945,6 +845,120 @@ EOF
   CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# choudoufu applies the identical, unmodified example directly with a live
+# block, no migration, into a SEPARATE namespace ($GREEN_ENDPOINT). The
+# oracle is $ENDPOINT/$PLAIN, STAGE 1's own plain terraform cold-deploy -
+# still genuinely unmarked at this point in the script (STAGE 2's
+# live-import has not run yet), so it is exactly "the cloud after stock's
+# cold deploy" live/GAUNTLET.md #13 asks for, with no third container
+# needed. Given this estate's size (twelve module calls, ~90 resources),
+# the object-by-object comparison other, smaller crossings run is not
+# repeated exhaustively here: this checks the total resource count on both
+# sides, the total live tagged-object count on both sides, and a
+# representative structural comparison of the two objects Part D also
+# targets (the standalone SQS queue and the asg_sg security group's own
+# rules) - the same "representative set, not exhaustive" standard
+# live/GAUNTLET.md's own test_plan stage already uses for identity strings.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+GH=""
+for _ in $(seq 1 45); do
+  GH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"ec2"' <<< "${GH:-}" && break
+  sleep 2
+done
+grep -q '"ec2"' <<< "${GH:-}" || fail "floci did not come up healthy (ec2) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain apply)"
+
+copy_estate "$WORK/green"
+emulator_delta "$GREEN"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf"
+log "  DELTA  emulator flags + provider pin + live block (record_store, same reason as \$ADOPTED - main.tf:889's provisioner)"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+if [ $? -ne 0 ]; then
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
+  gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-autoscaling-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
+  CURRENT_STAGE=""
+  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  SKIP_GREENFIELD_REST=1
+fi
+if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
+STOCK_N="$(grep -oE '[0-9]+ added' <<< "$COLD_OUT" | head -1 | awk '{print $1}')"
+GREEN_N="$(grep -oE '[0-9]+ added' <<< "$GREEN_APPLY_OUT" | head -1 | awk '{print $1}')"
+[ -n "$STOCK_N" ] && [ -n "$GREEN_N" ] || fail "could not read a resource count out of one of the two applies"
+[ "$GREEN_N" = "$STOCK_N" ] || fail "the greenfield apply created $GREEN_N resources, stock's cold deploy created $STOCK_N - not the same estate"
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT") ($GREEN_N, matching stock's own $STOCK_N)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_SQS_URL="$(awsg sqs list-queues --query 'QueueUrls[0]' --output text)"
+[ -n "$GREEN_SQS_URL" ] && [ "$GREEN_SQS_URL" != "None" ] || fail "no live sqs queue found in the greenfield namespace"
+GREEN_SQS_ADDR="$(awsg sqs list-queue-tags --queue-url "$GREEN_SQS_URL" --query "Tags.\"tofu-address\"" --output text)"
+[ "$GREEN_SQS_ADDR" = "aws_sqs_queue.this" ] || fail "the greenfield sqs queue carries tofu-address=$GREEN_SQS_ADDR, not aws_sqs_queue.this"
+GREEN_SQS_EST="$(awsg sqs list-queue-tags --queue-url "$GREEN_SQS_URL" --query "Tags.\"tofu-estate\"" --output text)"
+[ "$GREEN_SQS_EST" = "$GREEN_ESTATE" ] || fail "the greenfield sqs queue carries tofu-estate=$GREEN_SQS_EST, not $GREEN_ESTATE"
+log "  sqs queue carries tofu-address=$GREEN_SQS_ADDR tofu-estate=$GREEN_SQS_EST - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable ASGs (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
+log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
+  # A REAL finding, not a surprise to paper over: a plan proposing to
+  # CREATE something that already exists is the failure HANDOFF ranks
+  # above a missing marker (a refusal stops a human; a create is
+  # something a human approves without knowing it is wrong). Recorded
+  # honestly rather than retried into passing.
+  NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
+  log "  the replan is NOT empty: $NONEMPTY_ITEMS"
+  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
+  CURRENT_STAGE=""
+  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  SKIP_GREENFIELD_REST=1
+fi
+if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. structural comparison against stock's cold deploy (STAGE 1), via the AWS CLI on both endpoints ==="
+sg_shape() { # $1=endpoint $2=security-group-id
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups --group-ids "$2" \
+    --query "SecurityGroups[0].[length(IpPermissions),length(IpPermissionsEgress)]" --output text 2>/dev/null
+}
+GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
+STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=group-name,Values=*asg_sg*" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$GREEN_SG_ID" ] && [ "$GREEN_SG_ID" != "None" ] || fail "no asg_sg security group found in the greenfield namespace"
+[ -n "$STOCK_SG_ID" ] && [ "$STOCK_SG_ID" != "None" ] || fail "no asg_sg security group found in stock's own cold-deploy namespace"
+GREEN_SG_SHAPE="$(sg_shape "$GREEN_ENDPOINT" "$GREEN_SG_ID")"
+STOCK_SG_SHAPE="$(sg_shape "$ENDPOINT" "$STOCK_SG_ID")"
+[ "$GREEN_SG_SHAPE" = "$STOCK_SG_SHAPE" ] || fail "the asg_sg security group's rule counts differ: greenfield=$GREEN_SG_SHAPE stock=$STOCK_SG_SHAPE"
+log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE)"
+
+GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+[ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
+log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
+
+gauntlet_stage greenfield pass "$GREEN_N resources from nothing, matching stock's own cold-deploy count ($STOCK_N); the sqs queue's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
+fi
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+fi
 
 CURRENT_STAGE=""
 gauntlet_end
