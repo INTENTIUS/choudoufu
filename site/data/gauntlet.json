@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1c29f4f5d92aea8e9ae00d392599aed40f84590f",
+  "commit": "a22908f734745d5449cb30dd4b85659b088d3cb6",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:45:03Z",
+  "generated": "2026-08-25T23:56:23Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -720,8 +720,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "ddfaef3c6da32f249b97dab3922f611a54ba1a16",
-        "date": "2026-08-25T19:30:09Z",
+        "commit": "a22908f734745d5449cb30dd4b85659b088d3cb6",
+        "date": "2026-08-25T23:58:49Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration",
