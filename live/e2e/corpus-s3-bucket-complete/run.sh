@@ -506,11 +506,21 @@ scope_reduce "$GREEN"
 scope_reduce "$ORACLE_DIR"
 provider_patch "$GREEN"
 provider_patch "$ORACLE_DIR"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
 version_pin "$GREEN" '
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }'
 version_pin "$ORACLE_DIR" ""
@@ -1084,8 +1094,30 @@ EOF
 
   MOVED_PLAN_LOG="$WORK/plan-d1.log"
   plan_into "$MOVED_PLAN_LOG" || { grep -vE '^[0-9]{4}-' "$MOVED_PLAN_LOG" | tail -40; fail "the moved-block rename plan exited non-zero"; }
+  # RE-VERIFIED against current main (re-verify-day2_remove unit, 2026-08):
+  # this used to be zero churn. Root cause is now precisely named: 610511fb73
+  # (internal/live/discovery/recordorphan_read.go, #405's day2_remove fix)
+  # added recordOrphanReadSweep, which reads the record store for any
+  # UNTAGGABLE type's undeclared old-address record and proposes destroying
+  # it - generically, since its filter is "untaggable + has a persisted
+  # identity record", not tied to any specific type. Its own rename-safety
+  # check (the `pending` map, built from res.Unbound) only recognizes "a
+  # declared instance of the SAME address is unclaimed" - it never
+  # consults moved.Aliases/moved.Honoured(req.Config) the way the marker
+  # path already does. So this moved block, relocating
+  # module.cloudfront_log_bucket, now destroys its
+  # aws_s3_bucket_public_access_block.this[0] under the OLD address
+  # instead of matching it under the new one - the SAME type this
+  # estate's own day2_remove wall already names (parent-derived, #410),
+  # now ALSO hit under day2_rename. SAME root cause, independently
+  # confirmed on corpus-giantswarm-crossplane, corpus-ec2-instance-complete,
+  # corpus-rds-complete-postgres, corpus-security-group-complete,
+  # corpus-dynamodb-table-basic and corpus-autoscaling-complete in this
+  # same unit - a generic gap now reaching at least seven estates. Not
+  # fixed here - a Go change, out of scope for this script-only
+  # re-verification unit.
   grep -qE '^  # .+ will be (created|destroyed)' "$MOVED_PLAN_LOG" \
-    && { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block rename proposes a create or destroy - not zero churn"; }
+    && { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block rename now destroys module.cloudfront_log_bucket.aws_s3_bucket_public_access_block.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic and corpus-autoscaling-complete independently hit in this same unit"; }
   grep -qE '^  # module\.cloudfront_log_bucket_renamed\.aws_s3_bucket\.this\[0\] will be updated in-place' "$MOVED_PLAN_LOG" \
     || { grep -E '^  # .+ will be' "$MOVED_PLAN_LOG"; fail "the moved-block plan does not propose an in-place update to module.cloudfront_log_bucket_renamed.aws_s3_bucket.this[0]"; }
   grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' "$MOVED_PLAN_LOG" \

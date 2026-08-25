@@ -781,7 +781,14 @@ GREEN="$WORK/green"
 copy_tree "$GREEN"
 GREEN_EST="$GREEN/ecs/examples/fargate"
 apply_delta1 "$GREEN_EST" false
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6\.41\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6\.41\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
@@ -1813,8 +1820,31 @@ EOF
     log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
     E_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
     [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    # RE-VERIFIED against current main, with #405's fix in (re-verify-
+    # day2_remove unit, 2026-08): E1's own INITIAL destroy plan is now a
+    # clean, exact 8-of-8 match with stock's oracle (asserted above,
+    # REMOVE_N = REMOVE_ORACLE_N and the address sets equal) - #405's fix
+    # DID close this estate's originally-recorded wall
+    # (aws_iam_role_policy_attachment.task_exec[0], the composed-of-
+    # arguments type this comment block's header names). This is a
+    # narrower, DIFFERENT residual, found only by re-verifying past the
+    # first plan: after E1's 8 destroys apply cleanly, this second plan -
+    # taken with nothing else touched in between - still proposes
+    # destroying module.ecs_task_definition.aws_vpc_security_group_egress_
+    # rule.this["all"], one MORE untaggable child of the same module,
+    # newly discovered as orphaned only on THIS pass. Stock's own day2_remove
+    # oracle (D-ORACLE above) needed only one pass for its 8 destroys and
+    # implies no comparable ninth object, since a real state-backed apply
+    # destroys everything belonging to a removed block in the SAME apply -
+    # this two-pass shape is choudoufu-specific. Not fixed here - a Go
+    # change (likely a discovery-ordering or dependency gap between a
+    # security group and its own split-out ingress/egress rule resources
+    # under the record-orphan-read path), out of scope for this
+    # script-only re-verification unit; named precisely as this estate's
+    # true residual scope for #405/#410 rather than left as the old,
+    # already-closed wall.
     grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
-      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "#405's fix closed this estate's original wall (E1's initial 8-destroy plan now matches stock's oracle exactly, address-for-address) but a SECOND plan taken right after the apply still proposes destroying module.ecs_task_definition.aws_vpc_security_group_egress_rule.this[\"all\"] - one more untaggable child discovered orphaned only on this later pass, which stock's single-pass oracle needed no equivalent second look for. New residual, not the old one: $(grep -E '^  #' <<< "$E_FINAL_PLAN_OUT" | tr '\n' ' ')"; }
     log "  No changes. The removal is complete and invisible to the next plan."
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.ecs_task_definition's block proposed exactly $REMOVE_N destroys (0 add, 0 change, $REMOVE_N destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, $REMOVE_N destroyed); the standalone task definition family ($TD_FAMILY) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty"

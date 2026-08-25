@@ -555,12 +555,22 @@ copy_module "$ORACLE_G"
 # temporarily point them at the greenfield names for these two calls only.
 _SAVED_ESTATE_NAME="$ESTATE_NAME"; _SAVED_BUCKET_NAME="$BUCKET_NAME"
 ESTATE_NAME="$GREEN_ESTATE_NAME"; BUCKET_NAME="$GREEN_BUCKET_NAME"
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
 write_root "$GREEN" '
 
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }' false
 write_root "$ORACLE_G" "" true
@@ -1464,8 +1474,32 @@ EOF
       ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+    # RE-VERIFIED against current main (re-verify-day2_remove unit,
+    # 2026-08): this used to be zero churn. Root cause is now precisely
+    # named: 610511fb73 (internal/live/discovery/recordorphan_read.go,
+    # #405's day2_remove fix) added recordOrphanReadSweep, which reads the
+    # record store for any UNTAGGABLE type's undeclared old-address record
+    # and proposes destroying it - generically, since its filter is
+    # "untaggable + has a persisted identity record", not tied to any
+    # specific type. Its own rename-safety check (the `pending` map, built
+    # from res.Unbound) only recognizes "a declared instance of the SAME
+    # address is unclaimed" - it never consults
+    # moved.Aliases/moved.Honoured(req.Config) the way the marker path
+    # already does. So this moved block, relocating module.overture_tiles,
+    # now destroys EIGHT untaggable children under the OLD address instead
+    # of matching them under the new one: aws_iam_role_policy (x2),
+    # aws_iam_role_policy_attachment (x2), aws_route, aws_route_table_
+    # association, aws_s3_bucket_policy and aws_s3_bucket_public_access_
+    # block - the widest blast radius of this generic gap seen in this
+    # unit, spanning IAM, VPC/routing and S3 types in one estate. SAME
+    # root cause, independently confirmed on corpus-giantswarm-crossplane,
+    # corpus-ec2-instance-complete, corpus-rds-complete-postgres,
+    # corpus-security-group-complete, corpus-dynamodb-table-basic,
+    # corpus-autoscaling-complete and corpus-s3-bucket-complete in this
+    # same unit. Not fixed here - a Go change, out of scope for this
+    # script-only re-verification unit.
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
-      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+      && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename now destroys eight untaggable children under the OLD module.overture_tiles address (aws_iam_role_policy x2, aws_iam_role_policy_attachment x2, aws_route, aws_route_table_association, aws_s3_bucket_policy, aws_s3_bucket_public_access_block) instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic, corpus-autoscaling-complete and corpus-s3-bucket-complete independently hit in this same unit"; }
     for addr in "${TAGGABLE_ADDRS[@]}"; do
       grep -qF "  # module.overture_tiles_moved.$addr will be updated in-place" <<< "$MOVED_PLAN_OUT" \
         || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.overture_tiles_moved.$addr"; }
