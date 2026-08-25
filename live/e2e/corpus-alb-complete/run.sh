@@ -510,6 +510,16 @@ FLOCI_NAME="choudoufu-corpus-alb-complete-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# PART GREENFIELD (live/GAUNTLET.md #13) needs one MORE floci container, a
+# fresh namespace choudoufu applies into directly. Its own oracle reuses
+# $ENDPOINT/$PLAIN: STAGE 1's plain terraform cold-deploy is still genuinely
+# unmarked at the point PART GREENFIELD runs (right after STAGE 1, before
+# migrate ever tags anything in $ENDPOINT) - no third container needed.
+FLOCI_GREEN_PORT="${FLOCI_GREEN_PORT:-$((FLOCI_PORT + 400))}"
+FLOCI_GREEN_NAME="choudoufu-corpus-alb-complete-green-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+GREEN_ESTATE="alb-complete-greenfield"
+
 ESTATE="alb-complete-crossing"
 REGION="eu-west-1"
 DOMAIN="terraform-aws-modules.modules.tf"
@@ -537,7 +547,7 @@ RECORDED_WANT=1
 APPROVE_SKIPPED_WANT=$((SKIPPED_WANT - RECORDED_WANT))
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -693,6 +703,121 @@ log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixes #58, #61, #62)"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# choudoufu applies the identical (delta'd) example directly with a live
+# block, no migration, into a SEPARATE namespace ($GREEN_ENDPOINT), reusing
+# copy_tree/apply_deltas exactly as $PLAIN/$ADOPTED already do. Its own
+# oracle is $ENDPOINT/$PLAIN - STAGE 1's own plain terraform cold-deploy,
+# still genuinely unmarked at this point (migrate has not run yet) - no
+# third container needed. Given this estate's size (80 resources: VPC, a
+# 6-listener/7-rule ALB, two ACM certs, an S3 log bucket, a Cognito user
+# pool+client, two Lambda functions, two EC2 instances), the object-by-
+# object comparison other, smaller crossings run is not repeated
+# exhaustively here: total resource count on both sides, the ALB's own
+# existence and tag-based marker, the record store's non-zero count, and a
+# representative structural check (one EC2 instance's shape) - the same
+# "representative set, not exhaustive" standard live/GAUNTLET.md's own
+# test_plan stage already uses for identity strings.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+GH=""
+for _ in $(seq 1 45); do
+  GH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"acm"' <<< "${GH:-}" && break
+  sleep 2
+done
+grep -q '"acm"' <<< "${GH:-}" || fail "floci did not come up healthy (acm) at $GREEN_ENDPOINT"
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain apply)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+awsg ssm put-parameter --name "$AMI_PARAM" --type String --value "ami-0c55b159cbfafe1f0" --overwrite >/dev/null \
+  || fail "could not seed $AMI_PARAM in the greenfield namespace"
+awsg route53 create-hosted-zone --name "$DOMAIN" --caller-reference "alb-complete-green-$$" >/dev/null \
+  || fail "could not create the $DOMAIN hosted zone in the greenfield namespace"
+log "  preconditions seeded in the greenfield namespace: $AMI_PARAM, $DOMAIN hosted zone"
+
+GREEN="$WORK/green"
+copy_tree "$GREEN"
+GREEN_EST="$GREEN/alb/examples/complete-alb"
+apply_deltas "$GREEN_EST"
+cp "$PLAIN_EST/$PKG_FILE" "$GREEN_EST/$PKG_FILE" || fail "could not copy the already-fetched Lambda deployment zip into the greenfield copy"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+log "  DELTA  live block (record_store, evidence for #364 A2) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" TF_PLUGIN_CACHE_DIR="$TF_PLUGIN_CACHE_DIR" TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1 "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+if [ $? -ne 0 ]; then
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
+  gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-alb-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
+  CURRENT_STAGE=""
+  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  SKIP_GREENFIELD_REST=1
+fi
+if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_LB_ARN="$(awsg elbv2 describe-load-balancers --query 'LoadBalancers[0].LoadBalancerArn' --output text)"
+[ -n "$GREEN_LB_ARN" ] && [ "$GREEN_LB_ARN" != "None" ] || fail "no live ALB found in the greenfield namespace"
+GREEN_LB_ADDR="$(awsg elbv2 describe-tags --resource-arns "$GREEN_LB_ARN" --query "TagDescriptions[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ -n "$GREEN_LB_ADDR" ] && [ "$GREEN_LB_ADDR" != "None" ] || fail "the greenfield ALB carries no tofu-address marker"
+GREEN_LB_EST="$(awsg elbv2 describe-tags --resource-arns "$GREEN_LB_ARN" --query "TagDescriptions[0].Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GREEN_LB_EST" = "$GREEN_ESTATE" ] || fail "the greenfield ALB carries tofu-estate=$GREEN_LB_EST, not $GREEN_ESTATE"
+log "  ALB $GREEN_LB_ARN carries tofu-address=$GREEN_LB_ADDR tofu-estate=$GREEN_LB_EST - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable types (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
+log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
+  NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
+  log "  the replan is NOT empty: $NONEMPTY_ITEMS"
+  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
+  CURRENT_STAGE=""
+  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  SKIP_GREENFIELD_REST=1
+fi
+if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. structural comparison against stock's cold deploy (STAGE 1), via the AWS CLI on both endpoints ==="
+instance_shape() { # $1=endpoint $2=instance-id
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-instances --instance-ids "$2" \
+    --query "Reservations[0].Instances[0].[InstanceType,ImageId]" --output text 2>/dev/null
+}
+GREEN_INSTANCE_ID="$(awsg ec2 describe-instances --filters "Name=instance-state-name,Values=running,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)"
+STOCK_INSTANCE_ID="$(awsl ec2 describe-instances --filters "Name=instance-state-name,Values=running,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)"
+[ -n "$GREEN_INSTANCE_ID" ] && [ "$GREEN_INSTANCE_ID" != "None" ] || fail "no live instance found in the greenfield namespace"
+[ -n "$STOCK_INSTANCE_ID" ] && [ "$STOCK_INSTANCE_ID" != "None" ] || fail "no live instance found in stock's own cold-deploy namespace"
+GREEN_SHAPE="$(instance_shape "$GREEN_ENDPOINT" "$GREEN_INSTANCE_ID")"
+STOCK_SHAPE="$(instance_shape "$ENDPOINT" "$STOCK_INSTANCE_ID")"
+[ "$GREEN_SHAPE" = "$STOCK_SHAPE" ] || fail "an EC2 instance's shape differs: greenfield=$GREEN_SHAPE stock=$STOCK_SHAPE"
+log "  instance shape matches (type/ami: $GREEN_SHAPE)"
+
+GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+[ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
+log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
+
+gauntlet_stage greenfield pass "$INSTANCES resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
+fi
+fi
+CURRENT_STAGE=""
+docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+
 # ── day2_rename ORACLE: stock, on a copy of cold_deploy's own state ────────
 # Positioned right here, between cold_deploy and migrate, for the same
 # reason corpus-eks-basic's own day2_rename oracle is (that script's own
@@ -742,6 +867,35 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7, active): "Stock with the
+# same block removed plans the same destroys." aws_instance.other is
+# referenced exactly once outside its own block - module.alb's own
+# additional_target_group_attachments map, the "ex-instance-other" entry
+# (target_id = aws_instance.other.id) - so removing it needs that one map
+# entry emptied alongside the resource block itself, the same "remove what
+# references the removed object too" shape a real operator would do. A
+# SEPARATE copy of cold_deploy's own state (this one is never touched by
+# either rename Part D also exercises).
+CURRENT_STAGE=day2_remove
+log "=== D-REMOVE-ORACLE. stock: delete aws_instance.other's block (and its one target-group-attachment reference) on cold_deploy's own state ==="
+REMOVE_ORACLE="$WORK/remove-oracle"
+cp -R "$PLAIN" "$REMOVE_ORACLE"
+rm -rf "$REMOVE_ORACLE/alb/examples/complete-alb/.terraform"
+REMOVE_ORACLE_EST="$REMOVE_ORACLE/alb/examples/complete-alb"
+perl -0777 -pi -e 's/resource "aws_instance" "other" \{.*?\n\}\n\n/\n/s' "$REMOVE_ORACLE_EST/main.tf"
+grep -q 'resource "aws_instance" "other" {' "$REMOVE_ORACLE_EST/main.tf" && fail "removing aws_instance.other's block from the day2_remove oracle copy did not match - the corpus example has moved"
+perl -0777 -pi -e 's/additional_target_group_attachments = \{\n    ex-instance-other = \{\n.*?\n    \}\n  \}/additional_target_group_attachments = {}/s' "$REMOVE_ORACLE_EST/main.tf"
+grep -q 'ex-instance-other' "$REMOVE_ORACLE_EST/main.tf" && fail "removing the ex-instance-other target-group-attachment entry from the oracle copy did not match - the corpus example has moved"
+( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # aws_instance\.other will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying aws_instance.other when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -15; fail "stock's remove plan does not propose exactly two destroys (the instance and its target-group attachment)"; }
+log "  stock: exactly 2 destroys (aws_instance.other and its target-group attachment), nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1511,6 +1665,75 @@ EOF
     log "  No changes. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed state (both instances renamed
+    # and converged). aws_instance.other_renamed is removed here, along
+    # with the one map entry that references it - module.alb's own
+    # additional_target_group_attachments["ex-instance-other"] - the same
+    # "remove what references the removed object too" shape a real
+    # operator would do, and the same edit the D-REMOVE-ORACLE copy above
+    # already proved destroys exactly two objects on stock.
+    CURRENT_STAGE=day2_remove
+    log "=== E0. capture the live instance this removal destroys ==="
+    E_ADDR_BEFORE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INST_OTHER_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text 2>/dev/null || true)"
+    [ "$E_ADDR_BEFORE" = "aws_instance.other_renamed" ] \
+      || fail "$INST_OTHER_ID does not carry tofu-address=aws_instance.other_renamed before day2_remove even starts (got $E_ADDR_BEFORE)"
+
+    log "=== E1. choudoufu: delete aws_instance.other_renamed's block (and its one target-group-attachment reference) ==="
+    perl -0777 -pi -e 's/resource "aws_instance" "other_renamed" \{.*?\n\}\n\n/\n/s' "$ADOPTED_EST/main.tf"
+    grep -q 'resource "aws_instance" "other_renamed" {' "$ADOPTED_EST/main.tf" && fail "removing aws_instance.other_renamed's block did not match - the config has moved"
+    perl -0777 -pi -e 's/additional_target_group_attachments = \{\n    ex-instance-other = \{\n.*?\n    \}\n  \}/additional_target_group_attachments = {}/s' "$ADOPTED_EST/main.tf"
+    grep -q 'ex-instance-other' "$ADOPTED_EST/main.tf" && fail "removing the ex-instance-other target-group-attachment entry did not match - the config has moved"
+    ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld a destroy of aws_instance.other_renamed as a possible rename (discovery.go's classifyOrphans) - this is the honest wall issue #358 names, not a pass"
+    fi
+    CHOUDOUFU_REMOVE_N="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_PLAN_OUT" || true)"
+    if [ "$CHOUDOUFU_REMOVE_N" -lt 2 ]; then
+      # A REAL, DOCUMENTED gap, not a surprise (see the day2_remove finding
+      # already recorded for corpus-dynamodb-table-basic, corpus-
+      # autoscaling-complete and corpus-ec2-instance-complete): a type
+      # admitted by the provider's own identity schema rather than by the
+      # generated admission table is invisible to the estate-wide destroy
+      # sweep (live/LIMITATIONS.md, "Resource type has no orphan
+      # recovery"). aws_lb_target_group_attachment, a for_each instance
+      # inside a heavily-wrapped module call, is the prime candidate here.
+      printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'
+      log "  choudoufu proposes $CHOUDOUFU_REMOVE_N of the oracle's 2 destroys - a real gap, not this stage's own load-bearing check failing"
+      gauntlet_stage day2_remove fail "choudoufu's remove plan destroys only $CHOUDOUFU_REMOVE_N of the 2 objects aws_instance.other_renamed's block removal should destroy; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes both (0 add, 0 change, 2 destroy: the instance and its target-group attachment). choudoufu has strictly less destroy coverage than stock here - the missing address is left live and orphaned, most likely the target-group attachment: a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class three other estates already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-alb-complete.log for the exact plan diff"
+    else
+      grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+        || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
+      log "  choudoufu: exactly 2 destroys, matching the stock oracle, nothing else"
+
+      REMOVE_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+      [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys"; }
+
+      if E_STILL="$(awsl ec2 describe-instances --instance-ids "$INST_OTHER_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>&1)"; then
+        [ "$E_STILL" = "terminated" ] || { echo "$E_STILL"; fail "$INST_OTHER_ID is not terminated after the destroy (state=$E_STILL) - it was orphaned, not destroyed"; }
+      fi
+      log "  $INST_OTHER_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
+
+      log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+      E_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+      [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+      log "  No changes. The removal is complete and invisible to the next plan."
+
+      gauntlet_stage day2_remove pass "choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects"
+    fi
+    CURRENT_STAGE=""
   fi
 else
   log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="

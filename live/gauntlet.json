@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "cd05c610b304b7cb0b0339ed5f8e103ebe56b668",
+  "commit": "7a5b59aed9ae6d2a420c8ed7989cb14108cb9ff8",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T03:48:37Z",
+  "generated": "2026-08-25T03:46:17Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 1,
-          "not_run": 23
+          "fail": 3,
+          "not_run": 21
         },
         "day2_rename": {
           "pass": 26,
@@ -179,8 +179,8 @@
         },
         "greenfield": {
           "pass": 3,
-          "fail": 0,
-          "not_run": 23
+          "fail": 2,
+          "not_run": 21
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 1,
-          "not_run": 22
+          "fail": 3,
+          "not_run": 20
         },
         "day2_rename": {
           "pass": 25,
@@ -256,8 +256,8 @@
         },
         "greenfield": {
           "pass": 3,
-          "fail": 0,
-          "not_run": 22
+          "fail": 2,
+          "not_run": 20
         },
         "migrate": {
           "pass": 25,
@@ -343,12 +343,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "fail",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -358,13 +358,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bb42656508339c57e98ed3a4ca379612d1167ce9",
-        "date": "2026-08-24T20:38:01Z",
+        "commit": "09bc4a77032206d361de023579e9b0da604e7c99",
+        "date": "2026-08-25T03:35:02Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
+          "day2_remove": "choudoufu's remove plan destroys only 1 of module.default's resources; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes 2 destroys for the same module (0 add, 0 change, 2 destroy). choudoufu has strictly less destroy coverage than stock here - the missing address(es) are left live and orphaned, most likely module.default's own aws_autoscaling_group: it carries no ownership marker at all (the `tag` nested-block shape, not the top-level tags map internal/live/markers.TagSurface requires) and may also be admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\", the same class corpus-dynamodb-table-basic's day2_remove hits on aws_dynamodb_resource_policy). Not fixed in this script-only pass; see live/gauntlet/logs/corpus-autoscaling-complete.log for the exact plan diff",
           "day2_rename": "moved block: module.asg_sg renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "greenfield": "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): aws_ec2_capacity_reservation.targeted will be created;module.warm_pool.aws_autoscaling_group.this[0] will be updated in-place;module.warm_pool.aws_launch_template.this[0] will be updated in-place;. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. 68/68 objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.",
           "migrate": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 41 objects carry tofu-estate=autoscaling-complete-crossing",
           "test_apply": "genuine no-op: 41 objects before, 41 after, no state file either time",
           "test_plan": "empty plan; identity re-check unchanged: module.complete.aws_launch_template.this:0, aws_iam_role.ssm"
@@ -385,12 +387,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "fail",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -400,13 +402,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
-        "date": "2026-08-24T21:54:15Z",
+        "commit": "76d00df31fa4ac766a484a0c136672299acc842a",
+        "date": "2026-08-25T03:10:34Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=dynamodb-table-basic-crossing before migration",
+          "day2_remove": "choudoufu's remove plan destroys module.dynamodb_table_final's table but never mentions its resource policy at all when the block is deleted: aws_dynamodb_resource_policy is admitted by the provider's own identity schema rather than by the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), so the estate-wide destroy sweep does not know the type exists and proposes nothing for it - the object is left live and orphaned. Stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes exactly two destroys for the same two objects (0 add, 0 change, 2 destroy); choudoufu here has strictly less destroy coverage than stock, a real gap tracked at live/LIMITATIONS.md, not fixed in this script-only pass",
           "day2_rename": "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI",
-          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-amused-chicken's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-measured-bullfrog's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "greenfield": "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)",
           "migrate": "1 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped.; Apply complete! Resources: 0 added, 0 changed, 1 destroyed. (tofu-slot convergence)",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
@@ -427,12 +431,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -442,13 +446,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
-        "date": "2026-08-24T19:26:13Z",
+        "commit": "7a5b59aed9ae6d2a420c8ed7989cb14108cb9ff8",
+        "date": "2026-08-25T03:49:53Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
+          "day2_remove": "choudoufu's remove plan destroys only 5 of module.ec2_complete's 10 resources; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes all 10 for the same module (0 add, 0 change, 10 destroy). choudoufu has strictly less destroy coverage than stock here - the missing address(es) are left live and orphaned, most likely a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class corpus-dynamodb-table-basic (aws_dynamodb_resource_policy) and corpus-autoscaling-complete (most likely aws_autoscaling_group) already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-ec2-instance-complete.log for the exact plan diff",
           "day2_rename": "moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
+          "greenfield": "35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag",
           "migrate": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file",
           "test_plan": "no resource change proposed, exactly 9 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2"
@@ -1098,12 +1104,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "not_run",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "pass",
+        "greenfield": "not_run",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1113,15 +1119,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "cd05c610b304b7cb0b0339ed5f8e103ebe56b668",
-        "date": "2026-08-25T03:51:29Z",
-        "exit_code": 1,
+        "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
+        "date": "2026-08-24T21:57:00Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
-          "day2_remove": "choudoufu proposes 4 destroy(s) under module.postgresql_renamed, expected 5 (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)",
           "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
-          "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
           "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 58 objects, read through resourcegroupstaggingapi",
           "test_plan": "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
