@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "10d1515361224ed56b3b26d4be3c8a45439c5d92",
-  "emulator": "ghcr.io/lex00/floci@sha256:1e3810f39b7c45fcfe72e340b92fa0a3f9275f8cd21a430a361bb3e6bfa5cb57",
-  "generated": "2026-08-25T00:26:10Z",
+  "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
+  "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
+  "generated": "2026-08-25T00:28:05Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 24,
+      "clear": 25,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
@@ -173,9 +173,9 @@
           "not_run": 26
         },
         "drift_reconverge": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 0,
@@ -198,13 +198,13 @@
           "not_run": 26
         },
         "test_apply": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 25,
-          "fail": 1,
+          "pass": 26,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 23,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 23,
+          "pass": 24,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
@@ -250,9 +250,9 @@
           "not_run": 25
         },
         "drift_reconverge": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 0,
@@ -275,13 +275,13 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 24,
-          "fail": 1,
+          "pass": 25,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -302,29 +302,30 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c062636117334afbc74712b629e568f15d694fa7",
-        "date": "2026-08-24T23:36:04Z",
+        "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
+        "date": "2026-08-25T00:24:10Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
-          "drift_reconverge": "depends on stages 3-4",
+          "day2_rename": "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "drift_reconverge": "one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged",
           "migrate": "51 of 80 stamped, 1 recorded, 0 failed, 28 skipped",
-          "test_apply": "depends on stage 3, which does not produce a clean plan",
-          "test_plan": "0 Error diagnostics, down from 1 (gauntlet issue #397, 2026-08-24) - live-plan COMPLETES for this estate for the first time, exit 0. Two generic language fixes cleared the last static-path refusal (module.alb.aws_lb_listener_certificate.this[\"ex-https/0\"].certificate_arn, Non-static identity argument): an explicit instScope threaded through internal/live/identity's structural decomposition so a for-expression NESTED inside another can read the outer loop variable, plus a new collection-through-a-value-variable case (v / v.attr / lookup(v,\"attr\",d) / try(v.attr,d)) resolved through the element's own expression; and forCondIncludesTolerant now decides any filter clause that reads only the STRUCTURE the author wrote, by binding the value variable to the element's own rebuilt skeleton (rebuildConstructor, unknown at every refused leaf) instead of enumerating length()/comparison spellings. Behind them, four Errors nothing had ever reached appeared and were fixed in the same unit (HANDOFF row 5): terraform-aws-modules/terraform-aws-acm's two aws_route53_record.validation instances take their name and type from an unapplied aws_acm_certificate, and aws_route53_record has no tags map, so the NEEDS_DISCOVERY/SIBLING_APPLY answer promised a marker sweep that could never find them - identity.RecordFallbackType, which six other call sites already consult, is now asked on the sibling-apply path too and both drop to the record rung, binding from the record live-import had already written (identity verified by value against route53 list-resource-record-sets - see 3d). STILL BLOCKED, and the wall is now a NON-EMPTY plan rather than a refusal: Plan: 2 to add, 3 to change, 0 to destroy.. Three families remain, none of them this unit's scope: (1) 2 aws_acm_certificate_validation instances plan a CREATE - the type has no classic Importer and no marker surface, so projection can never read it back; it needs the record rung too, which RecordFallbackType's condition 0 (NotImportable) currently refuses on the grounds that a record exists to be imported back, a rule that has no answer yet for a type with no cloud object to import. (2) module.alb.aws_lb_listener.this[\"ex-oidc\"] and aws_lb_listener_rule.this[\"ex-cognito/ex-oidc\"] each show authenticate_oidc.client_secret being added: an argument the provider never echoes back, which HANDOFF says the record holds, so this is the residue half of the same foundation. (4) aws_cognito_user_pool.this shows email_sending_account defaulting and two empty nested blocks disappearing, which needs checking against the real Cognito API before it is called ours or floci's. FAMILY 3 IS FIXED (gauntlet issue #401 family 3, this unit): aws_instance.this/.other used to show a sensitive-marked ami with the value unchanged - a marks-only diff, gone now that Plan: went from 5 to 3 to change. ami = data.aws_ssm_parameter.al2.value, and aws_ssm_parameter's own value attribute is unconditionally Sensitive in the provider schema regardless of what it names; the CONFIG-evaluated side of a plan picks that mark up through the ordinary dynamic evaluator, but the projected PRIOR side (built by a live read, off the wire, which has nowhere to carry a mark) never did, and nothing re-applied it - Options.DataResults, the only thing that could resolve the VALUE, is scoped to what identity resolution demands, and nothing about an EC2 instance's identity needs its AMI parameter, so the value could never be seeded either. Fixed generically in internal/live/projection/build.go: dataSensitivePath recognizes a bare attr = data.<type>.<name>.<field> reference and checks that DATA SOURCE's own schema for Sensitive, needing no read and no DataResults entry at all; configuredAttrsSeed now asks this for every flat, non-computed-only, non-identity, non-tags attribute (previously only Computed-EXCLUDED attributes reached the check at all, which is what made the first attempt at this fix inert for aws_instance.ami specifically - Optional+Computed is its real shape). Reaches every flat attribute of every type in every provider that reads a data source's own schema-Sensitive attribute directly, not aws_instance/aws_ssm_parameter by name. configuredTagsSeed has the identical, still-open gap for the tags argument - not fixed here."
+          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 50 tofu-estate-tagged objects before, 50 after",
+          "test_plan": "empty live-plan with no state file; 0 Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets"
         }
       },
       "notes": "Landed 2c654caa23 (2026-08-18), 80 resources. cold_deploy and migrate genuinely pass (48 of 80 eligible, 44 stamped - 4 failed to stamp on a real, filed floci gap, lex00/floci#65: ELBv2 DescribeListeners/DescribeRules drop AuthenticateCognitoConfig/AuthenticateOidcConfig entirely, so those 4 listener-rule sites can't round-trip; 32 skipped - 28 untaggable by design, 4 unadmitted). test_plan blocked by #305 (3 sites) and a NEW one, filed as #309: aws_cognito_user_pool_client is unadmitted despite a parent-scoped ListUserPoolClients existing (via the already-admitted aws_cognito_user_pool parent) - a concrete lead for a fix, not attempted here. Three real floci gaps found, fixed, and merged to floci main (9ff82512, already reconciled into that history - not a pending PR): #58 (ACM wildcard-SAN DNS validation record kept a literal \"*.\" in its name), #61 (S3 log-delivery-write canned ACL rejected), #62 (EC2 instance-type catalog missing t3.nano). One floci gap found and left open as real feature work: #63 (Cognito CreateUserPoolDomain entirely unimplemented), worked around with a documented delta. Deliberately did NOT re-pin live/floci-image here - bumping the pin without a matching floci-capabilities.json regen breaks TestFlociServiceCapability/TestFlociTypeCapability, and several other crossings tonight need the same regen, so this was left for a single centralized reconciliation rather than each crossing re-pinning independently and colliding. Verified twice via FLOCI_IMAGE override pointed at the real published digest (sha256:217f859688b5...) instead. Follow-up pass 2026-08-18 (#313 cross-check, d7e44cbfda/29095a37b7): the committed run.sh still asserted pre-#305 counts (48/80 eligible, 44 stamped, 4 unadmitted-type including the default_* trio) and failed before ever reaching stage 3; updated to the real current numbers - 51 eligible, 47 stamped, #309 (aws_cognito_user_pool_client) now the SOLE unadmitted-type/test_plan blocker, #305's trio fully resolved - re-verified against real floci twice plus a BREAK=1 negative control. #313's diagnostic does not appear anywhere in the output despite this estate also declaring data.aws_availability_zones feeding module.vpc; confirmed not the same wall. Commented on #313 and #309. RE-VERIFIED 2026-08-21 (this session, worktree live/reverify-limitations, floci pinned at the current e61a987/d65baf42 image): stages 1-2 unchanged byte-for-byte (80 cold-deployed; dry run 51/80 eligible, 41 VERIFIED + 10 DRIFTED, 29 skipped; -approve 47 stamped, 1 recorded, 4 failed on the still-open lex00/floci#65, 28 skipped). Stage 3's underlying wall is UNCHANGED in substance - still exactly one site, aws_cognito_user_pool_client.this, still #309, still label 3 - but its diagnostic TEXT has moved: commit 5444949ceb (2026-08-19 22:57, \"widen the markerless veto to a mixed primary identifier\", #309's own chain) added aws_cognito_user_pool_client to identity.MarkerlessTypes, which reclassifies the refusal from RuleUnadmittedType (\"Resource type is outside the live-markers subset\") to the more specific RuleMarkerlessType (\"Resource type has nowhere to write an ownership marker\") - same site, same practical block, different rule ID and error string. That commit landed after run.sh (c926095b49) was last edited, so run.sh's own hard-coded stage-3 assertion (grep for the old RuleUnadmittedType text) no longer matches and the script now hard-fails at its own assertion check (\"expected 1 unadmitted-type sites (#309), got 0\") before ever reaching its SUMMARY block, rather than reaching a clean itemized stage-3 refusal. Stage 2's live-import output still labels the same site UNADMITTED_TYPE, so stage 2 and stage 3 now use inconsistent labels for the identical site - a real, if narrow, drift worth fixing when someone next touches this script (update the grep target to RuleMarkerlessType's text), not attempted here per this session's verification-only scope. Separately confirmed: run.sh's header (lines 92-131) still does not state the maintainer's 2026-08-21 \"Label 3, OpenTofu was never asked this question, stop here\" ruling in as many words - HANDOFF.md's \"What to do next\" item 2 documentation task is still open. #337 (composite-identity route, 18 types) is confirmed NOT implicated - the responsible commit is on the #309 chain itself, predating #337. #331/#340/#343/#344 did not touch this estate."
@@ -524,8 +525,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e921449d4835b6611919c16b0e997992bb981dec",
-        "date": "2026-08-24T19:41:40Z",
+        "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
+        "date": "2026-08-25T00:32:33Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
@@ -1027,8 +1028,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "466e3248c5dd13889a7282727ca2d91a4c263934",
-        "date": "2026-08-24T21:14:44Z",
+        "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
+        "date": "2026-08-25T00:27:23Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "39 resources, once for real",

@@ -515,10 +515,54 @@ func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resoluti
 	return b.materialize(ctx, wanted{
 		addr:        r.Addr,
 		importID:    rec.ImportID,
-		values:      rec.Components,
+		values:      recordFirstStubValues(rec),
 		undeclared:  r.Undeclared,
 		recordFirst: true,
 	})
+}
+
+// recordFirstStubValues is [builder.materializeFromRecord]'s GitHub issue
+// #401 family 1 half: it merges rec.ImportID onto rec.Components under the
+// schema's own "id" attribute name, when both are already present, so the
+// stub [noimporter.SynthesizeStub] builds for a type with no classic
+// Importer (importAndRead, reached through the noimporter.Diagnostics
+// signal) can carry an "id" the way every genuine ReadResource PriorState
+// already does - an ordinary refresh's own stub, or one ImportResourceState
+// itself built.
+//
+// "id" is never among rec.Components: SynthesizeStub places a value only
+// under a name an identity.Component actually resolved, and a type's "id"
+// is the provider's own opaque state key, never an identity-schema
+// attribute (see [identity.SynthesizeTypeIdentity]'s own doc comment on
+// deliberately never adding "id" to a synthesized entry's IdentityAttrs).
+// So a stub built from Components alone can structurally never carry one,
+// which for a type like aws_acm_certificate_validation is the one
+// difference between the stub this run can build and the PriorState a
+// real refresh sends - and rec.ImportID already holds exactly that value,
+// transcribed once from the same real prior object the components
+// themselves came from ([schemaFallbackComponentsRecord], its writer).
+//
+// A copy, never a mutation of rec.Components: the record this run just
+// read may be reused or cached elsewhere, and adding "id" to it is a fact
+// about this one stub-building attempt, not about the record.
+//
+// rec.Components empty - today's shape for every record this mechanism
+// does not yet reach - returns it unchanged (nil or empty, same as before
+// this function existed): [noimporter.SynthesizeStub]'s own
+// len(values)==0 refusal is exactly as load-bearing as it was, and this
+// never manufactures a values map where there was none. rec.ImportID
+// empty is the record-backed/composite-only shape that never carries a
+// separate id string at all, and is likewise left untouched.
+func recordFirstStubValues(rec LocatedRecord) map[string]string {
+	if rec.ImportID == "" || len(rec.Components) == 0 {
+		return rec.Components
+	}
+	values := make(map[string]string, len(rec.Components)+1)
+	for k, v := range rec.Components {
+		values[k] = v
+	}
+	values["id"] = rec.ImportID
+	return values
 }
 
 // wanted is one instance's identity in every form this run holds it, which is
