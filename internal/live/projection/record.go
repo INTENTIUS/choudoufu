@@ -10,7 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -201,6 +203,54 @@ func (d *deposedFields) empty() bool {
 	return d == nil || (d.Identity.empty() && d.Provider == "")
 }
 
+// tombstoneFields is one entry of [recordEnvelope.Tombstone]: a live object
+// this address currently claimed, destroyed by an apply THIS estate ran
+// (maintainer ruling 2026-08-25, corpus-ec2-instance-complete's day2_remove
+// unit). Written by [RecordStore.tombstone] in place of the plain delete
+// [WriteBack] otherwise does when an address drops out of the final state
+// entirely - a live object's own tags can stay visible via the tagging API
+// for a time after it is terminated (real AWS's own documented lag,
+// confirmed directly against the emulator with no tofu in the loop, not a
+// floci gap), and a hard-deleted record left [classifyOrphans]'s
+// collision guard nothing to tell that lingering tag apart from a genuine
+// second live claimant. An entry naming an identity this store has since
+// seen destroyed lets that guard treat the lingering tag as what it is - a
+// known-destroyed object, never a live claim - rather than refusing the
+// whole address until a human says which is which.
+//
+// Entries are never actively pruned: an identity's own value (an instance
+// id, say) is specific enough that a stale entry is inert once the live
+// object's tags stop being listed at all - which happens on its own, well
+// inside any reasonable estate's own apply cadence - and there is nothing
+// this package could safely reclaim earlier without risking exactly the
+// wrong-marker hazard the whole mechanism exists to avoid.
+type tombstoneFields struct {
+	// Identity is the destroyed object's own identity, the same shape a
+	// current object's Identity member carries - what
+	// [orphanMatchesTombstone] compares a live tag-sweep sighting against.
+	// Nil is never written deliberately: [RecordStore.tombstone] only adds
+	// an entry when the envelope it is replacing already carried one (see
+	// that function's own comment), and an entry with nothing populated is
+	// never added at all (see empty()).
+	Identity *identityPayload `json:"identity,omitempty"`
+
+	// Provider is this destroyed object's OWN managing provider
+	// configuration ([addrs.AbsProviderConfig.String]) at the moment it
+	// was destroyed - the same "independent of the envelope's own
+	// current Provider field" reasoning as [deposedFields.Provider].
+	Provider string `json:"provider,omitempty"`
+
+	// Time is when this entry was written, RFC 3339 - "destroyed by us at
+	// <time>", for an operator reading the record store by hand. Nothing
+	// in this package reads it back to decide anything: entries are never
+	// actively expired (see this type's own doc comment).
+	Time string `json:"time,omitempty"`
+}
+
+func (t *tombstoneFields) empty() bool {
+	return t == nil || (t.Identity.empty() && t.Provider == "" && t.Time == "")
+}
+
 // objectFields is [recordEnvelope.Object]: the whole of a record-backed
 // resource instance's value, since for that class the record IS the object.
 // It is today's recordPayload, unchanged field for field - only the
@@ -319,6 +369,21 @@ type recordEnvelope struct {
 	// so Deposed rides along unchanged, same as every other member.
 	Deposed map[string]*deposedFields `json:"deposed,omitempty"`
 
+	// Tombstone is every identity this address has held that this estate's
+	// own apply has since destroyed - see [tombstoneFields]'s own doc
+	// comment for why this exists and [RecordStore.tombstone] for how it
+	// is written. Keyed by the destroyed identity's own [identityPayload]
+	// key (ImportID, or an encoding of Attrs for a composite identity) so
+	// that destroying the same address's several successive occupants
+	// over an estate's history (replace, then remove) accumulates
+	// distinct entries rather than each overwriting the last.
+	//
+	// Nil for every envelope written before this field existed; tolerated
+	// exactly as [Deposed]'s own absence is. [RecordStore.MoveRecord]
+	// needs no change for this member either, for the same reason
+	// [Deposed]'s own comment gives.
+	Tombstone map[string]*tombstoneFields `json:"tombstone,omitempty"`
+
 	// The four fields below are v1's flat shape, decode-only. A v1
 	// record-backed payload carried these at the envelope's own top level
 	// under exactly these names (recordPayload's original tags); nothing in
@@ -335,9 +400,13 @@ type recordEnvelope struct {
 
 // isEmpty reports whether env carries none of the four facts - the signal
 // [RecordStore.mergeEnvelope] uses to delete a key rather than write back an
-// envelope with nothing left in it.
+// envelope with nothing left in it. A tombstone-only envelope (every other
+// field cleared by [RecordStore.tombstone]) is deliberately NOT empty: that
+// is the one case this whole mechanism exists for - keeping the key alive
+// with nothing but a tombstone is the entire difference between it and a
+// plain delete.
 func (env recordEnvelope) isEmpty() bool {
-	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0
+	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0 && len(env.Tombstone) == 0
 }
 
 // providerString renders p as [recordEnvelope.Provider]'s value, "" for a
@@ -409,8 +478,22 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	if len(env.Deposed) == 0 {
 		env.Deposed = nil
 	}
+	// Tombstone's own normalization: the same vacuous-pointer shape the
+	// block above closes for Deposed, per map entry. [RecordStore.tombstone]
+	// never produces such an entry (it only ever adds one when the
+	// envelope it is replacing already carried a real identity - see that
+	// function's own comment), so this only ever fires on a hand-edited or
+	// foreign payload.
+	for tk, tf := range env.Tombstone {
+		if tf.empty() {
+			delete(env.Tombstone, tk)
+		}
+	}
+	if len(env.Tombstone) == 0 {
+		env.Tombstone = nil
+	}
 
-	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil {
+	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil && env.Tombstone == nil {
 		if len(env.LegacyValueType) == 0 {
 			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
 			// kind, no member at all) - a payload this package cannot
@@ -465,14 +548,16 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		if env.Object != nil {
 			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it also carries an object, which only %q ever carries", recordKindIdentity, recordKindObject)
 		}
-		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 {
+		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 && len(env.Tombstone) == 0 {
 			// A GitHub issue #361-only envelope - an ordinary taggable
 			// instance whose only recorded fact this pass is a deposed
 			// object from an interrupted create-before-destroy - is a
 			// legitimate kind=identity shape, not an error: see
 			// writeback.go's diffDeposedForWrite, which can be the sole
-			// reason [RecordStore.mergeEnvelope] wrote this key at all.
-			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint or a deposed object - not a payload this package ever wrote", recordKindIdentity)
+			// reason [RecordStore.mergeEnvelope] wrote this key at all. A
+			// tombstone-only envelope ([RecordStore.tombstone]) is the
+			// same shape for the same reason.
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint, a deposed object or a tombstone - not a payload this package ever wrote", recordKindIdentity)
 		}
 	default:
 		return recordEnvelope{}, fmt.Errorf("the stored record names kind %q, which this version of choudoufu does not understand", env.Kind)
@@ -762,6 +847,58 @@ func (s *RecordStore) GetDeposed(ctx context.Context, addr addrs.AbsResourceInst
 	return out, version, true, nil
 }
 
+// TombstoneRecord is one destroyed identity recorded for an address - see
+// [tombstoneFields]'s own doc comment for what this is for.
+type TombstoneRecord struct {
+	ImportID   string
+	Components map[string]string
+	Provider   string
+}
+
+// Empty reports whether this record says nothing at all about the
+// destroyed object it names.
+func (r TombstoneRecord) Empty() bool {
+	return r.ImportID == "" && len(r.Components) == 0 && r.Provider == ""
+}
+
+// GetTombstones reads addr's Tombstone member: every identity this store
+// has recorded as destroyed for this address, keyed by that identity's own
+// key (see [tombstoneFields]). keyExists carries [GetIdentity]'s same
+// distinction: the physical key may exist for Object/Residue/Provisioned/
+// Identity/Deposed alone, carrying no Tombstone member at all, in which
+// case the returned map is nil.
+func (s *RecordStore) GetTombstones(ctx context.Context, addr addrs.AbsResourceInstance) (tombstones map[string]TombstoneRecord, version string, keyExists bool, err error) {
+	if s == nil {
+		return nil, "", false, nil
+	}
+	env, version, exists, err := s.getRaw(ctx, addr)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if !exists {
+		return nil, "", false, nil
+	}
+	if len(env.Tombstone) == 0 {
+		return nil, version, true, nil
+	}
+	out := make(map[string]TombstoneRecord, len(env.Tombstone))
+	for tk, tf := range env.Tombstone {
+		if tf.empty() {
+			continue
+		}
+		rec := TombstoneRecord{Provider: tf.Provider}
+		if tf.Identity != nil {
+			rec.ImportID = tf.Identity.ImportID
+			rec.Components = tf.Identity.Attrs
+		}
+		out[tk] = rec
+	}
+	if len(out) == 0 {
+		return nil, version, true, nil
+	}
+	return out, version, true, nil
+}
+
 // getResidue reads addr's Residue member - GitHub issue #275's argument
 // values. keyExists and residueFound carry [getIdentity]'s same distinction.
 func (s *RecordStore) GetResidue(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
@@ -970,6 +1107,113 @@ func (s *RecordStore) delete(ctx context.Context, addr addrs.AbsResourceInstance
 		return nil
 	}
 	return s.store.Delete(ctx, RecordKey(s.prefix, addr), expectedVersion)
+}
+
+// tombstone is [delete]'s replacement for the one case [WriteBack] used to
+// call [delete] for unconditionally: an address that dropped out of the
+// final state entirely because THIS run's own apply destroyed it (see
+// [tombstoneFields]'s own doc comment for why a plain delete is not
+// enough). It reads the envelope already stored for addr - the SAME fresh
+// read [mergeEnvelope] does, so this composes with a same-pass write to
+// the identical key exactly as every other merge does - carries forward
+// whatever identity that envelope named (env.Identity, the only member an
+// ordinary taggable or located instance's kind=identity envelope ever
+// populates; a record-backed kind=object instance's Object member carries
+// no comparable identity concept and is simply dropped, same as it always
+// was for a real delete) into a new tombstone entry, and clears every
+// other member.
+//
+// If the envelope being replaced named no identity at all - an object this
+// pass never derived one for, or a key that only ever held a
+// residue/provisioned/deposed fact - there is nothing to tombstone, and
+// this reduces to exactly what [delete] already did: [mergeEnvelope]'s own
+// isEmpty check deletes the key rather than writing an envelope with
+// nothing in it.
+//
+// The tombstone's own Provider comes from the envelope's own, already-
+// stored top-level Provider field, not a parameter: that field is exactly
+// "the managing provider instance address at the moment this envelope was
+// last written" ([recordEnvelope.Provider]'s own doc comment), which for
+// the envelope being replaced here means the provider that managed the
+// object being destroyed - there is no fresher answer available once the
+// address has already left the final state.
+func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string) error {
+	if s == nil {
+		return nil
+	}
+	_, err := s.mergeEnvelope(ctx, addr, expectedVersion, func(env *recordEnvelope) {
+		identity := env.Identity
+		providerAddr := env.Provider
+		env.Identity = nil
+		env.Object = nil
+		env.Residue = nil
+		env.Provisioned = nil
+		env.Deposed = nil
+		// The top-level Provider field names the CURRENT object's
+		// provider (its own doc comment); there is no current object once
+		// this envelope holds nothing but a tombstone, so it moves onto
+		// the tombstone entry itself, the same "own provider,
+		// independent of the envelope's current one" reasoning
+		// [deposedFields.Provider] already uses.
+		env.Provider = ""
+		if identity.empty() {
+			return
+		}
+		tk := tombstoneKey(identity)
+		if tk == "" {
+			return
+		}
+		if env.Tombstone == nil {
+			env.Tombstone = make(map[string]*tombstoneFields, 1)
+		}
+		env.Tombstone[tk] = &tombstoneFields{
+			Identity: identity,
+			Provider: providerAddr,
+			Time:     tombstoneClock().UTC().Format(time.RFC3339),
+		}
+	})
+	return err
+}
+
+// tombstoneClock is [tombstone]'s own time source, a package variable so a
+// test can pin it - the same seam [tombstoneFields.Time]'s doc comment
+// promises nothing else in this package ever reads back to decide
+// anything, so a fixed value only ever affects what a test asserts by
+// value, never behavior.
+var tombstoneClock = time.Now
+
+// tombstoneKey is [recordEnvelope.Tombstone]'s own map key for identity: the
+// ImportID directly for a type identified by one server-minted string
+// (the ordinary case for every taggable and located type today), or a
+// deterministic encoding of every named component for a composite
+// identity, sorted so the same identity always produces the same key
+// regardless of map iteration order. "" for an identity with neither -
+// [tombstone] never adds an entry for that.
+func tombstoneKey(p *identityPayload) string {
+	if p == nil {
+		return ""
+	}
+	if p.ImportID != "" {
+		return p.ImportID
+	}
+	if len(p.Attrs) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(p.Attrs))
+	for name := range p.Attrs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for i, name := range names {
+		if i > 0 {
+			b.WriteByte('\x00')
+		}
+		b.WriteString(name)
+		b.WriteByte('=')
+		b.WriteString(p.Attrs[name])
+	}
+	return b.String()
 }
 
 // DeleteRecord is [delete] exported for mv.go's own reconciliation case

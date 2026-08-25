@@ -408,6 +408,67 @@ func TestWriteBackLocatedDeletesAWithdrawnInstance(t *testing.T) {
 	}
 }
 
+// TestWriteBackLocatedTombstonesAWithdrawnInstance is
+// TestWriteBackLocatedDeletesAWithdrawnInstance's own sibling, added for
+// this unit (maintainer ruling 2026-08-25,
+// gauntlet:corpus-ec2-instance-complete/day2_remove): the SAME ordinary,
+// non-collision destroy - through the real [WriteBack] entry point, not a
+// direct [RecordStore.tombstone] call - must ALSO leave a Tombstone entry
+// naming the destroyed identity BY VALUE, so [classifyOrphans]'s collision
+// guard has something to consult the next time this address's own
+// lingering tag turns up as an orphan. The sibling test above already pins
+// half of this (GetIdentity finds nothing); this pins the other half.
+func TestWriteBackLocatedTombstonesAWithdrawnInstance(t *testing.T) {
+	addr := mustAddr(t, locatedTestType+`.bastion`)
+	const estate = "test-estate"
+	const destroyedID = "eipassoc-gone"
+
+	store := localHintStore(t)
+	located := newTestLocatedStore(store, estate)
+	version, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: destroyedID}, "")
+	if err != nil {
+		t.Fatalf("seeding: %s", err)
+	}
+
+	schemas := &tofu.Schemas{Providers: map[addrs.Provider]providers.ProviderSchema{
+		locatedTestProvider.Provider: {ResourceTypes: map[string]providers.Schema{locatedTestType: locatedTypeSchema()}},
+	}}
+
+	diags := WriteBack(context.Background(), WriteBackRequest{
+		Store:            located.rs,
+		EnvelopeVersions: []RecordVersion{{Addr: addr, Version: version}},
+		FinalState:       states.NewState(), // the apply destroyed it
+		Schemas:          schemas,
+	})
+	assertNoErrors(t, diags)
+
+	// The ordinary "is this a live record" read still finds nothing - the
+	// property the sibling test above pins, re-asserted here so this test
+	// alone would still catch a regression to "tombstone leaks into
+	// GetIdentity".
+	if _, _, exists, err := located.Get(context.Background(), addr); err != nil || exists {
+		t.Fatalf("the located record survived the instance's destruction (exists=%v err=%v)", exists, err)
+	}
+
+	tombstones, _, keyExists, err := located.rs.GetTombstones(context.Background(), addr)
+	if err != nil {
+		t.Fatalf("GetTombstones: %s", err)
+	}
+	if !keyExists {
+		t.Fatal("write-back deleted the key entirely instead of tombstoning it - the destroyed identity is gone with no way for classifyOrphans's collision guard to recognize its lingering tag later")
+	}
+	if len(tombstones) != 1 {
+		t.Fatalf("GetTombstones returned %d entries, want 1: %#v", len(tombstones), tombstones)
+	}
+	rec, ok := tombstones[destroyedID]
+	if !ok {
+		t.Fatalf("GetTombstones has no entry keyed %q: %#v", destroyedID, tombstones)
+	}
+	if rec.ImportID != destroyedID {
+		t.Errorf("tombstoned ImportID = %q, want %q", rec.ImportID, destroyedID)
+	}
+}
+
 // TestWriteBackLocatedIgnoresNonLocatedTypes is the guard against the
 // write side and the read side drifting apart. Write-back re-asks
 // identity.LocatedType rather than remembering a verdict, so a type the

@@ -209,7 +209,17 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		if seen[rv.Addr.String()] {
 			continue
 		}
-		if err := req.Store.delete(ctx, rv.Addr, rv.Version); err != nil {
+		// tombstone, not delete: this address left the final state
+		// entirely, and if its record named an identity, that identity's
+		// own tags can stay visible via the tagging API for a time after
+		// the object is actually gone (maintainer ruling 2026-08-25,
+		// corpus-ec2-instance-complete's day2_remove unit) - see
+		// [RecordStore.tombstone] and [tombstoneFields]. A record with no
+		// identity to carry forward (this loop's ordinary case: a
+		// record-backed instance's identity concept lives in its Object
+		// member, which tombstone never carries forward) reduces to
+		// exactly the delete this replaced.
+		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version); err != nil {
 			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
 		}
 	}
@@ -642,7 +652,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 		if seen[rv.Addr.String()] {
 			continue
 		}
-		if err := req.Store.delete(ctx, rv.Addr, rv.Version); err != nil {
+		// tombstone, not delete: see the identical comment on the
+		// record-backed loop's own version of this cleanup, above. This
+		// is the loop that actually populates env.Identity for an
+		// ordinary taggable or located instance (the "issue #364 unit A2"
+		// identity write, above), so this is where day2_remove's own
+		// stale-tag-after-destroy collision is actually closed.
+		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version); err != nil {
 			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
 		}
 	}

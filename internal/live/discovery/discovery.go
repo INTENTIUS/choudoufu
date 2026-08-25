@@ -2681,7 +2681,26 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 	// nothing about any other collision shape. Generic by construction -
 	// no resource type name appears in it, and it reaches every orphaned
 	// address a record exists for, not only aws_instance.
+	// A day2_remove (the block removed entirely, not replaced) leaves the
+	// SAME stale-tag shadow recordCurrentClaimant's own comment describes,
+	// but with no current claimant left to disambiguate against at all:
+	// the address's own record was tombstoned, not merely superseded, by
+	// the apply that destroyed its last live occupant (maintainer ruling
+	// 2026-08-25, corpus-ec2-instance-complete's own day2_remove unit;
+	// see [projection.RecordStore.tombstone]). recordCurrentClaimant finds
+	// no current identity there and returns ok=false exactly as it always
+	// has for an address with no record at all - ghostOrphans is the
+	// sibling check for that specific case: every claimant whose identity
+	// matches one of the address's own TOMBSTONE entries is not live, so
+	// it is excluded before the collision decision below ever runs. What
+	// is left may be a real disambiguation (one genuine survivor - the
+	// address was replaced once and removed once, in either order), an
+	// empty set (every claimant was a known ghost - the address really is
+	// gone), or still two or more genuine claimants (an actual collision,
+	// changed not at all by this).
 	recordSurvivor := make(map[string]int, len(byAddr))
+	ghostOrphans := make(map[int]bool)
+	collisionCandidates := make(map[string][]int, len(byAddr))
 	for addrStr, idx := range byAddr {
 		if len(idx) < 2 {
 			continue
@@ -2689,6 +2708,31 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 		addr := res.Orphans[idx[0]].Addr
 		if survivor, ok := recordCurrentClaimant(ctx, req, res, addr, idx); ok {
 			recordSurvivor[addrStr] = survivor
+			continue
+		}
+		ghosts := tombstoneGhostIndices(ctx, req, res, addr, idx)
+		if len(ghosts) == 0 {
+			collisionCandidates[addrStr] = idx
+			continue
+		}
+		var remaining []int
+		for _, i := range idx {
+			if ghosts[i] {
+				ghostOrphans[i] = true
+			} else {
+				remaining = append(remaining, i)
+			}
+		}
+		switch len(remaining) {
+		case 0:
+			// Every claimant was a known ghost: nothing is a collision
+			// candidate and nothing is a survivor either - the per-orphan
+			// switch below withholds each one individually via
+			// ghostOrphans, and proposes nothing for the address at all.
+		case 1:
+			recordSurvivor[addrStr] = remaining[0]
+		default:
+			collisionCandidates[addrStr] = remaining
 		}
 	}
 
@@ -2743,6 +2787,10 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 					o.TypeName, o.Addr, identityAttrNames(o.TypeName)),
 			}))
 			o.Withheld = "the provider served no identity for it, so it cannot be read or destroyed"
+		case ghostOrphans[i]:
+			o.Withheld = fmt.Sprintf(
+				"the estate's own record shows this live %s was already destroyed by an earlier apply against %s; its tag can still be listed via the AWS tagging API for a time after termination (real AWS's own documented lag, confirmed directly against the emulator with no tofu in the loop - not a floci gap), which is not a live claim",
+				o.TypeName, o.Addr)
 		case len(byAddr[o.Addr.String()]) > 1:
 			switch survivor, disambiguated := recordSurvivor[o.Addr.String()]; {
 			case disambiguated && i == survivor:
@@ -2752,7 +2800,7 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 					"the estate's own record for %s already names a different live %s as current, so this one is left untouched rather than guessed at (a stale duplicate the tag sweep can still see - for example a just-replaced instance's tags outliving the destroy that removed it - not a second real resource)",
 					o.Addr, o.TypeName)
 			default:
-				diags = diags.Append(problemDiag(res, collisionOrphanProblem(req, res, byAddr[o.Addr.String()])))
+				diags = diags.Append(problemDiag(res, collisionOrphanProblem(req, res, collisionCandidates[o.Addr.String()])))
 				o.Withheld = fmt.Sprintf(
 					"another live %s carries the same marker, and destroying one of two resources that claim one address would be a guess",
 					o.TypeName)
@@ -3014,6 +3062,81 @@ func orphanMatchesRecord(rec projection.LocatedRecord, o *OwnedResource) bool {
 		// ordinary way to produce one. A marked component simply does not
 		// match - refused, never unmarked, the same discipline
 		// [deposedClaimantMatches] applies to its own comparison.
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
+			return false
+		}
+	}
+	return true
+}
+
+// tombstoneGhostIndices is [classifyOrphans]'s sibling check to
+// [recordCurrentClaimant], for the case that function's own comment says
+// returns ok=false: no CURRENT identity is recorded for addr at all. That
+// is exactly the shape [projection.RecordStore.tombstone] leaves behind
+// once an address's last live occupant is destroyed - the record still
+// exists, but it now holds a Tombstone instead of an Identity (see
+// [tombstoneFields]'s own doc comment). A claimant among idx whose
+// identity matches one of addr's own tombstone entries is not live: it is
+// the same tag-visibility lag recordCurrentClaimant's own comment
+// describes for a REPLACED address, just with nothing left to call
+// "current" because the address was removed rather than replaced. Returns
+// nil, not an error, when req.HintStore is nil, the store has nothing
+// recorded for addr, or none of idx matches anything recorded - every one
+// of those is "no ghost found here", not a failure.
+func tombstoneGhostIndices(ctx context.Context, req Request, res *Result, addr addrs.AbsResourceInstance, idx []int) map[int]bool {
+	if req.HintStore == nil {
+		return nil
+	}
+	prefix := req.KeyPrefix
+	if prefix == "" {
+		prefix = projection.RecordKeyPrefix(req.Estate)
+	}
+	store := projection.NewRecordEnvelopeStore(req.HintStore, prefix)
+	tombstones, _, _, err := store.GetTombstones(ctx, addr)
+	if err != nil || len(tombstones) == 0 {
+		return nil
+	}
+	var ghosts map[int]bool
+	for _, i := range idx {
+		for _, rec := range tombstones {
+			if orphanMatchesTombstone(rec, &res.Orphans[i]) {
+				if ghosts == nil {
+					ghosts = make(map[int]bool, len(idx))
+				}
+				ghosts[i] = true
+				break
+			}
+		}
+	}
+	return ghosts
+}
+
+// orphanMatchesTombstone is [orphanMatchesRecord], for a
+// [projection.TombstoneRecord] rather than a [projection.LocatedRecord] -
+// the two are separate Go types (one names a CURRENT claim, the other a
+// destroyed one) even though every field this compares is named and typed
+// identically, so the comparison itself is mirrored rather than shared.
+func orphanMatchesTombstone(rec projection.TombstoneRecord, o *OwnedResource) bool {
+	if rec.ImportID != "" {
+		return rec.ImportID == o.ImportID
+	}
+	if len(rec.Components) == 0 {
+		return false
+	}
+	if o.Identity == cty.NilVal || o.Identity.IsNull() || !o.Identity.IsKnown() || o.Identity.IsMarked() || !o.Identity.Type().IsObjectType() {
+		return false
+	}
+	ty := o.Identity.Type()
+	for name, want := range rec.Components {
+		if !ty.HasAttribute(name) {
+			return false
+		}
+		v := o.Identity.GetAttr(name)
+		// v.IsMarked() before AsString(): cty panics rather than errors on
+		// a marked receiver, and a sensitive input variable is the
+		// ordinary way to produce one. A marked component simply does not
+		// match - refused, never unmarked, the same discipline
+		// [orphanMatchesRecord] applies to its own comparison.
 		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
 			return false
 		}
