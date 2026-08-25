@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "24b7a008e96b5b0c1ae03ef383b2b1c1b41a8032",
+  "commit": "20afe6d42dfc1a6ac0231e2de23ed8149bd72aa9",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T17:25:17Z",
+  "generated": "2026-08-25T17:27:28Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -932,8 +932,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "fc6a04e949672863da5f707597b44eef83b87c1a",
-        "date": "2026-08-25T04:46:35Z",
+        "commit": "20afe6d42dfc1a6ac0231e2de23ed8149bd72aa9",
+        "date": "2026-08-25T17:28:16Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration",
