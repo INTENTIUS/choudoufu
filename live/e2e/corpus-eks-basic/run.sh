@@ -1616,9 +1616,24 @@ grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
   tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
+# A real, named wall (HANDOFF row 2: choudoufu's own result, no stock
+# comparison involved), confirmed on a real run: this estate wires the
+# kubernetes provider's config off data.aws_eks_cluster.cluster / data.
+# aws_eks_cluster_auth.cluster (main.tf's own provider "kubernetes"
+# block), which cannot resolve until the EKS cluster this same apply is
+# supposed to create already exists - a graph-deferred-provider-config
+# pattern real terraform's stage-1 cold apply tolerates but which
+# apply-from-nothing is the FIRST thing in this whole script to ask
+# choudoufu's own engine to do: migrate only adopts objects that already
+# exist (live-import, no create) and test_apply's convergence apply never
+# creates the cluster either, so this bootstrapping path was never
+# exercised through choudoufu before this stage existed. Whether
+# choudoufu's engine defers provider configuration the same way upstream
+# does is an open, generic engine question, not fixed in this
+# script-only unit.
 GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
-  fail "the greenfield apply failed"
+  fail "the greenfield apply failed - see the comment immediately above this call for the named root cause (a provider whose config depends on a data source only the same apply's own EKS cluster creation can resolve, a bootstrapping path no earlier stage in this script exercises through choudoufu)"
 }
 grep -qE 'Apply complete! Resources: 54 added, 0 changed, 0 destroyed\.' <<< "$GREEN_APPLY_OUT" \
   || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 54 resources"; }
