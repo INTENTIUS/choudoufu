@@ -42,9 +42,15 @@ both. Everything outside live markers is stock OpenTofu.
 
 ## Where this stands
 
-Most commonly used AWS resource types are admitted. The gap that hurts is the
-connective tissue between them, such as `aws_ecs_service` and
-`aws_lambda_permission`.
+Most commonly used AWS resource types are admitted, connective tissue
+included: `aws_ecs_service` has its own ratified identity and is proven
+end to end (deploy, migrate, drift, rename, remove) on a real ECS/Fargate
+estate, and `aws_lambda_permission`, which AWS gives no tags to hang a
+marker on, is admitted too, its identity composed from the function name
+and statement ID and held in the record store rather than a marker.
+[The gauntlet](https://intentius.io/choudoufu/docs/progress/) is the
+standing record of which estates clear which stages against a real
+emulator, updated by running them, not by hand.
 
 Type coverage is rarely what stops a configuration. A `backend "s3"` block, a
 CI pipeline that saves a plan file (`-out` plus `apply <planfile>`), a
