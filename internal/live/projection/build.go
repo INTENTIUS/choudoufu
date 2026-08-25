@@ -269,6 +269,7 @@ func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts 
 		causes:               make(map[string]string),
 		depsByType:           make(map[string][]addrs.ConfigResource),
 		envelopeVersionAddrs: make(map[string]bool),
+		materializedIdentity: make(map[string]bool),
 		// The `moved` blocks this configuration's markers may follow (GitHub
 		// issue #198), computed once for the whole projection because
 		// [builder.checkOwnership] asks about them per instance. A
@@ -300,6 +301,20 @@ type builder struct {
 	materialized []addrs.AbsResourceInstance
 	unownedList  []Unowned
 	policyList   []PolicyOutcome
+
+	// materializedIdentity records, for every instance this pass has
+	// successfully materialized, whether SOME instance of its resource type
+	// carries its import identity - GitHub issue #404. Keyed by
+	// "<type>\x00<import ID>" rather than by address on purpose: two
+	// addresses in the same plan can both name the exact same live object
+	// (an untaggable, single-parent-component child of a resource a `moved`
+	// block or ordinary parent-derived re-discovery relocated, still
+	// carrying an [identity.Resolution.Undeclared] entry at its OLD
+	// address from the estate's own record store - see [builder.run]'s own
+	// doc comment on the two-part concrete phase for why that entry exists
+	// at all), and this is what lets the second part tell "a genuine
+	// removal" from "the same object, claimed twice."
+	materializedIdentity map[string]bool
 
 	// recordVersions is the version read at plan time for every
 	// record-backed instance whose record actually existed - GitHub issue
@@ -385,8 +400,37 @@ func (b *builder) ambientContext(providerAddr addrs.AbsProviderConfig, schema pr
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
-	resolutions = b.applyRecordFirst(ctx, resolutions)
-	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(resolutions)
+	// GitHub issue #404: every [identity.Resolution.Undeclared] concrete
+	// resolution is pulled out before anything else runs - including
+	// [applyRecordFirst] - and held for a final pass at the bottom of this
+	// function. See that pass's own doc comment for the full mechanism;
+	// the reason it has to happen THIS early, ahead of applyRecordFirst
+	// rather than only ahead of orderWork's concrete/derived split, is
+	// that applyRecordFirst reads the SAME record store an undeclared
+	// resolution's own source (recordOrphanReadSweep, or any future
+	// record-store-sourced orphan leg) just read to produce it: an
+	// undeclared entry always has a record there by construction, so
+	// applyRecordFirst.materializeFromRecord would otherwise materialize
+	// it immediately, before a single currently-declared instance - which
+	// only ever runs through applyRecordFirst/orderWork's later phases -
+	// has had the chance to claim the same import identity. Splitting
+	// this out is safe for every OTHER resolution's own dependency
+	// ordering: nothing in the CURRENT configuration can reference an
+	// address the configuration does not declare, so an undeclared
+	// instance is never a formula parent for anything still running
+	// through the phases below it.
+	var undeclaredConcrete []identity.Resolution
+	rest := make([]identity.Resolution, 0, len(resolutions))
+	for _, r := range resolutions {
+		if r.Undeclared && r.Class == identity.ClassConcrete {
+			undeclaredConcrete = append(undeclaredConcrete, r)
+			continue
+		}
+		rest = append(rest, r)
+	}
+
+	rest = b.applyRecordFirst(ctx, rest)
+	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(rest)
 
 	for _, r := range needsDiscovery {
 		b.omit(r.Addr, ReasonNeedsDiscovery, needsDiscoveryDetail(r), needsDiscoveryCause(r))
@@ -437,6 +481,45 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 			importID:   id,
 			identity:   r.Identity,
 			values:     values,
+			undeclared: r.Undeclared,
+		})
+	}
+
+	// GitHub issue #404: undeclared, concrete resolutions - pulled out at
+	// the very top of this function, before applyRecordFirst ever saw
+	// them - are materialized last, now that every currently-declared
+	// instance (concrete, and derived by a parent-derived formula alike)
+	// has had its chance to claim an import identity, recorded in
+	// [builder.materializedIdentity]. An untaggable, single-parent-
+	// component child of a resource a `moved` block, or ordinary
+	// parent-derived re-discovery, relocated re-resolves the SAME live
+	// object at its NEW, declared address without needing any `moved`
+	// statement of its own - the same property day2_rename's own e2e
+	// header comment documents - while its OLD address's identity record,
+	// never itself moved or deleted, sits in the estate's record store
+	// exactly as recordOrphanReadSweep (GitHub issue #364 ruling item 1)
+	// left it and would otherwise still read as a genuine removal. Without
+	// this check, that old address plans a destroy in the SAME run that
+	// keeps the object alive under its new one - a live, still-owned
+	// object proposed for destruction, which HANDOFF.md's safety rule
+	// treats as worse than a missing marker. A genuine removal (nothing
+	// currently declared claims the same import identity) is unaffected:
+	// materializedIdentity has no entry for it, and it materializes here
+	// exactly as it always has, still destined for the ordinary
+	// undeclared-instance destroy.
+	for _, r := range undeclaredConcrete {
+		if r.ImportID != "" && b.materializedIdentity[r.Addr.Resource.Resource.Type+"\x00"+r.ImportID] {
+			b.omit(r.Addr, ReasonSuperseded, fmt.Sprintf(
+				"%s is not in the configuration, but the live object it names (import identity %q) is the SAME object a currently-declared instance of the same type already claimed earlier in this plan. It was relocated - by a `moved` block, or by ordinary parent-derived re-discovery of a renamed parent - rather than removed, and the declared instance is what will keep managing it. Nothing is proposed for this address.",
+				r.Addr, r.ImportID,
+			), "the same live object is already claimed by a currently-declared instance elsewhere in this plan, so this old address is superseded rather than orphaned.")
+			continue
+		}
+		b.materialize(ctx, wanted{
+			addr:       r.Addr,
+			importID:   r.ImportID,
+			identity:   r.Identity,
+			values:     r.IdentityValues,
 			undeclared: r.Undeclared,
 		})
 	}
@@ -1641,6 +1724,9 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	b.state.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, providerAddr, addrs.NoKey)
 	b.live[addr.String()] = obj.Value
 	b.materialized = append(b.materialized, addr)
+	if importID != "" {
+		b.materializedIdentity[typeName+"\x00"+importID] = true
+	}
 	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, traceImportID(typeName, importID, obj.Value))
 	return true
 }
