@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "cd1148ab80f1cfd59a4c50941636868c24aaf192",
+  "commit": "a1b4b86e8a5267248088d460ea2f51965be4cbb2",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T08:37:47Z",
+  "generated": "2026-08-25T08:51:40Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1018,13 +1018,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23ce3de050f182ba70c1244ca71badbf1a0da2ef",
-        "date": "2026-08-25T06:40:25Z",
+        "commit": "a1b4b86e8a5267248088d460ea2f51965be4cbb2",
+        "date": "2026-08-25T08:56:31Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
           "day2_remove": "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]",
-          "day2_rename": "the moved-block rename now destroys eight untaggable children under the OLD module.overture_tiles address (aws_iam_role_policy x2, aws_iam_role_policy_attachment x2, aws_route, aws_route_table_association, aws_s3_bucket_policy, aws_s3_bucket_public_access_block) instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete, corpus-rds-complete-postgres, corpus-security-group-complete, corpus-dynamodb-table-basic, corpus-autoscaling-complete and corpus-s3-bucket-complete independently hit in this same unit",
+          "day2_rename": "the D2 moved-block-only apply was not exactly 2 in-place change(s): Apply complete! Resources: 0 added, 2 changed, 4 destroyed.; per-resource actions: module.overture_tiles_moved.aws_iam_role_policy.execution_logs: Destroying... [id=overture-tiles-crossing-execution-45e7db560bd5adfea09754ed0d:overture-tiles-crossing-execution-logs-policy];module.overture_tiles_moved.aws_iam_role_policy.job_s3: Destroying... [id=overture-tiles-crossing-job-c723f36d69db72970d8ef4e654:overture-tiles-crossing-job-s3-policy];module.overture_tiles_moved.aws_iam_role_policy_attachment.execution_ecr: Destroying... [id=overture-tiles-crossing-execution-45e7db560bd5adfea09754ed0d/arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly];module.overture_tiles_moved.aws_iam_role_policy_attachment.ecs_instance: Destroying... [id=overture-tiles-crossing-ecs-instance-992fe08a495ad9dc516d3fbf41/arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role];module.overture_tiles_moved.aws_iam_role_policy_attachment.execution_ecr: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy.job_s3: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy.execution_logs: Destruction complete after 0s;module.overture_tiles_moved.aws_iam_role_policy_attachment.ecs_instance: Destruction complete after 0s;; the ten untaggable/config-derived children (nine plus the OAC) have no moved statement or live-mv call carrying their record from module.overture_tiles_moved to module.overture_tiles_final - the SAME generic gap 63c0a18858 named for corpus-giantswarm-crossplane's D2, not fixed here",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "greenfield": "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
