@@ -69,7 +69,14 @@ import (
 // for the same reason: the wire call is identical, only what this function
 // does with the results differs - and matches each NoKey declared instance
 // by content instead of by ownership marker.
-func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, typeName string, binding identity.ContentMatchBinding, res *Result, sweep bool) tfdiags.Diagnostics {
+// collectUnclaimed is accepted only to keep this leg's signature identical
+// to [scanTypeCloudControl]'s and [scanType]'s own dispatch to it; it
+// changes nothing below. A content-match type carries no tags argument at
+// all (that is the whole reason this leg exists - see the package doc
+// comment), so "unclaimed" has no meaning for it regardless of why sweep is
+// true: GitHub issue #388 edge 3's record-backed exception widens what a
+// sweep call collects, never what a type with no marker surface can answer.
+func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, typeName string, binding identity.ContentMatchBinding, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	pathLabel := strings.Join(binding.PropertyPath, ".")

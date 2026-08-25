@@ -50,7 +50,7 @@ func cloudControlSource(req Request, typeName string) (cfnType string, ok bool) 
 // candidate to refine when it did not. The refinement count rides on
 // [TypeScan.Refined] rather than staying invisible, and is logged per call
 // at [DEBUG] the same way [scanType]'s own client-side fallback is.
-func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, typeName, cfnType string, res *Result, sweep bool) tfdiags.Diagnostics {
+func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, typeName, cfnType string, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	scan := TypeScan{
@@ -234,7 +234,11 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		estate := tags[TagEstate]
 		switch {
 		case estate == "":
-			if sweep {
+			// See scanType's own estate=="" branch for why sweep alone is
+			// not enough here any more: collectUnclaimed distinguishes an
+			// ordinary sweep of a type the configuration never declares
+			// from GitHub issue #388 edge 3's record-backed exception.
+			if sweep && !collectUnclaimed {
 				continue
 			}
 			scan.Unclaimed++
