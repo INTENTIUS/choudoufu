@@ -598,6 +598,17 @@ func (r *Result) Removals() []OwnedResource {
 	return out
 }
 
+// DeposedBindingsList returns [Result.DeposedBindings], nil-safely - the
+// same "a nil Result behaves like an empty one" convention [SlotTable]
+// already follows, for a caller (internal/command's [projection.BuildWith]
+// call sites) that may not have run discovery at all this pass.
+func (r *Result) DeposedBindingsList() []projection.DeposedBinding {
+	if r == nil {
+		return nil
+	}
+	return r.DeposedBindings
+}
+
 // MarkerVerified is the set of instance addresses this pass established
 // ownership of by reading a live tofu-estate marker, keyed by address string.
 //
