@@ -489,8 +489,14 @@ done
 grep -q '"ec2"' <<< "${GH:-}" || fail "floci did not come up healthy (ec2) at $GREEN_ENDPOINT"
 log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain apply)"
 
-mkdir -p "$(dirname "$GREEN")"
-cp -R "$EST" "$GREEN"
+# The WHOLE module tree, not just the example leaf directory, preserving
+# the same nesting depth - a shallow copy silently breaks
+# module.ec2_complete's own "../../" relative source path (the failure mode
+# corpus-sqs-basic's own greenfield comment names: confirmed here live, the
+# first attempt at this copy resolved "../../" to an empty directory and
+# apply failed with five stale "Unsupported argument" diagnostics before
+# this fix).
+cp -R "$WORK/ec2-instance" "$WORK/green"
 rm -rf "$GREEN/.terraform" "$GREEN/.terraform.lock.hcl" "$GREEN/terraform.tfstate" "$GREEN/terraform.tfstate.backup"
 perl -0777 -pi -e 's/(\n  provider_meta "aws" \{\n    user_agent = \[\n      "github\.com\/terraform-aws-modules\/terraform-aws-ec2-instance"\n    \]\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/s' "$GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
@@ -515,8 +521,16 @@ log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
 awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
 
 log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
-GREEN_INSTANCE_ID="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" output -raw ec2_complete_id 2>/dev/null)"
-[ -n "$GREEN_INSTANCE_ID" ] || fail "could not read ec2_complete_id from the greenfield choudoufu output"
+# Read the live id via the AWS CLI, not "choudoufu output": this estate
+# writes no terraform.tfstate at all under the live block (record-based),
+# and "output -raw" against that came back "No outputs found" when this
+# was first tried live - a real, separate finding about the output command
+# under a stateless record-backed run, not this stage's own subject, so
+# it is routed around here rather than chased. $GREEN_ENDPOINT is a brand
+# new namespace with only this one apply's objects in it, so the single
+# running/pending instance is unambiguous.
+GREEN_INSTANCE_ID="$(awsg ec2 describe-instances --filters "Name=instance-state-name,Values=running,pending" --query "Reservations[0].Instances[0].InstanceId" --output text)"
+[ -n "$GREEN_INSTANCE_ID" ] && [ "$GREEN_INSTANCE_ID" != "None" ] || fail "no live instance found in the greenfield namespace"
 GREEN_INSTANCE_ADDR="$(awsg ec2 describe-tags --filters "Name=resource-id,Values=$GREEN_INSTANCE_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
 [ "$GREEN_INSTANCE_ADDR" = "module.ec2_complete.aws_instance.this:0" ] \
   || fail "the greenfield instance carries tofu-address=$GREEN_INSTANCE_ADDR, not module.ec2_complete.aws_instance.this:0"
@@ -548,8 +562,8 @@ instance_shape() { # $1=endpoint $2=instance-id
   aws --endpoint-url "$1" --region "$REGION" ec2 describe-instances --instance-ids "$2" \
     --query "Reservations[0].Instances[0].[InstanceType,ImageId,length(BlockDeviceMappings)]" --output text 2>/dev/null
 }
-STOCK_INSTANCE_ID="$(cd "$EST" && AWS_ENDPOINT_URL="$ENDPOINT" terraform output -raw ec2_complete_id 2>/dev/null || true)"
-[ -n "$STOCK_INSTANCE_ID" ] || fail "could not read ec2_complete_id from stock's own cold-deploy output"
+STOCK_INSTANCE_ID="$INSTANCE_ID"
+[ -n "$STOCK_INSTANCE_ID" ] || fail "no instance id captured from stock's own cold-deploy output (STAGE 1)"
 GREEN_SHAPE="$(instance_shape "$GREEN_ENDPOINT" "$GREEN_INSTANCE_ID")"
 STOCK_SHAPE="$(instance_shape "$ENDPOINT" "$STOCK_INSTANCE_ID")"
 [ "$GREEN_SHAPE" = "$STOCK_SHAPE" ] || fail "the instance's shape differs: greenfield=$GREEN_SHAPE stock=$STOCK_SHAPE"

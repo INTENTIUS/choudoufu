@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `09bc4a7703` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T03:28:52Z.
+Measured at commit `7a5b59aed9` against `ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d`, 2026-08-25T03:46:17Z.
 
 ## The stages
 
@@ -46,7 +46,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL FAIL |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass not run not run |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | no | pass pass pass pass pass pass not run not run |
