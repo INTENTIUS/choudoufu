@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "c691a22720b0625b319282bd89228c97c6a97ce6",
+  "commit": "c3fc074634f5f6b615b1cf750ef3ad08298e785a",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T01:27:37Z",
+  "generated": "2026-08-25T01:40:27Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 1,
+          "pass": 2,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "migrate": {
           "pass": 26,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 1,
+          "pass": 2,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "migrate": {
           "pass": 25,
@@ -1185,7 +1185,7 @@
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1195,13 +1195,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "2d7da09088f46e33989e93619c814d8d5b496520",
-        "date": "2026-08-24T22:06:59Z",
+        "commit": "c3fc074634f5f6b615b1cf750ef3ad08298e785a",
+        "date": "2026-08-25T01:45:04Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
           "day2_rename": "moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
+          "greenfield": "6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues",
           "migrate": "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file",
           "test_plan": "no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS"

@@ -182,6 +182,11 @@ set -uo pipefail
 #                            alone, so an address no longer declared is
 #                            never visited, instead of the zero-churn plan
 #                            a moved block or live-mv produces.
+#                  greenfield  the greenfield stage's own oracle (below,
+#                            right after stage 1): expect one fewer queue
+#                            than the greenfield estate actually created, so
+#                            the queue-count comparison against the stock
+#                            oracle namespace must fail.
 #                  1         alias for `schema`.
 #                They are separate values rather than one flag because the
 #                first corruption reached exits the script: a single BREAK=1
@@ -202,12 +207,25 @@ FLOCI_NAME="choudoufu-corpus-sqs-basic-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
+# Two more, fresh containers for the greenfield stage (live/GAUNTLET.md #13):
+# one namespace choudoufu applies into directly with no migration, and a
+# SEPARATE namespace stock applies the identical config into as that stage's
+# own oracle. Neither reuses the main container's objects above - greenfield
+# means from nothing, and the oracle needs its own independent apply.
+FLOCI_GREEN_PORT=$((FLOCI_PORT + 1))
+FLOCI_GREEN_NAME="choudoufu-corpus-sqs-basic-green-$$"
+FLOCI_ORACLE_PORT=$((FLOCI_PORT + 2))
+FLOCI_ORACLE_NAME="choudoufu-corpus-sqs-basic-green-oracle-$$"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+
 ESTATE="sqs-basic-crossing"
+GREEN_ESTATE="sqs-basic-greenfield"
 REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -232,8 +250,8 @@ gauntlet_begin
 BREAK_AT="${BREAK:-}"
 [ "$BREAK_AT" = "1" ] && BREAK_AT="schema"
 case "$BREAK_AT" in
-  ""|schema|identity|drift|rename) ;;
-  *) fail "BREAK must be one of: schema, identity, drift, rename (1 is an alias for schema)" ;;
+  ""|schema|identity|drift|rename|greenfield) ;;
+  *) fail "BREAK must be one of: schema, identity, drift, rename, greenfield (1 is an alias for schema)" ;;
 esac
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -392,6 +410,136 @@ log ""
 gauntlet_stage cold_deploy pass "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration"
 log "STAGE 1 (cold deploy): PASS"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART GREENFIELD (greenfield, live/GAUNTLET.md #13, planned stage - this
+# crossing wires the evidence for it)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A SEPARATE fresh namespace from everything above: greenfield means from
+# nothing, so this never touches the objects stage 1's plain terraform apply
+# created (those get migrated in STAGE 2, below). choudoufu applies the
+# identical reduced example directly, with a live block from the start, no
+# migration, no state file ever existing; the record store must hold one
+# record per instance, including the two untaggable redrive types (#364 A2
+# - apply writes a record too, not just live-import); and the estate's own
+# oracle is stock applying the SAME config fresh in a THIRD, independent
+# namespace, compared structurally via the AWS CLI on both endpoints, never
+# through tofu state.
+CURRENT_STAGE=greenfield
+log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
+docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_GREEN_NAME failed"
+docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_ORACLE_NAME failed"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"sqs"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"sqs"' <<< "${GH:-}" || fail "floci did not come up healthy (sqs) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+# Copy the WHOLE module tree, not just the example directory, preserving the
+# same nesting depth - a shallow copy silently breaks every module's
+# "../../" relative source path (see the day2_rename stock oracle's own
+# comment on this, below, for the failure mode this avoids).
+cp -R "$WORK/sqs" "$WORK/sqs-greenfield"
+rm -rf "$WORK/sqs-greenfield/examples/complete/.terraform" \
+       "$WORK/sqs-greenfield/examples/complete/terraform.tfstate" \
+       "$WORK/sqs-greenfield/examples/complete/terraform.tfstate.backup" \
+       "$WORK/sqs-greenfield/examples/complete/.terraform.lock.hcl"
+GREEN_EST="$WORK/sqs-greenfield/examples/complete"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
+grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
+
+log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 6 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 6 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_DEFAULT_ADDR="$(awsg sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text)"
+[ "$GREEN_DEFAULT_ADDR" = "module.default_sqs.aws_sqs_queue.this:0" ] || fail "the greenfield default queue carries tofu-address=$GREEN_DEFAULT_ADDR, not module.default_sqs.aws_sqs_queue.this:0"
+GREEN_FIFO_ADDR="$(awsg sqs list-queue-tags --queue-url "$FIFO_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text)"
+[ "$GREEN_FIFO_ADDR" = "module.fifo_sqs.aws_sqs_queue.this:0" ] || fail "the greenfield fifo queue carries tofu-address=$GREEN_FIFO_ADDR, not module.fifo_sqs.aws_sqs_queue.this:0"
+GREEN_FIFO_DLQ_ADDR="$(awsg sqs list-queue-tags --queue-url "$FIFO_DLQ_URL" --query "Tags.\"tofu-address\"" --output text)"
+[ "$GREEN_FIFO_DLQ_ADDR" = "module.fifo_sqs.aws_sqs_queue.dlq:0" ] || fail "the greenfield fifo dlq carries tofu-address=$GREEN_FIFO_DLQ_ADDR, not module.fifo_sqs.aws_sqs_queue.dlq:0"
+GREEN_UNENCRYPTED_ADDR="$(awsg sqs list-queue-tags --queue-url "$UNENCRYPTED_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text)"
+[ "$GREEN_UNENCRYPTED_ADDR" = "module.unencrypted_sqs.aws_sqs_queue.this:0" ] || fail "the greenfield unencrypted queue carries tofu-address=$GREEN_UNENCRYPTED_ADDR, not module.unencrypted_sqs.aws_sqs_queue.this:0"
+GREEN_ESTATE_TAG="$(awsg sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query "Tags.\"tofu-estate\"" --output text)"
+[ "$GREEN_ESTATE_TAG" = "$GREEN_ESTATE" ] || fail "the greenfield default queue carries tofu-estate=$GREEN_ESTATE_TAG, not $GREEN_ESTATE"
+log "  all four queues carry their expected tofu-address markers and tofu-estate=$GREEN_ESTATE_TAG - read via the AWS CLI, not choudoufu's own report"
+
+log "=== PART GREENFIELD: 3. the record store holds every instance, including the two untaggable redrive types (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" = "6" ] || fail "expected 6 records under the local record store after the greenfield apply (4 tagged queues + 2 untaggable redrive types), found $GREEN_RECORD_FILES"
+log "  6 records persisted, one per managed instance, read directly off the local record store"
+
+log "=== PART GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
+cp -R "$WORK/sqs" "$WORK/sqs-greenfield-oracle"
+rm -rf "$WORK/sqs-greenfield-oracle/examples/complete/.terraform"
+ORACLE_EST="$WORK/sqs-greenfield-oracle/examples/complete"
+( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 6 added' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 6 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT")"
+
+queue_shape() { # $1=endpoint $2=queue-url - a normalised structural fact
+                 # sheet, read via the AWS CLI, never through tofu state.
+  aws --endpoint-url "$1" --region "$REGION" sqs get-queue-attributes \
+    --queue-url "$2" \
+    --attribute-names FifoQueue ContentBasedDeduplication KmsMasterKeyId SqsManagedSseEnabled RedrivePolicy RedriveAllowPolicy \
+    --output json 2>/dev/null \
+  | jq -S '(.Attributes // {}) as $a | {
+      FifoQueue:         ($a.FifoQueue // "false"),
+      Sse:               ($a.SqsManagedSseEnabled // "false"),
+      Kms:               ($a | has("KmsMasterKeyId")),
+      RedriveMaxReceive:  (if ($a | has("RedrivePolicy")) then ($a.RedrivePolicy | fromjson | .maxReceiveCount) else null end),
+      RedriveAllow:      ($a | has("RedriveAllowPolicy"))
+    }'
+}
+
+log "=== PART GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+QUEUE_COUNT_GREEN="$(awsg sqs list-queues --query 'length(QueueUrls)' --output text)"
+EXPECTED_QUEUES="default:$DEFAULT_QUEUE_URL fifo:$FIFO_QUEUE_URL dlq:$FIFO_DLQ_URL unencrypted:$UNENCRYPTED_QUEUE_URL"
+if [ "$BREAK_AT" = "greenfield" ]; then
+  EXPECTED_QUEUES="default:$DEFAULT_QUEUE_URL fifo:$FIFO_QUEUE_URL unencrypted:$UNENCRYPTED_QUEUE_URL"
+  log "  BREAK=greenfield: dropped the dlq queue from the expected inventory - the count comparison below must fail"
+fi
+N_EXPECTED="$(wc -w <<< "$EXPECTED_QUEUES" | tr -d ' ')"
+[ "$QUEUE_COUNT_GREEN" = "$N_EXPECTED" ] || fail "the greenfield estate has $QUEUE_COUNT_GREEN queues, expected $N_EXPECTED"
+
+for pair in $EXPECTED_QUEUES; do
+  label="${pair%%:*}"; url="${pair#*:}"
+  G="$(queue_shape "$GREEN_ENDPOINT" "$url")"
+  O="$(queue_shape "$ORACLE_ENDPOINT" "$url")"
+  [ "$G" = "$O" ] || { printf 'greenfield %s: %s\noracle    %s: %s\n' "$label" "$G" "$label" "$O"; fail "the $label queue differs structurally between the greenfield estate and the stock oracle"; }
+done
+log "  all $N_EXPECTED queues match structurally (fifo flag, sse, kms, redrive max-receive-count, redrive-allow presence) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues"
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
