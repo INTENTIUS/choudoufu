@@ -183,10 +183,14 @@ func ComponentsUnknown(t TypeIdentity, val cty.Value) bool {
 // comment states - never as a reason to invent an identity.
 //
 // Found via corpus-autoscaling-complete's own greenfield gauntlet stage:
-// module.complete.aws_iam_role.this[0] and aws_sqs_queue.this both use
-// the *_prefix convention (use_name_prefix defaults to true in the
-// upstream module), so their "name" component is a known null, not
-// unknown - [ComponentsUnknown] alone does not cover this shape.
+// module.complete.aws_iam_role.this[0] uses the *_prefix convention
+// (use_name_prefix defaults to true in the upstream module), so its "name"
+// component is a known null, not unknown - [ComponentsUnknown] alone does
+// not cover this shape. (An earlier version of this comment also named
+// aws_sqs_queue.this here; it is NOT actually reached by this function -
+// see [ComponentsCloudPending]'s own doc comment for why: its row's region
+// component hard-fails this walk before name is ever reached, regardless
+// of name_prefix.)
 func ComponentsServerAssignedIfAbsent(t TypeIdentity, val cty.Value) bool {
 	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
 		return false

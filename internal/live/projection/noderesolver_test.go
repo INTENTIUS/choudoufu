@@ -339,6 +339,59 @@ func TestNodeResolver_NoSourceCreateToggle(t *testing.T) {
 	}
 }
 
+// TestNodeResolver_CloudPendingComponentNeverRefuses is corpus-sqs-basic's
+// own greenfield regression: aws_sqs_queue's ratified row builds its url
+// from region and account-id ([identity.CloudContext]) before it ever
+// reaches name, and this seam has no CloudContext at all - so EVERY
+// instance, name fully known or not, hard-fails ComponentsFromValue on the
+// region component. Before [identity.ComponentsCloudPending] existed, a
+// brand-new greenfield queue with a completely unambiguous name fell into
+// ruling 4 (#365)'s "No source" refusal purely because this evaluator's own
+// support stops short - contrast
+// TestNodeResolver_ServerAssignedIfAbsentComponentNeverRefuses, whose type
+// (aws_iam_role) has no Cloud component and was never affected.
+func TestNodeResolver_CloudPendingComponentNeverRefuses(t *testing.T) {
+	addr := locatedTestAddr(t, "aws_sqs_queue", "this")
+	val := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("my-queue")})
+
+	for _, noSourceCreate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("NoSourceCreate=%v", noSourceCreate), func(t *testing.T) {
+			resolver := &NodeResolver{NoSourceCreate: noSourceCreate}
+			target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, val, providers.Schema{})
+			if diags.HasErrors() {
+				t.Fatalf("a brand-new aws_sqs_queue with a fully-known name must never be refused: %s", diags.Err())
+			}
+			if found {
+				t.Fatalf("nothing should have been found: %#v - this seam has no CloudContext to have derived a url from", target)
+			}
+		})
+	}
+}
+
+// TestNodeResolver_AlreadyLiveCloudPendingTypeStillFoundByMarker proves the
+// exemption never widens into "this type is untracked": an aws_sqs_queue
+// the marker sweep already resolved (step (b), which runs BEFORE step (c)
+// ever reaches ComponentsCloudPending) must still be found by its marker,
+// exactly as an already-live ServerAssigned object always is - the same
+// protection this exemption leans on in its own doc comment.
+func TestNodeResolver_AlreadyLiveCloudPendingTypeStillFoundByMarker(t *testing.T) {
+	addr := locatedTestAddr(t, "aws_sqs_queue", "this")
+	val := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("my-queue")})
+	resolver := &NodeResolver{
+		MarkerIndex: map[string]providers.ImportTarget{
+			addr.String(): {ID: "https://sqs.us-east-1.amazonaws.com/000000000000/my-queue"},
+		},
+	}
+
+	target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, val, providers.Schema{})
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if !found || target.ID != "https://sqs.us-east-1.amazonaws.com/000000000000/my-queue" {
+		t.Fatalf("target=%#v found=%v, want the marker's own ID/true - the Cloud-pending exemption must never shadow step (b)", target, found)
+	}
+}
+
 // TestNewMarkerIndex_SkipsUnusableResolutions proves the index only keeps
 // resolutions carrying a usable import identity, so a caller looking one
 // up never gets an empty target back as if it were an answer.
@@ -428,8 +481,13 @@ func TestNodeResolver_UnknownIdentityAttributeNeverRefuses(t *testing.T) {
 // "no source to be missing" shape TestNodeResolver_ServerAssignedTypeNeverRefuses
 // pins for a whole-type ServerAssigned row, just discovered one component
 // at a time. Caught by corpus-autoscaling-complete's own greenfield
-// stage: aws_iam_role.this and aws_sqs_queue.this both use this
-// convention (use_name_prefix defaults to true in the upstream module).
+// stage: aws_iam_role.this uses this convention (use_name_prefix defaults
+// to true in the upstream module). (aws_sqs_queue.this, named here in an
+// earlier version of this comment, is NOT actually covered by this
+// exemption - see TestNodeResolver_CloudPendingComponentNeverRefuses and
+// [identity.ComponentsCloudPending]'s own doc comment for the real
+// mechanism: its row's region component hard-fails before name is ever
+// reached, regardless of name_prefix.)
 func TestNodeResolver_ServerAssignedIfAbsentComponentNeverRefuses(t *testing.T) {
 	addr := locatedTestAddr(t, "aws_iam_role", "this")
 	val := cty.ObjectVal(map[string]cty.Value{"name": cty.NullVal(cty.String)})
