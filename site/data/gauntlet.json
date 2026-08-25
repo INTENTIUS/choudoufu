@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 4,
-          "fail": 5,
-          "not_run": 17
+          "fail": 6,
+          "not_run": 16
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 6,
+          "pass": 7,
           "fail": 3,
-          "not_run": 17
+          "not_run": 16
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 4,
-          "fail": 5,
-          "not_run": 16
+          "fail": 6,
+          "not_run": 15
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 6,
+          "pass": 7,
           "fail": 3,
-          "not_run": 16
+          "not_run": 15
         },
         "migrate": {
           "pass": 25,
@@ -1112,12 +1112,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1127,13 +1127,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
-        "date": "2026-08-24T21:57:00Z",
-        "exit_code": 0,
+        "commit": "cd05c610b304b7cb0b0339ed5f8e103ebe56b668",
+        "date": "2026-08-25T03:51:29Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
+          "day2_remove": "choudoufu proposes 4 destroy(s) under module.postgresql_renamed, expected 5 (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)",
           "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
+          "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
           "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 58 objects, read through resourcegroupstaggingapi",
           "test_plan": "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
