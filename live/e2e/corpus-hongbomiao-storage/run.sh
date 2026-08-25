@@ -93,7 +93,14 @@ set -uo pipefail
 #                 own break control instead - renaming module kafka_kms_key
 #                 WITHOUT a moved block, which must refuse with a marker-
 #                 ambiguity error rather than reproduce the real legs'
-#                 zero-churn result.
+#                 zero-churn result. day2_replace (PART F) has no BREAK
+#                 control of its own in this script - it targets the
+#                 untaggable, client-named KMS alias (see PART F's own
+#                 header for why neither taggable object here can be
+#                 force-replaced), which has no marker to manufacture a
+#                 collision on; that control's load-bearing-ness is proven
+#                 by corpus-evoteum-modules and corpus-giantswarm-
+#                 crossplane's own BREAK=replace instead.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
 #                 the real remove checks: keep module.kafka_kms_key_renamed's
 #                 block in the config and assert no destroy is proposed for
@@ -395,6 +402,49 @@ grep -qE '^  # module\.kafka_kms_key\.aws_kms_alias\.main will be destroyed' <<<
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys (the key and its alias)"; }
 log "  stock: exactly two destroys (the KMS key and its alias), nothing else, on the state cold_deploy produced"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
+# "Stock's replace of the same resource leaves the same single object." A
+# THIRD separate copy of cold_deploy's own state ($PLAIN), unrenamed and
+# unremoved, so this oracle has nothing to do with the rename/remove
+# oracles above. Same wall as corpus-hongbomiao-harbor's own F-ORACLE, one
+# level over: both bucket modules carry `lifecycle { prevent_destroy =
+# true }` (E-ORACLE's own header above), and aws_kms_key has no client-set
+# identity argument at all - its `id`/`key_id` is server-assigned, only
+# tags and description are settable, so there is nothing to change that
+# would force it to replace. What DOES force-replace: aws_kms_alias, the
+# untaggable, client-named sibling - its `name` argument
+# ("alias/${var.aws_kms_key_name}") is its whole identity (ImportSyntax
+# "alias/ALIASNAME"), and AWS's KMS API has no rename-alias operation
+# (UpdateAlias only repoints an existing alias at a different key, it does
+# not rename one), so changing aws_kms_key_name forces the alias to
+# replace at the SAME declared address while the key itself - same
+# server-assigned id, same tofu-address - only sees its own non-identity
+# `hm_resource_name` tag value update in place. PLAN ONLY, never applied -
+# same convention as the rename/remove oracles above.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE: stock tofu, force-replace module.kafka_kms_key's alias via its ForceNew name (driven by aws_kms_key_name), on cold_deploy's own state ==="
+PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
+rm -rf "$PLAIN_ORACLE_REPLACE/.terraform"
+sed -i.bak "s/aws_kms_key_name = \"$KMS_KEY_NAME\"/aws_kms_key_name = \"${KMS_KEY_NAME}-v2\"/" "$PLAIN_ORACLE_REPLACE/main.tofu"
+rm -f "$PLAIN_ORACLE_REPLACE/main.tofu.bak"
+grep -q "${KMS_KEY_NAME}-v2" "$PLAIN_ORACLE_REPLACE/main.tofu" \
+  || fail "changing module.kafka_kms_key's aws_kms_key_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.kafka_kms_key\.aws_kms_alias\.main must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.kafka_kms_key's alias when aws_kms_key_name changes"; }
+grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be updated in-place' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose an in-place tag update for the key itself alongside the alias replace"; }
+grep -qF 'Plan: 1 to add, 1 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add, one in-place change and one destroy"; }
+log "  stock: exactly one replace proposed (the alias only) at the same declared address, plus one in-place tag update on the key itself (same server-assigned id, untouched identity), on the state cold_deploy produced - plan only, not applied"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -828,6 +878,128 @@ EOF
 
   gauntlet_stage day2_rename pass "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
   log ""
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active stage - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.kafka_kms_key_
+  # renamed (originally module.kafka_kms_key) is bound and converged, and
+  # is otherwise untouched by anything else in this script until PART E
+  # removes it below - the two day-2 stages compose on the SAME addresses
+  # rather than needing a second standalone object. Neither of this
+  # estate's other two module calls (both S3 buckets) can be
+  # force-replaced at all - both carry `lifecycle { prevent_destroy = true
+  # }` in the real amazon_s3_bucket module (see header) - and within
+  # kafka_kms_key itself, aws_kms_key has no client-set identity argument
+  # to change (server-assigned id; see F-ORACLE's own header for the full
+  # reasoning, discovered there first). What DOES force-replace is the
+  # untaggable, client-named aws_kms_alias sibling: its `name` argument is
+  # its whole identity, and AWS's KMS API has no rename-alias operation
+  # (UpdateAlias only repoints an alias at a different key, never renames
+  # it), so changing aws_kms_key_name forces the alias to replace at the
+  # SAME declared address while the key itself only sees its own
+  # non-identity `hm_resource_name` tag value update in place - same
+  # server-assigned id, same tofu-address, never replaced.
+  #
+  # THE MARKER-COLLISION SCOPE NOTE (full reasoning in corpus-hongbomiao-
+  # harbor's own PART F). aws_kms_alias has no `tags` argument at all - it
+  # is untaggable, resolved by its own name every run - so there is no
+  # marker to plant a manufactured collision on; corpus-evoteum-modules and
+  # corpus-giantswarm-crossplane's own BREAK=replace runs already prove
+  # that control load-bearing for the taggable, marker-based shape.
+  #
+  # THE create_before_destroy SCOPE NOTE (full reasoning in corpus-sqs-
+  # basic's own PART F). OpenTofu core rejects a `lifecycle` block on a
+  # `module` call, and patching the vendored aws_kms_key module's own
+  # resources to add create_before_destroy would cross this corpus's own
+  # DELTA discipline (see header), so this evidence pass exercises the
+  # default destroy-then-create ordering instead.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.kafka_kms_key_renamed.aws_kms_alias.main"
+  F_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_kms_alias/$(record_key "$F_ADDR")"
+  F_KEY_ADDR="module.kafka_kms_key_renamed.aws_kms_key.main"
+
+  log "=== F0. capture the live alias and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$KMS_ALIAS_NAME" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $KMS_ALIAS_NAME"
+  awsl kms list-aliases --query "Aliases[?AliasName=='$KMS_ALIAS_NAME'].TargetKeyId | [0]" --output text | grep -qF "$KMS_KEY_ID" \
+    || fail "$KMS_ALIAS_NAME does not point at $KMS_KEY_ID ahead of day2_replace"
+  log "  $KMS_ALIAS_NAME -> $KMS_KEY_ID, record import_id=$F_OLD_IMPORT_ID"
+
+  log "=== F1. choudoufu: change the aws_kms_key_name argument, forcing the alias to replace at the same declared address while the key stays put ==="
+  sed -i.bak "s/aws_kms_key_name = \"$KMS_KEY_NAME\"/aws_kms_key_name = \"${KMS_KEY_NAME}-v2\"/" "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  grep -q "${KMS_KEY_NAME}-v2" "$ESTATE/main.tofu" || fail "changing module.kafka_kms_key_renamed's aws_kms_key_name argument did not match - the corpus pin has moved"
+  F_NEW_ALIAS_NAME="alias/${KMS_KEY_NAME}-v2"
+
+  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_alias\.main must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.kafka_kms_key_renamed's alias when its ForceNew name argument changes"; }
+  grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_key\.main will be updated in-place' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose an in-place tag update for the key itself alongside the alias replace"; }
+  grep -qF 'Plan: 1 to add, 1 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add, one in-place change and one destroy"; }
+  log "  choudoufu: exactly one forced replace at the same declared address (the alias), plus one in-place tag update on the key (same id, untouched identity)"
+
+  F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Resources: 1 added, 1 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add, one change and one destroy"; }
+
+  if F_OLD_ALIAS_STILL="$(awsl kms list-aliases --query "Aliases[?AliasName=='$KMS_ALIAS_NAME']" --output text)" && [ -n "$F_OLD_ALIAS_STILL" ]; then
+    echo "$F_OLD_ALIAS_STILL"; fail "$KMS_ALIAS_NAME still exists after the replace - the old object was orphaned, not destroyed"
+  fi
+  log "  $KMS_ALIAS_NAME no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  F_NEW_ALIAS_TARGET="$(awsl kms list-aliases --query "Aliases[?AliasName=='$F_NEW_ALIAS_NAME'].TargetKeyId | [0]" --output text)"
+  [ "$F_NEW_ALIAS_TARGET" = "$KMS_KEY_ID" ] \
+    || fail "$F_NEW_ALIAS_NAME points at $F_NEW_ALIAS_TARGET after the replace, not the SAME key $KMS_KEY_ID - the key itself should never have moved"
+  log "  $F_NEW_ALIAS_NAME (the new alias) points at the SAME key $KMS_KEY_ID, read via the AWS CLI - the key was never replaced, only the alias was"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed object
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one). The local record file at the SAME address must now hold the
+  # NEW alias's import_id, not the one captured in F0.
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "$F_NEW_ALIAS_NAME" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new alias $F_NEW_ALIAS_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+  # Sanity: the KEY's own record, at its OWN unrelated address, must still
+  # name the exact same key id - the tag-value update above must never
+  # have been misread as an identity change on the key.
+  F_KEY_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_kms_key/$(record_key "$F_KEY_ADDR")"
+  [ -f "$F_KEY_RECORD" ] || fail "no local record file found for $F_KEY_ADDR after day2_replace"
+  F_KEY_IMPORT_ID="$(record_import_id "$F_KEY_RECORD")"
+  [ "$F_KEY_IMPORT_ID" = "$KMS_KEY_ID" ] \
+    || fail "the record for $F_KEY_ADDR names $F_KEY_IMPORT_ID after the replace, not the unchanged key $KMS_KEY_ID - the key's own identity moved when it should not have"
+  log "  the key's own record at $F_KEY_ADDR still names $KMS_KEY_ID, unchanged - the replace stayed scoped to the alias"
+
+  log "=== F2. one more plan: config and reality agree, no marker collision ==="
+  F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+  log "  No changes. The replace is complete and invisible to the next plan."
+
+  # PART E below reads $KMS_KEY_NAME/$KMS_ALIAS_NAME for its own AWS CLI
+  # checks; the live alias it must find is now the one this replace just
+  # created (the key itself, and $KMS_KEY_ID, are unaffected).
+  KMS_KEY_NAME="${KMS_KEY_NAME}-v2"
+  KMS_ALIAS_NAME="$F_NEW_ALIAS_NAME"
+
+  gauntlet_stage day2_replace pass "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias ($F_OLD_IMPORT_ID) is confirmed gone and the new alias ($F_NEW_ALIAS_NAME) points at the SAME key ($KMS_KEY_ID, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape."
+  CURRENT_STAGE=""
+  log ""
+
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)

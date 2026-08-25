@@ -98,7 +98,14 @@ set -uo pipefail
 #                 tamper a second object ahead of stage 5's, proving both
 #                 are load-bearing. Set to "rename" to exercise day2_rename's
 #                 own break control instead - renaming module harbor_iam_user
-#                 WITHOUT a moved block, which must be refused.
+#                 WITHOUT a moved block, which must be refused. day2_replace
+#                 (PART F) has no BREAK control of its own in this script -
+#                 it targets the untaggable, composed-of-arguments inline
+#                 policy (see PART F's own header for why neither taggable
+#                 object here can be force-replaced), which has no marker
+#                 to manufacture a collision on; that control's load-
+#                 bearing-ness is proven by corpus-evoteum-modules and
+#                 corpus-giantswarm-crossplane's own BREAK=replace instead.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
 #                 the real remove checks: keep module.harbor_iam_user_renamed's
 #                 block in the config and assert no destroy is proposed for
@@ -398,6 +405,64 @@ grep -qE '^  # module\.harbor_iam_user\.aws_iam_user_policy\.hm_aws_iam_user_pol
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys (the user and its inline policy)"; }
 log "  stock: exactly two destroys (the IAM user and its inline policy), nothing else, on the state cold_deploy produced"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
+# "Stock's replace of the same resource leaves the same single object." A
+# THIRD separate copy of cold_deploy's own state ($PLAIN), unrenamed and
+# unremoved, so this oracle has nothing to do with the rename/remove
+# oracles above. Neither of this estate's two taggable objects can be
+# force-replaced here (see PART F's own header for the full reasoning,
+# discovered BY this oracle, in this order): the bucket carries
+# `lifecycle { prevent_destroy = true }` in the real module, and - VERIFIED
+# HERE FIRST, against stock, no choudoufu in the loop - aws_iam_user's
+# `name` argument is genuinely NOT ForceNew (AWS's IAM UpdateUser API
+# supports renaming a user in place; unlike aws_iam_role/aws_iam_policy in
+# corpus-giantswarm-crossplane's own F-ORACLE, where name IS ForceNew).
+# What DOES force-replace is the untaggable, composed-of-arguments
+# aws_iam_user_policy - changing what its own `name` argument evaluates to
+# (module source: `name = "S3ReadWritePolicy-${var.s3_bucket_name}"`)
+# changes its identity and forces a replace at the SAME declared address
+# (IAM's PutUserPolicy/DeleteUserPolicy have no rename op either), with the
+# user itself completely untouched. PLAN ONLY, never applied - same
+# convention as the rename/remove oracles above.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE: stock tofu, on cold_deploy's own state - confirm aws_iam_user_name is NOT ForceNew, then force-replace the inline policy instead ==="
+PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
+rm -rf "$PLAIN_ORACLE_REPLACE/.terraform"
+sed -i.bak "s/aws_iam_user_name = \"$USER_NAME\"/aws_iam_user_name = \"${USER_NAME}-v2\"/" "$PLAIN_ORACLE_REPLACE/main.tofu"
+rm -f "$PLAIN_ORACLE_REPLACE/main.tofu.bak"
+grep -q "${USER_NAME}-v2" "$PLAIN_ORACLE_REPLACE/main.tofu" \
+  || fail "changing module.harbor_iam_user's aws_iam_user_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+NAME_CHANGE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && tofu plan -input=false -no-color 2>&1)"; NAME_CHANGE_PLAN_RC=$?
+[ "$NAME_CHANGE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$NAME_CHANGE_PLAN_OUT" | tail -40; fail "the aws_iam_user_name-change stock plan exited $NAME_CHANGE_PLAN_RC"; }
+grep -qE '^  # module\.harbor_iam_user\.aws_iam_user\.hm_harbor_iam_user will be updated in-place' <<< "$NAME_CHANGE_PLAN_OUT" \
+  || { printf '%s\n' "$NAME_CHANGE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock's own behaviour for aws_iam_user_name has changed - it no longer updates the user in-place (see PART F's own header: this estate's whole design rests on aws_iam_user's name NOT being ForceNew)"; }
+log "  stock CONFIRMS aws_iam_user.name is not ForceNew: renaming updates the user in-place, never replaces it - the reason this section targets the inline policy instead"
+
+PLAIN_ORACLE_REPLACE2="$WORK/plain-oracle-replace2"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE2"
+rm -rf "$PLAIN_ORACLE_REPLACE2/.terraform"
+sed -i.bak "s/s3_bucket_name    = module.s3_bucket_hm_harbor.name/s3_bucket_name    = \"${BUCKET_NAME}-policy-v2\"/" "$PLAIN_ORACLE_REPLACE2/main.tofu"
+rm -f "$PLAIN_ORACLE_REPLACE2/main.tofu.bak"
+grep -q "${BUCKET_NAME}-policy-v2" "$PLAIN_ORACLE_REPLACE2/main.tofu" \
+  || fail "changing module.harbor_iam_user's s3_bucket_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$PLAIN_ORACLE_REPLACE2" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REPLACE2" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's second reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE2" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.harbor_iam_user\.aws_iam_user_policy\.hm_aws_iam_user_policy must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.harbor_iam_user's inline policy when its own name-driving argument changes"; }
+grep -qE '^  # module\.harbor_iam_user\.aws_iam_user\.hm_harbor_iam_user will be' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes touching the user itself - this section's whole point is that only the inline policy is affected"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
+log "  stock: exactly one replace proposed (the inline policy only, user untouched) at the same declared address, on the state cold_deploy produced - plan only, not applied"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -813,6 +878,137 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.s3_bucket_hm_harbor renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.harbor_iam_user renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active stage - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # NEITHER of this estate's two taggable objects can be force-replaced
+  # here, for two DIFFERENT, both real, both verified-with-no-tofu-in-the-
+  # loop reasons:
+  #   - module.s3_bucket_hm_harbor_renamed's bucket carries
+  #     `lifecycle { prevent_destroy = true }` in the real, unmodified
+  #     module (see header and D-ORACLE's own comment above) - a
+  #     prevented-destroy resource cannot be force-replaced at all, by
+  #     design.
+  #   - module.harbor_iam_user_renamed's `aws_iam_user_name` argument was
+  #     tried FIRST and found NOT to be ForceNew: a direct F-ORACLE run
+  #     (stock tofu, no choudoufu, this estate's very first attempt at this
+  #     section) showed `aws_iam_user.hm_harbor_iam_user will be updated
+  #     in-place` when the name argument changes, not "must be replaced" -
+  #     AWS's IAM UpdateUser API genuinely supports renaming a user, unlike
+  #     UpdateRole/the policy APIs (see corpus-giantswarm-crossplane's own
+  #     PART F, where aws_iam_role's name IS ForceNew - the same-looking
+  #     "client-named IAM object" shape does not imply the same ForceNew
+  #     behaviour across IAM resource types, and this is the concrete
+  #     counter-example).
+  #
+  # What DOES force-replace, confirmed the same way: the untaggable,
+  # composed-of-arguments aws_iam_user_policy child. Its own `name`
+  # argument (module source: `name = "S3ReadWritePolicy-
+  # ${var.s3_bucket_name}"`) is part of its identity (USERNAME:POLICYNAME,
+  # internal/live/identity/table_generated.go), so changing what
+  # `s3_bucket_name` evaluates to changes the inline policy's own name and
+  # forces a replace at the same declared address - real AWS behaviour
+  # (IAM's PutUserPolicy/DeleteUserPolicy have no rename op either). This
+  # estate's `s3_bucket_name` module argument is normally a live reference
+  # (`module.s3_bucket_hm_harbor_renamed.name`) rather than a literal; it
+  # is overwritten here with a literal string instead - the real bucket
+  # module and its live object are NEVER touched, only the string this
+  # inline policy's own name and JSON body are built from. Neither the
+  # user nor the bucket changes at all in this section.
+  #
+  # THE MARKER-COLLISION SCOPE NOTE. aws_iam_user_policy has no `tags`
+  # argument at all - it is untaggable, resolved structurally from its
+  # parent's identity rather than by a marker sweep - so corpus-evoteum-
+  # modules' and corpus-giantswarm-crossplane's own BREAK=replace collision
+  # (a second live object planted with the SAME tofu-address tag) has
+  # nothing to plant a tag on here, and this section does not attempt it:
+  # those two estates' own BREAK=replace runs already prove that check is
+  # load-bearing for the taggable, marker-based shape. What this section
+  # asserts instead is the create/destroy mechanics and the record store
+  # move, on the shape this estate's real objects can actually exercise.
+  #
+  # THE create_before_destroy SCOPE NOTE (full reasoning in corpus-sqs-
+  # basic's own PART F). OpenTofu core rejects a `lifecycle` block on a
+  # `module` call, and patching the vendored harbor_iam_user module's own
+  # resources to add create_before_destroy would cross this corpus's own
+  # DELTA discipline (see header), so this evidence pass exercises the
+  # default destroy-then-create ordering instead.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.harbor_iam_user_renamed.aws_iam_user_policy.hm_aws_iam_user_policy"
+  F_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_user_policy/$(record_key "$F_ADDR")"
+  F_OLD_POLICY_NAME="$POLICY_NAME"
+
+  log "=== F0. capture the live inline policy and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "${USER_NAME}:${F_OLD_POLICY_NAME}" ] \
+    || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not ${USER_NAME}:${F_OLD_POLICY_NAME}"
+  awsl iam get-user-policy --user-name "$USER_NAME" --policy-name "$F_OLD_POLICY_NAME" >/dev/null \
+    || fail "the inline policy $F_OLD_POLICY_NAME does not exist on $USER_NAME ahead of day2_replace"
+  log "  ${USER_NAME}:${F_OLD_POLICY_NAME}, record import_id=$F_OLD_IMPORT_ID"
+
+  log "=== F1. choudoufu: change the s3_bucket_name argument feeding the inline policy's ForceNew name, forcing a replace at the same declared address ==="
+  F_NEW_BUCKET_NAME_ARG="${BUCKET_NAME}-policy-v2"
+  F_NEW_POLICY_NAME="S3ReadWritePolicy-${F_NEW_BUCKET_NAME_ARG}"
+  sed -i.bak "s/s3_bucket_name    = module.s3_bucket_hm_harbor_renamed.name/s3_bucket_name    = \"${F_NEW_BUCKET_NAME_ARG}\"/" "$ESTATE/main.tofu"
+  rm -f "$ESTATE/main.tofu.bak"
+  grep -q "${F_NEW_BUCKET_NAME_ARG}" "$ESTATE/main.tofu" \
+    || fail "changing module.harbor_iam_user_renamed's s3_bucket_name argument did not match - the corpus pin has moved"
+
+  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+  grep -qE '^  # module\.harbor_iam_user_renamed\.aws_iam_user_policy\.hm_aws_iam_user_policy must be replaced' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.harbor_iam_user_renamed's inline policy when its ForceNew name argument changes"; }
+  grep -qE '^  # module\.harbor_iam_user_renamed\.aws_iam_user\.hm_harbor_iam_user will be' <<< "$F_PLAN_OUT" \
+    && { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the user itself is proposed for a change - this section's whole point is that ONLY the inline policy is touched"; }
+  grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+    || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add and one destroy at the same address"; }
+  log "  choudoufu: exactly one forced replace at the same declared address (module.harbor_iam_user_renamed.aws_iam_user_policy.hm_aws_iam_user_policy), the user itself untouched"
+
+  F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+  grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add and one destroy"; }
+
+  if F_OLD_STILL="$(awsl iam get-user-policy --user-name "$USER_NAME" --policy-name "$F_OLD_POLICY_NAME" 2>&1)"; then
+    echo "$F_OLD_STILL"; fail "$F_OLD_POLICY_NAME still exists on $USER_NAME after the replace - the old object was orphaned, not destroyed"
+  fi
+  grep -qi 'NoSuchEntity' <<< "$F_OLD_STILL" \
+    || { echo "$F_OLD_STILL"; fail "get-user-policy for $F_OLD_POLICY_NAME failed with an unexpected error, not NoSuchEntity - it may still exist"; }
+  log "  $F_OLD_POLICY_NAME no longer exists on $USER_NAME (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+  awsl iam get-user-policy --user-name "$USER_NAME" --policy-name "$F_NEW_POLICY_NAME" >/dev/null \
+    || fail "the new inline policy $F_NEW_POLICY_NAME does not exist on $USER_NAME after the replace"
+  log "  $F_NEW_POLICY_NAME (the new inline policy) exists on $USER_NAME, read via the AWS CLI"
+
+  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+  # #398-guard shape: a stale record still naming the destroyed object
+  # would be exactly the wrong-marker failure that outranks a missing
+  # one). The local record file at the SAME address must now hold the
+  # NEW inline policy's composite import_id, not the one captured in F0.
+  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_NEW_IMPORT_ID" = "${USER_NAME}:${F_NEW_POLICY_NAME}" ] \
+    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object ${USER_NAME}:${F_NEW_POLICY_NAME} - a stale record still claiming the destroyed object, the #398-guard shape"
+  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+  log "=== F2. one more plan: config and reality agree, nothing left to propose ==="
+  F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+  log "  No changes. The replace is complete and invisible to the next plan."
+
+  gauntlet_stage day2_replace pass "choudoufu: changing the s3_bucket_name argument feeding module.harbor_iam_user_renamed's inline policy proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly, with the user itself completely untouched; the old inline policy ($F_OLD_POLICY_NAME) is confirmed gone from $USER_NAME and the new one ($F_NEW_POLICY_NAME) exists in its place, both via the AWS CLI; the local record store's record at the same address now names the new composite identity, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) confirms both that aws_iam_user's own name argument is NOT ForceNew (updated in-place, not replaced - the reason this section targets the inline policy instead of the user) and that the inline policy itself IS force-replaced the same way. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_iam_user_policy is untaggable and resolved structurally, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape."
+  CURRENT_STAGE=""
+  log ""
+  log ""
+
   log ""
 
   # ══════════════════════════════════════════════════════════════════════

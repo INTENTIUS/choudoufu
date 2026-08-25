@@ -49,12 +49,12 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
-| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run FAIL |
-| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
-| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | no | pass pass pass pass pass pass FAIL not run pass |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass |
