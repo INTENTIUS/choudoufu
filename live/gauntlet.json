@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "97b048dfa06b4d68dac5f87e59d9645f719cc7a9",
-  "emulator": "ghcr.io/lex00/floci@sha256:670a8783ced38167dddf45d24c673490e30ac5de9f416d5252162e749b4111ad",
-  "generated": "2026-08-25T15:09:52Z",
+  "commit": "9c1ec36174336dbe6145fd15ce3d7d530e740d86",
+  "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
+  "generated": "2026-08-25T17:04:49Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -448,14 +448,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23b94270a769d5b13a7c5e3bde1d96ad780c2f97",
-        "date": "2026-08-25T16:24:03Z",
+        "commit": "9c1ec36174336dbe6145fd15ce3d7d530e740d86",
+        "date": "2026-08-25T17:00:02Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
           "day2_remove": "choudoufu: deleting module.ec2_complete's block proposed exactly 10 destroys (0 add, 0 change, 10 destroy), matching the stock oracle's own count and applied cleanly; the instance is confirmed terminated and the tagged object count dropped, both via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 10 destroys for the same module",
           "day2_rename": "moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-9be0b23d261755358 -> i-5f8cb30836a6c0d1f); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one.",
+          "day2_replace": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-45aaa40503b4006bf -> i-36b31189da67b963d); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one.",
           "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
           "greenfield": "35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag",
           "migrate": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply",
@@ -1414,8 +1414,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "97b048dfa06b4d68dac5f87e59d9645f719cc7a9",
-        "date": "2026-08-25T15:12:28Z",
+        "commit": "9c1ec36174336dbe6145fd15ce3d7d530e740d86",
+        "date": "2026-08-25T17:07:24Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",

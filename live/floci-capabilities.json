@@ -212977,7 +212977,7 @@
         {
           "service": "apigatewayv2",
           "status": "implemented",
-          "evidence": "apigatewayv2 get-apis succeeded: {\n    \"Items\": [\n        {\n            \"ApiEndpoint\": \"https://5644ea2485.execute-api.us-east-1.amazonaws.com\",\n            \"ApiId\": \"5644ea2485\",\n            \"ApiKeySelectionExpression\": \"$request.he...",
+          "evidence": "apigatewayv2 get-apis succeeded: {\n    \"Items\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213169,7 +213169,7 @@
         {
           "service": "dynamodb",
           "status": "implemented",
-          "evidence": "dynamodb list-tables succeeded: {\n    \"TableNames\": [\n        \"cloudcontrol-resource-1e50975adde7\",\n        \"cloudcontrol-resource-dace0f57a487\"\n    ]\n}",
+          "evidence": "dynamodb list-tables succeeded: {\n    \"TableNames\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213193,7 +213193,7 @@
         {
           "service": "eks",
           "status": "implemented",
-          "evidence": "eks list-clusters succeeded: {\n    \"clusters\": [\n        \"cloudcontrol-resource-7584e8a90a07\"\n    ]\n}",
+          "evidence": "eks list-clusters succeeded: {\n    \"clusters\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213235,13 +213235,13 @@
         {
           "service": "events",
           "status": "implemented",
-          "evidence": "events list-rules succeeded: {\n    \"Rules\": [\n        {\n            \"Name\": \"cloudcontrol-resource-d13a861e0ad7\",\n            \"Arn\": \"arn:aws:events:us-east-1:000000000000:rule/cloudcontrol-resource-d13a861e0ad7\",\n            \"St...",
+          "evidence": "events list-rules succeeded: {\n    \"Rules\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
           "service": "firehose",
           "status": "implemented",
-          "evidence": "firehose list-delivery-streams succeeded: {\n    \"DeliveryStreamNames\": [\n        \"cloudcontrol-resource-624f97f3b230\"\n    ],\n    \"HasMoreDeliveryStreams\": false\n}",
+          "evidence": "firehose list-delivery-streams succeeded: {\n    \"DeliveryStreamNames\": [],\n    \"HasMoreDeliveryStreams\": false\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213307,7 +213307,7 @@
         {
           "service": "kms",
           "status": "implemented",
-          "evidence": "kms list-keys succeeded: {\n    \"Keys\": [\n        {\n            \"KeyId\": \"750c7b82-075d-4c5c-b6af-cf4339590dcc\",\n            \"KeyArn\": \"arn:aws:kms:us-east-1:000000000000:key/750c7b82-075d-4c5c-b6af-cf4339590dcc\"\n        },\n  ...",
+          "evidence": "kms list-keys succeeded: {\n    \"Keys\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213325,7 +213325,7 @@
         {
           "service": "logs",
           "status": "implemented",
-          "evidence": "logs describe-log-groups succeeded: {\n    \"logGroups\": [\n        {\n            \"logGroupName\": \"cloudcontrol-resource-cb27200c7248\",\n            \"metricFilterCount\": 0,\n            \"arn\": \"arn:aws:logs:us-east-1:000000000000:log-group:c...",
+          "evidence": "logs describe-log-groups succeeded: {\n    \"logGroups\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213377,6 +213377,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
+          "service": "networkmanager",
+          "status": "unimplemented",
+          "evidence": "absent from /_localstack/health's service list entirely",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
           "service": "pipes",
           "status": "implemented",
           "evidence": "pipes list-pipes succeeded: {\n    \"Pipes\": []\n}",
@@ -213421,7 +213427,7 @@
         {
           "service": "s3",
           "status": "implemented",
-          "evidence": "s3api list-buckets succeeded: {\n    \"Buckets\": [\n        {\n            \"Name\": \"awslambda-us-east-1-tasks\",\n            \"CreationDate\": \"2026-08-25T16:49:20+00:00\"\n        },\n        {\n            \"Name\": \"cloudcontrol-resource-ff...",
+          "evidence": "s3api list-buckets succeeded: {\n    \"Buckets\": [],\n    \"Owner\": {\n        \"DisplayName\": \"owner\",\n        \"ID\": \"owner\"\n    },\n    \"Prefix\": null\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213445,7 +213451,7 @@
         {
           "service": "secretsmanager",
           "status": "implemented",
-          "evidence": "secretsmanager list-secrets succeeded: {\n    \"SecretList\": [\n        {\n            \"ARN\": \"arn:aws:secretsmanager:us-east-1:000000000000:secret:cloudcontrol-resource-ef8b3f695591-5WI8J9\",\n            \"Name\": \"cloudcontrol-resource-ef8b3f69...",
+          "evidence": "secretsmanager list-secrets succeeded: {\n    \"SecretList\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -213457,13 +213463,13 @@
         {
           "service": "sns",
           "status": "implemented",
-          "evidence": "sns list-topics succeeded: {\n    \"Topics\": [\n        {\n            \"TopicArn\": \"arn:aws:sns:us-east-1:000000000000:cloudcontrol-resource-4921bc1fb9c5\"\n        }\n    ]\n}",
+          "evidence": "sns list-topics succeeded: {\n    \"Topics\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
           "service": "sqs",
           "status": "implemented",
-          "evidence": "sqs list-queues succeeded: {\n    \"QueueUrls\": [\n        \"https://sqs.us-east-1.amazonaws.com/000000000000/cloudcontrol-resource-0be8a2332ec4\"\n    ]\n}",
+          "evidence": "sqs list-queues succeeded: {\n    \"QueueUrls\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
