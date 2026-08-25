@@ -70,7 +70,17 @@ set -uo pipefail
 #                security group's Name tag) is also tampered out of band,
 #                and the single-object assertion must then correctly fail
 #                to hold (it is skipped in favor of confirming more than
-#                one object is proposed).
+#                one object is proposed). This same BREAK also switches
+#                Part D (day2_rename) to its own negative control - see
+#                that part's header.
+#   BREAK_REMOVE set to 1 to run day2_remove's own negative control instead
+#                of the real checks: keep the internet-gateway block in the
+#                config and assert no destroy is proposed for it (the
+#                Break text in tools/gauntlet/stages.go for day2_remove is
+#                literally "keep the block; no destroy may be proposed").
+#                Independent of BREAK and only reachable when BREAK is not
+#                1, because Part E starts from Part D's real, completed
+#                rename - see Part E's header.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -335,6 +345,131 @@ resource "aws_instance" "main" {
 EOF
 }
 
+# resource_block_no_igw() is resource_block() (original "main" names,
+# unrenamed) with the aws_internet_gateway.main block deleted outright -
+# day2_rename's stock oracle removes a block on the SAME cold_deploy state
+# copy every other stock oracle here uses, before any rename has ever
+# happened, so this is the "main"-named counterpart to
+# resource_block_igw_removed() below rather than that function itself. The
+# internet gateway has no other resource depending on it in this estate (the
+# subnet references only the VPC, the instance references only the subnet
+# and the security group), so deleting its block needs no other edit.
+resource_block_no_igw() {
+  cat <<'EOF'
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_security_group" "main" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "ami-12345678"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.main.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+}
+EOF
+}
+
+# resource_block_igw_removed() is resource_block_both_renamed() (the shape
+# Part D leaves live: security group AND internet gateway both renamed to
+# .renamed) with the aws_internet_gateway.renamed block deleted outright -
+# Part E's real day2_remove check plans this against the adopted estate.
+resource_block_igw_removed() {
+  cat <<'EOF'
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_security_group" "renamed" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "ami-12345678"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.renamed.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+}
+EOF
+}
+
 provider_block() {
   cat <<'EOF'
 provider "aws" {
@@ -545,6 +680,40 @@ grep -qE '^  # aws_internet_gateway\.main has moved to aws_internet_gateway\.ren
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn, no attribute diff at all - both resources report only their move, on the state cold_deploy produced"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7, issue #358 - gauntlet
+# evidence unit, planned stage, does not count toward clear): "Stock with
+# the same block removed plans the same destroys in a working order." Same
+# principle as B1.5 above: a SEPARATE copy of cold_deploy's own state, "main"
+# names throughout, so this destroy has nothing to do with the rename this
+# script also exercises.
+CURRENT_STAGE=day2_remove
+log "=== B1.6. day2_remove stock oracle: delete the internet-gateway block on cold_deploy's own state ==="
+PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
+{
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+EOF
+  provider_block
+  echo
+  resource_block_no_igw
+} > "$PLAIN_ORACLE_REMOVE/main.tf"
+REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REMOVE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -30; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # aws_internet_gateway\.main will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock does not propose destroying aws_internet_gateway.main when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
+log "  stock: exactly one destroy (aws_internet_gateway.main), nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 mkdir -p "$ADOPTED"
@@ -856,6 +1025,111 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, planned stage - live/GAUNTLET.md #7,
+  # issue #358 - a gauntlet evidence unit; the runner records this verdict
+  # but a planned stage does not count toward "clear" until its status is
+  # flipped to active in tools/gauntlet/stages.go, a maintainer decision)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: both the security group and
+  # the internet gateway carry their .renamed markers, and the config plans
+  # empty (D3). The internet gateway is the object removed here - it has no
+  # other resource depending on it in this estate (the subnet references
+  # only the VPC, the instance references only the subnet and the security
+  # group), so deleting its block needs no other config edit.
+  #
+  # Its removal is also unambiguous in the one way issue #357's own comment
+  # names as day2_remove's territory: internal/live/discovery/discovery.go's
+  # classifyOrphans withholds a destroy whenever a declared instance of the
+  # SAME block (type and name, module and instance key stripped) is still
+  # unclaimed elsewhere in the estate - the rename-vs-delete ambiguity a
+  # rename-without-a-moved-block produces, because the new address IS an
+  # unclaimed declared instance of that block. A genuine remove, deleting
+  # the block outright with no replacement declared anywhere, produces no
+  # such unclaimed instance: no other aws_internet_gateway block exists in
+  # this config, so nothing is ever added to classifyOrphans's "pending"
+  # set for it, and the destroy is never a candidate for withholding in the
+  # first place. If that reasoning is wrong, the guard right below the plan
+  # turns it into an honest, named wall instead of a silently skipped check.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live internet-gateway id one more time ==="
+  IGW_ID_BEFORE_REMOVE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
+    --internet-gateway-ids "$IGW_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>/dev/null || true)"
+  [ "$IGW_ID_BEFORE_REMOVE" = "$IGW_ID" ] || fail "the internet gateway is not live under $IGW_ID before day2_remove even starts"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep the internet-gateway block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -30; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # aws_internet_gateway\.renamed will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_REMOVE=1: a destroy was proposed for aws_internet_gateway.renamed even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BREAK_REMOVE_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
+    log "  BREAK_REMOVE=1: correctly proposes nothing - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete the aws_internet_gateway.renamed block ==="
+    {
+      cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+      provider_block
+      echo
+      resource_block_igw_removed
+    } > "$ADOPTED/main.tf"
+    REMOVE_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -30
+      fail "choudoufu withheld the destroy of aws_internet_gateway.renamed as a possible rename (discovery.go's classifyOrphans) even though no other aws_internet_gateway block exists anywhere in this config - this is the honest wall issue #358 names, not a pass"
+    fi
+    grep -qE '^  # aws_internet_gateway\.renamed will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying aws_internet_gateway.renamed when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (aws_internet_gateway.renamed), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -30; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    if IGW_GONE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
+      --internet-gateway-ids "$IGW_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>&1)"; then
+      echo "$IGW_GONE"; fail "the internet gateway $IGW_ID still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  $IGW_ID no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -30; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    gauntlet_stage day2_remove pass "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config"
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end
