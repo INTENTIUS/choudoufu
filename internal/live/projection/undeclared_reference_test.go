@@ -182,3 +182,68 @@ func TestContainsStringValueSkipsMarkedValues(t *testing.T) {
 		t.Error("containsStringValue matched a marked (sensitive) value - it must refuse rather than unmark and compare")
 	}
 }
+
+// TestUndeclaredSiblingSharedIdentityIsNotAReference is the regression
+// this fix's own second finding, in the same session as the ASG/launch
+// template case: aws_vpc_security_group_rules_exclusive's WHOLE identity
+// is its security group's own id (identity.Component.IdentityAttr: "*"
+// over security_group_id), so a naive "does from's value contain to's
+// ImportID" scan finds the security group's own id sitting inside the
+// security group's own live value - trivially true - and reads it as "the
+// security group references rules_exclusive," backwards from
+// [destroyParentDependency]'s own, correctly-directed
+// rules_exclusive-depends-on-the-security-group edge for the identical
+// pair. Two edges between the same two nodes, pointing opposite ways, is
+// exactly what cycled corpus-security-group-complete's day2_remove plan
+// ("Error: Cycle: ...aws_security_group.this[0] (destroy),
+// ...aws_vpc_security_group_rules_exclusive.this[0] (destroy)") once this
+// unit's OTHER fix (moved.Newest) started correctly grouping
+// rules_exclusive under the same module address as its security group for
+// the first time.
+//
+// This test proves [deriveUndeclaredReferenceEdges] does not add ITS OWN
+// half of that cycle: two siblings sharing one identity string get no
+// edge in either direction from this mechanism, leaving the
+// correctly-directed edge (destroyParentDependency, a discovery-level
+// mechanism this projection-level test does not invoke) as the only one
+// that exists.
+func TestUndeclaredSiblingSharedIdentityIsNotAReference(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t))
+
+	cloud := newFakeCloud()
+	cloud.put("aws_security_group", "sg-0123", map[string]string{
+		"id": "sg-0123", "name": "postgresql", "vpc_id": "vpc-abc",
+	})
+	cloud.put("aws_vpc_security_group_rules_exclusive", "sg-0123", map[string]string{
+		"id": "sg-0123",
+	})
+
+	sg := mustAddr(t, `aws_security_group.postgresql`)
+	rex := mustAddr(t, `aws_vpc_security_group_rules_exclusive.postgresql`)
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: sg, Class: identity.ClassConcrete, ImportID: "sg-0123", Undeclared: true},
+		{Addr: rex, Class: identity.ClassConcrete, ImportID: "sg-0123", Undeclared: true},
+	}, cloud.providers(t))
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`aws_security_group.postgresql`, `aws_vpc_security_group_rules_exclusive.postgresql`})
+
+	mod := res.State.Module(addrs.RootModuleInstance)
+	if mod == nil {
+		t.Fatal("the projection has no root module")
+	}
+	sgInst := mod.ResourceInstance(sg.Resource)
+	if sgInst == nil || sgInst.Current == nil {
+		t.Fatalf("the security group did not materialize into the state:\n%s", res)
+	}
+	if len(sgInst.Current.Dependencies) != 0 {
+		t.Errorf("aws_security_group.postgresql got Dependencies %v from sharing an identity string with a sibling - this direction is backwards from destroyParentDependency's own and would cycle the destroy graph", sgInst.Current.Dependencies)
+	}
+	rexInst := mod.ResourceInstance(rex.Resource)
+	if rexInst == nil || rexInst.Current == nil {
+		t.Fatalf("rules_exclusive did not materialize into the state:\n%s", res)
+	}
+	if len(rexInst.Current.Dependencies) != 0 {
+		t.Errorf("aws_vpc_security_group_rules_exclusive.postgresql got Dependencies %v from this mechanism - that edge belongs to destroyParentDependency, not deriveUndeclaredReferenceEdges, and adding it here too would be a duplicate, differently-computed source of truth", rexInst.Current.Dependencies)
+	}
+}

@@ -591,17 +591,34 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 // The match is generic on purpose: never a concrete aws_* type name
 // anywhere in this function, because the question is not "is this an ASG
 // and that a launch template" - it is "does this object's own live value,
-// anywhere in its structure, hold that object's own identity string."
+// anywhere in its structure, hold ANOTHER sibling's identity string."
 // [identity.Resolution.ImportID] is exactly that string, the same one
 // [destroyParentDependency] already compares by == for the narrower
 // parent/child case; here it is looked for inside the WHOLE sibling
 // object rather than inside one named record component, via
-// [containsStringValue]'s generic walk. An AWS-issued id (an ARN, or an
-// opaque id like "lt-0123...") is unique across the whole resource
-// population by construction, so an accidental string match is not a risk
-// this function has to defend against - the same trust
-// [destroyParentDependency]'s own == comparison already extends to the
-// identical kind of string.
+// [containsStringValue]'s generic walk.
+//
+// ANOTHER's is load-bearing, found running this exact fix against
+// corpus-security-group-complete's day2_remove unit in the same session:
+// aws_vpc_security_group_rules_exclusive's whole identity IS its security
+// group's own id (identity.Component.IdentityAttr: "*" over
+// security_group_id, in table_generated.go) - so comparing the security
+// group's own live value against rules_exclusive's ImportID is comparing
+// the security group's own id against itself, trivially true, and
+// backwards: it produced an SG-depends-on-rules_exclusive edge that
+// cycled against [destroyParentDependency]'s own, correctly-directed
+// rules_exclusive-depends-on-SG edge for the identical pair. The loop
+// below skips exactly that shape - two distinct siblings sharing one
+// identity string - because a type whose whole identity is another's id
+// is the relationship [destroyParentDependency] and [identity.ParentOf]
+// already derive, correctly directed; it is not evidence of a REFERENCE
+// this function's own job is to find. What remains genuinely unguarded is
+// an AWS-issued id (an ARN, or an opaque id like "lt-0123...") coinciding
+// with a DIFFERENT string appearing incidentally inside an unrelated
+// sibling's structure - not a risk this function has to defend against,
+// since such an id is unique across the whole resource population by
+// construction, the same trust [destroyParentDependency]'s own ==
+// comparison already extends to the identical kind of string.
 func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution) {
 	type sibling struct {
 		addr     addrs.AbsResourceInstance
@@ -636,6 +653,26 @@ func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution)
 		var deps []addrs.ConfigResource
 		for _, to := range siblings {
 			if to.addr.String() == from.addr.String() {
+				continue
+			}
+			if to.importID == from.importID {
+				// Two distinct instances sharing one identity string is
+				// not a reference between them: it is one type's whole
+				// identity being ANOTHER's id, the shape
+				// identity.Component.IdentityAttr: "*" gives
+				// aws_vpc_security_group_rules_exclusive (its own
+				// ImportID is literally its security group's own id -
+				// found running this fix against corpus-security-group-
+				// complete's day2_remove unit, where treating that as a
+				// "from's value contains to's id" reference produced a
+				// destroy-graph CYCLE against [destroyParentDependency]'s
+				// own, correctly-directed child-depends-on-parent edge
+				// for the identical pair). from's own live value always
+				// contains from's own id, so this match is trivial and
+				// backwards, never a genuine reference to a distinct
+				// object - that relationship is what [destroyParentDependency]
+				// (internal/live/discovery/recordorphan_read.go) and
+				// [identity.ParentOf] already derive, correctly directed.
 				continue
 			}
 			if containsStringValue(val, to.importID) {

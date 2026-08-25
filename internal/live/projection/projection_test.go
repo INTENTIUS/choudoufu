@@ -941,9 +941,15 @@ var fakeAttrs = map[string][]string{
 	// to exercise [containsStringValue]'s generic string-leaf scan, which
 	// does not care whether the match sits at the top level or nested.
 	"aws_autoscaling_group": {"id", "arn", "name", "launch_template_id"},
-	"aws_acm_certificate":   {"id", "arn", "domain_name", "validation_method"},
-	"aws_sfn_state_machine": {"id", "arn", "name", "role_arn", "definition"},
-	"aws_ebs_volume":        {"id", "arn", "availability_zone", "size"},
+	// gauntlet:destroy-order: the real type's whole identity IS its
+	// security group's own id (identity.Component.IdentityAttr: "*" over
+	// security_group_id, table_generated.go) - a fake caricature only
+	// needs "id" to exercise that shape, since the test drives its
+	// ImportID directly rather than deriving it from an attribute.
+	"aws_vpc_security_group_rules_exclusive": {"id", "security_group_id"},
+	"aws_acm_certificate":                    {"id", "arn", "domain_name", "validation_method"},
+	"aws_sfn_state_machine":                  {"id", "arn", "name", "role_arn", "definition"},
+	"aws_ebs_volume":                         {"id", "arn", "availability_zone", "size"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real
