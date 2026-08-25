@@ -241,6 +241,105 @@ resource "aws_iam_role_policy" "extra" {}
 	}
 }
 
+// TestPropagateModuleRenameReconcilesADuplicateAtTwoOldPrefixes is the
+// second wall found driving corpus-giantswarm-crossplane for real with
+// renameBoundaryOrigins in place: an ordinary apply along a `moved`-block
+// hop (D1 in that estate's own script) refreshes every declared instance's
+// own kind=identity record at the address current when it ran, without
+// deleting the copy an earlier hop left behind - so a record-located
+// sibling can have TWO stored records, one at req.Old's own module
+// (the fresher one, written by the most recent apply) and one further back
+// (stale, from before the `moved` block existed at all). Both now match
+// under renameBoundaryOrigins' own multi-prefix set and land on the SAME
+// destination; without reconciliation, [projection.RecordStore.MoveRecord]'s
+// own CAS correctly refuses the second write ("expected no record to
+// exist"), which is exactly what a real run against floci hit. The fresher
+// (closer) copy must win the move; the staler one must be deleted outright,
+// not left behind - see propagateModuleRename's own doc comment for why an
+// orphaned duplicate is unsafe to leave, not merely untidy.
+func TestPropagateModuleRenameReconcilesADuplicateAtTwoOldPrefixes(t *testing.T) {
+	ctx := t.Context()
+	store := recordFallbackStore(t)
+
+	dir := t.TempDir()
+	writeFile(t, dir, "main.tf", `
+module "crossplane_final" {
+  source = "./crossplane"
+}
+
+moved {
+  from = module.crossplane
+  to   = module.crossplane_renamed
+}
+`)
+	writeFile(t, dir, "crossplane/main.tf", `
+resource "aws_iam_role" "role" {}
+
+resource "aws_iam_role_policy" "extra" {
+  for_each = toset(["extra-tagging"])
+}
+`)
+	cfg := loadConfigDir(t, dir)
+
+	anchorOld := mustAddr(t, "module.crossplane_renamed.aws_iam_role.role")
+	anchorNew := mustAddr(t, "module.crossplane_final.aws_iam_role.role")
+
+	// The stale, two-hops-back copy: left over from before the `moved`
+	// block existed, never touched by D1's own apply.
+	stale := mustAddr(t, `module.crossplane.aws_iam_role_policy.extra["extra-tagging"]`)
+	// The fresh, one-hop-back copy: written by D1's own apply refreshing
+	// every declared instance's record at the address current then.
+	fresh := mustAddr(t, `module.crossplane_renamed.aws_iam_role_policy.extra["extra-tagging"]`)
+	final := mustAddr(t, `module.crossplane_final.aws_iam_role_policy.extra["extra-tagging"]`)
+
+	if _, err := projection.SeedLocatedForInstance(ctx, store, stale, recordFallbackProviderAddr, projection.LocatedRecord{ImportID: "stale-copy"}); err != nil {
+		t.Fatalf("seeding the stale copy: %s", err)
+	}
+	if _, err := projection.SeedLocatedForInstance(ctx, store, fresh, recordFallbackProviderAddr, projection.LocatedRecord{ImportID: "fresh-copy"}); err != nil {
+		t.Fatalf("seeding the fresh copy: %s", err)
+	}
+
+	m := &mover{
+		req: Request{
+			Estate:      recordFallbackEstate,
+			Old:         anchorOld,
+			New:         anchorNew,
+			Config:      cfg,
+			RecordStore: store,
+		},
+		res: &Result{Old: anchorOld, New: anchorNew},
+	}
+
+	diags := m.propagateModuleRename(ctx)
+	if diags.HasErrors() {
+		t.Fatalf("propagateModuleRename returned an error reconciling a duplicate: %s", diags.Err())
+	}
+
+	// The fresh copy's content wins at the final destination.
+	rec, _, _, found, err := store.GetIdentity(ctx, final)
+	if err != nil {
+		t.Fatalf("reading the record at the final address: %s", err)
+	}
+	if !found {
+		t.Fatalf("no record found at the final address %s", final)
+	}
+	if rec.ImportID != "fresh-copy" {
+		t.Errorf("the record at %s has ImportID = %q, want %q (the fresher, closer copy) - a superseded duplicate must never win", final, rec.ImportID, "fresh-copy")
+	}
+
+	// Both source copies are gone - the winner moved, the loser deleted.
+	if _, _, _, found, err := store.GetIdentity(ctx, fresh); err != nil {
+		t.Fatalf("reading the fresh copy's old address after the move: %s", err)
+	} else if found {
+		t.Errorf("a record still exists at the fresh copy's old address %s after the move", fresh)
+	}
+	if _, _, _, found, err := store.GetIdentity(ctx, stale); err != nil {
+		t.Fatalf("reading the stale copy's address after reconciliation: %s", err)
+	} else if found {
+		t.Errorf("the stale duplicate at %s was not cleaned up - left behind, it would resurface as a false orphan on the next plan", stale)
+	}
+}
+
 // TestRenameBoundaryOriginsWithNoConfigIsTheOriginalSinglePrefix confirms
 // req.Config == nil (every pre-existing propagateModuleRename test's own
 // shape) still reduces to exactly the original single-prefix behavior -

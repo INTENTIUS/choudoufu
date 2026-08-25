@@ -1098,12 +1098,23 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	}
 
 	prefix := store.Prefix()
+
+	// First pass: every stored key that falls under any of oldPrefixes,
+	// with the destination it maps to and how many hops back its matching
+	// prefix was (0 = oldPrefix itself, the closest; larger = a further
+	// origin renameBoundaryOrigins chased). No writes yet.
+	type match struct {
+		addr    addrs.AbsResourceInstance
+		newAddr addrs.AbsResourceInstance
+		hop     int
+	}
+	groups := map[string][]match{}
 	for _, key := range keys {
 		addr, ok := projection.RecordAddr(prefix, key)
 		if !ok {
 			continue
 		}
-		rest, under := moduleSuffixUnderAny(addr.Module, oldPrefixes)
+		rest, hop, under := moduleSuffixUnderAny(addr.Module, oldPrefixes)
 		if !under {
 			continue
 		}
@@ -1114,15 +1125,70 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 		if newAddr.String() == addr.String() {
 			continue
 		}
+		dest := newAddr.String()
+		groups[dest] = append(groups[dest], match{addr: addr, newAddr: newAddr, hop: hop})
+	}
 
-		if _, mErr := store.MoveRecord(ctx, addr, newAddr); mErr != nil {
+	// Second pass, one destination at a time. More than one record in a
+	// group only happens when reqOld arrived at its current address
+	// through a `moved`-block hop this call also had to chase
+	// (renameBoundaryOrigins' own doc comment): an ordinary apply along
+	// the way refreshes every declared instance's own record at whichever
+	// address was current when it ran, without deleting the copy an
+	// earlier hop left behind - a bare `moved` block has no way to. The
+	// closest copy (smallest hop) is the freshest, written by the most
+	// recent apply along the chain, and is the one moved to the final
+	// destination; any farther copy is a superseded duplicate of the exact
+	// same instance and is deleted rather than left behind - see
+	// [projection.RecordStore.DeleteRecord]'s own doc comment for why that
+	// is safe. The move always runs before any delete for its own group,
+	// so an interrupted run is still safe to retry: on a second pass,
+	// MoveRecord finds nothing left at an already-moved winner's address
+	// and no-ops, while a not-yet-deleted loser is still there to clean up.
+	for _, group := range groups {
+		winner := group[0]
+		for _, mt := range group[1:] {
+			if mt.hop < winner.hop {
+				winner = mt
+			}
+		}
+
+		if _, mErr := store.MoveRecord(ctx, winner.addr, winner.newAddr); mErr != nil {
 			return diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"A record could not be moved with its module",
 				fmt.Sprintf(
 					"Renaming %s to %s moved module boundary %s to %s. %s's own record has to move to %s to follow, and it could not: %s. The live write already completed; run the same live-mv command again to finish moving this estate's records once this is resolved - moving a record is safe to retry.",
-					m.req.Old, m.req.New, oldPrefix, newPrefix, addr, newAddr, mErr),
+					m.req.Old, m.req.New, oldPrefix, newPrefix, winner.addr, winner.newAddr, mErr),
 			))
+		}
+
+		for _, mt := range group {
+			if mt.addr.String() == winner.addr.String() {
+				continue
+			}
+			_, version, keyExists, _, gErr := store.GetIdentity(ctx, mt.addr)
+			if gErr != nil {
+				return diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"A superseded record could not be read before cleanup",
+					fmt.Sprintf(
+						"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward to %s, and could not be read to clean it up: %s.",
+						m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, winner.addr, winner.newAddr, gErr),
+				))
+			}
+			if !keyExists {
+				continue
+			}
+			if dErr := store.DeleteRecord(ctx, mt.addr, version); dErr != nil {
+				return diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"A superseded record could not be cleaned up",
+					fmt.Sprintf(
+						"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward to %s, and could not be removed: %s. The fresher copy's move already completed; nothing is lost, but %s should be cleaned up by hand or by rerunning the same live-mv command.",
+						m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, winner.addr, winner.newAddr, dErr, mt.addr),
+				))
+			}
 		}
 	}
 	return diags
@@ -1196,16 +1262,21 @@ func renameBoundaryOrigins(cfg *configs.Config, reqOld addrs.AbsResourceInstance
 }
 
 // moduleSuffixUnderAny is [moduleSuffixUnder] over a set of candidate
-// prefixes, returning the first match. [renameBoundaryOrigins] is the only
-// caller that ever supplies more than one prefix; every other caller of
-// [moduleSuffixUnder] keeps using it directly for the single-prefix case.
-func moduleSuffixUnderAny(module addrs.ModuleInstance, prefixes []addrs.ModuleInstance) (rest addrs.ModuleInstance, ok bool) {
-	for _, prefix := range prefixes {
+// prefixes, in order: prefixes is [renameBoundaryOrigins]'s own output,
+// closest (oldPrefix itself) first and progressively further chased
+// `moved`-block origins after it, so the first match found is also the
+// closest one - hop is its index, which [mover.propagateModuleRename] uses
+// to pick the freshest of several records mapping to the same destination.
+// [renameBoundaryOrigins] is the only caller that ever supplies more than
+// one prefix; every other caller of [moduleSuffixUnder] keeps using it
+// directly for the single-prefix case.
+func moduleSuffixUnderAny(module addrs.ModuleInstance, prefixes []addrs.ModuleInstance) (rest addrs.ModuleInstance, hop int, ok bool) {
+	for i, prefix := range prefixes {
 		if r, under := moduleSuffixUnder(module, prefix); under {
-			return r, true
+			return r, i, true
 		}
 	}
-	return nil, false
+	return nil, 0, false
 }
 
 // moduleRenameBoundary reports the module-instance prefix a rename from old

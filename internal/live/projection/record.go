@@ -971,3 +971,24 @@ func (s *RecordStore) delete(ctx context.Context, addr addrs.AbsResourceInstance
 	}
 	return s.store.Delete(ctx, RecordKey(s.prefix, addr), expectedVersion)
 }
+
+// DeleteRecord is [delete] exported for mv.go's own reconciliation case
+// (gauntlet:giantswarm-mv-children): a chained rename that mixes a bare
+// `moved` block with a live-mv call can leave TWO records for the exact
+// same instance - one at the address an ordinary apply refreshed it to
+// along the way, one older and superseded - once [mover.propagateModuleRename]
+// has already carried the fresher copy's content to the final address via
+// [MoveRecord]. The older copy is not a second, competing claim on a live
+// object; it is dead weight that would otherwise resurface as a false,
+// live-confirmed orphan on the next plan (see propagateModuleRename's own
+// doc comment). Removing it is not the wrong-marker hazard HANDOFF.md's
+// safety rule guards against: a kind=identity key carries no delete
+// authority over the cloud object it names (build.go's own comment, "a
+// kind=identity key is never delete authority") - only a bookkeeping entry,
+// and the caller has already confirmed this exact instance's identity
+// content is carried forward under a different key. expectedVersion is the
+// version the caller most recently read for addr, exactly as every other
+// exported write on this store is conditional.
+func (s *RecordStore) DeleteRecord(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string) error {
+	return s.delete(ctx, addr, expectedVersion)
+}
