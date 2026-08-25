@@ -933,6 +933,16 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		blk.claimants = append(blk.claimants, claim)
 		return diags
 	}
+	if orphanAlreadyPresent(res.Orphans, bindType, escaped, c.importID) {
+		// See [orphanAlreadyPresent]'s own doc comment. Not reached by
+		// rdsClusterInstanceSibling today - typeNeedsResourceObjectToRecompose
+		// keeps that pair out of this leg's own sweep universe entirely -
+		// but a future sibling pair reaching here through this leg (a
+		// registered pair whose ratified rows DO agree,
+		// [sameRatifiedIdentity] true, so [typeNeedsResourceObjectToRecompose]
+		// would answer false for it) must not be double-filed either.
+		return diags
+	}
 	res.Orphans = append(res.Orphans, OwnedResource{
 		TypeName:     bindType,
 		ImportID:     c.importID,

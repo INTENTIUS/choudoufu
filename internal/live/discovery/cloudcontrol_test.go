@@ -328,6 +328,83 @@ func TestEnumerationSourceCloudControlFallback(t *testing.T) {
 	}
 }
 
+// TestCloudControlSharedCFNTypeSiblingNotDoubleFiled reproduces
+// corpus-rds-complete-postgres's day2_remove regression at the Cloud
+// Control leg directly: live/mapping.json joins aws_db_instance and
+// aws_rds_cluster_instance to the ONE CFN type AWS::RDS::DBInstance, and
+// Cloud Control's own ListResources call is keyed by CFN type, not TF
+// type, so once partitionSweepTypes routes both (neither declared, neither
+// arnJoinTable-covered) to the native sweep, [scanTypeCloudControl] runs
+// TWICE against the identical CFN type and gets the identical resource
+// back both times. Before orphanAlreadyPresent existed, the second sighting
+// (recomposed to aws_db_instance under rdsClusterInstanceSibling) was filed
+// as a second orphan at the very same address, and classifyOrphans'
+// byAddr collision check reported "2 live aws_db_instance resources carry
+// ... the same address" for what is genuinely one live database.
+func TestCloudControlSharedCFNTypeSiblingNotDoubleFiled(t *testing.T) {
+	srv := newCCServer(t)
+	srv.listResources["AWS::RDS::DBInstance"] = []ccResource{
+		{identifier: "complete-postgresql", properties: mergeProps(
+			tagsProps(ccEstate, "aws_db_instance.this"),
+			map[string]any{"DBInstanceIdentifier": "complete-postgresql"},
+		)},
+	}
+	server := srv.start()
+	defer server.Close()
+
+	cloud := newFakeCloud()
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	roster := ccRoster(t,
+		map[string]string{
+			"aws_db_instance":          "AWS::RDS::DBInstance",
+			"aws_rds_cluster_instance": "AWS::RDS::DBInstance",
+		},
+		map[string]bool{"AWS::RDS::DBInstance": true},
+		map[string]bool{"AWS::RDS::DBInstance": true},
+	)
+
+	tagSrv := &taggingServer{}
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	req := Request{
+		Estate:       ccEstate,
+		Config:       ccConfig(), // neither side declared
+		Resolutions:  nil,
+		Provider:     cloud,
+		CloudControl: cc,
+		Roster:       roster,
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+		TaggingSweep: true,
+	}
+	res, diags := Discover(context.Background(), req)
+	if diags.HasErrors() {
+		t.Fatalf("the shared-CFN-type sibling pair was reported as an error:\n%s\n%s", res, renderDiags(diags))
+	}
+	if len(res.ProblemsOfKind(ProblemCollision)) != 0 {
+		t.Fatalf("the same live object, seen twice (once per sibling type's own Cloud Control scan), was reported as a genuine address collision:\n%s", res)
+	}
+	if len(res.ProblemsOfKind(ProblemMalformedMarker)) != 0 {
+		t.Fatalf("the pair was reported malformed instead of recomposed:\n%s", res)
+	}
+
+	var matches int
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_db_instance" && o.ImportID == "complete-postgresql" {
+			matches++
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("found %d aws_db_instance orphans for the one live database, want exactly 1 (found twice, once via each sibling type's own scan, and not deduplicated):\n%s", matches, res)
+	}
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_rds_cluster_instance" {
+			t.Errorf("the object was also filed as an aws_rds_cluster_instance orphan - one live object, one type, the one its own marker names:\n%s", res)
+		}
+	}
+}
+
 // TestEnumerationSourceNeitherRefuses covers "neither": a type with no
 // native list resource, and either unmapped or mapped-but-not-listable,
 // keeps today's ProblemTypeNotListable refusal - the same outcome whether

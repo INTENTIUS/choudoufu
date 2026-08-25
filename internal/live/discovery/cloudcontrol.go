@@ -357,6 +357,14 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			blk.claimants = append(blk.claimants, c)
 			continue
 		}
+		if orphanAlreadyPresent(res.Orphans, bindType, escaped, importID) {
+			// See [orphanAlreadyPresent]'s own doc comment: the same live
+			// object, undeclared, found by two admitted types' own
+			// independent Cloud Control scans of one shared CFN type
+			// (rdsClusterInstanceSibling's aws_db_instance /
+			// aws_rds_cluster_instance today, both AWS::RDS::DBInstance).
+			continue
+		}
 		res.Orphans = append(res.Orphans, OwnedResource{
 			TypeName:     bindType,
 			ImportID:     importID,

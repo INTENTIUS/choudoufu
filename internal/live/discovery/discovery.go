@@ -1914,6 +1914,24 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			blk.claimants = append(blk.claimants, c)
 			continue
 		}
+		if orphanAlreadyPresent(res.Orphans, bindType, escaped, importID) {
+			// The same live object, undeclared, found by two different
+			// types' own independent scans - the sibling shape
+			// [claimantAlreadyPresent] already guards for a DECLARED
+			// address, now reached for an undeclared one too (found via
+			// corpus-rds-complete-postgres's day2_remove unit):
+			// aws_db_instance and aws_rds_cluster_instance both map to one
+			// CFN type, AWS::RDS::DBInstance, so [partitionSweepTypes]
+			// sweeping neither declared anywhere runs Cloud Control's
+			// ListResources on that one CFN type twice - once per TF type -
+			// and both passes recompose the SAME orphan under bindType,
+			// same address, same importID. Without this check that reads
+			// as [ProblemCollision] ("Two live resources claiming one
+			// address") printing the same object's own ID twice, exactly
+			// the symptom [claimantAlreadyPresent]'s own doc comment
+			// describes for the declared case.
+			continue
+		}
 		res.Orphans = append(res.Orphans, OwnedResource{
 			TypeName:     bindType,
 			ImportID:     importID,
@@ -2431,6 +2449,42 @@ func claimantAlreadyPresent(cs []claimant, c claimant) bool {
 	}
 	for _, existing := range cs {
 		if existing.importID == c.importID {
+			return true
+		}
+	}
+	return false
+}
+
+// orphanAlreadyPresent is [claimantAlreadyPresent]'s own check, applied to
+// [Result.Orphans] instead of one declared entry's claimants: whether
+// orphans already holds a sighting of the SAME live object - same bindType,
+// same address, same import identity - filed by an earlier type's own scan
+// this pass.
+//
+// Needed for the identical reason claimantAlreadyPresent is (an
+// overlapping-list-call sibling pair's shared underlying list call
+// returning the same object under two type names) but for the undeclared
+// case: two admitted types genuinely independently listable through the
+// SAME mechanism (rdsClusterInstanceSibling's aws_db_instance /
+// aws_rds_cluster_instance, sharing one CFN type, AWS::RDS::DBInstance) are
+// BOTH in the sweep universe whenever neither is declared anywhere, so both
+// scans run and both recompose the very same undeclared object to the same
+// bindType, address and importID. classifyOrphans' own byAddr collision
+// check cannot tell that apart from two genuinely different live resources
+// racing for one address, and reports [ProblemCollision] - "2 live
+// aws_db_instance resources carry ... the same address" - printing one
+// object's own ID twice. Scoped to (bindType, escaped) rather than
+// importID alone: an orphan's address is the only thing that makes two
+// sightings "the same slot" in the first place, and an empty importID
+// (noIdentity) is never deduplicated against anything, matching
+// claimantAlreadyPresent's own rule - "no identity" is not an identity two
+// sightings could share.
+func orphanAlreadyPresent(orphans []OwnedResource, bindType, escaped, importID string) bool {
+	if importID == "" {
+		return false
+	}
+	for _, existing := range orphans {
+		if existing.TypeName == bindType && existing.Normalized == escaped && existing.ImportID == importID {
 			return true
 		}
 	}
