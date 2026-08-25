@@ -43,6 +43,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
@@ -156,31 +157,88 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// this store cannot decode is not this leg's to guess at.
 			continue
 		}
-		if rec.ImportID == "" {
-			// A composite identity with no flat import-ID string
-			// ([projection.LocatedRecord.Components] populated instead).
-			// Every type reaching this leg today composes its identity from
-			// exactly the Components its own table row names (issue #364's
-			// composite-record path already flattens role:name/user:name/
-			// group:name into one ImportID at write time - see
-			// [projection.LocatedRecordFrom]'s Composite() case), so an
-			// empty one here means this record predates that, or is a
-			// shape this leg does not yet recognize. Refusing to guess at
-			// which component means what, rather than flattening one
-			// arbitrarily, is the same discipline
-			// [scanTypeLocatedFallback] applies to its own composite
-			// records.
-			continue
+		importID := rec.ImportID
+		if importID == "" {
+			// A composite identity from the provider's own wire identity
+			// schema ([projection.LocatedRecord.Components] populated
+			// instead of a flat ImportID - [projection.LocatedRecordFrom]'s
+			// Composite() case, taken when [identity.RecordableIdentitySchema]
+			// is true for the type, as opposed to the flat string
+			// locatedRatifiedComponentsRecord already produces when it is
+			// false. Both are the SAME logical identity, read back from
+			// different write shapes - found empirically: aws_iam_role_policy
+			// and aws_iam_user_policy share one ratified table row shape but
+			// wrote two different record shapes, one flat and one composite,
+			// on the SAME provider version.
+			var ok bool
+			importID, ok = composeImportIDFromComponents(typeName, rec.Components)
+			if !ok {
+				// A component this composer does not know how to resolve (a
+				// nested Block, a Default substitute, an OmitIfAbsent
+				// segment) or an attribute the record's Components map does
+				// not carry. Refusing to guess which component means what,
+				// rather than flattening one arbitrarily, is the same
+				// discipline [scanTypeLocatedFallback] applies to its own
+				// composite records.
+				continue
+			}
 		}
 
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:       addr,
 			Class:      identity.ClassConcrete,
-			ImportID:   rec.ImportID,
+			ImportID:   importID,
 			Undeclared: true,
 		})
 		known[addr.String()] = true
 	}
 
 	return diags
+}
+
+// composeImportIDFromComponents flattens a [projection.LocatedRecord]'s
+// Components map (attribute name to value, from the provider's own wire
+// identity schema) into the import-ID string identity.LookupType(typeName)'s
+// own ratified Components describe - the same grammar
+// [projection.LocatedRecordFrom]'s locatedRatifiedComponentsRecord path
+// already flattens at write time for a type the provider serves no wire
+// identity schema for. Nothing else in this codebase re-joins the OTHER
+// shape back into a string: every existing reader either has the concrete
+// cty object in hand (rendering straight from it) or, like
+// [scanTypeLocatedFallback], only ever reaches a single-attribute type.
+//
+// Deliberately narrow: only a component that is plain Literal-only or plain
+// Attrs-only (no Block, no Default, no OmitIfAbsent) is composed - every
+// ratified row this leg reaches today (aws_iam_role_policy,
+// aws_iam_user_policy, aws_iam_group_policy) is exactly that shape. A row
+// with anything more, or an attribute the record's own Components map does
+// not carry, refuses (ok=false) rather than approximate.
+func composeImportIDFromComponents(typeName string, components map[string]string) (string, bool) {
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		return "", false
+	}
+	var b strings.Builder
+	for _, c := range entry.Components {
+		if c.Block != "" || c.Default != "" || c.OmitIfAbsent {
+			return "", false
+		}
+		if len(c.Attrs) == 0 {
+			b.WriteString(c.Literal)
+			continue
+		}
+		val, found := "", false
+		for _, attr := range c.Attrs {
+			if v, ok := components[attr]; ok && v != "" {
+				val, found = v, true
+				break
+			}
+		}
+		if !found {
+			return "", false
+		}
+		b.WriteString(c.Literal)
+		b.WriteString(val)
+	}
+	return b.String(), true
 }
