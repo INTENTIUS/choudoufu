@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -328,6 +329,83 @@ func TestEnumerationSourceCloudControlFallback(t *testing.T) {
 	}
 }
 
+// TestCloudControlSharedCFNTypeSiblingNotDoubleFiled reproduces
+// corpus-rds-complete-postgres's day2_remove regression at the Cloud
+// Control leg directly: live/mapping.json joins aws_db_instance and
+// aws_rds_cluster_instance to the ONE CFN type AWS::RDS::DBInstance, and
+// Cloud Control's own ListResources call is keyed by CFN type, not TF
+// type, so once partitionSweepTypes routes both (neither declared, neither
+// arnJoinTable-covered) to the native sweep, [scanTypeCloudControl] runs
+// TWICE against the identical CFN type and gets the identical resource
+// back both times. Before orphanAlreadyPresent existed, the second sighting
+// (recomposed to aws_db_instance under rdsClusterInstanceSibling) was filed
+// as a second orphan at the very same address, and classifyOrphans'
+// byAddr collision check reported "2 live aws_db_instance resources carry
+// ... the same address" for what is genuinely one live database.
+func TestCloudControlSharedCFNTypeSiblingNotDoubleFiled(t *testing.T) {
+	srv := newCCServer(t)
+	srv.listResources["AWS::RDS::DBInstance"] = []ccResource{
+		{identifier: "complete-postgresql", properties: mergeProps(
+			tagsProps(ccEstate, "aws_db_instance.this"),
+			map[string]any{"DBInstanceIdentifier": "complete-postgresql"},
+		)},
+	}
+	server := srv.start()
+	defer server.Close()
+
+	cloud := newFakeCloud()
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	roster := ccRoster(t,
+		map[string]string{
+			"aws_db_instance":          "AWS::RDS::DBInstance",
+			"aws_rds_cluster_instance": "AWS::RDS::DBInstance",
+		},
+		map[string]bool{"AWS::RDS::DBInstance": true},
+		map[string]bool{"AWS::RDS::DBInstance": true},
+	)
+
+	tagSrv := &taggingServer{}
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	req := Request{
+		Estate:       ccEstate,
+		Config:       ccConfig(), // neither side declared
+		Resolutions:  nil,
+		Provider:     cloud,
+		CloudControl: cc,
+		Roster:       roster,
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+		TaggingSweep: true,
+	}
+	res, diags := Discover(context.Background(), req)
+	if diags.HasErrors() {
+		t.Fatalf("the shared-CFN-type sibling pair was reported as an error:\n%s\n%s", res, renderDiags(diags))
+	}
+	if len(res.ProblemsOfKind(ProblemCollision)) != 0 {
+		t.Fatalf("the same live object, seen twice (once per sibling type's own Cloud Control scan), was reported as a genuine address collision:\n%s", res)
+	}
+	if len(res.ProblemsOfKind(ProblemMalformedMarker)) != 0 {
+		t.Fatalf("the pair was reported malformed instead of recomposed:\n%s", res)
+	}
+
+	var matches int
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_db_instance" && o.ImportID == "complete-postgresql" {
+			matches++
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("found %d aws_db_instance orphans for the one live database, want exactly 1 (found twice, once via each sibling type's own scan, and not deduplicated):\n%s", matches, res)
+	}
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_rds_cluster_instance" {
+			t.Errorf("the object was also filed as an aws_rds_cluster_instance orphan - one live object, one type, the one its own marker names:\n%s", res)
+		}
+	}
+}
+
 // TestEnumerationSourceNeitherRefuses covers "neither": a type with no
 // native list resource, and either unmapped or mapped-but-not-listable,
 // keeps today's ProblemTypeNotListable refusal - the same outcome whether
@@ -469,6 +547,142 @@ func TestCloudControlUnsupportedOperationFallback(t *testing.T) {
 			t.Errorf("calls[%d] = %q, want %q", i, srv.calls[i], want)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// resolveOrphanResourceForDependency / cfnPropertiesAsResource: classifyOrphans'
+// own fallback for a type with no OwnedResource.Resource at all (the tag-sweep
+// leg's own orphans). Proves the mechanism works correctly against a Cloud
+// Control server that answers GetResource normally - the shape real AWS is
+// expected to have for AWS::EC2::SecurityGroupEgress, isolating
+// corpus-ecs-fargate's own residual (floci's GetResource for this exact CFN
+// type 404s on a resource its own ListResources/tagging integration
+// demonstrably knows about - an emulator gap, filed but not fixed in this
+// unit, not a bug in this mechanism) from the mechanism itself.
+// ---------------------------------------------------------------------------
+
+// TestResolveOrphanResourceForDependency_Succeeds is the positive case: a
+// working GetResource response converts through cfnPropertiesAsResource
+// into a cty object classifyOrphanDestroyDependency can read a parent link
+// off, snake-casing the CFN property name via
+// identity.GuessArgNameFromCFNProperty on the way ("GroupId" -> "group_id").
+func TestResolveOrphanResourceForDependency_Succeeds(t *testing.T) {
+	srv := newCCServer(t)
+	srv.getResource["AWS::EC2::SecurityGroupEgress sgr-0123"] = ccResource{
+		identifier: "sgr-0123",
+		properties: map[string]any{
+			"Id":      "sgr-0123",
+			"GroupId": "sg-0123",
+		},
+	}
+	server := srv.start()
+	defer server.Close()
+
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	roster := ccRoster(t,
+		map[string]string{"aws_vpc_security_group_egress_rule": "AWS::EC2::SecurityGroupEgress"},
+		nil, nil,
+	)
+
+	got := resolveOrphanResourceForDependency(t.Context(), Request{CloudControl: cc, Roster: roster}, OwnedResource{
+		TypeName: "aws_vpc_security_group_egress_rule",
+		ImportID: "sgr-0123",
+	})
+	if got == cty.NilVal || !got.Type().IsObjectType() || !got.Type().HasAttribute("group_id") {
+		t.Fatalf("got %#v, want an object carrying group_id", got)
+	}
+	if v := got.GetAttr("group_id"); v.AsString() != "sg-0123" {
+		t.Errorf("group_id = %q, want sg-0123", v.AsString())
+	}
+}
+
+// TestResolveOrphanResourceForDependency_NotFoundReturnsNil is the negative
+// case corpus-ecs-fargate's day2_remove unit actually hit against floci: a
+// GetResource that 404s must degrade to "no computed dependency", never a
+// hard error - the plan still has to propose the destroy, just without an
+// ordering hint, exactly [destroyParentDependency]'s own "no computed
+// dependency set" outcome for a record with no matching Components value.
+func TestResolveOrphanResourceForDependency_NotFoundReturnsNil(t *testing.T) {
+	srv := newCCServer(t)
+	// Nothing registered in srv.getResource at all: every GetResource 404s,
+	// the exact shape floci returned for a live, tag-sweep-discovered
+	// aws_vpc_security_group_egress_rule.
+	server := srv.start()
+	defer server.Close()
+
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	roster := ccRoster(t,
+		map[string]string{"aws_vpc_security_group_egress_rule": "AWS::EC2::SecurityGroupEgress"},
+		nil, nil,
+	)
+
+	got := resolveOrphanResourceForDependency(t.Context(), Request{CloudControl: cc, Roster: roster}, OwnedResource{
+		TypeName: "aws_vpc_security_group_egress_rule",
+		ImportID: "sgr-does-not-exist",
+	})
+	if got != cty.NilVal {
+		t.Errorf("got %#v, want cty.NilVal on a 404", got)
+	}
+}
+
+// TestResolveOrphanResourceForDependency_UnmappedTypeReturnsNil is the
+// no-CFN-mapping case: a type this Roster never named at all must not
+// attempt a call and must not panic - CloudControlType's own "" ,false
+// answer is the same signal a missing registry row gives elsewhere.
+func TestResolveOrphanResourceForDependency_UnmappedTypeReturnsNil(t *testing.T) {
+	srv := newCCServer(t)
+	server := srv.start()
+	defer server.Close()
+
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	roster := ccRoster(t, map[string]string{}, nil, nil)
+
+	got := resolveOrphanResourceForDependency(t.Context(), Request{CloudControl: cc, Roster: roster}, OwnedResource{
+		TypeName: "aws_vpc_security_group_egress_rule",
+		ImportID: "sgr-0123",
+	})
+	if got != cty.NilVal {
+		t.Errorf("got %#v, want cty.NilVal for an unmapped type", got)
+	}
+	if len(srv.calls) != 0 {
+		t.Errorf("the fake server was called (%v) for a type with no CFN mapping at all", srv.calls)
+	}
+}
+
+// TestCfnPropertiesAsResource is cfnPropertiesAsResource's own pure-function
+// coverage: the snake-case conversion, the string-only filter, and the
+// empty-result-is-NilVal rule.
+func TestCfnPropertiesAsResource(t *testing.T) {
+	t.Run("converts string properties, snake-cased", func(t *testing.T) {
+		got := cfnPropertiesAsResource(map[string]any{
+			"GroupId":                 "sg-0123",
+			"DestinationPrefixListId": "pl-0123",
+		})
+		if got == cty.NilVal || !got.Type().IsObjectType() {
+			t.Fatalf("got %#v, want an object", got)
+		}
+		if !got.Type().HasAttribute("group_id") || !got.Type().HasAttribute("destination_prefix_list_id") {
+			t.Errorf("got attributes %v, want group_id and destination_prefix_list_id", got.Type().AttributeTypes())
+		}
+	})
+
+	t.Run("non-string and empty-string properties are dropped", func(t *testing.T) {
+		got := cfnPropertiesAsResource(map[string]any{
+			"FromPort": float64(443),
+			"IsEgress": true,
+			"CidrIp":   "",
+		})
+		if got != cty.NilVal {
+			t.Errorf("got %#v, want cty.NilVal - nothing here is a non-empty string", got)
+		}
+	})
+
+	t.Run("empty Properties is cty.NilVal, not an empty object", func(t *testing.T) {
+		got := cfnPropertiesAsResource(nil)
+		if got != cty.NilVal {
+			t.Errorf("got %#v, want cty.NilVal", got)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -77,6 +77,7 @@ func TestSameRatifiedIdentity(t *testing.T) {
 		{"network acl pair agrees", "aws_default_network_acl", "aws_network_acl", true},
 		{"route table pair does NOT agree (#332)", "aws_default_route_table", "aws_route_table", false},
 		{"role / service-linked role does NOT agree (#302)", "aws_iam_service_linked_role", "aws_iam_role", false},
+		{"db instance / rds cluster instance does NOT agree (corpus-rds-complete-postgres's day2_remove unit)", "aws_db_instance", "aws_rds_cluster_instance", false},
 		{"a type agrees with itself", "aws_route_table", "aws_route_table", true},
 		{"an unadmitted type never agrees", "aws_default_vpc", "aws_vpc", false},
 	}
@@ -84,6 +85,32 @@ func TestSameRatifiedIdentity(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := sameRatifiedIdentity(c.a, c.b); got != c.want {
 				t.Errorf("sameRatifiedIdentity(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+			}
+		})
+	}
+}
+
+// TestRDSClusterInstanceSibling is rdsClusterInstanceSibling's own coverage,
+// the same shape TestDefaultAdopterSiblings and iamServiceLinkedRoleSibling's
+// tests give their own predicates: the exact pair, in both argument orders,
+// and enough non-matches that the predicate cannot be satisfied by an
+// unrelated RDS type or by either side paired with itself.
+func TestRDSClusterInstanceSibling(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"the pair", "aws_db_instance", "aws_rds_cluster_instance", true},
+		{"the pair, argument order reversed", "aws_rds_cluster_instance", "aws_db_instance", true},
+		{"neither is the pair", "aws_route_table", "aws_default_route_table", false},
+		{"db instance paired with an unrelated RDS type", "aws_db_instance", "aws_rds_cluster", false},
+		{"identical type names", "aws_db_instance", "aws_db_instance", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := rdsClusterInstanceSibling(c.a, c.b); got != c.want {
+				t.Errorf("rdsClusterInstanceSibling(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
 			}
 		})
 	}

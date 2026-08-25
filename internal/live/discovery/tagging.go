@@ -330,6 +330,26 @@ var arnJoinCoverage = func() map[string]bool {
 // to cfnType.
 func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 
+// arnJoinReaches reports whether the estate-wide tag sweep can ever tell
+// typeName's own resources apart from an ARN alone: it has a CFN type at
+// all ([registry.Roster.CloudControlType]) AND that CFN type is one
+// [arnJoinTable] actually joins ([arnJoinCovers]) - the SAME two-part test
+// [sweepViaTagging]'s own per-type loop already applies before filing a
+// candidate, read out here so [partitionSweepTypes] can route a type this
+// answers false for to the native per-type sweep BEFORE the tagging leg
+// ever runs, rather than after it has already reported the gap and moved on
+// with nothing found. A type failing this predicate is never a defect in
+// the type; [arnJoinTable] is a curated, per-ARN-resource-type mapping for
+// thirteen services today, so most admitted types answer false here, and
+// that is expected, not a gap to close type by type.
+func arnJoinReaches(req Request, typeName string) bool {
+	if req.Roster == nil {
+		return false
+	}
+	cfnType, mapped := req.Roster.CloudControlType(typeName)
+	return mapped && arnJoinCovers(cfnType)
+}
+
 // joinARNToCFNType joins a parsed ARN's service and resource-type segment
 // against [arnJoinTable]. cfnType is set only when the join is unique;
 // candidates lists what it found instead when it was not (nil for "found
@@ -774,6 +794,19 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 		cfnType, mapped := req.Roster.CloudControlType(typeName)
 		switch {
 		case !mapped || !arnJoinCovers(cfnType):
+			// Not reachable through this call's own only caller today:
+			// [partitionSweepTypes] builds universe by excluding exactly
+			// what this test excludes ([arnJoinReaches], the same
+			// mapped-and-covered check), so a type failing it never
+			// reaches the tagging leg at all any more - it goes to the
+			// native per-type sweep instead (see [partitionSweepTypes]'s
+			// own doc comment, corpus-rds-complete-postgres's day2_remove
+			// unit). Kept as an invariant guard, the same discipline
+			// [bindCountBySlot]'s own Deficit loop applies to its
+			// record-backed check: a future caller of [sweepViaTagging]
+			// that builds its own universe without going through
+			// [partitionSweepTypes] must not silently lose this type
+			// rather than report why.
 			diags = diags.Append(sweepGapDiag(res, SweepGap{
 				TypeName: typeName,
 				Reason:   SweepGapNoARNJoin,
@@ -872,7 +905,12 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 	// config-driven scan, found the shared object first).
 	bindType := typeName
 	if markerType := markerTypeOf(escaped); markerType != typeName {
-		corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+		// recompose is nil: this leg carries only the joined ARN and the
+		// object's tags, never a raw identifier to recompose an identity
+		// from, and typeNeedsResourceObjectToRecompose already keeps every
+		// pair that would need one out of this universe - see
+		// [sweepBindType]'s own doc comment.
+		corrected, fixedImportID, skip := sweepBindType(decl, markerType, typeName, escaped, nil)
 		if skip {
 			// The marker's own type is declared and was already visited,
 			// correctly, by its own config-driven scan pass before this
@@ -893,6 +931,9 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 			}))
 		}
 		bindType = corrected
+		if fixedImportID != "" {
+			c.importID = fixedImportID
+		}
 	}
 
 	claim := claimant{
@@ -926,6 +967,16 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 	}
 	if blk, ok := decl.blocks[bindType][escaped]; ok && blk.keyed {
 		blk.claimants = append(blk.claimants, claim)
+		return diags
+	}
+	if orphanAlreadyPresent(res.Orphans, bindType, escaped, c.importID) {
+		// See [orphanAlreadyPresent]'s own doc comment. Not reached by
+		// rdsClusterInstanceSibling today - typeNeedsResourceObjectToRecompose
+		// keeps that pair out of this leg's own sweep universe entirely -
+		// but a future sibling pair reaching here through this leg (a
+		// registered pair whose ratified rows DO agree,
+		// [sameRatifiedIdentity] true, so [typeNeedsResourceObjectToRecompose]
+		// would answer false for it) must not be double-filed either.
 		return diags
 	}
 	res.Orphans = append(res.Orphans, OwnedResource{

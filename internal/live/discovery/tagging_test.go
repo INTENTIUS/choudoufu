@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -692,9 +693,22 @@ func TestTaggingSweepReportsUnresolvedARN(t *testing.T) {
 	}
 }
 
-// TestTaggingSweepReportsNoARNJoinGap: a type the join table cannot ever
-// resolve to is a named gap, not silence.
-func TestTaggingSweepReportsNoARNJoinGap(t *testing.T) {
+// TestTaggingSweepNoARNJoinTypeFallsBackToNative: a type the join table
+// cannot ever resolve to is not tag-swept at all any more -
+// [partitionSweepTypes] (gauntlet:record-located-destroy, found via
+// corpus-rds-complete-postgres's day2_remove unit) routes it to the native
+// per-type sweep instead, before [sweepViaTagging] ever sees it, the same
+// way a companion-pair type needing its own resource object already did.
+// This fixture's fakeCloud registers no native list route for
+// aws_s3_bucket_policy either (it is never `.own`ed or `.withAttr`ed), so
+// the native leg's own refusal chain is what actually reports the gap here
+// - TYPE_NOT_LISTABLE, not NO_ARN_JOIN. That is still a named gap, not
+// silence, which is this test's own point; it is a DIFFERENT reason than
+// before this fix because it comes from a different leg now.
+// [TestTaggingSweepNoARNJoinTypeFoundNatively] is this fix's positive case:
+// the same no-ARN-join type WITH a native list route is found, where
+// before this fix it never would have been.
+func TestTaggingSweepNoARNJoinTypeFallsBackToNative(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 
@@ -718,13 +732,151 @@ func TestTaggingSweepReportsNoARNJoinGap(t *testing.T) {
 	for _, g := range res.SweepGaps {
 		if g.TypeName == "aws_s3_bucket_policy" {
 			found = true
-			if g.Reason != SweepGapNoARNJoin {
-				t.Errorf("reason = %s, want %s", g.Reason, SweepGapNoARNJoin)
+			if g.Reason != SweepGapNotListable {
+				t.Errorf("reason = %s, want %s (routed to the native leg by partitionSweepTypes, which has no ARN to fail joining)", g.Reason, SweepGapNotListable)
 			}
 		}
 	}
 	if !found {
 		t.Errorf("aws_s3_bucket_policy is not reported as a gap:\n%s", res)
+	}
+}
+
+// TestTaggingSweepNoARNJoinTypeFoundNatively is the fix's own positive case,
+// reproducing corpus-rds-complete-postgres's day2_remove regression at unit
+// scale: a type with no [arnJoinTable] row (aws_db_instance's own shape) but
+// a real native list route must still be found by the estate-wide sweep -
+// before this fix it fell into [SweepGapNoARNJoin] and [sweepViaTagging]
+// never tried the native route at all, so an orphan of such a type (a
+// resource block deleted from the configuration) was invisible to every
+// leg and no destroy was ever proposed for it.
+func TestTaggingSweepNoARNJoinTypeFoundNatively(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	// A live, undeclared aws_s3_bucket_policy: no configuration block names
+	// it, exactly the shape a removed resource block leaves behind. listable
+	// first - own alone does not put the type in the fake provider's own
+	// schema set, and a type outside it is [SweepGapNotListable] regardless
+	// of what live objects exist.
+	cloud.listable("aws_s3_bucket_policy")
+	cloud.own("aws_s3_bucket_policy", "my-bucket", `aws_s3_bucket_policy.orphaned`)
+
+	srv := &taggingServer{}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, "aws_s3_bucket_policy", "AWS::S3::BucketPolicy", true),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_s3_bucket_policy" {
+			t.Errorf("aws_s3_bucket_policy reported a sweep gap (%s) even though the fake cloud lists it natively:\n%s", g.Reason, res)
+		}
+	}
+
+	scan, ok := res.ScanFor("aws_s3_bucket_policy")
+	if !ok || scan.Source != SourceProvider {
+		t.Errorf("aws_s3_bucket_policy's scan = %+v, want it swept the native way (Source=provider), not left in the tagging universe it has no ARN join for", scan)
+	}
+
+	var found bool
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_s3_bucket_policy" && o.ImportID == "my-bucket" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the undeclared aws_s3_bucket_policy did not surface as an orphan at all - the exact silent-loss shape this fix closes:\n%s", res)
+	}
+}
+
+// TestTaggingSweepRDSClusterInstanceCompanionRoutesNative is
+// [TestTaggingSweepNoARNJoinTypeFoundNatively]'s own mutation control: what
+// happens when partitionSweepTypes's native fallback finds a live object
+// under one RDS type's list call whose marker names a genuine companion
+// (rdsClusterInstanceSibling, corpus-rds-complete-postgres's day2_remove
+// unit) rather than a wholly unrelated one. live/mapping.json joins both
+// aws_db_instance and aws_rds_cluster_instance to the one CFN type
+// AWS::RDS::DBInstance, so once this fix routes aws_rds_cluster_instance's
+// own sweep to the native leg (it has no arnJoinTable row either), its list
+// call returns the very same live object aws_db_instance's own declared
+// instance already claims - a real database, not a stray. Before
+// rdsClusterInstanceSibling existed this reported ProblemMalformedMarker
+// ("names a aws_db_instance rather than a aws_rds_cluster_instance") and
+// failed the whole plan; this test proves it now recomposes the identity
+// under aws_db_instance's own row instead, the same way the route-table and
+// role/service-linked-role pairs already do.
+func TestTaggingSweepRDSClusterInstanceCompanionRoutesNative(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	// The live object is returned by aws_rds_cluster_instance's OWN list
+	// call (exactly how AWS's shared DescribeDBInstances reproduces the
+	// bug), carrying a marker for its actual type, aws_db_instance. identifier
+	// is on the object because aws_db_instance's ratified row reads it
+	// first (IdentityAttrs[0]) - recomposing needs it on whichever side's
+	// schema the object happened to come back under.
+	cloud.listable("aws_rds_cluster_instance")
+	cloud.withAttr("aws_rds_cluster_instance", "identifier")
+	cloud.ownWithAttrs("aws_rds_cluster_instance", "db-rtb-should-not-matter", `aws_db_instance.this`,
+		map[string]string{"identifier": "complete-postgresql-1"})
+
+	srv := &taggingServer{}
+	server := srv.start(t)
+	defer server.Close()
+
+	cfg := loadConfig(t, "testdata/default-adopter-sweep-orphan")
+	res, diags := Discover(context.Background(), Request{
+		Estate:       estateName,
+		Config:       cfg,
+		Resolutions:  resolveOrFail(t, cfg).All(),
+		Provider:     cloud,
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster: ccRoster(t,
+			map[string]string{
+				"aws_db_instance":          "AWS::RDS::DBInstance",
+				"aws_rds_cluster_instance": "AWS::RDS::DBInstance",
+			},
+			nil,
+			map[string]bool{"AWS::RDS::DBInstance": true},
+		),
+	})
+	if diags.HasErrors() {
+		t.Fatalf("the aws_db_instance/aws_rds_cluster_instance companion pair was reported as an error:\n%s\n%s", res, renderDiags(diags))
+	}
+	if len(res.ProblemsOfKind(ProblemMalformedMarker)) != 0 {
+		t.Fatalf("the companion pair's own sighting was reported a malformed marker instead of recomposed:\n%s", res)
+	}
+
+	scan, ok := res.ScanFor("aws_rds_cluster_instance")
+	if !ok || scan.Source != SourceProvider {
+		t.Errorf("aws_rds_cluster_instance's scan = %+v, want it swept the native way (Source=provider), not left in the tagging universe it has no ARN join for", scan)
+	}
+
+	var found bool
+	for _, o := range res.Orphans {
+		if o.TypeName != "aws_db_instance" {
+			continue
+		}
+		found = true
+		if o.ImportID != "complete-postgresql-1" {
+			t.Errorf("orphan's ImportID is %q, want complete-postgresql-1 (aws_db_instance's own identifier, recomposed from the object aws_rds_cluster_instance's list call happened to surface)", o.ImportID)
+		}
+	}
+	if !found {
+		t.Fatalf("the aws_db_instance object did not surface as an orphan at all - it must not vanish, and must not be misreported as an aws_rds_cluster_instance:\n%s", res)
+	}
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_rds_cluster_instance" {
+			t.Errorf("the object was also filed as an aws_rds_cluster_instance orphan - one live object, one type, the one its own marker names:\n%s", res)
+		}
 	}
 }
 

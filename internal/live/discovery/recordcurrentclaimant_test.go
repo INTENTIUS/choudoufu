@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -55,7 +56,7 @@ func TestClassifyOrphans_RecordCurrentClaimantSurvivesStaleDuplicate(t *testing.
 		},
 	}
 
-	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, result)
+	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, listclient.Schemas{}, result)
 	assertNoErrors(t, diags)
 
 	var stale, current *OwnedResource
@@ -109,7 +110,7 @@ func TestClassifyOrphans_RecordCurrentClaimantFallsBackWhenRecordMatchesNeither(
 		},
 	}
 
-	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, result)
+	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, listclient.Schemas{}, result)
 	if !diags.HasErrors() {
 		t.Fatalf("a record matching neither claimant silently resolved the collision instead of falling back to the safe default:\n%s", renderDiags(diags))
 	}
@@ -136,7 +137,7 @@ func TestClassifyOrphans_RecordCurrentClaimantNoHintStoreFallsBack(t *testing.T)
 		},
 	}
 
-	diags := classifyOrphans(context.Background(), Request{Estate: estateName}, result)
+	diags := classifyOrphans(context.Background(), Request{Estate: estateName}, listclient.Schemas{}, result)
 	if !diags.HasErrors() {
 		t.Fatalf("a two-claimant collision with no HintStore at all was silently resolved:\n%s", renderDiags(diags))
 	}

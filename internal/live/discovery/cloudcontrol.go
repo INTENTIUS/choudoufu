@@ -292,7 +292,16 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		// the three-way answer and issue #394 for the bug this closes.
 		bindType := typeName
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+			// recompose recomputes the identifier under markerType's own
+			// row from this SAME Cloud Control identifier - the leg's own
+			// equivalent of [scanType]'s importIdentityFromResource, needed
+			// for an overlapping-list-call sibling pair whose ratified rows
+			// disagree ([sameRatifiedIdentity] false: rdsClusterInstanceSibling
+			// today) rather than the identity carrying forward unchanged.
+			// See [sweepBindType]'s own doc comment.
+			corrected, fixedImportID, skip := sweepBindType(decl, markerType, typeName, escaped, func(mt string) (string, bool) {
+				return resolveCloudControlImportID(mt, desc.Identifier)
+			})
 			if skip {
 				// The marker's own type is declared and was already
 				// visited, correctly, by its own config-driven scan pass
@@ -312,6 +321,9 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 						typeName, req.Estate, raw, markerType, typeName),
 				}))
 				continue
+			}
+			if fixedImportID != "" {
+				importID = fixedImportID
 			}
 			bindType = corrected
 		}
@@ -349,6 +361,14 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			blk.claimants = append(blk.claimants, c)
 			continue
 		}
+		if orphanAlreadyPresent(res.Orphans, bindType, escaped, importID) {
+			// See [orphanAlreadyPresent]'s own doc comment: the same live
+			// object, undeclared, found by two admitted types' own
+			// independent Cloud Control scans of one shared CFN type
+			// (rdsClusterInstanceSibling's aws_db_instance /
+			// aws_rds_cluster_instance today, both AWS::RDS::DBInstance).
+			continue
+		}
 		res.Orphans = append(res.Orphans, OwnedResource{
 			TypeName:     bindType,
 			ImportID:     importID,
@@ -358,6 +378,11 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			Slot:         tags[TagSlot],
 			Tags:         tags,
 			Swept:        sweep,
+			// desc.Properties is this leg's own equivalent of [scanType]'s
+			// listed resource object - see [cfnPropertiesAsResource]'s own
+			// doc comment for why it needs converting rather than passing
+			// straight through.
+			Resource: cfnPropertiesAsResource(desc.Properties),
 		})
 	}
 
@@ -734,4 +759,85 @@ func guarddutyChildCompositeImportID(resourceID string) (string, bool) {
 	}
 	detectorID, id := parts[0], parts[2]
 	return detectorID + ":" + id, true
+}
+
+// cfnPropertiesAsResource turns a Cloud Control ResourceDescription's own
+// decoded Properties (CFN PascalCase names, e.g. "GroupId") into the SAME
+// shape [OwnedResource.Resource] carries for a native-list orphan
+// ([scanType]'s own append site) - a cty object [classifyOrphanDestroyDependency]
+// can apply [identity.ParentByConvention] against - so this leg's own
+// orphans reach the identical, already-tested destroy-ordering path a
+// native-list orphan does, rather than a second one.
+//
+// The property names have to be converted first, via
+// [identity.GuessArgNameFromCFNProperty]: Cloud Control's own vocabulary is
+// CFN's, never the TF provider schema's, and [identity.ParentByConvention]
+// only ever recognizes the latter ("security_group_id", never "GroupId").
+// Only string-valued properties are kept - a parent-linking value is always
+// an id/arn/url string, and a non-string property (a nested object, a list,
+// a bool) can never be one, so converting it would only be more work spent
+// on a value the caller's own string-type check would immediately discard
+// anyway. Two CFN properties guessing to the same TF name (rare; none of
+// today's admitted types collide this way) keep whichever json.Unmarshal
+// happened to order last - the same "no ordering promise, just no crash"
+// discipline a lossy convention accepts elsewhere in this file.
+//
+// cty.NilVal for an object with nothing this shape can carry (no string
+// properties at all, or Properties itself empty) - not an error, the same
+// "no listed object" state a type with no native list route's own
+// OwnedResource.Resource already has, and classifyOrphanDestroyDependency's
+// own cty.NilVal guard already handles it as "no computed dependency"
+// rather than a special case here.
+func cfnPropertiesAsResource(props map[string]any) cty.Value {
+	fields := make(map[string]cty.Value, len(props))
+	for cfnName, v := range props {
+		s, ok := v.(string)
+		if !ok || s == "" {
+			continue
+		}
+		fields[identity.GuessArgNameFromCFNProperty(cfnName)] = cty.StringVal(s)
+	}
+	if len(fields) == 0 {
+		return cty.NilVal
+	}
+	return cty.ObjectVal(fields)
+}
+
+// resolveOrphanResourceForDependency is classifyOrphans' own fallback for
+// the one leg [cfnPropertiesAsResource] never reaches: fileTaggingCandidate
+// (tagging.go), whose whole design is "one shared GetResources call, ARN
+// plus tags, never a resource's other properties" - see
+// typeNeedsResourceObjectToRecompose's own doc comment. A type reachable
+// ONLY that way (aws_vpc_security_group_egress_rule/ingress_rule: their
+// sole arnJoinTable entry is [ambiguous], so [arnJoinReaches] keeps them in
+// the tagging universe even though neither has a native provider list
+// route either) never gets an OwnedResource.Resource from any append site
+// at all - found via corpus-ecs-fargate's day2_remove unit, a real
+// gauntlet run's own debug trace confirmed resourceNil=true reaching
+// [classifyOrphanDestroyDependency] for exactly this type.
+//
+// Called only for an undeclared removal candidate classifyOrphans is about
+// to propose destroying - never a sweep-wide cost, the same "one call per
+// undeclared parent" budget [parentReadSweepType]'s own doc comment already
+// accepts for the identical class of question (issue #60's own leg reads
+// one parent per undeclared child; this reads one child's own object per
+// undeclared child needing a dependency, at most as many calls as this
+// pass's own destroy count). cty.NilVal on any failure to resolve
+// (unmapped type, GetResource error, no CloudControl client configured) -
+// the same "no computed dependency" outcome a genuinely absent Resource
+// already produces, never a hard error: an operator sees one destroy issued
+// without a computed ordering hint, not a failed plan.
+func resolveOrphanResourceForDependency(ctx context.Context, req Request, o OwnedResource) cty.Value {
+	if req.CloudControl == nil || req.Roster == nil || o.ImportID == "" {
+		return cty.NilVal
+	}
+	cfnType, ok := req.Roster.CloudControlType(o.TypeName)
+	if !ok {
+		return cty.NilVal
+	}
+	desc, err := req.CloudControl.GetResource(ctx, cfnType, o.ImportID)
+	if err != nil || desc == nil {
+		return cty.NilVal
+	}
+	return cfnPropertiesAsResource(desc.Properties)
 }

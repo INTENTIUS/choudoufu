@@ -489,7 +489,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	diags = diags.Append(bind(req, decl, res))
-	diags = diags.Append(classifyOrphans(ctx, req, res))
+	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
 	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
 	// it reads res.Resolutions to find both which parent instances this
@@ -1841,7 +1841,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// call that happened to surface it - says which declared
 			// instance it is.
 			overlappingListCall := defaultAdopterSiblings(markerType, typeName) ||
-				iamServiceLinkedRoleSibling(markerType, typeName)
+				iamServiceLinkedRoleSibling(markerType, typeName) ||
+				rdsClusterInstanceSibling(markerType, typeName)
 			switch {
 			case overlappingListCall && sameRatifiedIdentity(markerType, typeName):
 				// The two names agree about what this type's import
@@ -1972,6 +1973,24 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// live resource is which declared instance, and the address is
 			// the only identity a for_each instance has.
 			blk.claimants = append(blk.claimants, c)
+			continue
+		}
+		if orphanAlreadyPresent(res.Orphans, bindType, escaped, importID) {
+			// The same live object, undeclared, found by two different
+			// types' own independent scans - the sibling shape
+			// [claimantAlreadyPresent] already guards for a DECLARED
+			// address, now reached for an undeclared one too (found via
+			// corpus-rds-complete-postgres's day2_remove unit):
+			// aws_db_instance and aws_rds_cluster_instance both map to one
+			// CFN type, AWS::RDS::DBInstance, so [partitionSweepTypes]
+			// sweeping neither declared anywhere runs Cloud Control's
+			// ListResources on that one CFN type twice - once per TF type -
+			// and both passes recompose the SAME orphan under bindType,
+			// same address, same importID. Without this check that reads
+			// as [ProblemCollision] ("Two live resources claiming one
+			// address") printing the same object's own ID twice, exactly
+			// the symptom [claimantAlreadyPresent]'s own doc comment
+			// describes for the declared case.
 			continue
 		}
 		res.Orphans = append(res.Orphans, OwnedResource{
@@ -2173,6 +2192,41 @@ const (
 	iamServiceLinkedRoleTypeName = "aws_iam_service_linked_role"
 )
 
+// rdsClusterInstanceSibling reports whether a and b are aws_db_instance and
+// aws_rds_cluster_instance, in either order - found via corpus-rds-complete-
+// postgres's day2_remove unit, the third instance of the same "AWS itself
+// has no separate list call for the special case" shape
+// [iamServiceLinkedRoleSibling] names: live/mapping.json joins both TF types
+// to the one CFN type AWS::RDS::DBInstance (via "alias", confirmed against
+// both rows), because an Aurora cluster member IS an RDS DB instance in
+// AWS's own model, not a distinct resource kind - RDS has one
+// DescribeDBInstances call, and it returns cluster members and standalone
+// instances alike with nothing to tell them apart at the list level.
+//
+// Not folded into [defaultAdopterSiblings]: that function's safety proof is
+// "same ImportSyntax, same IdentityAttrs", and this pair fails it for real -
+// aws_db_instance's ratified row reads ["identifier"], aws_rds_cluster_
+// instance's reads ["id", "identifier"] (confirmed against live/survey-
+// full.json's ratified table) - so [sameRatifiedIdentity] answers false and
+// [scanType]'s caller has to recompose the identity under bindType's own
+// scheme via [importIdentityFromResource] rather than carry typeName's
+// forward, exactly as it already does for the other two pairs this same
+// predicate shape covers.
+func rdsClusterInstanceSibling(a, b string) bool {
+	return (a == awsDBInstanceTypeName && b == awsRDSClusterInstanceTypeName) || (a == awsRDSClusterInstanceTypeName && b == awsDBInstanceTypeName)
+}
+
+// awsDBInstanceTypeName and awsRDSClusterInstanceTypeName are
+// [rdsClusterInstanceSibling]'s one admitted pair, named once for the same
+// reason [iamRoleTypeName]/[iamServiceLinkedRoleTypeName] are: the
+// derivation guard counts a literal occurrence, and a second hand-typed
+// copy of either string would read as a second hand-wired surface for the
+// one fact this const pair already carries a reason for.
+const (
+	awsDBInstanceTypeName         = "aws_db_instance"
+	awsRDSClusterInstanceTypeName = "aws_rds_cluster_instance"
+)
+
 // importIdentityFromResource composes bindType's own import identity from a
 // listed object's full resource attributes, for the overlapping-list-call
 // cases where the importID [importIdentity] already composed under the listing
@@ -2275,11 +2329,13 @@ const (
 //     markerType.
 //
 // typeNeedsResourceObjectToRecompose reports whether typeName is one side
-// of an admitted companion pair ([defaultAdopterSiblings] or
-// [iamServiceLinkedRoleSibling]) whose ratified rows disagree about the
-// import identity ([sameRatifiedIdentity] false) - aws_route_table/
-// aws_default_route_table (issue #332) and aws_iam_role/
-// aws_iam_service_linked_role (issue #302) today.
+// of an admitted companion pair ([defaultAdopterSiblings],
+// [iamServiceLinkedRoleSibling] or [rdsClusterInstanceSibling]) whose
+// ratified rows disagree about the import identity ([sameRatifiedIdentity]
+// false) - aws_route_table/aws_default_route_table (issue #332),
+// aws_iam_role/aws_iam_service_linked_role (issue #302) and
+// aws_db_instance/aws_rds_cluster_instance (corpus-rds-complete-postgres's
+// day2_remove unit) today.
 //
 // Binding the shared object under such a pair needs
 // [importIdentityFromResource] to recompose the OTHER side's identity from
@@ -2301,17 +2357,40 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 	if typeName == iamRoleTypeName || typeName == iamServiceLinkedRoleTypeName {
 		return true
 	}
+	if typeName == awsDBInstanceTypeName || typeName == awsRDSClusterInstanceTypeName {
+		return true
+	}
 	return false
 }
 
 // partitionSweepTypes splits [sweepTypes]' universe in two for
 // [Request.TaggingSweep] (issue #394): tagging is swept the one-round-trip
 // way [sweepViaTagging] exists for, and native is swept the older, one-
-// list-call-per-type way ([scanTypeReporting]) because
+// list-call-per-type way ([scanTypeReporting]) for two independent reasons -
 // [typeNeedsResourceObjectToRecompose] says a candidate the tag sweep would
-// produce for it can never carry enough to bind its companion pair safely.
+// produce for it can never carry enough to bind its companion pair safely,
+// or the type has no [arnJoinTable] row to join an ARN through at all
+// (found via corpus-rds-complete-postgres's day2_remove unit: aws_db_instance
+// has never had one, and 845e7a0d9d's CHOUDOUFU_NODE_RESOLVE default flip
+// made it reachable - once every one of an estate's own declared
+// aws_db_instance instances is record-backed, [declared.typeNames]'s
+// config-driven scan stops covering the type too, and a live orphan of it
+// becomes invisible to BOTH legs at once: [sweepViaTagging] reported
+// [SweepGapNoARNJoin] and moved on with no fallback, so a block deletion's
+// own live object was silently never destroyed and never even diagnosed).
 // Every other caller of [sweepTypes] (the non-tagging, "guided" sweep leg)
 // already sweeps every type the native way, so it has no use for this split.
+//
+// This reaches every admitted, cloud-observable type outside
+// [arnJoinTable]'s coverage, not aws_db_instance alone - measured against
+// live/registry.json's roster, [arnJoinTable] only ever joins CFN types for
+// thirteen services (iam, s3, sns, ec2, kms, route53, acm, states, logs,
+// dynamodb, ecs, cloudwatch, lambda, elasticloadbalancing); every admitted
+// type outside them (rds, autoscaling, sqs, dynamodb's own streams,
+// cloudfront, and the rest) was taking this same silent-gap path whenever
+// its own config-driven demand happened to be fully record-backed, and now
+// falls back to the native list call [scanType] already knows how to make
+// for it instead.
 //
 // A type that is entirely record-backed (GitHub issue #388's edge 3) joins
 // native for a second, unrelated reason whenever req.CollectUnclaimed is
@@ -2327,7 +2406,7 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 // [typeNeedsResourceObjectToRecompose] alone would have sent it.
 func partitionSweepTypes(req Request, decl *declared) (tagging, native []string) {
 	for _, t := range sweepTypes(req, decl) {
-		if typeNeedsResourceObjectToRecompose(t) || (req.CollectUnclaimed && decl.recordBacked[t] != nil) {
+		if typeNeedsResourceObjectToRecompose(t) || !arnJoinReaches(req, t) || (req.CollectUnclaimed && decl.recordBacked[t] != nil) {
 			native = append(native, t)
 		} else {
 			tagging = append(tagging, t)
@@ -2336,20 +2415,52 @@ func partitionSweepTypes(req Request, decl *declared) (tagging, native []string)
 	return tagging, native
 }
 
-func sweepBindType(decl *declared, markerType, typeName, escaped string) (bindType string, skip bool) {
+// sweepBindType decides which of an overlapping-list-call sibling pair a
+// live object found by typeName's own sweep belongs to, once its marker
+// names markerType instead: skip (the marker's own type is declared and
+// already visited by its own config-driven scan pass), bindType unchanged
+// at markerType with the identity carried forward ([sameRatifiedIdentity]
+// true), or - since corpus-rds-complete-postgres's day2_remove unit -
+// bindType at markerType with importID recomposed by recompose
+// ([sameRatifiedIdentity] false, an undeclared instance: the object is
+// genuinely markerType's own, but typeName's identity is not, the same
+// distinction [scanType]'s own importIdentityFromResource branch makes for
+// the native-list leg).
+//
+// recompose is nil for a caller with no way to recompute an identity under
+// a different type's row: tagging.go's ARN-join leg carries only the
+// joined ARN and the object's tags, never a raw identifier to recompose
+// from, and [typeNeedsResourceObjectToRecompose] already keeps every pair
+// needing this (aws_route_table/aws_default_route_table,
+// aws_iam_role/aws_iam_service_linked_role, and now
+// aws_db_instance/aws_rds_cluster_instance) out of that caller's own sweep
+// universe - so it always passes nil and this function never has to
+// distinguish "no recompose available" from "recompose declined" there.
+// [scanTypeCloudControl] passes one built from [resolveCloudControlImportID],
+// its own leg's equivalent of importIdentityFromResource: found live via
+// this same unit, aws_db_instance/aws_rds_cluster_instance is the first
+// !sameRatifiedIdentity pair ever actually enumerated through Cloud
+// Control rather than a type with its own native provider list route, so
+// this branch was unreachable until now, not merely untested.
+func sweepBindType(decl *declared, markerType, typeName, escaped string, recompose func(markerType string) (string, bool)) (bindType, importID string, skip bool) {
 	if markerType == typeName {
-		return typeName, false
+		return typeName, "", false
 	}
-	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) {
-		return typeName, false
+	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) && !rdsClusterInstanceSibling(markerType, typeName) {
+		return typeName, "", false
 	}
 	if decl.declares(markerType, escaped) {
-		return "", true
+		return "", "", true
 	}
 	if sameRatifiedIdentity(markerType, typeName) {
-		return markerType, false
+		return markerType, "", false
 	}
-	return typeName, false
+	if recompose != nil {
+		if fixedID, ok := recompose(markerType); ok {
+			return markerType, fixedID, false
+		}
+	}
+	return typeName, "", false
 }
 
 // An arn-valued identity goes through [importIDFromARN] rather than being used
@@ -2412,6 +2523,42 @@ func claimantAlreadyPresent(cs []claimant, c claimant) bool {
 	}
 	for _, existing := range cs {
 		if existing.importID == c.importID {
+			return true
+		}
+	}
+	return false
+}
+
+// orphanAlreadyPresent is [claimantAlreadyPresent]'s own check, applied to
+// [Result.Orphans] instead of one declared entry's claimants: whether
+// orphans already holds a sighting of the SAME live object - same bindType,
+// same address, same import identity - filed by an earlier type's own scan
+// this pass.
+//
+// Needed for the identical reason claimantAlreadyPresent is (an
+// overlapping-list-call sibling pair's shared underlying list call
+// returning the same object under two type names) but for the undeclared
+// case: two admitted types genuinely independently listable through the
+// SAME mechanism (rdsClusterInstanceSibling's aws_db_instance /
+// aws_rds_cluster_instance, sharing one CFN type, AWS::RDS::DBInstance) are
+// BOTH in the sweep universe whenever neither is declared anywhere, so both
+// scans run and both recompose the very same undeclared object to the same
+// bindType, address and importID. classifyOrphans' own byAddr collision
+// check cannot tell that apart from two genuinely different live resources
+// racing for one address, and reports [ProblemCollision] - "2 live
+// aws_db_instance resources carry ... the same address" - printing one
+// object's own ID twice. Scoped to (bindType, escaped) rather than
+// importID alone: an orphan's address is the only thing that makes two
+// sightings "the same slot" in the first place, and an empty importID
+// (noIdentity) is never deduplicated against anything, matching
+// claimantAlreadyPresent's own rule - "no identity" is not an identity two
+// sightings could share.
+func orphanAlreadyPresent(orphans []OwnedResource, bindType, escaped, importID string) bool {
+	if importID == "" {
+		return false
+	}
+	for _, existing := range orphans {
+		if existing.TypeName == bindType && existing.Normalized == escaped && existing.ImportID == importID {
 			return true
 		}
 	}
@@ -2481,7 +2628,7 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
 // engine's own orphan handling turns into a destroy.
-func classifyOrphans(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
+func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schemas, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if len(res.Orphans) == 0 {
@@ -2624,19 +2771,127 @@ func classifyOrphans(ctx context.Context, req Request, res *Result) tfdiags.Diag
 		// Undeclared flag and the sentence an operator reads beside it cannot
 		// answer differently (issue #316).
 		declared := identity.DeclaresBlock(req.Config, o.Addr)
+		var dependsOn []addrs.AbsResourceInstance
+		if !declared {
+			// Same reason [destroyParentDependency] exists for the
+			// record-orphan-read leg's own population (recordorphan_read.go):
+			// a child whose parent is ALSO being destroyed in the same run
+			// needs the same destroy-before-parent ordering a declared
+			// instance's own config reference would have given it, and this
+			// orphan has no configuration left to read one from. That leg
+			// reads a record's own captured Components; this one has none -
+			// found via corpus-ecs-fargate's day2_remove unit,
+			// aws_vpc_security_group_egress_rule's own security_group_id
+			// survived on the emulator, still fully tagged, after its
+			// parent aws_security_group was destroyed in the SAME apply
+			// with no ordering between the two - so it reads the identical
+			// convention off the orphan's OWN listed resource object
+			// instead. See [classifyOrphanDestroyDependency].
+			//
+			// o.Resource is cty.NilVal for the tag-sweep leg's own orphans
+			// (fileTaggingCandidate, tagging.go): that leg's whole design is
+			// "one shared GetResources call, ARN plus tags, never a
+			// resource's other properties" (see typeNeedsResourceObjectToRecompose's
+			// own doc comment), so a type ONLY reachable that way - true of
+			// aws_vpc_security_group_egress_rule/ingress_rule, whose sole
+			// arnJoinTable entry is [ambiguous], never [single], so
+			// arnJoinReaches keeps it in the tagging universe even though
+			// it has no native provider list route either - never gets one.
+			// resolveOrphanResourceForDependency fills that one gap with a
+			// single, targeted GetResource call, bounded to genuinely
+			// undeclared removal candidates (never a sweep-wide cost) -
+			// the same "one call per undeclared parent" budget
+			// [parentReadSweepType]'s own doc comment already accepts for
+			// the identical class of question.
+			resource := o.Resource
+			if resource == cty.NilVal {
+				resource = resolveOrphanResourceForDependency(ctx, req, o)
+			}
+			dependsOn = classifyOrphanDestroyDependency(req, schemas, res, o.TypeName, resource)
+		}
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
 			// Both forms travel: the string for every line an operator
 			// reads, and the provider's own identity object for the import
 			// itself. See [identity.Resolution.Identity].
-			ImportID:   o.ImportID,
-			Identity:   o.Identity,
-			Undeclared: !declared,
+			ImportID:         o.ImportID,
+			Identity:         o.Identity,
+			Undeclared:       !declared,
+			DestroyDependsOn: dependsOn,
 		})
 	}
 
 	return diags
+}
+
+// classifyOrphanDestroyDependency is [destroyParentDependency]'s own
+// question - which live parent this run also destroys must this orphan be
+// destroyed before - answered from a source recordorphan_read.go's own
+// version never has: the orphan's OWN listed resource object, rather than
+// a record's captured Components. classifyOrphans' own orphans (a tag or
+// native-scan sighting of a removed block's live object) carry no
+// Components map at all - only recordOrphanReadSweep's record-backed
+// population does - but a natively-listed orphan (res.Orphans' own
+// Resource field, populated only by [scanType]'s append site, never
+// [scanTypeCloudControl]'s or [fileTaggingCandidate]'s - see
+// [OwnedResource.Resource]'s own doc comment) already carries every
+// attribute its provider schema exports, which is enough to apply
+// [identity.ParentByConvention] directly against the object's own
+// attribute names, no ratified identity row required.
+//
+// Reaches every admitted, taggable type discovered through the native
+// per-type scan with a convention-named parent-shaped argument on its own
+// schema (an "_id"/"_arn"/"_url"-suffixed or bare-noun argument naming
+// another admitted type - the same convention [identity.ParentOf] already
+// applies to a type's ratified Components), not only
+// aws_vpc_security_group_egress_rule: found via corpus-ecs-fargate's
+// day2_remove unit, where a real gauntlet run reproduced a security group
+// rule surviving on the emulator - fully tagged, unchanged - after its
+// parent security group was destroyed in the SAME apply with the two
+// issued in no verified order. resource is cty.NilVal for the two other
+// append sites, and this returns nil immediately for that case exactly as
+// [destroyParentDependency] returns nil when a record carries no matching
+// Components value - "no computed dependency set" is the ordinary state
+// for an undeclared instance either way, never an error.
+func classifyOrphanDestroyDependency(req Request, schemas listclient.Schemas, res *Result, typeName string, resource cty.Value) []addrs.AbsResourceInstance {
+	if resource == cty.NilVal || resource.IsNull() || !resource.IsKnown() || !resource.Type().IsObjectType() {
+		return nil
+	}
+	parents := taggableAdmittedTypes(schemas)
+	service := rosterServiceOf(req.Roster)
+
+	attrs := make([]string, 0, len(resource.Type().AttributeTypes()))
+	for attr := range resource.Type().AttributeTypes() {
+		attrs = append(attrs, attr)
+	}
+	sort.Strings(attrs)
+
+	for _, attr := range attrs {
+		parent, ok := identity.ParentByConvention(attr, typeName, parents, service)
+		if !ok {
+			continue
+		}
+		v := resource.GetAttr(attr)
+		// The same marksafe discipline [importIdentityFromResource] applies
+		// to the identical hazard: cty panics rather than errors on a
+		// marked receiver, and an attribute flowing from a sensitive input
+		// variable is the ordinary way to produce one. See
+		// internal/live/marksafe.
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			continue
+		}
+		val := v.AsString()
+		if val == "" {
+			continue
+		}
+		for _, r := range res.Resolutions {
+			if r.Type() == parent && r.ImportID == val {
+				return []addrs.AbsResourceInstance{r.Addr}
+			}
+		}
+	}
+	return nil
 }
 
 // blockKey is the resource block one instance address belongs to, as

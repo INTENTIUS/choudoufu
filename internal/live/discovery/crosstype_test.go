@@ -6,11 +6,11 @@
 package discovery
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 )
 
 // Audit finding C4's regression. A tofu-address marker names the resource it
@@ -129,11 +129,11 @@ func TestClassifyOrphansRefusesTypeConfusedDestroy(t *testing.T) {
 		Normalized: `aws_eip.pool:0`,
 	}}
 
-	diags := classifyOrphans(context.Background(), Request{
+	diags := classifyOrphans(t.Context(), Request{
 		Estate:      estateName,
 		Config:      cfg,
 		Resolutions: resolveOrFail(t, cfg).All(),
-	}, res)
+	}, listclient.Schemas{}, res)
 
 	if !diags.HasErrors() {
 		t.Fatalf("a type-confused orphan was accepted:\n%s", res)
