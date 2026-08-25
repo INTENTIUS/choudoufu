@@ -1,2 +1,6 @@
-ok  	github.com/intentius/choudoufu/tools/gauntlet	0.360s
-ok  	github.com/intentius/choudoufu/live	2.239s
+ok  	github.com/intentius/choudoufu/internal/live/identity	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/projection	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/check	(cached)
+ok  	github.com/intentius/choudoufu/live	1.811s
+ok  	github.com/intentius/choudoufu/internal/live/marksafe	2.409s
+ok  	github.com/intentius/choudoufu/tools/gauntlet	(cached)
