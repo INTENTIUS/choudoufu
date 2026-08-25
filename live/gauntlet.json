@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
+  "commit": "7fb1993c9d0be81de16a5c13b2e2b2781f40a077",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:35:34Z",
+  "generated": "2026-08-25T18:51:52Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 25,
-          "fail": 1,
+          "pass": 26,
+          "fail": 0,
           "not_run": 0
         },
         "day2_rename": {
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 24,
-          "fail": 1,
+          "pass": 25,
+          "fail": 0,
           "not_run": 0
         },
         "day2_rename": {
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "day2_teardown": {
           "pass": 0,
@@ -874,9 +874,9 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -886,16 +886,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "db15df773bb34cb56c256d2b52169ef711e97e39",
-        "date": "2026-08-25T17:47:34Z",
-        "exit_code": 1,
+        "commit": "7fb1993c9d0be81de16a5c13b2e2b2781f40a077",
+        "date": "2026-08-25T18:54:27Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "8 resources, genuinely cold, genuinely unmarked",
-          "day2_remove": "choudoufu's remove plan proposes 7 destroys, expected exactly 6",
+          "day2_remove": "choudoufu: deleting module.lambda_function_final's block proposed 7 destroys (the function, the role, its inline aws_iam_role_policy.logs[0] CloudWatch Logs policy, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function, the role and the inline log policy genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename. WANT_DESTROY_COUNT moved from 5/6 to 6/7 in this same commit: the inline log policy was previously missing from this stage's own checklist entirely - a genuine leak (an untaggable IAM permission left behind on every destroy of this estate), not a stale assertion, fixed as part of the day2_replace unit that re-measured this stage",
           "day2_rename": "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty",
+          "day2_replace": "choudoufu: changing module.lambda_function_final's ForceNew logging_log_group-derived name proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the function's logging_config, the inline log policy's document) and nothing else beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise; applied cleanly; the old object (arn:aws:logs:eu-west-1:000000000000:log-group:/aws/lambda/relaxing-dingo-lambda-simple) is confirmed gone and the new object (arn:aws:logs:eu-west-1:000000000000:log-group:/aws/lambda/relaxing-dingo-lambda-simple-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (/aws/lambda/relaxing-dingo-lambda-simple -> /aws/lambda/relaxing-dingo-lambda-simple-v2); the next plan proposes no resource action beyond the same known noise; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace plus the same in-place cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128",
           "greenfield": "8 resources from nothing (3 taggable + 5 record-backed/config-derived), all three module-nested markers verified via the AWS CLI, 8 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (runtime, handler, memory, timeout, log-group retention)",
           "migrate": "3 stamped, 4 recorded, 0 failed, 1 skipped",
