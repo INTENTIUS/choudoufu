@@ -599,26 +599,51 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 // [containsStringValue]'s generic walk.
 //
 // ANOTHER's is load-bearing, found running this exact fix against
-// corpus-security-group-complete's day2_remove unit in the same session:
+// corpus-security-group-complete's day2_remove unit in the same session,
+// in two shapes that share one root cause:
 // aws_vpc_security_group_rules_exclusive's whole identity IS its security
 // group's own id (identity.Component.IdentityAttr: "*" over
-// security_group_id, in table_generated.go) - so comparing the security
-// group's own live value against rules_exclusive's ImportID is comparing
-// the security group's own id against itself, trivially true, and
-// backwards: it produced an SG-depends-on-rules_exclusive edge that
+// security_group_id, table_generated.go), so a naive from-contains-to
+// scan is symmetric wherever it fires on this pair: comparing the
+// security group's own live value against rules_exclusive's ImportID
+// matches (the security group's own id, trivially, since a live value
+// always contains its own id), and the SAME scan the other way ALSO
+// matches (rules_exclusive's own security_group_id attribute is that
+// identical string). Two candidate edges between the same two nodes,
+// pointing opposite ways, is not evidence of a reference in either
+// direction - it is two objects answering to one identity string - and it
 // cycled against [destroyParentDependency]'s own, correctly-directed
-// rules_exclusive-depends-on-SG edge for the identical pair. The loop
-// below skips exactly that shape - two distinct siblings sharing one
-// identity string - because a type whose whole identity is another's id
-// is the relationship [destroyParentDependency] and [identity.ParentOf]
-// already derive, correctly directed; it is not evidence of a REFERENCE
-// this function's own job is to find. What remains genuinely unguarded is
-// an AWS-issued id (an ARN, or an opaque id like "lt-0123...") coinciding
-// with a DIFFERENT string appearing incidentally inside an unrelated
-// sibling's structure - not a risk this function has to defend against,
-// since such an id is unique across the whole resource population by
-// construction, the same trust [destroyParentDependency]'s own ==
-// comparison already extends to the identical kind of string.
+// rules_exclusive-depends-on-the-security-group edge for the identical
+// pair (a SEPARATE mechanism, over structured identity Components rather
+// than raw live-value scanning, and unaffected by anything below).
+//
+// The second shape is the one a same-pair check alone misses: every
+// ingress/egress rule ALSO matches rules_exclusive symmetrically, for a
+// DIFFERENT reason on each side. The rule's own security_group_id
+// attribute names the security group, which happens to equal
+// rules_exclusive's ImportID (the shape above) - forward direction. And
+// aws_vpc_security_group_rules_exclusive's own required arguments,
+// `ingress_rule_ids`/`egress_rule_ids` (its own live value, confirmed
+// against the provider's docs), are themselves lists of the EXACT rule
+// ids this pass is trying to order - backward direction. Both fire for
+// every rule in the batch, so the SCC search in the plan graph merges
+// every rule that shares this shape with rules_exclusive into one
+// four-node cycle, with no security group in it at all. It is exactly as
+// spurious as the direct case: the provider's own docs are explicit that
+// destroying rules_exclusive makes no AWS call at all ("Terraform will no
+// longer manage reconciliation... it will not revoke the configured
+// rules"), so there is no real ordering constraint between it and the
+// rules it names either way.
+//
+// Both shapes are the same generic fact under one rule: a candidate match
+// found in BOTH directions between two siblings - from contains to's id,
+// AND to contains from's id - is not a directed reference at all; it is
+// two objects mutually restating each other's identity, and neither
+// direction is kept. What survives is exactly the one-directional shape a
+// genuine reference takes (an ASG names its launch template; nothing in
+// the launch template's own live value names the ASG back), which is why
+// this has to be a two-pass computation: every candidate in the batch is
+// found first, then only the ones with no reverse candidate are kept.
 func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution) {
 	type sibling struct {
 		addr     addrs.AbsResourceInstance
@@ -645,57 +670,37 @@ func (b *builder) deriveUndeclaredReferenceEdges(resolved []identity.Resolution)
 		return
 	}
 
-	// idCount is how many siblings in this batch answer to each identity
-	// string. Found running this fix against corpus-security-group-
-	// complete's day2_remove unit, in TWO shapes that share one root
-	// cause: aws_vpc_security_group_rules_exclusive's whole identity IS
-	// its security group's own id (identity.Component.IdentityAttr: "*"
-	// over security_group_id). The direct pair (comparing the security
-	// group's own live value against rules_exclusive's ImportID) is
-	// trivially true - a live value always contains its own id - and
-	// backwards: [destroyParentDependency] already derives
-	// rules_exclusive-depends-on-the-security-group, correctly directed,
-	// and the reverse edge here cycled against it. The INDIRECT shape is
-	// the one a same-pair check misses: every ingress/egress rule's own
-	// live value ALSO contains the security group's id (its own
-	// security_group_id attribute) - which, because rules_exclusive's
-	// ImportID equals that same string, this scan reads as "the rule
-	// references rules_exclusive" too, producing rule-depends-on-
-	// rules_exclusive on top of whatever rules_exclusive's own live value
-	// happens to enumerate about its managed rules the other way, and a
-	// FOUR-node cycle (both ingress rules, the egress rule, and
-	// rules_exclusive, no security group in it at all) was the result.
-	// Neither shape is really "resource A references resource B" - it is
-	// "two different resources answer to the same identity string," and
-	// the general fix is symmetric with the general problem: an identity
-	// string more than one sibling in this batch answers to identifies
-	// none of them uniquely, so it is never used as a match target, in
-	// either direction, for anyone.
-	idCount := make(map[string]int, len(siblings))
-	for _, s := range siblings {
-		idCount[s.importID]++
-	}
-
-	for _, from := range siblings {
+	// Pass 1: every candidate edge in the batch, indexed by the pair of
+	// positions in siblings so pass 2 can check the reverse cheaply.
+	type pair struct{ from, to int }
+	candidates := make(map[pair]bool)
+	for i, from := range siblings {
 		val, ok := b.live[from.addr.String()]
 		if !ok {
 			continue
 		}
-		var deps []addrs.ConfigResource
-		for _, to := range siblings {
-			if to.addr.String() == from.addr.String() {
-				continue
-			}
-			if idCount[to.importID] > 1 {
+		for j, to := range siblings {
+			if i == j {
 				continue
 			}
 			if containsStringValue(val, to.importID) {
-				deps = append(deps, to.addr.ConfigResource())
+				candidates[pair{i, j}] = true
 			}
 		}
-		if len(deps) > 0 {
-			b.addStateDependencies(from.addr, deps)
+	}
+
+	// Pass 2: keep a candidate only when its reverse is not also a
+	// candidate - see this function's own doc comment for why a mutual
+	// match is never a directed reference.
+	deps := make(map[int][]addrs.ConfigResource, len(siblings))
+	for p := range candidates {
+		if candidates[pair{p.to, p.from}] {
+			continue
 		}
+		deps[p.from] = append(deps[p.from], siblings[p.to].addr.ConfigResource())
+	}
+	for i, ds := range deps {
+		b.addStateDependencies(siblings[i].addr, ds)
 	}
 }
 

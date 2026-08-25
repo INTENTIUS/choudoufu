@@ -946,7 +946,13 @@ var fakeAttrs = map[string][]string{
 	// security_group_id, table_generated.go) - a fake caricature only
 	// needs "id" to exercise that shape, since the test drives its
 	// ImportID directly rather than deriving it from an attribute.
-	"aws_vpc_security_group_rules_exclusive": {"id", "security_group_id"},
+	// The real type's own required arguments are ingress_rule_ids and
+	// egress_rule_ids (lists of the rule ids it exclusively manages,
+	// confirmed against the provider's own docs) - the caricature's flat
+	// schema has no list support, so managed_rule_id stands in for one
+	// element of that list, enough to exercise the mutual-match rule in
+	// deriveUndeclaredReferenceEdges without needing real list plumbing.
+	"aws_vpc_security_group_rules_exclusive": {"id", "security_group_id", "managed_rule_id"},
 	"aws_acm_certificate":                    {"id", "arn", "domain_name", "validation_method"},
 	"aws_sfn_state_machine":                  {"id", "arn", "name", "role_arn", "definition"},
 	"aws_ebs_volume":                         {"id", "arn", "availability_zone", "size"},

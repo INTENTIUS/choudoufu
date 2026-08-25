@@ -248,22 +248,28 @@ func TestUndeclaredSiblingSharedIdentityIsNotAReference(t *testing.T) {
 	}
 }
 
-// TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference is the second
-// shape found in the same session, in the SAME estate
+// TestUndeclaredSiblingMutualMatchIsNotAReference is the second shape
+// found in the same session, in the SAME estate
 // (corpus-security-group-complete) as the direct case above: an ingress
 // rule's own live value contains its security group's id (its own
-// security_group_id attribute) - a perfectly ordinary thing for a rule to
-// carry - and because aws_vpc_security_group_rules_exclusive's whole
-// identity IS that same security group id, a naive scan reads the rule as
-// referencing rules_exclusive too, on top of whatever rules_exclusive's
-// own live value happens to enumerate about the rules it manages. Both
-// directions existing between the SAME two nodes is a cycle, and it
-// reproduced as a real "Error: Cycle: ...egress_rule..., ...ingress_rule...,
-// ...rules_exclusive..." with no security group in it at all, confirming
-// TestUndeclaredSiblingSharedIdentityIsNotAReference's direct-pair guard
-// alone did not cover it: the shared identity string here belongs to a
-// THIRD sibling (the security group), never compared against itself.
-func TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference(t *testing.T) {
+// security_group_id attribute, a perfectly ordinary thing for a rule to
+// carry), and aws_vpc_security_group_rules_exclusive's own required
+// arguments - ingress_rule_ids/egress_rule_ids, confirmed against the
+// provider's docs - are themselves lists of the exact rule ids it
+// manages. So the match fires in BOTH directions between the rule and
+// rules_exclusive: the rule's value names the security group (which
+// rules_exclusive's ImportID happens to equal), and rules_exclusive's own
+// value separately names the rule directly. That reproduced as a real
+// "Error: Cycle: ...egress_rule..., ...ingress_rule...,
+// ...rules_exclusive..." with no security group in it at all -
+// TestUndeclaredSiblingSharedIdentityIsNotAReference's direct-pair shape
+// alone did not cover it, because the two candidate edges here are for
+// two DIFFERENT reasons, not the same trivial self-containment.
+//
+// The general rule this proves: a candidate found in both directions
+// between two siblings is dropped in both directions, regardless of why
+// each direction matched.
+func TestUndeclaredSiblingMutualMatchIsNotAReference(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
@@ -271,7 +277,11 @@ func TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference(t *testing.T) {
 		"id": "sg-0123", "name": "postgresql", "vpc_id": "vpc-abc",
 	})
 	cloud.put("aws_vpc_security_group_rules_exclusive", "sg-0123", map[string]string{
-		"id": "sg-0123",
+		"id": "sg-0123", "security_group_id": "sg-0123",
+		// Stands in for one element of the real ingress_rule_ids list -
+		// see fakeAttrs' own comment for why the caricature schema has no
+		// list support.
+		"managed_rule_id": "sgr-ABC",
 	})
 	cloud.put("aws_vpc_security_group_ingress_rule", "sgr-ABC", map[string]string{
 		"id": "sgr-ABC", "security_group_rule_id": "sgr-ABC", "security_group_id": "sg-0123",
@@ -298,13 +308,29 @@ func TestUndeclaredSiblingIndirectSharedIdentityIsNotAReference(t *testing.T) {
 	if mod == nil {
 		t.Fatal("the projection has no root module")
 	}
-	for _, addr := range []addrs.AbsResourceInstance{sg, rex, ingress} {
+	// The security group and rules_exclusive matched each other in BOTH
+	// directions (mutual - see this test's own doc comment) and so get
+	// nothing from this mechanism. The ingress rule and rules_exclusive
+	// ALSO matched each other in both directions and so get nothing
+	// between THEM either. What is left standing is the one genuinely
+	// one-directional match: the ingress rule's own value names the
+	// security group, and the security group's own value does not name
+	// the rule back - a real reference, correctly kept.
+	for _, addr := range []addrs.AbsResourceInstance{sg, rex} {
 		inst := mod.ResourceInstance(addr.Resource)
 		if inst == nil || inst.Current == nil {
 			t.Fatalf("%s did not materialize into the state:\n%s", addr, res)
 		}
 		if len(inst.Current.Dependencies) != 0 {
-			t.Errorf("%s got Dependencies %v from the ambiguous shared identity \"sg-0123\" - that string does not uniquely identify any one sibling in this batch, so it must never be used as a match target", addr, inst.Current.Dependencies)
+			t.Errorf("%s got Dependencies %v from a mutual match (both siblings' live values name each other) - a match found in both directions is never a directed reference", addr, inst.Current.Dependencies)
 		}
+	}
+	ingressInst := mod.ResourceInstance(ingress.Resource)
+	if ingressInst == nil || ingressInst.Current == nil {
+		t.Fatalf("%s did not materialize into the state:\n%s", ingress, res)
+	}
+	wantDep := sg.ConfigResource().String()
+	if len(ingressInst.Current.Dependencies) != 1 || ingressInst.Current.Dependencies[0].String() != wantDep {
+		t.Errorf("%s got Dependencies %v, want exactly [%s] - its own one-directional reference to the security group, with no edge to rules_exclusive (that pair is mutual)", ingress, ingressInst.Current.Dependencies, wantDep)
 	}
 }
