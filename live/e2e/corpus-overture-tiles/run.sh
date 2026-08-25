@@ -1719,6 +1719,15 @@ EOF
     # and its OAC are gone, confirmed via the AWS CLI below), but the PLAN
     # differs from stock's, so this is left genuinely failing here rather
     # than asserting less than the oracle asserts.
+    #
+    # RE-CONFIRMED (gauntlet:rename-beneficiaries, 2026-08-25), reached for
+    # the first time in the script's own normal top-to-bottom flow: before
+    # this branch's own day2_rename fix (gauntlet:giantswarm-mv-children,
+    # f2747c3011), D2 above failed and exited the script before STAGE 7
+    # ever ran, so this wall was previously named from analysis, not a real
+    # end-to-end run. Re-run for real: unchanged, byte for byte - still
+    # exactly this pending-guard gap, still neither the distribution nor
+    # the OAC destroyed, only the bucket policy's in-place update proposed.
     CURRENT_STAGE=day2_remove
     log "=== STAGE 7. day2_remove: create_cloudfront_distribution=false on module.overture_tiles_final ==="
     log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly two destroys (the distribution and its OAC)"
@@ -1730,9 +1739,9 @@ EOF
     REMOVE_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_distribution\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
-      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]"; }
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0] - reached genuinely now that day2_rename passes (gauntlet:rename-beneficiaries, 2026-08-25): classifyOrphans's 'pending' guard withholds the destroy for a TAGGED, MARKED resource, not only untaggable ones - the count-shrink pending-guard gap the comment above this stage names, #410's own territory widened, not fixed here"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_origin_access_control\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
-      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_origin_access_control.tiles[0] - the untaggable sibling stock also destroys (issue #410, see above)"; }
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_origin_access_control.tiles[0] - the untaggable sibling stock also destroys (issue #410, see above), the same count-shrink pending-guard gap"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_s3_bucket_policy\.tiles\[0\] will be updated in-place' <<< "$REMOVE_PLAN_OUT" \
       || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose updating module.overture_tiles_final.aws_s3_bucket_policy.tiles[0] (the CloudFrontOAC statement should drop, same as the stock oracle)"; }
     grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
