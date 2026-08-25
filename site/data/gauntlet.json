@@ -62,7 +62,7 @@
       "id": "day2_remove",
       "order": 7,
       "title": "Remove a block",
-      "status": "planned",
+      "status": "active",
       "proves": "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
       "break": "Keep the block; no destroy may be proposed."
@@ -116,7 +116,7 @@
       "id": "greenfield",
       "order": 13,
       "title": "Greenfield apply",
-      "status": "planned",
+      "status": "active",
       "proves": "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
       "oracle": "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
       "break": "Drop one resource from the expected inventory; the comparison must fail."
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 26,
+      "clear": 1,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 25,
+      "clear": 1,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -313,7 +313,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "c691a22720b0625b319282bd89228c97c6a97ce6",
@@ -355,7 +355,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bb42656508339c57e98ed3a4ca379612d1167ce9",
@@ -397,7 +397,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
@@ -439,7 +439,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "e921449d4835b6611919c16b0e997992bb981dec",
@@ -480,7 +480,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "de120d18d3912197660f1e94cdbdfd6c270888eb",
@@ -522,7 +522,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
@@ -564,7 +564,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "5c94842ae884f295c8fca80257cb723361ca33ab",
@@ -606,7 +606,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "5c94842ae884f295c8fca80257cb723361ca33ab",
@@ -648,7 +648,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "17918d156f5e5cfd8894331270d45e795bcfc3a3",
@@ -690,7 +690,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "b21c2758d378516218e849bfacc7429324cd6aea",
@@ -732,7 +732,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "ab351cdf81e8e3acaed7952f17f0de7ad48e0830",
@@ -774,7 +774,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "3d86063868a2c547ac348c02cc768e8e770417eb",
@@ -817,7 +817,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "00acf1c9bae10eca404493498b4d5ddf65c0e282",
@@ -859,7 +859,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "afae3a2ce4519026cdfad7523fd691674e86184c",
@@ -901,7 +901,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "db290803e4d7225646e7ee0d71506894e9b95f8a",
@@ -942,7 +942,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
@@ -984,7 +984,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bed239dbb33b94d5559c8c968119aee06de3837c",
@@ -1026,7 +1026,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
@@ -1068,7 +1068,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
@@ -1110,7 +1110,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1b71d0682af977bd8f6601585d1a1e22d25b8428",
@@ -1152,7 +1152,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "a9ff62da2508aa221e58c6ac9aec01c8347bedd1",
@@ -1194,7 +1194,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "c3fc074634f5f6b615b1cf750ef3ad08298e785a",
@@ -1237,7 +1237,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "e921449d4835b6611919c16b0e997992bb981dec",
@@ -1279,7 +1279,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bb42656508339c57e98ed3a4ca379612d1167ce9",
@@ -1321,7 +1321,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "f2cf3270e92f5ad36c47327b0da58fc00877e2ea",

@@ -10,7 +10,7 @@ Source: <https://github.com/datacite/mastino.git> at `4d8c1f1bebd91e73195017ce44
 
 Set: growing. Lane: published-deployment.
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -20,13 +20,13 @@ Set: growing. Lane: published-deployment.
 | No-op apply | pass | genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 59 identity records intact (14 residue-bearing) |
 | Drift and reconverge | pass | one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact |
 | Rename | pass | moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `1b71d0682a` on 2026-08-24T22:00:19Z, exit code 0.

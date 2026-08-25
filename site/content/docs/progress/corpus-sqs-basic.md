@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file |
 | Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
 | Rename | pass | moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | pass | 6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues |
+| Greenfield apply | pass | 6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `c3fc074634` on 2026-08-25T01:45:04Z, exit code 0.

@@ -73,7 +73,7 @@ func Stages() []Stage {
 			Break:  "Rename without the `moved` block; the plan must show a destroy and a create.",
 		},
 		{
-			ID: "day2_remove", Order: 7, Title: "Remove a block", Status: StatusPlanned,
+			ID: "day2_remove", Order: 7, Title: "Remove a block", Status: StatusActive,
 			Proves: "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
 			Oracle: "Stock with the same block removed plans the same destroys in a working order.",
 			Break:  "Keep the block; no destroy may be proposed.",
@@ -109,7 +109,7 @@ func Stages() []Stage {
 			Break:  "Apply the planfile after a mutation and expect success; the run must refuse.",
 		},
 		{
-			ID: "greenfield", Order: 13, Title: "Greenfield apply", Status: StatusPlanned,
+			ID: "greenfield", Order: 13, Title: "Greenfield apply", Status: StatusActive,
 			Proves: "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
 			Oracle: "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
 			Break:  "Drop one resource from the expected inventory; the comparison must fail.",

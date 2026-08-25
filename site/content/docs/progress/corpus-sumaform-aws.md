@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,13 +22,13 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | No-op apply | pass | genuine no-op: 7 tagged objects before, 7 after, no state file either time; module.server's record-based instance and volume identities unchanged |
 | Drift and reconverge | pass | the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected |
 | Rename | pass | moved block: aws_eip.crossing_nat renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_route_table.crossing_public renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply (planned) | not run |  |
+| Greenfield apply | not run |  |
 | Strict profile (planned) | not run |  |
 
 Last run at commit `e921449d48` on 2026-08-24T19:29:30Z, exit code 0.
