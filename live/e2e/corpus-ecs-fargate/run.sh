@@ -1769,8 +1769,30 @@ EOF
       && { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's day2_remove plan proposes a create or update, not a pure removal"; }
     grep -qF "Plan: 0 to add, 0 to change, $REMOVE_N to destroy." <<< "$REMOVE_PLAN_OUT" \
       || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's day2_remove plan summary does not match its own $REMOVE_N destroys"; }
+    # A real, named wall (HANDOFF row 2: the plans differ), confirmed on a
+    # live run rather than assumed: choudoufu proposes 7 of stock's 8
+    # destroys, missing exactly
+    # module.ecs_task_definition.aws_iam_role_policy_attachment.task_exec[0].
+    # Root cause read directly in the schema, not guessed:
+    # internal/live/identity/table_generated.go's aws_iam_role_policy_attachment
+    # row builds its identity from Components requiring the LIVE
+    # CONFIGURATION's own "role" and "policy_arn" argument values (composed-
+    # of-arguments, ImportSyntax ROLENAME/POLICYARN) - there is no marker
+    # (the type carries no tags argument at all) and no ServerAssigned
+    # cloud-listing route (contrast aws_vpc_security_group_egress_rule two
+    # lines above, ServerAssigned:true, found by listing the security
+    # group's own live rules with no configuration involved). Once the
+    # declaring block - and here, the whole module - is removed, there is
+    # no configuration left to derive role/policy_arn from and no marker or
+    # record to recover them from either, so orphan discovery has no way to
+    # know the attachment ever existed. This is not specific to this one
+    # instance: it reaches every composed-of-arguments, untaggable,
+    # non-record-backed type whenever its declaring block (or an ancestor
+    # module) is removed outright rather than merely renamed - a generic,
+    # schema-derived limitation of the current discovery mechanism, not a
+    # per-type gap. Not fixed in this script-only unit.
     [ "$REMOVE_N" = "$REMOVE_ORACLE_N" ] \
-      || { printf 'choudoufu destroys (%s):\n%s\nstock destroys (%s):\n%s\n' "$REMOVE_N" "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu proposes $REMOVE_N destroys under module.ecs_task_definition, stock's oracle proposed $REMOVE_ORACLE_N for the same block removal"; }
+      || { printf 'choudoufu destroys (%s):\n%s\nstock destroys (%s):\n%s\n' "$REMOVE_N" "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu proposes $REMOVE_N destroys under module.ecs_task_definition, stock's oracle proposed $REMOVE_ORACLE_N for the same block removal - see the comment immediately above this assertion for the named, generic root cause (a composed-of-arguments untaggable type left orphaned with no configuration, marker or record left to derive its identity from)"; }
     [ "$REMOVE_DESTROY_ADDRS" = "$REMOVE_ORACLE_DESTROY_ADDRS" ] \
       || { printf 'choudoufu:\n%s\nstock:\n%s\n' "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu's destroy address set differs from stock's oracle"; }
     log "  choudoufu: exactly $REMOVE_N destroys under module.ecs_task_definition, address-for-address identical to stock's oracle on cold_deploy's own state, nothing else"
