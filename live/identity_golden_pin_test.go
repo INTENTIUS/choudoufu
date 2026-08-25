@@ -755,7 +755,16 @@ var identityGoldenPin = map[string]int{
 	// sibling-apply branch is never entered, and the instance refuses
 	// offline exactly as it did before. Asserted by class instead, in both
 	// directions, in TestRecordFallbackClassifiesSiblingApplyUntaggable.
-	"NEEDS_DISCOVERY": 733,
+	// 733 -> 735 for [gauntlet:corpus-dynamodb-table-basic/day2_remove]: two ADDED
+	// rows, aws_dynamodb_table.this in each of the new fixtures
+	// internal/live/identity/testdata/parent-derived-parent-attr and
+	// .../parent-derived-parent-attr-unknown. Both fixtures' table reads its own
+	// `name` from a record-backed random_pet sibling; this golden sweep supplies no
+	// schemas, so resolver.parentPart's record-backed branch cannot confirm the
+	// formula and the resolution downgrades to NEEDS_DISCOVERY rather than erroring,
+	// the same graceful path any other unresolvable-offline config-identified
+	// instance takes.
+	"NEEDS_DISCOVERY": 735,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -901,7 +910,12 @@ var identityGoldenPin = map[string]int{
 	// standing in for corpus-eks-basic's random_string.suffix - the
 	// record-backed parent a sibling ClassParentDerived formula (built by
 	// hand in the test, not derived from this fixture) names.
-	"RECORD_BACKED": 25,
+	//
+	// 25 -> 27 for [gauntlet:corpus-dynamodb-table-basic/day2_remove]: two ADDED
+	// rows, random_pet.suffix in each of the same two new fixtures
+	// (parent-derived-parent-attr and parent-derived-parent-attr-unknown) - the
+	// record-backed grandparent aws_dynamodb_table.this's name formula reads.
+	"RECORD_BACKED": 27,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -1380,7 +1394,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "816f1606abe9f8a92f0cf736aa49f8b15f65c53bbacfa03ef3ebab466373bee2" // [gauntlet:corpus-dynamodb-table-basic/day2_remove]: four ADDED rows (two NEEDS_DISCOVERY, two RECORD_BACKED) in the new fixtures internal/live/identity/testdata/parent-derived-parent-attr and .../parent-derived-parent-attr-unknown, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those four lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -2043,7 +2057,12 @@ const (
 	// .../moved-record-located-nomoved (see identityGoldenPin's own
 	// "CONCRETE" note). "0 identities changed, 2 added, 0 removed"
 	// confirmed the same way.
-	identityGoldenPinInstances = 1721
+	// Then 1721 -> 1725 for [gauntlet:corpus-dynamodb-table-basic/day2_remove]:
+	// four new instances, two per new fixture (parent-derived-parent-attr and
+	// parent-derived-parent-attr-unknown) - see identityGoldenPin's own
+	// "NEEDS_DISCOVERY" and "RECORD_BACKED" notes. "0 identities changed, 4 added, 0
+	// removed" confirmed by `git diff internal/live/check/testdata/identity-golden.txt`.
+	identityGoldenPinInstances = 1725
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2374,7 +2393,12 @@ const (
 	// .../moved-record-located-nomoved, each a standalone root with no
 	// module sources of its own. identityGoldenPinInstances moves in step
 	// (see its own note).
-	identityGoldenPinDirs = 622
+	// Then 622 -> 624 for [gauntlet:corpus-dynamodb-table-basic/day2_remove]: two
+	// new fixtures, internal/live/identity/testdata/parent-derived-parent-attr and
+	// .../parent-derived-parent-attr-unknown, proving resolver.parentPart's
+	// deferrable check now also covers a ClassParentDerived parent.
+	// identityGoldenPinInstances moves in step (see its own note).
+	identityGoldenPinDirs = 624
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

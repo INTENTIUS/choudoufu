@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=622 instances=1721
+# shape: dirs=624 instances=1725
 # shape: class CONCRETE=828
-# shape: class NEEDS_DISCOVERY=733
+# shape: class NEEDS_DISCOVERY=735
 # shape: class PARENT_DERIVED=135
-# shape: class RECORD_BACKED=25
-# shape: body-sha256=a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9
+# shape: class RECORD_BACKED=27
+# shape: body-sha256=816f1606abe9f8a92f0cf736aa49f8b15f65c53bbacfa03ef3ebab466373bee2
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -515,6 +515,10 @@ internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_rule.nightly	CO
 internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_target.nightly	CONCRETE	ops-bus/nightly-sweep/sweep	event_bus_name=ops-bus,rule=nightly-sweep,target_id=sweep
 internal/live/identity/testdata/parent-attr-composite	aws_s3_bucket_policy.data	CONCRETE	vol-0123456789abcdef0	bucket=vol-0123456789abcdef0
 internal/live/identity/testdata/parent-attr-composite	aws_volume_attachment.data	CONCRETE	/dev/sdh:vol-0123456789abcdef0:i-0123456789abcdef0	device_name=/dev/sdh,instance_id=i-0123456789abcdef0,volume_id=vol-0123456789abcdef0
+internal/live/identity/testdata/parent-derived-parent-attr	aws_dynamodb_table.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/parent-derived-parent-attr	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/parent-derived-parent-attr-unknown	aws_dynamodb_table.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/parent-derived-parent-attr-unknown	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_admins	CONCRETE	infra-admins	name=infra-admins
 internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_deploy_playground	CONCRETE	infra-deploy-playground	name=infra-deploy-playground
 internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_team	CONCRETE	infra-team	name=infra-team
