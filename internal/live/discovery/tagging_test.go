@@ -75,6 +75,22 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
+			// [gauntlet:corpus-ec2-instance-complete/day2_remove]: an
+			// instance profile's ARN resource-type segment ("instance-
+			// profile", unambiguous, no second CFN type sharing it the way
+			// "role" does) was entirely absent from arnJoinTable before
+			// this row's own entry, so the estate-wide removal sweep could
+			// never propose destroying one whose declaring block was
+			// deleted - even though it is taggable and migrate stamps it
+			// exactly like any other named IAM resource.
+			name:             "iam instance profile: name is the ARN's resource id",
+			arn:              "arn:aws:iam::123456789012:instance-profile/ex-complete",
+			wantTypeName:     "aws_iam_instance_profile",
+			wantIdentityAttr: "id",
+			wantImportID:     "ex-complete",
+			wantOK:           true,
+		},
+		{
 			// Issue #293: an ordinary role and a service-linked role share
 			// the ARN's "role" resource-type segment, and before
 			// [iamRoleEntry] existed this ARN resolved to AWS::IAM::Role
