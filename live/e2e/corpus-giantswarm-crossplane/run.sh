@@ -984,35 +984,32 @@ EOF
   # module.crossplane no longer destroys the four untaggable children under
   # the OLD address; that is this unit's own fix, confirmed working here.
   #
-  # This D3 check still fails, on a SECOND, DIFFERENT defect the fix above
-  # does not reach and is not meant to: D2's live-mv call above only rewrites
-  # the ownership MARKER on the two taggable siblings (role, policy) it was
-  # explicitly given - live-mv has no notion of "move every record-located
-  # descendant of this module too", and D2's own module rename is a bare HCL
-  # edit with NO accompanying `moved` block (by design - that is what
-  # distinguishes the live-mv leg from D1's). So a record-located sibling
-  # whose identity needs more than one attribute-supplying component
-  # (identity.SingleParentComponent's own boundary - recordorphan_read.go's
-  # package doc names the population: aws_iam_role_policy,
-  # aws_iam_user_policy, aws_iam_group_policy, aws_lb_target_group_attachment)
-  # has its record still keyed at wherever D1's write-back last left it
-  # (module.crossplane_renamed's address) with nothing - no moved block, no
-  # live-mv call - carrying it forward to module.crossplane_final. The next
-  # plan reads that stale-keyed record as a genuine orphan and destroys it.
-  # Two of the four untaggable children hit this (aws_iam_role_policy
-  # ["extra-tagging"] and aws_iam_role_policy_attachment); the two
-  # *_exclusive types do not, because they are re-derived structurally from
-  # the live role's own current attachments each plan
-  # (parentReadSweep/foldChildReadSweep) rather than from a persisted,
-  # address-keyed record, so a module rename never disturbs them.
+  # FIXED by gauntlet:giantswarm-mv-children (internal/live/mv/mv.go's
+  # propagateModuleRename): this D3 check used to fail on a SECOND, DIFFERENT
+  # defect the alias-consult fix above did not reach and was not meant to -
+  # D2's live-mv call only rewrote the ownership MARKER on the two taggable
+  # siblings (role, policy) it was explicitly given, with no notion of
+  # "move every record-located descendant of this module too", and D2's own
+  # module rename is a bare HCL edit with NO `moved` block at all (by
+  # design). A record-located sibling with no marker of its own
+  # (identity.SingleParentComponent's own boundary - aws_iam_role_policy
+  # ["extra-tagging"], aws_iam_role_policy_attachment) was left stale-keyed
+  # wherever an earlier hop's own apply had last refreshed it, with nothing
+  # carrying it the rest of the way to module.crossplane_final.
   #
-  # This is a distinct generic gap from the alias-consult fix (that one is
-  # "a `moved` block exists but was never consulted"; this one is "no move
-  # statement of any kind exists for this instance's own address at all") -
-  # not fixed here, out of scope for gauntlet:sweep-moved-alias, which is
-  # scoped to the moved.Aliases consult alone.
+  # propagateModuleRename now chases req.Old's own `moved`-block alias chain
+  # (moved.Origins over moved.Honoured, the same primitive the alias-consult
+  # fix already uses on the read side) to find every earlier address this
+  # module boundary carried, and reconciles a duplicate record left behind
+  # by an intermediate hop's own apply rather than erroring on it (a second
+  # wall found running this exact estate for real: two records for the same
+  # instance, one fresh at req.Old's own module and one further-back stale
+  # copy, both landing on the same destination - the fresher one wins the
+  # move, the staler one is deleted rather than left to resurface as a
+  # false orphan later). Both previously-stale children now follow D1 AND
+  # D2 in one live-mv call, confirmed empty below.
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_D_OUT" \
-    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty: live-mv only rewrote the role/policy markers, leaving the untaggable aws_iam_role_policy[\"extra-tagging\"] and aws_iam_role_policy_attachment children's records stale-keyed at module.crossplane_renamed's address with no moved block or live-mv call carrying them to module.crossplane_final - a second, distinct record-located-rename gap the moved.Aliases consult fix (gauntlet:sweep-moved-alias) does not reach, since no moved statement names this hop at all"; }
+    || { grep -E '^  #' <<< "$FINAL_PLAN_D_OUT"; fail "the post-rename plan is not empty: gauntlet:giantswarm-mv-children's own fix (propagateModuleRename chasing a moved-block hop and reconciling a superseded record) regressed - re-check internal/live/mv/mv.go"; }
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
@@ -1079,26 +1076,39 @@ EOF
     [ "$REMOVE_CHANGES" = "$REMOVE_ORACLE_CHANGES" ] \
       || {
         printf 'choudoufu (%s):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"
-        # HANDOFF row 2 ("the plans differ"), named rather than left as a
-        # bare mismatch: every untaggable resource in this module
-        # (aws_iam_role_policy, aws_iam_role_policies_exclusive,
-        # aws_iam_role_policy_attachments_exclusive,
-        # aws_iam_role_policy_attachment) has a Components-built,
-        # composed-of-arguments identity (internal/live/identity/
-        # table_generated.go) with no marker and no ServerAssigned
-        # cloud-listing route - the exact same class corpus-ecs-fargate's
-        # own day2_remove stage names for
-        # aws_iam_role_policy_attachment.task_exec[0] (see that script's
-        # comment immediately before its own equivalent assertion). Once
-        # module.crossplane_final's declaring block is gone, there is no
-        # configuration left to derive role/role_name from for any of
-        # these four, so orphan discovery cannot find them - reproducing
-        # here confirms it is a generic limitation of the discovery
-        # mechanism (reaching every composed-of-arguments untaggable type
-        # whose declaring block or ancestor module is removed outright),
-        # not specific to one estate or one type. Not fixed in this
-        # script-only unit.
-        fail "choudoufu's day2_remove plan differs from stock's oracle on cold_deploy's own state - see the comment immediately above this assertion for the named, generic root cause"
+        # STALE as of gauntlet:giantswarm-mv-children (day2_rename's own
+        # fix, internal/live/mv/mv.go's propagateModuleRename now chasing a
+        # `moved`-block hop and reconciling a superseded record duplicate):
+        # this comment used to describe a genuine discovery gap - "choudoufu
+        # proposes no destroy at all for the four composed-of-arguments
+        # untaggable children" - which is no longer what happens. Re-run for
+        # real, byte for byte: choudoufu proposes the SAME six actions as
+        # the oracle, address for address apart from the module name and
+        # action for action (both destroy aws_iam_policy,
+        # aws_iam_role_policies_exclusive, aws_iam_role_policy_attachment,
+        # aws_iam_role_policy_attachments_exclusive, aws_iam_role_policy
+        # ["extra-tagging"] and aws_iam_role.giantswarm_crossplane_role) -
+        # the mv-children fix's own record reconciliation is what now lets
+        # every composed-of-arguments child re-derive correctly under
+        # module.crossplane_final. What still fails this assertion is the
+        # comparison itself, not either runner: PLAIN_ORACLE_REMOVE (this
+        # script's day2_remove oracle) is built from $PLAIN, cold_deploy's
+        # OWN state, which is NEVER renamed - its module stays
+        # "crossplane" throughout - while choudoufu's estate has, by this
+        # point in the script, gone through Part D's real rename chain
+        # (module.crossplane -> .crossplane_renamed -> .crossplane_final).
+        # A literal string comparison of the two plans' addresses was
+        # always going to disagree on the module name alone, independent of
+        # whether the underlying instance set and action set genuinely
+        # match - which they now do. This is an apples-to-oranges oracle
+        # comparison built into this script's own test design, not a
+        # choudoufu defect and not fixed here (out of scope for
+        # gauntlet:giantswarm-mv-children, which is day2_rename's own
+        # unit): the fix belongs to this assertion, either by building
+        # PLAIN_ORACLE_REMOVE from the RENAMED plain state instead of
+        # cold_deploy's own, or by normalizing both sides' module prefix
+        # before comparing.
+        fail "choudoufu's day2_remove plan differs from stock's oracle ONLY in module name (module.crossplane_final vs module.crossplane) - the instance set and action set are byte-for-byte identical (see the comment immediately above this assertion): the oracle was built from cold_deploy's own never-renamed state, so this comparison was always going to disagree on the module name once day2_rename's own children actually resolve; not a choudoufu defect, and this assertion itself is what needs fixing, not this script-only unit's own scope"
       }
     log "  choudoufu: $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state"
 

@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -1041,6 +1042,26 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 // is exactly the wrong-marker hazard HANDOFF.md's safety rule exists to
 // stop.
 //
+// One boundary can have more than one "old" prefix, though, when req.Old
+// itself arrived at its current address through one or more `moved`-block
+// hops before this live-mv call: a bare `moved` block is a plan-time alias
+// only (this file's doc comment, and moved's own) and never physically
+// rekeys the record store, so a record-located child renamed that way stays
+// parked at whichever earlier address the block chain last named. GitHub
+// issue #405's giantswarm/giantswarm-aws-account-prerequisites day2_rename
+// wall (gauntlet:giantswarm-mv-children) is that shape: a plain `moved`
+// block relocates module.crossplane -> .crossplane_renamed, then this
+// package's own live-mv relocates .crossplane_renamed -> .crossplane_final
+// with no second `moved` block at all, and a record-located sibling with no
+// marker of its own (aws_iam_role_policy, aws_iam_role_policy_attachment)
+// was still keyed at module.crossplane - one hop further back than the
+// prefix this call's own req.Old/req.New pair names. [renameBoundaryOrigins]
+// closes it: it walks req.Old's own `moved`-block alias chain
+// ([moved.Origins], the exact primitive [gauntlet:sweep-moved-alias]'s
+// recordOrphanReadSweep already consults on the read side) to find every
+// earlier name this module boundary carried, and the sweep below matches a
+// record against any of them, not just the immediate one.
+//
 // No cross-record transaction: each record moves through
 // [RecordStore.MoveRecord]'s own single-record CAS, but there is nothing
 // tying the whole set together. A crash partway through this loop leaves
@@ -1063,6 +1084,7 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	if !ok {
 		return diags
 	}
+	oldPrefixes := renameBoundaryOrigins(m.req.Config, m.req.Old, oldPrefix, newPrefix)
 
 	keys, err := store.List(ctx)
 	if err != nil {
@@ -1076,12 +1098,23 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	}
 
 	prefix := store.Prefix()
+
+	// First pass: every stored key that falls under any of oldPrefixes,
+	// with the destination it maps to and how many hops back its matching
+	// prefix was (0 = oldPrefix itself, the closest; larger = a further
+	// origin renameBoundaryOrigins chased). No writes yet.
+	type match struct {
+		addr    addrs.AbsResourceInstance
+		newAddr addrs.AbsResourceInstance
+		hop     int
+	}
+	groups := map[string][]match{}
 	for _, key := range keys {
 		addr, ok := projection.RecordAddr(prefix, key)
 		if !ok {
 			continue
 		}
-		rest, under := moduleSuffixUnder(addr.Module, oldPrefix)
+		rest, hop, under := moduleSuffixUnderAny(addr.Module, oldPrefixes)
 		if !under {
 			continue
 		}
@@ -1092,18 +1125,158 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 		if newAddr.String() == addr.String() {
 			continue
 		}
+		dest := newAddr.String()
+		groups[dest] = append(groups[dest], match{addr: addr, newAddr: newAddr, hop: hop})
+	}
 
-		if _, mErr := store.MoveRecord(ctx, addr, newAddr); mErr != nil {
+	// Second pass, one destination at a time. More than one record in a
+	// group only happens when reqOld arrived at its current address
+	// through a `moved`-block hop this call also had to chase
+	// (renameBoundaryOrigins' own doc comment): an ordinary apply along
+	// the way refreshes every declared instance's own record at whichever
+	// address was current when it ran, without deleting the copy an
+	// earlier hop left behind - a bare `moved` block has no way to. The
+	// closest copy (smallest hop) is the freshest, written by the most
+	// recent apply along the chain, and is the one moved to the final
+	// destination; any farther copy is a superseded duplicate of the exact
+	// same instance and is deleted rather than left behind - see
+	// [projection.RecordStore.DeleteRecord]'s own doc comment for why that
+	// is safe. The move always runs before any delete for its own group,
+	// so an interrupted run is still safe to retry: on a second pass,
+	// MoveRecord finds nothing left at an already-moved winner's address
+	// and no-ops, while a not-yet-deleted loser is still there to clean up.
+	for _, group := range groups {
+		winner := group[0]
+		for _, mt := range group[1:] {
+			if mt.hop < winner.hop {
+				winner = mt
+			}
+		}
+
+		if _, mErr := store.MoveRecord(ctx, winner.addr, winner.newAddr); mErr != nil {
 			return diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"A record could not be moved with its module",
 				fmt.Sprintf(
 					"Renaming %s to %s moved module boundary %s to %s. %s's own record has to move to %s to follow, and it could not: %s. The live write already completed; run the same live-mv command again to finish moving this estate's records once this is resolved - moving a record is safe to retry.",
-					m.req.Old, m.req.New, oldPrefix, newPrefix, addr, newAddr, mErr),
+					m.req.Old, m.req.New, oldPrefix, newPrefix, winner.addr, winner.newAddr, mErr),
 			))
+		}
+
+		for _, mt := range group {
+			if mt.addr.String() == winner.addr.String() {
+				continue
+			}
+			_, version, keyExists, _, gErr := store.GetIdentity(ctx, mt.addr)
+			if gErr != nil {
+				return diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"A superseded record could not be read before cleanup",
+					fmt.Sprintf(
+						"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward to %s, and could not be read to clean it up: %s.",
+						m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, winner.addr, winner.newAddr, gErr),
+				))
+			}
+			if !keyExists {
+				continue
+			}
+			if dErr := store.DeleteRecord(ctx, mt.addr, version); dErr != nil {
+				return diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"A superseded record could not be cleaned up",
+					fmt.Sprintf(
+						"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward to %s, and could not be removed: %s. The fresher copy's move already completed; nothing is lost, but %s should be cleaned up by hand or by rerunning the same live-mv command.",
+						m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, winner.addr, winner.newAddr, dErr, mt.addr),
+				))
+			}
 		}
 	}
 	return diags
+}
+
+// renameBoundaryOrigins is [gauntlet:giantswarm-mv-children]'s own fix: a
+// live-mv call only ever names ONE boundary - reqOld's module to the sweep's
+// own newPrefix - but reqOld may itself have arrived there through one or
+// more earlier `moved`-block-only hops on the exact same module boundary,
+// and a bare `moved` block never physically moves anything in the record
+// store (this package's own doc comment, and [projection.RecordStore.
+// MoveRecord]'s: only a real rewrite - a prior live-mv call, or this one -
+// does that). A record-located child with no marker of its own then stays
+// parked at whichever pre-live-mv address the `moved` chain last left it,
+// invisible to a single-prefix sweep of oldPrefix alone: the corpus-
+// giantswarm-crossplane day2_rename wall (moved block module.crossplane ->
+// .crossplane_renamed, THEN live-mv .crossplane_renamed -> .crossplane_final
+// with no moved block for that second hop at all) is exactly this - the
+// child's record was still keyed at module.crossplane, one hop further back
+// than oldPrefix (module.crossplane_renamed).
+//
+// The bridge is reqOld's own alias chain: [moved.Origins] over the
+// configuration's [moved.Honoured] statements, asked about reqOld itself
+// (the one resource this live-mv call was explicitly given), names every
+// earlier address reqOld could still be marked as. Since the `moved` block
+// that produced each origin names a MODULE CALL, not one resource, it
+// applies uniformly to every resource beneath it - a record-located
+// sibling's own history is the same as the anchor's. Each origin's module,
+// re-diffed against reqOld's module the same conservative way
+// [moduleRenameBoundary] already diffs oldPrefix, contributes one more
+// prefix candidate the sweep matches records against, all landing on the
+// SAME newPrefix - so a child still sitting two hops back is carried the
+// whole way to the live-mv destination in one call, the same as one hop
+// back. An origin that does not re-diff cleanly (a different length, more
+// than one differing step, or a differing step at a different position than
+// the one this rename is actually about) is dropped rather than guessed at,
+// the same discipline [moduleRenameBoundary] itself applies: doing nothing
+// with an ambiguous shape is always safe, and moving the wrong record is the
+// wrong-marker hazard HANDOFF.md's safety rule exists to stop.
+//
+// Generic by construction, same as [mover.propagateModuleRename] itself:
+// nothing here names a resource type, only reqOld's own address and the
+// configuration's `moved` blocks.
+func renameBoundaryOrigins(cfg *configs.Config, reqOld addrs.AbsResourceInstance, oldPrefix, newPrefix addrs.ModuleInstance) []addrs.ModuleInstance {
+	out := []addrs.ModuleInstance{oldPrefix}
+
+	stmts := moved.Honoured(cfg)
+	if len(stmts) == 0 {
+		return out
+	}
+
+	for _, origin := range moved.Origins(stmts, reqOld) {
+		furtherOld, matchOld, ok := moduleRenameBoundary(origin.Module, reqOld.Module)
+		if !ok || !matchOld.Equal(oldPrefix) {
+			// Not the same renamed step this call is about - conservative
+			// skip, per this function's own doc comment.
+			continue
+		}
+		dup := false
+		for _, p := range out {
+			if p.Equal(furtherOld) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			out = append(out, furtherOld)
+		}
+	}
+	return out
+}
+
+// moduleSuffixUnderAny is [moduleSuffixUnder] over a set of candidate
+// prefixes, in order: prefixes is [renameBoundaryOrigins]'s own output,
+// closest (oldPrefix itself) first and progressively further chased
+// `moved`-block origins after it, so the first match found is also the
+// closest one - hop is its index, which [mover.propagateModuleRename] uses
+// to pick the freshest of several records mapping to the same destination.
+// [renameBoundaryOrigins] is the only caller that ever supplies more than
+// one prefix; every other caller of [moduleSuffixUnder] keeps using it
+// directly for the single-prefix case.
+func moduleSuffixUnderAny(module addrs.ModuleInstance, prefixes []addrs.ModuleInstance) (rest addrs.ModuleInstance, hop int, ok bool) {
+	for i, prefix := range prefixes {
+		if r, under := moduleSuffixUnder(module, prefix); under {
+			return r, i, true
+		}
+	}
+	return nil, 0, false
 }
 
 // moduleRenameBoundary reports the module-instance prefix a rename from old

@@ -158,8 +158,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 24,
-          "fail": 2,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "day2_replace": {
@@ -235,8 +235,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 23,
-          "fail": 2,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "day2_replace": {
@@ -609,7 +609,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -623,13 +623,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f09fc595df739385215bc1dde851292a584b7419",
-        "date": "2026-08-25T07:47:30Z",
+        "commit": "cddae6c9194b6c9a116985a2b5383aac3b05d51b",
+        "date": "2026-08-25T08:50:19Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "6 resource instances added, 0 already tofu-estate-marked before migration",
-          "day2_remove": "choudoufu proposes no destroy at all for module.crossplane_final's block (not even the role itself, tagged though it is) - see the comment immediately above this assertion for the reproduced root cause (an estate whose configuration declares zero resource/module blocks is never swept for its own orphaned tagged objects)",
-          "day2_rename": "the post-rename plan is not empty: live-mv only rewrote the role/policy markers, leaving the untaggable aws_iam_role_policy[\"extra-tagging\"] and aws_iam_role_policy_attachment children's records stale-keyed at module.crossplane_renamed's address with no moved block or live-mv call carrying them to module.crossplane_final - a second, distinct record-located-rename gap the moved.Aliases consult fix (gauntlet:sweep-moved-alias) does not reach, since no moved statement names this hop at all",
+          "day2_remove": "choudoufu's day2_remove plan differs from stock's oracle ONLY in module name (module.crossplane_final vs module.crossplane) - the instance set and action set are byte-for-byte identical (see the comment immediately above this assertion): the oracle was built from cold_deploy's own never-renamed state, so this comparison was always going to disagree on the module name once day2_rename's own children actually resolve; not a choudoufu defect, and this assertion itself is what needs fixing, not this script-only unit's own scope",
+          "day2_rename": "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured",
           "greenfield": "6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy",
           "migrate": "2 of 6 stamped (role, managed policy), 4 untaggable skipped, module's own tags survived the stamp",
