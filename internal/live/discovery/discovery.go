@@ -461,7 +461,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	diags = diags.Append(bind(req, decl, res))
-	diags = diags.Append(classifyOrphans(req, schemas, res))
+	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
 	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
 	// it reads res.Resolutions to find both which parent instances this
@@ -2554,7 +2554,7 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
 // engine's own orphan handling turns into a destroy.
-func classifyOrphans(req Request, schemas listclient.Schemas, res *Result) tfdiags.Diagnostics {
+func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schemas, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if len(res.Orphans) == 0 {
@@ -2666,7 +2666,27 @@ func classifyOrphans(req Request, schemas listclient.Schemas, res *Result) tfdia
 			// with no ordering between the two - so it reads the identical
 			// convention off the orphan's OWN listed resource object
 			// instead. See [classifyOrphanDestroyDependency].
-			dependsOn = classifyOrphanDestroyDependency(req, schemas, res, o.TypeName, o.Resource)
+			//
+			// o.Resource is cty.NilVal for the tag-sweep leg's own orphans
+			// (fileTaggingCandidate, tagging.go): that leg's whole design is
+			// "one shared GetResources call, ARN plus tags, never a
+			// resource's other properties" (see typeNeedsResourceObjectToRecompose's
+			// own doc comment), so a type ONLY reachable that way - true of
+			// aws_vpc_security_group_egress_rule/ingress_rule, whose sole
+			// arnJoinTable entry is [ambiguous], never [single], so
+			// arnJoinReaches keeps it in the tagging universe even though
+			// it has no native provider list route either - never gets one.
+			// resolveOrphanResourceForDependency fills that one gap with a
+			// single, targeted GetResource call, bounded to genuinely
+			// undeclared removal candidates (never a sweep-wide cost) -
+			// the same "one call per undeclared parent" budget
+			// [parentReadSweepType]'s own doc comment already accepts for
+			// the identical class of question.
+			resource := o.Resource
+			if resource == cty.NilVal {
+				resource = resolveOrphanResourceForDependency(ctx, req, o)
+			}
+			dependsOn = classifyOrphanDestroyDependency(req, schemas, res, o.TypeName, resource)
 		}
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,

@@ -162,7 +162,7 @@ func TestClassifyOrphans_UndeclaredSiblingsGetOrderedDestroy(t *testing.T) {
 		},
 	}
 
-	diags = classifyOrphans(Request{Estate: "sg-rule-order", Roster: sgRuleRoster(t)}, schemas, res)
+	diags = classifyOrphans(t.Context(), Request{Estate: "sg-rule-order", Roster: sgRuleRoster(t)}, schemas, res)
 	if diags.HasErrors() {
 		t.Fatalf("classifying the sibling pair reported errors: %s", diags.Err())
 	}

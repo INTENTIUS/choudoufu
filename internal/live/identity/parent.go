@@ -23,6 +23,7 @@
 package identity
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -451,6 +452,47 @@ func namesParentByConvention(attr, parent string) bool {
 // read a link from, only its provider schema's own argument names.
 func ParentByConvention(attr, self string, parents map[string]bool, service ServiceOf) (string, bool) {
 	return parentByConvention(attr, self, parents, service)
+}
+
+// The two-pass camel-to-snake conversion tools/row-gen/argname.go's own
+// snakeCase already does, duplicated here rather than imported because
+// tools/row-gen is a `package main` with nothing importable: split before a
+// capital that starts a lowercase run ("FunctionName" -> "Function_Name"),
+// then split between a lowercase-or-digit and a capital that was not
+// already split ("IPv6" -> "IP_v6" from the first pass alone would miss the
+// v; this pass catches the boundary the first one does not). Standard Go
+// idiom, not specific to either package.
+var (
+	cfnPropertyFirstCap = regexp.MustCompile(`(.)([A-Z][a-z]+)`)
+	cfnPropertyAllCap   = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+)
+
+// GuessArgNameFromCFNProperty converts a CFN PascalCase property name to a
+// GUESSED TF argument name ("GroupId" -> "group_id"), the identical
+// conversion tools/row-gen/argname.go's own snakeCase already makes for its
+// own purpose (a last-resort import-syntax argument name), flagged GUESSED
+// there for the same reason it is here: a CFN property name and a TF
+// argument name are two different providers' vocabularies that happen to
+// often agree, not a fact this function can verify.
+//
+// [ParentByConvention] needs it because [scanTypeCloudControl]'s own
+// listed object (internal/live/discovery's Cloud Control leg) carries CFN
+// property names, never the TF schema's own argument names
+// [importIdentityFromResource]'s native-list equivalent reads - found via
+// corpus-ecs-fargate's day2_remove unit, aws_vpc_security_group_egress_rule
+// has no native provider list route at all (Cloud Control is its only
+// enumeration leg), so its own live sighting never carries a "security_
+// group_id" attribute to match against, only Cloud Control's own "GroupId".
+// A wrong guess is not a hazard here the way it would be for an import ID:
+// [ParentByConvention] still has to independently confirm the guessed name
+// matches an admitted parent type, and the caller still has to find that
+// parent's own ImportID among this run's own resolutions - a bad guess
+// simply finds nothing, exactly today's "no computed dependency" outcome,
+// never a wrong one asserted with confidence.
+func GuessArgNameFromCFNProperty(property string) string {
+	s := cfnPropertyFirstCap.ReplaceAllString(property, "${1}_${2}")
+	s = cfnPropertyAllCap.ReplaceAllString(s, "${1}_${2}")
+	return strings.ToLower(s)
 }
 
 func parentByConvention(attr, self string, parents map[string]bool, service ServiceOf) (string, bool) {
