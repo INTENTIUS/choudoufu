@@ -162,10 +162,16 @@ set -uo pipefail
 # resource behind it. Combined with floci's own default-VPC bootstrap
 # (`ensureDefaultResources`: one default VPC's IGW, route table, security
 # group and three subnets, real AWS's own out-of-the-box account shape),
-# every plan this estate runs sees exactly 9 foreign objects: the root
-# volume plus those 8 default-account objects. STAGE 3 asserts this COUNT by
-# value rather than requiring "none", because "none" would be false for any
-# real account this module was ever pointed at.
+# every plan this estate runs sees exactly 8 foreign objects: the root
+# volume plus those 7 default-account objects (the default security group's
+# single default egress rule - real AWS's default security group carries
+# exactly one default outbound rule, allow-all IPv4, and no default inbound
+# rule at all - not the two floci previously, wrongly, reported before
+# lex00/floci#136's SecurityGroupRuleId-revoke fix landed; re-measured after
+# that repin, this count moved 9 -> 8 and the assertion below moved with
+# it). STAGE 3 asserts this COUNT by value rather than requiring "none",
+# because "none" would be false for any real account this module was ever
+# pointed at.
 #
 # STAGE-BY-STAGE SHAPE (see live/GAUNTLET.md):
 #   1. COLD DEPLOY   plain `terraform apply` (real HashiCorp terraform), no
@@ -178,7 +184,7 @@ set -uo pipefail
 #                     against the AWS CLI's own answer, not merely "did not
 #                     error"; the follow-up apply is a genuine no-op.
 #   3. TEST PLAN     state file deleted, `choudoufu live-plan` proposes no
-#                     resource change and reports exactly 9 foreign objects;
+#                     resource change and reports exactly 8 foreign objects;
 #                     the instance's tofu-address is re-checked against EC2
 #                     directly.
 #   4. TEST APPLY    apply the empty plan; tofu-estate-tagged object count
@@ -561,7 +567,7 @@ GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
 
-log "=== PART GREENFIELD: 4. the next plan proposes nothing (besides the same 9 foreign default-account objects STAGE 3 already names) ==="
+log "=== PART GREENFIELD: 4. the next plan proposes nothing (besides the same 8 foreign default-account objects STAGE 3 already names) ==="
 GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
 [ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
 if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
@@ -852,13 +858,15 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # FOREIGN" note): the instance's own root EBS volume (an inline attribute of
 # aws_instance, never a Terraform resource of its own) plus floci's
 # out-of-the-box default-VPC bootstrap (IGW, route table, security group,
-# three subnets, that security group's two default egress rules) - 9 real,
-# expected foreign objects, not "none". Asserting this by value is what
-# distinguishes "this estate's known foreign shape" from "something this
-# estate owns was missed by the sweep".
-grep -qE "^Foreign resources: 9 live resources not owned by estate $ESTATE" <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "expected exactly 9 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); the corpus pin, floci's default-account shape, or a real gap has moved"; }
-log "  no resource change proposed; exactly 9 foreign objects (root volume + default-VPC bootstrap, both expected)"
+# three subnets, that security group's single default egress rule - real
+# AWS's default security group carries exactly one default outbound rule
+# and no default inbound rule) - 8 real, expected foreign objects, not
+# "none". Asserting this by value is what distinguishes "this estate's
+# known foreign shape" from "something this estate owns was missed by the
+# sweep".
+grep -qE "^Foreign resources: 8 live resources not owned by estate $ESTATE" <<< "$PLAN_OUT" \
+  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "expected exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); the corpus pin, floci's default-account shape, or a real gap has moved"; }
+log "  no resource change proposed; exactly 8 foreign objects (root volume + default-VPC bootstrap, both expected)"
 
 WANT_ADDR2="module.ec2_complete.aws_instance.this:0"
 if [ "$BREAK_AT" = "identity" ]; then
@@ -872,7 +880,7 @@ GOT_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE
 log "  identity re-check (via EC2, after the state file has never existed this run): unchanged"
 
 log ""
-gauntlet_stage test_plan pass "no resource change proposed, exactly 9 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2"
+gauntlet_stage test_plan pass "no resource change proposed, exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2"
 log "STAGE 3 (test plan): PASS"
 log ""
 
