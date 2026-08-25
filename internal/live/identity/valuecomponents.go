@@ -153,6 +153,70 @@ func ComponentsUnknown(t TypeIdentity, val cty.Value) bool {
 	return false
 }
 
+// ComponentsServerAssignedIfAbsent is [ComponentsUnknown]'s sibling for
+// GitHub issue #190's other safe absence: a component whose configuration
+// argument is genuinely absent (not merely unknown - see
+// [ComponentsUnknown]'s own doc comment on that distinction), AND carries
+// [Component.ServerAssignedIfAbsent] - the provider's own Argument
+// Reference documenting that IT fills the argument in when configuration
+// leaves it blank (aws_iam_role's name, the *_prefix convention). There is
+// no configuration value here to have derived a guess from in the first
+// place, the identical "no source to be missing" shape a whole-type
+// [TypeIdentity.ServerAssigned] row already gets exempted for in
+// [projection.NodeResolver.ResolveResourceIdentity] - just discovered one
+// component at a time instead of one type at a time.
+//
+// Unlike [ComponentsUnknown], which may report true from ANY unknown
+// component regardless of where [ComponentsFromValue]'s own walk would
+// actually have stopped (safe because an unknown value can never collide
+// with a real object's identity, whatever else might also be wrong with
+// the type), this function mirrors [ComponentsFromValue]'s walk order
+// precisely and asks only about the FIRST component the walk would
+// actually stop at. A blank ServerAssignedIfAbsent argument earlier in the
+// list does not make a later, genuinely ambiguous absence (no
+// OmitIfAbsent, no Default, no ServerAssignedIfAbsent) safe to wave
+// through - that absence is exactly ruling 4 (#365)'s case, and nothing
+// about a DIFFERENT component being provider-assigned changes that.
+//
+// A caller must use this ONLY to decide whether to WITHHOLD the "No
+// source" refusal, the same restriction [ComponentsUnknown]'s own doc
+// comment states - never as a reason to invent an identity.
+//
+// Found via corpus-autoscaling-complete's own greenfield gauntlet stage:
+// module.complete.aws_iam_role.this[0] and aws_sqs_queue.this both use
+// the *_prefix convention (use_name_prefix defaults to true in the
+// upstream module), so their "name" component is a known null, not
+// unknown - [ComponentsUnknown] alone does not cover this shape.
+func ComponentsServerAssignedIfAbsent(t TypeIdentity, val cty.Value) bool {
+	if t.ServerAssigned || t.RecordBacked || len(t.Components) == 0 {
+		return false
+	}
+	if val == cty.NilVal || val.IsNull() || val.IsMarked() {
+		return false
+	}
+	if !val.Type().IsObjectType() {
+		return false
+	}
+	for _, c := range t.Components {
+		_, _, _, present, hardFail, _ := componentFromValue(c, val)
+		if hardFail {
+			// Some other reason - marked, PerElement/Cloud, a SoleElement
+			// mismatch, or an unknown value ([ComponentsUnknown]'s own
+			// business) - is what [ComponentsFromValue]'s walk would
+			// actually have stopped on here, whatever a later component in
+			// the list might otherwise look like.
+			return false
+		}
+		if !present {
+			if c.OmitIfAbsent || c.Default != "" {
+				continue
+			}
+			return c.ServerAssignedIfAbsent
+		}
+	}
+	return false
+}
+
 // componentFromValue resolves one component's contribution against val,
 // which is either the instance's whole configuration value or (when a
 // caller nested into a Block) that block's one element.

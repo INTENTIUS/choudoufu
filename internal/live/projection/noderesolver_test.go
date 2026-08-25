@@ -417,3 +417,33 @@ func TestNodeResolver_UnknownIdentityAttributeNeverRefuses(t *testing.T) {
 		t.Fatalf("nothing should have been found with NoSourceCreate=true either: target=%#v", target2)
 	}
 }
+
+// TestNodeResolver_ServerAssignedIfAbsentComponentNeverRefuses is
+// TestNodeResolver_UnknownIdentityAttributeNeverRefuses's sibling for
+// GitHub issue #190's other safe absence: aws_iam_role.this's "name"
+// component carries [identity.Component.ServerAssignedIfAbsent] (the
+// provider assigns a name itself when the *_prefix convention is used
+// instead), so an absent (null, not unknown) name has no configuration
+// value to have derived a guess from in the first place - the identical
+// "no source to be missing" shape TestNodeResolver_ServerAssignedTypeNeverRefuses
+// pins for a whole-type ServerAssigned row, just discovered one component
+// at a time. Caught by corpus-autoscaling-complete's own greenfield
+// stage: aws_iam_role.this and aws_sqs_queue.this both use this
+// convention (use_name_prefix defaults to true in the upstream module).
+func TestNodeResolver_ServerAssignedIfAbsentComponentNeverRefuses(t *testing.T) {
+	addr := locatedTestAddr(t, "aws_iam_role", "this")
+	val := cty.ObjectVal(map[string]cty.Value{"name": cty.NullVal(cty.String)})
+
+	for _, noSourceCreate := range []bool{false, true} {
+		t.Run(fmt.Sprintf("NoSourceCreate=%v", noSourceCreate), func(t *testing.T) {
+			resolver := &NodeResolver{NoSourceCreate: noSourceCreate}
+			target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, val, providers.Schema{})
+			if diags.HasErrors() {
+				t.Fatalf("a blank ServerAssignedIfAbsent component must never be refused: %s", diags.Err())
+			}
+			if found {
+				t.Fatalf("nothing should have been found: %#v", target)
+			}
+		})
+	}
+}
