@@ -494,26 +494,44 @@ resource "aws_instance" "main" {
 EOF
 }
 
-# count_test_block($1 = count) is the day2_count stage's own resource: a
-# security group nothing else in this estate names, added and removed
-# entirely within Part F (and the B1.7 stock oracle), so day2_count's own
-# history never touches the five resources every other part depends on.
-# Unquoted heredoc so $1 interpolates; ${count.index} is escaped so bash
-# never tries to expand it as a parameter.
+# count_test_block($1 = count, $2 = vpc_id HCL expression) is the
+# day2_count stage's own resource: a security group nothing else in this
+# estate names, added and removed entirely within Part F (and the B1.7
+# stock oracle), so day2_count's own history never touches the five
+# resources every other part depends on. $2 lets the same helper serve
+# both Part F (inside the adopted estate, where aws_vpc.main already
+# exists) and the B1.7 oracle (its own separate working directory and
+# state, with its own small VPC - see oracle_vpc_block below). Unquoted
+# heredoc so $1/$2 interpolate; ${count.index} is escaped so bash never
+# tries to expand it as a parameter.
 count_test_block() {
-  local n="$1"
+  local n="$1" vpc_ref="$2"
   cat <<COUNTEOF
 resource "aws_security_group" "count_test" {
   count       = $n
   name        = "ec2-reference-count-test-\${count.index}"
   description = "day2_count evidence (issue #359)"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = $vpc_ref
 
   tags = {
     Name = "ec2-reference-count-test-\${count.index}"
   }
 }
 COUNTEOF
+}
+
+# oracle_vpc_block() is the B1.7 stock oracle's own tiny VPC, standing in
+# for aws_vpc.main so count_test_block's security groups have a vpc_id in
+# a working directory that never declares the adopted estate's real VPC.
+oracle_vpc_block() {
+  cat <<'EOF'
+resource "aws_vpc" "count_oracle" {
+  cidr_block = "10.99.0.0/16"
+  tags = {
+    Name = "ec2-reference-count-oracle-vpc"
+  }
+}
+EOF
 }
 
 provider_block() {
@@ -860,14 +878,16 @@ terraform {
 EOF
   provider_block
   echo
-  count_test_block 2
+  oracle_vpc_block
+  echo
+  count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
 ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) \
   || fail "the day2_count oracle's terraform init failed"
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
-grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
-  || fail "stock did not create exactly 2 count-test security groups for the day2_count oracle"
+grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 3 resources (the oracle's own VPC plus 2 count-test security groups) for the day2_count oracle"; }
 ORACLE_SG0_ID="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-security-groups \
   --filters "Name=tag:Name,Values=ec2-reference-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
 ORACLE_SG1_ID="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-security-groups \
@@ -890,7 +910,9 @@ terraform {
 EOF
   provider_block
   echo
-  count_test_block 1
+  oracle_vpc_block
+  echo
+  count_test_block 1 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
 [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
@@ -926,7 +948,9 @@ terraform {
 EOF
   provider_block
   echo
-  count_test_block 2
+  oracle_vpc_block
+  echo
+  count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
 [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
@@ -1426,7 +1450,7 @@ EOF
       echo
       resource_block_igw_removed
       echo
-      count_test_block 2
+      count_test_block 2 "aws_vpc.main.id"
     } > "$ADOPTED/main.tf"
     COUNT_ADD_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_ADD_PLAN_RC=$?
     [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -30; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
@@ -1447,8 +1471,8 @@ EOF
       --filters "Name=resource-id,Values=$SG0_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
     SG1_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
       --filters "Name=resource-id,Values=$SG1_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-    [ "$SG0_ADDR_TAG" = 'aws_security_group.count_test[0]' ] || fail "count_test[0]'s live tofu-address tag is $SG0_ADDR_TAG, not aws_security_group.count_test[0]"
-    [ "$SG1_ADDR_TAG" = 'aws_security_group.count_test[1]' ] || fail "count_test[1]'s live tofu-address tag is $SG1_ADDR_TAG, not aws_security_group.count_test[1]"
+    [ "$SG0_ADDR_TAG" = 'aws_security_group.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $SG0_ADDR_TAG, not aws_security_group.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+    [ "$SG1_ADDR_TAG" = 'aws_security_group.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $SG1_ADDR_TAG, not aws_security_group.count_test:1"
     log "  2 instances created: index 0 = $SG0_ID (tofu-address=$SG0_ADDR_TAG), index 1 = $SG1_ID (tofu-address=$SG1_ADDR_TAG) - read via the AWS CLI"
 
     COUNT_NOOP_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_NOOP_PLAN_RC=$?
@@ -1480,7 +1504,7 @@ EOF
       echo
       resource_block_igw_removed
       echo
-      count_test_block 1
+      count_test_block 1 "aws_vpc.main.id"
     } > "$ADOPTED/main.tf"
     COUNT_DOWN_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_DOWN_PLAN_RC=$?
     [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -30; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
@@ -1513,7 +1537,7 @@ EOF
       [ "$SG1_COUNT_AFTER_DOWN" = "0" ] || fail "count_test[1] ($SG1_ID) still exists in the live account after the scale-down destroy"
       SG0_ADDR_AFTER_DOWN="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
         --filters "Name=resource-id,Values=$SG0_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-      [ "$SG0_ADDR_AFTER_DOWN" = 'aws_security_group.count_test[0]' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $SG0_ADDR_AFTER_DOWN"
+      [ "$SG0_ADDR_AFTER_DOWN" = 'aws_security_group.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $SG0_ADDR_AFTER_DOWN"
       log "  $SG1_ID (count_test[1]) no longer exists (0 found); $SG0_ID (count_test[0]) unchanged id and marker - all read via the AWS CLI"
 
       log "=== F2. scale count back up: 1 -> 2 ==="
@@ -1539,7 +1563,7 @@ EOF
         echo
         resource_block_igw_removed
         echo
-        count_test_block 2
+        count_test_block 2 "aws_vpc.main.id"
       } > "$ADOPTED/main.tf"
       COUNT_UP_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_UP_PLAN_RC=$?
       [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -30; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
@@ -1562,7 +1586,7 @@ EOF
       [ "$SG1_NEW_ID" != "$SG1_ID" ] || fail "count_test[1] came back with the SAME id ($SG1_ID) it had before being destroyed - the destroy in F1 was not real"
       SG1_NEW_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
         --filters "Name=resource-id,Values=$SG1_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-      [ "$SG1_NEW_ADDR_TAG" = 'aws_security_group.count_test[1]' ] || fail "the recreated count_test[1] ($SG1_NEW_ID) carries tofu-address=$SG1_NEW_ADDR_TAG, not aws_security_group.count_test[1]"
+      [ "$SG1_NEW_ADDR_TAG" = 'aws_security_group.count_test:1' ] || fail "the recreated count_test[1] ($SG1_NEW_ID) carries tofu-address=$SG1_NEW_ADDR_TAG, not aws_security_group.count_test:1"
       SG0_AFTER_UP="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-security-groups \
         --group-ids "$SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
       [ "$SG0_AFTER_UP" = "$SG0_ID" ] || fail "count_test[0]'s live id changed across the scale-up ($SG0_ID -> $SG0_AFTER_UP)"
