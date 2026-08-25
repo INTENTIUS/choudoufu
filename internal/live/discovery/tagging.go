@@ -260,6 +260,21 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		// table.
 		"task-definition": single("AWS::ECS::TaskDefinition"),
 	},
+	// A distribution's ARN is arn:aws:cloudfront::ACCOUNT:distribution/ID -
+	// unambiguous, the same slash-delimited shape iam's "role"/"policy"
+	// entries above already join. Found the same way the iam/policy entry
+	// above was: corpus-overture-tiles's day2_remove unit shrinking its
+	// aws_cloudfront_distribution block's count to zero. A count-shrunk-to-
+	// zero block carries no declared instance ([declared.indexCountBlocks]'s
+	// own doc comment), so the type drops out of decl.types entirely and
+	// the config-driven per-type scan that would otherwise have found it
+	// never runs; the estate-wide tag sweep is then the ONLY remaining route
+	// to the live object, and without this entry it could not join the
+	// ARN to any CFN type either, so the distribution's own destroy was
+	// never proposed - the same silent-instead-of-loud failure the iam/
+	// policy entry's own comment describes, reached through a different
+	// door (a count shrinking to zero rather than a rename).
+	"cloudfront": {"distribution": single("AWS::CloudFront::Distribution")},
 	// A CloudWatch composite alarm and a metric alarm share the exact same
 	// "alarm" ARN shape (arn:...:cloudwatch:...:alarm:NAME) - CloudWatch
 	// treats both as one alarm namespace, and nothing in the ARN says which

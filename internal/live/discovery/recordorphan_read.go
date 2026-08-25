@@ -52,6 +52,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -156,12 +157,36 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			continue
 		}
 		typeName := addr.Resource.Resource.Type
-		if _, ok := identity.LookupType(typeName); !ok {
-			// Not an admitted type at all - a stray or foreign key, not
-			// this leg's to guess at, the same discipline
-			// [builder.discoverOrphanedRecords] applies to a key it cannot
-			// make sense of.
-			continue
+		if _, ratified := identity.LookupType(typeName); !ratified {
+			// No ratified row - but a type [identity.LocatedType] admits is
+			// this leg's population too, not only the ratified,
+			// multi-Component one the file's own doc comment was written
+			// against: [identity.LocatedType] is precisely the schema-first
+			// "record rung" HANDOFF's foundation section names (the same
+			// test [internal/live/lint], [internal/live/liveimport/ratify.go]
+			// and [internal/live/projection/writeback.go] already gate
+			// their own record read/write on for exactly this shape), and a
+			// server-assigned, untaggable, single-attribute type like
+			// aws_cloudfront_origin_access_control both qualifies and has
+			// no ratified row to ever qualify by the check this replaced.
+			// Found on corpus-overture-tiles's day2_remove: the OAC's own
+			// record persisted from the #249 convergence apply, but this
+			// gate's ratified-only test discarded it before ever reaching
+			// [store.GetIdentity], so its destroy was never proposed even
+			// though the record held everything needed to propose it
+			// safely. Neither classifyOrphans' tag sweep (no tags to
+			// carry a marker) nor parentReadSweep (a server-minted id has
+			// no argument a parent's own value reconstructs) can ever
+			// reach this population; the record store is the only place
+			// left that knows it.
+			schema, ok := providerSchemaFor(schemas, typeName)
+			if !ok || !identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema}) {
+				// Not an admitted type at all, by either door - a stray or
+				// foreign key, not this leg's to guess at, the same
+				// discipline [builder.discoverOrphanedRecords] applies to a
+				// key it cannot make sense of.
+				continue
+			}
 		}
 		if typeTaggable(schemas, typeName) {
 			// Taggable, meaning the ordinary tag sweep already covers it
@@ -372,4 +397,27 @@ func composeImportIDFromComponents(typeName string, components map[string]string
 		b.WriteString(val)
 	}
 	return b.String(), true
+}
+
+// providerSchemaFor rebuilds one type's [providers.Schema] from what a
+// [listclient.ListSchemas] response already carries: the managed resource
+// block from [listclient.Schemas.ResourceSchema], which answers even for a
+// type with no list route, plus the identity schema and version from
+// [listclient.Schemas.Get] when the type is listable. It is the same fact
+// [identity.LocatedType]'s other three call sites
+// (internal/live/lint.lint, internal/live/liveimport/ratify.go's
+// locatedByProviderSchema, internal/live/projection/writeback.go's
+// writeBackRecordEnvelopes) each read off their own schema handle, rebuilt
+// here from the one this package already threads through every scan.
+func providerSchemaFor(schemas listclient.Schemas, typeName string) (providers.Schema, bool) {
+	block, ok := schemas.ResourceSchema(typeName)
+	if !ok || block == nil {
+		return providers.Schema{}, false
+	}
+	s := providers.Schema{Block: block}
+	if ts, ok := schemas.Get(typeName); ok {
+		s.IdentitySchema = ts.Identity
+		s.IdentitySchemaVersion = ts.IdentityVersion
+	}
+	return s, true
 }
