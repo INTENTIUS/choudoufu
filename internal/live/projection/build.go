@@ -2055,10 +2055,41 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	b.state.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, providerAddr, addrs.NoKey)
 	b.live[addr.String()] = obj.Value
 	b.materialized = append(b.materialized, addr)
-	if importID != "" {
-		b.materializedIdentity[typeName+"\x00"+importID] = true
+	// dedupID is what [builder.materializedIdentity]'s key is built from -
+	// deliberately [traceImportID]'s own fallback, not the bare importID
+	// parameter. A type with no single import-ID string (every Component
+	// supplies part of a composite, [identity.TypeIdentity.IdentityObjectOnly]'s
+	// shape - aws_route53_record among them) leaves importID "" for EVERY
+	// route into this function except the ordinary [identity.Class]-driven
+	// concrete/derived ones: [builder.materializeFromRecord] (the
+	// applyRecordFirst intercept every non-record-backed/-located
+	// resolution tries FIRST, GitHub issue #364 unit A2) hands materialize
+	// the persisted record's rec.ImportID verbatim, which is empty for
+	// exactly this shape - the record carries only rec.Components. Before
+	// this fix, [builder.run]'s ReasonSuperseded check (GitHub issue #404)
+	// silently never registered such an instance at all: the OLD line
+	// below only ever set the map when the raw importID happened to be
+	// non-empty, so a record-first-materialized declared instance of a
+	// composite-only type left no entry for recordOrphanReadSweep's own
+	// (correctly composed, non-empty) undeclared resolution to match
+	// against, and a live object relocated by ordinary parent-derived
+	// re-discovery - the exact shape day2_rename's own e2e header comment
+	// documents needing no `moved` block for - planned a destroy of the
+	// object its new address was about to keep managing (GitHub issue
+	// #410). traceImportID already composes the identical canonical
+	// string from obj.Value for the trace line a few lines down whenever
+	// importID is empty and the type's Components are known, using the
+	// SAME [identity.LookupType] table [composeImportIDFromComponents]
+	// (internal/live/discovery/recordorphan_read.go) reads to build the
+	// undeclared side's own r.ImportID - so the two sides compare equal
+	// once both go through it. Reaches every admitted type whose entry
+	// carries Components with no single IdentityAttrs string, not
+	// aws_route53_record specifically.
+	dedupID := traceImportID(typeName, importID, obj.Value)
+	if dedupID != "" {
+		b.materializedIdentity[typeName+"\x00"+dedupID] = true
 	}
-	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, traceImportID(typeName, importID, obj.Value))
+	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, dedupID)
 	return true
 }
 
