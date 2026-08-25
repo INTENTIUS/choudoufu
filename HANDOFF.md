@@ -212,8 +212,12 @@ each item rests on and the commits they were computed at:
 3. **The plan-node seam (#388)**: identity resolved, and markers stamped, at the
    plan-instance node from stock's own evaluated values: record, then marker
    index, then identity schema over the evaluated configuration. One hook
-   inside the engine. The static evaluator and the HCL-rewriting stamp
-   retire when the gauntlet holds without them. After 1 holds.
+   inside the engine. The HCL-rewriting stamp, `module_prefix`, and
+   LayerStamp's refusals retire when the gauntlet holds without them; the
+   static evaluator does NOT retire - it is the estate-wide demand
+   computation live-import, live-mv, live-check, discovery and the
+   instruments all consume (measured 2026-08-25, #388's retirement-scope
+   comment). After 1 holds.
 4. **Toggles (#365)**: a no-source instance (no record, no marker, nothing
    derivable) refuses by default and plans a create under a toggle;
    `aws_iam_access_key` is stored by default and refused under
