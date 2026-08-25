@@ -678,13 +678,20 @@ grep -qE '^  # module\.default_sqs\.aws_sqs_queue\.this\[0\] must be replaced' <
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing module.default_sqs's queue when its name argument changes"; }
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
-REPLACE_ORACLE_APPLY_OUT="$(cd "$REPLACE_ORACLE_EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; REPLACE_ORACLE_APPLY_RC=$?
-[ "$REPLACE_ORACLE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_APPLY_OUT" | tail -40; fail "the day2_replace stock oracle apply exited $REPLACE_ORACLE_APPLY_RC"; }
-grep -qE 'Apply complete! Resources: 1 added, 0 changed, 1 destroyed' <<< "$REPLACE_ORACLE_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$REPLACE_ORACLE_APPLY_OUT"; fail "the day2_replace stock oracle apply was not exactly one add and one destroy"; }
-REPLACE_ORACLE_QUEUES="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" sqs list-queues --queue-name-prefix "ex-complete-default" --query 'length(QueueUrls)' --output text)"
-[ "$REPLACE_ORACLE_QUEUES" = "1" ] || fail "stock's replace oracle left $REPLACE_ORACLE_QUEUES queues named ex-complete-default*, not the single object the Oracle text names"
-log "  stock: exactly one replace (destroy the old ex-complete-default, create ex-complete-default-v2), leaving the same single object at the same declared address, on the state cold_deploy produced"
+# PLAN ONLY, never applied - same convention as D-ORACLE and E-ORACLE
+# above. This oracle's copy shares floci's ACCOUNT with $EST (only the
+# working directory and state are separate; there is no per-oracle
+# namespace the way PART GREENFIELD's stock oracle gets its own
+# container), so actually applying here would destroy and recreate the
+# real ex-complete-default queue $EST's own later stages still depend on.
+# An earlier version of this section did apply, and a later real run
+# caught it immediately: STAGE 2 (migrate) failed with "module.
+# default_sqs.aws_sqs_queue.this[0] ... The live system reports that this
+# identity no longer exists" - the oracle's own apply had destroyed it out
+# from under the estate. The plan's own "-/+ destroy and then create
+# replacement" legend and its "must be replaced"/"forces replacement"
+# lines are the oracle's proof; no apply is needed to make it load-bearing.
+log "  stock: exactly one replace proposed (destroy the old ex-complete-default, create ex-complete-default-v2) at the same declared address, on the state cold_deploy produced - plan only, not applied (see above)"
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1140,7 +1147,7 @@ EOF
       && { printf '%s\n' "$F_FINAL_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the post-replace plan proposes a resource change"; }
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
-    gauntlet_stage day2_replace pass "choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object ($DEFAULT_QUEUE_URL) is confirmed gone and the new object ($F_NEW_URL) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address, leaving the same single object; BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object ($DEFAULT_QUEUE_URL) is confirmed gone and the new object ($F_NEW_URL) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with \$EST); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
   CURRENT_STAGE=""
 
