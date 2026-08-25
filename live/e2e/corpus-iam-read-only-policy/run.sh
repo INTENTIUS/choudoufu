@@ -433,6 +433,51 @@ grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
 log "  stock: zero churn on cold_deploy's own state - the move reports only its move, no attribute diff at all, outputs unchanged in value"
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# "Stock's replace of the same resource leaves the same single object."
+# aws_iam_policy.policy[0] under module.read_only_iam_policy (this estate's
+# only live object) is forced to replace by changing its `description`
+# argument: IAM's UpdatePolicy has no field for description at all - the
+# only mutable thing about a managed policy is its document, versioned
+# separately - so description is ForceNew in the provider's own schema,
+# confirmed empirically below by the plan's own "forces replacement"
+# annotation, not assumed. A FRESH copy of cold_deploy's own state, same as
+# D-ORACLE above, so this oracle runs on the ORIGINAL module name before the
+# real script's own rename ever touches $EST.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.read_only_iam_policy's policy via its ForceNew description argument, on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
+mkdir -p "$REPLACE_ORACLE_ROOT/iam/examples" "$REPLACE_ORACLE_ROOT/iam/modules"
+cp -R "$SRC_EXAMPLE" "$REPLACE_ORACLE_ROOT/iam/examples/iam-read-only-policy"
+cp -R "$SRC_MODULE" "$REPLACE_ORACLE_ROOT/iam/modules/iam-read-only-policy"
+REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/iam/examples/iam-read-only-policy"
+rm -rf "$REPLACE_ORACLE/.terraform" "$REPLACE_ORACLE/.terraform.lock.hcl"
+perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$REPLACE_ORACLE/main.tf"
+grep -q 's3_use_path_style' "$REPLACE_ORACLE/main.tf" || fail "the day2_replace oracle's emulator delta did not match main.tf"
+cp "$WORK/cold.tfstate" "$REPLACE_ORACLE/terraform.tfstate"
+sed -i.bak 's/description = "My read only example policy"/description = "My read only example policy v2"/' "$REPLACE_ORACLE/main.tf"
+rm -f "$REPLACE_ORACLE/main.tf.bak"
+grep -q 'example policy v2' "$REPLACE_ORACLE/main.tf" \
+  || fail "changing module.read_only_iam_policy's description argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing module.read_only_iam_policy's policy when its description argument changes"; }
+grep -qE '~ +description +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark description as forcing replacement - it may not be ForceNew after all"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
+# PLAN ONLY, never applied - same convention as D-ORACLE above and every
+# other gauntlet ORACLE section: this oracle's copy shares floci's account
+# with $EST, so actually applying here would destroy the real policy the
+# rest of this script still depends on.
+log "  stock: exactly one replace at the same declared address (module.read_only_iam_policy.aws_iam_policy.policy[0]), plan only, never applied"
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, the slot
 # it now writes read back by value, then one ordinary apply that must be a
 # no-op (choudoufu #372)
@@ -704,6 +749,127 @@ EOF
   log "  no resource change proposed (this estate's outputs quirk means a permanent Changes-to-Outputs section is expected here too - see the header - so the check is the absence of a resource-action header, not a summary line). Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed rename: module.read_only_iam_policy_final
+  # (this estate's only live object) is bound and converged. Its `description`
+  # argument changes to a new literal - a real, upstream-immutable argument
+  # on aws_iam_policy (IAM's UpdatePolicy has no field for description at
+  # all; only the policy document is versioned) - forcing a replace at the
+  # SAME declared address. F-ORACLE above already confirmed, empirically,
+  # that stock marks description as forcing replacement on cold_deploy's
+  # own state.
+  #
+  # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+  # header for the fuller discussion). OpenTofu core rejects a `lifecycle`
+  # block written directly on a `module` call, and this corpus's established
+  # convention only ever removes real upstream module content, never adds
+  # library-internal lifecycle blocks to it - so this exercises OpenTofu's
+  # DEFAULT replace ordering (destroy-then-create) rather than the
+  # create_before_destroy variant the stage's Title names. The
+  # marker-on-new-object and clean-old-object outcomes this stage's Proves
+  # text cares about are identical either way; BREAK=replace below
+  # manufactures the coexistence a skipped destroy half would leave, the
+  # same way corpus-sqs-basic's own BREAK=replace does.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.read_only_iam_policy_final.aws_iam_policy.policy[0]"
+  F_RECORD="$EST/.tofu-records/tofu-records/$ESTATE/aws_iam_policy/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live policy and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$POLICY_ARN" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $POLICY_ARN"
+  F_OLD_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.read_only_iam_policy_final.aws_iam_policy.policy:0" ] \
+    || fail "$POLICY_ARN does not carry tofu-address=module.read_only_iam_policy_final.aws_iam_policy.policy:0 ahead of day2_replace"
+  log "  $POLICY_ARN, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy half would leave behind ==="
+    # A second, distinct live policy carrying the SAME tofu-address and
+    # tofu-slot as the one a genuine replace would destroy - the state
+    # "skip the destroy half" of a create-before-destroy replace would
+    # leave, produced directly via the AWS CLI rather than by actually
+    # interrupting an apply (day2_crash, stage 10, owns testing a real
+    # interruption).
+    BREAK_COLLISION_DOC='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"*"}]}'
+    BREAK_COLLISION_ARN="$(awsl iam create-policy --policy-name "${NAME_PREFIX}collision" --path /example/ \
+      --policy-document "$BREAK_COLLISION_DOC" \
+      --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=module.read_only_iam_policy_final.aws_iam_policy.policy:0" "Key=tofu-slot,Value=0" \
+      --query 'Policy.Arn' --output text)"
+    [ -n "$BREAK_COLLISION_ARN" ] && [ "$BREAK_COLLISION_ARN" != "None" ] || fail "BREAK=replace: could not create the collision policy"
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    awsl iam delete-policy --policy-arn "$BREAK_COLLISION_ARN" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew description argument, forcing a replace at the same declared address ==="
+    sed -i.bak 's/description = "My read only example policy"/description = "My read only example policy v2"/' "$EST/main.tf"
+    rm -f "$EST/main.tf.bak"
+    grep -q 'example policy v2' "$EST/main.tf" || fail "changing module.read_only_iam_policy_final's description argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.read_only_iam_policy_final's policy when its description argument changes"; }
+    grep -qE '~ +description +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark description as forcing replacement"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan is not exactly one add and one destroy at the same address"; }
+    log "  choudoufu: exactly one forced replace at the same declared address (module.read_only_iam_policy_final.aws_iam_policy.policy[0]), description forces replacement"
+
+    F_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 1 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply was not exactly one add and one destroy"; }
+
+    if F_OLD_STILL="$(awsl iam get-policy --policy-arn "$POLICY_ARN" 2>&1)"; then
+      echo "$F_OLD_STILL"; fail "$POLICY_ARN still exists after the replace - the old object was orphaned, not destroyed"
+    fi
+    log "  $POLICY_ARN no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    F_NEW_ARN="$(awsl iam list-policies --path-prefix /example/ --query "Policies[?starts_with(PolicyName, '$NAME_PREFIX') == \`true\`].Arn | [0]" --output text)"
+    [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "no policy found by its name prefix through the AWS CLI after the replace"
+    [ "$F_NEW_ARN" != "$POLICY_ARN" ] || fail "sanity: the policy ARN did not change at all across the replace"
+    F_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$F_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.read_only_iam_policy_final.aws_iam_policy.policy:0" ] \
+      || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.read_only_iam_policy_final.aws_iam_policy.policy:0 - the marker did not move onto the new object"
+    log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object
+    # would be exactly the wrong-marker failure that outranks a missing
+    # one). The local record file at the SAME address must now hold the
+    # NEW object's import_id, not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_ARN" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ARN - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be' <<< "$F_FINAL_PLAN_OUT" \
+      && { printf '%s\n' "$F_FINAL_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the post-replace plan proposes a resource change"; }
+    log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+    # PART E below still reads $POLICY_ARN; the replace destroyed the old
+    # object, so it must now name the new one.
+    POLICY_ARN="$F_NEW_ARN"
+
+    gauntlet_stage day2_replace pass "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object ($F_OLD_IMPORT_ID) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)

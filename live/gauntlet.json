@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "10e3f76bcd1ed5c354c8d5fee375196c5918a10e",
+  "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:01:56Z",
+  "generated": "2026-08-25T18:35:34Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_teardown": {
           "pass": 0,
@@ -831,7 +831,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -841,17 +841,18 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "18c070d9c95deb3b30fdf659d605b4507bc81e03",
-        "date": "2026-08-25T03:52:13Z",
+        "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
+        "date": "2026-08-25T18:37:45Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
           "day2_remove": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)",
           "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-cf2aebb66a4e5cdcedda93ffac's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-2fe4ae6814d2725a3c1874cf73) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-2fe4ae6814d2725a3c1874cf73); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "greenfield": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
