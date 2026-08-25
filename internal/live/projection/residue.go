@@ -1617,12 +1617,19 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 				continue
 			}
 		}
-		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(want) {
+		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(residueNormalizeSDKZeroLeaves(want)) {
 			// The provider did not preserve what the prior held, so a
 			// record would not survive a read either - and, for the
 			// widened branch above, this is also what proves the live
 			// object has not actually drifted: fed the correct value, the
 			// provider echoed something else.
+			//
+			// [residueNormalizeSDKZeroLeaves] is the one tolerance this
+			// comparison allows, and it is still an exact-equality test
+			// after applying it - see that function's own doc comment for
+			// why a null PRIMITIVE leaf becoming its own zero value is the
+			// SDK's own deterministic, content-free transformation rather
+			// than the provider disagreeing with what was applied.
 			continue
 		}
 		if isAmbientEcho(want, ambient) {
@@ -1660,6 +1667,99 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 		return nil, false
 	}
 	return out, true
+}
+
+// residueNormalizeSDKZeroLeaves is the one tolerance [classifyResidue]'s
+// read-B check allows before it demands exact equality: an SDKv2-based
+// provider's OWN inability to represent "never configured" inside a nested
+// block. A top-level attribute has null as a real, distinct wire value, but
+// a nested block value the legacy SDK's schema.Set/flatten machinery
+// produces has no way to write anything but the language's own zero value
+// ("", 0, false) for a leaf configuration left unset - confirmed directly
+// against hashicorp/aws 6.59.0 and floci both, corpus-sumaform-aws's own
+// day2_remove/greenfield unit: aws_instance's ephemeral_block_device.
+// no_device, never set in this estate's configuration, plans as
+// cty.NilVal, but every read - real AWS's own documented behavior, not an
+// emulator quirk - answers cty.False, deterministically, forever. Without
+// this, read B's own honest, stable answer could never RawEquals want, so
+// [classifyResidue] silently refused to record residue for EVERY block
+// sharing this shape, on EVERY estate whose write-back reaches it: not a
+// greenfield-only gap, and not this one type's - any nested block carrying
+// an Optional, non-Computed primitive leaf a caller can validly leave
+// unset takes the same path.
+//
+// It replaces every null string/number/bool LEAF anywhere inside v with
+// that leaf's own zero value, walking through Object, Tuple, List, Set and
+// Map structure, and leaves every other null exactly as it is: a null
+// OBJECT, TUPLE, LIST, SET or MAP is the "not configured at all" signal
+// [carriesNoInformation] and [residueEligibleBlock] already depend on
+// telling apart from "configured, but empty" - swallowing THAT null would
+// erase the distinction this package's own safety argument rests on,
+// rather than repair the narrower SDK quirk this function targets.
+//
+// A cty.Set's own equality is unordered - RawEquals compares element
+// membership, not iteration order - so rebuilding one from independently
+// transformed elements is safe even though this function never tries to
+// pair a want element with the bv element it corresponds to; cty settles
+// that once both sides are built.
+func residueNormalizeSDKZeroLeaves(v cty.Value) cty.Value {
+	ty := v.Type()
+	if v.IsNull() {
+		switch {
+		case ty == cty.String:
+			return cty.StringVal("")
+		case ty == cty.Number:
+			return cty.Zero
+		case ty == cty.Bool:
+			return cty.False
+		default:
+			return v
+		}
+	}
+	if !v.IsKnown() || v.IsMarked() {
+		return v
+	}
+	switch {
+	case ty.IsObjectType():
+		attrTypes := ty.AttributeTypes()
+		if len(attrTypes) == 0 {
+			return v
+		}
+		attrs := make(map[string]cty.Value, len(attrTypes))
+		for name := range attrTypes {
+			attrs[name] = residueNormalizeSDKZeroLeaves(v.GetAttr(name))
+		}
+		return cty.ObjectVal(attrs)
+	case ty.IsListType(), ty.IsTupleType(), ty.IsSetType():
+		if v.LengthInt() == 0 {
+			return v
+		}
+		elems := make([]cty.Value, 0, v.LengthInt())
+		for it := v.ElementIterator(); it.Next(); {
+			_, ev := it.Element()
+			elems = append(elems, residueNormalizeSDKZeroLeaves(ev))
+		}
+		switch {
+		case ty.IsListType():
+			return cty.ListVal(elems)
+		case ty.IsSetType():
+			return cty.SetVal(elems)
+		default:
+			return cty.TupleVal(elems)
+		}
+	case ty.IsMapType():
+		if v.LengthInt() == 0 {
+			return v
+		}
+		elems := make(map[string]cty.Value, v.LengthInt())
+		for it := v.ElementIterator(); it.Next(); {
+			k, ev := it.Element()
+			elems[k.AsString()] = residueNormalizeSDKZeroLeaves(ev)
+		}
+		return cty.MapVal(elems)
+	default:
+		return v
+	}
 }
 
 // classifyResiduePaths is [classifyResidue]'s generalization to
