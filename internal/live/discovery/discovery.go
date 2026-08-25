@@ -2246,14 +2246,34 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 // partitionSweepTypes splits [sweepTypes]' universe in two for
 // [Request.TaggingSweep] (issue #394): tagging is swept the one-round-trip
 // way [sweepViaTagging] exists for, and native is swept the older, one-
-// list-call-per-type way ([scanTypeReporting]) because
+// list-call-per-type way ([scanTypeReporting]) for two independent reasons -
 // [typeNeedsResourceObjectToRecompose] says a candidate the tag sweep would
-// produce for it can never carry enough to bind its companion pair safely.
+// produce for it can never carry enough to bind its companion pair safely,
+// or the type has no [arnJoinTable] row to join an ARN through at all
+// (found via corpus-rds-complete-postgres's day2_remove unit: aws_db_instance
+// has never had one, and 845e7a0d9d's CHOUDOUFU_NODE_RESOLVE default flip
+// made it reachable - once every one of an estate's own declared
+// aws_db_instance instances is record-backed, [declared.typeNames]'s
+// config-driven scan stops covering the type too, and a live orphan of it
+// becomes invisible to BOTH legs at once: [sweepViaTagging] reported
+// [SweepGapNoARNJoin] and moved on with no fallback, so a block deletion's
+// own live object was silently never destroyed and never even diagnosed).
 // Every other caller of [sweepTypes] (the non-tagging, "guided" sweep leg)
 // already sweeps every type the native way, so it has no use for this split.
+//
+// This reaches every admitted, cloud-observable type outside
+// [arnJoinTable]'s coverage, not aws_db_instance alone - measured against
+// live/registry.json's roster, [arnJoinTable] only ever joins CFN types for
+// thirteen services (iam, s3, sns, ec2, kms, route53, acm, states, logs,
+// dynamodb, ecs, cloudwatch, lambda, elasticloadbalancing); every admitted
+// type outside them (rds, autoscaling, sqs, dynamodb's own streams,
+// cloudfront, and the rest) was taking this same silent-gap path whenever
+// its own config-driven demand happened to be fully record-backed, and now
+// falls back to the native list call [scanType] already knows how to make
+// for it instead.
 func partitionSweepTypes(req Request, decl *declared) (tagging, native []string) {
 	for _, t := range sweepTypes(req, decl) {
-		if typeNeedsResourceObjectToRecompose(t) {
+		if typeNeedsResourceObjectToRecompose(t) || !arnJoinReaches(req, t) {
 			native = append(native, t)
 		} else {
 			tagging = append(tagging, t)

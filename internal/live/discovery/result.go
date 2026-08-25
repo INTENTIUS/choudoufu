@@ -552,6 +552,17 @@ const (
 	// CFN type. Specific to the tagging sweep - the per-type sweep this
 	// package runs otherwise has no such gap, because it lists by CFN type
 	// directly rather than joining backward from an ARN.
+	//
+	// [partitionSweepTypes] routes a type failing this test to the native
+	// per-type sweep BEFORE [sweepViaTagging] ever runs (found via
+	// corpus-rds-complete-postgres's day2_remove unit: aws_db_instance has
+	// no arnJoinTable row, and once its estate's only declared instance
+	// became record-backed the config-driven scan stopped covering it too,
+	// so this reason used to mean "invisible to every leg" for any type
+	// outside the ARN join table, not merely "invisible to this one"), so
+	// this reason now reaches [res.SweepGaps] only for a type genuinely
+	// unreachable BOTH ways - see [SweepGapNotListable] for that other leg's
+	// own gap when the native fallback is what actually failed.
 	SweepGapNoARNJoin SweepGapReason = "NO_ARN_JOIN"
 
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a

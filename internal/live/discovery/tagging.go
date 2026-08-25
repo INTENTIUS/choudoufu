@@ -294,6 +294,26 @@ var arnJoinCoverage = func() map[string]bool {
 // to cfnType.
 func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 
+// arnJoinReaches reports whether the estate-wide tag sweep can ever tell
+// typeName's own resources apart from an ARN alone: it has a CFN type at
+// all ([registry.Roster.CloudControlType]) AND that CFN type is one
+// [arnJoinTable] actually joins ([arnJoinCovers]) - the SAME two-part test
+// [sweepViaTagging]'s own per-type loop already applies before filing a
+// candidate, read out here so [partitionSweepTypes] can route a type this
+// answers false for to the native per-type sweep BEFORE the tagging leg
+// ever runs, rather than after it has already reported the gap and moved on
+// with nothing found. A type failing this predicate is never a defect in
+// the type; [arnJoinTable] is a curated, per-ARN-resource-type mapping for
+// thirteen services today, so most admitted types answer false here, and
+// that is expected, not a gap to close type by type.
+func arnJoinReaches(req Request, typeName string) bool {
+	if req.Roster == nil {
+		return false
+	}
+	cfnType, mapped := req.Roster.CloudControlType(typeName)
+	return mapped && arnJoinCovers(cfnType)
+}
+
 // joinARNToCFNType joins a parsed ARN's service and resource-type segment
 // against [arnJoinTable]. cfnType is set only when the join is unique;
 // candidates lists what it found instead when it was not (nil for "found
@@ -738,6 +758,19 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 		cfnType, mapped := req.Roster.CloudControlType(typeName)
 		switch {
 		case !mapped || !arnJoinCovers(cfnType):
+			// Not reachable through this call's own only caller today:
+			// [partitionSweepTypes] builds universe by excluding exactly
+			// what this test excludes ([arnJoinReaches], the same
+			// mapped-and-covered check), so a type failing it never
+			// reaches the tagging leg at all any more - it goes to the
+			// native per-type sweep instead (see [partitionSweepTypes]'s
+			// own doc comment, corpus-rds-complete-postgres's day2_remove
+			// unit). Kept as an invariant guard, the same discipline
+			// [bindCountBySlot]'s own Deficit loop applies to its
+			// record-backed check: a future caller of [sweepViaTagging]
+			// that builds its own universe without going through
+			// [partitionSweepTypes] must not silently lose this type
+			// rather than report why.
 			diags = diags.Append(sweepGapDiag(res, SweepGap{
 				TypeName: typeName,
 				Reason:   SweepGapNoARNJoin,

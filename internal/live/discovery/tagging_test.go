@@ -676,9 +676,22 @@ func TestTaggingSweepReportsUnresolvedARN(t *testing.T) {
 	}
 }
 
-// TestTaggingSweepReportsNoARNJoinGap: a type the join table cannot ever
-// resolve to is a named gap, not silence.
-func TestTaggingSweepReportsNoARNJoinGap(t *testing.T) {
+// TestTaggingSweepNoARNJoinTypeFallsBackToNative: a type the join table
+// cannot ever resolve to is not tag-swept at all any more -
+// [partitionSweepTypes] (gauntlet:record-located-destroy, found via
+// corpus-rds-complete-postgres's day2_remove unit) routes it to the native
+// per-type sweep instead, before [sweepViaTagging] ever sees it, the same
+// way a companion-pair type needing its own resource object already did.
+// This fixture's fakeCloud registers no native list route for
+// aws_s3_bucket_policy either (it is never `.own`ed or `.withAttr`ed), so
+// the native leg's own refusal chain is what actually reports the gap here
+// - TYPE_NOT_LISTABLE, not NO_ARN_JOIN. That is still a named gap, not
+// silence, which is this test's own point; it is a DIFFERENT reason than
+// before this fix because it comes from a different leg now.
+// [TestTaggingSweepNoARNJoinTypeFoundNatively] is this fix's positive case:
+// the same no-ARN-join type WITH a native list route is found, where
+// before this fix it never would have been.
+func TestTaggingSweepNoARNJoinTypeFallsBackToNative(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 
@@ -702,13 +715,67 @@ func TestTaggingSweepReportsNoARNJoinGap(t *testing.T) {
 	for _, g := range res.SweepGaps {
 		if g.TypeName == "aws_s3_bucket_policy" {
 			found = true
-			if g.Reason != SweepGapNoARNJoin {
-				t.Errorf("reason = %s, want %s", g.Reason, SweepGapNoARNJoin)
+			if g.Reason != SweepGapNotListable {
+				t.Errorf("reason = %s, want %s (routed to the native leg by partitionSweepTypes, which has no ARN to fail joining)", g.Reason, SweepGapNotListable)
 			}
 		}
 	}
 	if !found {
 		t.Errorf("aws_s3_bucket_policy is not reported as a gap:\n%s", res)
+	}
+}
+
+// TestTaggingSweepNoARNJoinTypeFoundNatively is the fix's own positive case,
+// reproducing corpus-rds-complete-postgres's day2_remove regression at unit
+// scale: a type with no [arnJoinTable] row (aws_db_instance's own shape) but
+// a real native list route must still be found by the estate-wide sweep -
+// before this fix it fell into [SweepGapNoARNJoin] and [sweepViaTagging]
+// never tried the native route at all, so an orphan of such a type (a
+// resource block deleted from the configuration) was invisible to every
+// leg and no destroy was ever proposed for it.
+func TestTaggingSweepNoARNJoinTypeFoundNatively(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	// A live, undeclared aws_s3_bucket_policy: no configuration block names
+	// it, exactly the shape a removed resource block leaves behind. listable
+	// first - own alone does not put the type in the fake provider's own
+	// schema set, and a type outside it is [SweepGapNotListable] regardless
+	// of what live objects exist.
+	cloud.listable("aws_s3_bucket_policy")
+	cloud.own("aws_s3_bucket_policy", "my-bucket", `aws_s3_bucket_policy.orphaned`)
+
+	srv := &taggingServer{}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, "aws_s3_bucket_policy", "AWS::S3::BucketPolicy", true),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_s3_bucket_policy" {
+			t.Errorf("aws_s3_bucket_policy reported a sweep gap (%s) even though the fake cloud lists it natively:\n%s", g.Reason, res)
+		}
+	}
+
+	scan, ok := res.ScanFor("aws_s3_bucket_policy")
+	if !ok || scan.Source != SourceProvider {
+		t.Errorf("aws_s3_bucket_policy's scan = %+v, want it swept the native way (Source=provider), not left in the tagging universe it has no ARN join for", scan)
+	}
+
+	var found bool
+	for _, o := range res.Orphans {
+		if o.TypeName == "aws_s3_bucket_policy" && o.ImportID == "my-bucket" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the undeclared aws_s3_bucket_policy did not surface as an orphan at all - the exact silent-loss shape this fix closes:\n%s", res)
 	}
 }
 
