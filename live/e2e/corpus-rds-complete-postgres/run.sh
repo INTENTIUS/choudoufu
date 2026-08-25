@@ -829,6 +829,67 @@ DESTROY_N="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT")
 [ "$DESTROY_N" = "2" ] || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle proposes $DESTROY_N destroys, not exactly 2 - a hidden dependent turned up"; }
 log "  stock oracle: exactly two destroys proposed - the db instance and its own local random_id.snapshot_identifier (no cloud representation) - (module.db's own known apply_method-echo parameter-group noise aside, see D-ORACLE above - computed now, before anything below writes a live tag)"
 CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
+# same reason day2_remove's own oracle sits before migrate (above): a
+# throwaway copy of cold_deploy's own state, module.db's `identifier` AND
+# `db_name` arguments both changed together. `identifier` alone is NOT
+# ForceNew on aws_db_instance - RDS supports a real rename via
+# ModifyDBInstance's NewDBInstanceIdentifier, confirmed empirically (a
+# lone identifier change plans an in-place update, not a replace) - so
+# `db_name` (the database created inside the engine at bootstrap, which
+# AWS has no in-place rename for) is the argument that actually forces the
+# replace. Changing both together, rather than db_name alone, gives this
+# leg the same observable "same address, new identity value" shape every
+# other estate's own day2_replace section has (db_name alone forces the
+# SAME replace but leaves identifier, and so the record's own import_id,
+# unchanged throughout - a real but less legible proof). The combination
+# cascades into the SAME dependency edges module.db's own two CloudWatch
+# log groups and parameter group already carry (their names default from
+# `identifier`, confirmed empirically: an identifier-only rename does NOT
+# touch them, but this combined change replaces all three alongside the
+# instance) - a real, four-object shape, not a bug. module.db is chosen
+# because day2_rename/day2_remove (above) target module.security_group
+# and module.db_default, never module.db, so this section has no ordering
+# dependency on either. PLAN ONLY, never applied: this copy shares
+# floci's account with $ADOPTED_EST.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.db's own instance via its ForceNew db_name argument (plus identifier, for an observable identity change), on cold_deploy's own state ==="
+ORACLE_REPLACE_ROOT="$WORK/oracle-replace"
+cp -r "$PLAIN" "$ORACLE_REPLACE_ROOT"
+ORACLE_REPLACE_EST="$ORACLE_REPLACE_ROOT/rds/examples/complete-postgres"
+python3 -c "
+p = '$ORACLE_REPLACE_EST/main.tf'
+s = open(p).read()
+old_id = '  identifier = local.name\n'
+assert s.count(old_id) == 1, 'day2_replace oracle: identifier = local.name did not match exactly once - the corpus pin has moved'
+s = s.replace(old_id, '  identifier = \"\${local.name}-replaced\"\n', 1)
+old_dbname = '  db_name  = \"completePostgresql\"\n'
+assert s.count(old_dbname) == 2, 'day2_replace oracle: db_name line did not match exactly twice (module.db and module.db_default) - the corpus pin has moved'
+s = s.replace(old_dbname, '  db_name  = \"completePostgresqlReplaced\"\n', 1)
+open(p, 'w').write(s)
+"
+grep -q 'identifier = "${local.name}-replaced"' "$ORACLE_REPLACE_EST/main.tf" \
+  || fail "changing module.db's identifier argument in the replace-oracle copy did not match - the corpus pin has moved"
+grep -q 'db_name  = "completePostgresqlReplaced"' "$ORACLE_REPLACE_EST/main.tf" \
+  || fail "changing module.db's db_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$ORACLE_REPLACE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_REPLACE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REPLACE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_db_instance\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.db's instance when its ForceNew db_name argument changes"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_cloudwatch_log_group\.this\["postgresql"\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not cascade the replace into the postgresql cloudwatch log group"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_cloudwatch_log_group\.this\["upgrade"\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not cascade the replace into the upgrade cloudwatch log group"; }
+grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not cascade the replace into the db parameter group"; }
+grep -qF 'Plan: 4 to add, 0 to change, 4 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own four-resource cascade (instance + 2 cloudwatch log groups + parameter group, all replaced)"; }
+log "  stock: exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and its db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1477,6 +1538,137 @@ else
   log "  \"$FIXED_VALUE\", its pre-tamper, config-matching value"
   gauntlet_stage drift_reconverge pass "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
 fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed right after STAGE 5 and BEFORE PART D (day2_rename, below) on
+# purpose, the same convention corpus-ec2-instance-complete's own PART F
+# uses: module.db is never touched by PART D's rename (that stage's own
+# two targets are module.security_group and module.db_default), so this
+# section has no dependency on PART D's outcome. Both module.db's
+# `identifier` and `db_name` change together - see F-ORACLE's own header
+# comment (above stage 1) for why: `identifier` alone is a real in-place
+# RENAME on aws_db_instance (RDS's own ModifyDBInstance NewDBInstance
+# Identifier), confirmed empirically, not a replace, so `db_name` (the
+# bootstrapped database name, which AWS cannot rename in place) is the
+# argument that actually forces it; changing identifier alongside it gives
+# an observable "same address, new identity value" the same way every
+# other estate's own day2_replace section has. Three resources cascade
+# from the SAME dependency edges F-ORACLE already names: the instance's
+# own two CloudWatch log groups and its DB parameter group, all three
+# named from `identifier` by default.
+#
+# THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+# for the full reasoning, reproduced only in summary here): OpenTofu core
+# rejects a `lifecycle` block on a `module` call, and patching the
+# vendored terraform-aws-rds module's own aws_db_instance resource to add
+# create_before_destroy would cross this corpus's reduction-only
+# convention, so this evidence pass exercises the default destroy-then-
+# create ordering instead.
+#
+# NO BREAK=replace LEG: see corpus-security-group-complete's own day2_
+# replace section (same unit) for the finding this reuses without
+# re-measuring per estate - a manufactured marker coexistence is not
+# detected while a valid record already resolves the declared address,
+# for any type relying on the fungible-slot claimant matcher
+# (internal/live/discovery/count.go's slotProblem/ProblemDuplicateSlot),
+# reproduced there on corpus-ec2-instance-complete's own previously-
+# passing leg too - plausibly a side effect of the record-primary plan
+# ordering ruled 2026-08-23. Not fixed here: a discovery-layer change,
+# out of scope for this script-only unit.
+CURRENT_STAGE=day2_replace
+record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+record_import_id() { jq -r '.identity.import_id' "$1"; }
+F_ADDR="module.db.module.db_instance.aws_db_instance.this[0]"
+F_RECORD="$ADOPTED_EST/.tofu-records/tofu-records/$ESTATE/aws_db_instance/$(record_key "$F_ADDR")"
+
+log "=== F0. capture the live instance and its record ahead of the forced replace ==="
+[ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_OLD_IMPORT_ID" = "complete-postgresql" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not complete-postgresql"
+F_OLD_ARN="$DB_ARN"
+F_OLD_ADDR_TAG="$(awsl rds list-tags-for-resource --resource-name "$F_OLD_ARN" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$F_OLD_ADDR_TAG" = "module.db.module.db_instance.aws_db_instance.this:0" ] \
+  || fail "$F_OLD_ARN does not carry tofu-address=module.db.module.db_instance.aws_db_instance.this:0 ahead of day2_replace"
+log "  $F_OLD_ARN, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+log "=== F1. choudoufu: change the ForceNew db_name argument (plus identifier), forcing a replace at the same declared address ==="
+python3 -c "
+p = '$ADOPTED_EST/main.tf'
+s = open(p).read()
+old_id = '  identifier = local.name\n'
+assert s.count(old_id) == 1, 'day2_replace: identifier = local.name did not match exactly once - the corpus pin has moved'
+s = s.replace(old_id, '  identifier = \"\${local.name}-replaced\"\n', 1)
+old_dbname = '  db_name  = \"completePostgresql\"\n'
+assert s.count(old_dbname) == 2, 'day2_replace: db_name line did not match exactly twice (module.db and module.db_default) - the corpus pin has moved'
+s = s.replace(old_dbname, '  db_name  = \"completePostgresqlReplaced\"\n', 1)
+open(p, 'w').write(s)
+"
+grep -q 'identifier = "${local.name}-replaced"' "$ADOPTED_EST/main.tf" || fail "changing module.db's identifier argument did not match - the corpus pin has moved"
+grep -q 'db_name  = "completePostgresqlReplaced"' "$ADOPTED_EST/main.tf" || fail "changing module.db's db_name argument did not match - the corpus pin has moved"
+
+F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+[ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_db_instance\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.db's instance when its ForceNew db_name argument changes"; }
+grep -qE '~ +db_name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark db_name as forcing replacement"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_cloudwatch_log_group\.this\["postgresql"\] must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the replace into the postgresql cloudwatch log group"; }
+grep -qE '^  # module\.db\.module\.db_instance\.aws_cloudwatch_log_group\.this\["upgrade"\] must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the replace into the upgrade cloudwatch log group"; }
+grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not cascade the replace into the db parameter group"; }
+F_REPLACED_COUNT="$(grep -cE '^  # module\.db\..+ must be replaced' <<< "$F_PLAN_OUT" || true)"
+[ "$F_REPLACED_COUNT" = "4" ] \
+  || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu replaces $F_REPLACED_COUNT of module.db's own resources, not the header's own 4 (instance + 2 cloudwatch log groups + parameter group)"; }
+grep -qF 'Plan: 4 to add, 0 to change, 4 to destroy.' <<< "$F_PLAN_OUT" \
+  || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own four-resource cascade"; }
+log "  choudoufu: exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and its db parameter group - matches F-ORACLE's own plan shape"
+
+F_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+[ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+grep -qE 'Resources: 4 added, 0 changed, 4 destroyed' <<< "$F_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 4 added, 4 destroyed"; }
+
+awsl rds describe-db-instances --db-instance-identifier complete-postgresql >/dev/null 2>&1 \
+  && fail "complete-postgresql (the old identifier) still resolves after the replace - the old instance was orphaned, not destroyed"
+log "  complete-postgresql (the old identifier) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+
+F_NEW_ARN="$(awsl rds describe-db-instances --db-instance-identifier complete-postgresql-replaced --query 'DBInstances[0].DBInstanceArn' --output text)"
+[ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] && [ "$F_NEW_ARN" != "$F_OLD_ARN" ] \
+  || fail "could not find a new, different db instance carrying the replaced identifier after the replace (got '$F_NEW_ARN')"
+F_NEW_ADDR_TAG="$(awsl rds list-tags-for-resource --resource-name "$F_NEW_ARN" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$F_NEW_ADDR_TAG" = "module.db.module.db_instance.aws_db_instance.this:0" ] \
+  || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.db.module.db_instance.aws_db_instance.this:0 - the marker did not move onto the new object"
+log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+# THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+# #398-guard shape: a stale record still naming the destroyed instance
+# would be exactly the wrong-marker failure that outranks a missing one).
+# The local record file at the SAME address must now hold the NEW
+# instance's identifier, not the one captured in F0.
+F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+[ "$F_NEW_IMPORT_ID" = "complete-postgresql-replaced" ] \
+  || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not complete-postgresql-replaced - a stale record still claiming the destroyed instance, the #398-guard shape"
+[ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+  || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+log "=== F2. one more plan: config and reality agree, no marker collision ==="
+F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+[ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$F_FINAL_PLAN_OUT"; then
+  grep -E '^  # .+ (will be|must be)' <<< "$F_FINAL_PLAN_OUT"
+  fail "the post-replace plan proposes a resource change"
+fi
+log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
+
+DB_ARN="$F_NEW_ARN"
+gauntlet_stage day2_replace pass "choudoufu: changing module.db's ForceNew db_name argument (plus identifier, for an observable identity change) proposed exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance ($F_OLD_ARN) is confirmed gone and the new instance ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new identifier, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+CURRENT_STAGE=""
 
 CURRENT_STAGE=day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="

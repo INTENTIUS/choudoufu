@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "2d570ab396b421b409a46b3e92648001035bdf73",
+  "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T20:18:09Z",
+  "generated": "2026-08-25T22:05:33Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 14,
+      "clear": 19,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 14,
+          "pass": 20,
           "fail": 0,
-          "not_run": 12
+          "not_run": 6
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 13,
+      "clear": 18,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 13,
+          "pass": 19,
           "fail": 0,
-          "not_run": 12
+          "not_run": 6
         },
         "day2_teardown": {
           "pass": 0,
@@ -1061,7 +1061,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1071,16 +1071,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e99a19e074439b0e37ff9f7c4a38c728adc13803",
-        "date": "2026-08-25T17:57:14Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T21:55:28Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "39 resources, once for real",
           "day2_remove": "choudoufu: deleting module.db_default_renamed's block proposed exactly two destroys (the db instance and its own local random_id.snapshot_identifier, no cloud representation - issue #340), applied cleanly, the db instance is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on the same renamed oracle tree also proposes exactly the same two destroys; the target was chosen (see header) because its own nested module.db_instance call has no untaggable AWS-side sibling under this estate's create_db_option_group=false/create_db_parameter_group=false, unlike the shapes that surfaced issue #410 for corpus-s3-bucket-complete and corpus-overture-tiles",
           "day2_rename": "moved block: module.security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.db's ForceNew db_name argument (plus identifier, for an observable identity change) proposed exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance (arn:aws:rds:eu-west-1:000000000000:db:complete-postgresql) is confirmed gone and the new instance (arn:aws:rds:eu-west-1:000000000000:db:complete-postgresql-replaced) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new identifier, not the destroyed one (complete-postgresql -> complete-postgresql-replaced); the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "greenfield": "39 resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, 39 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)",
           "migrate": "26 of 39 stamped",
@@ -1105,7 +1106,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1115,16 +1116,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "fa5a6bd3bdb6cd03f8987be11ba0fc3e68fa4a70",
-        "date": "2026-08-25T17:34:52Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T21:41:40Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
-          "day2_remove": "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-welcomed-gnu now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched",
+          "day2_remove": "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-adapting-viper now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched",
           "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
+          "day2_replace": "choudoufu: changing module.log_bucket's ForceNew bucket argument proposed exactly one bucket replace at the same declared address, cascading into its ownership_controls, policy and public_access_block (all replaced) plus module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old bucket (logs-adapting-viper) is confirmed gone and the new bucket (logs-adapting-viper-replaced) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new bucket, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Live resource displaced from the address it is marked for\", naming the manufactured bucket, proposing nothing for it) rather than silently proposed as nothing - the name-derived-identity shape of this diagnostic, distinct from EC2/SQS's fungible-set \"Two live resources claiming one slot\" because aws_s3_bucket's identity resolves straight from the config's own computed name rather than only through a marker sweep. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones.",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
           "greenfield": "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
@@ -1149,7 +1151,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1159,16 +1161,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8f904b06dc655c8333ebf239ff860eb96915cf0b",
-        "date": "2026-08-25T17:39:23Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T21:44:32Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "day2_remove": "choudoufu: deleting module.postgresql_renamed's block proposed exactly 5 destroys (0 add, 0 change, 5 destroy: SG + 2 ingress + 1 egress + 1 untaggable rules_exclusive), applied cleanly (0 added, 0 changed, 5 destroyed), the security group is genuinely gone from the live account (0 matches on describe-security-groups for the old id, read via the AWS CLI, not choudoufu's own report), and the next plan proposes nothing; stock oracle on cold_deploy's own state (D-ORACLE remove) also proposes exactly 5 destroys for the same 5 objects; classifyOrphans did not withhold the untaggable rules_exclusive destroy even though module.security_group's and module.consul's own rules_exclusive instances share its block key, because both surviving instances are bound, not unclaimed",
           "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG (sg-0b7075701ed53a313) is confirmed gone and the new SG (sg-11629a00a50100f43) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment for the empirically-found regression in the fungible-slot duplicate check (ProblemDuplicateSlot), reproduced on corpus-ec2-instance-complete's own leg too, not fixed in this script-only unit. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
           "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
           "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
@@ -1193,7 +1196,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "fail",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1206,13 +1209,14 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "57013bfa28fa0d6372322d44ecba07b3e7124885",
-        "date": "2026-08-25T18:05:03Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T22:01:55Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate",
           "day2_remove": "choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; 7 zones down to 6), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it)",
           "day2_rename": "the post-rename plan proposes a resource change",
+          "day2_replace": "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZTX87R497QSW40H) is confirmed gone and the new zone (ZGF36LLH274K678) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname[\"2016\"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact",
           "greenfield": "35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records)",
           "migrate": "7 stamped, 7 distinct hosted zones, one per module call",
@@ -1327,7 +1331,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1337,16 +1341,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8195358eaf2781bebec23a48e1eb506f1643c666",
-        "date": "2026-08-25T17:42:40Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T22:05:18Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration",
           "day2_remove": "choudoufu: deleting the dynamodb endpoint's map entry (module.vpc_endpoints_renamed.aws_vpc_endpoint.this[\"dynamodb\"]) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (State=absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object",
           "day2_rename": "moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-696ea50d06c199c45) is confirmed gone/deleted and the new gateway (cgw-268915ed06402c2e3) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete",
           "greenfield": "62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence",
           "migrate": "40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372)",
@@ -1414,7 +1419,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1424,17 +1429,18 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "2d570ab396b421b409a46b3e92648001035bdf73",
-        "date": "2026-08-25T20:20:51Z",
+        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
+        "date": "2026-08-25T22:08:43Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
           "day2_count": "choudoufu's scale-down plan does not destroy count_test[1]",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-c7474cf57fb52a801) is confirmed terminated and the new instance (i-a1550d5d7a0dec9a2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
