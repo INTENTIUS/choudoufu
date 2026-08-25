@@ -144,6 +144,17 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 		pending[blockKey(addr)] = true
 	}
 
+	// The root module's own `markers "record"` selection (see
+	// [identity.SelectionFor]'s doc comment) - read once, here, the same
+	// way internal/live/stamp and internal/live/lint each read it
+	// independently rather than threading it through. It is a ROOT-module
+	// fact, addressed by type or by [addrs.ConfigResource] string, so it
+	// answers for an address whose declaring block this same pass just
+	// deleted exactly as it would for one still declared: neither form
+	// depends on the resource block existing in req.Config, only on the
+	// root live block's own two lists.
+	selection := identity.SelectionFor(req.Config)
+
 	for _, key := range keys {
 		addr, ok := projection.RecordAddr(prefix, key)
 		if !ok {
@@ -188,7 +199,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				continue
 			}
 		}
-		if typeTaggable(schemas, typeName) {
+		if typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
 			// (and already ran, above, before this leg) and would already
 			// be in known if it found anything. [typeTaggable] reads the
@@ -197,6 +208,25 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// population (aws_iam_role_policy and its two IAM siblings
 			// today) has no list route, so [Schemas.Get] would report
 			// every one of them not-ok and this check would never fire.
+			//
+			// That is true for a MARKED instance of a taggable type. It is
+			// NOT true for one this estate's own `markers "record"`
+			// selection has opted out of a tag - by type or by address,
+			// [strict.Selection.Selects]'s two forms - because that
+			// instance never carried a tag for the sweep to find in the
+			// first place; typeTaggable answers "could this type ever
+			// carry a marker", not "did THIS instance get one", and the
+			// two diverge exactly under a selection. Found building
+			// corpus-sumaform-aws's day2_remove unit
+			// (module.server.aws_instance.instance and
+			// .aws_ebs_volume.data_disk, both selected by type in this
+			// estate's own root `strict { markers "record" { types = [...
+			// ] } }` block): deleting module.server's whole block left both
+			// instances invisible to the tag sweep (never tagged) AND to
+			// this leg (taggable type, so skipped) at once. Generic:
+			// reaches every type an estate selects into markers=record,
+			// not aws_instance specifically - selection.Selects reads the
+			// root live block's own lists, not a hand-wired type name.
 			continue
 		}
 
@@ -303,6 +333,14 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			ImportID:         importID,
 			Undeclared:       true,
 			DestroyDependsOn: dependsOn,
+			// See [identity.Resolution.RecordRooted]'s doc comment: this
+			// leg's whole population, taggable or not, is read from the
+			// record store rather than a tag, so builder.checkOwnership
+			// must trust it the same way it trusts a declared
+			// ClassRecordLocated identity - never re-derive ownership from
+			// a tag that a markers=record selection may have deliberately
+			// never written.
+			RecordRooted: true,
 		})
 		known[addr.String()] = true
 		known[resolvedAddr.String()] = true

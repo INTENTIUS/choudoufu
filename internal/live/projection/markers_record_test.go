@@ -321,3 +321,172 @@ resource "` + markersRecordTestType + `" "data" {
 		t.Errorf("identity record ImportID = %q, want %q (the applied object's own id)", rec.ImportID, "vol-unselected")
 	}
 }
+
+// writeMarkersRecordSelectionOnlyFixture is writeMarkersRecordFixture's own
+// selection, with NO resource block at all: the shape a plan sees the
+// moment the block that used to declare markersRecordTestType.data - or,
+// for corpus-sumaform-aws's real day2_remove unit, the module that called
+// it - is deleted from configuration. The `markers "record"` selection
+// itself is root-level and untouched by the deletion (this file's own
+// header: "an operator's markers = record selection... is the first way a
+// TAGGABLE instance reaches this package with a record-held identity"),
+// which is what internal/live/discovery's recordOrphanReadSweep relies on
+// to still find the type selected after its declaring block is gone.
+func writeMarkersRecordSelectionOnlyFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	src := `
+terraform {
+  live {
+    estate = "test-estate"
+
+    record_store "local" {}
+
+    strict {
+      marker_repair = "never"
+
+      markers "record" {
+        types = ["` + markersRecordTestType + `"]
+      }
+    }
+  }
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+	return dir
+}
+
+// TestMarkersRecordUndeclaredRecordRootedInstanceIsDestroyed is
+// gauntlet:sumaform-clear's own day2_remove finding, at this package's own
+// level rather than a full e2e run: an UNDECLARED resolution (the
+// resource's block - or, in the real estate, the module that called it -
+// removed from configuration) for a markers=record-selected TAGGABLE type
+// carries the identical failure
+// TestMarkersRecordOwnershipAdmitsAnUntaggedLocatedObject fixed for the
+// DECLARED case, and it was not fixed by that change: an undeclared
+// resolution never takes [builder.materializeLocated]'s route (that path is
+// [identity.ClassRecordLocated] only, and internal/live/discovery's
+// recordOrphanReadSweep - the leg that finds this instance at all, once it
+// also stops skipping a selected taggable type per its own doc comment -
+// produces a plain [identity.ClassConcrete] resolution instead), so without
+// [identity.Resolution.RecordRooted] telling [builder.run]'s own
+// undeclaredConcrete pass to trust it the same way, checkOwnership fell
+// through to the ordinary taggable-type tag check, found no tag - there was
+// never one to find, by the same selection that put the identity in the
+// record instead - and silently omitted a real, correctly-identified live
+// object instead of proposing its destroy.
+//
+// Asserted the same three ways TestUndeclaredInstanceIsMaterialized does:
+// no error, nothing in res.Unowned (the failure mode this test guards would
+// put it there instead), and a real state entry under the provider the run
+// supplied - what the plan engine's destroy node actually reads.
+func TestMarkersRecordUndeclaredRecordRootedInstanceIsDestroyed(t *testing.T) {
+	cfg := loadConfig(t, writeMarkersRecordSelectionOnlyFixture(t))
+	addr := mustAddr(t, markersRecordTestType+`.data`)
+	const estate = "test-estate"
+	const liveID = "vol-0123456789abcdef0"
+
+	store := localHintStore(t)
+	located := newTestLocatedStore(store, estate)
+	if _, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: liveID}, ""); err != nil {
+		t.Fatalf("seeding the located record: %s", err)
+	}
+
+	pol := policy.Build(nil, estate)
+
+	var imported []string
+	provs := SingleProvider(locatedTestProvider, markersRecordProvider(&imported))
+	res, diags := BuildWith(context.Background(), cfg,
+		[]identity.Resolution{{
+			Addr:         addr,
+			Class:        identity.ClassConcrete,
+			ImportID:     liveID,
+			Undeclared:   true,
+			RecordRooted: true,
+		}},
+		provs, Options{
+			RecordStore: located.rs,
+			Ownership:   &Ownership{Estate: estate, Policy: pol},
+		})
+	assertNoErrors(t, diags)
+
+	if len(res.Unowned) != 0 {
+		t.Fatalf("the record-rooted undeclared instance was refused as unowned, so its destroy would never be proposed: %v", res.Unowned)
+	}
+	if len(imported) != 1 || imported[0] != liveID {
+		t.Fatalf("imported %v, want [%q] - the identity has to have come out of the record", imported, liveID)
+	}
+	assertMaterialized(t, res, []string{markersRecordTestType + `.data`})
+
+	mod := res.State.Module(addrs.RootModuleInstance)
+	if mod == nil {
+		t.Fatal("the projection has no root module")
+	}
+	rs := mod.Resource(addr.Resource.Resource)
+	if rs == nil {
+		t.Fatalf("the undeclared, record-rooted instance is not in the state, so no destroy can be proposed for it:\n%s", res)
+	}
+	if rs.ProviderConfig.String() != locatedTestProvider.String() {
+		t.Errorf("the undeclared instance is filed under provider %s, want %s", rs.ProviderConfig, locatedTestProvider)
+	}
+}
+
+// TestMarkersRecordUndeclaredWithoutRecordRootedIsRefused is the previous
+// test's control: identical fixture, identical seeded record, identical
+// resolution, with only [identity.Resolution.RecordRooted] left false - the
+// ordinary value for every resolution a marker-TAG-sourced leg (
+// classifyOrphans, parentReadSweep, foldChildReadSweep) produces for an
+// undeclared instance, as opposed to a record-store-sourced one
+// (recordOrphanReadSweep). It proves RecordRooted is actually load-bearing
+// here rather than a field nothing reads: with it false, this taggable
+// type's live object - which the SAME markersRecordProvider mock returns
+// with no tags, because a selected instance never carries one - is not
+// trusted the way a genuine record-located identity is, checkOwnership's
+// ordinary tag check runs, finds nothing, and the instance is correctly
+// refused as unowned rather than destroyed on an unverified guess. This is
+// not a claim that a real tag-sourced orphan of this type would reach this
+// exact state (own.verified(addr) would ordinarily short-circuit it first,
+// per checkOwnership's own doc comment) - it isolates RecordRooted's own
+// effect, all else held equal.
+func TestMarkersRecordUndeclaredWithoutRecordRootedIsRefused(t *testing.T) {
+	cfg := loadConfig(t, writeMarkersRecordSelectionOnlyFixture(t))
+	addr := mustAddr(t, markersRecordTestType+`.data`)
+	const estate = "test-estate"
+	const liveID = "vol-0123456789abcdef0"
+
+	store := localHintStore(t)
+	located := newTestLocatedStore(store, estate)
+	if _, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: liveID}, ""); err != nil {
+		t.Fatalf("seeding the located record: %s", err)
+	}
+
+	pol := policy.Build(nil, estate)
+
+	provs := SingleProvider(locatedTestProvider, markersRecordProvider(nil))
+	res, diags := BuildWith(context.Background(), cfg,
+		[]identity.Resolution{{
+			Addr:       addr,
+			Class:      identity.ClassConcrete,
+			ImportID:   liveID,
+			Undeclared: true,
+			// RecordRooted deliberately left false.
+		}},
+		provs, Options{
+			RecordStore: located.rs,
+			Ownership:   &Ownership{Estate: estate, Policy: pol},
+		})
+	assertNoErrors(t, diags)
+
+	if len(res.Unowned) != 1 {
+		t.Fatalf("got %d unowned entries, want exactly 1 - without RecordRooted this taggable, untagged instance should be refused as unowned, not silently trusted or materialized: %v", len(res.Unowned), res.Unowned)
+	}
+
+	mod := res.State.Module(addrs.RootModuleInstance)
+	if mod != nil {
+		if rs := mod.Resource(addr.Resource.Resource); rs != nil {
+			t.Fatalf("the instance was materialized into the state despite carrying no tag and no RecordRooted trust: %s", res)
+		}
+	}
+}

@@ -214,6 +214,39 @@ type Resolution struct {
 	// parent for.
 	DestroyDependsOn []addrs.AbsResourceInstance
 
+	// RecordRooted marks an [Undeclared] resolution whose ImportID came
+	// from the estate's own record store rather than from a live tag - set
+	// only by internal/live/discovery's recordOrphanReadSweep today, never
+	// by classifyOrphans, parentReadSweep or foldChildReadSweep, all three
+	// of which source an undeclared resolution's identity from a scanned
+	// marker tag instead.
+	//
+	// It exists because internal/live/projection's builder.checkOwnership
+	// trusts a DECLARED instance's record-held identity unconditionally
+	// once [ClassRecordLocated] routes it through builder.materializeLocated
+	// (see that function, and [ClassRecordLocated]'s own doc comment) - the
+	// record IS the ownership proof for a type with no marker of its own,
+	// or for a type an operator's `markers = record` selection has opted
+	// out of one, per HANDOFF.md's third principle. An UNDECLARED
+	// resolution recordOrphanReadSweep produces reads the SAME kind of
+	// record for the SAME two reasons, but until this field existed
+	// nothing told checkOwnership so: it fell through to the ordinary
+	// taggable-type tag check, found no tag (there was never one to find,
+	// by the same selection that put the identity in the record instead),
+	// and silently omitted the instance as unowned rather than proposing
+	// its destroy - a real object, correctly identified, left out of every
+	// plan with no diagnostic at all. Found building corpus-sumaform-aws's
+	// day2_remove unit: a `markers = record`-selected aws_instance and
+	// aws_ebs_volume, both taggable types, whose declaring module block was
+	// removed.
+	//
+	// False for every resolution a marker-tag-sourced leg produces,
+	// including one for a markers=record-selected address that happened to
+	// carry a stray matching tag from before the selection was added - that
+	// identity came from the tag, not the record, and checkOwnership's
+	// ordinary tag verification is exactly what should run for it.
+	RecordRooted bool
+
 	// cloudScope disambiguates two instances that would otherwise resolve to
 	// the same import identity string but do not name the same live object,
 	// because they are not pointed at the same account and region: a module

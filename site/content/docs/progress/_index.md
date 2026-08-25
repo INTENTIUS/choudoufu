@@ -64,7 +64,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
-| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass FAIL FAIL |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass |

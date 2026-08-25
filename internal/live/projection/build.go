@@ -540,6 +540,17 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 			values:     r.IdentityValues,
 			undeclared: r.Undeclared,
 			dependsOn:  r.DestroyDependsOn,
+			// See [identity.Resolution.RecordRooted]'s doc comment and
+			// [wanted.located]'s: an undeclared resolution sourced from the
+			// record store (recordOrphanReadSweep today) is owned proof
+			// the same way a declared ClassRecordLocated instance is, and
+			// must be trusted unconditionally rather than routed through
+			// checkOwnership's ordinary taggable-type tag check, which
+			// would find no tag - by the same markers=record selection
+			// that put the identity in the record instead - and silently
+			// omit a real, correctly-identified object instead of
+			// proposing its destroy.
+			located: r.RecordRooted,
 		})
 	}
 

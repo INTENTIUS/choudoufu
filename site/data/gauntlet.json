@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 20,
+      "clear": 21,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 22,
-          "fail": 4,
+          "pass": 23,
+          "fail": 3,
           "not_run": 0
         },
         "day2_rename": {
@@ -178,8 +178,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 23,
-          "fail": 3,
+          "pass": 24,
+          "fail": 2,
           "not_run": 0
         },
         "migrate": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 19,
+      "clear": 20,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 21,
-          "fail": 4,
+          "pass": 22,
+          "fail": 3,
           "not_run": 0
         },
         "day2_rename": {
@@ -255,8 +255,8 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 22,
-          "fail": 3,
+          "pass": 23,
+          "fail": 2,
           "not_run": 0
         },
         "migrate": {
@@ -1269,30 +1269,30 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "fail",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "fail",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "55ed4a8ca9af542122bed2541c711fcddc24902a",
-        "date": "2026-08-25T07:21:53Z",
-        "exit_code": 1,
+        "commit": "77bc4b611cf4b1262c8e0e46a9e75ab05721dcd9",
+        "date": "2026-08-25T12:46:47Z",
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
-          "day2_remove": "choudoufu does not propose destroying module.server.module.server.module.host.aws_instance.instance[0] when module.server's block is deleted - see the comment immediately above this loop for the precise, generic root cause (recordOrphanReadSweep's per-TYPE taggable filter, not per-instance markers=record policy)",
+          "day2_remove": "choudoufu: deleting module.server's block proposed exactly three destroys (0 add, 0 change, 3 destroy: the record-based instance and EBS volume, plus the untaggable/derived volume attachment), applied cleanly (0 added, 0 changed, 3 destroyed), the instance and volume are genuinely gone from the live account (instance State=terminated, volume absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes the same three destroys",
           "day2_rename": "moved block: aws_eip.crossing_nat renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_route_table.crossing_public renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected",
-          "greenfield": "the greenfield replan proposes replacing both markers=record instances (aws_instance.instance[0] and aws_volume_attachment.data_disk_attachment[0] both 'must be replaced') - PART GREENFIELD's own apply writes their record, and this immediately-following plan fails to read it back; a first-apply record-read-back gap, not day2_remove's own (different) finding:   # module.server.module.server.module.host.aws_instance.instance[0] must be replaced   # module.server.module.server.module.host.aws_volume_attachment.data_disk_attachment[0] must be replaced",
+          "greenfield": "11 resources from nothing (7 tag-stamped, 2 recorded via markers = record, 2 untaggable/derived - route_table_association and volume_attachment), replan empty, stock oracle in its own namespace matches on vpc cidr, security-group rule counts and the instance's ami+type",
           "migrate": "7 stamped, 2 recorded (markers = record honoured at migrate time, GitHub issue #365 slice 2), 0 failed, 2 skipped",
           "test_apply": "genuine no-op: 7 tagged objects before, 7 after, no state file either time; module.server's record-based instance and volume identities unchanged",
           "test_plan": "Items 4, 5 and 6 (this script's header) are all FIXED and the plan is genuinely empty (\"No changes. Your infrastructure matches the configuration.\"): live-import honours markers = record (located records for aws_instance.instance[0] and aws_ebs_volume.data_disk[0], confirmed at the store and by value against the AWS CLI both right after migrate and again after this empty replan), residue now covers NestingList/NestingSet/NestingMap blocks (internal/live/projection's residueEligibleBlock, widened from the block's SHAPE - whether carriesNoInformation can tell its absence from a real empty answer - never from a type name), and lex00/floci#103 (published in ghcr.io/lex00/floci@sha256:e16d9007a03093b6a6edd22273dee9d8253131f18581b0fa20ae6d34178a3079) now honours RunInstances' BlockDeviceMapping.Ebs.VolumeSize for the root device, closing the one line (root_block_device.volume_size = 8 -> 200) that was this crossing's own last wall. Plan moved 3 to add/0/0 (the original ABSENT gap) -> 2 to add/0/2 to destroy (item 4 fixed, item 5's replacement exposed) -> 0 to add/1 to change/0 to destroy (item 5 fixed) -> empty (item 6 fixed by the emulator)."

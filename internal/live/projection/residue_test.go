@@ -1726,6 +1726,173 @@ func TestResidueSetOrderDoesNotAffectClassification(t *testing.T) {
 	}
 }
 
+// hostEphemeralBlockDeviceWithNoDeviceSchema is hostLikeSchema's own
+// ephemeral_block_device with the ONE attribute that fixture leaves out:
+// no_device (Optional, bool) - real in hashicorp/aws's actual aws_instance
+// schema, and the omission is what let
+// TestResidueCarriesListAndSetNestedBlocksByValue's hostBareImportRead pass
+// every prior straight through unchanged, hiding the SDKv2 quirk this
+// file's own residueNormalizeSDKZeroLeaves exists for: a leaf never set in
+// configuration plans as null, but the legacy SDK's flatten step has no way
+// to write anything but false for it, on every read, forever.
+func hostEphemeralBlockDeviceWithNoDeviceSchema() providers.Schema {
+	ephemeralBlockDevice := configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"device_name":  {Type: cty.String, Optional: true},
+		"virtual_name": {Type: cty.String, Optional: true},
+		"no_device":    {Type: cty.Bool, Optional: true},
+	}}
+	return providers.Schema{
+		Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":            {Type: cty.String, Optional: true, Computed: true},
+				"ami":           {Type: cty.String, Required: true},
+				"instance_type": {Type: cty.String, Optional: true, Computed: true},
+			},
+			BlockTypes: map[string]*configschema.NestedBlock{
+				"ephemeral_block_device": {Nesting: configschema.NestingSet, Block: ephemeralBlockDevice},
+			},
+		},
+	}
+}
+
+// hostEphemeralNoDeviceApplied is corpus-sumaform-aws's own two-device
+// shape: no_device never set in configuration for either element, so
+// OpenTofu's own planned/applied value holds a genuine null there, not
+// hashicorp/aws's own false default.
+func hostEphemeralNoDeviceApplied() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":            cty.StringVal("i-0123456789abcdef0"),
+		"ami":           cty.StringVal("ami-ubuntu2204"),
+		"instance_type": cty.StringVal("m5.large"),
+		"ephemeral_block_device": cty.SetVal([]cty.Value{
+			cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdb"), "virtual_name": cty.StringVal("ephemeral0"), "no_device": cty.NullVal(cty.Bool)}),
+			cty.ObjectVal(map[string]cty.Value{"device_name": cty.StringVal("xvdc"), "virtual_name": cty.StringVal("ephemeral1"), "no_device": cty.NullVal(cty.Bool)}),
+		}),
+	})
+}
+
+// hostEphemeralNoDeviceRead reproduces, exactly, what
+// gauntlet:sumaform-clear's own TF_LOG=trace capture against a real
+// hashicorp/aws 6.59.0 + floci apply showed for these two reads: an
+// identity-only prior (read A) answers with an EMPTY set - Read() never
+// populates ephemeral_block_device from the live object at all, there is
+// nothing in DescribeInstances to populate it from - and the full-applied
+// prior (read B) answers with the SAME two elements, EXCEPT every no_device
+// that was null in the prior comes back false, deterministically: the
+// legacy SDK's flatten step has no other value to give a bool leaf nothing
+// ever set.
+func hostEphemeralNoDeviceRead(prior cty.Value) (cty.Value, error) {
+	out := map[string]cty.Value{}
+	for name, v := range prior.AsValueMap() {
+		out[name] = v
+	}
+	out["id"] = cty.StringVal("i-0123456789abcdef0")
+	out["ami"] = cty.StringVal("ami-ubuntu2204")
+	out["instance_type"] = cty.StringVal("m5.large")
+
+	ebd := prior.GetAttr("ephemeral_block_device")
+	if ebd.IsNull() || ebd.LengthInt() == 0 {
+		out["ephemeral_block_device"] = ebd
+		return cty.ObjectVal(out), nil
+	}
+	var elems []cty.Value
+	for it := ebd.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+		m := ev.AsValueMap()
+		if m["no_device"].IsNull() {
+			m["no_device"] = cty.False
+		}
+		elems = append(elems, cty.ObjectVal(m))
+	}
+	out["ephemeral_block_device"] = cty.SetVal(elems)
+	return cty.ObjectVal(out), nil
+}
+
+// TestResidueRecordsANestedBlockAfterAnSDKZeroValueNormalization is
+// gauntlet:sumaform-clear's own greenfield finding: PART GREENFIELD's own
+// apply wrote this instance's record, and the VERY NEXT plan proposed
+// replacing it - "+ ephemeral_block_device { # forces replacement }" -
+// because write-back's own residue classification never recorded the block
+// at all. hostBareImportRead's pure passthrough (used by every OTHER test
+// in this file) cannot reproduce that: it never disagrees with applied in
+// the first place, so read B's RawEquals check always trivially passed.
+// hostEphemeralNoDeviceRead's read B does not pass through - it normalizes
+// no_device the way the real provider does - which is exactly what made
+// read B disagree with the raw applied value and made classifyResidue
+// refuse this candidate before residueNormalizeSDKZeroLeaves existed.
+//
+// Asserted BY VALUE: the recorded value must be the ORIGINAL applied value
+// (no_device still null, what configuration actually said), not read B's
+// own normalized echo - residue records what to put back on the next
+// plan's read, and what to put back is what was configured, not a
+// provider-internal implementation detail of how it stores "unset".
+func TestResidueRecordsANestedBlockAfterAnSDKZeroValueNormalization(t *testing.T) {
+	schema := hostEphemeralBlockDeviceWithNoDeviceSchema()
+	applied := hostEphemeralNoDeviceApplied()
+
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
+	want := []string{"ami", "ephemeral_block_device", "instance_type"}
+	if !reflect.DeepEqual(candidates, want) {
+		t.Fatalf("residueCandidates = %v, want %v", candidates, want)
+	}
+
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, hostEphemeralNoDeviceRead, nil)
+	if !ok {
+		t.Fatal("classifyResidue recorded nothing - a real AWS SDKv2 provider normalizing ephemeral_block_device.no_device from null to false on every read must not silently make this whole block unrecordable")
+	}
+	got, held := attrs["ephemeral_block_device"]
+	if !held {
+		t.Fatalf("ephemeral_block_device was not recorded; recorded %v", attrs)
+	}
+	wantVal := applied.GetAttr("ephemeral_block_device")
+	if !got.RawEquals(wantVal) {
+		t.Fatalf("recorded ephemeral_block_device = %#v, want the exact applied value %#v - residue must record what configuration said (no_device left null), not the provider's own normalized echo", got, wantVal)
+	}
+}
+
+// TestResidueStillRejectsGenuineDriftInsideANestedBlockAfterZeroLeafTolerance
+// is the previous test's control, proving residueNormalizeSDKZeroLeaves's
+// tolerance is narrow: a read B that disagrees with applied for a reason
+// OTHER than the null-to-zero-value substitution - here, no_device
+// genuinely reads back true where configuration never set it at all, an
+// answer no normalization of applied's own null could ever produce - must
+// still be rejected as real drift, exactly as before this file's fix.
+func TestResidueStillRejectsGenuineDriftInsideANestedBlockAfterZeroLeafTolerance(t *testing.T) {
+	schema := hostEphemeralBlockDeviceWithNoDeviceSchema()
+	applied := hostEphemeralNoDeviceApplied()
+
+	driftingRead := func(prior cty.Value) (cty.Value, error) {
+		v, err := hostEphemeralNoDeviceRead(prior)
+		if err != nil {
+			return v, err
+		}
+		ebd := v.GetAttr("ephemeral_block_device")
+		if ebd.IsNull() || ebd.LengthInt() == 0 {
+			return v, nil
+		}
+		var elems []cty.Value
+		for it := ebd.ElementIterator(); it.Next(); {
+			_, ev := it.Element()
+			m := ev.AsValueMap()
+			// Genuine drift: true, not the null-to-false substitution this
+			// candidate's own applied value could ever explain.
+			m["no_device"] = cty.True
+			elems = append(elems, cty.ObjectVal(m))
+		}
+		out := v.AsValueMap()
+		out["ephemeral_block_device"] = cty.SetVal(elems)
+		return cty.ObjectVal(out), nil
+	}
+
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), nil, driftingRead, nil)
+	if ok {
+		if _, bad := attrs["ephemeral_block_device"]; bad {
+			t.Fatal("ephemeral_block_device was recorded despite read B genuinely disagreeing with applied (no_device=true, not the null-to-false SDK substitution) - residueNormalizeSDKZeroLeaves's tolerance must not swallow real drift")
+		}
+	}
+}
+
 // TestClassifyResidueLeavesAnEmptyCollectionBlockUnrecorded is the
 // corpus-mastino-dns regression: NestingList/NestingSet/NestingMap's own
 // widening (residueEligibleBlock, above) made every collection-nested block
