@@ -1114,11 +1114,20 @@ EOF
     grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
 
-    if IGW_GONE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
-      --internet-gateway-ids "$IGW_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>&1)"; then
-      echo "$IGW_GONE"; fail "the internet gateway $IGW_ID still exists in the live account after the destroy - it was orphaned, not destroyed"
-    fi
-    log "  $IGW_ID no longer exists - confirmed via the AWS CLI, not through choudoufu's own report"
+    # A destroyed internet gateway is confirmed by COUNT, not by exit code:
+    # floci (checked directly against a real, no-tofu-involved
+    # create/attach/detach/delete sequence while building this check) answers
+    # describe-internet-gateways for an already-deleted id with a plain
+    # HTTP 200 and an EMPTY list, not the InvalidInternetGatewayID.NotFound
+    # error real AWS documents for the same request - so treating "the AWS
+    # CLI call succeeded" as "still exists" is wrong regardless of which of
+    # the two answers the emulator gives, and length(...) is right either
+    # way (0 on both an empty list and, were the emulator ever to start
+    # erroring instead, this query would fail loudly rather than lie).
+    IGW_COUNT="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
+      --internet-gateway-ids "$IGW_ID" --query "length(InternetGateways)" --output text 2>/dev/null || echo 0)"
+    [ "$IGW_COUNT" = "0" ] || fail "the internet gateway $IGW_ID still exists in the live account after the destroy ($IGW_COUNT found) - it was orphaned, not destroyed"
+    log "  $IGW_ID no longer exists (0 found) - confirmed via the AWS CLI, not through choudoufu's own report"
 
     log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
     E_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
