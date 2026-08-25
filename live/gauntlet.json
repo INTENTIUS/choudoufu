@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "17918d156f5e5cfd8894331270d45e795bcfc3a3",
+  "commit": "18c070d9c95deb3b30fdf659d605b4507bc81e03",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T02:08:43Z",
+  "generated": "2026-08-25T03:39:08Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 0,
-          "not_run": 24
+          "fail": 1,
+          "not_run": 23
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 2,
-          "fail": 0,
-          "not_run": 23
+          "fail": 1,
+          "not_run": 22
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "migrate": {
           "pass": 25,
@@ -1056,12 +1056,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1071,13 +1071,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
-        "date": "2026-08-25T01:23:10Z",
-        "exit_code": 0,
+        "commit": "18c070d9c95deb3b30fdf659d605b4507bc81e03",
+        "date": "2026-08-25T03:46:02Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
+          "day2_remove": "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket_public_access_block.this[0] - the untaggable, parent-derived sibling stock also destroys (issue #410, see header)",
           "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
+          "greenfield": "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4",
           "test_plan": "no resource action proposed; 29 rendered identity occurrences (11 distinct), all naming known roots"

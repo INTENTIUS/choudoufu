@@ -439,6 +439,218 @@ log "  confirmed unmarked: s3-bucket-$PET carries no tofu-address tag (${UNMARKE
 gauntlet_stage cold_deploy pass "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag"
 
 # ══════════════════════════════════════════════════════════════════════════
+# GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two more, fresh containers, entirely independent of everything above and
+# below: choudoufu applies the same reduced estate (SCOPE REDUCTION's
+# acl/website removal and DELTA 5's expected_bucket_owner removal are
+# genuine, permanent properties of this estate under this fork, not
+# migration-only deltas, so both apply here too) directly from a live
+# block - no live-import, no migration, no state file ever existing. The
+# random_pet uniquifier is pinned to the same fixed literal on BOTH this
+# copy and its stock oracle: unlike DELTA 3 (which stands in for an
+# untaggable effect live-import cannot yet migrate), there is nothing to
+# migrate here - greenfield originates the estate - so this is just giving
+# both sides the same deterministic bucket names, the same reason
+# corpus-sqs-basic's greenfield needs no such pin at all (its resources are
+# already statically named). DELTA 4's two count-gating data source reads
+# are pinned on both sides too, to the SAME literal (read fresh off the
+# greenfield container itself), for the same reason DELTA 4 exists on the
+# migrate path: a count expression must be statically evaluable, a
+# genuinely fixed parity property of this fork's config-language subset,
+# not a defect either side's oracle comparison should be sensitive to.
+CURRENT_STAGE=greenfield
+FLOCI_GREEN_NAME="choudoufu-corpus-s3-bucket-complete-green-$$"
+FLOCI_ORACLE_NAME="choudoufu-corpus-s3-bucket-complete-green-oracle-$$"
+GREEN_ESTATE_NAME="s3-bucket-complete-greenfield"
+PET_G="greenfield"
+
+# floci_launch_retry <name> <portvar> - several gauntlet scripts run
+# concurrently on a shared host, each with its own FLOCI_PORT reservation,
+# but a fixed +1/+2 offset from that reservation is not itself reserved and
+# collides with siblings picking the same offset. Pick a port at random
+# from a wide, rarely-used range and retry on "already allocated" instead.
+floci_launch_retry() {
+  local name="$1" portvar="$2" tries=0 port out
+  while :; do
+    port=$((20000 + RANDOM % 20000))
+    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    tries=$((tries + 1))
+    grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
+    [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
+  done
+}
+
+log "=== GREENFIELD: 0. two more floci containers ==="
+floci_launch_retry "$FLOCI_GREEN_NAME" FLOCI_GREEN_PORT || fail "docker run for $FLOCI_GREEN_NAME failed"
+floci_launch_retry "$FLOCI_ORACLE_NAME" FLOCI_ORACLE_PORT || fail "docker run for $FLOCI_ORACLE_NAME failed"
+GREEN_ENDPOINT="http://localhost.localstack.cloud:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://localhost.localstack.cloud:${FLOCI_ORACLE_PORT}"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"s3"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"s3"' <<< "${GH:-}" || fail "floci did not come up healthy (s3) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+GREEN="$WORK/green"
+ORACLE_DIR="$WORK/green-oracle"
+copy_estate "$GREEN"
+copy_estate "$ORACLE_DIR"
+scope_reduce "$GREEN"
+scope_reduce "$ORACLE_DIR"
+provider_patch "$GREEN"
+provider_patch "$ORACLE_DIR"
+version_pin "$GREEN" '
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }'
+version_pin "$ORACLE_DIR" ""
+
+pin_pet() { # pin_pet <dir> <literal> - DELTA 3's own transform, applied to
+            # a config that never had a random_pet apply to begin with
+  perl -0pi -e 's/resource "random_pet" "this" \{\n  length = 2\n\}\n/locals {\n  pinned_pet = "'"$2"'"\n}\n/' "$1/examples/complete/main.tf"
+  perl -pi -e 's/random_pet\.this\.id/local.pinned_pet/g' "$1/examples/complete/main.tf"
+  grep -q 'pinned_pet = "'"$2"'"' "$1/examples/complete/main.tf" || fail "pin_pet did not match in $1 - the corpus pin has moved"
+}
+pin_pet "$GREEN" "$PET_G"
+pin_pet "$ORACLE_DIR" "$PET_G"
+
+# DELTA 5 (see header): expected_bucket_owner has no live representation,
+# which forces a spurious replace on the first replan after any apply that
+# touches it - greenfield's own next-plan check below included. Removed
+# from both copies so the comparison is between the SAME reduced estate.
+for d in "$GREEN" "$ORACLE_DIR"; do
+  perl -pi -e 's/^(  expected_bucket_owner                  = data\.aws_caller_identity\.current\.account_id)$/  # DELTA 5: expected_bucket_owner removed - $1/' "$d/examples/complete/main.tf"
+  grep -q 'DELTA 5' "$d/examples/complete/main.tf" || fail "DELTA 5 did not match in $d - the corpus pin has moved"
+done
+
+GREEN_CANONICAL_USER_ID="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" s3api list-buckets --query 'Owner.ID' --output text)"
+[ -n "$GREEN_CANONICAL_USER_ID" ] && [ "$GREEN_CANONICAL_USER_ID" != "None" ] || fail "could not read the greenfield account's own canonical user ID off floci"
+CLOUDFRONT_CANONICAL_USER_ID="c4c1ede66af53448b93c283ce9448c4ba468c9432aa01d700d3878632f77d2d0" # AWS-documented constant, every account (see STAGE 2's own DELTA 4 below)
+for d in "$GREEN" "$ORACLE_DIR"; do
+  perl -0pi -e 's/(grant = \[\{\n    type       = "CanonicalUser"\n    permission = "FULL_CONTROL"\n    id         = )data\.aws_canonical_user_id\.current\.id(\n    \}, \{\n    type       = "CanonicalUser"\n    permission = "FULL_CONTROL"\n    id         = )data\.aws_cloudfront_log_delivery_canonical_user_id\.cloudfront\.id( # Ref\.[^\n]*\n    \}\n  \])/$1"'"$GREEN_CANONICAL_USER_ID"'" # DELTA 4$2"'"$CLOUDFRONT_CANONICAL_USER_ID"'" # DELTA 4$3/' "$d/examples/complete/main.tf"
+  [ "$(grep -c 'DELTA 4' "$d/examples/complete/main.tf")" = "2" ] || fail "DELTA 4 did not match in $d - the corpus pin has moved"
+done
+log "  DELTA 3/4/5 applied to both the greenfield estate and its stock oracle (see comment above)"
+
+GREEN_BUCKETS=(s3-bucket-$PET_G logs-$PET_G cloudfront-logs-$PET_G simple-$PET_G)
+
+log "=== GREENFIELD: 1. choudoufu apply from nothing, no migration ==="
+( cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A5 | head -60; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 29 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 29 resources (30 upstream reduced by SCOPE REDUCTION and its own random_pet pinned away, see header)"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT" | head -1)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+for pair in "s3-bucket-$PET_G:module.s3_bucket.aws_s3_bucket.this:0" "cloudfront-logs-$PET_G:module.cloudfront_log_bucket.aws_s3_bucket.this:0" "simple-$PET_G:module.simple_bucket.aws_s3_bucket.this:0"; do
+  b="${pair%%:*}"; want="${pair#*:}"
+  got="$(awsg s3api get-bucket-tagging --bucket "$b" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null)"
+  [ "$got" = "$want" ] || fail "greenfield bucket $b carries tofu-address=$got, not $want"
+  est="$(awsg s3api get-bucket-tagging --bucket "$b" --query "TagSet[?Key=='tofu-estate'].Value | [0]" --output text 2>/dev/null)"
+  [ "$est" = "$GREEN_ESTATE_NAME" ] || fail "greenfield bucket $b carries tofu-estate=$est, not $GREEN_ESTATE_NAME"
+done
+log "  3 of 4 buckets spot-checked, correct tofu-address and tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
+
+log "=== GREENFIELD: 3. the local record store holds one record per instance (#364 A2: apply writes a record too, not just live-import) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/examples/complete/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
+log "  $GREEN_RECORD_FILES records persisted under the local record store"
+
+log "=== GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -vE '^[0-9]{4}-' <<< "$GREEN_PLAN_OUT" > "$WORK/green-plan-notrace.log"
+if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/green-plan-notrace.log"; then
+  grep -E '^  # .+ will be' "$WORK/green-plan-notrace.log"
+  fail "the greenfield replan proposes a resource change"
+fi
+log "  no resource action proposed (outputs quirk aside, see STAGE 3 above)"
+
+log "=== GREENFIELD: 5. stock oracle - the identical reduced estate applied fresh in its own namespace ==="
+( cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_APPLY_OUT="$(cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 29 added' <<< "$ORACLE_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 29 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_APPLY_OUT" | head -1)"
+
+bucket_shape() { # $1=endpoint $2=bucket - a normalised structural fact
+                  # sheet, read via the AWS CLI, never through tofu state
+  local ep="$1" b="$2"
+  local ver enc pol
+  ver="$(aws --endpoint-url "$ep" --region "$REGION" s3api get-bucket-versioning --bucket "$b" --query 'Status' --output text 2>/dev/null)"
+  enc="$(aws --endpoint-url "$ep" --region "$REGION" s3api get-bucket-encryption --bucket "$b" --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' --output text 2>/dev/null)"
+  aws --endpoint-url "$ep" --region "$REGION" s3api get-bucket-policy --bucket "$b" >/dev/null 2>&1 && pol=yes || pol=no
+  printf 'versioning=%s encryption=%s policy=%s\n' "${ver:-None}" "${enc:-None}" "$pol"
+}
+
+log "=== GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+BUCKET_COUNT_GREEN="$(awsg s3api list-buckets --query 'length(Buckets)' --output text)"
+[ "$BUCKET_COUNT_GREEN" = "4" ] || fail "the greenfield estate has $BUCKET_COUNT_GREEN buckets, expected 4"
+for b in "${GREEN_BUCKETS[@]}"; do
+  G="$(bucket_shape "$GREEN_ENDPOINT" "$b")"
+  O="$(bucket_shape "$ORACLE_ENDPOINT" "$b")"
+  [ "$G" = "$O" ] || { printf 'greenfield %s: %s\noracle    %s: %s\n' "$b" "$G" "$b" "$O"; fail "bucket $b differs structurally between the greenfield estate and the stock oracle"; }
+done
+log "  all 4 buckets match structurally (versioning, default encryption, policy presence) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)"
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7), computed here, before
+# migrate/rename/drift ever write a single live tag: a throwaway copy of
+# cold_deploy's own (never re-applied) state, module.simple_bucket's block
+# removed. This has to run BEFORE stage 2 for the same reason
+# corpus-iam-policy's own day2_remove oracle sits between cold_deploy and
+# migrate rather than at the end - a live tag write anywhere later in this
+# script would make a LATE oracle plan see spurious tag drift (every bucket
+# gains tofu-address/tofu-estate at migrate) that has nothing to do with
+# the removal itself. STAGE 7 (below, after rename) reuses the destroy
+# target this establishes rather than re-running the oracle plan against a
+# live-mutated world.
+CURRENT_STAGE=day2_remove
+log "=== STAGE 1.5: day2_remove stock oracle: delete module.simple_bucket's block on cold_deploy's own state ==="
+ORACLE_REMOVE="$WORK/oracle-remove"
+cp -R "$PLAIN" "$ORACLE_REMOVE"
+python3 -c "
+p = '$ORACLE_REMOVE/examples/complete/main.tf'
+s = open(p).read()
+start = s.index('module \"simple_bucket\" {')
+end = s.index('\n}\n', start) + len('\n}\n')
+assert 'force_destroy = true' in s[start:end]
+open(p, 'w').write(s[:start] + s[end:])
+"
+grep -q 'module "simple_bucket"' "$ORACLE_REMOVE/examples/complete/main.tf" && fail "day2_remove oracle: module.simple_bucket's block is still present"
+( cd "$ORACLE_REMOVE/examples/complete" && terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_REMOVE/examples/complete" && terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REMOVE/examples/complete" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.simple_bucket\.aws_s3_bucket\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.simple_bucket.aws_s3_bucket.this[0]"; }
+grep -qE '^  # module\.simple_bucket\.aws_s3_bucket_public_access_block\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.simple_bucket.aws_s3_bucket_public_access_block.this[0]"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^Plan:|^No changes' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "the day2_remove stock oracle plan is not exactly two destroys"; }
+log "  stock oracle: exactly two destroys proposed for module.simple_bucket's own bucket and its public_access_block (computed now, before anything below writes a live tag)"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -924,6 +1136,98 @@ EOF
   log "  no resource action proposed. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7, active)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from stage 6's real, completed rename: module.simple_bucket_
+  # renamed's whole block (its one taggable instance,
+  # aws_s3_bucket.this[0], plus its untaggable, parent-derived sibling
+  # aws_s3_bucket_public_access_block.this[0]) is removed outright, with no
+  # replacement declared anywhere - the block
+  # this stage picks deliberately AVOIDS issue #404's shape (see the header
+  # above): #404 is triggered by a SIBLING resource's data-source-built
+  # policy re-reading the renamed/removed bucket's own ARN within the same
+  # plan, and neither module.simple_bucket_renamed nor its own children have
+  # any such dependent - it has no aws_s3_bucket_policy, no grant, no
+  # external reference to its own module output. module.log_bucket (the
+  # one #404 names) and module.s3_bucket are both left untouched.
+  CURRENT_STAGE=day2_remove
+  log "=== STAGE 7. day2_remove: delete module.simple_bucket_renamed's block outright ==="
+  log "  stock oracle already computed at STAGE 1.5 (above, before migrate ever wrote a live tag): exactly one destroy for module.simple_bucket.aws_s3_bucket.this[0]"
+
+  # A REAL, GENERIC WALL, found by this stage (not #404): choudoufu's own
+  # orphan sweep (internal/live/discovery's classifyOrphans) walks live
+  # objects found by MARKER. Untaggable, parent-derived children (like
+  # aws_s3_bucket_public_access_block, which has no tags argument at all)
+  # carry no marker of their own - their identity is only ever computed by
+  # walking a STILL-DECLARED config block, whether that block is the
+  # child's own or its parent's. Tried two shapes, both confirmed absent
+  # from the plan with no diagnostic at all (not folded into another line,
+  # not an error - genuinely never visited): removing module.simple_bucket_
+  # renamed's whole block outright (this stage's real target), and, tried
+  # first as a workaround, shrinking JUST the child's own declared count
+  # from 1 to 0 (attach_public_policy = false) while its bucket stayed
+  # declared - which rules out "no parent left to derive from" as the
+  # narrow cause: even with the parent still there, a count-based removal
+  # of an untaggable instance is invisible with no local state to remember
+  # index 0 ever existed (day2_count, live/GAUNTLET.md #8, is a PLANNED,
+  # not yet active, stage for exactly this "scaling a count block" shape).
+  # The resulting CLOUD is equivalent either way (a public access block is
+  # bucket-scoped configuration with nothing left to describe once its own
+  # bucket is gone - confirmed via the AWS CLI below), but the PLAN
+  # genuinely differs from stock's, which is HANDOFF's row 2 by the letter.
+  # Filed as choudoufu issue #410. Fixing it needs a new discovery path
+  # (enumerate a resource's own well-known untaggable child types from ITS
+  # live id, independent of whether either the child's or the parent's
+  # config block still exists) that reaches well past this one estate and
+  # belongs with HANDOFF's "The order" item 1 (record-primary identity),
+  # not inside a single gauntlet unit - so this stage is left FAILING here,
+  # honestly, rather than working around it with a check that would not
+  # actually be asserting what the oracle asserts.
+  log "=== F1. choudoufu: delete module.simple_bucket_renamed's block ==="
+  python3 -c "
+p = '$ESTATE_DIR/main.tf'
+s = open(p).read()
+start = s.index('module \"simple_bucket_renamed\" {')
+end = s.index('\n}\n', start) + len('\n}\n')
+assert 'force_destroy = true' in s[start:end]
+open(p, 'w').write(s[:start] + s[end:])
+"
+  grep -q 'module "simple_bucket_renamed"' "$ESTATE_DIR/main.tf" && fail "F1: module.simple_bucket_renamed's block is still present"
+  ( cd "$ESTATE_DIR" && "$TOFU" init -upgrade -input=false -no-color ) > /tmp/s3-day2-remove-init.log 2>&1 || {
+    tail -40 /tmp/s3-day2-remove-init.log; fail "the day2_remove reinit failed"; }
+
+  REMOVE_PLAN_LOG="$WORK/plan-remove.log"
+  plan_into "$REMOVE_PLAN_LOG" || { grep -vE '^[0-9]{4}-' "$REMOVE_PLAN_LOG" | tail -40; fail "the day2_remove plan exited non-zero"; }
+  grep -qE '^  # module\.simple_bucket_renamed\.aws_s3_bucket\.this\[0\] will be destroyed' "$REMOVE_PLAN_LOG" \
+    || { grep -E '^  # .+ will be' "$REMOVE_PLAN_LOG"; fail "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket.this[0]"; }
+  grep -qE '^  # module\.simple_bucket_renamed\.aws_s3_bucket_public_access_block\.this\[0\] will be destroyed' "$REMOVE_PLAN_LOG" \
+    || { grep -E '^  # .+ will be' "$REMOVE_PLAN_LOG"; fail "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket_public_access_block.this[0] - the untaggable, parent-derived sibling stock also destroys (issue #410, see header)"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' "$REMOVE_PLAN_LOG" \
+    || { grep -E '^Plan:|^No changes' "$REMOVE_PLAN_LOG"; fail "the day2_remove plan is not exactly two destroys"; }
+  log "  choudoufu: exactly two destroys proposed (the bucket and its public_access_block child) - the same objects the stock oracle proposes destroying"
+
+  REMOVE_APPLY_OUT="$(cd "$ESTATE_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+  [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys"; }
+  awsl s3api head-bucket --bucket "simple-$PET" >/dev/null 2>&1 \
+    && fail "simple-$PET is still live after the day2_remove apply"
+  log "  simple-$PET is genuinely gone (head-bucket confirms via the AWS CLI, not choudoufu's own report)"
+
+  FINAL_REMOVE_PLAN_LOG="$WORK/plan-remove-final.log"
+  plan_into "$FINAL_REMOVE_PLAN_LOG" || { grep -vE '^[0-9]{4}-' "$FINAL_REMOVE_PLAN_LOG" | tail -40; fail "the post-remove plan exited non-zero"; }
+  grep -vE '^[0-9]{4}-' "$FINAL_REMOVE_PLAN_LOG" > "$WORK/plan-remove-final-notrace.log"
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-remove-final-notrace.log"; then
+    grep -E '^  # .+ will be' "$WORK/plan-remove-final-notrace.log"
+    fail "the post-remove plan proposes a resource change"
+  fi
+  log "  no resource action proposed. simple-$PET is gone and nothing else moved."
+
+  gauntlet_stage day2_remove pass "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-$PET now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched"
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end
