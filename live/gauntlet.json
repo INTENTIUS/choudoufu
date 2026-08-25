@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "81634a7f6580c16a91f86ad8cd6ab8429b9e9689",
+  "commit": "db15df773bb34cb56c256d2b52169ef711e97e39",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T17:38:13Z",
+  "generated": "2026-08-25T17:45:44Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 25,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,8 +153,8 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 26,
-          "fail": 0,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "day2_rename": {
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 24,
+      "clear": 23,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,8 +230,8 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 25,
-          "fail": 0,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "day2_rename": {
@@ -873,7 +873,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "pass",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -885,15 +885,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "25b7dca3f0581c17e0634d3de6da49eb42c7d9e3",
-        "date": "2026-08-25T04:32:52Z",
-        "exit_code": 0,
+        "commit": "db15df773bb34cb56c256d2b52169ef711e97e39",
+        "date": "2026-08-25T17:47:34Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "8 resources, genuinely cold, genuinely unmarked",
-          "day2_remove": "choudoufu: deleting module.lambda_function_final's block proposed 6 destroys (the function, the role, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function and the role genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename",
+          "day2_remove": "choudoufu's remove plan proposes 7 destroys, expected exactly 6",
           "day2_rename": "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty",
           "drift_reconverge": "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128",
           "greenfield": "8 resources from nothing (3 taggable + 5 record-backed/config-derived), all three module-nested markers verified via the AWS CLI, 8 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (runtime, handler, memory, timeout, log-group retention)",
