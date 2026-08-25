@@ -940,6 +940,53 @@ grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan shows different churn than the baseline's own null_resource.archive[0] replace - the rename is not a true no-op beyond that known noise"; }
 log "  stock: zero churn on cold_deploy's own state beyond the pre-existing null_resource.archive[0] noise (confirmed identical to the baseline above) - the module move reports only its move, no attribute diff at all"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# "Stock's replace of the same resource leaves the same single object."
+# module.lambda_function.aws_cloudwatch_log_group.lambda[0] is forced to
+# replace via the module's own `logging_log_group` argument, currently
+# unset (so the module derives the name from function_name): setting it to
+# a different literal forces aws_cloudwatch_log_group's `name` argument to
+# change, and CloudWatch Logs has no RenameLogGroup API - only
+# CreateLogGroup/DeleteLogGroup - so name is ForceNew in the provider's own
+# schema, confirmed empirically below by the plan's own "must be replaced"
+# annotation on that one resource, not assumed. The SAME literal also
+# reaches aws_lambda_function.this[0]'s logging_config.log_group argument
+# (main.tf:142, `log_group = var.logging_log_group`) and, through the
+# recomposed policy document, aws_iam_role_policy.logs[0]'s policy JSON -
+# both real, expected in-place updates cascading from the one ForceNew
+# change, the same shape corpus-ec2-instance-complete's own F-ORACLE
+# documents for its ami/eip/volume-attachment cascade. A fresh copy of
+# cold_deploy's own state (cp -r, same as D-ORACLE above, preserving the
+# module's relative source path), so this oracle runs on the ORIGINAL
+# module name before the real script's own rename ever touches $EST.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.lambda_function's log group via its ForceNew logging_log_group-derived name, on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
+cp -r "$WORK/lambda" "$REPLACE_ORACLE_ROOT"
+REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/examples/simple"
+rm -rf "$REPLACE_ORACLE/.terraform" "$REPLACE_ORACLE/.terraform.lock.hcl"
+( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+sed -i.bak 's|function_name = "${random_pet.this.id}-lambda-simple"|function_name = "${random_pet.this.id}-lambda-simple"\n  logging_log_group = "/aws/lambda/${random_pet.this.id}-lambda-simple-v2"|' "$REPLACE_ORACLE/main.tf"
+rm -f "$REPLACE_ORACLE/main.tf.bak"
+grep -q 'lambda-simple-v2' "$REPLACE_ORACLE/main.tf" \
+  || fail "adding module.lambda_function's logging_log_group argument in the replace-oracle copy did not match - the corpus pin has moved"
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.lambda_function\.aws_cloudwatch_log_group\.lambda\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose replacing module.lambda_function's log group when its derived name changes"; }
+grep -qE '~ +name +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark the log group's name as forcing replacement - it may not be ForceNew after all"; }
+grep -qE '^  # module\.lambda_function\.aws_lambda_function\.this\[0\] will be updated in-place' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose updating the lambda function in-place when the log group name changes"; }
+REPLACE_ORACLE_OTHER="$(grep -E '^  # .+ (will be (destroyed|created)|must be replaced)' <<< "$REPLACE_ORACLE_PLAN_OUT" | grep -v 'null_resource\.archive\[0\]' | grep -v 'aws_cloudwatch_log_group\.lambda\[0\]' || true)"
+[ -z "$REPLACE_ORACLE_OTHER" ] \
+  || { printf '%s\n' "$REPLACE_ORACLE_OTHER"; fail "stock proposes a destroy, create or replace beyond the log group's own forced replace and the known null_resource.archive[0] baseline noise"; }
+log "  stock: exactly one replace (the log group) plus its expected in-place cascade (function, inline log policy), beyond the known null_resource.archive[0] baseline noise; plan only, never applied"
+
 CURRENT_STAGE=migrate
 
 # ── STAGE 2: MIGRATE ─────────────────────────────────────────────────────
@@ -1632,6 +1679,132 @@ EOF
   gauntlet_stage day2_rename pass "moved block: module.lambda_function renamed to module.lambda_function_moved with zero churn (0 add, 3 change, 0 destroy) across all seven of its stateful children, three taggable markers rewritten in place, three record-located children moved via their own per-resource moved blocks with zero diff, one config-derived child (aws_iam_role_policy.logs) needing none; stock oracle over the identical seven-resource move on cold_deploy's own state also shows zero churn beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise (confirmed present on an unrelated baseline replan too); live-mv: module.lambda_function_moved renamed to module.lambda_function_final across all three taggable children (the function, the role, the log group), one call each, zero churn, markers rewritten in place - the internal/live/mv/mv.go materialize() RecordStore wiring gap (build.go:1676's \"Record-backed instance with no record store\") is fixed; all three live objects unchanged throughout, read via the AWS CLI; final replan is empty"
 
   # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed rename: module.lambda_function_final
+  # (the function, the role and the log group all bound and converged under
+  # it) is where this stage forces a replace. The log group's own
+  # `logging_log_group`-derived `name` argument changes to a new literal - a
+  # real, upstream-immutable argument on aws_cloudwatch_log_group (CloudWatch
+  # Logs has no RenameLogGroup API, only CreateLogGroup/DeleteLogGroup) -
+  # forcing a replace at the SAME declared address. F-ORACLE above already
+  # confirmed, empirically, that stock marks the log group's name as forcing
+  # replacement on cold_deploy's own state, cascading into two real in-place
+  # updates: the function's own logging_config.log_group argument (main.tf:
+  # 142 reads the same var directly) and the inline log policy's document
+  # (it references the log group's ARN). Neither the function nor the
+  # policy is destroyed or created - only the log group is.
+  #
+  # THE create_before_destroy SCOPE NOTE (see corpus-sqs-basic's own PART F
+  # header for the fuller discussion). OpenTofu core rejects a `lifecycle`
+  # block written directly on a `module` call, and this corpus's established
+  # convention only ever removes real upstream module content, never adds
+  # library-internal lifecycle blocks to it - so this exercises OpenTofu's
+  # DEFAULT replace ordering (destroy-then-create) rather than the
+  # create_before_destroy variant the stage's Title names. The
+  # marker-on-new-object and clean-old-object outcomes this stage's Proves
+  # text cares about are identical either way; BREAK=replace below
+  # manufactures the coexistence a skipped destroy half would leave, the
+  # same way corpus-sqs-basic's own BREAK=replace does.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR="module.lambda_function_final.aws_cloudwatch_log_group.lambda[0]"
+  F_RECORD="$EST/.tofu-records/tofu-records/$ESTATE/aws_cloudwatch_log_group/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live log group and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_LOGGROUP_NAME="/aws/lambda/${FN_NAME}"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  # aws_cloudwatch_log_group's import ID is the log group NAME, not its ARN
+  # (terraform import aws_cloudwatch_log_group.x /aws/lambda/my-func) -
+  # confirmed by this same assertion against the record file, not assumed.
+  [ "$F_OLD_IMPORT_ID" = "$F_OLD_LOGGROUP_NAME" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $F_OLD_LOGGROUP_NAME"
+  F_OLD_ADDR_TAG="$(awsl logs list-tags-for-resource --resource-arn "$LOGGROUP_ARN" --query 'tags."tofu-address"' --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.lambda_function_final.aws_cloudwatch_log_group.lambda:0" ] \
+    || fail "$LOGGROUP_ARN does not carry tofu-address=module.lambda_function_final.aws_cloudwatch_log_group.lambda:0 ahead of day2_replace"
+  log "  $LOGGROUP_ARN, record import_id=$F_OLD_IMPORT_ID (the log group's name, not its ARN), tofu-address=$F_OLD_ADDR_TAG"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy half would leave behind ==="
+    # A second, distinct live log group carrying the SAME tofu-address as
+    # the one a genuine replace would destroy - the state "skip the destroy
+    # half" of a create-before-destroy replace would leave, produced
+    # directly via the AWS CLI rather than by actually interrupting an
+    # apply (day2_crash, stage 10, owns testing a real interruption).
+    BREAK_COLLISION_NAME="/aws/lambda/${FN_NAME}-collision"
+    awsl logs create-log-group --log-group-name "$BREAK_COLLISION_NAME" \
+      --tags "tofu-estate=$ESTATE,tofu-address=module.lambda_function_final.aws_cloudwatch_log_group.lambda:0" \
+      >/dev/null || fail "BREAK=replace: could not create the collision log group"
+    BREAK_COLLISION_ARN="arn:aws:logs:${REGION}:${ACCOUNT}:log-group:${BREAK_COLLISION_NAME}"
+    BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    awsl logs delete-log-group --log-group-name "$BREAK_COLLISION_NAME" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one address' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the address collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one address) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew logging_log_group-derived name, forcing a replace at the same declared address ==="
+    sed -i.bak 's|function_name = "${random_pet.this.id}-lambda-simple"|function_name = "${random_pet.this.id}-lambda-simple"\n  logging_log_group = "/aws/lambda/${random_pet.this.id}-lambda-simple-v2"|' "$EST/main.tf"
+    rm -f "$EST/main.tf.bak"
+    grep -q 'lambda-simple-v2' "$EST/main.tf" || fail "adding module.lambda_function_final's logging_log_group argument did not match - the corpus pin has moved"
+    F_NEW_NAME="/aws/lambda/${FN_NAME}-v2"
+    F_NEW_ARN="arn:aws:logs:${REGION}:${ACCOUNT}:log-group:${F_NEW_NAME}"
+
+    F_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.lambda_function_final\.aws_cloudwatch_log_group\.lambda\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.lambda_function_final's log group when its derived name changes"; }
+    grep -qE '~ +name +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark the log group's name as forcing replacement"; }
+    grep -qE '^  # module\.lambda_function_final\.aws_lambda_function\.this\[0\] will be updated in-place' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose updating the lambda function in-place when the log group name changes"; }
+    F_OTHER="$(grep -E '^  # .+ (will be (destroyed|created)|must be replaced)' <<< "$F_PLAN_OUT" | grep -v 'null_resource\.archive\[0\]' | grep -v 'aws_cloudwatch_log_group\.lambda\[0\]' || true)"
+    [ -z "$F_OTHER" ] \
+      || { printf '%s\n' "$F_OTHER"; fail "choudoufu proposes a destroy, create or replace beyond the log group's own forced replace and the known null_resource.archive[0] baseline noise"; }
+    log "  choudoufu: exactly one forced replace at the same declared address (module.lambda_function_final.aws_cloudwatch_log_group.lambda[0]), name forces replacement, cascading into the expected in-place updates (function, inline log policy), beyond the known null_resource.archive[0] baseline noise"
+
+    F_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Apply complete' <<< "$F_APPLY_OUT" \
+      || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not complete"; }
+
+    F_OLD_STILL="$(awsl logs describe-log-groups --log-group-name-prefix "$F_OLD_LOGGROUP_NAME" --query "logGroups[?logGroupName=='$F_OLD_LOGGROUP_NAME']" --output text 2>&1)"
+    [ -z "$F_OLD_STILL" ] || { echo "$F_OLD_STILL"; fail "$F_OLD_LOGGROUP_NAME still exists after the replace - the old object was orphaned, not destroyed"; }
+    log "  $F_OLD_LOGGROUP_NAME no longer exists (confirmed via the AWS CLI, not through choudoufu's own report)"
+
+    F_NEW_ADDR_TAG="$(awsl logs list-tags-for-resource --resource-arn "$F_NEW_ARN" --query 'tags."tofu-address"' --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.lambda_function_final.aws_cloudwatch_log_group.lambda:0" ] \
+      || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.lambda_function_final.aws_cloudwatch_log_group.lambda:0 - the marker did not move onto the new object"
+    log "  $F_NEW_ARN (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object
+    # would be exactly the wrong-marker failure that outranks a missing
+    # one). The local record file at the SAME address must now hold the
+    # NEW object's import_id, not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_NAME" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object's name $F_NEW_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    F_FINAL_OTHER="$(grep -E '^  # .+ (will be (destroyed|created|updated)|must be replaced)' <<< "$F_FINAL_PLAN_OUT" | grep -v 'null_resource\.archive\[0\]' || true)"
+    [ -z "$F_FINAL_OTHER" ] \
+      || { printf '%s\n' "$F_FINAL_OTHER"; fail "the post-replace plan proposes a resource change beyond the known null_resource.archive[0] baseline noise"; }
+    log "  no resource action proposed beyond the known null_resource.archive[0] baseline noise, no marker collision. The replace is complete and invisible to the next plan."
+
+    gauntlet_stage day2_replace pass "choudoufu: changing module.lambda_function_final's ForceNew logging_log_group-derived name proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the function's logging_config, the inline log policy's document) and nothing else beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise; applied cleanly; the old object ($LOGGROUP_ARN) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action beyond the same known noise; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace plus the same in-place cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+  fi
+  CURRENT_STAGE=""
+
+  # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
   # ══════════════════════════════════════════════════════════════════════
   #
@@ -1748,19 +1921,31 @@ EOF
     fi
     for addr in 'module\.lambda_function_final\.aws_lambda_function\.this\[0\]' \
                 'module\.lambda_function_final\.aws_iam_role\.lambda\[0\]' \
+                'module\.lambda_function_final\.aws_iam_role_policy\.logs\[0\]' \
                 'module\.lambda_function_final\.local_file\.archive_plan\[0\]' \
                 'module\.lambda_function_final\.null_resource\.archive\[0\]' \
                 'module\.lambda_function_final\.terraform_data\.package_filename_for_hash\[0\]'; do
       grep -qE "^  # ${addr} will be destroyed" <<< "$REMOVE_PLAN_OUT" \
         || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying $addr when its block is deleted"; }
     done
-    log "  choudoufu: destroys proposed for the function, the role and all three record-located children"
+    log "  choudoufu: destroys proposed for the function, the role, its inline log policy, and all three record-located children"
+    # aws_iam_role_policy.logs[0] (the role's inline CloudWatch Logs policy)
+    # used to be missing from this checklist entirely - a genuine leak: an
+    # untaggable child (inline policies carry no tags attribute at all) whose
+    # parent role IS being destroyed in the same plan, exactly the shape
+    # day2_remove's own Proves text names ("including blocks for untaggable
+    # children whose parents stay" - here the parent doesn't even stay, so
+    # leaving the inline policy behind would have been strictly worse). Fixed
+    # by day2_replace's own unit: WANT_DESTROY_COUNT moves from 5/6 to 6/7,
+    # confirmed against the AWS CLI below (the#398-guard shape in reverse -
+    # a MISSING destroy is exactly as dangerous as a wrong marker when the
+    # thing left behind is an orphaned IAM permission).
     if grep -qE '^  # module\.lambda_function_final\.aws_cloudwatch_log_group\.lambda\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT"; then
       log "  choudoufu ALSO proposed destroying the log group - stronger than expected (floci#? may have closed the GetResources log-group gap); not a failure"
-      WANT_DESTROY_COUNT=6
+      WANT_DESTROY_COUNT=7
     else
       log "  the log group's destroy is correctly absent - the documented floci gap (GetResources does not index CloudWatch Logs), not a choudoufu defect"
-      WANT_DESTROY_COUNT=5
+      WANT_DESTROY_COUNT=6
     fi
     N_DESTROY="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_PLAN_OUT")"
     [ "$N_DESTROY" = "$WANT_DESTROY_COUNT" ] \
@@ -1779,20 +1964,23 @@ EOF
     if E_ROLE_STILL="$(awsl iam get-role --role-name "$FN_NAME" 2>&1)"; then
       echo "$E_ROLE_STILL"; fail "the role $FN_NAME still exists in the live account after the destroy - it was orphaned, not destroyed"
     fi
-    log "  the function and the role no longer exist (confirmed via the AWS CLI, not through choudoufu's own report)"
+    if E_LOGPOLICY_STILL="$(awsl iam get-role-policy --role-name "$FN_NAME" --policy-name "${FN_NAME}-logs" 2>&1)"; then
+      echo "$E_LOGPOLICY_STILL"; fail "the inline policy ${FN_NAME}-logs still exists in the live account after the destroy - it was orphaned, not destroyed (the leak WANT_DESTROY_COUNT=6/7 fixes)"
+    fi
+    log "  the function, the role and its inline CloudWatch Logs policy no longer exist (confirmed via the AWS CLI, not through choudoufu's own report - get-role-policy on the deleted policy name now returns NoSuchEntity the same way get-role does for the deleted role)"
 
     log "=== E2. one more plan: config and reality agree on what could be swept, nothing left to propose ==="
     E_FINAL_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
     [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
     grep -qE '^  # .+ will be (created|updated)' <<< "$E_FINAL_PLAN_OUT" \
       && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan proposes a create or update"; }
-    if [ "$WANT_DESTROY_COUNT" = 6 ]; then
+    if [ "$WANT_DESTROY_COUNT" = 7 ]; then
       grep -qE '^  # .+ will be destroyed' <<< "$E_FINAL_PLAN_OUT" \
         && { grep -E '^  # .+ will be' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan still proposes a destroy"; }
     fi
     log "  no further resource action proposed. The removal is complete."
 
-    gauntlet_stage day2_remove pass "choudoufu: deleting module.lambda_function_final's block proposed $WANT_DESTROY_COUNT destroys (the function, the role, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function and the role genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename"
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.lambda_function_final's block proposed $WANT_DESTROY_COUNT destroys (the function, the role, its inline aws_iam_role_policy.logs[0] CloudWatch Logs policy, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function, the role and the inline log policy genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename. WANT_DESTROY_COUNT moved from 5/6 to 6/7 in this same commit: the inline log policy was previously missing from this stage's own checklist entirely - a genuine leak (an untaggable IAM permission left behind on every destroy of this estate), not a stale assertion, fixed as part of the day2_replace unit that re-measured this stage"
   fi
   CURRENT_STAGE=""
 fi
