@@ -133,6 +133,14 @@ set -uo pipefail
 #                the new address rather than the zero-churn update the moved
 #                block and live-mv paths produce. Independent of BREAK, for
 #                the reason above.
+#   BREAK_REMOVE set to 1 to run day2_remove's own break control instead of
+#                the real remove checks: keep module.iam_policy_renamed's
+#                block in the config and assert no destroy is proposed for
+#                it (the Break text in tools/gauntlet/stages.go for
+#                day2_remove is literally "keep the block; no destroy may
+#                be proposed"). Independent of BREAK and only reachable
+#                when BREAK_RENAME is not 1, because the day2_remove checks
+#                start from day2_rename's own real, completed rename.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -313,6 +321,35 @@ grep -qE '^  # module\.iam_policy\.aws_iam_policy\.policy\[0\] has moved to modu
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn, no attribute diff at all - both policies report only their move, on the state cold_deploy produced"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7, issue #358 - a gauntlet
+# evidence unit, planned stage, does not count toward "clear"): "Stock with
+# the same block removed plans the same destroys." Another SEPARATE copy of
+# cold_deploy's own state, so this destroy has nothing to do with the rename
+# this script also exercises. Removes module.iam_policy_from_data_source's
+# block entirely - outputs.tf references only module.iam_policy, so no
+# other edit is needed. Same directory-naming note as STAGE 1.5 above: the
+# oracle tree's leaf directory is named "iam-policy" so local.name's
+# "ex-${basename(path.cwd)}" tag matches the real run and this plan shows
+# only the removal, nothing else.
+CURRENT_STAGE=day2_remove
+log "=== STAGE 1.5.5: day2_remove stock oracle: delete module.iam_policy_from_data_source's block on cold_deploy's own state ==="
+mkdir -p "$WORK/oracle-remove-tree/iam/examples" "$WORK/oracle-remove-tree/iam/modules"
+EST_ORACLE_REMOVE="$WORK/oracle-remove-tree/iam/examples/iam-policy"
+cp -r "$EST" "$EST_ORACLE_REMOVE"
+cp -R "$SRC_MODULE" "$WORK/oracle-remove-tree/iam/modules/iam-policy"
+perl -0pi -e 's/module "iam_policy_from_data_source" \{.*?\n\}\n\n//s' "$EST_ORACLE_REMOVE/main.tf"
+grep -q 'module "iam_policy_from_data_source"' "$EST_ORACLE_REMOVE/main.tf" \
+  && fail "removing module.iam_policy_from_data_source's block from the oracle copy did not match - the corpus example has moved"
+( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REMOVE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "stock does not propose destroying module.iam_policy_from_data_source's policy when its block is removed"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
+log "  stock: exactly one destroy (module.iam_policy_from_data_source's policy), nothing else, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -657,6 +694,109 @@ EOF
   log "STAGE D (day2_rename): PASS"
   gauntlet_stage day2_rename pass "moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI"
   log ""
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART E: REMOVE A BLOCK (day2_remove, planned stage - live/GAUNTLET.md #7,
+  # issue #358 - a gauntlet evidence unit; the runner records this verdict
+  # but a planned stage does not count toward "clear" until its status is
+  # flipped to active in tools/gauntlet/stages.go, a maintainer decision)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.iam_policy_renamed
+  # (originally module.iam_policy_from_data_source) is bound and converged,
+  # and module.iam_policy_renamed2 (originally module.iam_policy) is bound
+  # and converged too. module.iam_policy_renamed is the one removed here -
+  # nothing else in the config references it (outputs.tf reads only
+  # module.iam_policy_renamed2), so deleting its block, and the now-orphaned
+  # "moved" block that pointed at it, needs no other edit.
+  #
+  # This is also a stronger test of the exact ambiguity issue #357's own
+  # comment names as day2_remove's territory than reference-ec2-vpc's Part E
+  # is: internal/live/discovery/discovery.go's classifyOrphans keys its
+  # "pending" (possible-rename) set by blockKey, which is the resource's
+  # type and name with BOTH the instance key AND THE MODULE PATH stripped
+  # (blockKey's own doc comment says so). module.iam_policy_renamed's
+  # policy and module.iam_policy_renamed2's policy are two DIFFERENT
+  # modules but the SAME blockKey ("aws_iam_policy.policy") - exactly the
+  # shape that looks, by block key alone, like the same ambiguity a
+  # rename-without-a-moved-block produces. The difference that must still
+  # tell them apart is whether the surviving same-block-key instance is
+  # BOUND already (this case) or UNCLAIMED (the BREAK_RENAME case above):
+  # classifyOrphans's "pending" set is built only from res.Unbound, and
+  # module.iam_policy_renamed2's policy is bound from Part D, so it is
+  # never added to it - the orphaned module.iam_policy_renamed policy
+  # should never be withheld. If that reasoning is wrong, the guard right
+  # below the plan turns it into an honest, named wall instead of a
+  # silently skipped check.
+  #
+  # BREAK_REMOVE=1 exercises this stage's own Break control instead: keep
+  # the block, and assert the plan proposes no destroy for it at all - the
+  # Break text in tools/gauntlet/stages.go, verbatim.
+
+  CURRENT_STAGE=day2_remove
+  log "=== E0. capture the live ARN one more time ==="
+  E_ARN_BEFORE="$(awsl iam list-policy-tags --policy-arn "$D_POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
+  [ "$E_ARN_BEFORE" = "module.iam_policy_renamed.aws_iam_policy.policy:0" ] \
+    || fail "$D_POLICY1_ARN does not carry tofu-address=module.iam_policy_renamed.aws_iam_policy.policy:0 before day2_remove even starts (got $E_ARN_BEFORE)"
+
+  if [ "${BREAK_REMOVE:-}" = "1" ]; then
+    log "=== E1 (BREAK_REMOVE=1). keep module.iam_policy_renamed's block; no destroy may be proposed ==="
+    BREAK_REMOVE_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_REMOVE_PLAN_RC=$?
+    [ "$BREAK_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_REMOVE_PLAN_OUT" | tail -40; fail "the BREAK_REMOVE=1 kept-block plan exited $BREAK_REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.iam_policy_renamed\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: a destroy was proposed for module.iam_policy_renamed's policy even though its block is still in the config - this stage's check is not load-bearing"; }
+    grep -qE '^  # .+ will be (created|destroyed)' <<< "$BREAK_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$BREAK_REMOVE_PLAN_OUT"; fail "BREAK_REMOVE=1: some resource action was proposed with the block still in the config"; }
+    log "  BREAK_REMOVE=1: correctly proposes no resource action - the block is still declared"
+  else
+    log "=== E1. choudoufu: delete module.iam_policy_renamed's block ==="
+    perl -0pi -e 's/module "iam_policy_renamed" \{.*?\n\}\n\n//s' "$EST/main.tf"
+    perl -0pi -e 's/\nmoved \{\n  from = module\.iam_policy_from_data_source\n  to   = module\.iam_policy_renamed\n\}\n//s' "$EST/main.tf"
+    grep -q 'module "iam_policy_renamed"' "$EST/main.tf" \
+      && fail "removing module.iam_policy_renamed's block did not match - the config has moved"
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    REMOVE_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
+      printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40
+      fail "choudoufu withheld the destroy of module.iam_policy_renamed's policy as a possible rename (discovery.go's classifyOrphans) even though module.iam_policy_renamed2's same-block-key policy is already bound, not unclaimed - this is the honest wall issue #358 names, not a pass"
+    fi
+    grep -qE '^  # module\.iam_policy_renamed\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu does not propose destroying module.iam_policy_renamed's policy when its block is deleted"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (module.iam_policy_renamed's policy), nothing else"
+
+    REMOVE_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+
+    # IAM, unlike EC2's describe-internet-gateways (checked directly while
+    # building reference-ec2-vpc's own Part E), DOES answer get-policy for a
+    # deleted ARN with a real NoSuchEntity error and a non-zero exit -
+    # confirmed the same way, a standalone create/delete/get-policy sequence
+    # against floci with no tofu in the loop at all - so "the AWS CLI call
+    # succeeded" is the right test here, not the count-based one EC2 needed.
+    if E_STILL="$(awsl iam get-policy --policy-arn "$D_POLICY1_ARN" 2>&1)"; then
+      echo "$E_STILL"; fail "$D_POLICY1_ARN still exists in the live account after the destroy - it was orphaned, not destroyed"
+    fi
+    log "  $D_POLICY1_ARN no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    log "=== E2. one more plan: config and reality agree, nothing left to propose ==="
+    E_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; E_FINAL_PLAN_RC=$?
+    [ "$E_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$E_FINAL_PLAN_OUT" | tail -40; fail "the post-remove plan exited $E_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$E_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$E_FINAL_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+    log "  No changes. The removal is complete and invisible to the next plan."
+
+    log ""
+    log "STAGE E (day2_remove): PASS"
+    gauntlet_stage day2_remove pass "choudoufu: deleting module.iam_policy_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.5) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy even though module.iam_policy_renamed2's policy shares the same block key, because that surviving instance is bound, not unclaimed"
+    log ""
+  fi
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 gauntlet_end

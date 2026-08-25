@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
+  "commit": "3d86063868a2c547ac348c02cc768e8e770417eb",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T01:19:31Z",
+  "generated": "2026-08-25T01:37:57Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -153,9 +153,9 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 26
+          "not_run": 24
         },
         "day2_rename": {
           "pass": 26,
@@ -230,9 +230,9 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 25
+          "not_run": 23
         },
         "day2_rename": {
           "pass": 25,
@@ -762,7 +762,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -777,11 +777,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "d63619b9684c37f425203a2f6351b1814f062431",
-        "date": "2026-08-23T22:22:51Z",
+        "commit": "3d86063868a2c547ac348c02cc768e8e770417eb",
+        "date": "2026-08-25T01:39:10Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 2 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-policy-crossing before migration",
+          "day2_remove": "choudoufu: deleting module.iam_policy_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.5) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy even though module.iam_policy_renamed2's policy shares the same block key, because that surviving instance is bound, not unclaimed",
           "day2_rename": "moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example_from_data_source's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "2 of 2 stamped, both carrying tofu-slot=0/0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
@@ -1347,7 +1348,7 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
@@ -1362,11 +1363,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "3dc9a5e03295d6c0e75535114e793003b73dea84",
-        "date": "2026-08-24T08:19:28Z",
+        "commit": "3d86063868a2c547ac348c02cc768e8e770417eb",
+        "date": "2026-08-25T01:37:50Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
+          "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet",

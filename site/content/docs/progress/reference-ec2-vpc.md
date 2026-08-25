@@ -20,7 +20,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5 |
 | Drift and reconverge | pass | one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured |
 | Rename | pass | moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block (planned) | not run |  |
+| Remove a block (planned) | pass | choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
@@ -29,7 +29,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Greenfield apply (planned) | not run | Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `3dc9a5e032` on 2026-08-24T08:19:28Z, exit code 0.
+Last run at commit `3d86063868` on 2026-08-25T01:37:50Z, exit code 0.
 
 Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does).
 
