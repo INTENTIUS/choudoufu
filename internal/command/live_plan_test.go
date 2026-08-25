@@ -327,30 +327,61 @@ func TestLivePlan_lintFatal(t *testing.T) {
 // TestLivePlan_identityFatal: an instance whose identity cannot be
 // resolved is fatal, not a create. A partial identity map would plan to
 // create resources that already exist.
+//
+// Two subtests, one per path CHOUDOUFU_NODE_RESOLVE selects (default and
+// its "=0" opt-out - see internal/command/live_mode.go's nodeResolveEnabled
+// for the grammar), because the two paths now disagree on WHICH diagnostic
+// is fatal for the exact same configuration. Default (node-resolve on):
+// the static evaluator's own "Identity argument not set" error downgrades
+// to a warning (identity.DowngradeForNodeResolution, #364 unit B's landing
+// note), so OpenTofu's ordinary Validate pass runs for the first time -
+// which needs a real provider schema for aws_iam_group, hence this
+// package's own statelessTestSchemas() carries one now - and the node
+// resolver's own step (c) refuses instead, with #365's "No source for this
+// instance's identity" (aws_iam_group is config-identified: a table row,
+// neither ServerAssigned nor RecordBacked, whose derivation failed for this
+// instance because "name" is unset). Opt-out: the static evaluator's error
+// stays fatal exactly as it always has, and OpenTofu's Plan never runs at
+// all, so the schema addition changes nothing there - proof the two paths
+// are both still real and both still selectable, not just documented as
+// such.
 func TestLivePlan_identityFatal(t *testing.T) {
-	td := t.TempDir()
-	testCopyDir(t, testFixturePath("live-plan-no-identity"), td)
-	t.Chdir(td)
+	run := func(t *testing.T, nodeResolve string) {
+		t.Helper()
+		if nodeResolve != "" {
+			t.Setenv("CHOUDOUFU_NODE_RESOLVE", nodeResolve)
+		}
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-plan-no-identity"), td)
+		t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	c, done := newLivePlanCommand(t, cloud)
+		cloud := newStatelessTestCloud()
+		c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color"})
-	output := done(t)
-	if code != 1 {
-		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+		code := c.Run([]string{"-no-color"})
+		output := done(t)
+		if code != 1 {
+			t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+		}
+
+		stderr := output.Stderr()
+		want := "No source for this instance's identity"
+		if nodeResolve == "0" {
+			want = "Identity argument not set"
+		}
+		if !strings.Contains(stderr, want) {
+			t.Errorf("no %q diagnostic:\n%s", want, stderr)
+		}
+		if strings.Contains(output.Stdout(), "will be created") {
+			t.Errorf("an unresolvable identity produced a plan anyway:\n%s", output.Stdout())
+		}
+		if len(cloud.imports) > 0 {
+			t.Errorf("a configuration with an unresolvable identity still read from the live system: %v", cloud.imports)
+		}
 	}
 
-	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Identity argument not set") {
-		t.Errorf("no identity diagnostic:\n%s", stderr)
-	}
-	if strings.Contains(output.Stdout(), "will be created") {
-		t.Errorf("an unresolvable identity produced a plan anyway:\n%s", output.Stdout())
-	}
-	if len(cloud.imports) > 0 {
-		t.Errorf("a configuration with an unresolvable identity still read from the live system: %v", cloud.imports)
-	}
+	t.Run("default (node-resolve on)", func(t *testing.T) { run(t, "") })
+	t.Run("CHOUDOUFU_NODE_RESOLVE=0 (static path)", func(t *testing.T) { run(t, "0") })
 }
 
 // TestLivePlan_ignoresStateFile: a state file in the working directory
@@ -1845,6 +1876,21 @@ func statelessTestSchemas() map[string]providers.Schema {
 		// instance from another, which is the whole reason a count set needs
 		// slot markers.
 		"aws_eip": schema("id", "domain"),
+		// The unresolvable-identity fixture (live-plan-no-identity,
+		// live-plan-target-scope): "name" is the real provider's own
+		// argument the identity table's aws_iam_group row reads
+		// (table_generated.go), left unset by both fixtures on purpose so
+		// resolution has nothing to derive an identity from. Real, not a
+		// caricature gap: unlike the other four types here, this table has
+		// never needed a schema for it before CHOUDOUFU_NODE_RESOLVE
+		// defaulted on, because a static-evaluator refusal always aborted
+		// the run before OpenTofu's own Validate pass ever asked for
+		// aws_iam_group's schema at all - see TestLivePlan_identityFatal's
+		// own comment. Downgraded to a warning under the flag, this reaches
+		// Validate for the first time, and Validate needs a schema for
+		// every declared type regardless of what this fork does with it -
+		// the real provider always has one.
+		"aws_iam_group": schema("id", "name", "arn"),
 	}
 	// A write-only settable attribute on the bucket, so command-level tests
 	// can pin that lint.CheckResidueAttributes is actually WIRED into the
@@ -2341,7 +2387,14 @@ func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
 		if code != 1 {
 			t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 		}
-		if !strings.Contains(output.Stderr(), "Identity argument not set") {
+		// "No source for this instance's identity", not "Identity argument
+		// not set": with CHOUDOUFU_NODE_RESOLVE defaulting on (2026-08-25),
+		// the static evaluator's own error downgrades to a warning
+		// (identity.DowngradeForNodeResolution) and the node resolver's own
+		// #365 refusal is what stays fatal - see TestLivePlan_identityFatal
+		// for the parallel default/opt-out proof over the single-resource
+		// fixture this one shares its shape with.
+		if !strings.Contains(output.Stderr(), "No source for this instance's identity") {
 			t.Errorf("an untargeted run no longer refuses the unresolvable resource, so the targeted case below proves nothing:\n%s", output.Stderr())
 		}
 	})
@@ -2351,7 +2404,7 @@ func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 		}
-		if strings.Contains(output.Stderr(), "Identity argument not set") {
+		if strings.Contains(output.Stderr(), "Identity argument not set") || strings.Contains(output.Stderr(), "No source for this instance's identity") {
 			t.Errorf("a targeted run still refused on a resource outside its own target set:\n%s", output.Stderr())
 		}
 		if strings.Contains(output.Stdout(), "aws_iam_group.orphaned") {

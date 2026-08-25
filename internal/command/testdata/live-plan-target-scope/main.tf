@@ -25,8 +25,12 @@ resource "aws_s3_bucket" "data" {
 #
 # Nothing here references it and nothing it references, so the plan graph
 # drops it entirely under -target=aws_s3_bucket.data.
-resource "aws_iam_group" "orphaned" {
-  tags = {
-    tofu-estate = "unit"
-  }
-}
+#
+# No tags argument: this block used to carry tags = { tofu-estate = "unit" },
+# a literal unrelated to this run's own "-estate=stateless-unit" that was
+# never reached before CHOUDOUFU_NODE_RESOLVE defaulted on and its identity
+# refusal downgraded to a warning - internal/live/stamp's own marker-conflict
+# check (SummaryMarkerConflict) runs unscoped by -target, over every declared
+# resource, and fired fatally on the mismatch once execution got that far.
+# Nothing about that check is this test's subject; omitting tags avoids it.
+resource "aws_iam_group" "orphaned" {}
