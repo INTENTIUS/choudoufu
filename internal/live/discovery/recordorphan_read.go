@@ -174,11 +174,45 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// every one of them not-ok and this check would never fire.
 			continue
 		}
-		if pending[blockKey(addr)] {
+
+		// gauntlet:destroy-order (corpus-security-group-complete's
+		// day2_remove unit): a record-store key is written once, under
+		// whatever address was declared at the time, and a bare HCL
+		// `moved` block never re-keys it the way
+		// [projection.RecordStore.MoveRecord] does for `live-mv` - see
+		// this file's own package comment. Left untranslated, an
+		// untaggable instance renamed earlier in the SAME run (its rename
+		// stage's own `moved` block, still honoured here) is proposed for
+		// destruction under its pre-rename module path even though the
+		// block that follows it - the whole point of the rename - is what
+		// was actually removed. [moved.Newest] is [moved.Aliases]'s own
+		// backward walk run forward: given the address this leg just
+		// decoded, it is the address the SAME honoured chain says that
+		// object is called today. ok false (an ambiguous fork in the
+		// chain) leaves resolvedAddr at addr, exactly today's behavior.
+		resolvedAddr := addr
+		if len(movedStmts) > 0 {
+			if newest, ok := moved.Newest(movedStmts, addr); ok {
+				resolvedAddr = newest
+			}
+		}
+		if resolvedAddr.String() != addr.String() && known[resolvedAddr.String()] {
+			// The translated address is already accounted for some other
+			// way (a declared instance, an earlier orphan or parent-read
+			// finding) - not this leg's to add a second time.
+			continue
+		}
+
+		if pending[blockKey(resolvedAddr)] {
 			// A declared instance of the same block is unclaimed: this may
 			// be a rename with no moved block, not a removal. Leave it for
 			// the rename section, exactly as classifyOrphans does for a
-			// tag-found orphan at the same address.
+			// tag-found orphan at the same address. [blockKey] drops the
+			// module path, so this reads identically for addr and
+			// resolvedAddr whenever their resource step is unchanged; it
+			// is resolvedAddr here because that is the address a pending,
+			// not-yet-renamed declaration would actually be checked
+			// against.
 			continue
 		}
 
@@ -239,13 +273,14 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 		}
 
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
-			Addr:             addr,
+			Addr:             resolvedAddr,
 			Class:            identity.ClassConcrete,
 			ImportID:         importID,
 			Undeclared:       true,
 			DestroyDependsOn: dependsOn,
 		})
 		known[addr.String()] = true
+		known[resolvedAddr.String()] = true
 	}
 
 	return diags

@@ -412,7 +412,17 @@ var identityGoldenPin = map[string]int{
 	// fixtures internal/live/discovery/testdata/moved-record-located and
 	// .../moved-record-located-nomoved (the fix's own positive and
 	// mutation-check fixtures). No pre-existing row moved; see the digest.
-	"CONCRETE": 828,
+	//
+	// 828 -> 830 for gauntlet:destroy-order (moved.Newest, the forward
+	// mirror of moved.Aliases/Origins): two ADDED CONCRETE rows,
+	// aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the
+	// new fixture internal/live/moved/testdata/fork
+	// (TestNewestRefusesAnAmbiguousFork's own two-endpoints-disagree
+	// fixture - the sweep admits its two plain resource blocks the same
+	// way it admits every other testdata root, independent of what the
+	// fork's own moved blocks refuse to resolve). No pre-existing row
+	// moved; see the digest.
+	"CONCRETE": 830,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -1380,7 +1390,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15" // gauntlet:destroy-order: two ADDED CONCRETE rows, aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the new fixture internal/live/moved/testdata/fork, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -2043,7 +2053,12 @@ const (
 	// .../moved-record-located-nomoved (see identityGoldenPin's own
 	// "CONCRETE" note). "0 identities changed, 2 added, 0 removed"
 	// confirmed the same way.
-	identityGoldenPinInstances = 1721
+	//
+	// Then 1721 -> 1723, gauntlet:destroy-order: two new instances from
+	// internal/live/moved/testdata/fork (see identityGoldenPin's own
+	// "CONCRETE" note). "0 identities changed, 2 added, 0 removed"
+	// confirmed the same way.
+	identityGoldenPinInstances = 1723
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2374,7 +2389,14 @@ const (
 	// .../moved-record-located-nomoved, each a standalone root with no
 	// module sources of its own. identityGoldenPinInstances moves in step
 	// (see its own note).
-	identityGoldenPinDirs = 622
+	//
+	// Then 622 -> 624 for gauntlet:destroy-order: two new fixtures,
+	// internal/live/moved/testdata/fork (identityGoldenPinInstances moves
+	// in step - see its own note) and
+	// internal/live/discovery/testdata/moved-record-located-blockremoved
+	// (a single `moved` block with no resource block on either side, so it
+	// adds a directory but no instance).
+	identityGoldenPinDirs = 624
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
