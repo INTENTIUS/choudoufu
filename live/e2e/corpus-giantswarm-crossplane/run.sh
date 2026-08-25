@@ -413,11 +413,21 @@ for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
 done
 log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
 
+# strict { no_source_create = "create" }: found necessary re-verifying this
+# stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
+# 2026-08-25) - a genuinely cold apply now refuses config-identified
+# instances whose identity value belongs to a sibling that does not exist
+# yet either (#365 ruling 4's default refusal of that ambiguity), and a
+# greenfield apply is the one case an operator KNOWS it is a real create.
+# Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
 GREEN_LIVE_BLOCK='
   live {
     estate = "'"$GREEN_ESTATE_NAME"'"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      no_source_create = "create"
     }
   }'
 copy_module "$GREEN"
