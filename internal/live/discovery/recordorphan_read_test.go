@@ -534,6 +534,22 @@ func TestRecordOrphanReadSweep_UndeclaredRoute53RecordProposesDestroy(t *testing
 		if r.ImportID != wantID {
 			t.Errorf("resolution for %s has ImportID %q, want %q", recordAddr, r.ImportID, wantID)
 		}
+		// The ordering fix (identity.Resolution.DestroyDependsOn): the
+		// zone is ALSO resolved in this same pass (marker-bound, via
+		// cloud.own above), so the record's own resolution must carry a
+		// destroy dependency on it - what lets aws_route53_zone.eu's own
+		// force_destroy cascade never race against a separately-issued
+		// ChangeResourceRecordSets call for the same record.
+		zoneAddr := mustAddr(t, "aws_route53_zone.eu")
+		var gotDep bool
+		for _, dep := range r.DestroyDependsOn {
+			if dep.String() == zoneAddr.String() {
+				gotDep = true
+			}
+		}
+		if !gotDep {
+			t.Errorf("resolution for %s carries no destroy dependency on %s: %+v", recordAddr, zoneAddr, r.DestroyDependsOn)
+		}
 	}
 	if !found {
 		t.Fatalf("no resolution produced for the orphaned %s; the record-orphan-read leg did not find it:\n%s", recordAddr, res)
@@ -585,4 +601,142 @@ func TestRecordOrphanReadSweep_DeclaredRoute53RecordIsLeftAlone(t *testing.T) {
 	if undeclaredCount != 0 {
 		t.Errorf("%s is still declared but got %d Undeclared resolution(s) from the record-orphan-read leg; a still-declared block must never be treated as an orphan of itself", recordAddr, undeclaredCount)
 	}
+}
+
+// TestRecordOrphanReadSweep_Route53RecordNoParentResolutionGetsNoDependency
+// is the boundary destroyParentDependency's own doc comment names: when
+// nothing in this pass resolved the zone at all (a config the fixture
+// deliberately omits aws_route53_zone.eu from - no marker sweep can find
+// what nothing declares or lists), the record's own resolution must still
+// be produced (the record itself is not withheld), but with no destroy
+// dependency at all - not a guessed one, not a zero-value address. This is
+// the SAME "no computed dependency set" cost every other undeclared
+// instance already accepts, not a regression this fix introduces.
+func TestRecordOrphanReadSweep_Route53RecordNoParentResolutionGetsNoDependency(t *testing.T) {
+	dir := t.TempDir()
+	const src = `
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir)
+	resolutions := resolveOrFail(t, cfg).All()
+
+	rawStore, seedStore := recordOrphanHintStore(t)
+	recordAddr := mustAddr(t, "aws_route53_record.eu-ns")
+	if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, recordAddr, recordOrphanProviderAddr, projection.LocatedRecord{
+		Components: map[string]string{
+			"zone_id": "ZJB88OBW3J7TXGA",
+			"name":    "datacite.eu",
+			"type":    "NS",
+		},
+	}); err != nil {
+		t.Fatalf("seeding the record fixture: %s", err)
+	}
+
+	// A fakeCloud with NOTHING live at all - the zone this record's own
+	// Components map names is never resolved by anything in this pass.
+	cloud := newFakeCloud()
+
+	res, diags := Discover(t.Context(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolutions,
+		Provider:    cloud,
+		Sweep:       true,
+		HintStore:   rawStore,
+	})
+	assertNoErrors(t, diags)
+
+	var found bool
+	for _, r := range res.Resolutions {
+		if r.Addr.String() != recordAddr.String() {
+			continue
+		}
+		found = true
+		if len(r.DestroyDependsOn) != 0 {
+			t.Errorf("resolution for %s got a destroy dependency with no parent ever resolved: %+v", recordAddr, r.DestroyDependsOn)
+		}
+	}
+	if !found {
+		t.Fatalf("no resolution produced for %s at all - this leg must still find it even with no parent to depend on", recordAddr)
+	}
+}
+
+// destroyParentDependencySchemas builds a real [listclient.Schemas] with
+// aws_route53_zone taggable - what [taggableAdmittedTypes] (and so
+// [identity.ParentOf]'s own eligible-parent set) needs to link
+// aws_route53_record's zone_id argument to it at all. An empty
+// listclient.Schemas{} answers "no admitted type is taggable" for every
+// type, which would make [identity.ParentOf] return no link regardless of
+// what the record's own Components map carries - silently passing the
+// "missing attribute" case below for the wrong reason. Built from
+// [newFakeCloud] via the real [listclient.ListSchemas] path, not
+// hand-assembled, since listclient.Schemas carries only unexported fields.
+func destroyParentDependencySchemas(t *testing.T) listclient.Schemas {
+	t.Helper()
+	schemas, diags := listclient.ListSchemas(t.Context(), newFakeCloud())
+	if diags.HasErrors() {
+		t.Fatalf("building schemas from the fake cloud: %s", diags.Err())
+	}
+	return schemas
+}
+
+// TestDestroyParentDependency_Route53Record is the narrow, pure-function
+// proof: given a components map and a set of resolutions to search, does
+// [destroyParentDependency] find the right one, the wrong one, or none.
+func TestDestroyParentDependency_Route53Record(t *testing.T) {
+	zoneAddr := mustAddr(t, "aws_route53_zone.eu")
+	otherZoneAddr := mustAddr(t, "aws_route53_zone.other")
+
+	t.Run("finds the matching zone", func(t *testing.T) {
+		res := &Result{Resolutions: []identity.Resolution{
+			{Addr: zoneAddr, Class: identity.ClassConcrete, ImportID: "ZJB88OBW3J7TXGA"},
+			{Addr: otherZoneAddr, Class: identity.ClassConcrete, ImportID: "ZDIFFERENT"},
+		}}
+		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
+			"zone_id": "ZJB88OBW3J7TXGA",
+			"name":    "datacite.eu",
+			"type":    "NS",
+		})
+		if len(got) != 1 || got[0].String() != zoneAddr.String() {
+			t.Errorf("got %v, want exactly [%s]", got, zoneAddr)
+		}
+	})
+
+	t.Run("no matching zone value returns nil", func(t *testing.T) {
+		res := &Result{Resolutions: []identity.Resolution{
+			{Addr: otherZoneAddr, Class: identity.ClassConcrete, ImportID: "ZDIFFERENT"},
+		}}
+		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
+			"zone_id": "ZJB88OBW3J7TXGA",
+			"name":    "datacite.eu",
+			"type":    "NS",
+		})
+		if got != nil {
+			t.Errorf("got %v, want nil - no resolution names this zone_id", got)
+		}
+	})
+
+	t.Run("components map missing the linking attribute returns nil", func(t *testing.T) {
+		res := &Result{Resolutions: []identity.Resolution{
+			{Addr: zoneAddr, Class: identity.ClassConcrete, ImportID: "ZJB88OBW3J7TXGA"},
+		}}
+		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
+			"name": "datacite.eu",
+			"type": "NS",
+		})
+		if got != nil {
+			t.Errorf("got %v, want nil - the record's own map never carried zone_id", got)
+		}
+	})
 }

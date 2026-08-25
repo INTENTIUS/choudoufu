@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -186,16 +187,74 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			}
 		}
 
+		var dependsOn []addrs.AbsResourceInstance
+		if len(rec.Components) > 0 {
+			// Only when this record's own Components map is in hand - the
+			// composite-identity write path every aws_route53_record
+			// instance takes (see composeImportIDFromComponents's own
+			// comment) - never for the flat-ImportID path the three IAM
+			// inline-policy types take, whose own linking argument (role/
+			// user/group) was never captured as a separate value to read
+			// back out of. See [destroyParentDependency]'s own doc comment
+			// for why this exists at all.
+			dependsOn = destroyParentDependency(req, schemas, res, typeName, rec.Components)
+		}
+
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
-			Addr:       addr,
-			Class:      identity.ClassConcrete,
-			ImportID:   importID,
-			Undeclared: true,
+			Addr:             addr,
+			Class:            identity.ClassConcrete,
+			ImportID:         importID,
+			Undeclared:       true,
+			DestroyDependsOn: dependsOn,
 		})
 		known[addr.String()] = true
 	}
 
 	return diags
+}
+
+// destroyParentDependency finds, among this pass's own resolutions, the
+// live parent instance typeName's ratified Components chain names via
+// [identity.ParentOf] - reusing the SAME derivation [parentReadSweep]
+// already relies on, never a second, type-specific rule - so an undeclared
+// record's own materialized object can carry the SAME destroy-before-
+// parent ordering [builder.dependencies] gives a declared instance from
+// its own configuration reference (internal/live/projection/build.go).
+//
+// Found via corpus-mastino-dns's day2_remove: aws_route53_zone's own
+// force_destroy semantics cascade-delete the zone's apex NS record the
+// moment the zone itself is destroyed, so a genuinely undeclared instance
+// with no computed dependency set (every undeclared instance's ordinary
+// state - see [identity.Resolution.DestroyDependsOn]'s own doc comment)
+// can propose the CORRECT destroy in the plan and still fail at apply
+// time: the record's own destroy call, issued after the zone is already
+// gone, returns NoSuchHostedZone. Stock's state file never has this
+// problem - it remembers the record depended on the zone from the
+// original apply, and destroys in reverse order - so this closes a real
+// gap against the oracle, not a cosmetic one.
+//
+// Nil when the type has no derivable parent link, the record's own
+// Components map does not carry that link's value, or no resolution in
+// this pass names a live object at that value - none of which is an
+// error: it just means this leg cannot supply an ordering hint, exactly
+// the "no computed dependency set" cost [builder.dependencies]'s own doc
+// comment already accepts for an undeclared instance in general. Reaches
+// every type [identity.ParentOf] can link to an eligible (admitted,
+// taggable) parent, not only aws_route53_record.
+func destroyParentDependency(req Request, schemas listclient.Schemas, res *Result, typeName string, components map[string]string) []addrs.AbsResourceInstance {
+	links := identity.ParentOf(typeName, taggableAdmittedTypes(schemas), rosterServiceOf(req.Roster))
+	for _, link := range links {
+		val, ok := components[link.Attr]
+		if !ok || val == "" {
+			continue
+		}
+		for _, r := range res.Resolutions {
+			if r.Type() == link.Parent && r.ImportID == val {
+				return []addrs.AbsResourceInstance{r.Addr}
+			}
+		}
+	}
+	return nil
 }
 
 // composeImportIDFromComponents flattens a [projection.LocatedRecord]'s

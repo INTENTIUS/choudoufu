@@ -191,6 +191,29 @@ type Resolution struct {
 	// into a silent destroy.
 	Undeclared bool
 
+	// DestroyDependsOn names another instance THIS one's own identity
+	// derives from - a parent whose value this resolution's Components
+	// read, per [ParentOf] - that this run ALSO resolved, and is set only
+	// for an [Undeclared] resolution a parent-scoped removal leg produced
+	// (internal/live/discovery's recordOrphanReadSweep today). It exists
+	// because [Resolve]'s own configuration-driven dependency computation
+	// (internal/live/projection's builder.dependencies, "the plan engine
+	// uses these for destroy ordering") has nothing to read for an
+	// undeclared instance: its resource block is gone, so there is no
+	// configuration reference to walk. A child whose parent is ALSO being
+	// destroyed in the same run needs the SAME destroy-before-parent
+	// ordering a declared instance's own config reference would have given
+	// it - GitHub issue #364's corpus-mastino-dns unit found this the hard
+	// way: aws_route53_zone.eu's own force_destroy semantics cascade-delete
+	// its apex NS record the moment the zone itself is destroyed, so a
+	// SEPARATE, unordered destroy call for that record - proposed
+	// correctly, but issued after the zone was already gone - fails with
+	// NoSuchHostedZone. Nil for every OTHER resolution, including a
+	// declared one (which gets its ordering from configuration the
+	// ordinary way) and an undeclared one this run could not derive a
+	// parent for.
+	DestroyDependsOn []addrs.AbsResourceInstance
+
 	// cloudScope disambiguates two instances that would otherwise resolve to
 	// the same import identity string but do not name the same live object,
 	// because they are not pointed at the same account and region: a module
