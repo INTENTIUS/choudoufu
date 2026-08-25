@@ -49,6 +49,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -92,6 +93,43 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 	known := make(map[string]bool, len(res.Resolutions))
 	for _, r := range res.Resolutions {
 		known[r.Addr.String()] = true
+	}
+
+	// A `moved` block's OLD address, for a DECLARED instance (#405/#410's
+	// re-verify wave, 8 estates: giantswarm's iam_role_policy family, sg's
+	// rules_exclusive, ec2's route/route_table_association,
+	// rds/autoscaling's security_group_rule, dynamodb's resource_policy,
+	// s3's public_access_block, overture's 8 types). This leg's record keys
+	// are still written under the OLD address until write-back moves them
+	// (RecordStore.MoveRecord re-keys directly and never hits this path;
+	// only a bare HCL `moved` block leaves a stale key here), so without
+	// this, an untaggable record-backed instance mid-rename reads as a
+	// removed one and this leg destroys the live object under its old
+	// address - the exact defect this unit fixes.
+	//
+	// Mirrors the two existing consult points rather than inventing a
+	// third: declaredInstances (discovery.go, the marker path's own
+	// rename-safety index) files each declared entry under
+	// moved.Aliases(movedStmts, r.Addr) so a marker still naming the old
+	// address binds the instance instead of orphaning it, and
+	// builder.locatedIdentityWithAliases (projection/located.go) does the
+	// identical walk to find a record-located instance's identity under an
+	// old key. Only genuinely DECLARED entries (r.Undeclared == false)
+	// contribute an alias - an orphan or parent-read finding this same pass
+	// already appended has no configuration block to be a rename target of,
+	// exactly the population declaredInstances itself draws from
+	// (req.Resolutions, the caller's declared list, not res.Resolutions
+	// after sweeps have appended to it).
+	movedStmts := moved.Honoured(req.Config)
+	if len(movedStmts) > 0 {
+		for _, r := range res.Resolutions {
+			if r.Undeclared {
+				continue
+			}
+			for _, origin := range moved.Aliases(movedStmts, r.Addr) {
+				known[origin.String()] = true
+			}
+		}
 	}
 
 	// The SAME rename-safety check [classifyOrphans] applies before
