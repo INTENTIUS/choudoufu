@@ -141,7 +141,10 @@ set -uo pipefail
 #                 "rename" to exercise day2_rename's own break control
 #                 instead - renaming module crossplane WITHOUT a moved
 #                 block, which must not reproduce the real legs' zero-churn
-#                 no-op plan.
+#                 no-op plan. Set to "replace" to exercise day2_replace's
+#                 own break control (PART F): manufacture the coexistence a
+#                 skipped destroy would leave behind.
+#   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead.
 #   BREAK_STAGE3  set to 1 to corrupt stage 3's expected inline-policy name.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5's replan.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
@@ -583,6 +586,47 @@ printf '%s\n' "$REMOVE_ORACLE_CHANGES" | while read -r line; do log "    $line";
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
+# PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
+# "Stock's replace of the same resource leaves the same single object." A
+# THIRD separate copy of cold_deploy's own state ($PLAIN), unrenamed and
+# unremoved, so this oracle has nothing to do with the rename/remove
+# oracles above. module.crossplane's `installation_name` variable feeds
+# BOTH taggable objects' own `name` argument (role.tofu: "giantswarm-
+# ${var.installation_name}-crossplane" for the role AND the managed policy
+# - the module exposes no narrower override), so changing it - a real,
+# upstream-declared ForceNew argument on both aws_iam_role and
+# aws_iam_policy (IAM has no RenameRole/RenamePolicy API) - forces stock to
+# replace both at the SAME declared addresses, cascading into their
+# untaggable dependents (the policy attachment and the "extra-tagging"
+# inline policy, both keyed on the role/policy identity that just
+# changed). PLAN ONLY, never applied - same convention as the rename/
+# remove oracles above: this copy shares floci's account with $ESTATE.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE: stock tofu, force-replace module.crossplane's role+policy via installation_name, on cold_deploy's own state ==="
+PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
+cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
+rm -rf "$PLAIN_ORACLE_REPLACE/.terraform"
+sed -i.bak "s/installation_name = \"$INSTALLATION\"/installation_name = \"${INSTALLATION}-v2\"/" "$PLAIN_ORACLE_REPLACE/main.tofu"
+rm -f "$PLAIN_ORACLE_REPLACE/main.tofu.bak"
+grep -q "${INSTALLATION}-v2" "$PLAIN_ORACLE_REPLACE/main.tofu" \
+  || fail "changing module.crossplane's installation_name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.crossplane\.aws_iam_role\.giantswarm_crossplane_role must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.crossplane's role when installation_name changes"; }
+grep -qE '^  # module\.crossplane\.aws_iam_policy\.giantswarm_crossplane_policy must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.crossplane's policy when installation_name changes"; }
+REPLACE_ORACLE_ADD="$(grep -oE 'Plan: [0-9]+ to add' <<< "$REPLACE_ORACLE_PLAN_OUT" | grep -oE '[0-9]+')"
+REPLACE_ORACLE_DESTROY="$(grep -oE '[0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT" | grep -oE '^[0-9]+')"
+[ -n "$REPLACE_ORACLE_ADD" ] && [ "$REPLACE_ORACLE_ADD" = "$REPLACE_ORACLE_DESTROY" ] && [ "$REPLACE_ORACLE_ADD" -ge 2 ] \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "stock's replace plan does not show an equal, at-least-2 add/destroy cascade (role+policy at minimum)"; }
+log "  stock: $REPLACE_ORACLE_ADD to add / $REPLACE_ORACLE_DESTROY to destroy, role and policy both replaced at their same declared addresses, on the state cold_deploy produced - plan only, not applied"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -1013,6 +1057,149 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active stage - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.crossplane_final
+  # (originally module.crossplane) is bound and converged, and is otherwise
+  # untouched by anything else in this script until PART E removes it below
+  # - the two day-2 stages compose on the SAME addresses rather than needing
+  # a second standalone object. installation_name feeds BOTH taggable
+  # objects' own `name` argument (see F-ORACLE's own header comment above),
+  # so this changes it once and expects BOTH the role and the managed
+  # policy to be forced to replace at their SAME declared addresses,
+  # cascading into the untaggable dependents keyed on whichever of the two
+  # just changed (the policy attachment references both; the "extra-
+  # tagging" inline policy references the role). This does not hard-code
+  # the exact resource-by-resource cascade shape (fragile against the same
+  # kind of unrelated multi-resource variance PART D's own BREAK=rename
+  # comment already documents for this estate) - it asserts the role and
+  # policy are each explicitly named "must be replaced", and that the
+  # plan's own add/destroy counts are equal and at least 2, the same
+  # tolerant-but-load-bearing style D-ORACLE's own REMOVE_ORACLE_CHANGES
+  # uses a few sections up.
+  #
+  # THE create_before_destroy SCOPE NOTE (full reasoning in corpus-sqs-
+  # basic's own PART F). OpenTofu core rejects a `lifecycle` block on a
+  # `module` call, and patching the vendored crossplane/ directory's own
+  # resources to add create_before_destroy would cross this corpus's own
+  # byte-identical DELTA discipline (see header), so this evidence pass
+  # exercises the default destroy-then-create ordering instead. BREAK=
+  # replace manufactures the create-before-destroy collision shape
+  # directly via the AWS CLI, the same way corpus-sqs-basic's does.
+  #
+  # aws_iam_role (like corpus-evoteum-modules' aws_dynamodb_table.this)
+  # carries no count/for_each, so a manufactured collision on it takes the
+  # same VERIFIED scalar-resource path that estate's own PART F documents:
+  # a named "Live resource displaced from the address it is marked for"
+  # warning at rc=0, not corpus-sqs-basic's fungible-set "Two live
+  # resources claiming one slot" hard refusal.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ROLE_ADDR="module.crossplane_final.aws_iam_role.giantswarm_crossplane_role"
+  F_ROLE_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_role/$(record_key "$F_ROLE_ADDR")"
+
+  log "=== F0. capture the live role/policy and the role's record ahead of the forced replace ==="
+  [ -f "$F_ROLE_RECORD" ] || fail "no local record file found for $F_ROLE_ADDR ahead of day2_replace"
+  F_OLD_ROLE_IMPORT_ID="$(record_import_id "$F_ROLE_RECORD")"
+  [ "$F_OLD_ROLE_IMPORT_ID" = "$ROLE_NAME" ] || fail "the record for $F_ROLE_ADDR names $F_OLD_ROLE_IMPORT_ID ahead of day2_replace, not $ROLE_NAME"
+  F_OLD_ROLE_ADDR_TAG="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$F_OLD_ROLE_ADDR_TAG" = "$F_ROLE_ADDR" ] || fail "$ROLE_NAME does not carry tofu-address=$F_ROLE_ADDR ahead of day2_replace"
+  log "  $ROLE_NAME, record import_id=$F_OLD_ROLE_IMPORT_ID, tofu-address=$F_OLD_ROLE_ADDR_TAG; $POLICY_ARN also present at module.crossplane_final.aws_iam_policy.giantswarm_crossplane_policy"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+    # A second, distinct live role carrying the SAME tofu-address as the
+    # one a genuine replace would destroy - the state "skip the destroy
+    # half" of a create-before-destroy replace would leave, produced
+    # directly via the AWS CLI rather than by actually interrupting an
+    # apply (day2_crash's own job).
+    BREAK_COLLISION_ROLE="${ROLE_NAME}-collision"
+    awsl iam create-role --role-name "$BREAK_COLLISION_ROLE" \
+      --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
+      --tags "Key=tofu-estate,Value=$ESTATE_NAME" "Key=tofu-address,Value=$F_ROLE_ADDR" \
+      >/dev/null || fail "BREAK=replace: could not create the collision role"
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    awsl iam delete-role --role-name "$BREAK_COLLISION_ROLE" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -eq 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the plan exited $BREAK_PLAN_RC - expected rc=0 with a named displaced-resource warning (see corpus-evoteum-modules' own PART F for the verified shape)"; }
+    grep -qF 'Warning: Live resource displaced from the address it is marked for' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the plan succeeded with two live roles claiming the same tofu-address but did not report the collision - this stage's check is not load-bearing"; }
+    grep -qF "$BREAK_COLLISION_ROLE" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the displaced-resource warning does not name the collision role ($BREAK_COLLISION_ROLE)"; }
+    grep -qF "$F_ROLE_ADDR" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the displaced-resource warning does not name the contested address ($F_ROLE_ADDR)"; }
+    log "  BREAK=replace: choudoufu correctly reported the collision by name (\"Live resource displaced from the address it is marked for\", naming both $BREAK_COLLISION_ROLE and $F_ROLE_ADDR) rather than silently proposing nothing - the same scalar-resource shape corpus-evoteum-modules' own PART F verified"
+  else
+    log "=== F1. choudoufu: change the ForceNew installation_name argument, forcing role+policy replace at the same declared addresses ==="
+    sed -i.bak "s/installation_name = \"$INSTALLATION\"/installation_name = \"${INSTALLATION}-v2\"/" "$ESTATE/main.tofu"
+    rm -f "$ESTATE/main.tofu.bak"
+    grep -q "${INSTALLATION}-v2" "$ESTATE/main.tofu" || fail "changing module.crossplane_final's installation_name argument did not match - the corpus pin has moved"
+    F_NEW_ROLE_NAME="giantswarm-${INSTALLATION}-v2-crossplane"
+    F_NEW_POLICY_ARN="arn:aws:iam::000000000000:policy/giantswarm-${INSTALLATION}-v2-crossplane"
+
+    F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.crossplane_final\.aws_iam_role\.giantswarm_crossplane_role must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.crossplane_final's role when installation_name changes"; }
+    grep -qE '^  # module\.crossplane_final\.aws_iam_policy\.giantswarm_crossplane_policy must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.crossplane_final's policy when installation_name changes"; }
+    F_ADD="$(grep -oE 'Plan: [0-9]+ to add' <<< "$F_PLAN_OUT" | grep -oE '[0-9]+')"
+    F_CHANGE="$(grep -oE '[0-9]+ to change' <<< "$F_PLAN_OUT" | grep -oE '^[0-9]+')"
+    F_DESTROY="$(grep -oE '[0-9]+ to destroy\.' <<< "$F_PLAN_OUT" | grep -oE '^[0-9]+')"
+    [ -n "$F_ADD" ] && [ "$F_ADD" = "$F_DESTROY" ] && [ "$F_ADD" -ge 2 ] \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -20; fail "the day2_replace plan does not show an equal, at-least-2 add/destroy cascade (role+policy at minimum)"; }
+    log "  choudoufu: $F_ADD to add / $F_CHANGE to change / $F_DESTROY to destroy - role and policy both forced to replace at the same declared addresses"
+
+    F_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE "Resources: $F_ADD added, $F_CHANGE changed, $F_DESTROY destroyed" <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match its own planned $F_ADD add / $F_CHANGE change / $F_DESTROY destroy"; }
+
+    if F_OLD_ROLE_STILL="$(awsl iam get-role --role-name "$ROLE_NAME" 2>&1)"; then
+      echo "$F_OLD_ROLE_STILL"; fail "$ROLE_NAME still exists after the replace - the old role was orphaned, not destroyed"
+    fi
+    grep -qi 'NoSuchEntity' <<< "$F_OLD_ROLE_STILL" \
+      || { echo "$F_OLD_ROLE_STILL"; fail "get-role for $ROLE_NAME failed with an unexpected error, not NoSuchEntity - it may still exist"; }
+    log "  $ROLE_NAME no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
+
+    F_NEW_ROLE_ADDR_TAG="$(awsl iam list-role-tags --role-name "$F_NEW_ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$F_NEW_ROLE_ADDR_TAG" = "$F_ROLE_ADDR" ] \
+      || fail "$F_NEW_ROLE_NAME carries tofu-address=$F_NEW_ROLE_ADDR_TAG after the replace, not $F_ROLE_ADDR - the marker did not move onto the new object"
+    log "  $F_NEW_ROLE_NAME (the new role) carries tofu-address=$F_NEW_ROLE_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed object
+    # would be exactly the wrong-marker failure that outranks a missing
+    # one). The local record file at the SAME address must now hold the
+    # NEW role's import_id (its name), not the one captured in F0.
+    F_NEW_ROLE_IMPORT_ID="$(record_import_id "$F_ROLE_RECORD")"
+    [ "$F_NEW_ROLE_IMPORT_ID" = "$F_NEW_ROLE_NAME" ] \
+      || fail "the record for $F_ROLE_ADDR names $F_NEW_ROLE_IMPORT_ID after the replace, not the new role $F_NEW_ROLE_NAME - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_ROLE_IMPORT_ID" != "$F_OLD_ROLE_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ROLE_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_ROLE_IMPORT_ID -> $F_NEW_ROLE_IMPORT_ID at the same key ($F_ROLE_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  No changes. The replace is complete and invisible to the next plan."
+
+    # PART E below reads $ROLE_NAME/$POLICY_ARN for its own AWS CLI checks
+    # and its own log line; the live objects it must find are now the ones
+    # this replace just created.
+    ROLE_NAME="$F_NEW_ROLE_NAME"
+    POLICY_ARN="$F_NEW_POLICY_ARN"
+
+    gauntlet_stage day2_replace pass "choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a $F_ADD add / $F_CHANGE change / $F_DESTROY destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role ($F_OLD_ROLE_IMPORT_ID) is confirmed gone and the new role ($F_NEW_ROLE_NAME) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one ($F_OLD_ROLE_IMPORT_ID -> $F_NEW_ROLE_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with \$ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)

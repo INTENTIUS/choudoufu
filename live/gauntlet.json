@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
+  "commit": "a750d0c7867b7606888ed193c3fa25a3a1699b89",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:32:42Z",
+  "generated": "2026-08-25T18:41:04Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "day2_teardown": {
           "pass": 0,
@@ -612,7 +612,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -622,16 +622,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "7ff51b84d3e509f8d8d387c182098b1ead29dc9d",
-        "date": "2026-08-25T17:26:53Z",
+        "commit": "a750d0c7867b7606888ed193c3fa25a3a1699b89",
+        "date": "2026-08-25T18:42:28Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resource instances added, 0 already tofu-estate-marked before migration",
           "day2_remove": "choudoufu: deleting module.crossplane_final's block proposed 6 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a 6 add / 0 change / 6 destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role (giantswarm-gsprereqs-crossplane) is confirmed gone and the new role (giantswarm-gsprereqs-v2-crossplane) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one (giantswarm-gsprereqs-crossplane -> giantswarm-gsprereqs-v2-crossplane); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one.",
           "drift_reconverge": "role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured",
           "greenfield": "6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy",
           "migrate": "2 of 6 stamped (role, managed policy), 4 untaggable skipped, module's own tags survived the stamp",
