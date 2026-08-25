@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -1058,6 +1059,16 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	return merged, primary, providerOf, diags
 }
 
+// summaryProviderConfigNotEvaluableForSweep is [statelessDiscoverOne]'s
+// diagnostic Summary specifically for a [projection.
+// ProviderConfigNotEvaluable] failure - never for a schema-read or
+// plugin-launch failure, which keep the generic "Provider unavailable for
+// marker discovery" summary and stay fatal regardless of needsSet. It
+// exists so [statelessDiscoverProviderUnavailable] matches on a summary
+// this file alone produces for exactly this typed error, rather than on
+// rendered error text.
+const summaryProviderConfigNotEvaluableForSweep = "Provider configuration not evaluable for marker discovery"
+
 // statelessDiscoverProviderUnavailable is [statelessDiscover]'s single
 // downgrade rule, generic over every provider a config can name rather than
 // specific to any one of them: a provider configuration that could not be
@@ -1105,7 +1116,7 @@ func statelessDiscoverProviderUnavailable(providerAddr addrs.AbsProviderConfig, 
 		return nil, false
 	}
 	for _, d := range discoDiags {
-		if d.Severity() != tfdiags.Error || d.Description().Summary != "Provider unavailable for marker discovery" {
+		if d.Severity() != tfdiags.Error || d.Description().Summary != summaryProviderConfigNotEvaluableForSweep {
 			return nil, false
 		}
 	}
@@ -1146,9 +1157,20 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
+		// A distinct Summary for the one class [statelessDiscoverProvider
+		// Unavailable] may downgrade ([projection.ProviderConfigNotEvaluable]:
+		// this provider's own block could not be statically evaluated, not
+		// a broken plugin or missing credentials) so that function's match
+		// is on the typed error, not on rendered text; every other failure
+		// keeps the summary it has always had and stays fatal.
+		summary := "Provider unavailable for marker discovery"
+		var notEvaluable *projection.ProviderConfigNotEvaluable
+		if errors.As(err, &notEvaluable) {
+			summary = summaryProviderConfigNotEvaluableForSweep
+		}
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Provider unavailable for marker discovery",
+			summary,
 			fmt.Sprintf("Finding the live resources of this estate needs provider %s, which could not be used: %s.", providerAddr, err),
 		))
 	}
@@ -3106,7 +3128,14 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 
 	configVal, cfgDiags := p.providerConfigValue(ctx, addr, block.DecoderSpec())
 	if cfgDiags.HasErrors() {
-		return nil, fmt.Errorf("cannot evaluate the configuration of provider %s: %w", addr, cfgDiags.Err())
+		// A typed error, not just a wrapped one: [projection.
+		// ProviderConfigNotEvaluable]'s own doc comment is the caller-side
+		// half of this - it is what lets statelessDiscoverProviderUnavailable
+		// and internal/live/projection's materialize family tell "this
+		// provider's own block depends on a value nothing has yet" apart
+		// from a genuinely broken plugin or missing credentials (the two
+		// error paths below, both left as plain errors on purpose).
+		return nil, &projection.ProviderConfigNotEvaluable{Provider: addr, Err: cfgDiags.Err()}
 	}
 
 	provider, diags := p.mgr.NewConfiguredProvider(ctx, addr.Provider, configVal)

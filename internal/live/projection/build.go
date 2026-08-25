@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -1738,6 +1739,36 @@ func (b *builder) causeFor(parent addrs.AbsResourceInstance) string {
 // stale. [builder.applyRecordFirst] is the only caller that reads it; every
 // other call site materializes unconditionally and has nothing further to
 // decide from the result.
+
+// providerUnavailableSeverity is every "could not use this provider" site
+// in this file's one downgrade rule: [tfdiags.Warning] for a
+// [ProviderConfigNotEvaluable] failure, [tfdiags.Error] for anything else
+// (a genuinely broken plugin, missing credentials, an unreadable schema).
+//
+// It is unconditional on which instance is asking, unlike internal/
+// command's statelessDiscoverProviderUnavailable, which also gates on
+// whether some declared instance's identity depends on the failing
+// provider (needsSet). That gate is not needed again here: every call
+// site below only ever reaches [ProviderConfigNotEvaluable] for a
+// provider whose discovery/sweep pass (if the estate had one) already
+// downgraded the identical failure for the identical reason - a provider
+// that DID configure successfully for discovery is cached
+// (statelessProviders.ConfiguredProvider) and would not fail again here.
+// So an instance reaching this function already had its identity settled
+// some other way (a client-derived importID, or a real binding through a
+// DIFFERENT, working provider); this read is only ever "does it already
+// exist", and [builder.omitFailed] already treats "cannot tell" as
+// "proceed as if it does not" - the same default a genuinely first-ever
+// create gets. See [ProviderConfigNotEvaluable]'s own doc comment for the
+// full safety argument.
+func providerUnavailableSeverity(err error) tfdiags.Severity {
+	var notEvaluable *ProviderConfigNotEvaluable
+	if errors.As(err, &notEvaluable) {
+		return tfdiags.Warning
+	}
+	return tfdiags.Error
+}
+
 func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	addr := w.addr
 	importID := w.importID
@@ -1773,7 +1804,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	entry, err := b.providers.get(ctx, providerAddr)
 	if err != nil {
 		detail := err.Error()
-		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Provider unavailable", fmt.Sprintf(
+		b.diags = b.diags.Append(tfdiags.Sourceless(providerUnavailableSeverity(err), "Provider unavailable", fmt.Sprintf(
 			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
 		)))
 		b.omitFailed(addr, detail)
@@ -2085,7 +2116,7 @@ func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
 
 	entry, err := b.providers.get(ctx, providerAddr)
 	if err != nil {
-		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Provider unavailable", fmt.Sprintf(
+		b.diags = b.diags.Append(tfdiags.Sourceless(providerUnavailableSeverity(err), "Provider unavailable", fmt.Sprintf(
 			"Reading the deposed object recorded for %s (%s) needs provider %s, which could not be used: %s.", addr, db.DeposedKey, providerAddr, err,
 		)))
 		return
@@ -2276,7 +2307,7 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 	entry, err := b.providers.get(ctx, providerAddr)
 	if err != nil {
 		detail := err.Error()
-		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Provider unavailable", fmt.Sprintf(
+		b.diags = b.diags.Append(tfdiags.Sourceless(providerUnavailableSeverity(err), "Provider unavailable", fmt.Sprintf(
 			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
 		)))
 		b.omitFailed(addr, detail)

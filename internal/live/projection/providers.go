@@ -34,6 +34,56 @@ type Providers interface {
 	ConfiguredProvider(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error)
 }
 
+// ProviderConfigNotEvaluable is the one shape of [Providers.
+// ConfiguredProvider] failure a caller may treat as non-fatal, when the
+// instance it was reading has an identity already established some other
+// way (a client-derived importID, or a prior binding through a DIFFERENT,
+// already-configured provider) rather than depending on this read to know
+// what it is.
+//
+// It marks a provider whose own configuration block could not be
+// statically evaluated - a reference to a data source (or, through it, a
+// managed resource) with no known value anywhere this run can see, not a
+// broken plugin, missing credentials, or a schema the provider genuinely
+// could not produce. corpus-eks-basic's greenfield stage is the estate that
+// named it: provider.kubernetes's host/token arguments read
+// data.aws_eks_cluster.cluster, which itself reads aws_eks_cluster.this[0]
+// - a managed resource this same apply creates and that has no record, no
+// marker and no state anywhere yet. Stock terraform never asks this
+// question in one shot either; its graph defers configuring
+// provider.kubernetes until aws_eks_cluster.this[0] is actually applied,
+// mid-run. The stateless pre-pass this package and internal/command's
+// statelessDiscover build has no such graph to defer through, so the
+// generic, safe answer here is the same one [Build]'s omitFailed already
+// gives every other unreadable instance: proceed as if nothing was found,
+// and let the REAL resource graph (which does defer provider
+// configuration, unmodified from stock) create it for real, with the
+// provider's own "already exists" conflict detection as the same safety
+// net stock relies on - never a silently guessed identity or marker,
+// because none is written here at all.
+//
+// A caller must still gate the downgrade on whether the FAILING provider
+// is the one that would have supplied THIS instance's own identity: see
+// internal/command's statelessDiscoverProviderUnavailable, whose needsSet
+// argument is exactly that gate for the discovery/sweep pass. [Build]'s
+// own materialize family never needs that gate itself, because by
+// construction it only ever reaches a provider this error class describes
+// after that provider's discovery pass (if any) already downgraded the
+// same way - see this type's own callers for why that makes every
+// downgrade here safe rather than merely convenient.
+type ProviderConfigNotEvaluable struct {
+	// Provider is the provider configuration that could not be built.
+	Provider addrs.AbsProviderConfig
+	// Err is the underlying static-evaluation failure.
+	Err error
+}
+
+func (e *ProviderConfigNotEvaluable) Error() string {
+	return fmt.Sprintf("cannot evaluate the configuration of provider %s: %s", e.Provider, e.Err)
+}
+
+func (e *ProviderConfigNotEvaluable) Unwrap() error { return e.Err }
+
 // ProviderFunc adapts a plain function to [Providers].
 type ProviderFunc func(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error)
 

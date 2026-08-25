@@ -486,7 +486,6 @@ green_tofu_run() {
     -v "$WORK:/work" -w "/work/$GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
-    -e TF_LOG=trace \
     "$TOOLBOX_IMAGE" /work/bin/choudoufu "$@"
 }
 
@@ -1633,9 +1632,11 @@ grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/main.tf" \
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 || {
   tail -60 /tmp/eks-basic-green-init.log; fail "the greenfield init failed"; }
-# UPDATE 2026-08-25 (gauntlet:eks-greenfield): FIXED. Two layered defects,
-# both real, both generic - the "row 2/choudoufu's own result" framing
-# below described the first correctly but stopped one layer short.
+# UPDATE 2026-08-25 (gauntlet:eks-greenfield): THREE layered walls found in
+# this single stage; the first two are real choudoufu defects, FIXED, both
+# generic. The "row 2/choudoufu's own result" framing below described the
+# first correctly but stopped one layer short, and neither one is what
+# blocks this stage today - see wall 3.
 #
 #   1. The kubernetes provider's config (data.aws_eks_cluster.cluster /
 #      data.aws_eks_cluster_auth.cluster, reading aws_eks_cluster.this[0] -
@@ -1673,8 +1674,41 @@ green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 
 #      complete) already carries the toggle for. This estate's own
 #      greenfield delta (above) had simply never been given it - a
 #      script-only gap, not a second code defect.
+#   3. With (1) and (2) fixed, the real graph reaches
+#      aws_eks_cluster.this[0]'s own CREATE - and traced with TF_LOG=trace
+#      against the real graph, core correctly defers provider.kubernetes's
+#      own configuration (planDataSource: "configuration not fully known
+#      yet, so deferring to apply phase", genuine unmodified core
+#      behavior) UNTIL issue #388's plan-node seam resolver hook
+#      (node_resource_plan_instance.go) tried a LIVE read against it
+#      anyway for kubernetes_config_map.aws_auth[0]'s client-derivable
+#      identity - "Get https://localhost/.../aws-auth: connection
+#      refused", the kubernetes SDK's own default for an unknown host.
+#      FIXED (also generically: NodeApplyableProvider.ConfigKnown +
+#      ResolvedProvider.ConfigKnown, gating the resolver hook on whether
+#      ITS OWN provider's config was wholly known, reaching every provider
+#      block that depends on any not-yet-created managed resource's
+#      attribute, not just kubernetes). Once that's out of the way, the
+#      real graph proceeds to actually CREATE aws_eks_cluster.this[0] -
+#      and lex00/floci#139 is what blocks it now: this stage runs THREE
+#      floci containers on one Docker network at once (real EKS mode),
+#      and floci's own PortAllocator allocates the k3s API-server sibling
+#      container's host port by binding a ServerSocket inside floci's OWN
+#      container namespace, which cannot see that a DIFFERENT floci
+#      container's own k3s sibling has already bound that same host port
+#      on the shared Docker HOST. Confirmed directly with the AWS CLI
+#      against two bare floci containers, no tofu/terraform in the loop:
+#      the second cluster's own create reaches status FAILED, and `docker
+#      inspect` on its k3s sibling shows "Bind for 0.0.0.0:6500 failed:
+#      port is already allocated". HANDOFF row 4 (the emulator is wrong):
+#      filed at lex00/floci#139, fixed on branch fix/eks-port-allocator-
+#      namespace (lex00/floci PR #140, DockerClient-aware port allocation,
+#      a regression test proven load-bearing) and PUSHED TO ORIGIN ONLY -
+#      publishing the image and repinning live/floci-image is the shared-
+#      layer step the orchestrator batches, not done here. This stage
+#      stays fail, honestly, until that repin lands; re-run it once it
+#      has, before touching this comment again.
 GREEN_APPLY_OUT="$(green_tofu_run apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$GREEN_APPLY_OUT" > /tmp/eks-greenfield-full-apply-out.txt
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -60
   fail "the greenfield apply failed - see live/gauntlet/logs/corpus-eks-basic.log for the full diagnostic"
 }
