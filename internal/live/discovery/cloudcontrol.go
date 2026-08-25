@@ -288,7 +288,16 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		// the three-way answer and issue #394 for the bug this closes.
 		bindType := typeName
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+			// recompose recomputes the identifier under markerType's own
+			// row from this SAME Cloud Control identifier - the leg's own
+			// equivalent of [scanType]'s importIdentityFromResource, needed
+			// for an overlapping-list-call sibling pair whose ratified rows
+			// disagree ([sameRatifiedIdentity] false: rdsClusterInstanceSibling
+			// today) rather than the identity carrying forward unchanged.
+			// See [sweepBindType]'s own doc comment.
+			corrected, fixedImportID, skip := sweepBindType(decl, markerType, typeName, escaped, func(mt string) (string, bool) {
+				return resolveCloudControlImportID(mt, desc.Identifier)
+			})
 			if skip {
 				// The marker's own type is declared and was already
 				// visited, correctly, by its own config-driven scan pass
@@ -308,6 +317,9 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 						typeName, req.Estate, raw, markerType, typeName),
 				}))
 				continue
+			}
+			if fixedImportID != "" {
+				importID = fixedImportID
 			}
 			bindType = corrected
 		}

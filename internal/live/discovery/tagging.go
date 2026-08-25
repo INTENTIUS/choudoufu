@@ -869,7 +869,12 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 	// config-driven scan, found the shared object first).
 	bindType := typeName
 	if markerType := markerTypeOf(escaped); markerType != typeName {
-		corrected, skip := sweepBindType(decl, markerType, typeName, escaped)
+		// recompose is nil: this leg carries only the joined ARN and the
+		// object's tags, never a raw identifier to recompose an identity
+		// from, and typeNeedsResourceObjectToRecompose already keeps every
+		// pair that would need one out of this universe - see
+		// [sweepBindType]'s own doc comment.
+		corrected, fixedImportID, skip := sweepBindType(decl, markerType, typeName, escaped, nil)
 		if skip {
 			// The marker's own type is declared and was already visited,
 			// correctly, by its own config-driven scan pass before this
@@ -890,6 +895,9 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 			}))
 		}
 		bindType = corrected
+		if fixedImportID != "" {
+			c.importID = fixedImportID
+		}
 	}
 
 	claim := claimant{

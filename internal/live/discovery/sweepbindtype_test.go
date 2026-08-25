@@ -17,12 +17,18 @@ import (
 // three-way answer a whole-estate sweep (the ARN-join tag sweep,
 // [fileTaggingCandidate], and the Cloud Control per-type sweep,
 // [scanTypeCloudControl]) needs before filing a candidate whose marker
-// names a different type than the sweep found it listed as. Both sweep
-// paths carry only the joined ARN's or Cloud Control identifier's own
-// importID and the object's tags - never [scanType]'s own schema-typed
-// resource - so unlike scanType's own [importIdentityFromResource]
-// correction, this can only ever carry an identity forward unchanged, never
-// recompose a different one.
+// names a different type than the sweep found it listed as. The tag-sweep
+// leg carries only the joined ARN's own importID and the object's tags -
+// never [scanType]'s own schema-typed resource - so it always passes a nil
+// recompose and can only ever carry an identity forward unchanged. Since
+// corpus-rds-complete-postgres's day2_remove unit, the Cloud Control leg is
+// different: [resolveCloudControlImportID] can recompute an identity under
+// a different type's row from the same raw identifier, so a caller
+// carrying one passes it as recompose and this function's third,
+// !sameRatifiedIdentity branch can recompose rather than only ever refuse.
+// [TestSweepBindTypeRecompose] below is that branch's own coverage; this
+// test fixes recompose at nil throughout, matching the tag-sweep caller
+// this test predates.
 func TestSweepBindType(t *testing.T) {
 	// A real [declared] built by [declaredInstances] always populates .all
 	// (every resolution, unconditionally, before any scope filtering) at
@@ -179,13 +185,87 @@ func TestSweepBindType(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotBindType, gotSkip := sweepBindType(c.decl, c.markerType, c.typeName, c.escaped)
+			gotBindType, gotImportID, gotSkip := sweepBindType(c.decl, c.markerType, c.typeName, c.escaped, nil)
 			if gotBindType != c.wantBindType || gotSkip != c.wantSkip {
 				t.Errorf("sweepBindType(%q, %q, %q) = (%q, %v), want (%q, %v)",
 					c.markerType, c.typeName, c.escaped, gotBindType, gotSkip, c.wantBindType, c.wantSkip)
 			}
+			if gotImportID != "" {
+				t.Errorf("sweepBindType(%q, %q, %q) with a nil recompose returned importID %q, want \"\" - nothing to recompose from", c.markerType, c.typeName, c.escaped, gotImportID)
+			}
 		})
 	}
+}
+
+// TestSweepBindTypeRecompose is [sweepBindType]'s own !sameRatifiedIdentity
+// branch, the one [scanTypeCloudControl] reaches for
+// aws_db_instance/aws_rds_cluster_instance (corpus-rds-complete-postgres's
+// day2_remove unit) - the first !sameRatifiedIdentity companion pair ever
+// actually enumerated through Cloud Control rather than a type with its own
+// native provider list route, so this path was unreachable, not merely
+// untested, until this pair existed. TestSweepBindType above already covers
+// the recompose=nil case (skip, carry-forward, and refuse); this covers
+// recompose supplied and either succeeding or declining.
+func TestSweepBindTypeRecompose(t *testing.T) {
+	empty := &declared{}
+
+	t.Run("undeclared rds companion, recompose succeeds", func(t *testing.T) {
+		var calledWith string
+		recompose := func(markerType string) (string, bool) {
+			calledWith = markerType
+			return "complete-postgresql", true
+		}
+		bindType, importID, skip := sweepBindType(empty, "aws_db_instance", "aws_rds_cluster_instance", `aws_db_instance.this:0`, recompose)
+		if skip {
+			t.Fatalf("skip = true, want false - nothing declares this address")
+		}
+		if bindType != "aws_db_instance" {
+			t.Errorf("bindType = %q, want aws_db_instance", bindType)
+		}
+		if importID != "complete-postgresql" {
+			t.Errorf("importID = %q, want complete-postgresql (recompose's own return value)", importID)
+		}
+		if calledWith != "aws_db_instance" {
+			t.Errorf("recompose was called with %q, want aws_db_instance (the MARKER's type, not aws_rds_cluster_instance)", calledWith)
+		}
+	})
+
+	t.Run("undeclared rds companion, recompose declines - refuse rather than guess", func(t *testing.T) {
+		recompose := func(string) (string, bool) { return "", false }
+		bindType, importID, skip := sweepBindType(empty, "aws_db_instance", "aws_rds_cluster_instance", `aws_db_instance.this:0`, recompose)
+		if skip {
+			t.Fatalf("skip = true, want false")
+		}
+		if bindType != "aws_rds_cluster_instance" {
+			t.Errorf("bindType = %q, want aws_rds_cluster_instance (typeName unchanged - recompose declining is refuse, not a guess)", bindType)
+		}
+		if importID != "" {
+			t.Errorf("importID = %q, want \"\" when recompose declines", importID)
+		}
+	})
+
+	t.Run("declared rds companion - skip before recompose is ever tried", func(t *testing.T) {
+		decl := &declared{
+			types: map[string]map[string]*declaredEntry{
+				"aws_db_instance": {`aws_db_instance.this:0`: {}},
+			},
+			all: map[string]map[string]*declaredAddress{
+				"aws_db_instance": {`aws_db_instance.this:0`: {}},
+			},
+		}
+		called := false
+		recompose := func(string) (string, bool) { called = true; return "unused", true }
+		_, importID, skip := sweepBindType(decl, "aws_db_instance", "aws_rds_cluster_instance", `aws_db_instance.this:0`, recompose)
+		if !skip {
+			t.Fatalf("skip = false, want true - the declared side already covers this object")
+		}
+		if called {
+			t.Errorf("recompose was called even though the declared side already covers this object")
+		}
+		if importID != "" {
+			t.Errorf("importID = %q, want \"\" on skip", importID)
+		}
+	})
 }
 
 // TestTaggingSweepDefaultRouteTableCompanionRoutesNative is issue #394's own

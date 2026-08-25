@@ -2323,20 +2323,52 @@ func partitionSweepTypes(req Request, decl *declared) (tagging, native []string)
 	return tagging, native
 }
 
-func sweepBindType(decl *declared, markerType, typeName, escaped string) (bindType string, skip bool) {
+// sweepBindType decides which of an overlapping-list-call sibling pair a
+// live object found by typeName's own sweep belongs to, once its marker
+// names markerType instead: skip (the marker's own type is declared and
+// already visited by its own config-driven scan pass), bindType unchanged
+// at markerType with the identity carried forward ([sameRatifiedIdentity]
+// true), or - since corpus-rds-complete-postgres's day2_remove unit -
+// bindType at markerType with importID recomposed by recompose
+// ([sameRatifiedIdentity] false, an undeclared instance: the object is
+// genuinely markerType's own, but typeName's identity is not, the same
+// distinction [scanType]'s own importIdentityFromResource branch makes for
+// the native-list leg).
+//
+// recompose is nil for a caller with no way to recompute an identity under
+// a different type's row: tagging.go's ARN-join leg carries only the
+// joined ARN and the object's tags, never a raw identifier to recompose
+// from, and [typeNeedsResourceObjectToRecompose] already keeps every pair
+// needing this (aws_route_table/aws_default_route_table,
+// aws_iam_role/aws_iam_service_linked_role, and now
+// aws_db_instance/aws_rds_cluster_instance) out of that caller's own sweep
+// universe - so it always passes nil and this function never has to
+// distinguish "no recompose available" from "recompose declined" there.
+// [scanTypeCloudControl] passes one built from [resolveCloudControlImportID],
+// its own leg's equivalent of importIdentityFromResource: found live via
+// this same unit, aws_db_instance/aws_rds_cluster_instance is the first
+// !sameRatifiedIdentity pair ever actually enumerated through Cloud
+// Control rather than a type with its own native provider list route, so
+// this branch was unreachable until now, not merely untested.
+func sweepBindType(decl *declared, markerType, typeName, escaped string, recompose func(markerType string) (string, bool)) (bindType, importID string, skip bool) {
 	if markerType == typeName {
-		return typeName, false
+		return typeName, "", false
 	}
-	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) {
-		return typeName, false
+	if !defaultAdopterSiblings(markerType, typeName) && !iamServiceLinkedRoleSibling(markerType, typeName) && !rdsClusterInstanceSibling(markerType, typeName) {
+		return typeName, "", false
 	}
 	if decl.declares(markerType, escaped) {
-		return "", true
+		return "", "", true
 	}
 	if sameRatifiedIdentity(markerType, typeName) {
-		return markerType, false
+		return markerType, "", false
 	}
-	return typeName, false
+	if recompose != nil {
+		if fixedID, ok := recompose(markerType); ok {
+			return markerType, fixedID, false
+		}
+	}
+	return typeName, "", false
 }
 
 // An arn-valued identity goes through [importIDFromARN] rather than being used
