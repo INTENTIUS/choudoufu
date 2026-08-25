@@ -234,3 +234,81 @@ func TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots(t *testing.
 		"aws_eip.pool:0": "0", "aws_eip.pool:1": "1", "aws_eip.pool:2": "2",
 	})
 }
+
+// TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed is GitHub issue
+// #388 edge 3's foreign-coverage regression, found live on
+// corpus-ec2-instance-complete's test_plan stage: "Foreign resources:
+// nothing was swept" the moment every declared instance of a type is
+// record-backed, because decl.typeNames() - the config-driven scan's own
+// demand - excludes a type with no non-record-backed member left in it
+// (see decl.recordBacked's own doc comment), which used to mean the type
+// never got listed with Request.CollectUnclaimed at all: it fell into
+// [sweepTypes]' undeclared-type universe instead, and a sweep never
+// collects unclaimed resources (see TypeScan.Sweep's own doc comment) -
+// reasoning that is sound for a type the configuration never mentions and
+// wrong for one it does, merely record-backed for this run.
+//
+// Unlike TestDiscover_recordBackedWholeCountBlockStillMintsSlot (which
+// proves the OPPOSITE - zero provider calls - for the ordinary bind/apply
+// shape with CollectUnclaimed unset), this test sets both Sweep and
+// CollectUnclaimed, the shape live-plan's own stateless path always uses,
+// and a genuinely-foreign sibling live object of the same type must still
+// be found.
+func TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.noFilter("aws_eip") // as the real AWS provider's aws_eip list schema
+	cloud.own("aws_eip", "eipalloc-0", `aws_eip.pool:0`)
+	cloud.own("aws_eip", "eipalloc-1", `aws_eip.pool:1`)
+	cloud.own("aws_eip", "eipalloc-2", `aws_eip.pool:2`)
+	// Carries no tags at all - a real, unmarked, foreign EIP sitting in the
+	// same account. If the whole type's demand silently stopped being
+	// listed, this is exactly what would go unseen.
+	cloud.obj("aws_eip", "eipalloc-wild", nil)
+
+	res, diags := discoverFixture(t, cloud, Request{
+		CollectUnclaimed: true,
+		Sweep:            true,
+		RecordBackedAddrs: map[string]bool{
+			`aws_eip.pool[0]`: true,
+			`aws_eip.pool[1]`: true,
+			`aws_eip.pool[2]`: true,
+		},
+	})
+	assertNoErrors(t, diags)
+
+	if len(res.Bindings) != 0 {
+		t.Errorf("a record-backed instance was bound by a scan it should never have run: %v", res.Bindings)
+	}
+	if len(res.Orphans) != 0 {
+		t.Errorf("no orphan should have been produced for the record-backed instances' own live objects: %v", res.Orphans)
+	}
+	for _, u := range res.Unbound {
+		if u.Resource.Resource.Type == "aws_eip" {
+			t.Errorf("a record-backed aws_eip instance was reported Unbound: %s", u)
+		}
+	}
+
+	if len(res.Unclaimed) != 1 || res.Unclaimed[0].ImportID != "eipalloc-wild" {
+		t.Fatalf("the wild EIP was not collected even though the whole type is record-backed and CollectUnclaimed was set:\n%s", res)
+	}
+
+	scan, ok := res.ScanFor("aws_eip")
+	if !ok {
+		t.Fatalf("aws_eip was not scanned at all")
+	}
+	if !scan.Sweep {
+		t.Errorf("expected aws_eip to have been routed through the sweep (every declared instance is record-backed): %s", scan)
+	}
+	if scan.Scope != ScopeAll {
+		t.Errorf("aws_eip was not widened to ScopeAll despite CollectUnclaimed: %s", scan)
+	}
+
+	for _, r := range res.Resolutions {
+		switch r.Addr.String() {
+		case `aws_eip.pool[0]`, `aws_eip.pool[1]`, `aws_eip.pool[2]`:
+			if r.Class != identity.ClassNeedsDiscovery {
+				t.Errorf("the record-backed resolution for %s was rewritten even though it was never bound: %s", r.Addr, r)
+			}
+		}
+	}
+}

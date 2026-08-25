@@ -231,15 +231,37 @@ type pair struct {
 func (c *classifier) sweepCoverage() {
 	swept := make(map[string]bool)
 
+	// declaredTypes is GitHub issue #388 edge 3's own exception to the
+	// "a sweep row never belongs in this report" rule just below: a type
+	// entirely answered by the record store carries Sweep=true on its scan
+	// row (discovery.partitionSweepTypes routes it there, alongside the
+	// truly undeclared types this rule exists for), but the configuration
+	// still declares it, and discovery.scanType's collectUnclaimed
+	// parameter still collected its unclaimed population when this run
+	// asked for one. Built once, from the same ManagedResources walk the
+	// "types discovery never listed" loop below already does, rather than
+	// re-deriving it per scan row.
+	declaredTypes := make(map[string]bool, len(c.req.Config.Module.ManagedResources))
+	for _, rc := range c.req.Config.Module.ManagedResources {
+		declaredTypes[rc.Type] = true
+	}
+
 	for _, s := range c.req.Discovery.Scans {
-		if s.Sweep {
-			// A sweep row is a list of a type the configuration does not
-			// declare, made to find resources this estate owns and no longer
-			// declares. It never looked at unclaimed resources and no
-			// declared instance of that type exists to offer one to, so it
-			// says nothing either way about foreign resources and does not
-			// belong in this coverage report. Its own coverage is reported
-			// as [Result.SweepGaps] and [Result.SweepCovered].
+		if s.Sweep && !(declaredTypes[s.TypeName] && s.Scope == discovery.ScopeAll) {
+			// A sweep row ordinarily lists a type the configuration does
+			// not declare, made to find resources this estate owns and no
+			// longer declares. It never looks at unclaimed resources and
+			// no declared instance of that type exists to offer one to, so
+			// it says nothing either way about foreign resources and does
+			// not belong in this coverage report. Its own coverage is
+			// reported as [Result.SweepGaps] and [Result.SweepCovered].
+			//
+			// declaredTypes[s.TypeName] && s.Scope == discovery.ScopeAll is
+			// the one case that is NOT this: the configuration does
+			// declare the type, and ScopeAll is discovery.scanType's own
+			// signal that this particular call widened past a server-side
+			// estate filter and so genuinely could have seen an unclaimed
+			// object of it, wherever CollectUnclaimed pushed the scan.
 			continue
 		}
 		switch {

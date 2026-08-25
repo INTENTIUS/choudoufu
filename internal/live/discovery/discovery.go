@@ -403,10 +403,19 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// instance in this configuration is record-backed. There is still slot
 	// bookkeeping to do for any of them that sit in a count block (see
 	// recordBacked's own doc comment), which happens below in bind() via
-	// [declared.bindTypeNames] - but nothing here calls the provider's list
-	// endpoint, because decl.typeNames() (the scan loop just below) is
-	// unchanged: schemas are fetched (a local schema call, not a list call)
-	// and the scan loop runs zero iterations.
+	// [declared.bindTypeNames] - and decl.typeNames() (the scan loop just
+	// below) is unchanged, so the config-driven scan itself still runs zero
+	// iterations for such a type. It is not skipped forever, though: when
+	// req.Sweep is also set (every real stateless-plan caller sets it
+	// alongside req.CollectUnclaimed), the sweep loops below still list a
+	// type in this state - see [partitionSweepTypes] and the per-type
+	// collectUnclaimed argument to [scanTypeReporting] in both sweep legs.
+	// A record answering an instance's identity is a binding-demand
+	// shortcut, never a reason this estate's own foreign-resource coverage
+	// of that type should go dark (GitHub issue #388's edge 3 regression,
+	// found on corpus-ec2-instance-complete's test_plan: "Foreign
+	// resources: nothing was swept" the moment every declared type ended up
+	// entirely record-backed).
 
 	schemas, schemaDiags := listclient.ListSchemas(ctx, req.Provider)
 	diags = diags.Append(schemaDiags)
@@ -420,7 +429,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	var typesScanned, resourcesFound int
 
 	for _, typeName := range decl.typeNames() {
-		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, &typesScanned, &resourcesFound))
+		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 
 	// The sweep runs after the config-driven scan so that a type appearing
@@ -442,7 +451,21 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// types still go through the per-type loop even though
 			// TaggingSweep is set.
 			for _, typeName := range nativeUniverse {
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, &typesScanned, &resourcesFound))
+				// GitHub issue #388 edge 3's foreign-coverage fix: a type
+				// [partitionSweepTypes] routed here purely because it is
+				// entirely record-backed (see that function's own doc
+				// comment) still owes this run its unclaimed population
+				// when the caller asked for one - sweepViaTagging's single
+				// GetResources call is server-side estate-filtered and
+				// structurally could never have seen an unmarked sibling,
+				// which is exactly why partitionSweepTypes sends it here
+				// instead. Every other type in nativeUniverse is a true
+				// [typeNeedsResourceObjectToRecompose] companion the
+				// configuration may not even declare, for which
+				// "unclaimed" keeps its original, narrower meaning (see
+				// TypeScan.Sweep's own doc comment).
+				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
+				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
 		} else {
 			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
@@ -455,7 +478,12 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			res.GuidedFallback = fallback
 			res.GuidedSweepSkipped = skipped
 			for _, typeName := range universe {
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, &typesScanned, &resourcesFound))
+				// Same reasoning as the TaggingSweep leg just above: a type
+				// present here only because every one of its declared
+				// instances is record-backed still needs its unclaimed
+				// population collected when the caller asked for one.
+				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
+				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
 		}
 	}
@@ -1350,9 +1378,14 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 // slice is already the one source of truth for "how many resources did this
 // type contribute," so reading it back here needs no second bookkeeping path
 // that could drift from the first.
-func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep bool, typesScanned, resourcesFound *int) tfdiags.Diagnostics {
+// collectUnclaimed is ordinarily req.CollectUnclaimed for a config-driven
+// (sweep=false) call, but a sweep=true call from [Discover]'s own sweep legs
+// passes it independently, true only for a type entirely answered by the
+// record store - see those call sites' own comments and TypeScan.Sweep's
+// doc comment for why the two can now come apart.
+func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep, collectUnclaimed bool, typesScanned, resourcesFound *int) tfdiags.Diagnostics {
 	before := len(res.Scans)
-	diags := scanType(ctx, req, schemas, decl, typeName, res, sweep)
+	diags := scanType(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed)
 	if req.Progress == nil || len(res.Scans) <= before {
 		return diags
 	}
@@ -1379,7 +1412,21 @@ func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Sche
 // exist, while a swept type that cannot be listed is a hole in removal
 // coverage, reported as a [SweepGap] so that "nothing to destroy" is never
 // confused with "nobody looked".
-func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep bool) tfdiags.Diagnostics {
+//
+// collectUnclaimed says whether this call should also gather the type's
+// unmarked population into [Result.Unclaimed] (widening [TypeScan.Scope] to
+// [ScopeAll] so a server-side estate filter cannot hide one). It is
+// independent of sweep: a config-driven call (sweep false) passes
+// req.CollectUnclaimed unchanged, exactly as before this parameter existed,
+// while a sweep call (sweep true) passes it only for a type this estate
+// actually declares - one [partitionSweepTypes] or the guided-sweep loop
+// routed here purely because every declared instance of it is record-backed
+// (GitHub issue #388's edge 3). An ordinary sweep type - one the
+// configuration never mentions at all - still never collects unclaimed
+// resources of it: there is no declared instance a foreign one could ever
+// be offered for adoption against, the reasoning [Result.Unclaimed]'s own
+// doc comment and the estate==\"\" branch below still rest on.
+func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	scan := TypeScan{
@@ -1418,7 +1465,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		if req.CloudControl != nil {
 			if binding, ok := identity.ContentMatchTypes[typeName]; ok {
 				if _, byName := uniqueNameIndexFor(decl, typeName); !byName {
-					return scanTypeContentMatch(ctx, req, decl, typeName, binding, res, sweep)
+					return scanTypeContentMatch(ctx, req, decl, typeName, binding, res, sweep, collectUnclaimed)
 				}
 			}
 		}
@@ -1430,7 +1477,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// existing caller that never heard of Cloud Control keeps today's
 		// refusal unchanged.
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
-			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep)
+			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep, collectUnclaimed)
 		}
 
 		// Issue #293. Neither route above found a way to list typeName at
@@ -1500,7 +1547,14 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 	filterOK, filterWhy := supportsTagFilter(ts)
 	switch {
-	case req.CollectUnclaimed && !sweep:
+	case collectUnclaimed:
+		// Was "req.CollectUnclaimed && !sweep" before GitHub issue #388's
+		// edge 3 could shrink a whole type out of the config-driven scan:
+		// the parameter, not the request field, is what a sweep=true call
+		// now sets on a type-by-type basis (see the two sweep loops'
+		// comments in [Discover]), so it already carries the "and !sweep
+		// unless this type earned an exception" logic the old inline
+		// condition spelled out.
 		scan.Filtering = FilterClientSide
 		scan.Scope = ScopeAll
 		scan.FilterReason = "unclaimed resources were asked for, which a server-side estate filter would hide"
@@ -1697,12 +1751,19 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		estate := tags[TagEstate]
 		switch {
 		case estate == "":
-			if sweep {
-				// A sweep is looking for this estate's markers and for
-				// nothing else. The type is not in the configuration, so no
-				// declared instance could ever be offered this resource for
-				// adoption, and reporting it as foreign would widen the
-				// foreign section to every admitted type in the account.
+			if sweep && !collectUnclaimed {
+				// An ordinary sweep is looking for this estate's markers
+				// and for nothing else. The type is not in the
+				// configuration, so no declared instance could ever be
+				// offered this resource for adoption, and reporting it as
+				// foreign would widen the foreign section to every admitted
+				// type in the account. collectUnclaimed is what tells this
+				// apart from a sweep=true call [Discover] routed here
+				// specifically because the type IS declared and entirely
+				// record-backed (GitHub issue #388's edge 3): there the
+				// configuration does mention this type, and an unmarked
+				// object of it is exactly what the foreign section exists
+				// to report.
 				continue
 			}
 			scan.Unclaimed++
@@ -2251,9 +2312,22 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 // produce for it can never carry enough to bind its companion pair safely.
 // Every other caller of [sweepTypes] (the non-tagging, "guided" sweep leg)
 // already sweeps every type the native way, so it has no use for this split.
+//
+// A type that is entirely record-backed (GitHub issue #388's edge 3) joins
+// native for a second, unrelated reason whenever req.CollectUnclaimed is
+// set: [sweepViaTagging]'s one GetResources call is server-side
+// estate-filtered (issue #266's tag index), which structurally can never
+// return an object carrying no tofu-estate tag at all, so it could never
+// find that type's own unclaimed population no matter how its candidates
+// were classified afterward. Only the native, per-type list call can widen
+// to [ScopeAll], which is what [scanType]'s collectUnclaimed parameter
+// then does for it. A record-backed type with CollectUnclaimed unset (an
+// ordinary apply or migrate, never a caller that also wants foreign-resource
+// coverage) is unaffected and still goes wherever
+// [typeNeedsResourceObjectToRecompose] alone would have sent it.
 func partitionSweepTypes(req Request, decl *declared) (tagging, native []string) {
 	for _, t := range sweepTypes(req, decl) {
-		if typeNeedsResourceObjectToRecompose(t) {
+		if typeNeedsResourceObjectToRecompose(t) || (req.CollectUnclaimed && decl.recordBacked[t] != nil) {
 			native = append(native, t)
 		} else {
 			tagging = append(tagging, t)
