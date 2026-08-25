@@ -262,3 +262,114 @@ func TestNodeSeamComponentsFromValueResolvesWhatStaticRefuses(t *testing.T) {
 		t.Errorf("values[port] = %q, want \"443\"", values["port"])
 	}
 }
+
+// TestComponentsUnknown_TrueWhenIdentityAttributeUnknown is
+// corpus-dynamodb-table-basic's own greenfield shape, reduced to the
+// identity table alone: aws_dynamodb_table's `name` (its only identity
+// component) is a formula over random_pet.this.id, and on a genuinely
+// fresh estate's first apply random_pet has not run yet, so the node's
+// real evaluated value carries `name` as cty.UnknownVal, not a mismatched
+// or absent string. [ComponentsUnknown] has to say true here - not merely
+// "ComponentsFromValue found nothing," which unknown and absent both
+// produce - because the caller (noderesolver.go's ResolveResourceIdentity)
+// uses this one signal to tell "nobody has computed this value yet" apart
+// from "this run could not derive a real object's identity."
+func TestComponentsUnknown_TrueWhenIdentityAttributeUnknown(t *testing.T) {
+	row, ok := LookupType("aws_dynamodb_table")
+	if !ok {
+		t.Fatal("aws_dynamodb_table is not in DefaultTable; this test needs a real ratified row")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.UnknownVal(cty.String),
+	})
+
+	if !ComponentsUnknown(row, val) {
+		t.Fatalf("ComponentsUnknown = false for a value whose only identity attribute is cty.UnknownVal; want true")
+	}
+
+	// And ComponentsFromValue itself still reports not-found for this
+	// value, exactly as it did before this test existed - ComponentsUnknown
+	// narrows WHY ComponentsFromValue failed, it does not change whether
+	// it failed.
+	if _, _, ok := ComponentsFromValue(row, val); ok {
+		t.Fatalf("ComponentsFromValue reported found=true for an unknown identity attribute; it must never guess")
+	}
+}
+
+// TestComponentsUnknown_FalseWhenAbsent is the contrasting case at the same
+// address: the identity attribute is present in the schema but genuinely
+// unset (cty.NullVal), not merely not-yet-known. This is real ambiguity -
+// ruling 4 (#365)'s own no-source case - and ComponentsUnknown must say
+// false so the caller's default refusal still fires for it.
+func TestComponentsUnknown_FalseWhenAbsent(t *testing.T) {
+	row, ok := LookupType("aws_dynamodb_table")
+	if !ok {
+		t.Fatal("aws_dynamodb_table is not in DefaultTable")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.NullVal(cty.String),
+	})
+
+	if ComponentsUnknown(row, val) {
+		t.Fatalf("ComponentsUnknown = true for a genuinely absent (null) identity attribute; want false - this is ordinary ambiguity, not an unknown-until-apply value")
+	}
+	if _, _, ok := ComponentsFromValue(row, val); ok {
+		t.Fatalf("ComponentsFromValue reported found=true for a null identity attribute")
+	}
+}
+
+// TestComponentsUnknown_FalseWhenFullyResolved proves ComponentsUnknown
+// does not fire on the ordinary success path, so a caller gating on it
+// never withholds a refusal it should have raised, and never treats an
+// instance the table CAN resolve as if it could not be checked.
+func TestComponentsUnknown_FalseWhenFullyResolved(t *testing.T) {
+	row, ok := LookupType("aws_dynamodb_table")
+	if !ok {
+		t.Fatal("aws_dynamodb_table is not in DefaultTable")
+	}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.StringVal("my-table-humane-bunny"),
+	})
+
+	if ComponentsUnknown(row, val) {
+		t.Fatalf("ComponentsUnknown = true for a fully-known value; want false")
+	}
+	importID, _, ok := ComponentsFromValue(row, val)
+	if !ok || importID != "my-table-humane-bunny" {
+		t.Fatalf("ComponentsFromValue = %q, %v; want \"my-table-humane-bunny\", true", importID, ok)
+	}
+}
+
+// TestComponentsUnknown_ServerAssignedAndRecordBackedNeverUnknown proves
+// the caller never needs ComponentsUnknown to protect these two: they are
+// already unconditionally exempt from the "No source" refusal
+// (row.ServerAssigned / row.RecordBacked short-circuit noderesolver.go's
+// sourceExpected before ComponentsUnknown is even consulted), and this
+// function agrees on its own terms - it has nothing to derive for either
+// shape, known or not.
+func TestComponentsUnknown_ServerAssignedAndRecordBackedNeverUnknown(t *testing.T) {
+	saRow, ok := LookupType("aws_vpc")
+	if !ok {
+		t.Fatal("aws_vpc is not in DefaultTable; this test needs a real ServerAssigned row")
+	}
+	if !saRow.ServerAssigned {
+		t.Fatal("aws_vpc is expected to be ServerAssigned")
+	}
+	if ComponentsUnknown(saRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsUnknown = true for a ServerAssigned row; want false")
+	}
+
+	rbRow, ok := LookupType("random_pet")
+	if !ok {
+		t.Skip("random_pet is not in DefaultTable; this test needs a real RecordBacked row")
+	}
+	if !rbRow.RecordBacked {
+		t.Fatal("random_pet is expected to be RecordBacked")
+	}
+	if ComponentsUnknown(rbRow, cty.EmptyObjectVal) {
+		t.Errorf("ComponentsUnknown = true for a RecordBacked row; want false")
+	}
+}

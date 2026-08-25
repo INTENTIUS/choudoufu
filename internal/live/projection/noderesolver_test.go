@@ -371,3 +371,49 @@ func hasDiagSummary(diags tfdiags.Diagnostics, summary string) bool {
 	}
 	return false
 }
+
+// TestNodeResolver_UnknownIdentityAttributeNeverRefuses is
+// corpus-dynamodb-table-basic's own greenfield wall (GitHub issue #388's
+// plan-node seam): a genuinely new estate's first apply, where a
+// CONFIG-IDENTIFIED type's own identity argument reads a sibling
+// ([identity.ClassRecordBacked] in the static evaluator's own terms) that
+// has not been created yet in THIS run - aws_dynamodb_table.this[0]'s
+// `name` reading random_pet.this.id before random_pet exists. The node's
+// real evaluated value therefore carries `name` as cty.UnknownVal, not
+// null and not a mismatched string - contrast
+// TestNodeResolver_NoSourceDefaultRefuses, which is the same type and the
+// same missing-identity outcome, but from every alternative being
+// genuinely ABSENT (null), the shape ruling 4 (#365) means to refuse.
+// There is no candidate identity string here for a real, undiscovered
+// object to have collided with, so this must resolve exactly like a
+// server-assigned or record-backed type reaching this function with
+// nothing to answer: found=false, no diagnostic, stock's own create
+// behavior applies - never the "No source for this instance's identity"
+// refusal, and never a fabricated target either.
+func TestNodeResolver_UnknownIdentityAttributeNeverRefuses(t *testing.T) {
+	addr := locatedTestAddr(t, "aws_dynamodb_table", "this")
+	resolver := &NodeResolver{}
+
+	val := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.UnknownVal(cty.String),
+	})
+
+	target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, val, providers.Schema{})
+	if diags.HasErrors() {
+		t.Fatalf("a genuinely new instance whose identity argument reads a not-yet-applied sibling must never be refused: %s", diags.Err())
+	}
+	if found {
+		t.Fatalf("nothing should have been found for an unknown identity attribute: target=%#v", target)
+	}
+
+	// The toggle changes nothing here: this shape was never ruling 4's
+	// ambiguous case to begin with, so NoSourceCreate is inert over it.
+	resolver2 := &NodeResolver{NoSourceCreate: true}
+	target2, found2, diags2 := resolver2.ResolveResourceIdentity(context.Background(), addr, val, providers.Schema{})
+	if diags2.HasErrors() {
+		t.Fatalf("unexpected diagnostics with NoSourceCreate=true: %s", diags2.Err())
+	}
+	if found2 {
+		t.Fatalf("nothing should have been found with NoSourceCreate=true either: target=%#v", target2)
+	}
+}
