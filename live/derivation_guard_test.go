@@ -124,8 +124,21 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"this pair' from outside iamServiceLinkedRoleSibling) and moved both literals from a local const inside " +
 			"the function to the two package-level consts iamRoleTypeName/iamServiceLinkedRoleTypeName so the second " +
 			"reader could name the pair by identifier rather than retyping it - Code fell to 0 and Data rose to 2 " +
-			"with no new literal surface.",
-		Data: 2, Code: 0,
+			"with no new literal surface. gauntlet:record-located-destroy (corpus-rds-complete-postgres's day2_remove " +
+			"unit) added a second such pair the identical way: rdsClusterInstanceSibling names aws_db_instance and " +
+			"aws_rds_cluster_instance, via the two package-level consts awsDBInstanceTypeName/" +
+			"awsRDSClusterInstanceTypeName, for the same reason - live/mapping.json joins both to one CFN type " +
+			"(AWS::RDS::DBInstance, an Aurora cluster member IS an RDS DB instance in AWS's own model, not a distinct " +
+			"resource kind, so RDS has one DescribeDBInstances call covering both), and the pair fails " +
+			"sameRatifiedIdentity for real (aws_db_instance reads ['identifier']; aws_rds_cluster_instance reads " +
+			"['id','identifier']), so it needs the same hand-verified pair, not a generic derivation, exactly as " +
+			"iamServiceLinkedRoleSibling's own pair does. Measured against live/mapping.json (2026-08-25): 21 CFN " +
+			"types map more than one admitted TF type (46 types total, most of them aws_alb_*/aws_lb_* naming " +
+			"aliases already excluded from this shape elsewhere) - each remaining pair needs its own " +
+			"sameRatifiedIdentity verification before it could fold in here too, which is why this stays a " +
+			"hand-verified pair-by-pair registry rather than a blanket same-CFN-type rule. Data rose to 4, Code " +
+			"stayed 0.",
+		Data: 4, Code: 0,
 	},
 	"internal/live/foreign/classify.go": {
 		Reason: "foreign-resource matchTable: which argument makes a live resource the one a declared block means. Each entry's " +
@@ -390,7 +403,16 @@ const (
 	// from outside iamServiceLinkedRoleSibling) can name it by identifier
 	// rather than retyping the two literals a second time. Two literals
 	// moved from Code to Data, none added or deleted.
-	typeLiteralDataTotal = 438
+	// 438 -> 440 data, 2026-08-25 (gauntlet:record-located-destroy,
+	// corpus-rds-complete-postgres's day2_remove unit): internal/live/discovery/
+	// discovery.go gains a second overlapping-list-call companion pair,
+	// rdsClusterInstanceSibling (aws_db_instance / aws_rds_cluster_instance,
+	// the same shape iamServiceLinkedRoleSibling's own pair is), named via
+	// two new package-level consts, awsDBInstanceTypeName and
+	// awsRDSClusterInstanceTypeName, following the identical Data-not-Code
+	// precedent the entry above already set. Two Data literals added, no
+	// Code, nothing moved.
+	typeLiteralDataTotal = 440
 	typeLiteralCodeTotal = 126
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

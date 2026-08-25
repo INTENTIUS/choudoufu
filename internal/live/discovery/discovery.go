@@ -1780,7 +1780,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// call that happened to surface it - says which declared
 			// instance it is.
 			overlappingListCall := defaultAdopterSiblings(markerType, typeName) ||
-				iamServiceLinkedRoleSibling(markerType, typeName)
+				iamServiceLinkedRoleSibling(markerType, typeName) ||
+				rdsClusterInstanceSibling(markerType, typeName)
 			switch {
 			case overlappingListCall && sameRatifiedIdentity(markerType, typeName):
 				// The two names agree about what this type's import
@@ -2112,6 +2113,41 @@ const (
 	iamServiceLinkedRoleTypeName = "aws_iam_service_linked_role"
 )
 
+// rdsClusterInstanceSibling reports whether a and b are aws_db_instance and
+// aws_rds_cluster_instance, in either order - found via corpus-rds-complete-
+// postgres's day2_remove unit, the third instance of the same "AWS itself
+// has no separate list call for the special case" shape
+// [iamServiceLinkedRoleSibling] names: live/mapping.json joins both TF types
+// to the one CFN type AWS::RDS::DBInstance (via "alias", confirmed against
+// both rows), because an Aurora cluster member IS an RDS DB instance in
+// AWS's own model, not a distinct resource kind - RDS has one
+// DescribeDBInstances call, and it returns cluster members and standalone
+// instances alike with nothing to tell them apart at the list level.
+//
+// Not folded into [defaultAdopterSiblings]: that function's safety proof is
+// "same ImportSyntax, same IdentityAttrs", and this pair fails it for real -
+// aws_db_instance's ratified row reads ["identifier"], aws_rds_cluster_
+// instance's reads ["id", "identifier"] (confirmed against live/survey-
+// full.json's ratified table) - so [sameRatifiedIdentity] answers false and
+// [scanType]'s caller has to recompose the identity under bindType's own
+// scheme via [importIdentityFromResource] rather than carry typeName's
+// forward, exactly as it already does for the other two pairs this same
+// predicate shape covers.
+func rdsClusterInstanceSibling(a, b string) bool {
+	return (a == awsDBInstanceTypeName && b == awsRDSClusterInstanceTypeName) || (a == awsRDSClusterInstanceTypeName && b == awsDBInstanceTypeName)
+}
+
+// awsDBInstanceTypeName and awsRDSClusterInstanceTypeName are
+// [rdsClusterInstanceSibling]'s one admitted pair, named once for the same
+// reason [iamRoleTypeName]/[iamServiceLinkedRoleTypeName] are: the
+// derivation guard counts a literal occurrence, and a second hand-typed
+// copy of either string would read as a second hand-wired surface for the
+// one fact this const pair already carries a reason for.
+const (
+	awsDBInstanceTypeName         = "aws_db_instance"
+	awsRDSClusterInstanceTypeName = "aws_rds_cluster_instance"
+)
+
 // importIdentityFromResource composes bindType's own import identity from a
 // listed object's full resource attributes, for the overlapping-list-call
 // cases where the importID [importIdentity] already composed under the listing
@@ -2214,11 +2250,13 @@ const (
 //     markerType.
 //
 // typeNeedsResourceObjectToRecompose reports whether typeName is one side
-// of an admitted companion pair ([defaultAdopterSiblings] or
-// [iamServiceLinkedRoleSibling]) whose ratified rows disagree about the
-// import identity ([sameRatifiedIdentity] false) - aws_route_table/
-// aws_default_route_table (issue #332) and aws_iam_role/
-// aws_iam_service_linked_role (issue #302) today.
+// of an admitted companion pair ([defaultAdopterSiblings],
+// [iamServiceLinkedRoleSibling] or [rdsClusterInstanceSibling]) whose
+// ratified rows disagree about the import identity ([sameRatifiedIdentity]
+// false) - aws_route_table/aws_default_route_table (issue #332),
+// aws_iam_role/aws_iam_service_linked_role (issue #302) and
+// aws_db_instance/aws_rds_cluster_instance (corpus-rds-complete-postgres's
+// day2_remove unit) today.
 //
 // Binding the shared object under such a pair needs
 // [importIdentityFromResource] to recompose the OTHER side's identity from
@@ -2238,6 +2276,9 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 		return !sameRatifiedIdentity(typeName, def)
 	}
 	if typeName == iamRoleTypeName || typeName == iamServiceLinkedRoleTypeName {
+		return true
+	}
+	if typeName == awsDBInstanceTypeName || typeName == awsRDSClusterInstanceTypeName {
 		return true
 	}
 	return false
