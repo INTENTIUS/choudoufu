@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "8bbd0833aeb97955d8aa3771a99a37d1722c0e40",
+  "commit": "cfbf39f534c8511466d443087298b2ea2eb25859",
   "emulator": "ghcr.io/lex00/floci@sha256:80fedce33f0eaabf8dd2b197f1c7695d9ae671cc6f5c5374e90ecc58e6dfcc17",
-  "generated": "2026-08-25T11:31:32Z",
+  "generated": "2026-08-25T12:57:04Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -360,15 +360,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8149b2fdcc88a9bdaaaa7377ce331955606a1e5e",
-        "date": "2026-08-25T10:50:22Z",
+        "commit": "cfbf39f534c8511466d443087298b2ea2eb25859",
+        "date": "2026-08-25T13:03:29Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
           "day2_remove": "choudoufu: deleting module.default's block proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle's own count and applied cleanly; the live ASG count dropped by exactly one and the tagged object count dropped too, both confirmed via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same module",
           "day2_rename": "moved block: module.asg_sg renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
-          "greenfield": "the greenfield apply failed - see live/gauntlet/logs/corpus-autoscaling-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)",
+          "greenfield": "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): aws_ec2_capacity_reservation.targeted will be updated in-place;. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. 68/68 objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap. Confirmed floci emulator gap, fixed and pushed to origin, not yet repinned: lex00/floci#137 / PR lex00/floci#138 (CreateCapacityReservation drops inline tags sent as the plural TagSpecifications.N.*, which is what a real terraform-aws-provider apply sends for this one action).",
           "migrate": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 41 objects carry tofu-estate=autoscaling-complete-crossing",
           "test_apply": "genuine no-op: 41 objects before, 41 after, no state file either time",
           "test_plan": "empty plan; identity re-check unchanged: module.complete.aws_launch_template.this:0, aws_iam_role.ssm"

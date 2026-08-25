@@ -921,9 +921,22 @@ log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ENDPOINT (STAGE 1's own plain
 
 copy_estate "$WORK/green"
 emulator_delta "$GREEN"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN/versions.tf"
+# strict { no_source_create = "create" } on the greenfield delta: found
+# necessary while re-verifying this stage under CHOUDOUFU_NODE_RESOLVE's
+# default flip (2026-08-25) - a genuinely cold apply refuses config-
+# identified instances whose identity value depends on a Cloud property
+# (aws_sqs_queue's account-id segment; account ID is not discoverable from
+# an empty account's own listings, see identity.CloudContext's own doc
+# comment) the node seam is not wired to answer (#365 ruling 4's default
+# refusal of that same "cannot yet tell genuinely new from real" ambiguity,
+# reached here through a different component shape than the aws_route
+# unknown-value case #388's node-seam fix already exempts unconditionally).
+# A greenfield apply is the one case an operator KNOWS every such instance
+# is a real create. Same fix, same precedent as corpus-alb-complete's own
+# 898091b8f2 and corpus-ec2-instance-complete's own equivalent.
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n\n    strict {\n      no_source_create = "create"\n    }\n  }\n}/' "$GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf"
-log "  DELTA  emulator flags + provider pin + live block (record_store, same reason as \$ADOPTED - main.tf:889's provisioner)"
+log "  DELTA  emulator flags + provider pin + live block (record_store, same reason as \$ADOPTED - main.tf:889's provisioner; strict.no_source_create=create for #388's default-flip greenfield ambiguity)"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -970,7 +983,25 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
   # honestly rather than retried into passing.
   NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
-  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
+  EMULATOR_NOTE=""
+  if grep -q 'aws_ec2_capacity_reservation' <<< "$NONEMPTY_ITEMS"; then
+    # Confirmed by reading the AWS CLI directly against this same
+    # floci image with no tofu in the loop: a genuine choudoufu CREATE
+    # of aws_ec2_capacity_reservation (tags declared or not) never
+    # writes any tags at all, while a subsequent update or a plain
+    # `aws ec2 create-tags` on the same object round-trips fine - the
+    # AWS provider sends this one action's inline tags under
+    # TagSpecifications.N.* (plural), every other action's handler in
+    # floci only ever reads TagSpecification.N.* (singular), so this
+    # object's create-time marker is silently dropped. Row 4 of
+    # HANDOFF's five-row table: fixed at floci's own level
+    # (lex00/floci#137, PR lex00/floci#138, branch
+    # fix/car-tag-specifications-plural, pushed to origin), not yet
+    # repinned here - that is the orchestrator's shared-layer batch,
+    # not this script's to do.
+    EMULATOR_NOTE=" Confirmed floci emulator gap, fixed and pushed to origin, not yet repinned: lex00/floci#137 / PR lex00/floci#138 (CreateCapacityReservation drops inline tags sent as the plural TagSpecifications.N.*, which is what a real terraform-aws-provider apply sends for this one action)."
+  fi
+  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.$EMULATOR_NOTE"
   CURRENT_STAGE=""
   docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   SKIP_GREENFIELD_REST=1
