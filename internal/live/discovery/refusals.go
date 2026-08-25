@@ -66,6 +66,10 @@ var refusals = []Refusal{
 		Doc:     `live/LIMITATIONS.md, "overlong-address"`,
 	},
 	{
+		Summary: "Cannot list the record store",
+		What:    "The record-orphan-read leg (issue #364 ruling item 1) could not list the estate's record store to find untaggable resources whose configuration block was removed - an unreachable store, or a permissions problem underneath it.",
+	},
+	{
 		Summary: "Cloud Control identifier could not be composed",
 		What:    "A live resource was listed, but the primary identifier Cloud Control needs to describe it could not be assembled from what the list returned.",
 	},

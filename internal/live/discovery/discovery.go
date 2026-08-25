@@ -449,6 +449,13 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		// untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(ctx, req, schemas, res))
+		// The record-orphan-read leg (issue #364 ruling item 1's removal
+		// half) runs last of the three: it needs res.Resolutions AND
+		// res.Unbound settled the same way classifyOrphans's own
+		// rename-safety check does. See
+		// internal/live/discovery/recordorphan_read.go's package doc
+		// comment.
+		diags = diags.Append(recordOrphanReadSweep(ctx, req, schemas, res))
 	}
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal
@@ -3023,6 +3030,7 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemLocatedRecordUnreadable: "Located identity record unreadable",
 	ProblemUnresolvedAccount:       "No AWS account ID from the provider",
 	ProblemListFailed:              "Failed to list a resource type",
+	ProblemRecordStoreListFailed:   "Cannot list the record store",
 	ProblemUncomposableIdentifier:  "Cloud Control identifier could not be composed",
 	ProblemAmbiguousUniqueName:     "Unique name matched more than one resource",
 	ProblemUnreadableUniqueName:    "Listed resource with no readable name",

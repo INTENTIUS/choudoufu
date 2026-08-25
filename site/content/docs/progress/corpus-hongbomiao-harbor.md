@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Not clear yet.**
+**Clear.** Every active stage passes.
 
 | Stage | Verdict | Detail |
 |---|---|---|
@@ -22,16 +22,16 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | No-op apply | pass | genuine no-op: 2 objects before, 2 after, no state file either time |
 | Drift and reconverge | pass | the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_hm_harbor.aws_s3_bucket.main |
 | Rename | pass | moved block: module.s3_bucket_hm_harbor renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.harbor_iam_user renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | not run |  |
+| Remove a block | pass | choudoufu: deleting module.harbor_iam_user_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent user), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the user is genuinely gone from the live account (iam get-user on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
 | Crash between create and destroy (planned) | not run |  |
 | Teardown (planned) | not run |  |
 | Plan, review, apply (planned) | not run |  |
-| Greenfield apply | not run |  |
+| Greenfield apply | pass | 3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `17918d156f` on 2026-08-25T02:09:35Z, exit code 0.
+Last run at commit `49c6203086` on 2026-08-25T03:38:06Z, exit code 0.
 
 Landed 2026-08-19, the sixth estate in the OpenTofu-native lane and the fourth to clear all five stages. Sourced per HANDOFF's own suggestion to scope a second (here, third) disjoint slice of the already-crossed hongbomiao monorepo before a fresh search. Surveyed every remaining AWS environment: network/main.tofu is pure data sources (nothing to migrate); kubernetes/main.tofu builds a full terraform-aws-modules/eks cluster and every IAM module in it but one (velero_iam_role, mimir_iam_role, loki_iam_role, tempo_iam_role, label_studio_iam_role, etc., 15 total) takes amazon_eks_cluster_oidc_provider(_arn) from that same cluster - the same scope/risk class as the terraform-popular lane's already-blocked terraform-aws-eks examples/basic crossing. The one exception, the "Harbor" section (S3 bucket + IAM user + inline user policy), needs no EKS cluster, no OIDC provider, no remote state at all - self-contained like storage's own scoped slice. Nebius/Cloudflare/Snowflake environments confirmed to still exist and be real, actively-maintained infrastructure, but target non-AWS clouds floci cannot emulate. Crosses aws_iam_user/aws_iam_user_policy, a genuinely different resource pair from Labelbox's aws_iam_role/aws_iam_role_policy - both already-ratified DefaultTable rows, no schema-fallback warning. All five stages verified for real against a live floci container: cold_deploy (tofu apply, 3 resources created, confirmed 0 pre-existing tofu-estate tags), migrate (live-import verified 2 of 3 eligible - bucket + user - 1 correctly UNTAGGABLE - the inline policy; markers re-read via AWS CLI matched: module.s3_bucket_hm_harbor.aws_s3_bucket.main, module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user), test_plan (state deleted, live-plan empty, identities re-verified against the AWS CLI including the inline policy's resource ARN read directly off the live object), test_apply (genuine no-op, 2 tagged objects before and after), drift_reconverge (bucket tag tampered out of band, plan proposed fixing exactly that one object, reconverge apply restored it). BREAK=1 verified load-bearing, failing exactly at the stage-2 identity assertion. No floci or choudoufu gaps found - this crossing is clean. Merged to local main as ad2cf81cf3 (crossing itself: 0c4e16af6a); justfile gained recipe demo-corpus-hongbomiao-harbor (port 4728); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin.
 

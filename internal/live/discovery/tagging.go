@@ -204,6 +204,22 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		// stage's own Break control (live/GAUNTLET.md #6) went silent
 		// instead of failing loud.
 		"policy": single("AWS::IAM::Policy"),
+		// A user's ARN resource-type segment is "user"
+		// (arn:aws:iam::ACCOUNT:user/PATH/NAME), unambiguous the same way
+		// "policy" above is - IAM has no second CFN type sharing "user".
+		// live/mapping.json's row for aws_iam_user names its CFN type
+		// "AWS::IAM::User". Found the same way "policy" was: a bare
+		// aws_iam_user, renamed with no moved block and its old module
+		// block then deleted (corpus-hongbomiao-harbor's day2_remove unit),
+		// left the orphaned live user with nothing to propose destroying
+		// it - the estate-wide sweep could read the ARN but not join it to
+		// any CFN type, so the object it should have found never entered
+		// classifyOrphans at all. Composite children with no ARN of their
+		// own (aws_iam_user_policy, aws_iam_user_policy_attachment,
+		// aws_iam_user_group_membership - all "fold_parent":
+		// "AWS::IAM::User" in live/mapping.json) need no row here, per this
+		// table's own doc comment.
+		"user": single("AWS::IAM::User"),
 	},
 	"s3":  {"": single("AWS::S3::Bucket")},
 	"sns": {"": single("AWS::SNS::Topic")},

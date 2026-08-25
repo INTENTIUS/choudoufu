@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "17918d156f5e5cfd8894331270d45e795bcfc3a3",
+  "commit": "49c6203086871ea239780e703bf309f7e47a96f4",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T02:08:43Z",
+  "generated": "2026-08-25T03:36:35Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -153,9 +153,9 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "migrate": {
           "pass": 26,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 1,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -230,9 +230,9 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "migrate": {
           "pass": 25,
@@ -636,28 +636,30 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "17918d156f5e5cfd8894331270d45e795bcfc3a3",
-        "date": "2026-08-25T02:09:35Z",
+        "commit": "49c6203086871ea239780e703bf309f7e47a96f4",
+        "date": "2026-08-25T03:38:06Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-harbor-crossing before migration",
+          "day2_remove": "choudoufu: deleting module.harbor_iam_user_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent user), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the user is genuinely gone from the live account (iam get-user on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.s3_bucket_hm_harbor renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.harbor_iam_user renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_hm_harbor.aws_s3_bucket.main",
+          "greenfield": "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared",
           "migrate": "2 of 3 stamped (bucket, user), 1 UNTAGGABLE (inline policy); bucket hongbomiao-harbor-crossing-hm-harbor -> tofu-address=module.s3_bucket_hm_harbor.aws_s3_bucket.main, user hongbomiao-harbor-crossing-hm-harbor-user -> tofu-address=module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user",
           "test_apply": "genuine no-op: 2 objects before, 2 after, no state file either time",
           "test_plan": "empty plan; identity re-check: bucket and user tofu-address unchanged, inline policy's resource ARN still matches the configuration"
