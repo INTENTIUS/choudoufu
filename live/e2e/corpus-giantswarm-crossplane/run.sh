@@ -982,8 +982,25 @@ EOF
     fi
     REMOVE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
     REMOVE_N="$(printf '%s\n' "$REMOVE_CHANGES" | grep -c . || true)"
+    # A real, named wall (HANDOFF row 2: the plans differ), reproduced
+    # directly with no tofu in the loop: with module.crossplane_final's
+    # block deleted, this estate's root config declares literally ZERO
+    # resource or module blocks (it is the only module call this estate
+    # has - see this script's own header). A standalone repro (apply this
+    # exact config, delete the module block, choudoufu live-plan again,
+    # nothing else involved) reproduces the same "No changes" answer even
+    # though all 6 objects this estate's tofu-estate tag still marks are
+    # genuinely live - discovery's estate-wide sweep does not fire when
+    # the configuration it is walking declares nothing at all, an edge
+    # case distinct from corpus-ecs-fargate's own day2_remove finding in
+    # this same batch (there, 61 OTHER resources stayed declared
+    # elsewhere in the same estate, so the sweep DID run and only the
+    # composed-of-arguments untaggable children it swept for were
+    # missed). Whether these two symptoms share one root cause or are two
+    # separate gaps is not established here; both are real, both are
+    # named, neither is fixed in this script-only unit.
     grep -qF "module.crossplane_final.aws_iam_role.giantswarm_crossplane_role will be destroyed" <<< "$REMOVE_CHANGES" \
-      || { printf '%s\n' "$REMOVE_CHANGES"; fail "choudoufu does not destroy the role itself when module.crossplane_final's block is deleted"; }
+      || { printf '%s\n' "$REMOVE_CHANGES"; fail "choudoufu proposes no destroy at all for module.crossplane_final's block (not even the role itself, tagged though it is) - see the comment immediately above this assertion for the reproduced root cause (an estate whose configuration declares zero resource/module blocks is never swept for its own orphaned tagged objects)"; }
     [ "$REMOVE_CHANGES" = "$REMOVE_ORACLE_CHANGES" ] \
       || {
         printf 'choudoufu (%s):\n%s\nstock oracle (%s):\n%s\n' "$REMOVE_N" "$REMOVE_CHANGES" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_CHANGES"
