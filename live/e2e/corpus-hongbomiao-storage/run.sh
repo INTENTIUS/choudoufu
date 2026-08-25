@@ -550,31 +550,47 @@ if [ "${BREAK:-}" = "rename" ]; then
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
-  # Verified directly, reproduced identically across two isolated back-to-
-  # back runs: unlike corpus-hongbomiao-harbor's aws_iam_user (client-named,
-  # where the plan itself completes, RC 0), aws_kms_key has no user-set
-  # unique argument at all - only tags - so nothing in the renamed config
-  # can derive a candidate identity for the new address. What actually
-  # fires is a hard refusal, and about the OLD address, not the new one:
-  # "Two live resources claiming one address", naming
-  # module.kafka_kms_key.aws_kms_key.main as claimed by 2 live aws_kms_key
-  # resources - but BOTH entries the message prints are the SAME key id in
-  # the SAME region (e.g. "c922a3c2-... in us-west-2, c922a3c2-... in
-  # us-west-2"), not two different objects. That is worth a precise flag in
-  # the PR as its own possible defect (the ambiguity check likely fails to
-  # dedupe a record-derived candidate against a marker/tag-sweep-derived
-  # candidate that resolve to the identical live object) - not chased here
-  # (script-only unit). Whatever the exact cause, the refusal itself is the
-  # SAFE outcome HANDOFF's rule wants (a human stops here, no marker moves),
-  # so this control is genuinely load-bearing: the real checks below expect
-  # a clean, empty stock-equivalent plan, and this one refuses outright.
-  [ "$BREAK_PLAN_RC" -ne 0 ] \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited 0 - expected a refusal (see header)"; }
+  # GitHub issue #403 part 2. This estate declares its KMS key module under
+  # the DEFAULT "aws" provider while its sibling S3 bucket modules use the
+  # "aws.production" alias (see the provider blocks above) - a genuine
+  # multi-provider estate in internal/live/discovery's own terms (issue
+  # #69), even though both configurations point at the same region in this
+  # test. Before the #403 fix, renaming the KMS key's module without a
+  # moved block made TWO discovery passes independently find the SAME live
+  # key as an orphan under its old address - the pass that declares
+  # aws_kms_key, via its own native scan, and the pass that does not, via
+  # its own sweep - and Merge's crossProviderOrphanCollisions treated any
+  # address two distinct passes agreed on as a cross-region ownership
+  # collision without checking whether they were the SAME live object. The
+  # refusal that produced ("Two live resources claiming one address",
+  # printing this one key's id twice) was itself the safe outcome HANDOFF's
+  # rule wants, but the diagnostic was wrong: an import ID identifies one
+  # physical object, so agreement on one ID from two passes can never be
+  # the two-different-objects ambiguity that message describes.
+  #
+  # Fixed, discovery now dedupes by live import ID before deciding whether
+  # a cross-provider collision exists at all: with only one live object in
+  # play, this reduces to exactly corpus-hongbomiao-harbor's own
+  # aws_iam_user rename shape (a still-marked live object under an address
+  # nothing declares any more, with a declared-but-unclaimed sibling
+  # instance at the new address) - a clean plan, RC 0, that proposes
+  # CREATING the renamed instance and never proposes destroying the old
+  # marked object. Verified directly, stable across repeated runs, and
+  # covered independently at the unit level by
+  # TestMergeSameLiveObjectAcrossPassesIsNotACollision and
+  # TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename
+  # (internal/live/discovery/multiprovider_test.go).
+  [ "$BREAK_PLAN_RC" -eq 0 ] \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan exited $BREAK_PLAN_RC - expected a clean exit now that the same live object is no longer misreported as two colliding claimants (see the PR, GitHub issue #403)"; }
+  grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the plan proposes destroying the live KMS key under its old address - a wrong marker could have been written"; }
   grep -qF "Two live resources claiming one address" <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: renaming without a moved block did not refuse with the expected marker-ambiguity error - this stage's check is not load-bearing"; }
-  grep -qF "module.kafka_kms_key.aws_kms_key.main" <<< "$BREAK_PLAN_OUT" \
-    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the refusal did not name the KMS key's old address"; }
-  log "  BREAK=rename: correctly refuses (module.kafka_kms_key.aws_kms_key.main: \"Two live resources claiming one address\" - see the PR for the duplicate-id detail worth a follow-up) - the moved-block and live-mv checks below are skipped"
+    && { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=rename: the plan still reports the fixed one-live-object-two-passes collision - the #403 dedup regressed"; }
+  grep -qE '^  # module\.kafka_kms_key_renamed\.aws_kms_key\.main will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block neither refused nor proposed creating the renamed instance - this stage's check is not load-bearing"; }
+  grep -qF ', 0 to destroy.' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -10; fail "BREAK=rename: the plan proposes a destroy"; }
+  log "  BREAK=rename: never destroys the live KMS key's old marker; proposes creating module.kafka_kms_key_renamed.aws_kms_key.main, same shape as corpus-hongbomiao-harbor's aws_iam_user rename - proves the moved-block/live-mv checks below are load-bearing (see the PR, GitHub issue #403, for the dedup fix)"
 else
   log "=== D1. choudoufu, moved block: module hm_production_bucket -> hm_production_bucket_renamed ==="
   sed -i.bak 's/module "hm_production_bucket" {/module "hm_production_bucket_renamed" {/' "$ESTATE/main.tofu"
