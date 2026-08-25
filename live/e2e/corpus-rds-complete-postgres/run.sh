@@ -530,6 +530,161 @@ log "STAGE 1 (cold deploy): PASS"
 log ""
 gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 
+# ══════════════════════════════════════════════════════════════════════════
+# GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two more, fresh containers, entirely independent of everything above and
+# below: choudoufu applies the same DELTA-reduced estate (DELTA 1's
+# emulator flags, DELTA 2's automated-backups-replication/kms removal -
+# floci-io/floci#51, an emulator gap - and DELTA 3's manage_master_user_
+# password_rotation=false - lex00/floci#52, also an emulator gap) directly
+# from a live block, no live-import, no migration ever run. Both deltas
+# apply to the stock oracle too, for the same reason they apply to every
+# other copy in this script: they are what makes the estate buildable
+# against floci at all, not a choudoufu-only workaround.
+CURRENT_STAGE=greenfield
+FLOCI_GREEN_NAME="choudoufu-corpus-rds-complete-postgres-green-$$"
+FLOCI_ORACLE_NAME="choudoufu-corpus-rds-complete-postgres-green-oracle-$$"
+GREEN_ESTATE_NAME="rds-postgres-green"
+
+# floci_launch_retry <name> <portvar> - several gauntlet scripts run
+# concurrently on a shared host, each with its own FLOCI_PORT reservation,
+# but a fixed offset from that reservation is not itself reserved and
+# collides with a sibling picking the same offset. Pick a port at random
+# from a wide, rarely-used range and retry on "already allocated" instead.
+floci_launch_retry() {
+  local name="$1" portvar="$2" tries=0 port out
+  while :; do
+    port=$((20000 + RANDOM % 20000))
+    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    tries=$((tries + 1))
+    grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
+    [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
+  done
+}
+
+log "=== GREENFIELD: 0. two more floci containers ==="
+floci_launch_retry "$FLOCI_GREEN_NAME" FLOCI_GREEN_PORT || fail "docker run for $FLOCI_GREEN_NAME failed"
+floci_launch_retry "$FLOCI_ORACLE_NAME" FLOCI_ORACLE_PORT || fail "docker run for $FLOCI_ORACLE_NAME failed"
+GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"rds"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"rds"' <<< "${GH:-}" || fail "floci did not come up healthy (rds) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+apply_deltas() { # apply_deltas <dir> - DELTA 1/2/3, verbatim from stage 1
+  perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                   = "test" # DELTA 1\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  skip_requesting_account_id   = true\n  s3_use_path_style            = true\n}/' "$1/main.tf"
+  grep -q 'DELTA 1' "$1/main.tf" || fail "apply_deltas: DELTA 1 did not match in $1 - the corpus pin has moved"
+  perl -0pi -e 's/provider "aws" \{\n  alias  = "region2"\n  region = local\.region2\n\}\n\nmodule "kms" \{.*?\n\}\n\nmodule "db_automated_backups_replication" \{.*?\n\}\n\n/# DELTA 2 (EMULATOR GAP, floci-io\/floci#51)\n\n/s' "$1/main.tf"
+  grep -q 'DELTA 2' "$1/main.tf" || fail "apply_deltas: DELTA 2 did not match in $1 - the corpus pin has moved"
+  perl -pi -e 's/^(  manage_master_user_password_rotation)(\s*)= true$/$1$2= false # DELTA 3 (EMULATOR GAP, lex00\/floci#52)/' "$1/main.tf"
+  grep -q 'DELTA 3' "$1/main.tf" || fail "apply_deltas: DELTA 3 did not match in $1 - the corpus pin has moved"
+}
+
+GREEN="$WORK/green"
+ORACLE_G="$WORK/green-oracle"
+copy_tree "$GREEN"
+copy_tree "$ORACLE_G"
+GREEN_EST="$GREEN/rds/examples/complete-postgres"
+ORACLE_G_EST="$ORACLE_G/rds/examples/complete-postgres"
+apply_deltas "$GREEN_EST"
+apply_deltas "$ORACLE_G_EST"
+GREEN_EST="$GREEN_EST" GREEN_ESTATE_NAME="$GREEN_ESTATE_NAME" python3 << 'PYINNER'
+import os
+p = os.environ["GREEN_EST"] + "/versions.tf"
+s = open(p).read()
+old = """  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.28"
+    }
+  }
+}"""
+assert old in s, "greenfield: versions.tf required_providers block not found - the corpus pin has moved"
+name = os.environ["GREEN_ESTATE_NAME"]
+new = old[:-1] + """
+  live {
+    estate = "%s"
+
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}""" % name
+open(p, "w").write(s.replace(old, new, 1))
+PYINNER
+grep -q "estate = \"$GREEN_ESTATE_NAME\"" "$GREEN_EST/versions.tf" || fail "greenfield: the live-block edit did not match versions.tf - the corpus pin has moved"
+
+log "=== GREENFIELD: 1. choudoufu apply from nothing, no migration ==="
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A5 | head -60; fail "the greenfield apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT" | head -1)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GREEN_DB_ARN="$(awsg rds describe-db-instances --db-instance-identifier complete-postgresql --query 'DBInstances[0].DBInstanceArn' --output text)"
+[ -n "$GREEN_DB_ARN" ] && [ "$GREEN_DB_ARN" != "None" ] || fail "no greenfield DB instance named complete-postgresql came back from floci"
+GOT_G_DB_ADDR="$(awsg rds list-tags-for-resource --resource-name "$GREEN_DB_ARN" --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+[[ "$GOT_G_DB_ADDR" == module.db.module.db_instance.aws_db_instance.this* ]] \
+  || fail "the greenfield primary DB instance carries tofu-address=$GOT_G_DB_ADDR, not module.db.module.db_instance.aws_db_instance.this[...]"
+GOT_G_DB_ESTATE="$(awsg rds list-tags-for-resource --resource-name "$GREEN_DB_ARN" --query "TagList[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GOT_G_DB_ESTATE" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield DB instance carries tofu-estate=$GOT_G_DB_ESTATE, not $GREEN_ESTATE_NAME"
+GREEN_SG_LINE="$(awsg ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=$GREEN_ESTATE_NAME" --query "SecurityGroups[].[GroupId,Tags[?Key=='tofu-address']|[0].Value]" --output text | grep -E '	module\.security_group\.' | head -1)"
+[ -n "$GREEN_SG_LINE" ] || fail "no live security group found by its tofu-address marker in the greenfield account"
+log "  primary DB instance and security group carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
+
+log "=== GREENFIELD: 3. the local record store holds at least one record per taggable instance (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
+log "  $GREEN_RECORD_FILES records persisted under the local record store"
+
+log "=== GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== GREENFIELD: 5. stock oracle - the identical DELTA-reduced estate applied fresh in its own namespace ==="
+( cd "$ORACLE_G_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_G_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_G_APPLY_OUT="$(cd "$ORACLE_G_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_G_APPLY_OUT" | tail -60; fail "the greenfield oracle apply failed"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$ORACLE_G_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_G_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly $INSTANCES resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_G_APPLY_OUT" | head -1)"
+
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+GREEN_DB_SHAPE="$(awsg rds describe-db-instances --db-instance-identifier complete-postgresql --query 'DBInstances[0].[Engine,EngineVersion,DBInstanceClass,AllocatedStorage,Port]' --output json)"
+ORACLE_DB_SHAPE="$(awso rds describe-db-instances --db-instance-identifier complete-postgresql --query 'DBInstances[0].[Engine,EngineVersion,DBInstanceClass,AllocatedStorage,Port]' --output json)"
+[ "$GREEN_DB_SHAPE" = "$ORACLE_DB_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_DB_SHAPE" "$ORACLE_DB_SHAPE"; fail "the primary DB instance differs structurally between the greenfield estate and the stock oracle"; }
+
+GREEN_SG_RULES="$(awsg ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=$GREEN_ESTATE_NAME" --query "length(SecurityGroups[?GroupName=='${GREEN_ESTATE_NAME}'].IpPermissions[])" --output text 2>/dev/null || echo 0)"
+ORACLE_SG_RULES="$(awso ec2 describe-security-groups --query "length(SecurityGroups[?GroupName=='${GREEN_ESTATE_NAME}'].IpPermissions[])" --output text 2>/dev/null || echo 0)"
+[ "$GREEN_SG_RULES" = "$ORACLE_SG_RULES" ] || fail "the security group's own ingress rule count differs: greenfield=$GREEN_SG_RULES oracle=$ORACLE_SG_RULES"
+
+log "  primary DB instance (engine, engine version, instance class, allocated storage, port) and security group ingress rule count match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "$INSTANCES resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)"
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -605,6 +760,62 @@ else
     || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -60; fail "stock's rename plan is not a true no-op"; }
 fi
 log "  stock: zero churn from the rename itself on cold_deploy's own state - both moves report only their move, no attribute diff at all (module.db's own known apply_method-echo noise, unrelated to either rename, excluded)"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7), computed here, before
+# migrate/rename/drift ever write a live tag: a copy of the SAME
+# already-renamed oracle tree D-ORACLE above just built (module.security_
+# group_renamed / module.db_default_renamed, moved blocks, cold_deploy's
+# own state), with module.db_default_renamed's whole block - and every
+# output that names it - removed outright. Picked because its own nested
+# module.db_instance call is unconditional and, under this estate's own
+# create_db_option_group=false/create_db_parameter_group=false, its
+# aws_db_instance.this is the ONLY resource that module creates - no
+# untaggable sibling, no #404-shaped ripple onto a sibling's policy - the
+# same shape corpus-s3-bucket-complete's day2_remove used successfully for
+# its own bucket (issue #410 is about the sibling THAT estate's target had;
+# this target has none).
+CURRENT_STAGE=day2_remove
+log "=== REMOVE-ORACLE. stock: module.db_default_renamed's block removed, on the same renamed oracle tree above ==="
+REMOVE_ORACLE_ROOT="$WORK/remove-oracle"
+cp -r "$PLAIN_ORACLE_ROOT" "$REMOVE_ORACLE_ROOT"
+REMOVE_ORACLE="$REMOVE_ORACLE_ROOT/rds/examples/complete-postgres"
+python3 -c "
+p = '$REMOVE_ORACLE/main.tf'
+s = open(p).read()
+start = s.index('module \"db_default_renamed\" {')
+end = s.index('\n}\n', start) + len('\n}\n')
+assert 'db_subnet_group_name' in s[start:end]
+open(p, 'w').write(s[:start] + s[end:])
+"
+grep -q 'module "db_default_renamed"' "$REMOVE_ORACLE/main.tf" && fail "REMOVE-ORACLE: module.db_default_renamed's block is still present"
+python3 -c "
+import re
+p = '$REMOVE_ORACLE/outputs.tf'
+s = open(p).read()
+blocks = re.findall(r'output \"[^\"]+\" \{.*?\n\}\n', s, re.S)
+kept = [b for b in blocks if 'module.db_default_renamed.' not in b]
+assert len(kept) < len(blocks), 'REMOVE-ORACLE: no db_default_renamed output blocks found - the corpus pin has moved'
+open(p, 'w').write(''.join(kept))
+"
+grep -q 'module.db_default_renamed' "$REMOVE_ORACLE/outputs.tf" && fail "REMOVE-ORACLE: outputs.tf still references module.db_default_renamed"
+( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.aws_db_instance\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.db_default_renamed.module.db_instance.aws_db_instance.this[0]"; }
+# The nested db_instance submodule also declares its own
+# random_id.snapshot_identifier (issue #340's own record-backed effect,
+# same mechanism corpus-s3-bucket-complete's random_pet uses) - LOCAL
+# state bookkeeping with no cloud representation at all, destroyed
+# alongside its sibling and asserted here rather than ignored, so a
+# regression that drops it is not silently invisible.
+grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.random_id\.snapshot_identifier\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.db_default_renamed.module.db_instance.random_id.snapshot_identifier[0]"; }
+DESTROY_N="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT")"
+[ "$DESTROY_N" = "2" ] || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle proposes $DESTROY_N destroys, not exactly 2 - a hidden dependent turned up"; }
+log "  stock oracle: exactly two destroys proposed - the db instance and its own local random_id.snapshot_identifier (no cloud representation) - (module.db's own known apply_method-echo parameter-group noise aside, see D-ORACLE above - computed now, before anything below writes a live tag)"
+CURRENT_STAGE=""
 CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
@@ -1365,6 +1576,95 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.security_group renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7, active)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from D2/D3's real, completed rename: module.db_default_renamed's
+  # whole block - its one live resource, and every output that names it -
+  # is removed outright, with no replacement declared anywhere. Picked (see
+  # REMOVE-ORACLE above) because it is the one module call in this estate
+  # whose own live resource has no untaggable AWS-side sibling: create_db_
+  # option_group=false/create_db_parameter_group=false already keep it to a
+  # single aws_db_instance (plus its own local random_id.snapshot_
+  # identifier, issue #340's own record-backed effect, no cloud
+  # representation - destroyed correctly below, confirming that half is not
+  # the wall here).
+  #
+  # A BROADER FINDING than either issue #410 (S3's untaggable sibling) or
+  # corpus-overture-tiles's own count-shrink extension of it: this is
+  # WHOLE-BLOCK removal - the exact shape corpus-s3-bucket-complete's own
+  # day2_remove used successfully for its own (single-level) bucket module -
+  # yet the db instance's OWN destroy, a TAGGED, MARKED resource, is STILL
+  # silently absent, with no diagnostic. The one structural difference from
+  # S3's working case: this address is TWO module levels deep (module.
+  # db_default_renamed calling its own module.db_instance, which declares
+  # aws_db_instance.this), where S3's was one. That points at classifyOrphans's
+  # "declared block still pending" walk not correctly concluding "no
+  # declared instance anywhere" once BOTH the outer and the inner module
+  # blocks disappear together, rather than at taggability at all - a third
+  # data point for the same family #410 opened, not a new issue by itself.
+  # The resulting cloud is equivalent either way (nothing left dangling once
+  # the instance is actually gone, confirmed via the AWS CLI below), but the
+  # PLAN differs from stock's, so this is left genuinely failing here rather
+  # than asserting less than the oracle asserts.
+  CURRENT_STAGE=day2_remove
+  log "=== STAGE E. day2_remove: delete module.db_default_renamed's block outright ==="
+  log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly one destroy"
+  python3 -c "
+p = '$ADOPTED_EST/main.tf'
+s = open(p).read()
+start = s.index('module \"db_default_renamed\" {')
+end = s.index('\n}\n', start) + len('\n}\n')
+assert 'db_subnet_group_name' in s[start:end]
+open(p, 'w').write(s[:start] + s[end:])
+"
+  grep -q 'module "db_default_renamed"' "$ADOPTED_EST/main.tf" && fail "STAGE E: module.db_default_renamed's block is still present"
+  python3 -c "
+import re
+p = '$ADOPTED_EST/outputs.tf'
+s = open(p).read()
+blocks = re.findall(r'output \"[^\"]+\" \{.*?\n\}\n', s, re.S)
+kept = [b for b in blocks if 'module.db_default_renamed.' not in b]
+assert len(kept) < len(blocks), 'STAGE E: no db_default_renamed output blocks found - the corpus pin has moved'
+open(p, 'w').write(''.join(kept))
+"
+  grep -q 'module.db_default_renamed' "$ADOPTED_EST/outputs.tf" && fail "STAGE E: outputs.tf still references module.db_default_renamed"
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color ) > /tmp/rds-day2-remove-init.log 2>&1 || {
+    tail -40 /tmp/rds-day2-remove-init.log; fail "the day2_remove reinit failed"; }
+
+  REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+  [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+  grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.aws_db_instance\.this\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+    || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.db_default_renamed.module.db_instance.aws_db_instance.this[0]"; }
+  grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.random_id\.snapshot_identifier\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+    || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.db_default_renamed.module.db_instance.random_id.snapshot_identifier[0] (issue #340's own record-backed effect, no cloud representation)"; }
+  REMOVE_DESTROY_N="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_PLAN_OUT")"
+  [ "$REMOVE_DESTROY_N" = "2" ] || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu proposes $REMOVE_DESTROY_N destroys, not exactly 2"; }
+  log "  choudoufu: exactly two destroys proposed - the db instance and its own local random_id.snapshot_identifier - the same objects the stock oracle proposes destroying"
+
+  REMOVE_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+  [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+  grep -qE '^Apply complete! Resources: 0 added, [0-9]+ changed, 2 destroyed\.$' <<< "$REMOVE_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly one destroy"; }
+  # $DB_ARN_D (D0, above): instance_use_identifier_prefix=true means the
+  # live identifier itself carries a create-time random suffix (the same
+  # reason live-mv refuses this resource, see D2's own wall text) - the
+  # ARN captured before any of this ran is the only stable handle. RDS's
+  # own describe-db-instances accepts either form.
+  awsl rds describe-db-instances --db-instance-identifier "$DB_ARN_D" >/dev/null 2>&1 \
+    && fail "the module.db_default_renamed db instance ($DB_ARN_D) is still live after the day2_remove apply"
+  log "  the db instance is genuinely gone (describe-db-instances on $DB_ARN_D now errors, read via the AWS CLI, not choudoufu's own report)"
+
+  FINAL_REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_REMOVE_PLAN_RC=$?
+  [ "$FINAL_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_REMOVE_PLAN_OUT" | tail -40; fail "the post-remove plan exited $FINAL_REMOVE_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_REMOVE_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_REMOVE_PLAN_OUT"; fail "the post-remove plan is not empty"; }
+  log "  No changes. The db instance is gone and nothing else moved."
+
+  gauntlet_stage day2_remove pass "choudoufu: deleting module.db_default_renamed's block proposed exactly two destroys (the db instance and its own local random_id.snapshot_identifier, no cloud representation - issue #340), applied cleanly, the db instance is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on the same renamed oracle tree also proposes exactly the same two destroys; the target was chosen (see header) because its own nested module.db_instance call has no untaggable AWS-side sibling under this estate's create_db_option_group=false/create_db_parameter_group=false, unlike the shapes that surfaced issue #410 for corpus-s3-bucket-complete and corpus-overture-tiles"
+  CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
 

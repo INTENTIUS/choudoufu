@@ -154,8 +154,8 @@
         },
         "day2_remove": {
           "pass": 8,
-          "fail": 6,
-          "not_run": 12
+          "fail": 9,
+          "not_run": 9
         },
         "day2_rename": {
           "pass": 26,
@@ -178,9 +178,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 12,
+          "pass": 15,
           "fail": 3,
-          "not_run": 11
+          "not_run": 8
         },
         "migrate": {
           "pass": 26,
@@ -231,8 +231,8 @@
         },
         "day2_remove": {
           "pass": 8,
-          "fail": 6,
-          "not_run": 11
+          "fail": 9,
+          "not_run": 8
         },
         "day2_rename": {
           "pass": 25,
@@ -255,9 +255,9 @@
           "not_run": 0
         },
         "greenfield": {
-          "pass": 12,
+          "pass": 15,
           "fail": 3,
-          "not_run": 10
+          "not_run": 7
         },
         "migrate": {
           "pass": 25,
@@ -993,12 +993,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1008,13 +1008,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bed239dbb33b94d5559c8c968119aee06de3837c",
-        "date": "2026-08-25T00:04:20Z",
-        "exit_code": 0,
+        "commit": "38d6c2506127bc7b5c38220fafcd424093e91eef",
+        "date": "2026-08-25T04:04:36Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
+          "day2_remove": "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]",
           "day2_rename": "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot",
           "drift_reconverge": "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
+          "greenfield": "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact",
           "test_plan": "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
@@ -1035,12 +1037,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1050,13 +1052,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "73fc925b3f182ecce6d17b64d84381df8c4bf6b3",
-        "date": "2026-08-25T00:27:23Z",
-        "exit_code": 0,
+        "commit": "897df5510776b332efa348194b2f0099070d379f",
+        "date": "2026-08-25T04:27:14Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "39 resources, once for real",
+          "day2_remove": "choudoufu does not propose destroying module.db_default_renamed.module.db_instance.aws_db_instance.this[0]",
           "day2_rename": "moved block: module.security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "greenfield": "39 resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, 39 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)",
           "migrate": "26 of 39 stamped",
           "test_apply": "genuine no-op: 26 objects before, 26 after, no state file, primary DB instance marker unmoved",
           "test_plan": "genuinely empty replan (No changes. Your infrastructure matches the configuration.) with no local state file. lex00/floci#120's round-trip gap, this estate's last recorded wall, is CONFIRMED FIXED: round 8 (PR #128/ff815779, ghcr.io/lex00/floci:main-20260824d sha256:25fc9687, #124's RDS colliding-port isolation) closed the last of its eight fields for this estate - module.db_default's own port (module.db and module.db_default both declare port=5432, a genuine collision; module.db_default is the second-created instance and gets its own distinct loopback bind address with the declared port honored). The other seven fields (backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage) and the parameter block's apply_method were already fixed by earlier rounds (round 5 and round 6's own #120 passes) that this estate had not been re-crossed since - the artifact's recorded '3 in-place updates' detail was stale before this round's own fix even landed. Confirmed three independent ways, not merely inferred from the empty plan: a direct describe-db-parameters --source user probe of the live parameter group (autovacuum=1, client_encoding=utf8, matching config exactly, no tofu in the loop), a direct describe-db-instances probe of the second instance's own Endpoint.Port (5432, the declared port), and all eight attribute names individually confirmed absent from choudoufu's plan. INTENTIUS/choudoufu#393 (skip_final_snapshot's phantom true->false update) remains fixed, confirmed absent. Stock's own replan against its own never-deleted state file still shows tag noise plus the two parameter blocks; ruled out as a live discrepancy by the same direct API probe (informational only, not this stage's oracle - HANDOFF row 3, a property of that one state file's own apply-time fidelity)."
@@ -1077,12 +1081,12 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
+        "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
-        "greenfield": "not_run",
+        "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1092,13 +1096,15 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6d93053c6e20c7ebd58173e39ba0c92225ec7454",
-        "date": "2026-08-25T01:23:10Z",
-        "exit_code": 0,
+        "commit": "18c070d9c95deb3b30fdf659d605b4507bc81e03",
+        "date": "2026-08-25T03:46:02Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
+          "day2_remove": "choudoufu does not propose destroying module.simple_bucket_renamed.aws_s3_bucket_public_access_block.this[0] - the untaggable, parent-derived sibling stock also destroys (issue #410, see header)",
           "day2_rename": "moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action",
           "drift_reconverge": "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty",
+          "greenfield": "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, 26 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)",
           "migrate": "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed, 26 identities recorded (#364 unit A2); markers survived the residue-classification apply",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at 4",
           "test_plan": "no resource action proposed; 29 rendered identity occurrences (11 distinct), all naming known roots"

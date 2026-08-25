@@ -496,6 +496,149 @@ log ""
 gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarked"
 
 # ══════════════════════════════════════════════════════════════════════════
+# GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Two more, fresh containers, entirely independent of everything above and
+# below: choudoufu applies the SAME real, unmodified module directly from a
+# live block - no live-import, no migration, no state file ever existing -
+# and its stock oracle applies the identical module fresh in its own
+# namespace. Reuses copy_module/write_root exactly as PLAIN/ESTATE do
+# (skip_requesting_account_id=false on the greenfield side, for the same
+# #345 reason the header documents), so both copies are, byte for byte,
+# the same real module this whole script already diffs against DELTA.
+CURRENT_STAGE=greenfield
+FLOCI_GREEN_NAME="choudoufu-corpus-overture-tiles-green-$$"
+FLOCI_ORACLE_NAME="choudoufu-corpus-overture-tiles-green-oracle-$$"
+GREEN_ESTATE_NAME="overture-tiles-green" # kept <= ESTATE_NAME's own length: name_prefix's own 38-char cap (aws_iam_role.ecs_instance's "-ecs-instance-" suffix is the longest) already fits ESTATE_NAME exactly
+GREEN_BUCKET_NAME="${GREEN_ESTATE_NAME}-tiles"
+
+# floci_launch_retry <name> <portvar> - several gauntlet scripts run
+# concurrently on a shared host, each with its own FLOCI_PORT reservation,
+# but a fixed offset from that reservation is not itself reserved and
+# collides with a sibling picking the same offset. Pick a port at random
+# from a wide, rarely-used range and retry on "already allocated" instead.
+floci_launch_retry() {
+  local name="$1" portvar="$2" tries=0 port out
+  while :; do
+    port=$((20000 + RANDOM % 20000))
+    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    tries=$((tries + 1))
+    grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
+    [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
+  done
+}
+
+log "=== GREENFIELD: 0. two more floci containers ==="
+floci_launch_retry "$FLOCI_GREEN_NAME" FLOCI_GREEN_PORT || fail "docker run for $FLOCI_GREEN_NAME failed"
+floci_launch_retry "$FLOCI_ORACLE_NAME" FLOCI_ORACLE_PORT || fail "docker run for $FLOCI_ORACLE_NAME failed"
+GREEN_ENDPOINT="http://localhost.floci.io:${FLOCI_GREEN_PORT}"
+ORACLE_ENDPOINT="http://localhost.floci.io:${FLOCI_ORACLE_PORT}"
+for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
+  GH=""
+  for _ in $(seq 1 45); do
+    GH="$(curl -fs "${gep}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"s3"' <<< "${GH:-}" && break
+    sleep 2
+  done
+  grep -q '"s3"' <<< "${GH:-}" || fail "floci did not come up healthy (s3) at $gep"
+done
+log "  healthy: greenfield=$GREEN_ENDPOINT oracle=$ORACLE_ENDPOINT"
+
+GREEN="$WORK/green"
+ORACLE_G="$WORK/green-oracle"
+copy_module "$GREEN"
+copy_module "$ORACLE_G"
+
+# write_root's own module block hardcodes ESTATE_NAME/BUCKET_NAME via
+# closure over the SAME shell variables the rest of this script uses;
+# temporarily point them at the greenfield names for these two calls only.
+_SAVED_ESTATE_NAME="$ESTATE_NAME"; _SAVED_BUCKET_NAME="$BUCKET_NAME"
+ESTATE_NAME="$GREEN_ESTATE_NAME"; BUCKET_NAME="$GREEN_BUCKET_NAME"
+write_root "$GREEN" '
+
+  live {
+    estate = "'"$GREEN_ESTATE_NAME"'"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }' false
+write_root "$ORACLE_G" "" true
+ESTATE_NAME="$_SAVED_ESTATE_NAME"; BUCKET_NAME="$_SAVED_BUCKET_NAME"
+
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$GREEN/.terraform.lock.hcl"
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$ORACLE_G/.terraform.lock.hcl"
+
+log "=== GREENFIELD: 1. choudoufu apply from nothing, no migration ==="
+( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A5 | head -60; fail "the greenfield apply failed"; }
+grep -qE 'Apply complete! Resources: 26 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 26 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT" | head -1)"
+
+awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== GREENFIELD: 2. markers, read through the AWS CLI directly ==="
+GOT_G_BUCKET_ADDR="$(awsg s3api get-bucket-tagging --bucket "$GREEN_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_G_BUCKET_ADDR" = "module.overture_tiles.aws_s3_bucket.tiles:0" ] || fail "the greenfield S3 bucket carries tofu-address=$GOT_G_BUCKET_ADDR, not module.overture_tiles.aws_s3_bucket.tiles:0"
+GOT_G_BUCKET_ESTATE="$(awsg s3api get-bucket-tagging --bucket "$GREEN_BUCKET_NAME" --query "TagSet[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GOT_G_BUCKET_ESTATE" = "$GREEN_ESTATE_NAME" ] || fail "the greenfield S3 bucket carries tofu-estate=$GOT_G_BUCKET_ESTATE, not $GREEN_ESTATE_NAME"
+GREEN_QUEUE_ARN="$(awsg batch describe-job-queues --query "jobQueues[?jobQueueName=='${GREEN_ESTATE_NAME}-queue'].jobQueueArn | [0]" --output text)"
+[ -n "$GREEN_QUEUE_ARN" ] && [ "$GREEN_QUEUE_ARN" != "None" ] || fail "no job queue named ${GREEN_ESTATE_NAME}-queue came back from the greenfield floci"
+GOT_G_QUEUE_ADDR="$(awsg batch list-tags-for-resource --resource-arn "$GREEN_QUEUE_ARN" --query 'tags."tofu-address"' --output text)"
+[ "$GOT_G_QUEUE_ADDR" = "module.overture_tiles.aws_batch_job_queue.tiles" ] \
+  || fail "the greenfield Batch job queue carries tofu-address=$GOT_G_QUEUE_ADDR, not module.overture_tiles.aws_batch_job_queue.tiles"
+log "  bucket and batch job queue carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
+
+log "=== GREENFIELD: 3. the local record store holds at least one record per taggable instance (#364 A2) ==="
+GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
+log "  $GREEN_RECORD_FILES records persisted under the local record store"
+
+log "=== GREENFIELD: 4. the next plan proposes nothing ==="
+GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
+[ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
+  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+log "  No changes."
+
+log "=== GREENFIELD: 5. stock oracle - the identical module applied fresh in its own namespace ==="
+( cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+ORACLE_G_APPLY_OUT="$(cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_G_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
+grep -qE 'Apply complete! Resources: 26 added' <<< "$ORACLE_G_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_G_APPLY_OUT"; fail "the greenfield oracle apply did not create exactly 26 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$ORACLE_G_APPLY_OUT" | head -1)"
+
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== GREENFIELD: 6. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
+GREEN_QUEUE_STATE="$(awsg batch describe-job-queues --job-queues "$GREEN_QUEUE_ARN" --query 'jobQueues[0].state' --output text)"
+ORACLE_QUEUE_ARN="$(awso batch describe-job-queues --query "jobQueues[?jobQueueName=='${GREEN_ESTATE_NAME}-queue'].jobQueueArn | [0]" --output text)"
+[ -n "$ORACLE_QUEUE_ARN" ] && [ "$ORACLE_QUEUE_ARN" != "None" ] || fail "no job queue named ${GREEN_ESTATE_NAME}-queue came back from the oracle floci"
+ORACLE_QUEUE_STATE="$(awso batch describe-job-queues --job-queues "$ORACLE_QUEUE_ARN" --query 'jobQueues[0].state' --output text)"
+[ "$GREEN_QUEUE_STATE" = "$ORACLE_QUEUE_STATE" ] || fail "the Batch job queue's state differs: greenfield=$GREEN_QUEUE_STATE oracle=$ORACLE_QUEUE_STATE"
+
+GREEN_DIST_COMMENT="$(awsg cloudfront list-distributions --query "DistributionList.Items[0].Comment" --output text)"
+ORACLE_DIST_COMMENT="$(awso cloudfront list-distributions --query "DistributionList.Items[0].Comment" --output text)"
+[ -n "$GREEN_DIST_COMMENT" ] && [ "$GREEN_DIST_COMMENT" != "None" ] || fail "no CloudFront distribution came back from the greenfield floci"
+[ "$GREEN_DIST_COMMENT" = "$ORACLE_DIST_COMMENT" ] || fail "the CloudFront distribution's comment differs: greenfield=$GREEN_DIST_COMMENT oracle=$ORACLE_DIST_COMMENT"
+
+GREEN_BUCKET_COUNT="$(awsg s3api list-buckets --query 'length(Buckets)' --output text)"
+ORACLE_BUCKET_COUNT="$(awso s3api list-buckets --query 'length(Buckets)' --output text)"
+[ "$GREEN_BUCKET_COUNT" = "$ORACLE_BUCKET_COUNT" ] || fail "bucket count differs: greenfield=$GREEN_BUCKET_COUNT oracle=$ORACLE_BUCKET_COUNT"
+
+log "  Batch job queue state, CloudFront distribution comment and bucket count all match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
+gauntlet_stage greenfield pass "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)"
+CURRENT_STAGE=""
+
+docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
 #
@@ -557,6 +700,46 @@ grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
 grep -qE '^  # .+ will be updated' <<< "$ORACLE_PLAN_OUT" \
   && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes an in-place update for a rename that should be pure address bookkeeping under stock (stock writes no marker tags of its own)"; }
 log "  stock: zero churn on cold_deploy's own state - one module-level moved block covers every one of this module's 26 children, taggable and untaggable alike, no attribute diff at all"
+
+# day2_remove's stock oracle (live/GAUNTLET.md #7), computed here on a
+# FOURTH copy of cold_deploy's own state, before migrate/rename/drift ever
+# touch a live tag - same reason D-ORACLE above runs early. create_
+# cloudfront_distribution=false count-gates BOTH aws_cloudfront_origin_
+# access_control.tiles and aws_cloudfront_distribution.tiles to 0; picked
+# because it is the module's own toggle, self-contained (nothing else in
+# the module reads either resource), and this estate is one module call
+# carrying all 26 resources - there is no small, standalone resource
+# block to remove the way reference-ec2-vpc and corpus-iam-policy each do.
+CURRENT_STAGE=day2_remove
+log "=== REMOVE-ORACLE. stock: create_cloudfront_distribution=false, on cold_deploy's own state ==="
+REMOVE_ORACLE="$WORK/remove-oracle"
+copy_module "$REMOVE_ORACLE"
+write_root "$REMOVE_ORACLE" "" true
+perl -pi -e 's/create_cloudfront_distribution = true/create_cloudfront_distribution = false/' "$REMOVE_ORACLE/main.tf"
+grep -q 'create_cloudfront_distribution = false' "$REMOVE_ORACLE/main.tf" || fail "REMOVE-ORACLE: the create_cloudfront_distribution edit did not match - the corpus pin has moved"
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$REMOVE_ORACLE/.terraform.lock.hcl"
+cp "$PLAIN/terraform.tfstate" "$REMOVE_ORACLE/terraform.tfstate"
+( cd "$REMOVE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
+REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
+[ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.overture_tiles\.aws_cloudfront_distribution\.tiles\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.overture_tiles.aws_cloudfront_distribution.tiles[0]"; }
+grep -qE '^  # module\.overture_tiles\.aws_cloudfront_origin_access_control\.tiles\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose destroying module.overture_tiles.aws_cloudfront_origin_access_control.tiles[0]"; }
+# s3.tf's own bucket policy document has a dynamic CloudFrontOAC statement
+# keyed on aws_cloudfront_distribution.tiles[0].arn - real ripple, not
+# #404's shape (this is the bucket's OWN policy losing a statement whose
+# condition names the object actually being removed, not a SIBLING's
+# policy corrupted by an unrelated rename), and an ordinary in-place
+# update to a still-declared resource, not an orphan-sweep question at
+# all - so it does not implicate issue #410 below.
+grep -qE '^  # module\.overture_tiles\.aws_s3_bucket_policy\.tiles\[0\] will be updated in-place' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle does not propose updating module.overture_tiles.aws_s3_bucket_policy.tiles[0] (the CloudFrontOAC statement should drop from its policy JSON)"; }
+grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
+  || { grep -E '^Plan:|^No changes' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "the day2_remove stock oracle plan is not exactly two destroys plus the bucket policy update"; }
+log "  stock oracle: exactly two destroys proposed (the CloudFront distribution and its OAC) plus one in-place bucket-policy update (the CloudFrontOAC statement drops) - computed now, before anything below writes a live tag"
+CURRENT_STAGE=""
 
 CURRENT_STAGE=migrate
 
@@ -1440,6 +1623,80 @@ EOF
     log "  No changes. Both renames are complete and invisible to the next plan."
 
     gauntlet_stage day2_rename pass "moved block: module.overture_tiles renamed to module.overture_tiles_moved via ONE module-level moved block, 0 add/0 destroy, 16 real tag-marker rewrites (plan showed 18 - two untaggable siblings' policy JSON transiently 'known after apply', resolving to no real change at apply time, confirmed via the stage-5 marker/propagation filter and by value); live-mv: module.overture_tiles_moved renamed to module.overture_tiles_final across 14 of 16 taggable children, one call each, zero churn - the other 2 (aws_batch_compute_environment.tiles and aws_iam_instance_profile.ecs, both server-/provider-assigned identities with no List support in the provider) correctly refused by live-mv and renamed via their own moved blocks instead, applied cleanly; the nine untaggable/config-derived children and the UNTAGGABLE OAC (no longer UNADMITTED_TYPE - #249 narrowed) did not move at all; stock oracle over the identical module rename on cold_deploy's own state also shows zero churn via its own single module-level moved block, covering every one of the 26 children including the two live-mv cannot"
+
+    # ══════════════════════════════════════════════════════════════════
+    # REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7, active)
+    # ══════════════════════════════════════════════════════════════════
+    #
+    # Flips module.overture_tiles_final's own create_cloudfront_
+    # distribution input to false - the calling config's module block
+    # STAYS declared (a variable edit, not a block deletion) rather than
+    # removing module.overture_tiles_final wholesale, because this estate
+    # is ONE module call carrying all 26 resources; see REMOVE-ORACLE
+    # above for why. The plan-visible outcome is identical to a block
+    # deletion: both count-gated children go from declared to gone.
+    #
+    # THE SAME FAMILY OF WALL corpus-s3-bucket-complete's own day2_remove
+    # found and filed as issue #410 - BROADER here, measured, not assumed:
+    # this crossing tried the "block entirely gone" shape S3 used first and
+    # switched to this count-shrink shape because the estate is one module
+    # call with no smaller block to delete (see above); that switch is what
+    # surfaces the wider defect. Confirmed empirically: NEITHER the
+    # untaggable OAC NOR the TAGGED, MARKED CloudFront distribution is
+    # destroyed - only the still-declared bucket policy's in-place update
+    # is proposed, with no diagnostic for either missing destroy. That
+    # rules out "untaggable, so no marker to sweep" as the sole cause (the
+    # distribution IS tagged and WAS marked, confirmed live through every
+    # earlier stage): classifyOrphans's own "pending" guard - "a declared
+    # instance of this block is unclaimed, so this may be a rename, not a
+    # removal" - reads by block key (type + name), not by whether that
+    # block's CURRENT count still evaluates to a live instance, so a
+    # count-shrunk-to-zero block reads exactly like a genuinely pending one
+    # and withholds the destroy for BOTH its taggable and untaggable
+    # children alike. That is day2_count's own not-yet-active territory
+    # (live/GAUNTLET.md #8) by a different name, and #410 undersold it as
+    # untaggable-only; both need the same record-primary discovery path
+    # HANDOFF's "The order" item 1 describes. The resulting cloud is
+    # equivalent either way (nothing left dangling once the distribution
+    # and its OAC are gone, confirmed via the AWS CLI below), but the PLAN
+    # differs from stock's, so this is left genuinely failing here rather
+    # than asserting less than the oracle asserts.
+    CURRENT_STAGE=day2_remove
+    log "=== STAGE 7. day2_remove: create_cloudfront_distribution=false on module.overture_tiles_final ==="
+    log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly two destroys (the distribution and its OAC)"
+    perl -pi -e 's/create_cloudfront_distribution = true/create_cloudfront_distribution = false/' "$ESTATE/main.tf"
+    grep -q 'create_cloudfront_distribution = false' "$ESTATE/main.tf" || fail "STAGE 7: the create_cloudfront_distribution edit did not match module.overture_tiles_final's block - the corpus pin has moved"
+    ( cd "$ESTATE" && "$TOFU" init -upgrade -input=false -no-color ) > /tmp/overture-day2-remove-init.log 2>&1 || {
+      tail -40 /tmp/overture-day2-remove-init.log; fail "the day2_remove reinit failed"; }
+    rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
+    REMOVE_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
+    [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
+    grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_distribution\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0]"; }
+    grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_origin_access_control\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_origin_access_control.tiles[0] - the untaggable sibling stock also destroys (issue #410, see above)"; }
+    grep -qE '^  # module\.overture_tiles_final\.aws_s3_bucket_policy\.tiles\[0\] will be updated in-place' <<< "$REMOVE_PLAN_OUT" \
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose updating module.overture_tiles_final.aws_s3_bucket_policy.tiles[0] (the CloudFrontOAC statement should drop, same as the stock oracle)"; }
+    grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
+      || { grep -E '^Plan:|^No changes' <<< "$REMOVE_PLAN_OUT"; fail "the day2_remove plan is not exactly two destroys plus the bucket policy update"; }
+    log "  choudoufu: exactly two destroys plus one in-place bucket-policy update proposed - the same objects and change the stock oracle proposes"
+
+    REMOVE_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
+    [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 1 changed, 2 destroyed' <<< "$REMOVE_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly two destroys plus one change"; }
+    awsl cloudfront get-distribution --id "$DIST_ID" >/dev/null 2>&1 \
+      && fail "the CloudFront distribution $DIST_ID is still live after the day2_remove apply"
+    log "  the CloudFront distribution is genuinely gone (read via the AWS CLI, not choudoufu's own report)"
+
+    FINAL_REMOVE_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; FINAL_REMOVE_PLAN_RC=$?
+    [ "$FINAL_REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_REMOVE_PLAN_OUT" | tail -40; fail "the post-remove plan exited $FINAL_REMOVE_PLAN_RC"; }
+    grep -qE '^  # .+ will be' <<< "$FINAL_REMOVE_PLAN_OUT" \
+      && { grep -E '^  # .+ will be' <<< "$FINAL_REMOVE_PLAN_OUT"; fail "the post-remove plan proposes a resource change"; }
+    log "  no resource action proposed. The distribution is gone and nothing else moved."
+
+    gauntlet_stage day2_remove pass "choudoufu: create_cloudfront_distribution=false proposed exactly two destroys plus one in-place update (0 add, 1 change, 2 destroy: the distribution, its untaggable OAC, and the bucket policy's own CloudFrontOAC statement dropping), applied cleanly (0 added, 1 changed, 2 destroyed), the distribution is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys plus the same bucket-policy update"
+    CURRENT_STAGE=""
   fi
 fi
 CURRENT_STAGE=""
