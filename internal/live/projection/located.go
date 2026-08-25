@@ -35,6 +35,20 @@ import (
 // that keeps that true is the kind field: [RecordStore.getIdentity] never
 // enumerates anything, and [builder.discoverOrphanedRecords] proposes a
 // destroy only for a kind=object key - see [recordKindIdentity]'s comment.
+//
+// That is this package's OWN direct record-store sweep refusing to be
+// delete authority for a kind=identity key on its own say-so - it is not a
+// blanket rule that a record-located instance may never be destroyed at
+// all. internal/live/discovery's recordOrphanReadSweep (recordorphan_read.go)
+// is the one place that IS allowed to turn a kind=identity record into a
+// destroy candidate, and it earns that by never trusting the record alone:
+// it composes an import ID from the record and hands it to the exact same
+// materialize/import-and-read pipeline [builder.materializeLocated] uses
+// below, so nothing is proposed for destruction until a live ReadResource
+// confirms the object this record names still exists - the same "record
+// proposes, ReadResource verifies" contract internal/live/mv's
+// locateByRecord uses for a rename. The two files are not in tension: one
+// is "never without verification", the other is the verification.
 
 // materializeLocated is [builder.materialize]'s front door for GitHub issue
 // #270's record-located instances (identity.ClassRecordLocated).
