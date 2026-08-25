@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "148c3e9ed4c4dffafaabe750a7395522b6d82c82",
+  "commit": "43556706d62ebc00089c12fba98987696921eb1f",
   "emulator": "ghcr.io/lex00/floci@sha256:f4b53d0e29b959350a4c86ec45dd70fb46596005a4c82a363259ba185301956d",
-  "generated": "2026-08-25T05:14:51Z",
+  "generated": "2026-08-25T08:24:06Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -158,8 +158,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 20,
-          "fail": 6,
+          "pass": 21,
+          "fail": 5,
           "not_run": 0
         },
         "day2_replace": {
@@ -235,8 +235,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 19,
-          "fail": 6,
+          "pass": 20,
+          "fail": 5,
           "not_run": 0
         },
         "day2_replace": {
@@ -1136,7 +1136,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "fail",
-        "day2_rename": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1150,13 +1150,13 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6b0a765b4037f858329cba406ae5b4a5fe441be4",
-        "date": "2026-08-25T05:43:54Z",
+        "commit": "43556706d62ebc00089c12fba98987696921eb1f",
+        "date": "2026-08-25T08:26:07Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
           "day2_remove": "choudoufu proposes 4 destroy(s) under module.postgresql_renamed, expected 5 (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)",
-          "day2_rename": "the moved-block rename now proposes destroying module.postgresql.module.security_group.aws_vpc_security_group_rules_exclusive.this[0] under the OLD address instead of zero churn - a regression traced to 610511fb73's recordOrphanReadSweep, which has no moved-block awareness (see the comment immediately above this assertion); the SAME generic gap corpus-giantswarm-crossplane, corpus-ec2-instance-complete and corpus-rds-complete-postgres independently hit in this same unit. day2_remove's own post-fix status for this estate could not be re-measured this run because of it.",
+          "day2_rename": "moved block: module.postgresql renamed to module.postgresql_renamed with zero churn (0 add, 4 change, 0 destroy) - the rule-children case, its own SG plus ingress/egress rules and rules_exclusive all moving under one moved block; live-mv: aws_security_group.app renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI",
           "greenfield": "67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped",
           "migrate": "58 of 67 stamped, 67 identities recorded (#364 unit A2)",
