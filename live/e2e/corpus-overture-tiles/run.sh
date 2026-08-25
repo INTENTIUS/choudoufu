@@ -1700,34 +1700,42 @@ EOF
     # switched to this count-shrink shape because the estate is one module
     # call with no smaller block to delete (see above); that switch is what
     # surfaces the wider defect. Confirmed empirically: NEITHER the
-    # untaggable OAC NOR the TAGGED, MARKED CloudFront distribution is
+    # untaggable OAC NOR the TAGGED, MARKED CloudFront distribution was
     # destroyed - only the still-declared bucket policy's in-place update
-    # is proposed, with no diagnostic for either missing destroy. That
-    # rules out "untaggable, so no marker to sweep" as the sole cause (the
-    # distribution IS tagged and WAS marked, confirmed live through every
-    # earlier stage): classifyOrphans's own "pending" guard - "a declared
-    # instance of this block is unclaimed, so this may be a rename, not a
-    # removal" - reads by block key (type + name), not by whether that
-    # block's CURRENT count still evaluates to a live instance, so a
-    # count-shrunk-to-zero block reads exactly like a genuinely pending one
-    # and withholds the destroy for BOTH its taggable and untaggable
-    # children alike. That is day2_count's own not-yet-active territory
-    # (live/GAUNTLET.md #8) by a different name, and #410 undersold it as
-    # untaggable-only; both need the same record-primary discovery path
-    # HANDOFF's "The order" item 1 describes. The resulting cloud is
-    # equivalent either way (nothing left dangling once the distribution
-    # and its OAC are gone, confirmed via the AWS CLI below), but the PLAN
-    # differs from stock's, so this is left genuinely failing here rather
-    # than asserting less than the oracle asserts.
+    # was proposed, with no diagnostic for either missing destroy.
     #
-    # RE-CONFIRMED (gauntlet:rename-beneficiaries, 2026-08-25), reached for
-    # the first time in the script's own normal top-to-bottom flow: before
-    # this branch's own day2_rename fix (gauntlet:giantswarm-mv-children,
-    # f2747c3011), D2 above failed and exited the script before STAGE 7
-    # ever ran, so this wall was previously named from analysis, not a real
-    # end-to-end run. Re-run for real: unchanged, byte for byte - still
-    # exactly this pending-guard gap, still neither the distribution nor
-    # the OAC destroyed, only the bucket policy's in-place update proposed.
+    # FIXED (gauntlet:overture-remove, 2026-08-25). The mechanism is NOT
+    # classifyOrphans's "pending" block-key guard - instrumenting that
+    # function directly showed it never even ran for this stage
+    # (res.Orphans was empty on entry). It is two separate discovery-demand
+    # gaps, both triggered the same way:
+    # [declared.indexCountBlocks]'s own doc comment says a count block that
+    # shrinks to zero still owns whatever is live, but the config-driven
+    # per-type scan only runs for types something still declares an
+    # instance of - count=0 leaves decl.types["aws_cloudfront_distribution"]
+    # empty, so the type's own List call never happens and both children
+    # fall back to whatever OTHER route can still find them:
+    #   - the distribution (taggable) fell back to the estate-wide tag
+    #     sweep, which needs internal/live/discovery/tagging.go's
+    #     arnJoinTable to turn its ARN's "distribution" segment into a CFN
+    #     type - no entry existed, so the sweep could not join it and
+    #     reported it under "Not swept for removal ... NO_ARN_JOIN" rather
+    #     than finding it.
+    #   - the OAC (untaggable, server-assigned id, admitted through
+    #     identity.LocatedType's schema-first "record rung" rather than a
+    #     ratified table row) has no tags to sweep and no parent-derivable
+    #     argument for parentReadSweep, so the ONLY place its identity
+    #     survived was the estate's own record store (written by the #249
+    #     convergence apply); internal/live/discovery/recordorphan_read.go's
+    #     type gate required a RATIFIED row to admit a type, which
+    #     structurally excludes every LocatedType-admitted one, even though
+    #     reading exactly that store is the whole point of the file.
+    # Fixed both: an arnJoinTable entry for cloudfront/distribution, and a
+    # recordorphan_read.go gate that also accepts a LocatedType-admitted
+    # type. Neither fix names a concrete type in control flow - the table
+    # entry reaches every type whose ARN carries that service/segment pair,
+    # and the gate reaches every LocatedType-admitted type with a
+    # persisted record.
     CURRENT_STAGE=day2_remove
     log "=== STAGE 7. day2_remove: create_cloudfront_distribution=false on module.overture_tiles_final ==="
     log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly two destroys (the distribution and its OAC)"
@@ -1739,9 +1747,9 @@ EOF
     REMOVE_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_distribution\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
-      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0] - reached genuinely now that day2_rename passes (gauntlet:rename-beneficiaries, 2026-08-25): classifyOrphans's 'pending' guard withholds the destroy for a TAGGED, MARKED resource, not only untaggable ones - the count-shrink pending-guard gap the comment above this stage names, #410's own territory widened, not fixed here"; }
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_distribution.tiles[0] - see the comment above this stage: a count-shrunk-to-zero type falls out of the config-driven scan and needs internal/live/discovery/tagging.go's arnJoinTable to be found by the tag sweep instead"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_cloudfront_origin_access_control\.tiles\[0\] will be destroyed' <<< "$REMOVE_PLAN_OUT" \
-      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_origin_access_control.tiles[0] - the untaggable sibling stock also destroys (issue #410, see above), the same count-shrink pending-guard gap"; }
+      || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose destroying module.overture_tiles_final.aws_cloudfront_origin_access_control.tiles[0] - see the comment above this stage: an untaggable, record-located type's identity has to survive in the estate's record store, and internal/live/discovery/recordorphan_read.go's type gate has to accept a LocatedType-admitted type, not only a ratified one"; }
     grep -qE '^  # module\.overture_tiles_final\.aws_s3_bucket_policy\.tiles\[0\] will be updated in-place' <<< "$REMOVE_PLAN_OUT" \
       || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN_OUT"; fail "choudoufu does not propose updating module.overture_tiles_final.aws_s3_bucket_policy.tiles[0] (the CloudFrontOAC statement should drop, same as the stock oracle)"; }
     grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
