@@ -121,6 +121,24 @@ import (
 func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	if n.Estate == "" {
+		// No estate name: parity with internal/live/stamp's own guard
+		// (statelessStamp's estate=="" branch, internal/command/live_plan.go),
+		// which already returns a nil *stamp.Result plus a single
+		// "Ownership markers not stamped" warning and writes nothing -
+		// both call sites run that pass unconditionally today, flag on or
+		// off, so it has already said what needs saying for this run.
+		// Setting tofu-estate here anyway would not degrade gracefully
+		// the way an unstamped resource does: cty.StringVal("") is a
+		// value, not an absence, so a later run reading it back sees a
+		// tofu-estate tag that names no estate rather than no tag at
+		// all - HANDOFF's "never write a wrong marker" rule, and this is
+		// the same failure a stray CREATE-over-an-owned-object plan is,
+		// just on the write side instead of the read side. Returning the
+		// config unchanged here, silently, is what the record-selection
+		// branch below already does for its own "set nothing" case.
+		return config, diags
+	}
 	if schema.Block == nil {
 		return config, diags
 	}
