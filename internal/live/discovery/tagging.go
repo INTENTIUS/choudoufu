@@ -762,7 +762,32 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 					typeName),
 			}))
 			continue
-		case !req.Roster.Taggable(cfnType):
+		case !req.Roster.Taggable(cfnType) && len(byType[typeName]) == 0:
+			// live/registry.json's "taggable" flag is CloudFormation's own
+			// claim about whether ITS update-tags API can write this type's
+			// tags - a narrower, different fact than whether THIS pass's
+			// GetResources call (Resource Groups Tagging API, an entirely
+			// separate AWS service) can read them. AWS::IAM::Policy is the
+			// type that exposed the gap: live/registry.json records it
+			// taggable=false (and list=false, read=false - IAM has never
+			// been well represented in the Cloud Control registry), yet
+			// GetResources reliably returns its tags, including
+			// tofu-estate/tofu-address, in every estate this fork has ever
+			// applied one in. Treating the registry's narrower claim as
+			// "this pass found nothing worth searching on" was fine as long
+			// as nothing here reached this case WITH candidates already in
+			// hand - which never happened before GitHub issue #388's
+			// record-backed exclusion could remove a type's only declared
+			// instance from the config-driven scan's demand entirely
+			// (sweepTypes only omits a type decl.types still covers), so
+			// the tagging sweep became this type's sole path to its own
+			// declared instance AND to any orphan sharing its type. See
+			// TestSweepViaTagging_untaggableRegistryRowDoesNotDiscardJoinedCandidates.
+			//
+			// This changes nothing for the ordinary case this switch was
+			// written for: a type with NO candidates here (Taggable() false
+			// and nothing GetResources actually returned for it) still
+			// reports the same gap, unconditionally.
 			_, known := req.Roster.TaggableKnown(cfnType)
 			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 			continue

@@ -712,6 +712,103 @@ func TestTaggingSweepReportsNoARNJoinGap(t *testing.T) {
 	}
 }
 
+// TestTaggingSweepReportsNotTaggableGapWithNoCandidates is the ordinary case
+// noRegistryRowOrUntaggable exists for, unaffected by
+// TestTaggingSweepFindsCandidatesDespiteUntaggableRegistryRow below: a type
+// live/registry.json records untaggable, and GetResources genuinely returned
+// nothing to join to it either, still reports the same SweepGapNotTaggable
+// gap it always has.
+func TestTaggingSweepReportsNotTaggableGapWithNoCandidates(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	srv := &taggingServer{}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, "aws_cloudwatch_log_group", "AWS::Logs::LogGroup", false),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	var found bool
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_cloudwatch_log_group" {
+			found = true
+			if g.Reason != SweepGapNotTaggable {
+				t.Errorf("reason = %s, want %s", g.Reason, SweepGapNotTaggable)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("aws_cloudwatch_log_group is not reported as a not-taggable gap:\n%s", res)
+	}
+}
+
+// TestTaggingSweepFindsCandidatesDespiteUntaggableRegistryRow is the #388
+// default-flip's own regression (corpus-iam-policy's day2_remove stage):
+// live/registry.json records AWS::IAM::Policy taggable=false (CloudFormation's
+// own claim about ITS update-tags API, list=false and read=false besides -
+// IAM has never been well represented in the Cloud Control registry), but
+// GetResources (the Resource Groups Tagging API, an entirely different AWS
+// service) reliably returns its tags anyway, as this test's own fixture
+// does. Before this fix, the untaggable-per-registry gap discarded an
+// already ARN-joined, already tag-bearing candidate outright - byType had
+// it, but the switch above never let fileTaggingCandidate see it - which
+// went unnoticed for as long as every type this shape could apply to also
+// had a genuine config-driven scan demand (sweepTypes only ever included a
+// type the config-driven scan does NOT already cover), until GitHub issue
+// #388's record-backed exclusion could empty that demand for a type with no
+// OTHER declared instance in the estate, making the tag sweep the type's
+// only path to its own orphan detection.
+func TestTaggingSweepFindsCandidatesDespiteUntaggableRegistryRow(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	arn := "arn:aws:logs:us-east-1:123456789012:log-group:/estate/deleted"
+	srv := &taggingServer{
+		arns: []string{arn},
+		tags: map[string]map[string]string{
+			arn: {TagEstate: estateName, TagAddress: `aws_cloudwatch_log_group.deleted`},
+		},
+	}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		// The only difference from TestTaggingSweepFindsDeletedBlock: this
+		// type is recorded untaggable.
+		Roster: taggingRoster(t, "aws_cloudwatch_log_group", "AWS::Logs::LogGroup", false),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	rm := removalsByAddr(res)
+	o, ok := rm[`aws_cloudwatch_log_group.deleted`]
+	if !ok {
+		t.Fatalf("the deleted block's resource is not a removal - the untaggable-registry gap discarded a real, already-joined candidate:\n%s", res)
+	}
+	if o.ImportID != "/estate/deleted" {
+		t.Errorf("ImportID = %q, want /estate/deleted", o.ImportID)
+	}
+	if !o.Swept {
+		t.Error("the removal is not marked as found by the sweep")
+	}
+
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_cloudwatch_log_group" {
+			t.Errorf("a type with a real candidate in hand was still reported as a sweep gap: %+v", g)
+		}
+	}
+}
+
 // TestTaggingSweepOffIsByteIdentical is requirement 4: with the flag off, or
 // with either of its two required companions (Tagging, Roster) left nil,
 // behavior is exactly the pre-#51 per-type sweep - not merely "no crash".
