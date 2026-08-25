@@ -358,6 +358,90 @@ ORACLE_REMOVE_N="$(grep -cE '^  # module\.default\..+ will be destroyed' <<< "$R
 grep -qF "Plan: 0 to add, 0 to change, $ORACLE_REMOVE_N to destroy." <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan touches something other than module.default's own $ORACLE_REMOVE_N resources"; }
 log "  stock: exactly $ORACLE_REMOVE_N destroys, all under module.default, nothing else, on the state cold_deploy produced"
+CURRENT_STAGE=""
+
+# day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
+# replace of the same resource leaves the same single object." A THIRD
+# separate copy of cold_deploy's own state, so this destroy has nothing to
+# do with either rename or the remove Part D/E also exercise. Changes
+# module.asg_sg's own `name` CALL argument (not vendored module-internal
+# source - always in scope to edit) to a different literal, which the
+# terraform-aws-modules/security-group/aws module passes straight through
+# to its own aws_security_group.this_name_prefix's `name_prefix` argument
+# - a real, upstream-declared ForceNew argument on aws_security_group (the
+# EC2 API has no rename call for a security group, only Create/Delete) -
+# forcing stock to replace the SAME declared address. module.asg_sg's own
+# security_group_id feeds two launch templates' `security_groups`
+# argument (main.tf's module.default/module.complete blocks); aws_launch_
+# template supports updating that argument in place (a new template
+# version, not ForceNew on the resource itself), so this is expected to
+# cascade into in-place updates there, not further replaces - read
+# dynamically below rather than asserted by fixed count.
+#
+# NOTE ON THE TARGET CHOICE: this section originally targeted aws_sqs_
+# queue.this_renamed (Part D's live-mv leg), which reproduced a genuine,
+# separate finding first - recorded here rather than routed around
+# silently: after "choudoufu live-mv" renames a BARE, non-module-nested
+# resource (no module boundary crossed) with no ordinary apply run
+# afterward, the live MARKER is correctly rewritten (day2_rename's own
+# Proves text, unaffected) but the LOCAL RECORD is left stale at the OLD
+# key. Root cause, read directly off mv.go with no tofu in the loop:
+# internal/live/mv/mv.go's propagateModuleRename (called from Move after
+# the marker rewrite) opens with `oldPrefix, newPrefix, ok :=
+# moduleRenameBoundary(...); if !ok { return diags }` - for a same-module,
+# bare-resource rename this check is never satisfied, so the function
+# returns immediately and NEVER reaches the MoveRecord call the same
+# function's own doc comment says covers "the resource live-mv was asked
+# to rename itself". Confirmed empirically: `cat`-ing the record store
+# directly (no tofu in the loop) after Part D's real live-mv found the
+# record still filed under aws_sqs_queue/<base64 of "aws_sqs_queue.this">,
+# never re-keyed to .this_renamed. dynamodb-table-basic's own Part F
+# (module.dynamodb_table_final) and alb-complete's own Part F (aws_
+# instance.this_renamed) both dodge this by construction: the former's
+# LAST rename hop is itself a MODULE-boundary live-mv (propagateModule
+# Rename's guard passes), and the latter's rename is a moved-block
+# followed by a real converging apply (MOVED_APPLY_OUT), which writes a
+# fresh record under the current address as ordinary apply WriteBack -
+# neither depends on this function at all. Row 2 of HANDOFF's five-row
+# table (choudoufu's own record store and the live marker disagree after
+# a plain live-mv rename with no module boundary) - a real gap, not fixed
+# here (a Go change to mv.go, out of scope for a script-only unit; see
+# eks-basic's and ecs-fargate's own day2_replace sections in this same
+# unit, which independently hit the identical shape on aws_security_
+# group.all_worker_mgmt_renamed and aws_service_discovery_http_namespace.
+# this_renamed respectively). Switched to module.asg_sg_renamed's own
+# security group instead, which Part D1 renames through a moved block
+# FOLLOWED BY a real converging apply (MOVED_APPLY_OUT, this script's own
+# D1 above) - the same apply-refreshes-the-record shape alb-complete's
+# Part F already relies on - so this section exercises the stage
+# honestly without depending on the gap above.
+CURRENT_STAGE=day2_replace
+log "=== F-ORACLE. stock: force-replace module.asg_sg's security group via its ForceNew name_prefix argument, on cold_deploy's own state ==="
+REPLACE_ORACLE_ROOT="$WORK/plain-replace-oracle"
+cp -r "$WORK/plain" "$REPLACE_ORACLE_ROOT"
+REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/autoscaling/examples/complete"
+perl -0pi -e 's/module "asg_sg" \{\n  source  = "terraform-aws-modules\/security-group\/aws"\n  version = "~> 5\.0"\n\n  name        = local\.name\n/module "asg_sg" {\n  source  = "terraform-aws-modules\/security-group\/aws"\n  version = "~> 5.0"\n\n  name        = "\${local.name}-v2"\n/' "$REPLACE_ORACLE/main.tf"
+grep -q '${local.name}-v2' "$REPLACE_ORACLE/main.tf" \
+  || fail "changing module.asg_sg's name argument in the replace-oracle copy did not match - the corpus pin has moved"
+( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
+[ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
+grep -qE '^  # module\.asg_sg\.aws_security_group\.this_name_prefix\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "stock does not propose replacing module.asg_sg's security group when its name_prefix argument changes"; }
+# The plan summary line is read dynamically rather than asserted as a
+# fixed count: this twelve-module example carries several ASG
+# enabled_metrics list attributes whose values floci can report with real
+# API-timing variance across separate plans against the same live account
+# (a computed, server-side list, unrelated to this section's own change),
+# and the security group's id cascades into two launch templates'
+# security_groups argument (in-place, new template version) - so more
+# than one line can legitimately appear alongside the group's own replace.
+REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
+[ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
+log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces module.asg_sg's security group at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ADOPTED, and actually applying here would destroy the real security group the estate's later stages still depend on)"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -788,6 +872,146 @@ EOF
   log "  No changes. Both renames are complete and invisible to the next plan."
 
   gauntlet_stage day2_rename pass "moved block: module.asg_sg renamed with zero churn (0 add, $N_CHANGED_D1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from Part D's real, completed state: module.asg_sg_renamed's
+  # own security group (module.asg_sg_renamed.aws_security_group.this_
+  # name_prefix[0]) is bound and converged. Its module CALL's `name`
+  # argument (main.tf's own module.asg_sg_renamed block, not vendored
+  # module-internal source) changes to a new literal, which the
+  # terraform-aws-modules/security-group/aws module passes through to its
+  # own aws_security_group.this_name_prefix's `name_prefix` argument - a
+  # real, upstream-declared ForceNew argument on aws_security_group (the
+  # EC2 API has no rename call, only Create/Delete) - forcing a
+  # replacement at the SAME declared address. The security group's id
+  # feeds two launch templates' `security_groups` argument, which aws_
+  # launch_template updates in place (a new template version, F-ORACLE's
+  # own header comment) - so this is expected to cascade into in-place
+  # updates there, not a second replace, read dynamically below.
+  #
+  # THE TARGET CHOICE, and the finding that produced it: F-ORACLE's own
+  # header comment above records a genuine, separate defect this section
+  # originally reproduced on aws_sqs_queue.this_renamed (Part D's live-mv
+  # leg) - a bare, non-module-nested live-mv rename with no apply
+  # afterward leaves the LOCAL RECORD stale at the old key even though the
+  # live MARKER moves correctly (internal/live/mv/mv.go's
+  # propagateModuleRename never reaches its own MoveRecord call for a
+  # same-module rename). Not fixed here - see that comment for the root
+  # cause read directly off mv.go, and for eks-basic's/ecs-fargate's own
+  # day2_replace sections in this same unit, which independently hit the
+  # identical shape. This section targets module.asg_sg_renamed's security
+  # group instead, which Part D1 renames through a moved block FOLLOWED BY
+  # a real converging apply (MOVED_APPLY_OUT, above) - the apply-
+  # refreshes-the-record shape alb-complete's own Part F already relies
+  # on - so the stage is exercised honestly without depending on the gap.
+  #
+  # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
+  # instance-complete's and corpus-sqs-basic's own Part F): the security
+  # group lives inside a vendored registry module
+  # (terraform-aws-modules/security-group/aws), whose own source this
+  # corpus's established convention never patches to add a library-
+  # internal lifecycle block. This evidence pass exercises OpenTofu's
+  # DEFAULT replace ordering instead. BREAK=replace manufactures the
+  # coexistence a skipped destroy would leave behind directly via the AWS
+  # CLI.
+  CURRENT_STAGE=day2_replace
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  record_import_id() { jq -r '.identity.import_id' "$1"; }
+  F_ADDR='module.asg_sg_renamed.aws_security_group.this_name_prefix[0]'
+  F_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_security_group/$(record_key "$F_ADDR")"
+
+  log "=== F0. capture the live security group and its record ahead of the forced replace ==="
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
+  [ "$F_OLD_IMPORT_ID" = "$ASG_SG_ID" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $ASG_SG_ID"
+  F_OLD_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$ASG_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$F_OLD_ADDR_TAG" = "module.asg_sg_renamed.aws_security_group.this_name_prefix:0" ] \
+    || fail "$ASG_SG_ID does not carry tofu-address=module.asg_sg_renamed.aws_security_group.this_name_prefix:0 ahead of day2_replace"
+  log "  $ASG_SG_ID, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
+
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+    # A second, distinct live security group carrying the SAME tofu-
+    # address and tofu-slot as the one a genuine replace would destroy -
+    # the state "skip the destroy half" of a create-before-destroy
+    # replace would leave, produced directly via the AWS CLI rather than
+    # by actually interrupting an apply (day2_crash's own job).
+    SG_VPC_ID="$(awsl ec2 describe-security-groups --group-ids "$ASG_SG_ID" --query "SecurityGroups[0].VpcId" --output text)"
+    BREAK_COLLISION_ID="$(awsl ec2 create-security-group --group-name "${ESTATE}-sg-collision" --description "collision" --vpc-id "$SG_VPC_ID" --query "GroupId" --output text)"
+    awsl ec2 create-tags --resources "$BREAK_COLLISION_ID" --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=module.asg_sg_renamed.aws_security_group.this_name_prefix:0" "Key=tofu-slot,Value=0" \
+      >/dev/null || fail "BREAK=replace: could not tag the collision security group"
+    BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    awsl ec2 delete-security-group --group-id "$BREAK_COLLISION_ID" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+    perl -0pi -e 's/module "asg_sg_renamed" \{\n  source  = "terraform-aws-modules\/security-group\/aws"\n  version = "~> 5\.0"\n\n  name        = local\.name\n/module "asg_sg_renamed" {\n  source  = "terraform-aws-modules\/security-group\/aws"\n  version = "~> 5.0"\n\n  name        = "\${local.name}-v2"\n/' "$ADOPTED/main.tf"
+    grep -q '${local.name}-v2' "$ADOPTED/main.tf" || fail "changing module.asg_sg_renamed's name argument did not match - the corpus pin has moved"
+
+    F_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.asg_sg_renamed\.aws_security_group\.this_name_prefix\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.asg_sg_renamed's security group when its ForceNew name_prefix argument changes"; }
+    grep -qE '~ +name_prefix +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name_prefix as forcing replacement"; }
+    F_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$F_PLAN_OUT")"
+    [ -n "$F_PLAN_LINE" ] || { printf '%s\n' "$F_PLAN_OUT" | tail -15; fail "the day2_replace plan has no summary line"; }
+    log "  choudoufu: $F_PLAN_LINE - the security group forced to replace at the same declared address, name_prefix forces replacement"
+
+    F_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$F_APPLY_OUT" \
+      || { printf '%s\n' "$F_APPLY_OUT" | tail -20; fail "the day2_replace apply did not report a clean apply"; }
+    log "  $(grep -E 'Apply complete' <<< "$F_APPLY_OUT")"
+
+    # floci's own describe-security-groups on an unknown group id returns
+    # a 200 with an empty SecurityGroups list rather than a real AWS
+    # InvalidGroup.NotFound error (confirmed directly against floci here,
+    # no tofu in the loop - a floci gap, not a choudoufu one), so
+    # existence is read from the query result's own emptiness rather than
+    # the CLI's exit code.
+    F_OLD_STILL="$(awsl ec2 describe-security-groups --group-ids "$ASG_SG_ID" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || true)"
+    [ -z "$F_OLD_STILL" ] || [ "$F_OLD_STILL" = "None" ] \
+      || fail "$ASG_SG_ID still exists after the replace - the old object was orphaned, not destroyed"
+    log "  $ASG_SG_ID no longer exists - confirmed via the AWS CLI (empty describe-security-groups result), not through choudoufu's own report"
+
+    F_NEW_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-address,Values=module.asg_sg_renamed.aws_security_group.this_name_prefix:0" --query "SecurityGroups[0].GroupId" --output text)"
+    [ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] || fail "no live security group found carrying tofu-address=module.asg_sg_renamed.aws_security_group.this_name_prefix:0 after the replace"
+    F_NEW_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.asg_sg_renamed.aws_security_group.this_name_prefix:0" ] \
+      || fail "$F_NEW_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.asg_sg_renamed.aws_security_group.this_name_prefix:0 - the marker did not move onto the new object"
+    log "  $F_NEW_ID (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed
+    # security group would be exactly the wrong-marker failure that
+    # outranks a missing one). The local record file at the SAME address
+    # must now hold the NEW group's id, not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_ID" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_ID - a stale record still claiming the destroyed object, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+    log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
+
+    ASG_SG_ID="$F_NEW_ID"
+    gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and eks-basic's/ecs-fargate's matching ones in this same unit."
+  fi
+  CURRENT_STAGE=""
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
