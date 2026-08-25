@@ -3041,7 +3041,7 @@ func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
 	if len(rec.Components) == 0 {
 		return false
 	}
-	if c.identity == cty.NilVal || c.identity.IsNull() || !c.identity.IsKnown() || !c.identity.Type().IsObjectType() {
+	if c.identity == cty.NilVal || c.identity.IsNull() || !c.identity.IsKnown() || c.identity.IsMarked() || !c.identity.Type().IsObjectType() {
 		return false
 	}
 	ty := c.identity.Type()
@@ -3050,7 +3050,13 @@ func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
 			return false
 		}
 		v := c.identity.GetAttr(name)
-		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
+		// v.IsMarked() before AsString(): cty panics rather than errors on
+		// a marked receiver, and a sensitive input variable is the
+		// ordinary way to produce one. A marked component simply does not
+		// match - refused, never unmarked, since the alternative is
+		// letting a value nothing here proved safe flow into an identity
+		// comparison.
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
 			return false
 		}
 	}
