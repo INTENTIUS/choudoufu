@@ -29,7 +29,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Greenfield apply | pass | 5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `9c1ec36174` on 2026-08-25T17:07:24Z, exit code 1.
+Last run at commit `10e3f76bcd` on 2026-08-25T18:04:37Z, exit code 1.
 
 Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does).
 

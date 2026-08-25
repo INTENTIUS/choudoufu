@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "63a71a62ec2ae851459ff9eb95d6fd09243f9079",
+  "commit": "10e3f76bcd1ed5c354c8d5fee375196c5918a10e",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T18:00:22Z",
+  "generated": "2026-08-25T18:01:56Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1414,8 +1414,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9c1ec36174336dbe6145fd15ce3d7d530e740d86",
-        "date": "2026-08-25T17:07:24Z",
+        "commit": "10e3f76bcd1ed5c354c8d5fee375196c5918a10e",
+        "date": "2026-08-25T18:04:37Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
