@@ -535,7 +535,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 				// aws_iot_certificate generate secret material a stock
 				// state file is the only place that ever holds, and the
 				// gate a configuration meets first is this one, asked
-				// again by [resolver.classify] for a caller that skips
+				// again by [resolver.resolveInstance] for a caller that skips
 				// lint (identity.LocatedStrictSecretsRefusal's own doc
 				// comment names all three places).
 				if recordStoreConfigured {

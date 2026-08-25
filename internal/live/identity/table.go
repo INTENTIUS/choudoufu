@@ -70,7 +70,7 @@ type TypeIdentity struct {
 	// existed.
 	//
 	// internal/live/lint is the gate a configuration meets first (its
-	// RuleLogicalResource refusal names the setting), and [resolver.classify]
+	// RuleLogicalResource refusal names the setting), and [resolver.resolveInstance]
 	// asks the same question again at the layer that acts, so a caller that
 	// skipped lint gets a refusal rather than a record full of secrets. That
 	// double-asking is the same shape the `markers "record"` selection
