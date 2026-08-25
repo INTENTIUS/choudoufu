@@ -1032,8 +1032,17 @@ grep -qE 'Apply complete! Resources: 3 added' <<< "$OPHASE2" \
 log "  $(grep -E 'Apply complete' <<< "$OPHASE2" | tail -1)"
 
 log "=== PART GREENFIELD: 5. object-by-object comparison, via the AWS CLI on both endpoints, tags normalised out ==="
-GVPC_CIDR="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters Name=cidr-block,Values=172.16.0.0/16 --query 'Vpcs[0].CidrBlock' --output text)"
-OVPC_CIDR="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters Name=cidr-block,Values=172.16.0.0/16 --query 'Vpcs[0].CidrBlock' --output text)"
+# Identify the crossing VPC by its own Name tag (write_main_tf's
+# aws_vpc.crossing, tags = { Name = "sumaform-crossing-vpc" }), not by a
+# cidr-block filter feeding Vpcs[0]: each container here is freshly started
+# for this part alone and so holds only the default VPC plus this one, but
+# "whichever the filter lets through happens to sort first" was exactly how
+# this stage's prior clear rode floci's DescribeVpcs ignoring cidr-block
+# entirely (lex00/floci, fixed) rather than the identity actually being
+# checked. tag:Name pins the object by something that identifies it,
+# belt-and-braces on top of the emulator fix.
+GVPC_CIDR="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters Name=tag:Name,Values=sumaform-crossing-vpc --query 'Vpcs[0].CidrBlock' --output text)"
+OVPC_CIDR="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters Name=tag:Name,Values=sumaform-crossing-vpc --query 'Vpcs[0].CidrBlock' --output text)"
 [ "$GVPC_CIDR" = "172.16.0.0/16" ] && [ "$OVPC_CIDR" = "172.16.0.0/16" ] \
   || fail "the crossing VPC's cidr differs: greenfield=$GVPC_CIDR oracle=$OVPC_CIDR"
 GSG_RULES="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-security-groups --filters Name=group-name,Values=sumaform-crossing-public-sg \
