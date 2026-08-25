@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "73186428759ccc8a92ebaffd2042a6c86799f72f",
+  "commit": "357a552d169499b203a80eff845c9d19cdb28165",
   "emulator": "ghcr.io/lex00/floci@sha256:de720c8eb557bfc87e1c2448220f4f0d880df59e170fd390bfe28c35265ee629",
-  "generated": "2026-08-25T19:37:47Z",
+  "generated": "2026-08-25T22:47:36Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 5,
+      "clear": 7,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -143,9 +143,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 0,
+          "pass": 1,
           "fail": 1,
-          "not_run": 25
+          "not_run": 24
         },
         "day2_crash": {
           "pass": 0,
@@ -163,9 +163,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 6,
+          "pass": 8,
           "fail": 0,
-          "not_run": 20
+          "not_run": 18
         },
         "day2_teardown": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 5,
+      "clear": 7,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -220,9 +220,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 0,
+          "pass": 1,
           "fail": 1,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_crash": {
           "pass": 0,
@@ -240,9 +240,9 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 6,
+          "pass": 8,
           "fail": 0,
-          "not_run": 19
+          "not_run": 17
         },
         "day2_teardown": {
           "pass": 0,
@@ -482,7 +482,7 @@
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -492,16 +492,17 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "e064df463058d0b3a4aff496c96d8661a4238c39",
-        "date": "2026-08-25T14:28:26Z",
+        "commit": "357a552d169499b203a80eff845c9d19cdb28165",
+        "date": "2026-08-25T22:41:11Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "62 resources, once for real",
           "day2_remove": "choudoufu: deleting module.ecs_task_definition's block proposed exactly 8 destroys (0 add, 0 change, 8 destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, 8 destroyed); the standalone task definition family (ex-fargate-standalone) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: module.alb renamed with zero churn (0 add, 9 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address (Plan: 8 to add, 0 to change, 8 to destroy.), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1) carries the marker, moved via the tofu-address tag (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone:1 -> arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address (Plan: 8 to add, 0 to change, 8 to destroy., plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include `revision`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices (aws_service_discovery_http_namespace.this_renamed, module.alb_renamed) each found a genuine, separate defect not fixed here - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit.",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "greenfield": "62 resources from nothing, cluster marker verified via the AWS CLI, 60 of 62 records in the local record store (#364 A2; the 2 aws_ecs_task_definition instances are excluded by a numeric-wire-identity-component gap in internal/live/identity/located.go's LocatedIdentityPlanFor, documented in this script and not fixed here - their markers and plans are unaffected), replan empty, stock oracle in its own namespace matches structurally on cluster/service/standalone-task-definition/CloudMap-namespace/ALB/VPC",
           "migrate": "46 of 62 stamped",
@@ -1359,11 +1360,11 @@
       "script": "live/e2e/corpus-xancloud-iac/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "not_run",
+        "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -1373,16 +1374,18 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "648f2c21408209072817d4dbbd63c5073fdcd3bc",
-        "date": "2026-08-25T04:01:26Z",
+        "commit": "357a552d169499b203a80eff845c9d19cdb28165",
+        "date": "2026-08-25T22:50:54Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
+          "day2_count": "choudoufu: dropping \"logs\" from var.vpcs.main.vpc_endpoints destroyed exactly module.vpc.aws_vpc_endpoint.interface[\"main-logs\"] (0 add, 0 change, 1 destroy), leaving every sibling for_each member (main-ssm's live id and tofu-address marker checked directly) untouched; adding it back created exactly the same key under a NEW live id (0 add -> 1 add, 0 change, 0 destroy) while main-ssm stayed untouched throughout; the next plan is empty; the F-ORACLE stock oracle on the identical for_each set, applied on cold_deploy's own state, shows the identical shape: destroy the dropped key only, create it back under a new id, every sibling key's id unchanged both times",
           "day2_remove": "choudoufu: deleting aws_vpc_endpoint.s3's block (the S3 gateway endpoint, a standalone leaf nothing else in the module references) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (describe-vpc-endpoints on the old id reports State=deleted or nothing at all, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; the E-ORACLE stock oracle (on cold_deploy's own state, before any tag was ever written) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_vpc_endpoint.s3 block is declared anywhere in this config",
           "day2_rename": "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
+          "day2_replace": "choudoufu: changing module.vpc.aws_iam_role.flow_logs_renamed's ForceNew name argument proposed a forced replace at the same declared address (Plan: 3 to add, 0 to change, 3 to destroy., cascading into the flow log's iam_role_arn and the inline role policy, both keyed to the role at creation time with no update path), applied cleanly; the old role is confirmed gone via the AWS CLI (NoSuchEntity) and the new role (xancloud-dev-main-flow-logs-role-v2) carries the marker; the local record store's record at the same address now names the new object's name, not the destroyed one (xancloud-dev-main-flow-logs-role -> xancloud-dev-main-flow-logs-role-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (REPLACE-ORACLE) also proposes replacing the role at the same address (Plan: 3 to add, 0 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "greenfield": "28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on $ENDPOINT matches on tagged-object count (21), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias",
           "migrate": "live-import -approve completed cleanly against the cold state",
