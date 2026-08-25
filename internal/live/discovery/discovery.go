@@ -461,7 +461,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	diags = diags.Append(bind(req, decl, res))
-	diags = diags.Append(classifyOrphans(req, res))
+	diags = diags.Append(classifyOrphans(req, schemas, res))
 
 	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
 	// it reads res.Resolutions to find both which parent instances this
@@ -2554,7 +2554,7 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
 // engine's own orphan handling turns into a destroy.
-func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
+func classifyOrphans(req Request, schemas listclient.Schemas, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if len(res.Orphans) == 0 {
@@ -2650,19 +2650,107 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		// Undeclared flag and the sentence an operator reads beside it cannot
 		// answer differently (issue #316).
 		declared := identity.DeclaresBlock(req.Config, o.Addr)
+		var dependsOn []addrs.AbsResourceInstance
+		if !declared {
+			// Same reason [destroyParentDependency] exists for the
+			// record-orphan-read leg's own population (recordorphan_read.go):
+			// a child whose parent is ALSO being destroyed in the same run
+			// needs the same destroy-before-parent ordering a declared
+			// instance's own config reference would have given it, and this
+			// orphan has no configuration left to read one from. That leg
+			// reads a record's own captured Components; this one has none -
+			// found via corpus-ecs-fargate's day2_remove unit,
+			// aws_vpc_security_group_egress_rule's own security_group_id
+			// survived on the emulator, still fully tagged, after its
+			// parent aws_security_group was destroyed in the SAME apply
+			// with no ordering between the two - so it reads the identical
+			// convention off the orphan's OWN listed resource object
+			// instead. See [classifyOrphanDestroyDependency].
+			dependsOn = classifyOrphanDestroyDependency(req, schemas, res, o.TypeName, o.Resource)
+		}
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
 			// Both forms travel: the string for every line an operator
 			// reads, and the provider's own identity object for the import
 			// itself. See [identity.Resolution.Identity].
-			ImportID:   o.ImportID,
-			Identity:   o.Identity,
-			Undeclared: !declared,
+			ImportID:         o.ImportID,
+			Identity:         o.Identity,
+			Undeclared:       !declared,
+			DestroyDependsOn: dependsOn,
 		})
 	}
 
 	return diags
+}
+
+// classifyOrphanDestroyDependency is [destroyParentDependency]'s own
+// question - which live parent this run also destroys must this orphan be
+// destroyed before - answered from a source recordorphan_read.go's own
+// version never has: the orphan's OWN listed resource object, rather than
+// a record's captured Components. classifyOrphans' own orphans (a tag or
+// native-scan sighting of a removed block's live object) carry no
+// Components map at all - only recordOrphanReadSweep's record-backed
+// population does - but a natively-listed orphan (res.Orphans' own
+// Resource field, populated only by [scanType]'s append site, never
+// [scanTypeCloudControl]'s or [fileTaggingCandidate]'s - see
+// [OwnedResource.Resource]'s own doc comment) already carries every
+// attribute its provider schema exports, which is enough to apply
+// [identity.ParentByConvention] directly against the object's own
+// attribute names, no ratified identity row required.
+//
+// Reaches every admitted, taggable type discovered through the native
+// per-type scan with a convention-named parent-shaped argument on its own
+// schema (an "_id"/"_arn"/"_url"-suffixed or bare-noun argument naming
+// another admitted type - the same convention [identity.ParentOf] already
+// applies to a type's ratified Components), not only
+// aws_vpc_security_group_egress_rule: found via corpus-ecs-fargate's
+// day2_remove unit, where a real gauntlet run reproduced a security group
+// rule surviving on the emulator - fully tagged, unchanged - after its
+// parent security group was destroyed in the SAME apply with the two
+// issued in no verified order. resource is cty.NilVal for the two other
+// append sites, and this returns nil immediately for that case exactly as
+// [destroyParentDependency] returns nil when a record carries no matching
+// Components value - "no computed dependency set" is the ordinary state
+// for an undeclared instance either way, never an error.
+func classifyOrphanDestroyDependency(req Request, schemas listclient.Schemas, res *Result, typeName string, resource cty.Value) []addrs.AbsResourceInstance {
+	if resource == cty.NilVal || resource.IsNull() || !resource.IsKnown() || !resource.Type().IsObjectType() {
+		return nil
+	}
+	parents := taggableAdmittedTypes(schemas)
+	service := rosterServiceOf(req.Roster)
+
+	attrs := make([]string, 0, len(resource.Type().AttributeTypes()))
+	for attr := range resource.Type().AttributeTypes() {
+		attrs = append(attrs, attr)
+	}
+	sort.Strings(attrs)
+
+	for _, attr := range attrs {
+		parent, ok := identity.ParentByConvention(attr, typeName, parents, service)
+		if !ok {
+			continue
+		}
+		v := resource.GetAttr(attr)
+		// The same marksafe discipline [importIdentityFromResource] applies
+		// to the identical hazard: cty panics rather than errors on a
+		// marked receiver, and an attribute flowing from a sensitive input
+		// variable is the ordinary way to produce one. See
+		// internal/live/marksafe.
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			continue
+		}
+		val := v.AsString()
+		if val == "" {
+			continue
+		}
+		for _, r := range res.Resolutions {
+			if r.Type() == parent && r.ImportID == val {
+				return []addrs.AbsResourceInstance{r.Addr}
+			}
+		}
+	}
+	return nil
 }
 
 // blockKey is the resource block one instance address belongs to, as

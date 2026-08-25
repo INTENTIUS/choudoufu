@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 )
 
 // TestClassifyOrphans_countedModuleStepKeepsItsIndex is the reachability half
@@ -93,7 +94,7 @@ func TestClassifyOrphans_countedModuleStepKeepsItsIndex(t *testing.T) {
 	}
 
 	req := Request{Estate: "counted-orphan", Config: cfg}
-	if d := classifyOrphans(req, result); d.HasErrors() {
+	if d := classifyOrphans(req, listclient.Schemas{}, result); d.HasErrors() {
 		t.Fatalf("classifyOrphans reported errors for an ordinary deleted-block orphan: %s", d.Err())
 	}
 

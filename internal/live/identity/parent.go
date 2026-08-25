@@ -430,6 +430,29 @@ func namesParentByConvention(attr, parent string) bool {
 // parent link on that argument at all, never aws_security_group or
 // aws_eks_node_group, which only happen to share the "_group" suffix. See
 // [TestParentOfRefusesUnrelatedSuffixMatch].
+//
+// ParentByConvention is this exact function, exported for a caller that
+// needs the convention alone, decoupled from [ParentOf]'s own restriction
+// to a type whose Components describe its IDENTITY (ParentOf refuses a
+// [TypeIdentity.ServerAssigned] type outright, since such a type's identity
+// does not derive from arguments at all - found via corpus-ecs-fargate's
+// day2_remove unit: aws_vpc_security_group_egress_rule is ServerAssigned
+// (EC2 assigns its sgr-… id), so ParentOf never names its own
+// security_group_id argument as a link to aws_security_group, even though
+// the SAME convention this function already applies would find it - and a
+// DEPENDENCY question ("which live parent must this be destroyed before")
+// is a different question than an IDENTITY one, answerable from the
+// provider's own schema argument names alone, with no ratified Components
+// row required. See internal/live/discovery's destroyParentDependency,
+// which reaches every type ParentOf can link this way for a record-backed
+// identity's own parent-ordering need; a ServerAssigned type needs the
+// identical ordering for the identical reason (its own live object cannot
+// outlive a parent this run also destroys) but has no Components row to
+// read a link from, only its provider schema's own argument names.
+func ParentByConvention(attr, self string, parents map[string]bool, service ServiceOf) (string, bool) {
+	return parentByConvention(attr, self, parents, service)
+}
+
 func parentByConvention(attr, self string, parents map[string]bool, service ServiceOf) (string, bool) {
 	base := attr
 	for _, suf := range []string{"_id", "_arn", "_url"} {
