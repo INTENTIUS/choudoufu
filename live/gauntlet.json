@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "85ffcf09c467e68d55314e0c75dd0106904dec37",
+  "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:58:29Z",
+  "generated": "2026-08-26T03:24:01Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1259,8 +1259,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "6157e0b4fee76a8d98494a0d9b7eab8fd4bfeaa8",
-        "date": "2026-08-25T18:32:23Z",
+        "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
+        "date": "2026-08-26T03:31:42Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
