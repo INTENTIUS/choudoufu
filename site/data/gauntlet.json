@@ -1394,8 +1394,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "357a552d169499b203a80eff845c9d19cdb28165",
-        "date": "2026-08-25T22:50:54Z",
+        "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
+        "date": "2026-08-26T03:30:19Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
