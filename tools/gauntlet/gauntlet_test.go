@@ -161,6 +161,46 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 	}
 }
 
+// TestNonzeroExitCodeImpliesAFailingStage: a run that ends non-zero must
+// leave visible evidence in the stage table of what failed. If it does not -
+// every stage in the row reads pass or not_run, nothing anywhere reads fail -
+// there is no way for a nonzero exit to be legitimate: it can only mean the
+// exit code reflects something this run never recorded a verdict for, most
+// likely the whole row being carried forward untouched from a prior run
+// while the script died before its first `GAUNTLET stage=` line (issue
+// filed for exactly this shape; see run.go's Spoken-but-empty-Stages branch).
+//
+// This is deliberately narrower than "exit_code != 0 implies clear == false":
+// clear is computed over ACTIVE stages only (isClear), so a script that
+// genuinely fails a PLANNED stage this run (day2_count, say) legitimately
+// exits non-zero while clear stays true - that combination is real, current,
+// correct data, not staleness. reference-ec2-vpc is exactly this case as of
+// this writing: exit_code=1, clear=true, day2_count=fail. The guard must
+// pass on that row, because it is not the defect; it must fail on a row
+// where NOTHING failed anywhere yet the run still exited non-zero.
+func TestNonzeroExitCodeImpliesAFailingStage(t *testing.T) {
+	root := testRoot(t)
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range a.Estates {
+		if r.LastRun == nil || r.LastRun.ExitCode == 0 {
+			continue
+		}
+		hasFail := false
+		for _, v := range r.Stages {
+			if v == VerdictFail {
+				hasFail = true
+				break
+			}
+		}
+		if !hasFail {
+			t.Errorf("%q: last_run.exit_code=%d but no stage reads %q anywhere in its row; this run's failure left no trace in the stage table, which is the stale-carry-forward shape (a script that spoke the protocol, produced zero stage verdicts, and died) - see run.go's res.Spoken/len(res.Stages)==0 branch", r.Name, r.LastRun.ExitCode, VerdictFail)
+		}
+	}
+}
+
 // TestRenderedDocsAreCurrent: a fresh render equals the committed files.
 func TestRenderedDocsAreCurrent(t *testing.T) {
 	root := testRoot(t)
