@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 )
 
 func testRoot(t *testing.T) string {
@@ -201,6 +200,72 @@ func TestNonzeroExitCodeImpliesAFailingStage(t *testing.T) {
 	}
 }
 
+// TestBoardBannerMatchesEstateRows guards #414's fix in the spirit of
+// #413's TestNonzeroExitCodeImpliesAFailingStage: a claim the rendered page
+// makes must be one the artifact's own rows actually support, not a value
+// that merely looks like it summarizes them.
+//
+// #414 was a top-level `commit`/`generated` stamp that no procedure could
+// ever advance, so it went stale relative to what the artifact's own
+// estates recorded - the page claimed a "measured at" instant that
+// predated data it was displaying. What replaced it (boardBanner, computed
+// fresh in renderProgressIndex from a.Estates every render) must never be
+// able to repeat that shape: a value on the page that reads as evidence
+// without being tied to the rows it summarizes.
+//
+// The independent check does NOT call estateDateRange or boardBanner - it
+// walks a.Estates itself, exactly as a reader auditing the page by hand
+// would, so a bug that broke boardBanner's internals but left this test
+// calling the same broken function would still be caught. See #414 for how
+// this was proven load-bearing: the committed page's banner line was
+// hand-edited to a wrong date, this test failed, and the change was
+// reverted.
+func TestBoardBannerMatchesEstateRows(t *testing.T) {
+	root := testRoot(t)
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldest, newest, ok := "", "", false
+	for _, r := range a.Estates {
+		if r.LastRun == nil || r.LastRun.Date == "" {
+			continue
+		}
+		d := r.LastRun.Date
+		if !ok || d < oldest {
+			oldest = d
+		}
+		if !ok || d > newest {
+			newest = d
+		}
+		ok = true
+	}
+	if !ok {
+		t.Skip("no estate carries a last_run.date; the range claim does not apply to this artifact")
+	}
+
+	b, err := os.ReadFile(filepath.Join(root, SiteProgressPage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(b)
+	if a.Emulator == "" || !strings.Contains(page, a.Emulator) {
+		t.Errorf("%s does not mention the pinned emulator %q anywhere; the one board-wide fact the banner still makes went missing", SiteProgressPage, a.Emulator)
+	}
+	if oldest == newest {
+		if !strings.Contains(page, oldest) {
+			t.Errorf("%s's board banner does not carry %q, the only last_run.date every estate row agrees on", SiteProgressPage, oldest)
+		}
+		return
+	}
+	if !strings.Contains(page, oldest) {
+		t.Errorf("%s's board banner does not carry %q, the oldest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", SiteProgressPage, oldest)
+	}
+	if !strings.Contains(page, newest) {
+		t.Errorf("%s's board banner does not carry %q, the newest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", SiteProgressPage, newest)
+	}
+}
+
 // TestRenderedDocsAreCurrent: a fresh render equals the committed files.
 func TestRenderedDocsAreCurrent(t *testing.T) {
 	root := testRoot(t)
@@ -312,10 +377,9 @@ func TestRebuildIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	now := time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
-	a.Rebuild(m, "abc", "img", now)
+	a.Rebuild(m, "img")
 	b1, _ := a.Canonical()
-	a.Rebuild(m, "abc", "img", now)
+	a.Rebuild(m, "img")
 	b2, _ := a.Canonical()
 	if !bytes.Equal(b1, b2) {
 		t.Error("rebuild is not deterministic")

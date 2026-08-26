@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"time"
 )
 
 // ArtifactPath is the gauntlet's committed result, relative to the repo root.
@@ -42,14 +41,25 @@ const (
 )
 
 // Artifact is live/gauntlet.json.
+//
+// It used to also carry a top-level Commit and Generated: a single
+// "measured the whole board at commit X, at time Y" stamp. No procedure
+// produces that fact honestly - `gauntlet run <estate>` runs one estate, not
+// the board, and `gauntlet render` deliberately never advances either field
+// (see #414) - so it is gone rather than fixed to lie less. Emulator stays:
+// unlike Commit/Generated it is not a claim about when anything ran, it is
+// a plain copy of live/floci-image, true of the checked-out tree on every
+// Rebuild regardless of what has or hasn't been run. Each estate's own
+// `last_run.commit`/`last_run.date` is the honest, per-estate replacement
+// (#413); the page-level claim derived from those rows is computed at
+// render time in renderProgressIndex, never stored here, so it cannot go
+// stale independently of the rows it summarizes.
 type Artifact struct {
-	Schema    int                   `json:"schema"`
-	Commit    string                `json:"commit"`
-	Emulator  string                `json:"emulator"`
-	Generated string                `json:"generated"`
-	Stages    []Stage               `json:"stages"`
-	Sets      map[string]SetSummary `json:"sets"`
-	Estates   []EstateResult        `json:"estates"`
+	Schema   int                   `json:"schema"`
+	Emulator string                `json:"emulator"`
+	Stages   []Stage               `json:"stages"`
+	Sets     map[string]SetSummary `json:"sets"`
+	Estates  []EstateResult        `json:"estates"`
 }
 
 // SetSummary is one headline bar.
@@ -121,15 +131,13 @@ func LoadArtifact(root string) (*Artifact, error) {
 // set summaries. Verdicts for estates no longer in the manifest are dropped;
 // estates new to the manifest appear with every stage not_run. It is the one
 // place those rules live.
-func (a *Artifact) Rebuild(m *Manifest, commit, emulator string, now time.Time) {
+func (a *Artifact) Rebuild(m *Manifest, emulator string) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
 	}
 	a.Schema = 1
-	a.Commit = commit
 	a.Emulator = emulator
-	a.Generated = now.UTC().Format(time.RFC3339)
 	a.Stages = Stages()
 
 	var rows []EstateResult

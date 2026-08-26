@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `e6e56813fe` against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2026-08-26T04:46:57Z.
+Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, recorded between 2026-08-25T23:17:08Z and 2026-08-26T04:54:08Z. Each row below carries its own `last_run` date; they are not all the same run.
 
 ## The stages
 

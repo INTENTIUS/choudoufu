@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func main() {
@@ -147,7 +146,7 @@ func emulatorPin(root string) string {
 }
 
 // loadAll loads manifest and artifact and rebuilds the derived parts.
-func loadAll(root string, now time.Time) (*Manifest, *Artifact, error) {
+func loadAll(root string) (*Manifest, *Artifact, error) {
 	m, err := LoadManifest(root)
 	if err != nil {
 		return nil, nil, err
@@ -156,23 +155,14 @@ func loadAll(root string, now time.Time) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, headCommit(root), emulatorPin(root), now)
+	a.Rebuild(m, emulatorPin(root))
 	return m, a, nil
 }
 
 func cmdRender(root string) error {
-	m, a, err := loadAll(root, time.Now())
+	m, a, err := loadAll(root)
 	if err != nil {
 		return err
-	}
-	// Rendering does not bump the generated stamp or commit unless verdicts
-	// changed; keep whatever the artifact carried so `render` is idempotent.
-	if prev, err := LoadArtifact(root); err == nil && prev.Generated != "" {
-		a.Generated = prev.Generated
-		a.Commit = prev.Commit
-		if prev.Emulator != "" {
-			a.Emulator = prev.Emulator
-		}
 	}
 	written, err := Render(root, m, a)
 	if err != nil {
@@ -190,8 +180,7 @@ func cmdRun(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	now := time.Now()
-	m, a, err := loadAll(root, now)
+	m, a, err := loadAll(root)
 	if err != nil {
 		return err
 	}
@@ -200,7 +189,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, commit, emulatorPin(root), now)
+	a.Rebuild(m, emulatorPin(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -283,8 +272,7 @@ func cmdImportLegacy(root string) error {
 	if err := json.Unmarshal(b, &legacy); err != nil {
 		return err
 	}
-	now := time.Now()
-	m, a, err := loadAll(root, now)
+	m, a, err := loadAll(root)
 	if err != nil {
 		return err
 	}
@@ -309,7 +297,7 @@ func cmdImportLegacy(root string) error {
 			imported++
 		}
 	}
-	a.Rebuild(m, headCommit(root), emulatorPin(root), now)
+	a.Rebuild(m, emulatorPin(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -346,11 +334,9 @@ func StaleFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Rebuild with the committed stamp so the comparison is about content.
-	a.Rebuild(m, a.Commit, a.Emulator, time.Time{})
-	if prev, err := LoadArtifact(root); err == nil {
-		a.Generated = prev.Generated
-	}
+	// Same fresh emulator pin `render` itself would use - there is no
+	// stamp left to freeze for content-only comparison (#414).
+	a.Rebuild(m, emulatorPin(root))
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
 		return nil, err

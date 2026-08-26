@@ -72,16 +72,22 @@ alone.
    its own base, a branch cut before an earlier merge will silently drop that
    estate's row: make the worker rebase and RE-RUN its estate so the runner
    writes the row, rather than hand-resolving the artifact.
-   **The one artifact conflict you may resolve yourself.** Every branch
-   that ran an estate rewrites `live/gauntlet.json`'s top-level
-   `commit`/`emulator`/`generated` header, so the second merge of a batch
-   conflicts there even when every estate row merged clean. Take `main`'s
-   header (`<<<<<<< HEAD` side) and nothing else, validate the JSON, take
-   `--ours` for `site/data/gauntlet.json` and `site/content/docs/progress/_index.md`,
+   **The `emulator` header, on the rare occasion it conflicts.**
+   `live/gauntlet.json`'s top-level `commit`/`generated` header is gone
+   (#414: no run ever measured the whole board - a single-estate `gauntlet
+   run` isn't one - and `render` was built to never advance them anyway, so
+   they were a claim no procedure could make true). What is left at the top
+   level is `emulator`, a plain copy of `live/floci-image`; it does not
+   change on an ordinary `gauntlet run` and so does not conflict on an
+   ordinary merge. It can conflict if one branch also bumped the pin: take
+   whichever side matches `live/floci-image` as it will read on `main`
+   after the merge, validate the JSON, take `--ours` for
+   `site/data/gauntlet.json` and `site/content/docs/progress/_index.md`,
    run `go run ./tools/gauntlet render`, then check `gauntlet check` and
    that `git diff --cached HEAD -- live/gauntlet.json` touches only the
-   estate the branch claims. A conflict INSIDE an estate row is never yours:
-   the worker rebases and re-runs.
+   estate the branch claims (plus `emulator`, if a pin bump is what
+   conflicted). A conflict INSIDE an estate row is never yours: the worker
+   rebases and re-runs.
    **Before the merge commit, always:** `grep -c '<<<<<<<'` on every
    conflicted file must print 0, and the guard tests must be GREEN, before
    `git commit` runs — never in the same compound command that commits.
