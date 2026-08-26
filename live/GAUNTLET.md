@@ -223,7 +223,7 @@ is the whole approval step. Anything real goes in the growing set without one.
 
 ## The artifact
 
-`live/gauntlet.json` carries `schema`, `commit`, `emulator`, `generated`, the `stages`
+`live/gauntlet.json` carries `schema`, `emulator`, the `stages`
 table above, `sets` (`core` and `all`, each with `estates`, `clear`, and a
 per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,
 `lane`, `set`, `reason`, `script`, `stages` (id to verdict), `clear`,

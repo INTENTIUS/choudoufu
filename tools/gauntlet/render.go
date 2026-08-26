@@ -197,7 +197,7 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("")
 	w("## The artifact")
 	w("")
-	w("`%s` carries `schema`, `commit`, `emulator`, `generated`, the `stages`", ArtifactPath)
+	w("`%s` carries `schema`, `emulator`, the `stages`", ArtifactPath)
 	w("table above, `sets` (`core` and `all`, each with `estates`, `clear`, and a")
 	w("per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,")
 	w("`lane`, `set`, `reason`, `script`, `stages` (id to verdict), `clear`,")
@@ -262,6 +262,51 @@ func frontMatter(title string, weight int, extra ...string) string {
 	return b.String()
 }
 
+// estateDateRange returns the oldest and newest last_run.date across every
+// estate that has recorded at least one run. ok is false when none has -
+// a fresh manifest before its first `gauntlet run`. RFC3339 UTC strings
+// (the only format LastRun.Date is ever written in, run.go) sort correctly
+// as plain strings, so no time parsing is needed.
+func estateDateRange(a *Artifact) (oldest, newest string, ok bool) {
+	for _, r := range a.Estates {
+		if r.LastRun == nil || r.LastRun.Date == "" {
+			continue
+		}
+		d := r.LastRun.Date
+		if !ok || d < oldest {
+			oldest = d
+		}
+		if !ok || d > newest {
+			newest = d
+		}
+		ok = true
+	}
+	return oldest, newest, ok
+}
+
+// boardBanner is the one board-wide sentence the index page still gets to
+// make. It used to claim a single "measured at commit X" stamp for the
+// whole board; no procedure ever produced that fact honestly (#414), so it
+// is gone rather than kept lying. What replaces it is computed fresh from
+// a.Estates on every call, never carried from a previous render, so it
+// cannot go stale independently of the table below it: the emulator image
+// every estate ran against (a plain copy of live/floci-image, true of the
+// checked-out tree regardless of what has run), and the true range of the
+// estates' own last_run dates - two honest numbers in place of one false
+// one, because after a batch of single-estate confirmations no single
+// timestamp describes the board.
+func boardBanner(a *Artifact) string {
+	oldest, newest, ok := estateDateRange(a)
+	switch {
+	case !ok:
+		return fmt.Sprintf("Every estate below runs against the pinned emulator image `%s`; none has recorded a run yet.", a.Emulator)
+	case oldest == newest:
+		return fmt.Sprintf("Every estate below last ran against the pinned emulator image `%s`, recorded at %s.", a.Emulator, oldest)
+	default:
+		return fmt.Sprintf("Every estate below last ran against the pinned emulator image `%s`, recorded between %s and %s. Each row below carries its own `last_run` date; they are not all the same run.", a.Emulator, oldest, newest)
+	}
+}
+
 // renderProgressIndex is the site's progress page.
 func renderProgressIndex(a *Artifact) string {
 	var b strings.Builder
@@ -276,7 +321,7 @@ func renderProgressIndex(a *Artifact) string {
 	w("")
 	w("{{< gauntlet-bars >}}")
 	w("")
-	w("Measured at commit `%s` against `%s`, %s.", short(a.Commit), a.Emulator, a.Generated)
+	w("%s", boardBanner(a))
 	w("")
 	w("## The stages")
 	w("")

@@ -58,7 +58,11 @@ if have python3 && [ -f live/gauntlet.json ]; then
 import json
 g=json.load(open('live/gauntlet.json'))
 s=g['sets']
-print(f"runner commit {g['commit'][:10]}  emulator {g['emulator'].split('@')[-1][:19]}  generated {g['generated']}")
+# No top-level commit/generated any more (#414: no procedure ever advanced
+# them honestly). art_commit above, from git itself, is the real answer to
+# "when was this file last written"; each estate's own last_run is the real
+# answer to "when did IT last run".
+print(f"emulator {g['emulator'].split('@')[-1][:19]}")
 print(f"core  {s['core']['clear']}/{s['core']['estates']} clear    all {s['all']['clear']}/{s['all']['estates']} clear")
 fails=[(e['name'],[k for k,v in e['stages'].items() if v=='fail']) for e in g['estates'] if not e['clear']]
 for n,f in fails:

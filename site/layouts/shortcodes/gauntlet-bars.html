@@ -80,8 +80,31 @@
       </div>
     {{- end -}}
   {{- end -}}
-  {{- with $data.commit -}}
-  <p class="gauntlet-meta">As of commit {{ . }}{{ with $data.generated }}, generated {{ . }}{{ end }}.</p>
+  {{- /* There is no single "as of commit X" stamp any more (#414): no
+         procedure ever produced that fact honestly, since a single-estate
+         `gauntlet run` is not a whole-board measurement and `render` never
+         advanced it. What is true of the whole board is the emulator every
+         estate ran against (a plain copy of live/floci-image) and the
+         range of the estates' own recorded last_run dates, computed fresh
+         from $data.estates here rather than carried from a stored field. */ -}}
+  {{- $dates := slice -}}
+  {{- range $data.estates -}}
+    {{- with .last_run -}}
+      {{- if .date -}}{{- $dates = $dates | append .date -}}{{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $dates = sort $dates -}}
+  {{- $n := len $dates -}}
+  {{- with $data.emulator -}}
+  <p class="gauntlet-meta">
+    {{- if eq $n 0 -}}
+      Every estate above runs against the pinned emulator image {{ . }}; none has recorded a run yet.
+    {{- else if eq $n 1 -}}
+      Every estate above last ran against the pinned emulator image {{ . }}, recorded at {{ index $dates 0 }}.
+    {{- else -}}
+      Every estate above last ran against the pinned emulator image {{ . }}, recorded between {{ index $dates 0 }} and {{ index $dates (sub $n 1) }}.
+    {{- end -}}
+  </p>
   {{- end -}}
 </div>
 {{- end -}}

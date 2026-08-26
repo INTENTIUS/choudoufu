@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestNextIsDeterministicAndOrdered: core before growing, fewest remaining
@@ -29,7 +28,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 		{Name: "c-done", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, "c", "e", time.Time{})
+	a.Rebuild(m, "e")
 	set := func(name string, verdicts map[string]string) {
 		r, _ := a.Result(name)
 		for k, v := range verdicts {
@@ -51,7 +50,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	set("c-close", close)
 	set("g-close", close)
 	// c-far: nothing passes.
-	a.Rebuild(m, "c", "e", time.Time{})
+	a.Rebuild(m, "e")
 
 	units := NextUnits(a, "all")
 	got := []string{}
