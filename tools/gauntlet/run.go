@@ -98,6 +98,17 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit s
 				r.LastRun.Detail = prevDetail
 			}
 			r.Protocol = ProtocolGauntlet
+			if len(res.Stages) == 0 {
+				// Spoke the protocol (printed GAUNTLET protocol=1) but died
+				// before a single GAUNTLET stage= line - e.g. failed the
+				// step-0 tool/corpus check. r.Stages above is unchanged from
+				// the prior run in this case (the merge loop ran zero
+				// times), so every existing verdict, including a full pass,
+				// is being carried forward untouched. The legacy branch
+				// below already warns this loudly for res.Spoken == false;
+				// this case is otherwise silent, so warn here too.
+				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; verdicts left as recorded, exit code %d noted\n", e.Name, exit)
+			}
 			for _, u := range res.Unknown {
 				fmt.Fprintf(opts.Stdout, "%s: reported unknown stage %q; add it to tools/gauntlet/stages.go or fix the script\n", e.Name, u)
 			}
