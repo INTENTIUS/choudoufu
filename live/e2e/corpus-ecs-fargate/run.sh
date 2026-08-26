@@ -1002,23 +1002,30 @@ CURRENT_STAGE=""
 #
 # NOTE ON THE TARGET CHOICE: this section tried TWO other targets first,
 # each reproducing a genuine, separate finding - recorded here rather
-# than routed around silently, not fixed in this script-only unit:
+# than routed around silently:
 #   1. aws_service_discovery_http_namespace.this_renamed (Part D's
 #      live-mv leg): after "choudoufu live-mv" renames a BARE, non-
 #      module-nested resource (no module boundary crossed) with no
 #      ordinary apply run afterward, the live MARKER is correctly
 #      rewritten (day2_rename's own Proves text, unaffected) but the
-#      LOCAL RECORD is left stale at the OLD key. Root cause, read
+#      LOCAL RECORD was left stale at the OLD key. Root cause, read
 #      directly off mv.go with no tofu in the loop: internal/live/mv/
 #      mv.go's propagateModuleRename (called from Move after the marker
-#      rewrite) opens with `oldPrefix, newPrefix, ok :=
+#      rewrite) opened with `oldPrefix, newPrefix, ok :=
 #      moduleRenameBoundary(...); if !ok { return diags }` - for a
-#      same-module, bare-resource rename this check is never satisfied,
-#      so the function returns immediately and never reaches the
+#      same-module, bare-resource rename this check was never satisfied,
+#      so the function returned immediately and never reached the
 #      MoveRecord call its own doc comment says covers "the resource
-#      live-mv was asked to rename itself". corpus-autoscaling-complete's
-#      and corpus-eks-basic's own day2_replace sections in this same unit
-#      independently hit the identical shape.
+#      live-mv was asked to rename itself". FIXED on the gauntlet/mv-rekey
+#      branch, GitHub issue #412: propagateModuleRename now calls
+#      store.MoveRecord(ctx, m.req.Old, m.req.New) unconditionally, before
+#      the moduleRenameBoundary guard, so a same-module bare-resource
+#      rename re-keys its own record instead of leaving the store
+#      pointing at a dead address. corpus-autoscaling-complete's and
+#      corpus-eks-basic's own day2_replace sections in this same unit
+#      independently hit the identical shape; this script was not re-run
+#      for #412, so this comment and the day2_replace detail string below
+#      still describe the pre-#412 code until this estate's next real run.
 #   2. module.alb_renamed's own load balancer (Part D1's moved-block-
 #      plus-apply leg, which dodges finding 1 above): the LB's own
 #      replace applies cleanly (identity, marker, record all correct,
@@ -1919,7 +1926,7 @@ EOF
       || { printf '%s\n' "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
-    gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include \`revision\`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices (aws_service_discovery_http_namespace.this_renamed, module.alb_renamed) each found a genuine, separate defect not fixed here - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include \`revision\`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices each found a genuine, separate defect: aws_service_discovery_http_namespace.this_renamed's (mv.go's propagateModuleRename skipping MoveRecord for a same-module rename) is FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit, neither of which was re-run for #412; module.alb_renamed's (the non-converging cascade, F-ORACLE's own header comment, finding 2) remains a separate, open finding, not fixed here."
   fi
   CURRENT_STAGE=""
 

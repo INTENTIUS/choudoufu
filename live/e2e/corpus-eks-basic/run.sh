@@ -935,20 +935,27 @@ CURRENT_STAGE=""
 # THE TARGET CHOICE: worker_group_mgmt_two, not all_worker_mgmt.
 # all_worker_mgmt is Part D's own live-mv leg (D2, no module boundary
 # crossed, no apply run immediately afterward) - reproducing it here first
-# found a genuine, separate defect: choudoufu's live-mv correctly rewrites
-# the live MARKER for a bare, same-module resource rename but leaves the
+# found a genuine, separate defect: choudoufu's live-mv correctly rewrote
+# the live MARKER for a bare, same-module resource rename but left the
 # LOCAL RECORD stale at the old key, because internal/live/mv/mv.go's
-# propagateModuleRename opens with `oldPrefix, newPrefix, ok :=
-# moduleRenameBoundary(...); if !ok { return diags }` and never reaches
+# propagateModuleRename opened with `oldPrefix, newPrefix, ok :=
+# moduleRenameBoundary(...); if !ok { return diags }` and never reached
 # its own MoveRecord call for a same-module rename, even though that
 # function's own doc comment says it covers "the resource live-mv was
 # asked to rename itself". Confirmed empirically, no tofu in the loop:
 # cat-ing the record store directly after Part D's real live-mv found the
 # record still filed under the OLD address, never re-keyed to
-# all_worker_mgmt_renamed. Not fixed here (a Go change, out of scope for
-# a script-only unit; corpus-autoscaling-complete's and corpus-ecs-
-# fargate's own day2_replace sections in this same unit independently hit
-# the identical shape). worker_group_mgmt_two_renamed dodges it: Part D1
+# all_worker_mgmt_renamed. FIXED on the gauntlet/mv-rekey branch, GitHub
+# issue #412: propagateModuleRename now calls store.MoveRecord(ctx,
+# m.req.Old, m.req.New) unconditionally, before the moduleRenameBoundary
+# guard, so a same-module bare-resource rename re-keys its own record
+# instead of leaving the store pointing at a dead address (see
+# internal/live/mv/mv.go for the fix). corpus-autoscaling-complete's and
+# corpus-ecs-fargate's own day2_replace sections in this same unit
+# independently hit the identical shape; this script was not re-run for
+# #412 (out of scope for that unit), so this comment and the day2_replace
+# detail string below still describe the pre-#412 code until this
+# estate's next real run. worker_group_mgmt_two_renamed dodges it: Part D1
 # renames it through a moved block FOLLOWED BY a real converging apply
 # (MOVED_APPLY_OUT, above), which writes a fresh record under the current
 # address as ordinary apply WriteBack - the same shape alb-complete's own
@@ -1667,7 +1674,7 @@ EOF
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
     SG2_ID_D="$F_NEW_ID"
-    gauntlet_stage day2_replace pass "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit."
+    gauntlet_stage day2_replace pass "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 (propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard); see this section's own header comment for the fix and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit. This script was not re-run for #412, so this detail string still describes the pre-#412 run until this estate's next real run."
   fi
   CURRENT_STAGE=""
 

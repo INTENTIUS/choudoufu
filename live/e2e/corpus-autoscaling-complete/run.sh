@@ -162,7 +162,11 @@ TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
-  rm -rf "$WORK"
+  if [ -z "${GAUNTLET_KEEP_WORK:-}" ]; then
+    rm -rf "$WORK"
+  else
+    echo "GAUNTLET_KEEP_WORK set: leaving $WORK in place" >&2
+  fi
 }
 trap cleanup EXIT
 
@@ -404,17 +408,24 @@ CURRENT_STAGE=""
 # fresh record under the current address as ordinary apply WriteBack -
 # neither depends on this function at all. Row 2 of HANDOFF's five-row
 # table (choudoufu's own record store and the live marker disagree after
-# a plain live-mv rename with no module boundary) - a real gap, not fixed
-# here (a Go change to mv.go, out of scope for a script-only unit; see
-# eks-basic's and ecs-fargate's own day2_replace sections in this same
-# unit, which independently hit the identical shape on aws_security_
-# group.all_worker_mgmt_renamed and aws_service_discovery_http_namespace.
-# this_renamed respectively). Switched to module.asg_sg_renamed's own
-# security group instead, which Part D1 renames through a moved block
+# a plain live-mv rename with no module boundary) - a real gap, FIXED on
+# this branch, GitHub issue #412 (gauntlet/mv-rekey): mv.go's
+# propagateModuleRename now calls store.MoveRecord(ctx, m.req.Old, m.req.
+# New) unconditionally, before the moduleRenameBoundary guard, so a
+# same-module bare-resource rename re-keys its own record instead of
+# leaving the store pointing at a dead address. eks-basic's and ecs-
+# fargate's own day2_replace sections in this same unit independently hit
+# the identical shape on aws_security_group.all_worker_mgmt_renamed and
+# aws_service_discovery_http_namespace.this_renamed respectively; their
+# scripts were not re-run for #412 (out of scope for this unit), so their
+# own header comments and detail strings still read pre-fix until their
+# next real run. This section still targets module.asg_sg_renamed's own
+# security group rather than aws_sqs_queue.this_renamed, unchanged by
+# #412 - which Part D1 renames through a moved block
 # FOLLOWED BY a real converging apply (MOVED_APPLY_OUT, this script's own
 # D1 above) - the same apply-refreshes-the-record shape alb-complete's
 # Part F already relies on - so this section exercises the stage
-# honestly without depending on the gap above.
+# honestly without depending on the now-fixed gap above.
 CURRENT_STAGE=day2_replace
 log "=== F-ORACLE. stock: force-replace module.asg_sg's security group via its ForceNew name_prefix argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/plain-replace-oracle"
@@ -896,17 +907,20 @@ EOF
   # header comment above records a genuine, separate defect this section
   # originally reproduced on aws_sqs_queue.this_renamed (Part D's live-mv
   # leg) - a bare, non-module-nested live-mv rename with no apply
-  # afterward leaves the LOCAL RECORD stale at the old key even though the
-  # live MARKER moves correctly (internal/live/mv/mv.go's
-  # propagateModuleRename never reaches its own MoveRecord call for a
-  # same-module rename). Not fixed here - see that comment for the root
-  # cause read directly off mv.go, and for eks-basic's/ecs-fargate's own
-  # day2_replace sections in this same unit, which independently hit the
-  # identical shape. This section targets module.asg_sg_renamed's security
-  # group instead, which Part D1 renames through a moved block FOLLOWED BY
+  # afterward left the LOCAL RECORD stale at the old key even though the
+  # live MARKER moved correctly (internal/live/mv/mv.go's
+  # propagateModuleRename never reached its own MoveRecord call for a
+  # same-module rename). FIXED on this branch, GitHub issue #412
+  # (gauntlet/mv-rekey) - see F-ORACLE's own header comment above for the
+  # fix and for eks-basic's/ecs-fargate's own day2_replace sections in
+  # this same unit, which independently hit the identical shape and were
+  # not re-run for #412. This section still targets module.asg_sg_
+  # renamed's security group rather than aws_sqs_queue.this_renamed,
+  # unchanged by #412 - Part D1 renames it through a moved block FOLLOWED BY
   # a real converging apply (MOVED_APPLY_OUT, above) - the apply-
   # refreshes-the-record shape alb-complete's own Part F already relies
-  # on - so the stage is exercised honestly without depending on the gap.
+  # on - so the stage is exercised honestly without depending on the
+  # now-fixed gap.
   #
   # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
   # instance-complete's and corpus-sqs-basic's own Part F): the security
@@ -1009,7 +1023,7 @@ EOF
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
     ASG_SG_ID="$F_NEW_ID"
-    gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and eks-basic's/ecs-fargate's matching ones in this same unit."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412."
   fi
   CURRENT_STAGE=""
 
