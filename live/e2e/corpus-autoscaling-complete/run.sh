@@ -162,7 +162,11 @@ TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
-  rm -rf "$WORK"
+  if [ -z "${GAUNTLET_KEEP_WORK:-}" ]; then
+    rm -rf "$WORK"
+  else
+    echo "GAUNTLET_KEEP_WORK set: leaving $WORK in place" >&2
+  fi
 }
 trap cleanup EXIT
 
@@ -404,17 +408,24 @@ CURRENT_STAGE=""
 # fresh record under the current address as ordinary apply WriteBack -
 # neither depends on this function at all. Row 2 of HANDOFF's five-row
 # table (choudoufu's own record store and the live marker disagree after
-# a plain live-mv rename with no module boundary) - a real gap, not fixed
-# here (a Go change to mv.go, out of scope for a script-only unit; see
-# eks-basic's and ecs-fargate's own day2_replace sections in this same
-# unit, which independently hit the identical shape on aws_security_
-# group.all_worker_mgmt_renamed and aws_service_discovery_http_namespace.
-# this_renamed respectively). Switched to module.asg_sg_renamed's own
-# security group instead, which Part D1 renames through a moved block
+# a plain live-mv rename with no module boundary) - a real gap, FIXED on
+# this branch, GitHub issue #412 (gauntlet/mv-rekey): mv.go's
+# propagateModuleRename now calls store.MoveRecord(ctx, m.req.Old, m.req.
+# New) unconditionally, before the moduleRenameBoundary guard, so a
+# same-module bare-resource rename re-keys its own record instead of
+# leaving the store pointing at a dead address. eks-basic's and ecs-
+# fargate's own day2_replace sections in this same unit independently hit
+# the identical shape on aws_security_group.all_worker_mgmt_renamed and
+# aws_service_discovery_http_namespace.this_renamed respectively; their
+# scripts were not re-run for #412 (out of scope for this unit), so their
+# own header comments and detail strings still read pre-fix until their
+# next real run. This section still targets module.asg_sg_renamed's own
+# security group rather than aws_sqs_queue.this_renamed, unchanged by
+# #412 - which Part D1 renames through a moved block
 # FOLLOWED BY a real converging apply (MOVED_APPLY_OUT, this script's own
 # D1 above) - the same apply-refreshes-the-record shape alb-complete's
 # Part F already relies on - so this section exercises the stage
-# honestly without depending on the gap above.
+# honestly without depending on the now-fixed gap above.
 CURRENT_STAGE=day2_replace
 log "=== F-ORACLE. stock: force-replace module.asg_sg's security group via its ForceNew name_prefix argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/plain-replace-oracle"
@@ -896,17 +907,20 @@ EOF
   # header comment above records a genuine, separate defect this section
   # originally reproduced on aws_sqs_queue.this_renamed (Part D's live-mv
   # leg) - a bare, non-module-nested live-mv rename with no apply
-  # afterward leaves the LOCAL RECORD stale at the old key even though the
-  # live MARKER moves correctly (internal/live/mv/mv.go's
-  # propagateModuleRename never reaches its own MoveRecord call for a
-  # same-module rename). Not fixed here - see that comment for the root
-  # cause read directly off mv.go, and for eks-basic's/ecs-fargate's own
-  # day2_replace sections in this same unit, which independently hit the
-  # identical shape. This section targets module.asg_sg_renamed's security
-  # group instead, which Part D1 renames through a moved block FOLLOWED BY
+  # afterward left the LOCAL RECORD stale at the old key even though the
+  # live MARKER moved correctly (internal/live/mv/mv.go's
+  # propagateModuleRename never reached its own MoveRecord call for a
+  # same-module rename). FIXED on this branch, GitHub issue #412
+  # (gauntlet/mv-rekey) - see F-ORACLE's own header comment above for the
+  # fix and for eks-basic's/ecs-fargate's own day2_replace sections in
+  # this same unit, which independently hit the identical shape and were
+  # not re-run for #412. This section still targets module.asg_sg_
+  # renamed's security group rather than aws_sqs_queue.this_renamed,
+  # unchanged by #412 - Part D1 renames it through a moved block FOLLOWED BY
   # a real converging apply (MOVED_APPLY_OUT, above) - the apply-
   # refreshes-the-record shape alb-complete's own Part F already relies
-  # on - so the stage is exercised honestly without depending on the gap.
+  # on - so the stage is exercised honestly without depending on the
+  # now-fixed gap.
   #
   # THE create_before_destroy SCOPE NOTE (same shape as corpus-ec2-
   # instance-complete's and corpus-sqs-basic's own Part F): the security
@@ -1009,7 +1023,7 @@ EOF
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
     ASG_SG_ID="$F_NEW_ID"
-    gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skips MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moves correctly) - not fixed here, see this section's own header comment and eks-basic's/ecs-fargate's matching ones in this same unit."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412."
   fi
   CURRENT_STAGE=""
 
@@ -1238,29 +1252,89 @@ sg_shape() { # $1=endpoint $2=security-group-id
   aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups --group-ids "$2" \
     --query "SecurityGroups[0].[length(IpPermissions),length(IpPermissionsEgress)]" --output text 2>/dev/null
 }
+vpc_ids_by_name_tag() { # $1=endpoint $2=Name tag value -> zero or more vpc ids, tab-separated on one line
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-vpcs \
+    --filters "Name=tag:Name,Values=$2" --query "Vpcs[].VpcId" --output text
+}
+sg_list_in_vpc() { # $1=endpoint $2=vpc-id -> "GroupId<TAB>Description", one line per group, EVERY group in that vpc
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=vpc-id,Values=$2" --query "SecurityGroups[].[GroupId,Description]" --output text
+}
 # module.asg_sg's own `name` argument is local.name (basename(path.cwd)),
-# not a literal "asg_sg" - the group's real AWS name is "complete-<hash>"
-# in every copy of this estate (plain, adopted, green all share the same
-# basename), so a group-name filter for "*asg_sg*" can never match
-# anything and this whole comparison was dead code until the greenfield
-# stage started clearing PART GREENFIELD: 4's replan check (this floci
-# repin). Confirmed directly against the API with no tofu in the loop: a
-# fresh apply of this same corpus example produces exactly two non-default
-# security groups, "complete-<hash>" (module.alb's, Description "Security
-# group for complete application load balancer") and another
-# "complete-<hash>" (module.asg_sg's) - module.asg_sg is the only one
-# whose main.tf sets `description = "A security group"` (main.tf:861),
-# and that literal is unique across the whole example, so it identifies
-# the group in both namespaces without relying on any choudoufu-specific
-# marker tag (stock's own plain apply writes no tofu-address tag at all).
-GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
-STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
-[ -n "$GREEN_SG_ID" ] && [ "$GREEN_SG_ID" != "None" ] || fail "no asg_sg security group found in the greenfield namespace"
-[ -n "$STOCK_SG_ID" ] && [ "$STOCK_SG_ID" != "None" ] || fail "no asg_sg security group found in stock's own cold-deploy namespace"
+# not a literal "asg_sg" - the group's real AWS name is the example
+# directory's own basename ("complete") in every copy of this estate
+# (plain, adopted, green all share the same trailing
+# "autoscaling/examples/complete" path, so basename(path.cwd) is
+# identical in all three), so a group-name filter for "*asg_sg*" can
+# never match anything and this whole comparison was dead code until the
+# greenfield stage started clearing PART GREENFIELD: 4's replan check
+# (this floci repin).
+#
+# THIS SECTION USED TO select the group with a server-side
+# `Name=description,Values=A security group` filter and take `[0]`, on
+# the claim that the description is unique across the example and so
+# `[0]` is safe. THAT CLAIM IS FALSE, and not because the configuration
+# changed: floci's DescribeSecurityGroups ignores the `description`
+# filter name entirely and returns EVERY security group in the account
+# regardless of the value passed - confirmed directly against the API,
+# no tofu in the loop, by repeating the identical query with a value
+# guaranteed not to match anything and getting back the SAME unfiltered
+# list (lex00/floci#150, filed against this exact defect; `vpc-id` and
+# `group-name`, tested the same way against the same data, correctly
+# narrow the result). So `[0]` was an order-unspecified pick over the
+# WHOLE account - both VPCs' own auto-created default security groups
+# included - and intermittently landed on one of those instead of
+# module.asg_sg's, which is what an earlier run of this script wrongly
+# attributed to real-API timing variance. Ground truth via
+# `describe-security-group-rules --filters Name=group-id,Values=<id>`
+# (exact-id filtering, unaffected by this bug) on the actually-intended
+# group showed 1 ingress/1 egress on BOTH sides throughout every probe:
+# this estate's behaviour matched stock the whole time, and only the
+# SELECTION was ever wrong.
+#
+# Hardened to depend on no filter that `description`'s own bug shows
+# floci might silently ignore: scope server-side on `vpc-id` (confirmed
+# correctly narrowing, unlike `description` - lex00/floci#150's own
+# repro) to this estate's one non-default VPC - module.vpc's own
+# `name = local.name` writes that same basename as the VPC's Name tag -
+# then match `Description` EXACTLY in bash against every group the
+# vpc-id filter returned, and insist on exactly one match. Zero matches
+# or more than one is a hard, loud fail here, never a `[0]`.
+ESTATE_DIR_NAME="$(basename "$GREEN")"
+[ "$ESTATE_DIR_NAME" = "$(basename "$PLAIN")" ] || fail "internal: greenfield/plain work dirs have different basenames ($ESTATE_DIR_NAME vs $(basename "$PLAIN")) - the vpc Name-tag lookup below assumes they match"
+GREEN_VPC_IDS="$(vpc_ids_by_name_tag "$GREEN_ENDPOINT" "$ESTATE_DIR_NAME")"
+STOCK_VPC_IDS="$(vpc_ids_by_name_tag "$ENDPOINT" "$ESTATE_DIR_NAME")"
+read -ra GREEN_VPC_ARR <<< "$GREEN_VPC_IDS"
+read -ra STOCK_VPC_ARR <<< "$STOCK_VPC_IDS"
+[ "${#GREEN_VPC_ARR[@]}" -eq 1 ] || fail "expected exactly one VPC tagged Name=$ESTATE_DIR_NAME in the greenfield namespace, found ${#GREEN_VPC_ARR[@]} ($GREEN_VPC_IDS)"
+[ "${#STOCK_VPC_ARR[@]}" -eq 1 ] || fail "expected exactly one VPC tagged Name=$ESTATE_DIR_NAME in stock's own cold-deploy namespace, found ${#STOCK_VPC_ARR[@]} ($STOCK_VPC_IDS)"
+GREEN_VPC_ID="${GREEN_VPC_ARR[0]}"
+STOCK_VPC_ID="${STOCK_VPC_ARR[0]}"
+
+GREEN_SG_ROWS="$(sg_list_in_vpc "$GREEN_ENDPOINT" "$GREEN_VPC_ID")"
+STOCK_SG_ROWS="$(sg_list_in_vpc "$ENDPOINT" "$STOCK_VPC_ID")"
+GREEN_SG_MATCHES=()
+while IFS=$'\t' read -r sg_id sg_desc; do
+  [ "$sg_desc" = "A security group" ] && GREEN_SG_MATCHES+=("$sg_id")
+done <<< "$GREEN_SG_ROWS"
+STOCK_SG_MATCHES=()
+while IFS=$'\t' read -r sg_id sg_desc; do
+  [ "$sg_desc" = "A security group" ] && STOCK_SG_MATCHES+=("$sg_id")
+done <<< "$STOCK_SG_ROWS"
+if [ "${#GREEN_SG_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$GREEN_SG_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one security group in the greenfield vpc $GREEN_VPC_ID with Description exactly \"A security group\" (client-side match over a server-side vpc-id-only filter - description filtering is a floci no-op, lex00/floci#150), found ${#GREEN_SG_MATCHES[@]}; full per-vpc group list on stderr above"
+fi
+if [ "${#STOCK_SG_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$STOCK_SG_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one security group in stock's own cold-deploy vpc $STOCK_VPC_ID with Description exactly \"A security group\" (client-side match over a server-side vpc-id-only filter - description filtering is a floci no-op, lex00/floci#150), found ${#STOCK_SG_MATCHES[@]}; full per-vpc group list on stderr above"
+fi
+GREEN_SG_ID="${GREEN_SG_MATCHES[0]}"
+STOCK_SG_ID="${STOCK_SG_MATCHES[0]}"
 GREEN_SG_SHAPE="$(sg_shape "$GREEN_ENDPOINT" "$GREEN_SG_ID")"
 STOCK_SG_SHAPE="$(sg_shape "$ENDPOINT" "$STOCK_SG_ID")"
 [ "$GREEN_SG_SHAPE" = "$STOCK_SG_SHAPE" ] || fail "the asg_sg security group's rule counts differ: greenfield=$GREEN_SG_SHAPE stock=$STOCK_SG_SHAPE"
-log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE)"
+log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE), identified by vpc-id scoping + an exact client-side Description match, not floci's broken description filter (lex00/floci#150)"
 
 GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
 [ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"

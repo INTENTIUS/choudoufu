@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `c22d0fb7aa` against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2026-08-26T03:24:01Z.
+Measured at commit `e6e56813fe` against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2026-08-26T04:46:57Z.
 
 ## The stages
 
