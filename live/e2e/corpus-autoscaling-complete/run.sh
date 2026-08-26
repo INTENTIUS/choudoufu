@@ -1252,29 +1252,89 @@ sg_shape() { # $1=endpoint $2=security-group-id
   aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups --group-ids "$2" \
     --query "SecurityGroups[0].[length(IpPermissions),length(IpPermissionsEgress)]" --output text 2>/dev/null
 }
+vpc_ids_by_name_tag() { # $1=endpoint $2=Name tag value -> zero or more vpc ids, tab-separated on one line
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-vpcs \
+    --filters "Name=tag:Name,Values=$2" --query "Vpcs[].VpcId" --output text
+}
+sg_list_in_vpc() { # $1=endpoint $2=vpc-id -> "GroupId<TAB>Description", one line per group, EVERY group in that vpc
+  aws --endpoint-url "$1" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=vpc-id,Values=$2" --query "SecurityGroups[].[GroupId,Description]" --output text
+}
 # module.asg_sg's own `name` argument is local.name (basename(path.cwd)),
-# not a literal "asg_sg" - the group's real AWS name is "complete-<hash>"
-# in every copy of this estate (plain, adopted, green all share the same
-# basename), so a group-name filter for "*asg_sg*" can never match
-# anything and this whole comparison was dead code until the greenfield
-# stage started clearing PART GREENFIELD: 4's replan check (this floci
-# repin). Confirmed directly against the API with no tofu in the loop: a
-# fresh apply of this same corpus example produces exactly two non-default
-# security groups, "complete-<hash>" (module.alb's, Description "Security
-# group for complete application load balancer") and another
-# "complete-<hash>" (module.asg_sg's) - module.asg_sg is the only one
-# whose main.tf sets `description = "A security group"` (main.tf:861),
-# and that literal is unique across the whole example, so it identifies
-# the group in both namespaces without relying on any choudoufu-specific
-# marker tag (stock's own plain apply writes no tofu-address tag at all).
-GREEN_SG_ID="$(awsg ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
-STOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=description,Values=A security group" --query "SecurityGroups[0].GroupId" --output text)"
-[ -n "$GREEN_SG_ID" ] && [ "$GREEN_SG_ID" != "None" ] || fail "no asg_sg security group found in the greenfield namespace"
-[ -n "$STOCK_SG_ID" ] && [ "$STOCK_SG_ID" != "None" ] || fail "no asg_sg security group found in stock's own cold-deploy namespace"
+# not a literal "asg_sg" - the group's real AWS name is the example
+# directory's own basename ("complete") in every copy of this estate
+# (plain, adopted, green all share the same trailing
+# "autoscaling/examples/complete" path, so basename(path.cwd) is
+# identical in all three), so a group-name filter for "*asg_sg*" can
+# never match anything and this whole comparison was dead code until the
+# greenfield stage started clearing PART GREENFIELD: 4's replan check
+# (this floci repin).
+#
+# THIS SECTION USED TO select the group with a server-side
+# `Name=description,Values=A security group` filter and take `[0]`, on
+# the claim that the description is unique across the example and so
+# `[0]` is safe. THAT CLAIM IS FALSE, and not because the configuration
+# changed: floci's DescribeSecurityGroups ignores the `description`
+# filter name entirely and returns EVERY security group in the account
+# regardless of the value passed - confirmed directly against the API,
+# no tofu in the loop, by repeating the identical query with a value
+# guaranteed not to match anything and getting back the SAME unfiltered
+# list (lex00/floci#150, filed against this exact defect; `vpc-id` and
+# `group-name`, tested the same way against the same data, correctly
+# narrow the result). So `[0]` was an order-unspecified pick over the
+# WHOLE account - both VPCs' own auto-created default security groups
+# included - and intermittently landed on one of those instead of
+# module.asg_sg's, which is what an earlier run of this script wrongly
+# attributed to real-API timing variance. Ground truth via
+# `describe-security-group-rules --filters Name=group-id,Values=<id>`
+# (exact-id filtering, unaffected by this bug) on the actually-intended
+# group showed 1 ingress/1 egress on BOTH sides throughout every probe:
+# this estate's behaviour matched stock the whole time, and only the
+# SELECTION was ever wrong.
+#
+# Hardened to depend on no filter that `description`'s own bug shows
+# floci might silently ignore: scope server-side on `vpc-id` (confirmed
+# correctly narrowing, unlike `description` - lex00/floci#150's own
+# repro) to this estate's one non-default VPC - module.vpc's own
+# `name = local.name` writes that same basename as the VPC's Name tag -
+# then match `Description` EXACTLY in bash against every group the
+# vpc-id filter returned, and insist on exactly one match. Zero matches
+# or more than one is a hard, loud fail here, never a `[0]`.
+ESTATE_DIR_NAME="$(basename "$GREEN")"
+[ "$ESTATE_DIR_NAME" = "$(basename "$PLAIN")" ] || fail "internal: greenfield/plain work dirs have different basenames ($ESTATE_DIR_NAME vs $(basename "$PLAIN")) - the vpc Name-tag lookup below assumes they match"
+GREEN_VPC_IDS="$(vpc_ids_by_name_tag "$GREEN_ENDPOINT" "$ESTATE_DIR_NAME")"
+STOCK_VPC_IDS="$(vpc_ids_by_name_tag "$ENDPOINT" "$ESTATE_DIR_NAME")"
+read -ra GREEN_VPC_ARR <<< "$GREEN_VPC_IDS"
+read -ra STOCK_VPC_ARR <<< "$STOCK_VPC_IDS"
+[ "${#GREEN_VPC_ARR[@]}" -eq 1 ] || fail "expected exactly one VPC tagged Name=$ESTATE_DIR_NAME in the greenfield namespace, found ${#GREEN_VPC_ARR[@]} ($GREEN_VPC_IDS)"
+[ "${#STOCK_VPC_ARR[@]}" -eq 1 ] || fail "expected exactly one VPC tagged Name=$ESTATE_DIR_NAME in stock's own cold-deploy namespace, found ${#STOCK_VPC_ARR[@]} ($STOCK_VPC_IDS)"
+GREEN_VPC_ID="${GREEN_VPC_ARR[0]}"
+STOCK_VPC_ID="${STOCK_VPC_ARR[0]}"
+
+GREEN_SG_ROWS="$(sg_list_in_vpc "$GREEN_ENDPOINT" "$GREEN_VPC_ID")"
+STOCK_SG_ROWS="$(sg_list_in_vpc "$ENDPOINT" "$STOCK_VPC_ID")"
+GREEN_SG_MATCHES=()
+while IFS=$'\t' read -r sg_id sg_desc; do
+  [ "$sg_desc" = "A security group" ] && GREEN_SG_MATCHES+=("$sg_id")
+done <<< "$GREEN_SG_ROWS"
+STOCK_SG_MATCHES=()
+while IFS=$'\t' read -r sg_id sg_desc; do
+  [ "$sg_desc" = "A security group" ] && STOCK_SG_MATCHES+=("$sg_id")
+done <<< "$STOCK_SG_ROWS"
+if [ "${#GREEN_SG_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$GREEN_SG_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one security group in the greenfield vpc $GREEN_VPC_ID with Description exactly \"A security group\" (client-side match over a server-side vpc-id-only filter - description filtering is a floci no-op, lex00/floci#150), found ${#GREEN_SG_MATCHES[@]}; full per-vpc group list on stderr above"
+fi
+if [ "${#STOCK_SG_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$STOCK_SG_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one security group in stock's own cold-deploy vpc $STOCK_VPC_ID with Description exactly \"A security group\" (client-side match over a server-side vpc-id-only filter - description filtering is a floci no-op, lex00/floci#150), found ${#STOCK_SG_MATCHES[@]}; full per-vpc group list on stderr above"
+fi
+GREEN_SG_ID="${GREEN_SG_MATCHES[0]}"
+STOCK_SG_ID="${STOCK_SG_MATCHES[0]}"
 GREEN_SG_SHAPE="$(sg_shape "$GREEN_ENDPOINT" "$GREEN_SG_ID")"
 STOCK_SG_SHAPE="$(sg_shape "$ENDPOINT" "$STOCK_SG_ID")"
 [ "$GREEN_SG_SHAPE" = "$STOCK_SG_SHAPE" ] || fail "the asg_sg security group's rule counts differ: greenfield=$GREEN_SG_SHAPE stock=$STOCK_SG_SHAPE"
-log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE)"
+log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE), identified by vpc-id scoping + an exact client-side Description match, not floci's broken description filter (lex00/floci#150)"
 
 GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
 [ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
