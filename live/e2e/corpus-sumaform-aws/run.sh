@@ -1642,11 +1642,41 @@ log "  $INSTANCE_ID terminated - confirmed via the AWS CLI, not through choudouf
 # found instead by elimination against the AWS CLI: the one running
 # instance in the account that is not $INSTANCE_ID and boots the new
 # ubuntu2404 image.
-F_NEW_ID="$(awsl ec2 describe-instances \
-  --filters "Name=image-id,Values=ami-ubuntu2404-amd64" "Name=instance-state-name,Values=running,pending" \
-  --query "Reservations[0].Instances[0].InstanceId" --output text)"
-[ -n "$F_NEW_ID" ] && [ "$F_NEW_ID" != "None" ] && [ "$F_NEW_ID" != "$INSTANCE_ID" ] \
-  || fail "could not find a new, different, running ubuntu2404 instance after the replace (got '$F_NEW_ID')"
+#
+# THIS SECTION USED TO select the new instance with a server-side
+# `Name=image-id,Values=ami-ubuntu2404-amd64` filter (plus
+# `instance-state-name`) and take `Reservations[0].Instances[0]`, on the
+# unstated assumption that AMI plus running/pending state narrows to one
+# instance. THAT ASSUMPTION IS UNSAFE TO MAKE: floci's DescribeInstances
+# ignores the `image-id` filter name entirely and returns EVERY instance
+# in the account regardless of the value passed - confirmed directly
+# against the API, no tofu in the loop, by repeating the identical query
+# with an image id guaranteed not to exist and getting back the SAME
+# unfiltered list (lex00/floci#150's own family of bugs). `instance-state-
+# name` is NOT affected: a single-state filter and a disjoint one were
+# each tested directly and correctly excluded every instance outside the
+# requested state(s), including a genuinely empty result when nothing
+# matched.
+#
+# Hardened to depend on no filter that `image-id`'s own bug shows floci
+# might silently ignore: scope server-side on `instance-state-name`
+# (confirmed correctly narrowing, unlike `image-id`) to running/pending,
+# then match ImageId EXACTLY in bash against every instance that filter
+# returned, and insist on exactly one match that is not $INSTANCE_ID.
+# Zero matches or more than one is a hard, loud fail here, never a
+# `Reservations[0].Instances[0]` pick over an unfiltered list.
+F_CANDIDATES_ROWS="$(awsl ec2 describe-instances \
+  --filters "Name=instance-state-name,Values=running,pending" \
+  --query "Reservations[].Instances[].[InstanceId,ImageId]" --output text)"
+F_NEW_MATCHES=()
+while IFS=$'\t' read -r cand_id cand_ami; do
+  [ "$cand_ami" = "ami-ubuntu2404-amd64" ] && [ "$cand_id" != "$INSTANCE_ID" ] && F_NEW_MATCHES+=("$cand_id")
+done <<< "$F_CANDIDATES_ROWS"
+if [ "${#F_NEW_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$F_CANDIDATES_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one running/pending instance with ImageId ami-ubuntu2404-amd64 that is not $INSTANCE_ID after the replace (client-side match over a server-side instance-state-name-only filter - image-id filtering is a floci no-op, lex00/floci#150), found ${#F_NEW_MATCHES[@]}; full candidate list on stderr above"
+fi
+F_NEW_ID="${F_NEW_MATCHES[0]}"
 log "  $F_NEW_ID (the new object) is running the ubuntu2404 image, confirmed via the AWS CLI"
 
 # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
