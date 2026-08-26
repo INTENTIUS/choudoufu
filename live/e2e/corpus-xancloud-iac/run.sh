@@ -1240,8 +1240,36 @@ EST_VPC_MAIN="$ESTATE/modules/networking/vpc/main.tf"
 log "=== D0. capture the live ids a rename must not disturb ==="
 ROLE_ARN_D="$(awsl iam get-role --role-name "${NAME_PREFIX}-main-flow-logs-role" --query 'Role.Arn' --output text)"
 [ -n "$ROLE_ARN_D" ] && [ "$ROLE_ARN_D" != "None" ] || fail "could not read the flow-logs IAM role's ARN"
-EIP_ALLOC_ID_D="$(awsl ec2 describe-addresses --filters "Name=tag:tofu-address,Values=module.vpc.aws_eip.nat:main-0" --query 'Addresses[0].AllocationId' --output text)"
-[ -n "$EIP_ALLOC_ID_D" ] && [ "$EIP_ALLOC_ID_D" != "None" ] || fail "no live EIP found by its tofu-address marker (module.vpc.aws_eip.nat:main-0)"
+# THIS SECTION USED TO select the EIP with a server-side
+# `Name=tag:tofu-address,Values=...` filter and take `Addresses[0]`, on
+# the implicit assumption that a tag filter narrows correctly here just
+# because the tag value it is searching for is unique by construction.
+# THAT ASSUMPTION IS UNSAFE TO MAKE, and not because the marker isn't
+# unique: floci's DescribeAddresses ignores its entire `--filters`
+# parameter, tag filters included - confirmed directly against the API
+# (two allocated EIPs, distinct tofu-address tag values; filtering for
+# either value OR a value guaranteed not to match anything all returned
+# BOTH addresses unchanged) - lex00/floci#150, and this repo's own
+# live/e2e/run.sh already works around the identical gap for this same
+# API call ("floci-gaps #8"). A unique marker does not help when the
+# filter carrying it to the server is silently dropped.
+#
+# Hardened the same way: list every address, unfiltered, extract each
+# one's own tofu-address tag value via JMESPath, and match EXACTLY in
+# bash. Zero matches or more than one is a hard, loud fail here, never
+# an `Addresses[0]` pick over an unfiltered list.
+# shellcheck disable=SC2016 # single-quoted: JMESPath backtick literal, not shell interpolation
+EIP_ROWS_D="$(awsl ec2 describe-addresses \
+  --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-address`]|[0].Value]' --output text)"
+EIP_MATCHES_D=()
+while IFS=$'\t' read -r alloc_id addr_tag; do
+  [ "$addr_tag" = "module.vpc.aws_eip.nat:main-0" ] && EIP_MATCHES_D+=("$alloc_id")
+done <<< "$EIP_ROWS_D"
+if [ "${#EIP_MATCHES_D[@]}" -ne 1 ]; then
+  printf '%s\n' "$EIP_ROWS_D" | sed 's/^/    /' >&2
+  fail "expected exactly one EIP carrying tofu-address=module.vpc.aws_eip.nat:main-0 (client-side match over an unfiltered describe-addresses - --filters is a floci no-op for this call, lex00/floci#150), found ${#EIP_MATCHES_D[@]}; full candidate list on stderr above"
+fi
+EIP_ALLOC_ID_D="${EIP_MATCHES_D[0]}"
 log "  role ${NAME_PREFIX}-main-flow-logs-role ($ROLE_ARN_D), EIP $EIP_ALLOC_ID_D (module.vpc.aws_eip.nat:main-0)"
 
 if [ "${BREAK_DAY2_RENAME:-}" = "1" ]; then

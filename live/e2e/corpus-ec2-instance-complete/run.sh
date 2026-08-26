@@ -470,9 +470,34 @@ INSTANCE_ID="$(cd "$EST" && terraform output -raw ec2_complete_id)"
 ROLE_NAME="$(cd "$EST" && terraform output -raw ec2_complete_iam_role_name)"
 [ -n "$INSTANCE_ID" ] || fail "could not read ec2_complete_id from terraform output"
 [ -n "$ROLE_NAME" ] || fail "could not read ec2_complete_iam_role_name from terraform output"
-EIP_ALLOC_ID="$(awsl ec2 describe-addresses --filters "Name=instance-id,Values=$INSTANCE_ID" \
-  --query 'Addresses[0].AllocationId' --output text)"
-[ -n "$EIP_ALLOC_ID" ] && [ "$EIP_ALLOC_ID" != "None" ] || fail "could not find the EIP allocated to $INSTANCE_ID"
+# THIS SECTION USED TO select the EIP with a server-side
+# `Name=instance-id,Values=$INSTANCE_ID` filter and take
+# `Addresses[0]`, on the unstated assumption that this account has
+# exactly one EIP so the pick is safe regardless. THAT ASSUMPTION WAS
+# NEVER TESTED, and it is unsafe to make: floci's DescribeAddresses
+# ignores its entire `--filters` parameter - not one missing filter
+# name, the whole parameter - and returns EVERY address in the account
+# no matter what is passed, confirmed directly against the API (two
+# allocated EIPs, one associated to a running instance and one not;
+# `instance-id`, `tag:tofu-address` and `public-ip` filters ALL returned
+# both addresses unchanged regardless of value, including a value
+# guaranteed not to match anything) - lex00/floci#150, and this repo's
+# own live/e2e/run.sh already works around the identical gap for this
+# same API call ("floci-gaps #8").
+#
+# Hardened the same way: list every address, unfiltered, and match
+# InstanceId EXACTLY in bash. Zero matches or more than one is a hard,
+# loud fail here, never an `Addresses[0]` pick over an unfiltered list.
+EIP_ROWS="$(awsl ec2 describe-addresses --query 'Addresses[].[AllocationId,InstanceId]' --output text)"
+EIP_MATCHES=()
+while IFS=$'\t' read -r alloc_id assoc_instance; do
+  [ "$assoc_instance" = "$INSTANCE_ID" ] && EIP_MATCHES+=("$alloc_id")
+done <<< "$EIP_ROWS"
+if [ "${#EIP_MATCHES[@]}" -ne 1 ]; then
+  printf '%s\n' "$EIP_ROWS" | sed 's/^/    /' >&2
+  fail "expected exactly one EIP associated with instance $INSTANCE_ID (client-side match over an unfiltered describe-addresses - --filters is a floci no-op for this call, lex00/floci#150), found ${#EIP_MATCHES[@]}; full candidate list on stderr above"
+fi
+EIP_ALLOC_ID="${EIP_MATCHES[0]}"
 log "  instance $INSTANCE_ID, IAM role $ROLE_NAME (name_prefix-generated, read from output rather than assumed), EIP $EIP_ALLOC_ID"
 
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
