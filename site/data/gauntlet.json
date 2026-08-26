@@ -316,14 +316,14 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8067556f2d06efabe934530afa698abf041501e7",
-        "date": "2026-08-25T18:31:40Z",
+        "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
+        "date": "2026-08-25T23:44:50Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
           "day2_remove": "choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects",
           "day2_rename": "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-ca41f5db77d1e2032) is confirmed terminated and the new instance (i-354a810106902030e) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-ca41f5db77d1e2032 -> i-354a810106902030e); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "day2_replace": "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-70c1bed69c4fba9fd) is confirmed terminated and the new instance (i-2b74af6b59729dd07) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-70c1bed69c4fba9fd -> i-2b74af6b59729dd07); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged",
           "greenfield": "80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag",
           "migrate": "51 of 80 stamped, 1 recorded, 0 failed, 28 skipped",
@@ -495,8 +495,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "357a552d169499b203a80eff845c9d19cdb28165",
-        "date": "2026-08-25T22:41:11Z",
+        "commit": "1e14e60cfb812f90ed2ae5bf8ef144222d5b6043",
+        "date": "2026-08-25T23:53:24Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "62 resources, once for real",
@@ -675,8 +675,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f91a12b3f3c66f47a56e10faa889af3b2cc62902",
-        "date": "2026-08-25T18:54:03Z",
+        "commit": "1cb2431712cfbdd42cf524d89e8066a3f3db5e60",
+        "date": "2026-08-25T23:56:01Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-harbor-crossing before migration",
@@ -855,15 +855,15 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "4baf67832e930fb6a4298cdd440b007d5da4d1e1",
-        "date": "2026-08-25T18:37:45Z",
+        "commit": "a4eafb052ed9a9adffe7d3fca247670db10e4cd9",
+        "date": "2026-08-25T23:58:51Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
           "day2_remove": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)",
           "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-2fe4ae6814d2725a3c1874cf73) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-2fe4ae6814d2725a3c1874cf73); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8b9fc1e61577a393f03ec0f5e7's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-e455958bf1a9f860ec65d1111a) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-e09f367232b87e0a5d27eb5cf3) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-e455958bf1a9f860ec65d1111a -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-e09f367232b87e0a5d27eb5cf3); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-e455958bf1a9f860ec65d1111a's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "greenfield": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
@@ -1034,8 +1034,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "72262e47d6a95d62937949066db381f61d2af6dd",
-        "date": "2026-08-25T20:00:35Z",
+        "commit": "8a5c21a1c6d8fd0c8abe18cd3ad5c62f7d1b02f9",
+        "date": "2026-08-26T00:05:47Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
