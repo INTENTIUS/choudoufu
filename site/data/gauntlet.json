@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "85ffcf09c467e68d55314e0c75dd0106904dec37",
+  "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
   "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-  "generated": "2026-08-25T23:58:29Z",
+  "generated": "2026-08-26T03:28:00Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -1438,15 +1438,15 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "0c6b84b965df961e6a26df4d12b3c2ffc9f5494d",
-        "date": "2026-08-25T22:08:43Z",
+        "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
+        "date": "2026-08-26T03:31:48Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
           "day2_count": "choudoufu's scale-down plan does not destroy count_test[1]",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-c7474cf57fb52a801) is confirmed terminated and the new instance (i-a1550d5d7a0dec9a2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-10b05bac90bfcf9f4) is confirmed terminated and the new instance (i-2477f4e303e39b61c) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
