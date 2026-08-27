@@ -46,11 +46,23 @@ func NextUnits(a *Artifact, set string) []Unit {
 		remaining int
 	}
 	var cands []cand
+	var staleClear []EstateResult // clear, but last run predates the current pin - see below
 	for _, r := range a.Estates {
 		if set == "core" && r.Set != SetCore {
 			continue
 		}
 		if r.Clear {
+			// A clear estate has no failing or not-run active stage, so it
+			// is not ordinary work - unless the evidence backing "clear" is
+			// stale: last_run.emulator names an image the current pin has
+			// since superseded (or never recorded one at all, IsStale's
+			// same "unknown reads as stale" rule as boardBanner). A repin
+			// should ENQUEUE units, not silently invalidate the board, so
+			// this is real work too, just lower priority than a genuine
+			// failure - see the trailing pass below.
+			if IsStale(r, a.Emulator) {
+				staleClear = append(staleClear, r)
+			}
 			continue
 		}
 		n := 0
@@ -89,6 +101,35 @@ func NextUnits(a *Artifact, set string) []Unit {
 			})
 			break // one unit per estate: the first stage that is not pass
 		}
+	}
+
+	// Stale-but-clear units trail every genuine failure or not-run stage,
+	// deliberately: an estate already known broken outranks one merely
+	// unconfirmed against the current pin. This is the conservative half of
+	// #414's next layer down - it makes a repin visible as work rather than
+	// silent, without redesigning how the two kinds interleave, which is a
+	// bigger ranking question left as a proposal (see the issue this branch
+	// cites).
+	sort.SliceStable(staleClear, func(i, j int) bool {
+		if (staleClear[i].Set == SetCore) != (staleClear[j].Set == SetCore) {
+			return staleClear[i].Set == SetCore
+		}
+		return staleClear[i].Name < staleClear[j].Name
+	})
+	for _, r := range staleClear {
+		emu := "unrecorded"
+		if r.LastRun != nil && r.LastRun.Emulator != "" {
+			emu = r.LastRun.Emulator
+		}
+		units = append(units, Unit{
+			ID: r.Name + "/stale_pin", Estate: r.Name, Set: r.Set,
+			Stage: "stale_pin", StageTitle: "Re-verify against the current emulator pin",
+			Verdict:   "stale_evidence",
+			Detail:    fmt.Sprintf("every active stage passed, but last verified against %s; the current pin is %s", emu, a.Emulator),
+			Remaining: 0, Script: r.Script,
+			Proves: "the estate still behaves like stock against the CURRENT emulator pin, not a superseded one",
+			Oracle: "re-run against the pinned image and confirm the same verdicts",
+		})
 	}
 	return units
 }

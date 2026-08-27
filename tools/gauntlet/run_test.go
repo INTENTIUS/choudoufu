@@ -60,7 +60,7 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 	}}}
 
 	var out bytes.Buffer
-	failures, err := RunEstates(root, m, a, RunOptions{Names: []string{"x"}, Stdout: &out}, "newcommit")
+	failures, err := RunEstates(root, m, a, RunOptions{Names: []string{"x"}, Stdout: &out}, "newcommit", "newemulator@sha256:new")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	}}}
 
 	var out bytes.Buffer
-	failures, err := RunEstates(root, m, a, RunOptions{Names: []string{"x"}, Stdout: &out}, "newcommit")
+	failures, err := RunEstates(root, m, a, RunOptions{Names: []string{"x"}, Stdout: &out}, "newcommit", "newemulator@sha256:new")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +170,9 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	}
 	if r.LastRun.Commit != "newcommit" {
 		t.Errorf("LastRun.Commit = %q, want %q", r.LastRun.Commit, "newcommit")
+	}
+	if r.LastRun.Emulator != "newemulator@sha256:new" {
+		t.Errorf("LastRun.Emulator = %q, want %q (the pin this run actually launched against, not carried from the prior row)", r.LastRun.Emulator, "newemulator@sha256:new")
 	}
 
 	// What must be different from before the fix: a warning naming this

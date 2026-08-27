@@ -30,7 +30,18 @@ type RunOptions struct {
 // RunEstates executes each selected estate's script, parses the protocol,
 // and updates the artifact in memory. It returns the number of scripts that
 // exited non-zero. The caller saves and renders.
-func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit string) (int, error) {
+//
+// emulator is stamped onto every row's LastRun exactly as commit already is:
+// it is the pin the caller read from live/floci-image right before calling
+// this (main.go's cmdRun), the same file each script itself reads to launch
+// its own emulator (FLOCI_IMAGE defaults to `cat live/floci-image`, e.g.
+// live/e2e/corpus-vpc-complete/run.sh:262) - so what gets recorded is what
+// that run actually used, not a value borrowed from configuration at some
+// later render. It is never read back out of a.Emulator here, on purpose:
+// a.Emulator is what the NEXT run will use, which is a different fact than
+// what THIS run used, even though the two are equal at the instant this
+// function is called.
+func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, emulator string) (int, error) {
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -83,7 +94,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit s
 				prevDetail[k] = v
 			}
 		}
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), ExitCode: exit}
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, ExitCode: exit}
 		if res.Spoken {
 			if r.Stages == nil {
 				r.Stages = map[string]string{}

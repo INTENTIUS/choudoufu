@@ -82,6 +82,71 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	}
 }
 
+// TestNextSurfacesStaleClearEstatesAsTrailingWork: a clear estate whose last
+// recorded run used a since-superseded emulator pin is not confirmed
+// against the CURRENT pin - #414's own shape, one layer down, is a repin
+// silently invalidating evidence rather than enqueuing work to re-confirm
+// it. NextUnits must turn that into a visible unit, deliberately ranked
+// after every genuine fail/not_run unit: an estate already known broken
+// outranks one merely unconfirmed. A clear estate whose last run DOES match
+// the current pin must not appear at all - it is not work.
+func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
+	active := ActiveStages()
+	if len(active) == 0 {
+		t.Skip("no active stages")
+	}
+	m := &Manifest{Estates: []Estate{
+		{Name: "c-fresh", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
+		{Name: "c-stale", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
+		{Name: "g-broken", Source: "s", URL: "u", Pin: "p", Lane: "published-deployment", Set: SetGrowing},
+	}}
+	a := &Artifact{}
+	a.Rebuild(m, "new-pin")
+
+	allPass := map[string]string{}
+	for _, s := range active {
+		allPass[s.ID] = VerdictPass
+	}
+	setStages := func(name string, verdicts map[string]string) {
+		r, _ := a.Result(name)
+		for k, v := range verdicts {
+			r.Stages[k] = v
+		}
+		a.SetResult(r)
+	}
+	setStages("c-fresh", allPass)
+	setStages("c-stale", allPass)
+	// g-broken: left entirely not_run - real, current work.
+
+	setLastRun := func(name, emulator string) {
+		r, _ := a.Result(name)
+		r.LastRun = &LastRun{Commit: "x", Date: "2020-01-01T00:00:00Z", Emulator: emulator, ExitCode: 0}
+		a.SetResult(r)
+	}
+	setLastRun("c-fresh", "new-pin")
+	setLastRun("c-stale", "old-pin")
+	a.Rebuild(m, "new-pin")
+
+	units := NextUnits(a, "all")
+	var ids []string
+	for _, u := range units {
+		ids = append(ids, u.ID)
+	}
+
+	for _, id := range ids {
+		if strings.HasPrefix(id, "c-fresh/") {
+			t.Errorf("c-fresh is clear and its last_run.emulator matches the current pin; it must not appear as work, got %v", ids)
+		}
+	}
+	if len(ids) == 0 || !strings.HasPrefix(ids[0], "g-broken/") {
+		t.Fatalf("genuine failing/not-run work must rank before stale-but-clear work; got %v", ids)
+	}
+	last := ids[len(ids)-1]
+	if last != "c-stale/stale_pin" {
+		t.Errorf("last unit = %q, want %q (trailing stale-evidence work)", last, "c-stale/stale_pin")
+	}
+}
+
 // TestWorkerBriefCitationsResolve: every repo path the worker and
 // orchestrator briefs name exists, so an unattended agent never follows a
 // dead reference.

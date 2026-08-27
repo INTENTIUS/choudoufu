@@ -202,6 +202,8 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,")
 	w("`lane`, `set`, `reason`, `script`, `stages` (id to verdict), `clear`,")
 	w("`protocol` (`gauntlet` or `legacy`), `last_run` (`commit`, `date`,")
+	w("`emulator` - the pin THAT run actually used, distinct from the")
+	w("top-level `emulator`, which is the pin the NEXT run will use -")
 	w("`exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot")
 	w("<version>` copies it to `live/history/<version>.json` at release.")
 	w("")
@@ -284,26 +286,109 @@ func estateDateRange(a *Artifact) (oldest, newest string, ok bool) {
 	return oldest, newest, ok
 }
 
+// emulatorGroup is one distinct emulator digest recorded across the board's
+// rows, and how many rows recorded it.
+type emulatorGroup struct {
+	Emulator string // "" is its own group: a row that ran but recorded no digest
+	Count    int
+}
+
+// emulatorGroups buckets every estate that has recorded a run by its OWN
+// last_run.emulator - the digest that specific run actually launched
+// against, stamped by RunEstates at run time (run.go). It never reads
+// a.Emulator: that field is configuration (a plain copy of live/floci-image,
+// true of the checked-out tree regardless of what has or hasn't run), and
+// conflating the two is exactly the shape #414 already found once, one
+// field over (top-level Commit/Generated borrowed to describe evidence).
+// A row with no last_run is excluded (it has recorded nothing to bucket);
+// a row whose last_run has no recorded digest lands in the "" bucket -
+// unknown provenance, distinct from and never merged into any real digest.
+// Sorted by count descending, ties broken by digest, with the "" bucket
+// always last regardless of its count so a board-wide sentence names the
+// largest real agreement first.
+func emulatorGroups(a *Artifact) []emulatorGroup {
+	counts := map[string]int{}
+	for _, r := range a.Estates {
+		if r.LastRun == nil {
+			continue
+		}
+		counts[r.LastRun.Emulator]++
+	}
+	var groups []emulatorGroup
+	unknown := 0
+	for e, n := range counts {
+		if e == "" {
+			unknown = n
+			continue
+		}
+		groups = append(groups, emulatorGroup{Emulator: e, Count: n})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].Count != groups[j].Count {
+			return groups[i].Count > groups[j].Count
+		}
+		return groups[i].Emulator < groups[j].Emulator
+	})
+	if unknown > 0 {
+		groups = append(groups, emulatorGroup{Emulator: "", Count: unknown})
+	}
+	return groups
+}
+
 // boardBanner is the one board-wide sentence the index page still gets to
-// make. It used to claim a single "measured at commit X" stamp for the
-// whole board; no procedure ever produced that fact honestly (#414), so it
-// is gone rather than kept lying. What replaces it is computed fresh from
-// a.Estates on every call, never carried from a previous render, so it
-// cannot go stale independently of the table below it: the emulator image
-// every estate ran against (a plain copy of live/floci-image, true of the
-// checked-out tree regardless of what has run), and the true range of the
-// estates' own last_run dates - two honest numbers in place of one false
-// one, because after a batch of single-estate confirmations no single
-// timestamp describes the board.
+// make, and it may only assert what every row below actually agrees on
+// (the RFC on process-as-code names this exact shape: never ship a claim
+// the rows underneath cannot support). It used to claim a single "measured
+// at commit X" stamp for the whole board; no procedure ever produced that
+// fact honestly (#414), so it is gone rather than kept lying. It was then
+// fixed to borrow a.Emulator - CONFIGURATION, the pin the next run will use
+// - to describe every row's EVIDENCE, which is true for exactly one
+// instant (when a full sweep finishes) and false the moment any single
+// estate re-runs against a repinned image while the rest sit unrun. That is
+// the same defect one layer down, so this reads emulatorGroups (rows) and
+// estateDateRange (rows), never a.Emulator, to describe what happened -
+// a.Emulator appears only to say what the CURRENT pin is, never to claim a
+// past run used it.
+//
+// Computed fresh from a.Estates on every call, never carried from a
+// previous render, so it cannot go stale independently of the table below
+// it. Handles: no runs yet; every row agreeing (with or without matching
+// the current pin - a fully-agreeing board can still be uniformly stale
+// after a repin); and rows disagreeing, which renders as a breakdown
+// rather than picking a side.
 func boardBanner(a *Artifact) string {
 	oldest, newest, ok := estateDateRange(a)
+	if !ok {
+		return fmt.Sprintf("The pinned emulator image is `%s` (configuration for the next run); no estate below has recorded a run yet.", a.Emulator)
+	}
+	dateClause := fmt.Sprintf("recorded at %s", oldest)
+	if oldest != newest {
+		dateClause = fmt.Sprintf("recorded between %s and %s. Each row below carries its own `last_run` date; they are not all the same run", oldest, newest)
+	}
+
+	groups := emulatorGroups(a)
 	switch {
-	case !ok:
-		return fmt.Sprintf("Every estate below runs against the pinned emulator image `%s`; none has recorded a run yet.", a.Emulator)
-	case oldest == newest:
-		return fmt.Sprintf("Every estate below last ran against the pinned emulator image `%s`, recorded at %s.", a.Emulator, oldest)
+	case len(groups) == 1 && groups[0].Emulator == "":
+		return fmt.Sprintf("Every estate below has recorded a run, but none recorded which emulator image it used; nothing here confirms whether they matched the current pin `%s`.", a.Emulator)
+	case len(groups) == 1:
+		digest := groups[0].Emulator
+		if digest == a.Emulator {
+			return fmt.Sprintf("Every estate below last ran against the pinned emulator image `%s`, %s.", digest, dateClause)
+		}
+		return fmt.Sprintf("Every estate below last ran against emulator image `%s`, %s. The pin has since moved to `%s`; every row below is stale evidence against the current image.", digest, dateClause, a.Emulator)
 	default:
-		return fmt.Sprintf("Every estate below last ran against the pinned emulator image `%s`, recorded between %s and %s. Each row below carries its own `last_run` date; they are not all the same run.", a.Emulator, oldest, newest)
+		var parts []string
+		for _, g := range groups {
+			label := fmt.Sprintf("`%s`", g.Emulator)
+			switch {
+			case g.Emulator == "":
+				label = "an unrecorded image"
+			case g.Emulator == a.Emulator:
+				label += " (current pin)"
+			}
+			parts = append(parts, fmt.Sprintf("%d against %s", g.Count, label))
+		}
+		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), a.Emulator)
 	}
 }
 
@@ -424,7 +509,14 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 	switch r.Protocol {
 	case ProtocolGauntlet:
 		if r.LastRun != nil {
-			w("Last run at commit `%s` on %s, exit code %d.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode)
+			switch {
+			case r.LastRun.Emulator == "":
+				w("Last run at commit `%s` on %s, exit code %d. This run's emulator image was not recorded.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode)
+			case r.LastRun.Emulator == a.Emulator:
+				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator)
+			default:
+				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`. **Stale**: the current pin is `%s`.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator, a.Emulator)
+			}
 		}
 	default:
 		w("Verdicts were recorded from this estate's crossing script by hand before the")
