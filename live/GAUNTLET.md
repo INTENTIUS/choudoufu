@@ -228,6 +228,8 @@ table above, `sets` (`core` and `all`, each with `estates`, `clear`, and a
 per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,
 `lane`, `set`, `reason`, `script`, `stages` (id to verdict), `clear`,
 `protocol` (`gauntlet` or `legacy`), `last_run` (`commit`, `date`,
+`emulator` - the pin THAT run actually used, distinct from the
+top-level `emulator`, which is the pin the NEXT run will use -
 `exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot
 <version>` copies it to `live/history/<version>.json` at release.
 

@@ -46,14 +46,26 @@ const (
 // "measured the whole board at commit X, at time Y" stamp. No procedure
 // produces that fact honestly - `gauntlet run <estate>` runs one estate, not
 // the board, and `gauntlet render` deliberately never advances either field
-// (see #414) - so it is gone rather than fixed to lie less. Emulator stays:
-// unlike Commit/Generated it is not a claim about when anything ran, it is
-// a plain copy of live/floci-image, true of the checked-out tree on every
-// Rebuild regardless of what has or hasn't been run. Each estate's own
-// `last_run.commit`/`last_run.date` is the honest, per-estate replacement
-// (#413); the page-level claim derived from those rows is computed at
-// render time in renderProgressIndex, never stored here, so it cannot go
-// stale independently of the rows it summarizes.
+// (see #414) - so it is gone rather than fixed to lie less. Emulator stays,
+// but read it for what it is: CONFIGURATION, not evidence. It is a plain
+// copy of live/floci-image, true of the checked-out tree on every Rebuild
+// regardless of what has or hasn't been run - the pin the NEXT `gauntlet
+// run` will use. It says nothing about what any past run actually used.
+//
+// The evidence half lives one level down, per estate: `last_run.commit`
+// and `last_run.date` (#413), and `last_run.emulator` (this field's own
+// former mistake, one layer under #414 - the board banner used to borrow
+// this top-level Emulator to describe every row's evidence, which is true
+// for exactly one instant, when a full sweep finishes, and false after any
+// incremental re-run changes this field while old rows sit unrun). Each
+// estate's own `last_run.emulator` is stamped by RunEstates at the moment
+// that estate's script actually launched (run.go), from the same pin this
+// field holds at that instant - so a row's recorded emulator is what that
+// run really used, never copied from configuration at render time. A page-
+// level claim derived from those rows is computed fresh at render time
+// (boardBanner, render.go), never stored here, so it cannot go stale
+// independently of the rows it summarizes, and it must render disagreement
+// honestly rather than pick one row's digest and assert it of the board.
 type Artifact struct {
 	Schema   int                   `json:"schema"`
 	Emulator string                `json:"emulator"`
@@ -95,11 +107,36 @@ type EstateResult struct {
 }
 
 // LastRun records the run that produced the verdicts.
+//
+// Emulator is the digest that run actually launched against - written by
+// RunEstates (run.go) at run time from the same live/floci-image read the
+// script itself reads, never copied from the artifact's top-level Emulator
+// at render time. Empty means one of two things: a row from before this
+// field existed (backfilled from git history where the exact historical
+// pin was recoverable - see the emulatorBackfill comment in artifact.go -
+// and left empty where it was not), or a legacy-protocol run that never
+// recorded provenance at all. Either way, empty is never treated as "must
+// match the current pin" - IsStale treats it as stale precisely because it
+// cannot be shown to match.
 type LastRun struct {
 	Commit   string            `json:"commit"`
 	Date     string            `json:"date"`
+	Emulator string            `json:"emulator,omitempty"`
 	ExitCode int               `json:"exit_code"`
 	Detail   map[string]string `json:"detail,omitempty"`
+}
+
+// IsStale reports whether r's last recorded run measured against a
+// different emulator image than the one currently pinned. A row with no
+// last_run is not "stale" by this definition - it has never run at all,
+// which callers should check for separately (r.LastRun == nil) since it is
+// a different fact than "ran, but against a superseded or unrecorded
+// image". An empty r.LastRun.Emulator (unrecorded provenance) always
+// compares unequal to a real digest, so it reads as stale here too - the
+// artifact must never claim a measurement was made against an image it
+// cannot show it was made against (see the backfill comment on Emulator).
+func IsStale(r EstateResult, currentEmulator string) bool {
+	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
 }
 
 // SetLabels name the two headline bars. "all" is every estate; "core" is the

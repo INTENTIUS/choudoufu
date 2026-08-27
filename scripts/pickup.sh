@@ -62,11 +62,21 @@ s=g['sets']
 # them honestly). art_commit above, from git itself, is the real answer to
 # "when was this file last written"; each estate's own last_run is the real
 # answer to "when did IT last run".
-print(f"emulator {g['emulator'].split('@')[-1][:19]}")
+print(f"emulator {g['emulator'].split('@')[-1][:19]}  (current pin - the estate rows below may not all be measured against it)")
 print(f"core  {s['core']['clear']}/{s['core']['estates']} clear    all {s['all']['clear']}/{s['all']['estates']} clear")
 fails=[(e['name'],[k for k,v in e['stages'].items() if v=='fail']) for e in g['estates'] if not e['clear']]
 for n,f in fails:
     print(f"  not clear: {n:34} first failing stage: {f[0] if f else '(none failing; a planned stage or not_run)'}")
+# Each row's own last_run.emulator is the pin THAT run actually used
+# (RunEstates stamps it at run time); g['emulator'] above is only
+# configuration for the NEXT run. A clear estate whose last_run.emulator
+# differs from the current pin (or never recorded one) is stale evidence,
+# not a failure - `gauntlet next` already enqueues it as trailing work, but
+# it is otherwise invisible unless read row by row, so name it here too.
+stale=[e['name'] for e in g['estates'] if e.get('last_run') and e['last_run'].get('emulator','') != g['emulator']]
+if stale:
+    shown=', '.join(stale[:8]) + ('...' if len(stale) > 8 else '')
+    print(f"stale evidence: {len(stale)} estate(s) last verified against a different (or unrecorded) emulator pin: {shown}")
 EOF
 fi
 if have go; then

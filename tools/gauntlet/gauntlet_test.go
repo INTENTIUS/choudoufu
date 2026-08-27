@@ -266,6 +266,95 @@ func TestBoardBannerMatchesEstateRows(t *testing.T) {
 	}
 }
 
+// TestBoardWideEmulatorClaimMatchesRows guards the same family of defect as
+// #414 and TestBoardBannerMatchesEstateRows above, one field over: the
+// emulator digest.
+//
+// a.Emulator is CONFIGURATION - a plain copy of live/floci-image, true of
+// the checked-out tree regardless of what has run; it is the pin the NEXT
+// `gauntlet run` will use. Each row's own last_run.emulator is EVIDENCE -
+// the digest that specific run actually launched against, stamped by
+// RunEstates at run time (run.go). boardBanner used to read a.Emulator to
+// describe every row's evidence (the pre-fix "Every estate below last ran
+// against the pinned emulator image %s" line, built directly from
+// a.Emulator with no reference to any row) - true for exactly one instant,
+// when a full sweep finishes, and false the moment a single estate re-runs
+// against a repinned image while the rest sit unrun, since the artifact is
+// updated one estate at a time by construction.
+//
+// The independent check does NOT call emulatorGroups or boardBanner - it
+// walks a.Estates itself and buckets last_run.emulator directly, exactly
+// as TestBoardBannerMatchesEstateRows already does for last_run.date, so a
+// bug that breaks both the renderer and a test that merely calls it would
+// still be caught. See this change's own commit message for how this was
+// proven load-bearing: the committed page's banner line was hand-edited to
+// claim uniformity over rows that disagree, this test failed, and the
+// change was reverted.
+func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
+	root := testRoot(t)
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seen := map[string]int{}
+	for _, r := range a.Estates {
+		if r.LastRun == nil {
+			continue
+		}
+		seen[r.LastRun.Emulator]++
+	}
+	if len(seen) == 0 {
+		t.Skip("no estate has recorded a run; the emulator claim does not apply yet")
+	}
+
+	b, err := os.ReadFile(filepath.Join(root, SiteProgressPage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(b)
+
+	if len(seen) == 1 {
+		for digest := range seen {
+			if digest == "" {
+				break // every row ran but recorded no digest; nothing literal to check
+			}
+			if !strings.Contains(page, digest) {
+				t.Errorf("%s: every estate's last_run agrees on emulator %q, but the page never mentions it", SiteProgressPage, digest)
+			}
+		}
+	}
+
+	// Whether rows agree or disagree, the page must never assert uniformity
+	// ("every estate ... ran against") once more than one distinct group is
+	// present among the rows - a real digest disagreement, an unrecorded
+	// row mixed with a recorded one, or an all-unrecorded board.
+	distinctReal := 0
+	for digest := range seen {
+		if digest != "" {
+			distinctReal++
+		}
+	}
+	_, hasUnknown := seen[""]
+	disagrees := distinctReal > 1 || (hasUnknown && len(seen) > 1) || (hasUnknown && distinctReal == 0)
+	claimsUniformity := strings.Contains(page, "Every estate below last ran against")
+	if disagrees && claimsUniformity {
+		t.Errorf("%s claims every estate ran against a single emulator image, but last_run.emulator disagrees across rows (or is unrecorded for some): %v", SiteProgressPage, seen)
+	}
+	if len(seen) > 1 {
+		// A genuine disagreement: every real digest recorded by at least
+		// one row must be named somewhere on the page, not just the winner.
+		for digest, n := range seen {
+			if digest == "" {
+				continue
+			}
+			if !strings.Contains(page, digest) {
+				t.Errorf("%s: %d estate(s) recorded last_run.emulator=%q, but the page never mentions it", SiteProgressPage, n, digest)
+			}
+		}
+	}
+}
+
 // TestRenderedDocsAreCurrent: a fresh render equals the committed files.
 func TestRenderedDocsAreCurrent(t *testing.T) {
 	root := testRoot(t)

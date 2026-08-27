@@ -83,28 +83,59 @@
   {{- /* There is no single "as of commit X" stamp any more (#414): no
          procedure ever produced that fact honestly, since a single-estate
          `gauntlet run` is not a whole-board measurement and `render` never
-         advanced it. What is true of the whole board is the emulator every
-         estate ran against (a plain copy of live/floci-image) and the
-         range of the estates' own recorded last_run dates, computed fresh
-         from $data.estates here rather than carried from a stored field. */ -}}
+         advanced it. The range of the estates' own recorded last_run dates
+         is computed fresh from $data.estates here rather than carried from
+         a stored field - and so, one layer down, is the emulator claim.
+         This block used to read $data.emulator (CONFIGURATION: a plain
+         copy of live/floci-image, the pin the NEXT run will use) and
+         assert it of every row's EVIDENCE, true for exactly one instant -
+         a full sweep finishing - and false the moment any single estate
+         re-runs against a repinned image while the rest sit unrun. Fixed
+         the same way as the date range: read each row's own
+         last_run.emulator, the digest THAT run actually used (stamped by
+         RunEstates at run time, tools/gauntlet/run.go), and render
+         disagreement honestly rather than assert one digest of the whole
+         board. See tools/gauntlet/render.go's boardBanner, which this
+         mirrors - the two are independent implementations of the same
+         rule because this page is Hugo-rendered from the data file
+         directly, not from boardBanner's own output. */ -}}
   {{- $dates := slice -}}
+  {{- $emulators := slice -}}
   {{- range $data.estates -}}
     {{- with .last_run -}}
       {{- if .date -}}{{- $dates = $dates | append .date -}}{{- end -}}
+      {{- $e := "" -}}
+      {{- if isset . "emulator" -}}{{- $e = .emulator -}}{{- end -}}
+      {{- $emulators = $emulators | append $e -}}
     {{- end -}}
   {{- end -}}
   {{- $dates = sort $dates -}}
   {{- $n := len $dates -}}
-  {{- with $data.emulator -}}
+  {{- $uniqEmulators := uniq $emulators -}}
+  {{- $m := len $uniqEmulators -}}
   <p class="gauntlet-meta">
     {{- if eq $n 0 -}}
-      Every estate above runs against the pinned emulator image {{ . }}; none has recorded a run yet.
-    {{- else if eq $n 1 -}}
-      Every estate above last ran against the pinned emulator image {{ . }}, recorded at {{ index $dates 0 }}.
+      The pinned emulator image is {{ $data.emulator }} (configuration for the next run); no estate above has recorded a run yet.
+    {{- else if and (eq $m 1) (ne (index $uniqEmulators 0) "") -}}
+      {{- $digest := index $uniqEmulators 0 -}}
+      {{- if eq $n 1 -}}
+        Every estate above last ran against the pinned emulator image {{ $digest }}, recorded at {{ index $dates 0 }}.
+      {{- else -}}
+        Every estate above last ran against the pinned emulator image {{ $digest }}, recorded between {{ index $dates 0 }} and {{ index $dates (sub $n 1) }}.
+      {{- end -}}
+      {{- if ne $digest $data.emulator -}}
+        The pin has since moved to {{ $data.emulator }}; every row above is stale evidence against the current image.
+      {{- end -}}
     {{- else -}}
-      Every estate above last ran against the pinned emulator image {{ . }}, recorded between {{ index $dates 0 }} and {{ index $dates (sub $n 1) }}.
+      Estates above were last measured against different emulator pins:
+      {{- range $i, $u := $uniqEmulators -}}
+        {{- $label := $u -}}
+        {{- if eq $u "" -}}{{- $label = "an unrecorded image" -}}{{- end -}}
+        {{- $count := 0 -}}
+        {{- range $emulators -}}{{- if eq . $u -}}{{- $count = add $count 1 -}}{{- end -}}{{- end -}}
+        {{- if gt $i 0 -}},{{- end }} {{ $count }} against {{ $label }}
+      {{- end -}}. The current pin is {{ $data.emulator }}; a row not measured against it is stale evidence, not a failure.
     {{- end -}}
   </p>
-  {{- end -}}
 </div>
 {{- end -}}

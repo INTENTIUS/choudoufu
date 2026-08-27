@@ -185,7 +185,7 @@ func cmdRun(root string, args []string) error {
 		return err
 	}
 	commit := headCommit(root)
-	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Stdout: os.Stdout}, commit)
+	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Stdout: os.Stdout}, commit, emulatorPin(root))
 	if err != nil {
 		return err
 	}
