@@ -373,8 +373,8 @@ func TestProtocolParser(t *testing.T) {
 	in := strings.Join([]string{
 		"some other output",
 		"GAUNTLET protocol=1",
-		"GAUNTLET stage=cold_deploy verdict=pass",
-		"GAUNTLET stage=migrate verdict=pass detail=68 added, 41 stamped, 27 skipped",
+		"GAUNTLET stage=cold_deploy verdict=pass duration_s=12",
+		"GAUNTLET stage=migrate verdict=pass duration_s=43.5 detail=68 added, 41 stamped, 27 skipped",
 		"GAUNTLET stage=test_plan verdict=fail detail=Non-static identity argument: x=y",
 		"GAUNTLET stage=test_apply verdict=not_run",
 		"=== PASS ===",
@@ -398,6 +398,15 @@ func TestProtocolParser(t *testing.T) {
 	if res.Detail["migrate"] != "68 added, 41 stamped, 27 skipped" {
 		t.Errorf("detail lost: %q", res.Detail["migrate"])
 	}
+	if res.Seconds["cold_deploy"] != 12 {
+		t.Errorf("duration_s lost for cold_deploy: %v", res.Seconds["cold_deploy"])
+	}
+	if res.Seconds["migrate"] != 43.5 {
+		t.Errorf("duration_s lost for migrate: %v", res.Seconds["migrate"])
+	}
+	if _, ok := res.Seconds["test_plan"]; ok {
+		t.Errorf("test_plan reported no duration_s but one was recorded: %v", res.Seconds["test_plan"])
+	}
 	if len(res.Unknown) != 0 {
 		t.Errorf("unexpected unknown stages %v", res.Unknown)
 	}
@@ -406,6 +415,7 @@ func TestProtocolParser(t *testing.T) {
 		"GAUNTLET stage=cold_deploy verdict=maybe",
 		"GAUNTLET verdict=pass",
 		"GAUNTLET protocol=2",
+		"GAUNTLET stage=cold_deploy verdict=pass duration_s=notanumber",
 	} {
 		if _, err := ParseProtocol(strings.NewReader(bad)); err == nil {
 			t.Errorf("%q parsed without error", bad)
@@ -553,6 +563,16 @@ func TestProtocolLibraryMatchesParser(t *testing.T) {
 	}
 	if res.Detail["migrate"] != "a detail, with = sign" {
 		t.Errorf("detail: %q", res.Detail["migrate"])
+	}
+	// The real shell library must emit duration_s on every stage line, not
+	// just the parser accepting it when present (#434): a bug that made
+	// gauntlet_stage stop printing the field would pass TestProtocolParser
+	// (which builds its own GAUNTLET lines by hand) while silently going
+	// dark here, where the library itself produces the line.
+	for _, id := range []string{"cold_deploy", "migrate", "test_plan"} {
+		if _, ok := res.Seconds[id]; !ok {
+			t.Errorf("live/e2e/lib/gauntlet.sh did not emit duration_s for stage %q: %+v\n%s", id, res, out)
+		}
 	}
 	// An unknown verdict must make the library exit non-zero.
 	if _, err := runBash("source " + lib + "\ngauntlet_begin\ngauntlet_stage x maybe\n"); err == nil {

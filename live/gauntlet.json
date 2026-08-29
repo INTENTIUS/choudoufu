@@ -133,7 +133,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 26,
+      "clear": 25,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -156,8 +156,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 26,
-          "fail": 0,
+          "pass": 25,
+          "fail": 1,
           "not_run": 0
         },
         "day2_replace": {
@@ -210,7 +210,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 25,
+      "clear": 24,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -233,8 +233,8 @@
           "not_run": 0
         },
         "day2_rename": {
-          "pass": 25,
-          "fail": 0,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "day2_replace": {
@@ -392,7 +392,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "pass",
-        "day2_rename": "pass",
+        "day2_rename": "fail",
         "day2_replace": "pass",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -403,23 +403,32 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
-        "date": "2026-08-25T23:46:13Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
-        "exit_code": 0,
+        "commit": "eff9afb4009199d6347502b64ccaa80bd5c0ca84",
+        "date": "2026-08-29T05:24:06Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=dynamodb-table-basic-crossing before migration",
           "day2_remove": "choudoufu: deleting module.dynamodb_table_final's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the table and its untaggable resource policy), applied cleanly (0 added, 0 changed, 2 destroyed), the table is genuinely gone from the live account (dynamodb describe-table on the old name now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly two destroys for the same two objects; classifyOrphans did not withhold either destroy because module.disabled_dynamodb_table declares zero instances of the same block key (create_table=false), so nothing is ever pending against it",
-          "day2_rename": "moved block: module.dynamodb_table renamed to module.dynamodb_table_moved with zero churn (0 add, 1 change, 0 destroy) - the table's own marker rewritten in place, the untaggable resource policy unaffected; live-mv: module.dynamodb_table_moved renamed to module.dynamodb_table_final with zero churn, marker rewritten in place; stock oracle over the same net module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); the table's ARN unchanged throughout, read via the AWS CLI",
+          "day2_rename": "choudoufu live-mv exited 1",
           "day2_replace": "choudoufu: changing module.dynamodb_table_final's ForceNew name argument proposed exactly one table replace at the same declared address, cascading into the untaggable resource policy (its resource_arn argument follows the table's ARN and is not independently updatable, so it also replaces - F-ORACLE's own finding); applied cleanly; the old table is confirmed gone via the AWS CLI (ResourceNotFoundException) and the new table carries the marker; the local record store's record at the same address now names the new table's name, not the destroyed one (my-table-humorous-possum -> my-table-humorous-possum-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the table at the same address (plan only, not applied - it shares floci's account with $EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones.",
-          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-humorous-possum's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-brave-gibbon's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "greenfield": "3 resources from nothing (random_pet + table + resource policy), the table's markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on key schema/attributes/table class/deletion protection/on-demand billing/GSI/resource policy",
           "migrate": "1 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped.; Apply complete! Resources: 0 added, 0 changed, 1 destroyed. (tofu-slot convergence)",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
+        },
+        "duration_s": 97.5,
+        "stage_seconds": {
+          "cold_deploy": 21,
+          "day2_rename": 9,
+          "drift_reconverge": 7,
+          "migrate": 55,
+          "test_apply": 2,
+          "test_plan": 3
         }
       },
       "notes": "Sourced and scaffolded 2026-08-20 (4d4a3f6513, worktree ../wt/new-terraform-estate, branch live/dynamodb-table-basic) as exploratory/blocked work: terraform-aws-dynamodb-table is one of the single most-downloaded modules in the terraform-aws-modules org (35.6M Terraform Registry downloads), never crossed before, and stage 1 could not complete at all - the example's aws_dynamodb_resource_policy calls PutResourcePolicy on create, and floci had no handler for it (lex00/floci#86). Stage 1 landed 2026-08-21 after #86 was fixed (build e61a987). Stage 2 then hit a SEPARATE, real floci gap: DescribeTable never returned a GSI's OnDemandThroughput, so the AWS provider's own Read dropped it from state and the very next plan proposed replacing the GSI on a table that had not drifted - reproduced with plain stock terraform too (HANDOFF.md label 1, PARITY, not a choudoufu defect), filed as lex00/floci#91. FULL 5/5 PASS 2026-08-21 after #91 was fixed (build 8539609c, PR lex00/floci#92, published digest sha256:8f1fc4a500a3553e362c689cdcb6c5e31784bbaa7ad914de22bdd1c088a785f5, tag 8539609) and live/floci-image re-pinned to it. Re-crossed for real end to end against the new pin, nothing cherry-picked or assumed: cold_deploy PASS ('Apply complete! Resources: 3 added, 0 changed, 0 destroyed', table live and unmarked before migration, 0 objects carrying tofu-estate before migration). migrate PASS in both halves - live-import's dry run correctly reports '1 of 3 resource instance(s) are eligible for stamping' and 'UNTAGGABLE (2)' (aws_dynamodb_resource_policy has no tags argument in the provider's schema at all, and random_pet.this is record-backed with no live object to tag, neither a choudoufu gap), -approve stamps the table, and tofu-address verifies directly against DynamoDB via the AWS CLI as module.dynamodb_table.aws_dynamodb_table.this:0. The tofu-slot convergence apply that follows - previously the exact wall #91 fixed - now completes cleanly ('Apply complete! Resources: 0 added, 0 changed, 1 destroyed', the destroyed resource being the synthetic tofu-slot placeholder for the module's own zero-instance branch, the same shape corpus-iam-policy's TOFU-SLOT FINDING documents, not the table - the table's ARN and marker are reconfirmed live immediately after). test_plan PASS: live-plan with the state file deleted proposes no resource change and reports 'Foreign resources: none', and the table's tofu-address re-read directly from DynamoDB after the state file has never existed this run is unchanged. test_apply PASS: applying the empty plan is a genuine no-op, 'Resources: 0 added, 0 changed, 0 destroyed', 1 tagged object before and after, no state file either time. drift_reconverge PASS: the table's Terraform tag is tampered out of band via the AWS CLI, live-plan proposes fixing exactly module.dynamodb_table.aws_dynamodb_table.this[0] and nothing else, and the reconverge apply ('Resources: 0 added, 1 changed, 0 destroyed') restores the tag to its configured value, verified by re-reading the tag directly from DynamoDB. A NEW estate at full parity: terraform-aws-dynamodb-table, 35.6M registry downloads, never crossed before this session, now clears all five stages. THE RANDOM_PET GAP (issue #314, still open, same DELTA 3 shape live/e2e/corpus-s3-bucket-complete uses) remains real, tracked product debt, not hidden: the table's own identity-bearing `name` argument is `\"my-table-${random_pet.this.id}\"`, a TAGGED resource's identity computed from a record-backed value - live-import does not resolve this generically yet, so the already-applied pet value is substituted as a literal ahead of stage 2, called out in the script. BREAK=1 not exercised this session (a clean run was the priority now that the estate finally clears; stages 3 and 5 both carry BREAK-gated assertions in the script, ready for a future run to confirm they are load-bearing)."
@@ -1461,21 +1470,34 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
-        "date": "2026-08-26T03:31:48Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "9259ff2e73f673c89c1f02e9fda2d919f58f47e3",
+        "date": "2026-08-29T05:54:45Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
           "day2_count": "choudoufu's scale-down plan does not destroy count_test[1]",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-10b05bac90bfcf9f4) is confirmed terminated and the new instance (i-2477f4e303e39b61c) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-4dfb9ec303026e7c2) is confirmed terminated and the new instance (i-45d3808d5f6021150) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
           "test_plan": "post-adoption plan is empty; markers read back through the AWS CLI in part A"
+        },
+        "duration_s": 270.6,
+        "stage_seconds": {
+          "cold_deploy": 97,
+          "day2_count": 18,
+          "day2_remove": 13,
+          "day2_rename": 17,
+          "day2_replace": 36,
+          "drift_reconverge": 11,
+          "greenfield": 5,
+          "migrate": 60,
+          "test_apply": 9,
+          "test_plan": 4
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."

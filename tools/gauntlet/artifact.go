@@ -124,6 +124,24 @@ type LastRun struct {
 	Emulator string            `json:"emulator,omitempty"`
 	ExitCode int               `json:"exit_code"`
 	Detail   map[string]string `json:"detail,omitempty"`
+	// DurationS is the whole run's wall-clock seconds: measured in Go around
+	// the script's process (runOne, run.go), from just before cmd.Run() to
+	// just after it returns. Recorded for every protocol, gauntlet or
+	// legacy, because it needs nothing from the script's own stdout - unlike
+	// Seconds below, it is never zero-value-omitted-as-unknown; a run that
+	// took under 0.05s (rounded away) is indistinguishable from a run that
+	// recorded nothing only in the legacy-protocol case, which predates this
+	// field entirely and so never sets it.
+	DurationS float64 `json:"duration_s,omitempty"`
+	// Seconds is per-stage wall-clock seconds, stage id -> seconds spent on
+	// it this run, read from that stage's own `duration_s=` field (#434).
+	// Populated only for a gauntlet-protocol run whose script sources a
+	// live/e2e/lib/gauntlet.sh new enough to emit duration_s; a legacy run,
+	// or a gauntlet run against an older library copy, leaves it absent
+	// rather than guessing. Carried forward across runs exactly like Detail
+	// already is (RunEstates, run.go): a stage this run never reached keeps
+	// its previously recorded duration rather than losing it.
+	Seconds map[string]float64 `json:"stage_seconds,omitempty"`
 }
 
 // IsStale reports whether r's last recorded run measured against a

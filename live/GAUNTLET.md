@@ -265,8 +265,13 @@ per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,
 `protocol` (`gauntlet` or `legacy`), `last_run` (`commit`, `date`,
 `emulator` - the pin THAT run actually used, distinct from the
 top-level `emulator`, which is the pin the NEXT run will use -
-`exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot
-<version>` copies it to `live/history/<version>.json` at release; `go run
+`exit_code`, optional per-stage `detail`, `duration_s` (the whole
+script's wall-clock seconds, recorded for every run regardless of
+protocol) and optional per-stage `stage_seconds` (wall-clock seconds
+each stage took, recorded only for a gauntlet-protocol script whose
+copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)). `go run
+./tools/gauntlet snapshot <version>` copies it to
+`live/history/<version>.json` at release; `go run
 ./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just
 gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
 markdown - board movement per set, which estates newly cleared or

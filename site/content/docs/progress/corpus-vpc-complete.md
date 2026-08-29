@@ -14,22 +14,22 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 
 **Clear.** Every active stage passes.
 
-| Stage | Verdict | Detail |
-|---|---|---|
-| Cold deploy | pass | Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration |
-| Migrate | pass | 40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372) |
-| Replan from nothing | pass | empty plan; identity re-check unchanged: module.vpc.aws_vpc.this:0, aws_security_group.rds, module.vpc_endpoints.aws_vpc_endpoint.this:s3 |
-| No-op apply | pass | genuine no-op: 39 objects before, 39 after, no state file either time |
-| Drift and reconverge | pass | one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete |
-| Rename | pass | moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | pass | choudoufu: deleting the dynamodb endpoint's map entry (module.vpc_endpoints_renamed.aws_vpc_endpoint.this["dynamodb"]) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (State=absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object |
-| Change count (planned) | not run |  |
-| Replace with create_before_destroy | pass | choudoufu: changing customer_gateways["IP1"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-12d215ffd51faeef4) is confirmed gone/deleted and the new gateway (cgw-a8cd64446e4173d97) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
-| Crash between create and destroy (planned) | not run |  |
-| Teardown (planned) | not run |  |
-| Plan, review, apply (planned) | not run |  |
-| Greenfield apply | pass | 62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence |
-| Strict profile (planned) | not run |  |
+| Stage | Verdict | Duration | Detail |
+|---|---|---|---|
+| Cold deploy | pass |  | Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration |
+| Migrate | pass |  | 40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372) |
+| Replan from nothing | pass |  | empty plan; identity re-check unchanged: module.vpc.aws_vpc.this:0, aws_security_group.rds, module.vpc_endpoints.aws_vpc_endpoint.this:s3 |
+| No-op apply | pass |  | genuine no-op: 39 objects before, 39 after, no state file either time |
+| Drift and reconverge | pass |  | one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete |
+| Rename | pass |  | moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
+| Remove a block | pass |  | choudoufu: deleting the dynamodb endpoint's map entry (module.vpc_endpoints_renamed.aws_vpc_endpoint.this["dynamodb"]) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (State=absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object |
+| Change count (planned) | not run |  |  |
+| Replace with create_before_destroy | pass |  | choudoufu: changing customer_gateways["IP1"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-12d215ffd51faeef4) is confirmed gone/deleted and the new gateway (cgw-a8cd64446e4173d97) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
+| Crash between create and destroy (planned) | not run |  |  |
+| Teardown (planned) | not run |  |  |
+| Plan, review, apply (planned) | not run |  |  |
+| Greenfield apply | pass |  | 62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence |
+| Strict profile (planned) | not run |  |  |
 
 Last run at commit `85ffcf09c4` on 2026-08-26T00:02:01Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 
