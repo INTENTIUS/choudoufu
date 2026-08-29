@@ -565,7 +565,19 @@ ORACLE_CT1_ARN="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam l
   --query "Policies[?PolicyName=='iam-ro-count-test-1'].Arn | [0]" --output text)"
 [ -n "$ORACLE_CT0_ARN" ] && [ "$ORACLE_CT0_ARN" != "None" ] || fail "no oracle count_test[0] policy found by name"
 [ -n "$ORACLE_CT1_ARN" ] && [ "$ORACLE_CT1_ARN" != "None" ] || fail "no oracle count_test[1] policy found by name"
-log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN count_test[1]=$ORACLE_CT1_ARN"
+# aws_iam_policy's ARN is arn:aws:iam::<account>:policy/<path><name> - fully
+# determined by account, path and name, none of which this cycle changes -
+# so an ARN alone cannot prove a destroy+recreate happened for real (verified
+# directly against the emulator, no tofu in the loop, before writing this:
+# deleting and recreating a same-named/same-path policy yields the identical
+# ARN both times). What AWS DOES mint fresh on every CreatePolicy call is
+# PolicyId (an AWS-assigned identifier, independent of name/path); that is
+# the value this stage's "genuinely a new object" checks below compare.
+ORACLE_CT0_ID="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.PolicyId' --output text)"
+ORACLE_CT1_ID="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT1_ARN" --query 'Policy.PolicyId' --output text)"
+[ -n "$ORACLE_CT0_ID" ] && [ "$ORACLE_CT0_ID" != "None" ] || fail "oracle count_test[0] has no PolicyId"
+[ -n "$ORACLE_CT1_ID" ] && [ "$ORACLE_CT1_ID" != "None" ] || fail "oracle count_test[1] has no PolicyId"
+log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) count_test[1]=$ORACLE_CT1_ARN (id=$ORACLE_CT1_ID)"
 
 { oracle_count_provider; count_test_block 1; } > "$PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
@@ -580,12 +592,12 @@ ORACLE_DOWN_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_E
   printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
   || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
-ORACLE_CT0_AFTER_DOWN="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
-[ "$ORACLE_CT0_AFTER_DOWN" = "$ORACLE_CT0_ARN" ] || fail "stock's surviving count_test[0] changed ARN across the scale-down"
+ORACLE_CT0_ID_AFTER_DOWN="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.PolicyId' --output text 2>/dev/null || true)"
+[ "$ORACLE_CT0_ID_AFTER_DOWN" = "$ORACLE_CT0_ID" ] || fail "stock's surviving count_test[0] changed PolicyId across the scale-down ($ORACLE_CT0_ID -> $ORACLE_CT0_ID_AFTER_DOWN)"
 if ORACLE_CT1_STILL="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT1_ARN" 2>&1)"; then
   echo "$ORACLE_CT1_STILL"; fail "stock's count_test[1] ($ORACLE_CT1_ARN) still exists after the scale-down destroy"
 fi
-log "  stock: exactly one destroy (count_test[1]=$ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN unchanged"
+log "  stock: exactly one destroy (count_test[1]=$ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged"
 
 { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
@@ -603,10 +615,12 @@ grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT"
 ORACLE_CT1_NEW_ARN="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam list-policies --path-prefix /example/ \
   --query "Policies[?PolicyName=='iam-ro-count-test-1'].Arn | [0]" --output text)"
 [ -n "$ORACLE_CT1_NEW_ARN" ] && [ "$ORACLE_CT1_NEW_ARN" != "None" ] || fail "no oracle count_test[1] policy found after the scale-up"
-[ "$ORACLE_CT1_NEW_ARN" != "$ORACLE_CT1_ARN" ] || fail "stock's recreated count_test[1] came back with the SAME ARN it had before being destroyed"
-ORACLE_CT0_AFTER_UP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
-[ "$ORACLE_CT0_AFTER_UP" = "$ORACLE_CT0_ARN" ] || fail "stock's count_test[0] changed ARN across the scale-up"
-log "  stock: exactly one create (count_test[1], new ARN $ORACLE_CT1_NEW_ARN, was $ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN unchanged throughout"
+[ "$ORACLE_CT1_NEW_ARN" = "$ORACLE_CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($ORACLE_CT1_NEW_ARN) differs from its pre-destroy ARN ($ORACLE_CT1_ARN) - unexpected: aws_iam_policy's ARN is name/path-derived and should be identical both times"
+ORACLE_CT1_NEW_ID="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT1_NEW_ARN" --query 'Policy.PolicyId' --output text)"
+[ "$ORACLE_CT1_NEW_ID" != "$ORACLE_CT1_ID" ] || fail "stock's recreated count_test[1] came back with the SAME PolicyId it had before being destroyed - the destroy was not real"
+ORACLE_CT0_ID_AFTER_UP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.PolicyId' --output text 2>/dev/null || true)"
+[ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed PolicyId across the scale-up"
+log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from name+path - but a NEW PolicyId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1135,7 +1149,16 @@ EOF
     CT1_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
     [ "$CT0_ADDR_TAG" = 'aws_iam_policy.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not aws_iam_policy.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
     [ "$CT1_ADDR_TAG" = 'aws_iam_policy.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $CT1_ADDR_TAG, not aws_iam_policy.count_test:1"
-    log "  2 instances created: index 0 = $CT0_ARN (tofu-address=$CT0_ADDR_TAG), index 1 = $CT1_ARN (tofu-address=$CT1_ADDR_TAG) - read via the AWS CLI"
+    # aws_iam_policy's ARN is name/path-derived, not server-random (verified
+    # directly against the emulator ahead of writing this stage, no tofu in
+    # the loop - see G-ORACLE's own comment above for the same finding), so
+    # a destroy+recreate under the same name yields the SAME ARN. PolicyId,
+    # not ARN, is what the "genuinely a new object" checks below compare.
+    CT0_ID="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.PolicyId' --output text)"
+    CT1_ID="$(awsl iam get-policy --policy-arn "$CT1_ARN" --query 'Policy.PolicyId' --output text)"
+    [ -n "$CT0_ID" ] && [ "$CT0_ID" != "None" ] || fail "live count_test[0] has no PolicyId"
+    [ -n "$CT1_ID" ] && [ "$CT1_ID" != "None" ] || fail "live count_test[1] has no PolicyId"
+    log "  2 instances created: index 0 = $CT0_ARN (tofu-address=$CT0_ADDR_TAG, id=$CT0_ID), index 1 = $CT1_ARN (tofu-address=$CT1_ADDR_TAG, id=$CT1_ID) - read via the AWS CLI"
 
     COUNT_NOOP_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_NOOP_PLAN_RC=$?
     [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
@@ -1168,14 +1191,14 @@ EOF
       grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
         || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
 
-      CT0_AFTER_DOWN="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
-      [ "$CT0_AFTER_DOWN" = "$CT0_ARN" ] || fail "count_test[0]'s ARN changed across the scale-down - it was destroyed and recreated, not left alone"
+      CT0_ID_AFTER_DOWN="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.PolicyId' --output text 2>/dev/null || true)"
+      [ "$CT0_ID_AFTER_DOWN" = "$CT0_ID" ] || fail "count_test[0]'s PolicyId changed across the scale-down ($CT0_ID -> $CT0_ID_AFTER_DOWN) - it was destroyed and recreated, not left alone"
       if CT1_STILL="$(awsl iam get-policy --policy-arn "$CT1_ARN" 2>&1)"; then
         echo "$CT1_STILL"; fail "count_test[1] ($CT1_ARN) still exists in the live account after the scale-down destroy"
       fi
       CT0_ADDR_AFTER_DOWN="$(awsl iam list-policy-tags --policy-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
       [ "$CT0_ADDR_AFTER_DOWN" = 'aws_iam_policy.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $CT0_ADDR_AFTER_DOWN"
-      log "  $CT1_ARN (count_test[1]) no longer exists (NoSuchEntity); $CT0_ARN (count_test[0]) unchanged ARN and marker - all read via the AWS CLI"
+      log "  $CT1_ARN (count_test[1]) no longer exists (NoSuchEntity); $CT0_ARN (count_test[0]) unchanged PolicyId ($CT0_ID) and marker - all read via the AWS CLI"
 
       log "=== G2. scale count back up: 1 -> 2 ==="
       count_test_block 2 > "$EST/day2_count.tf"
@@ -1196,12 +1219,14 @@ EOF
 
       CT1_NEW_ARN="$(awsl iam list-policies --path-prefix /example/ --query "Policies[?PolicyName=='iam-ro-count-test-1'].Arn | [0]" --output text)"
       [ -n "$CT1_NEW_ARN" ] && [ "$CT1_NEW_ARN" != "None" ] || fail "no live count_test[1] policy found by name after the scale-up"
-      [ "$CT1_NEW_ARN" != "$CT1_ARN" ] || fail "count_test[1] came back with the SAME ARN ($CT1_ARN) it had before being destroyed - the destroy in G1 was not real"
+      [ "$CT1_NEW_ARN" = "$CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($CT1_NEW_ARN) differs from its pre-destroy ARN ($CT1_ARN) - unexpected: aws_iam_policy's ARN is name/path-derived and should be identical both times"
+      CT1_NEW_ID="$(awsl iam get-policy --policy-arn "$CT1_NEW_ARN" --query 'Policy.PolicyId' --output text)"
+      [ "$CT1_NEW_ID" != "$CT1_ID" ] || fail "count_test[1] came back with the SAME PolicyId ($CT1_ID) it had before being destroyed - the destroy in G1 was not real"
       CT1_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
       [ "$CT1_NEW_ADDR_TAG" = 'aws_iam_policy.count_test:1' ] || fail "the recreated count_test[1] ($CT1_NEW_ARN) carries tofu-address=$CT1_NEW_ADDR_TAG, not aws_iam_policy.count_test:1"
-      CT0_AFTER_UP="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
-      [ "$CT0_AFTER_UP" = "$CT0_ARN" ] || fail "count_test[0]'s ARN changed across the scale-up"
-      log "  count_test[1] recreated under a new ARN ($CT1_NEW_ARN, was $CT1_ARN), tofu-address=$CT1_NEW_ADDR_TAG; count_test[0] ($CT0_ARN) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+      CT0_ID_AFTER_UP="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.PolicyId' --output text 2>/dev/null || true)"
+      [ "$CT0_ID_AFTER_UP" = "$CT0_ID" ] || fail "count_test[0]'s PolicyId changed across the scale-up"
+      log "  count_test[1] recreated under the same ARN ($CT1_NEW_ARN, deterministic from name+path) but a NEW PolicyId ($CT1_NEW_ID, was $CT1_ID), tofu-address=$CT1_NEW_ADDR_TAG; count_test[0] ($CT0_ARN, id=$CT0_ID) untouched throughout the down-then-up cycle - all read via the AWS CLI"
 
       log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
       COUNT_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_FINAL_PLAN_RC=$?
@@ -1210,7 +1235,7 @@ EOF
         || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
       log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
 
-      gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live ARN and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW ARN (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under a new ARN, the lower index's ARN unchanged both times"
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times"
     fi
     CURRENT_STAGE=""
   fi
