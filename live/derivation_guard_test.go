@@ -147,7 +147,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 10, Code: 0,
 	},
 	"internal/live/harness/assumptions.go": {
-		Reason: "sanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
+		Reason: "SanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
 			"admission route at all, because their identity IS credential material and a marker goes in a tag rather " +
 			"than in the secret. Shrunk from four by the 2026-08-23 ruling (#365 ruling 5), which moved " +
 			"aws_iam_access_key and aws_iot_certificate to internal/live/identity/located.go's toggle-gated exclusion " +
@@ -381,7 +381,7 @@ const (
 	// literals stay in internal/live/identity/located.go (renamed
 	// sanctionedCredentialExclusion -> strictSecretsLocatedExclusion, same
 	// two names, so that file's own count is unchanged), but
-	// internal/live/harness/assumptions.go's sanctionedCredentialExclusions
+	// internal/live/harness/assumptions.go's SanctionedCredentialExclusions
 	// drops the two literal type names it carried for them - they moved off
 	// that unconditional, admission-table-wide ratchet onto a
 	// strict{secrets}-gated one, so the harness ratchet's own four-entry
