@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 14 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin), 12 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844` (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T20:14:03Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 15 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin), 11 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844` (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T20:16:55Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -55,7 +55,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
@@ -75,7 +75,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-14 of 26 estates have a recorded run duration, totaling 57m17.9s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 2m9.4s across 1 estate(s) at commit `8d19323d12`; 9m14s across 3 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 3m59.1s across 1 estate(s) at commit `a1605b4688`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 12 estate(s) with no recorded duration yet.
+15 of 26 estates have a recorded run duration, totaling 59m53.7s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 2m35.8s across 1 estate(s) at commit `638d7a4b64`; 2m9.4s across 1 estate(s) at commit `8d19323d12`; 9m14s across 3 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 3m59.1s across 1 estate(s) at commit `a1605b4688`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 11 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -88,7 +88,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | 2m9.4s | cold_deploy 12s, migrate 35s, test_plan 4s, test_apply 2s, drift_reconverge 6s, day2_rename 10s, day2_remove 7s, day2_count 13s, day2_replace 13s, greenfield 27s |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | 1m8.4s | cold_deploy 5s, migrate 19s, test_plan 3s, test_apply 3s, drift_reconverge 4s, day2_rename 10s, day2_remove 5s, day2_replace 6s, greenfield 13s |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | 3m5.5s | cold_deploy 15s, migrate 14s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 9s, day2_remove 7s, day2_count 56s, day2_replace 8s, greenfield 1m4s |
-| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | 2m35.8s | cold_deploy 15s, migrate 32s, test_plan 4s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 9s, day2_count 24s, day2_replace 8s, greenfield 44s |
 | [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | 5m41.9s | cold_deploy 35s, migrate 1m13s, test_plan 8s, test_apply 7s, drift_reconverge 11s, day2_rename 24s, day2_remove 11s, day2_count 48s, day2_replace 20s, greenfield 1m45s |
 | [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | 2m41.8s | cold_deploy 25s, migrate 17s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 10s, day2_remove 7s, day2_count 40s, day2_replace 7s, greenfield 46s |
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | 2m53.2s | cold_deploy 14s, migrate 1m10s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 10s, day2_remove 7s, day2_count 19s, day2_replace 7s, greenfield 35s |
