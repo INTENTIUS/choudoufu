@@ -342,9 +342,65 @@ stay computed from every headline stage on every estate regardless of any
 change could plausibly have touched; use plain `next` when the question
 is whether the board, not a slice of it, still clears.
 
+## Merging estate rows across PRs (`merge-artifact`)
+
+With several estate PRs open at once, a plain `git merge` re-conflicts
+every other open PR the moment any one lands, and resolving it by hand has
+produced a wrong board with no conflict markers at all: `sets.core.clear`
+and `sets.all.clear` are counters two branches each incremented from the
+same starting point, so a textually-clean auto-merge of two DISTINCT
+estates' rows keeps one increment and silently drops the other (#488).
+
+`go run ./tools/gauntlet merge-artifact <base> <ours> <theirs>` is the
+row-granular alternative: it three-way-merges live/gauntlet.json at the level of one
+estate's row rather than the whole file, then calls the same `Rebuild`
+every other command uses (never a reimplementation) so the aggregate is
+correct by construction from the merged rows. `<base>`, `<ours>`, and
+`<theirs>` are git revisions (a sha, a branch, `HEAD`, ...), not file
+paths - the tool reads the artifact at each with `git show` and diffs
+trees with `git diff` itself.
+
+It applies only when the rows are independent evidence: two estate PRs
+that each measured a DIFFERENT estate. It does not apply, and a full
+re-run is mandatory instead, when:
+
+- **Both sides changed the same estate's row.** Two branches disagreeing
+  about one estate's verdict needs a human or a re-run to say which
+  measurement is current - guessing is how a wrong verdict lands. The
+  tool refuses and names the estate and both sides' `last_run.commit`/
+  `last_run.date`.
+- **Product code moved between a row's measurement and the merge.**
+  The merge is only valid when nothing outside live/gauntlet.json,
+  `site/data/gauntlet.json`, `site/content/docs/progress/**`, and an estate's own
+  `live/e2e/<name>/run.sh` differs between base and either side. PRs
+  #502 and #503 both genuinely needed a re-run for exactly this reason -
+  `tools/gauntlet/run.go`'s recording path changed underneath them - and
+  the tool refuses, naming the file, rather than assume the rows are
+  still evidence about the code as it stands now.
+- **A surviving row's `last_run.commit` is not a real ancestor of the**
+  **revision that produced it.** A rebase can replay a commit's diff
+  without re-running the generator, leaving the JSON's embedded commit
+  hash pointing at a dangling, now-unreachable object (#509). The tool
+  checks every merged row's provenance and refuses rather than merge one
+  it cannot verify.
+- **The merge would violate an existing guard**, in particular
+  `TestNonzeroExitCodeImpliesAFailingStage`'s invariant (#413): a
+  nonzero `exit_code` with no stage reading `fail` anywhere in the row.
+
+A refusal always means re-run, never resolve by hand - the same rule
+the merge playbook already holds plain `git merge` conflicts to. The
+tool exists precisely so that judgment call is a program with a test,
+not a worker's guess under time pressure.
+
 ## What holds this together
 
 `tools/gauntlet/gauntlet_test.go`: the stage registry is well formed; the
 manifest is canonical and every entry's script exists; every rendered file
 matches a fresh render; the artifact agrees with the manifest; the protocol
 parser round-trips; the number of legacy scripts can only fall.
+`tools/gauntlet/mergeartifact_test.go` guards `merge-artifact` itself:
+distinct-estate rows merge and the rebuilt aggregate matches the rows;
+a same-estate conflict refuses and names the estate; a dangling
+`last_run.commit` refuses (#509's class); a nonzero exit with no failing
+stage refuses (#413's class); product code differing between base and a
+side refuses and names the file.
