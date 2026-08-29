@@ -93,7 +93,7 @@ func TestCohortAcceptance(t *testing.T) {
 	if len(results) != len(cohorts) {
 		t.Fatalf("only %d of %d cohorts produced a verdict (a -run filter, or a cohort aborted mid-run); refusing to write a partial %s", len(results), len(cohorts), artifactRel)
 	}
-	art := buildArtifact(flocitest.Image(), providerPin, results)
+	art := buildArtifact(flocitest.Image(), providerPin, flocitest.HeadCommit(t), time.Now().UTC().Format(time.RFC3339), results)
 	if err := writeArtifact(artifactPath, art); err != nil {
 		t.Fatalf("writing %s: %v", artifactRel, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,7 +67,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	for _, e := range selected {
 		r, _ := a.Result(e.Name)
 		r.Name = e.Name
-		res, exit, err := runOne(root, e, opts)
+		res, exit, elapsed, err := runOne(root, e, opts)
 		if err != nil {
 			return failures, err
 		}
@@ -89,12 +90,16 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		// detail for a stage this run never reached, exactly like Stages
 		// already does for the verdict itself.
 		prevDetail := map[string]string{}
+		prevSeconds := map[string]float64{}
 		if r.LastRun != nil {
 			for k, v := range r.LastRun.Detail {
 				prevDetail[k] = v
 			}
+			for k, v := range r.LastRun.Seconds {
+				prevSeconds[k] = v
+			}
 		}
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, ExitCode: exit}
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, ExitCode: exit, DurationS: roundSeconds(elapsed)}
 		if res.Spoken {
 			if r.Stages == nil {
 				r.Stages = map[string]string{}
@@ -105,8 +110,14 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			for id, v := range res.Detail {
 				prevDetail[id] = v
 			}
+			for id, v := range res.Seconds {
+				prevSeconds[id] = v
+			}
 			if len(prevDetail) > 0 {
 				r.LastRun.Detail = prevDetail
+			}
+			if len(prevSeconds) > 0 {
+				r.LastRun.Seconds = prevSeconds
 			}
 			r.Protocol = ProtocolGauntlet
 			if len(res.Stages) == 0 {
@@ -136,15 +147,20 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	return failures, nil
 }
 
-func runOne(root string, e Estate, opts RunOptions) (*ProtocolResult, int, error) {
+// runOne runs one estate's script and returns its parsed protocol result,
+// its exit code, and the wall-clock seconds the process itself took (from
+// just before cmd.Run() to just after it returns - includes the script's
+// own setup and teardown, not just the stage work inside it, which is the
+// honest answer to "how long did running this estate take").
+func runOne(root string, e Estate, opts RunOptions) (*ProtocolResult, int, float64, error) {
 	script := filepath.Join(root, e.ScriptPath())
 	if _, err := os.Stat(script); err != nil {
-		return nil, 0, fmt.Errorf("estate %q: %w", e.Name, err)
+		return nil, 0, 0, fmt.Errorf("estate %q: %w", e.Name, err)
 	}
 	logPath := filepath.Join(root, LogDir, e.Name+".log")
 	logf, err := os.Create(logPath)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer logf.Close()
 
@@ -155,20 +171,29 @@ func runOne(root string, e Estate, opts RunOptions) (*ProtocolResult, int, error
 	cmd.Stdout = io.MultiWriter(&captured, logf)
 	cmd.Stderr = logf
 	fmt.Fprintf(opts.Stdout, "%s: running %s (log: %s)\n", e.Name, e.ScriptPath(), filepath.Join(LogDir, e.Name+".log"))
+	start := time.Now()
 	runErr := cmd.Run()
+	elapsed := time.Since(start).Seconds()
 	exit := 0
 	if runErr != nil {
 		if ee, ok := runErr.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
 		} else {
-			return nil, 0, fmt.Errorf("estate %q: %w", e.Name, runErr)
+			return nil, 0, elapsed, fmt.Errorf("estate %q: %w", e.Name, runErr)
 		}
 	}
 	res, err := ParseProtocol(&captured)
 	if err != nil {
-		return nil, exit, fmt.Errorf("estate %q: %w", e.Name, err)
+		return nil, exit, elapsed, fmt.Errorf("estate %q: %w", e.Name, err)
 	}
-	return res, exit, nil
+	return res, exit, elapsed, nil
+}
+
+// roundSeconds rounds to one decimal place: enough resolution to see a
+// stage that takes a few seconds without printing false precision off a
+// process-wide wall clock that also includes OS scheduling noise.
+func roundSeconds(s float64) float64 {
+	return math.Round(s*10) / 10
 }
 
 func summarize(stages map[string]string) string {

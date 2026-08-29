@@ -2,10 +2,12 @@ name: Auto-merge artifact-only pull requests
 
 # A pull request that changes only the gauntlet artifact and the files
 # rendered from it (a re-run that moved verdicts, from the nightly run or a
-# contributor's fork) is merged automatically once CI passes. Anything that
-# touches code waits for a maintainer. The decision is made from the
-# pull request's file list via the API; the fork's code is never checked out
-# or executed here, which is what makes pull_request_target safe to use.
+# contributor's fork), or the cohort acceptance artifact the same nightly
+# run also carries (live/cohort-acceptance.json, issue #433), is merged
+# automatically once CI passes. Anything that touches code waits for a
+# maintainer. The decision is made from the pull request's file list via the
+# API; the fork's code is never checked out or executed here, which is what
+# makes pull_request_target safe to use.
 #
 # Needs "Allow auto-merge" on in the repository settings and the CI fast job
 # as a required status check on main; without the second, --auto merges on
@@ -32,7 +34,7 @@ jobs:
           set -euo pipefail
           files="$(gh pr view "$PR" -R "$REPO" --json files --jq '.files[].path')"
           [ -n "$files" ] || { echo "no files"; exit 0; }
-          allowed='^(live/gauntlet\.json|live/GAUNTLET\.md|live/gauntlet/estates\.json|live/history/.*\.json|site/data/gauntlet\.json|site/content/docs/progress/.*\.md)$'
+          allowed='^(live/gauntlet\.json|live/GAUNTLET\.md|live/gauntlet/estates\.json|live/history/.*\.json|site/data/gauntlet\.json|site/content/docs/progress/.*\.md|live/cohort-acceptance\.json)$'
           bad="$(printf '%s\n' "$files" | grep -Ev "$allowed" || true)"
           if [ -n "$bad" ]; then
             echo "not artifact-only; a maintainer merges this one:"; printf '  %s\n' $bad; exit 0

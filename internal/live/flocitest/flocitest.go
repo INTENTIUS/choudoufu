@@ -94,6 +94,25 @@ func Image() string {
 	return image()
 }
 
+// HeadCommit is the checked-out tree's current commit, for callers that
+// stamp per-row run provenance the way tools/gauntlet's RunEstates stamps
+// live/gauntlet.json's last_run.commit (git rev-parse HEAD, same command,
+// same non-fatal-on-failure shape: a checkout with no git history, e.g. an
+// artifact tarball, records an empty commit rather than aborting the run
+// that would otherwise still produce a valid result).
+func HeadCommit(t *testing.T) string {
+	t.Helper()
+
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = RepoRoot(t)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Logf("git rev-parse HEAD: %v; recording an empty commit", err)
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // Gate skips t unless the floci integration tier is enabled.
 //
 // Either TF_ACC (the acceptance-test switch the whole repo shares) or
