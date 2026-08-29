@@ -1637,10 +1637,32 @@ json.dump(d, open(p, 'w'))
   # exemplars), Route 53 hands back no system-assigned id for a record set
   # at all: its identity IS name+type+zone, so a destroyed-then-recreated
   # instance renders the IDENTICAL identity string both times, and "the
-  # destroy was real, not a no-op" is proved by temporal ABSENCE (0 live
-  # matches and no local record file in between) rather than by a changed
-  # id - the id-comparison idiom those two exemplars use has no equivalent
-  # for this type.
+  # destroy was real, not a no-op" is proved by a live AWS CLI absence
+  # check (0 matches) plus the local record file's own shape changing, not
+  # by a changed id - the id-comparison idiom those two exemplars use has
+  # no equivalent for this type.
+  #
+  # THE LOCAL RECORD FILE IS NOT REMOVED BY A DESTROY - IT IS TOMBSTONED.
+  # MEASURED HERE: a first attempt at this check assumed the file for a
+  # destroyed count instance would simply be gone and failed on a real,
+  # correctly handled case. Read directly (no tofu in the loop), the
+  # post-destroy file for wp-prod-staging[9] is
+  #   {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
+  #    "kind":"identity","tombstone":{"name=staging12.datacite.org
+  #     type=A zone_id=<...>":{"identity":{"attrs":{"name":
+  #    "staging12.datacite.org","type":"A","zone_id":"<...>"}},
+  #    "provider":"...","time":"2026-08-29T15:59:29Z"}}}
+  # - no top-level "identity" key at all once tombstoned, only
+  # "tombstone". This is the #398-guard shape working as intended for a
+  # count-instance destroy, not only the create_before_destroy replace
+  # path day2_replace/day2_crash already prove it for: a destroy retires
+  # the record into a tombstone rather than erasing it, so nothing later
+  # can misread a leftover file as still naming a live object (record_
+  # import_id()'s own `.identity.attrs...` read comes back empty/null on a
+  # tombstoned file, which is correct - a stale record still answering
+  # with the OLD identity would be exactly the wrong-marker failure
+  # HANDOFF's safety rule names). record_tombstoned() below asserts this
+  # shape directly rather than assuming the file is gone.
   #
   # $EST/main.tf's own "count           = 10" literal is edited directly,
   # the same discipline Part D/F above already use for this estate (a sed
@@ -1670,6 +1692,21 @@ json.dump(d, open(p, 'w'))
 
   CURRENT_STAGE=day2_count
   find_record_file() { grep -rlF "\"$1\"" "$RECORD_DIR" 2>/dev/null | head -1; }
+  # record_tombstoned <file>: a genuine destroy does not erase the local
+  # record file for an untaggable, record-backed address - it converts the
+  # top-level "identity" block into a "tombstone" entry (the destroyed
+  # identity's own attrs plus a timestamp), the #398-guard shape: a file
+  # that still answered record_import_id() with the OLD identity after a
+  # real destroy would be the wrong-marker failure HANDOFF's safety rule
+  # names, so the destroy path retires the record rather than leaving it
+  # looking current. MEASURED HERE (first attempt at this check wrongly
+  # expected the file gone entirely and failed on a real, correctly
+  # tombstoned file - the file's own content, read directly, is
+  # {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
+  # "kind":"identity","tombstone":{"name=... type=A zone_id=...":
+  # {"identity":{"attrs":{...}},"provider":"...","time":"..."}}} - no
+  # top-level "identity" key at all once tombstoned).
+  record_tombstoned() { jq -e 'has("tombstone") and (has("identity") | not)' "$1" >/dev/null 2>&1; }
 
   log "=== G0. capture the live wp-prod-staging[9] and its lowest sibling wp-prod-staging[0] ahead of the count scale ==="
   G_HI_NAME="staging12.datacite.org"
@@ -1723,7 +1760,9 @@ json.dump(d, open(p, 'w'))
     G_HI_N_AFTER_DOWN="$(awsl route53 list-resource-record-sets --hosted-zone-id "$PROD_ZONE" --query "length(ResourceRecordSets[?Name=='$G_HI_NAME.' && Type=='A'])" --output text)"
     [ "$G_HI_N_AFTER_DOWN" = "0" ] || fail "wp-prod-staging[9] ($G_HI_NAME) still exists in the live account after the scale-down destroy - it was orphaned, not destroyed"
     G_HI_RECORD_AFTER_DOWN="$(find_record_file "$G_HI_NAME")"
-    [ -z "$G_HI_RECORD_AFTER_DOWN" ] || fail "a local record file still names $G_HI_NAME after the scale-down destroy - a stale record, the #398-guard shape"
+    [ -n "$G_HI_RECORD_AFTER_DOWN" ] || fail "no local record file names $G_HI_NAME at all after the scale-down destroy - expected a tombstone recording the destroy, found nothing"
+    record_tombstoned "$G_HI_RECORD_AFTER_DOWN" \
+      || { cat "$G_HI_RECORD_AFTER_DOWN" >&2; fail "the record naming $G_HI_NAME after the scale-down destroy is not a proper tombstone (#398-guard shape: still carries a live identity block, or carries neither)"; }
     G_LO_TTL_AFTER_DOWN="$(live_record_ttl "$PROD_ZONE" "$G_LO_NAME" A)"
     [ "$G_LO_TTL_AFTER_DOWN" = "$G_LO_TTL_BEFORE" ] || fail "wp-prod-staging[0]'s TTL changed across the scale-down: $G_LO_TTL_BEFORE -> $G_LO_TTL_AFTER_DOWN"
     G_LO_IMPORT_ID_AFTER_DOWN="$(record_import_id "$G_LO_RECORD")"
@@ -1773,7 +1812,7 @@ json.dump(d, open(p, 'w'))
       || { grep -E '^  #' <<< "$G_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
     log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
 
-    gauntlet_stage day2_count pass "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI and its local record file removed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -> 1 add, 0 change, 0 destroy), TTL=300 and record import_id=$G_HI_IMPORT_ID_AFTER_UP (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by temporal absence, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
+    gauntlet_stage day2_count pass "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI, and its local record file correctly tombstoned rather than left claiming a live identity - the #398-guard shape, confirmed by reading the file directly rather than assumed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -> 1 add, 0 change, 0 destroy), TTL=300 and record import_id=$G_HI_IMPORT_ID_AFTER_UP (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by the AWS CLI absence check and the tombstone, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
   fi
   CURRENT_STAGE=""
 
