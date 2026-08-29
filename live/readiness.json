@@ -6,16 +6,16 @@
     "types": 1699,
     "tiers": {
       "declaration-carried": 379,
-      "excluded by design": 2,
+      "excluded by design": 3,
       "marker-carried": 846,
-      "record-carried": 472
+      "record-carried": 471
     },
     "statuses": {
-      "excluded": 2,
+      "excluded": 3,
       "in-contract": 1122,
       "needs-evidence": 14,
       "needs-separator": 4,
-      "pending-mechanism": 60,
+      "pending-mechanism": 59,
       "pending-ratification": 497
     }
   },
@@ -25233,17 +25233,17 @@
     },
     {
       "type": "aws_wafv2_api_key",
-      "tier": "record-carried",
-      "status": "pending-mechanism",
+      "tier": "excluded by design",
+      "status": "excluded",
       "facts": {
         "taggable": false,
         "survey_path": "moves to Ops",
         "admitted": false,
-        "markerless": true,
+        "markerless": false,
         "not_importable": false,
-        "id_not_proven_whole": true,
-        "tier_d": false,
-        "rejected": false,
+        "tier_d": true,
+        "rejected": true,
+        "rejected_reason": "credential material, and a third of the kind ruling 5 (rfc/20260823-foundation-order-ruling.md) left no toggle for: the provider's own Import section reads 'api_key,scope' - the ONLY documented way to name an instance is the secret itself, since the resource has no other id, arn or tag (untaggable; live/survey-full.json signals.taggable=false at v6.59.0). internal/live/identity's LocatedType already refuses it unconditionally today via recordableIdentitySchema's sensitiveIdentityAttr check - live/LIMITATIONS.md's strict-secrets entry has named this exact type as the sole known 'recorded identity is itself the secret' case since 2026-08-22 - so this entry ledgers an existing, code-enforced refusal rather than creating a new one. Measured by issue #431's provider-wide sweep (tools/credential-sweep): of 107 types anywhere in hashicorp/aws 6.59.0 carrying a live sensitive attribute, this is the only one with no non-secret identity at all. Joins aws_appstream_directory_config and aws_ivs_playback_key_pair as the third type with no route to admission under any setting; internal/live/harness's credential-exclusions-are-sanctioned assumption (renamed from credential-exclusions-are-exactly-two) is updated with it.",
         "mapping_via": "cfn-unmodeled"
       }
     },
