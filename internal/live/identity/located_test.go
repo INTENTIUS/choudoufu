@@ -372,6 +372,60 @@ func TestLocatedImportID(t *testing.T) {
 // "located" bucket; aws_iot_certificate does not move at all, because
 // [NotImportable] already refuses it first, unconditionally. Re-measure
 // after this change before quoting the split above; it is stale by two.
+//
+// Re-measured 2026-08-29 (issue #430's full re-evaluation of the veto
+// against #429's composite-capable located path, which had widened
+// MarkerlessTypes from 140 to 158+ without a matching population sweep):
+//
+//	markerless population                              159
+//	located, plain top-level string id                  95
+//	located, composite identity object (#329)            18
+//	located, composed documented import string (#337)    15
+//	  (record-locatable total: 128 of 159)
+//	refused, identity itself sensitive (credential wall)  1  (aws_wafv2_api_key)
+//	refused, no top-level string id at all                3  (aws_apigatewayv2_routing_rule,
+//	                                                          aws_network_interface_permission,
+//	                                                          aws_notifications_event_rule)
+//	refused, composite import documented but unproven     20 (IDNotProvenWholeTypes member with
+//	                                                          no DocumentedImportIDs grammar - see
+//	                                                          below)
+//	refused, provider offers no classic Importer at all    7  ([NotImportable], issue #331)
+//	  (genuinely tier-C-pending total: 31 of 159)
+//
+// The 20-type "unproven" bucket is uniform, not 20 separate gaps: every one
+// of them is a member of [IDNotProvenWholeTypes] (the provider's Import
+// section documents a composite string, and nothing corroborates the
+// exported "id" as the whole of it) AND absent from [DocumentedImportIDs]
+// (issue #337's segment-by-segment grammar, scraped from the same Import
+// section by tools/importdocs-gen) - confirmed by grepping
+// internal/live/identity/idnotwhole_generated.go and
+// internal/live/identity/docimportid_generated.go for all 20 names, 2026-08-29.
+// So [LocatedIdentityPlanFor]'s Composed branch never gets a grammar to try
+// resolving against the schema; the missing capability is the scraper's, not
+// the schema's. aws_identitystore_group is the type tools/row-gen/rejected.json's
+// own entry for it names as the worked example: the page states the grammar in
+// prose ("identity_store_id/group_id") well enough for a human to read, but
+// group_id's own Attribute Reference bullet names it a server-assigned value
+// rather than a configuration argument, which is exactly the shape
+// tools/importdocs-gen's scraper does not turn into a [DocumentedImportIDPart].
+//
+// None of the 159 are rescueable through issue #272's unique-name mechanism
+// (internal/live/uniquename, tools/row-gen/uniquename.go): that mechanism
+// computes its own admitted rows (uniqueNameRows) and hands markerlessRoster
+// their key set to SUBTRACT before this roster is ever built
+// (tools/row-gen/markerless.go's own boundByName parameter), so the two sets
+// are disjoint by construction - a type the unique-name rule would rescue
+// never reaches [MarkerlessTypes] in the first place. Confirmed empirically,
+// not just by reading the generator: `go run ./tools/row-gen -emit` against
+// this commit's live/registry.json and live/import-grammar.json reproduces
+// internal/live/identity/markerless_generated.go and table_generated.go
+// byte-for-byte (zero diff), which is only possible if every current
+// MarkerlessTypes member already failed uniqueNameRows' own admission check
+// on this same run.
+//
+// This measurement moved three types from wrongly-approximated in-contract
+// to correctly pending-mechanism in live/readiness.json: see
+// tools/readiness-gen/build.go's noLocatedIdentityAttrTypes.
 func TestLocatedTypePopulation(t *testing.T) {
 	if os.Getenv("CHOUDOUFU_LIVE_SCHEMAS") == "" {
 		t.Skip("set CHOUDOUFU_LIVE_SCHEMAS=1 to install hashicorp/aws and measure the located population against it")

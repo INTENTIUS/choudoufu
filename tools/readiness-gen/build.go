@@ -95,6 +95,21 @@
 // credentialExclusionsAreTwo ratchet is what keeps that blind spot small,
 // since it holds every OTHER credential-reasoned rejected.json entry to
 // zero. This is stated once, here, rather than claimed as exact.
+//
+// [noLocatedIdentityAttrTypes] is the one other schema fact locatedApprox
+// now excludes, and it is named rather than derived for the same reason:
+// GitHub issue #430's full-population sweep of [identity.MarkerlessTypes]
+// (CHOUDOUFU_LIVE_SCHEMAS=1's TestLocatedTypePopulation, 159 types at
+// hashicorp/aws 6.59.0, measured 2026-08-29) found three types this
+// generator's static proxy passed as in-contract that a live
+// [identity.LocatedType] call refuses outright: none of the three exports a
+// top-level string "id" at all - the attribute [identity.LocatedIdentityPlanFor]'s
+// bare-string fallback reads - so there is nothing for that fallback to
+// record, and neither of this generator's other two static proxies catches
+// it (each type is importable, and each type's Import section documents no
+// composite string for [identity.IDNotProvenWholeTypes] to have caught in
+// the first place). See [noLocatedIdentityAttrTypes]'s own doc comment for
+// per-type evidence.
 package main
 
 import (
@@ -139,6 +154,47 @@ const (
 
 // GeneratedBy is the artifact's own generated_by field.
 const GeneratedBy = "go run ./tools/readiness-gen"
+
+// noLocatedIdentityAttrTypes is the one hand-verified correction
+// classify's locatedApprox proxy needs beyond identity.NotImportable and
+// identity.IDNotProvenWholeTypes - see this file's package doc comment,
+// "What is approximated", for why the fact cannot be derived from a
+// committed roster and has to be named instead, the same way
+// harness.SanctionedCredentialExclusions names a live-measured fact this
+// generator's other inputs cannot see.
+//
+// All three are [identity.MarkerlessTypes] members with no wire
+// IdentitySchema, no [identity.IDNotProvenWholeTypes] membership (their
+// Import sections document no composite string), and no top-level string
+// "id" attribute at all - so identity.LocatedIdentityPlanFor's bare-"id"
+// default, the last of [identity.LocatedType]'s three schema-read
+// conditions, has nothing to read and the type is refused. Measured
+// 2026-08-29 (issue #430) against a live hashicorp/aws 6.59.0 pull
+// (CHOUDOUFU_LIVE_SCHEMAS=1's TestLocatedTypePopulation,
+// internal/live/identity/located_test.go), by the schema each type serves
+// instead:
+//
+//   - aws_apigatewayv2_routing_rule: exports routing_rule_id and
+//     routing_rule_arn; no "id".
+//   - aws_network_interface_permission: exports
+//     network_interface_permission_id; no "id".
+//   - aws_notifications_event_rule: exports arn; no "id".
+//
+// A type here is not vetoed by anything else this generator reads - each is
+// importable ([identity.NotImportable] false) and documents no composite
+// import ([identity.IDNotProvenWholeTypes] does not name it) - so without
+// this list classify would have called all three in-contract, which
+// [identity.LocatedType] itself already refuses. Growing this list past a
+// fresh measurement of the same test is a live-schema finding, not a
+// ratification; shrinking it means [identity.LocatedIdentityPlanFor] grew a
+// new source for one of these three types (a ratified row's IdentityAttrs,
+// a documented grammar joining DocumentedImportIDs) and the entry should be
+// re-verified and dropped rather than left stale.
+var noLocatedIdentityAttrTypes = map[string]bool{
+	"aws_apigatewayv2_routing_rule":    true,
+	"aws_network_interface_permission": true,
+	"aws_notifications_event_rule":     true,
+}
 
 // Artifact is live/readiness.json's shape: every provider resource type
 // this fork's provider roster knows about, tiered and statused exactly
@@ -202,6 +258,11 @@ type Facts struct {
 	// type: its documented import is composite and no source proves the
 	// exported id attribute holds the whole string.
 	IDNotProvenWhole bool `json:"id_not_proven_whole,omitempty"`
+
+	// NoLocatedIdentityAttr is whether [noLocatedIdentityAttrTypes] names
+	// the type - see that map's own doc comment. Set only when Markerless
+	// is true.
+	NoLocatedIdentityAttr bool `json:"no_located_identity_attr,omitempty"`
 
 	// TierD is whether harness.SanctionedCredentialExclusions names the
 	// type - the maintainer's hand ruling, not a derived signal.
@@ -416,7 +477,8 @@ func classify(st surveyType, m mappingRow, hasRejected bool, re rejectedEntry, t
 		facts.Markerless = true
 		_, idNotProvenWhole := identity.IDNotProvenWholeTypes[st.Type]
 		facts.IDNotProvenWhole = idNotProvenWhole
-		locatedApprox := !facts.NotImportable && !idNotProvenWhole
+		facts.NoLocatedIdentityAttr = noLocatedIdentityAttrTypes[st.Type]
+		locatedApprox := !facts.NotImportable && !idNotProvenWhole && !facts.NoLocatedIdentityAttr
 		facts.LocatedApprox = locatedApprox
 		if locatedApprox {
 			return Row{Type: st.Type, Tier: TierRecordCarried, Status: StatusInContract, Facts: facts}
