@@ -17,8 +17,19 @@ import (
 // the client-named rule prefers over the carve seed and the snake-cased
 // guess - it is the TF provider's own answer, not an inference this tool
 // makes.
+//
+// Path is tools/survey-gen/classify.go's own mechanically-derived admission
+// path (SURVEY.md's five-token, now seven-token, taxonomy) - issue #428's
+// evidenceschema.go is the one reader in this package, added because
+// Identity alone is not proof the schema names an argument this tool can
+// paste: a required_for_import attribute can be server-minted (an "arn" or
+// "id" the type's own block marks Computed), and Path==client-named is the
+// fact that survey-gen already ran the strict, schema-safe check
+// (identity.DerivableWith, over real provider schemas) that tells the two
+// apart. See evidenceschema.go's own doc comment.
 type surveyEntry struct {
 	Type     string          `json:"type"`
+	Path     string          `json:"path"`
 	Identity *surveyIdentity `json:"identity"`
 	Signals  surveySignals   `json:"signals"`
 }

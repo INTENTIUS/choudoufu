@@ -99,6 +99,7 @@ func main() {
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
 	compositeImport := flag.Bool("composite-import", false, "issue #337: classify the markerless types whose documented import is composite and whose provider serves no wire identity schema, by whether the page's own Attribute Reference proves the exported `id` is the whole import string, and write live/composite-import-roster.json (see compositeimport.go)")
+	evidenceGap := flag.Bool("evidence-gap", false, "issue #428: partition the bucketEvidenceOnly population applySchemaFirstArgName still leaves behind - a provider identity schema exists but does not, by itself, cover the type, or no identity schema exists at all - into named families with a per-family note on what evidence source would actually close the gap, and write tools/row-gen/evidence-schema-gap.json (see evidencegap.go)")
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), rendering every non-RecordBacked row from tools/row-gen/ratified.json, instead of printing blocks to paste by hand (see emit.go)")
 	logicalSchemas := flag.Bool("logical-schemas", false, "read the record-store effects providers' own schemas and write live/logical-schemas.json, the evidence -emit derives every RecordBacked row from (see logicalschemas.go). Needs -init-bin; every other mode is offline")
 	initBin := flag.String("init-bin", "terraform", "the binary -logical-schemas runs `init` with to install each provider")
@@ -147,6 +148,14 @@ func main() {
 
 	if *emit {
 		if err := runEmit(os.Stdout, os.Stderr, *allowRetraction); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *evidenceGap {
+		if err := runEvidenceGap(os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}
@@ -254,8 +263,18 @@ func runConvergence(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
 	}
+	// Reloaded rather than threaded out of loadProposals, matching this
+	// file's own established style (see the comment above ratified/grammar):
+	// evidence_only_schema (issue #428) reads the survey a second time to
+	// classify what proposals's own bucketEvidenceOnly remainder is still
+	// missing - see evidenceschema.go's own doc comment.
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", surveyJSONRel, err)
+	}
 	art := buildConvergence(emitted, proposals, annotations)
 	art.SchemaReproduces = buildSchemaReproducesBucket(ratified, grammar)
+	art.EvidenceOnlySchema = buildEvidenceOnlySchemaBucket(proposals, survey)
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
 		for _, p := range problems {
@@ -387,5 +406,22 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 	out = append(out, unmapped...)
 	applyImportGrammarDemotions(out, importGrammar)
 	applyImportGrammarPrecedence(out, importGrammar)
+	// Schema-first (#428, evidenceschema.go) runs LAST, deliberately after
+	// the import-grammar precedence pass rather than ahead of it: an early
+	// measurement here put it first, on the "provider identity schema
+	// outranks import grammar" reasoning resolveArgName already states, and
+	// that made this pass front-run rows applyImportGrammarPrecedence's own
+	// rules (tryArgumentReferenceConfirmedGuess, tryGrammarComposite) were
+	// already going to promote out of bucketEvidenceOnly anyway - a
+	// same-population re-derivation with a different Rule string, not new
+	// coverage, and it left live/rowgen-buckets.json's evidence_only count
+	// unchanged (measured: 22 rows relabeled, 0 net bucket movement).
+	// Running last instead means this pass only ever sees a row every other
+	// evidence source in this file already had its turn on and still could
+	// not name - the true "314" the issue's own numbers describe - so a
+	// Covered row here is coverage neither the registry nor import-grammar
+	// could supply, not credit taken from a rule that would have gotten
+	// there anyway. See evidenceschema.go's own doc comment.
+	applySchemaFirstArgName(out, survey)
 	return out, nil
 }
