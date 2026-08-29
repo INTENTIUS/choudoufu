@@ -340,6 +340,102 @@ resource "aws_iam_role_policy" "extra" {
 	}
 }
 
+// TestPropagateModuleRenameReconcilesADuplicateOfTheAnchorItself is GitHub
+// issue #467, the corpus-dynamodb-table-basic day2_rename wall: the walls
+// TestPropagateModuleRenameReconcilesADuplicateAtTwoOldPrefixes and
+// TestPropagateModuleRenameFollowsAMovedBlockHopBeforeLiveMv both cover a
+// SIBLING record - one with no marker of its own - left with a stale
+// duplicate by an earlier `moved`-block-only hop. This is the same
+// duplicate-reconciliation shape, but for the ANCHOR resource itself: a
+// TAGGED resource that also carries its own kind=identity record (stamp.go's
+// seedIdentityFor writes one for every stamped instance, taggable or not,
+// this package's own doc comment on the unconditional MoveRecord call
+// above). module.crossplane_renamed.aws_iam_role.role is req.Old for this
+// live-mv call (D2); a `moved` block already relocated module.crossplane ->
+// module.crossplane_renamed (D1) via an ordinary apply, which refreshes the
+// anchor's own record at its new, current address without deleting the
+// stale copy left at the pre-`moved`-block address - so BOTH exist when this
+// call runs.
+//
+// Before the #467 fix: propagateModuleRename's own unconditional call at the
+// top moves req.Old's record (the fresh copy) to req.New first, filling that
+// slot; the module-boundary sweep below it then finds the STALE copy under
+// the chased origin prefix, puts it into the SAME destination group as the
+// (already-vacated) fresh one, picks it as that group's only "winner" since
+// nothing else remains to compare hops against, and tries to MoveRecord it
+// into req.New too - a key [projection.RecordStore.MoveRecord]'s own
+// PutIfVersion(..., "") now, correctly, refuses to overwrite:
+// *staterecord.VersionConflictError, surfaced as "A record could not be
+// moved with its module ... version conflict", reproduced for real against
+// floci on the current emulator pin. The fix recognizes any duplicate
+// landing on req.New's own destination, once the unconditional move already
+// succeeded, as inherently stale - cleaned up directly, never re-moved.
+func TestPropagateModuleRenameReconcilesADuplicateOfTheAnchorItself(t *testing.T) {
+	ctx := t.Context()
+	store := recordFallbackStore(t)
+
+	dir := t.TempDir()
+	writeFile(t, dir, "main.tf", `
+module "crossplane_final" {
+  source = "./crossplane"
+}
+
+moved {
+  from = module.crossplane
+  to   = module.crossplane_renamed
+}
+`)
+	writeFile(t, dir, "crossplane/main.tf", `
+resource "aws_iam_role" "role" {}
+`)
+	cfg := loadConfigDir(t, dir)
+
+	anchorOld := mustAddr(t, "module.crossplane_renamed.aws_iam_role.role")
+	anchorNew := mustAddr(t, "module.crossplane_final.aws_iam_role.role")
+
+	// The stale copy: the anchor's own record from before the `moved` block
+	// ever existed, left behind because a bare `moved` block never
+	// physically re-keys the record store (this package's own doc comment).
+	stale := mustAddr(t, "module.crossplane.aws_iam_role.role")
+	// The fresh copy: written by D1's own ordinary apply refreshing the
+	// anchor's record at the address current when it ran - and also what
+	// req.Old names for THIS live-mv call.
+	if _, err := projection.SeedLocatedForInstance(ctx, store, stale, recordFallbackProviderAddr, projection.LocatedRecord{ImportID: "role-stale"}); err != nil {
+		t.Fatalf("seeding the stale copy of the anchor's own record: %s", err)
+	}
+	if _, err := projection.SeedLocatedForInstance(ctx, store, anchorOld, recordFallbackProviderAddr, projection.LocatedRecord{ImportID: "role-fresh"}); err != nil {
+		t.Fatalf("seeding the fresh copy of the anchor's own record: %s", err)
+	}
+
+	m := &mover{
+		req: Request{
+			Estate:      recordFallbackEstate,
+			Old:         anchorOld,
+			New:         anchorNew,
+			Config:      cfg,
+			RecordStore: store,
+		},
+		res: &Result{Old: anchorOld, New: anchorNew},
+	}
+
+	diags := m.propagateModuleRename(ctx)
+	if diags.HasErrors() {
+		t.Fatalf("propagateModuleRename returned an error reconciling a duplicate of the anchor's own record: %s", diags.Err())
+	}
+
+	// The fresh copy - the one req.Old actually named - wins at the final
+	// destination, byte-identical apart from its address.
+	assertRecordMoved(t, ctx, store, anchorOld, anchorNew, "role-fresh")
+
+	// The stale, further-back duplicate is gone outright, not left behind to
+	// resurface as a false orphan on the next plan.
+	if _, _, _, found, err := store.GetIdentity(ctx, stale); err != nil {
+		t.Fatalf("reading the stale copy's address after reconciliation: %s", err)
+	} else if found {
+		t.Errorf("the stale duplicate of the anchor's own record at %s was not cleaned up", stale)
+	}
+}
+
 // TestRenameBoundaryOriginsWithNoConfigIsTheOriginalSinglePrefix confirms
 // req.Config == nil (every pre-existing propagateModuleRename test's own
 // shape) still reduces to exactly the original single-prefix behavior -

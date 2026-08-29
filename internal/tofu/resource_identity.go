@@ -88,3 +88,37 @@ type ConfigValueAdjuster interface {
 	// untouched.
 	AdjustConfigValue(ctx context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
 }
+
+// IgnoreChangesAdjuster is an optional capability a [ConfigValueAdjuster]
+// may additionally implement (checked with a type assertion on the same
+// value [EvalContext.ConfigValueAdjuster] returns - see this package's
+// only caller, in node_resource_abstract_instance.go), to add extra
+// ignore_changes paths for one resource instance's plan on top of
+// whatever the configuration's own lifecycle block already lists.
+//
+// GitHub issue #451: it exists because [ConfigValueAdjuster] genuinely
+// cannot do this itself. That interface's whole contract - by design, see
+// its own doc comment - is (ctx, addr, evaluated config value, schema)
+// with no prior state to compare a value against and no way to reach
+// configs.Resource.Managed.IgnoreChanges from the cty.Value it returns.
+// Some effects a fork's config-synthesis pass could once achieve by
+// rewriting `lifecycle { ignore_changes = [...] }` into the HCL body
+// before evaluation (internal/live/stamp's #380 fix, in this fork) need
+// a real ignore_changes entry to reproduce at the node - "leave whatever
+// is already there untouched, regardless of what this run's own logic
+// would otherwise compute" cannot be expressed by returning a value,
+// because a value is exactly one answer and ignore_changes is a standing
+// instruction to prefer the PRIOR one, forever, until the entry is
+// removed. This is that seam's second, narrower hook: same interface-shape
+// discipline as [ResourceIdentityResolver] and [ConfigValueAdjuster] -
+// nothing here names a graph-node type, an EvalContext, or any other
+// internal/tofu internal either - added as its own optional interface
+// rather than a second return value on AdjustConfigValue so that
+// [ConfigValueAdjuster]'s already-proven contract stays exactly as it was.
+type IgnoreChangesAdjuster interface {
+	// AdjustIgnoreChanges returns extra paths to treat as ignored for this
+	// resource instance's plan, unioned with whatever
+	// configs.Resource.Managed.IgnoreChanges already lists. A nil or empty
+	// result adds nothing.
+	AdjustIgnoreChanges(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) []cty.Path
+}
