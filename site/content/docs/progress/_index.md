@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 17 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 9 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T19:52:47Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 16 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 10 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T19:52:47Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -71,11 +71,11 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass pass not run |
 
 ## Run time
 
-9 of 26 estates have a recorded run duration, totaling 31m17.1s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`. This total spans different commits, not a single board run, and excludes 17 estate(s) with no recorded duration yet.
+10 of 26 estates have a recorded run duration, totaling 41m8.9s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 16 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -104,6 +104,6 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m16.2s | cold_deploy 39s, migrate 44s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 9s, day2_remove 17s, day2_count 28s, day2_replace 7s, greenfield 38s |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m48.4s | cold_deploy 1m46s, migrate 54s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 8s, day2_count 25s, day2_replace 29s, greenfield 4s, strict 2s |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | - | none recorded yet |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 9m51.8s | cold_deploy 1m55s, migrate 44s, test_plan 5s, test_apply 9s, drift_reconverge 28s, day2_rename 19s, day2_remove 31s, day2_count 58s, day2_replace 46s, greenfield 3m56s |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
