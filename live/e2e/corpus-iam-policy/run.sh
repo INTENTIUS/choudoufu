@@ -1133,6 +1133,280 @@ EOF
     log "STAGE E (day2_remove): PASS"
     gauntlet_stage day2_remove pass "choudoufu: deleting module.iam_policy_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.5) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy even though module.iam_policy_renamed2's policy shares the same block key, because that surviving instance is bound, not unclaimed"
     log ""
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, live/GAUNTLET.md #8, issue #488 -
+    # gauntlet catch-up unit, active stage)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # This estate's only real count knob - aws_iam_policy.policy's own
+    # `count = var.create ? 1 : 0` inside modules/iam-policy/main.tf - is a
+    # boolean create/destroy toggle (0 or 1), never a genuinely scalable
+    # set; there is no honest N>1 count or for_each anywhere in this corpus
+    # example. Per live/GAUNTLET.md #8 and the sanctioned-fallback shape
+    # reference-ec2-vpc's own Part F documents, this section adds a NEW,
+    # self-contained synthetic count block - aws_iam_policy.count_test,
+    # count = 2 - scaled 2 -> 1 -> 2, starting from Part E's real, completed
+    # removal so day2_count's own history never touches the two module-
+    # backed policies every earlier part here depends on. It reuses this
+    # estate's own single exercised type (aws_iam_policy) rather than
+    # introducing a new one.
+    #
+    # aws_iam_policy's identity is server-assigned through name_prefix, the
+    # same mechanism module.iam_policy already uses (this script's own
+    # header calls the type ServerAssigned for exactly that reason).
+    # Confirmed directly against floci with no tofu in the loop before
+    # writing this section: two policies created with name_prefix
+    # "..count-test-0-" and "..count-test-1-" got randomly-suffixed ARNs;
+    # deleting and recreating index 1 alone produced a THIRD, different
+    # ARN, while index 0's ARN was untouched throughout. That is the same
+    # "surviving instance keeps its identity, the destroyed one comes back
+    # under a new one" shape reference-ec2-vpc's Part F proves for
+    # aws_security_group's random GroupId - here the randomness is IAM's
+    # own suffix generation, not a provider-random id, which is why each
+    # instance is found by a distinguishing name_prefix rather than by a
+    # fixed name or a Name tag.
+    #
+    # G0 is this stage's stock oracle (live/GAUNTLET.md #8: "Stock's plan
+    # for the same count change, normalised"): a genuinely new plain-
+    # terraform working directory applying the identical count_test block
+    # directly against $ENDPOINT. Reusing $ENDPOINT is safe here - nothing
+    # in this script touches it again after day2_remove finishes, so it is
+    # idle, and the oracle's resource names cannot collide with the
+    # module-backed policies already living there. G1-G4 are the real
+    # choudoufu side, against the adopted estate ($EST) on the same
+    # endpoint.
+    #
+    # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+    # real checks: after the real scale-down plan, assert the WRONG
+    # instance (count_test[0] rather than count_test[1]) was the one
+    # destroyed - the Break text in tools/gauntlet/stages.go for
+    # day2_count, verbatim: "Expect a different instance to be destroyed;
+    # the assertion must fail." Independent of BREAK, BREAK_RENAME,
+    # BREAK_REMOVE and BREAK=replace - only reachable on the real,
+    # non-BREAK_RENAME, non-BREAK_REMOVE path, since day2_count starts from
+    # Part E's real, completed removal.
+
+    CURRENT_STAGE=day2_count
+    log "=== G0. day2_count stock oracle: create a 2-instance count block, scale it to 1 and back, against the adopted estate's own endpoint (idle since day2_remove finished) ==="
+    ORACLE_COUNT_DIR="$WORK/oracle-count"
+    mkdir -p "$ORACLE_COUNT_DIR"
+    cat > "$ORACLE_COUNT_DIR/main.tf" <<'HCL'
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+provider "aws" {
+  region                       = "eu-west-1"
+  access_key                   = "test"
+  secret_key                   = "test"
+  skip_credentials_validation  = true
+  skip_metadata_api_check      = true
+  s3_use_path_style            = true
+}
+
+resource "aws_iam_policy" "count_test" {
+  count       = 2
+  name_prefix = "iam-policy-crossing-count-test-${count.index}-"
+  path        = "/"
+  description = "day2_count evidence (issue #488)"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action   = ["iam:GetPolicy"]
+      Effect   = "Allow"
+      Resource = "*"
+    }]
+  })
+}
+HCL
+    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed"; }
+    ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
+    [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+    grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+      || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 2 count-test policies for the day2_count oracle"; }
+    ORACLE_CT0_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-0-') == \`true\`].Arn | [0]" --output text)"
+    ORACLE_CT1_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
+    [ -n "$ORACLE_CT0_ARN" ] && [ "$ORACLE_CT0_ARN" != "None" ] || fail "no oracle count_test[0] policy found by its name_prefix"
+    [ -n "$ORACLE_CT1_ARN" ] && [ "$ORACLE_CT1_ARN" != "None" ] || fail "no oracle count_test[1] policy found by its name_prefix"
+    log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN count_test[1]=$ORACLE_CT1_ARN"
+
+    sed -i.bak 's/^  count       = 2$/  count       = 1/' "$ORACLE_COUNT_DIR/main.tf"; rm -f "$ORACLE_COUNT_DIR/main.tf.bak"
+    ORACLE_DOWN_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+    [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+    grep -qE '^  # aws_iam_policy\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+    grep -qE '^  # aws_iam_policy\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+    ORACLE_DOWN_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_DOWN_APPLY_RC=$?
+    [ "$ORACLE_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+    log "  stock: exactly one destroy (count_test[1]=$ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN untouched"
+
+    sed -i.bak 's/^  count       = 1$/  count       = 2/' "$ORACLE_COUNT_DIR/main.tf"; rm -f "$ORACLE_COUNT_DIR/main.tf.bak"
+    ORACLE_UP_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+    [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+    grep -qE '^  # aws_iam_policy\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+    grep -qE '^  # aws_iam_policy\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+      && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+    ORACLE_UP_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_UP_APPLY_RC=$?
+    [ "$ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+    ORACLE_CT1_NEW_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
+    [ -n "$ORACLE_CT1_NEW_ARN" ] && [ "$ORACLE_CT1_NEW_ARN" != "None" ] || fail "no oracle count_test[1] policy found after the scale-up"
+    [ "$ORACLE_CT1_NEW_ARN" != "$ORACLE_CT1_ARN" ] || fail "stock's recreated count_test[1] came back with the SAME arn it had before being destroyed - the destroy oracle is not real"
+    log "  stock: exactly one create (count_test[1] recreated as $ORACLE_CT1_NEW_ARN, was $ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN untouched across the down-then-up cycle"
+
+    # The oracle and the real choudoufu side below share $ENDPOINT (it is
+    # idle, not a second account), so the oracle's own two count_test
+    # policies MUST be torn down here - otherwise G1's own
+    # list-policies/name_prefix lookup below cannot tell the oracle's
+    # untagged policy apart from choudoufu's own tagged one and picks
+    # whichever the API returns first (found empirically: the first draft
+    # of this section left the oracle's policies behind and G1's tofu-
+    # address assertion failed reading "None" off the oracle's own,
+    # unmarked object).
+    ORACLE_COUNT_DESTROY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform destroy -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_DESTROY_RC=$?
+    [ "$ORACLE_COUNT_DESTROY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DESTROY_OUT" | tail -30; fail "the day2_count stock oracle's teardown failed"; }
+    grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$ORACLE_COUNT_DESTROY_OUT" \
+      || { grep -E 'Destroy complete' <<< "$ORACLE_COUNT_DESTROY_OUT"; fail "the day2_count stock oracle's teardown was not exactly 2 destroys"; }
+    log "  stock oracle torn down (2 destroyed): the shared endpoint is clean before the real choudoufu side reuses the same name_prefix"
+
+    log "=== G1. choudoufu: add aws_iam_policy.count_test, count = 2 ==="
+    cat >> "$EST/main.tf" <<'HCL'
+
+resource "aws_iam_policy" "count_test" {
+  count       = 2
+  name_prefix = "iam-policy-crossing-count-test-${count.index}-"
+  path        = "/"
+  description = "day2_count evidence (issue #488)"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action   = ["iam:GetPolicy"]
+      Effect   = "Allow"
+      Resource = "*"
+    }]
+  })
+}
+HCL
+    COUNT_ADD_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_ADD_PLAN_RC=$?
+    [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -30; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -10; fail "adding the count block did not plan exactly 2 creates"; }
+    COUNT_ADD_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+    [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -30; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+    CT0_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-0-') == \`true\`].Arn | [0]" --output text)"
+    CT1_ARN="$(awsl iam list-policies --path-prefix / \
+      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
+    [ -n "$CT0_ARN" ] && [ "$CT0_ARN" != "None" ] || fail "no live count_test[0] policy found by its name_prefix"
+    [ -n "$CT1_ARN" ] && [ "$CT1_ARN" != "None" ] || fail "no live count_test[1] policy found by its name_prefix"
+    CT0_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    CT1_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT0_ADDR_TAG" = 'aws_iam_policy.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not aws_iam_policy.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+    [ "$CT1_ADDR_TAG" = 'aws_iam_policy.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $CT1_ADDR_TAG, not aws_iam_policy.count_test:1"
+    log "  2 instances created: index 0 = $CT0_ARN (tofu-address=$CT0_ADDR_TAG), index 1 = $CT1_ARN (tofu-address=$CT1_ADDR_TAG) - read via the AWS CLI"
+
+    COUNT_NOOP_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+    [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_NOOP_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+    log "  No changes - both new instances plan empty immediately after creation"
+
+    log "=== G2. scale count down: 2 -> 1 ==="
+    sed -i.bak 's/^  count       = 2$/  count       = 1/' "$EST/main.tf"; rm -f "$EST/main.tf.bak"
+    COUNT_DOWN_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+    [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -30; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1]"
+      if grep -qE '^  # aws_iam_policy\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
+        fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
+      fi
+      log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+    else
+      grep -qE '^  # aws_iam_policy\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+      grep -qE '^  # aws_iam_policy\.count_test\[0\] will be' <<< "$COUNT_DOWN_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+      log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched"
+
+      COUNT_DOWN_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+      [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -30; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+      CT0_STILL="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
+      [ "$CT0_STILL" = "$CT0_ARN" ] || fail "count_test[0]'s live arn changed across the scale-down"
+      if CT1_STILL="$(awsl iam get-policy --policy-arn "$CT1_ARN" 2>&1)"; then
+        echo "$CT1_STILL"; fail "count_test[1] ($CT1_ARN) still exists in the live account after the scale-down destroy"
+      fi
+      CT0_ADDR_AFTER_DOWN="$(awsl iam list-policy-tags --policy-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT0_ADDR_AFTER_DOWN" = 'aws_iam_policy.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $CT0_ADDR_AFTER_DOWN"
+      log "  $CT1_ARN (count_test[1]) no longer exists (NoSuchEntity); $CT0_ARN (count_test[0]) unchanged arn and marker - all read via the AWS CLI"
+
+      log "=== G3. scale count back up: 1 -> 2 ==="
+      sed -i.bak 's/^  count       = 1$/  count       = 2/' "$EST/main.tf"; rm -f "$EST/main.tf.bak"
+      COUNT_UP_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_UP_PLAN_RC=$?
+      [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -30; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+      grep -qE '^  # aws_iam_policy\.count_test\[1\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+      grep -qE '^  # aws_iam_policy\.count_test\[0\] will be' <<< "$COUNT_UP_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+      log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+      COUNT_UP_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+      [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -30; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+      grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+      CT1_NEW_ARN="$(awsl iam list-policies --path-prefix / \
+        --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
+      [ -n "$CT1_NEW_ARN" ] && [ "$CT1_NEW_ARN" != "None" ] || fail "no live count_test[1] policy found by its name_prefix after the scale-up"
+      [ "$CT1_NEW_ARN" != "$CT1_ARN" ] || fail "count_test[1] came back with the SAME arn ($CT1_ARN) it had before being destroyed - the destroy in G2 was not real"
+      CT1_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT1_NEW_ADDR_TAG" = 'aws_iam_policy.count_test:1' ] || fail "the recreated count_test[1] ($CT1_NEW_ARN) carries tofu-address=$CT1_NEW_ADDR_TAG, not aws_iam_policy.count_test:1"
+      CT0_AFTER_UP="$(awsl iam get-policy --policy-arn "$CT0_ARN" --query 'Policy.Arn' --output text 2>/dev/null || true)"
+      [ "$CT0_AFTER_UP" = "$CT0_ARN" ] || fail "count_test[0]'s live arn changed across the scale-up ($CT0_ARN -> $CT0_AFTER_UP)"
+      log "  count_test[1] recreated under a new arn ($CT1_NEW_ARN, was $CT1_ARN), tofu-address=$CT1_NEW_ADDR_TAG; count_test[0] ($CT0_ARN) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+
+      log "=== G4. one more plan: config and reality agree, nothing left to propose ==="
+      COUNT_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+      [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -30; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+      log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+      log ""
+      log "PART G (day2_count): PASS"
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live arn and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW arn (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G0 stock oracle on the same 2-instance count block, applied fresh against the idle adopted-estate endpoint, shows the identical shape: destroy the higher index only, create the higher index back under a new arn, the lower index's arn unchanged both times. Synthetic block: this estate's only real count knob (aws_iam_policy.policy's count = var.create ? 1 : 0) is a boolean create toggle, not a scalable set - sanctioned fallback per live/GAUNTLET.md #8 and reference-ec2-vpc's own Part F."
+      log ""
+    fi
+    CURRENT_STAGE=""
   fi
   CURRENT_STAGE=""
 fi
