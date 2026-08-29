@@ -1304,6 +1304,11 @@ gauntlet-add name url ref lane source:
 gauntlet-snapshot version:
     env -u PWD go run ./tools/gauntlet snapshot {{version}}
 
+# Release-highlights markdown from a snapshot diff, paste-ready for a GitHub
+# release body. Example: just gauntlet-notes live/history/v0.3.0.json live/history/v0.4.0.json
+gauntlet-notes old new:
+    env -u PWD go run ./tools/gauntlet notes {{old}} {{new}}
+
 # One gauntlet worker run under your own key: picks the next unit, makes a
 # worktree, runs Claude Code headless under .claude/agents/gauntlet-worker.md,
 # opens a pull request. Never merges. `just contribute 10` caps spend at $10.
