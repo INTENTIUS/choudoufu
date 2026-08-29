@@ -268,6 +268,16 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"would make the check circular.",
 		Data: 4, Code: 0,
 	},
+	"tools/readiness-gen/build.go": {
+		Reason: "noLocatedIdentityAttrTypes: three MarkerlessTypes members - aws_apigatewayv2_routing_rule, " +
+			"aws_network_interface_permission, aws_notifications_event_rule - measured 2026-08-29 (issue #430) " +
+			"against a live hashicorp/aws 6.59.0 pull to export no top-level string \"id\" at all, which " +
+			"identity.LocatedType's bare-id fallback needs and this generator's other two static proxies " +
+			"(identity.NotImportable, identity.IDNotProvenWholeTypes) cannot see. Same shape as this file's own " +
+			"harness.SanctionedCredentialExclusions entry: a live-schema fact readiness-gen's committed inputs " +
+			"cannot derive, named rather than guessed at.",
+		Data: 3, Code: 0,
+	},
 
 	// ---- estate-gen shared machinery ----------------------------------
 	"tools/estate-gen/gen.go": {
@@ -447,7 +457,19 @@ const (
 	// LocatedType's sensitiveIdentityAttr check, with no ledger entry naming
 	// it - a third type with no admission route at all, not a fourth kind of
 	// veto. One Data literal added, no Code, nothing moved.
-	typeLiteralDataTotal = 444
+	// 444 -> 447 data, 2026-08-29 (issue #430): new tools/readiness-gen/build.go's
+	// noLocatedIdentityAttrTypes, three entries - aws_apigatewayv2_routing_rule,
+	// aws_network_interface_permission, aws_notifications_event_rule - found by
+	// issue #430's full re-evaluation of the 159-type MarkerlessTypes population
+	// against a live hashicorp/aws 6.59.0 pull (CHOUDOUFU_LIVE_SCHEMAS=1's
+	// TestLocatedTypePopulation): three types classify's static locatedApprox
+	// proxy called in-contract that identity.LocatedType itself already refuses,
+	// because none of the three exports a top-level string "id" and
+	// identity.LocatedIdentityPlanFor's bare-id fallback has nothing to read.
+	// The same live-schema-fact-classify-cannot-derive shape as this file's own
+	// harness.SanctionedCredentialExclusions entry. Three Data literals added,
+	// no Code, nothing moved.
+	typeLiteralDataTotal = 447
 	typeLiteralCodeTotal = 127
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

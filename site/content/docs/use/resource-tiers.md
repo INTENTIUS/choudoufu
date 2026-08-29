@@ -75,9 +75,9 @@ says why for each type that carries it.
 |---|---|---|---|---|---|---|---|
 | marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
 | declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
-| record-carried | 99 | 294 | 3 | 16 | 59 | 0 | 471 |
+| record-carried | 96 | 294 | 3 | 16 | 62 | 0 | 471 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
-| **Total** | 1122 | 492 | 4 | 19 | 59 | 3 | 1699 |
+| **Total** | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 <!-- readiness-gen:end readiness-tiers -->
 
 ## Look up your own resource type
@@ -163,7 +163,7 @@ types, ruled out by standing policy rather than left pending.
 | `aws_apigatewayv2_model` | record-carried | pending-mechanism | record-carried, markerless, but its identity is composite and the record can only carry a flat id today (issue #429). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
 | `aws_apigatewayv2_route` | record-carried | pending-mechanism | record-carried, markerless, but its identity is composite and the record can only carry a flat id today (issue #429). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
 | `aws_apigatewayv2_route_response` | record-carried | pending-mechanism | record-carried, markerless, but its identity is composite and the record can only carry a flat id today (issue #429). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
-| `aws_apigatewayv2_routing_rule` | record-carried | in-contract |  |
+| `aws_apigatewayv2_routing_rule` | record-carried | pending-mechanism | record-carried, markerless, but the located-record mechanism does not reach it yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
 | `aws_apigatewayv2_stage` | marker-carried | in-contract |  |
 | `aws_apigatewayv2_vpc_link` | marker-carried | in-contract |  |
 | `aws_app_cookie_stickiness_policy` | declaration-carried | in-contract |  |
@@ -1103,7 +1103,7 @@ types, ruled out by standing policy rather than left pending.
 | `aws_network_acl_rule` | declaration-carried | in-contract |  |
 | `aws_network_interface` | marker-carried | in-contract |  |
 | `aws_network_interface_attachment` | record-carried | in-contract |  |
-| `aws_network_interface_permission` | record-carried | in-contract |  |
+| `aws_network_interface_permission` | record-carried | pending-mechanism | record-carried, markerless, but the located-record mechanism does not reach it yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
 | `aws_network_interface_sg_attachment` | declaration-carried | in-contract |  |
 | `aws_networkfirewall_container_association` | marker-carried | pending-ratification | no ratification batch has reached this type's admission table row yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type). |
 | `aws_networkfirewall_firewall` | marker-carried | in-contract |  |
@@ -1140,7 +1140,7 @@ types, ruled out by standing policy rather than left pending.
 | `aws_networkmonitor_monitor` | marker-carried | pending-ratification | no ratification batch has reached this type's admission table row yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type). |
 | `aws_networkmonitor_probe` | marker-carried | pending-ratification | no ratification batch has reached this type's admission table row yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type). |
 | `aws_notifications_channel_association` | declaration-carried | in-contract |  |
-| `aws_notifications_event_rule` | record-carried | in-contract |  |
+| `aws_notifications_event_rule` | record-carried | pending-mechanism | record-carried, markerless, but the located-record mechanism does not reach it yet. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
 | `aws_notifications_managed_notification_account_contact_association` | declaration-carried | in-contract |  |
 | `aws_notifications_managed_notification_additional_channel_association` | declaration-carried | in-contract |  |
 | `aws_notifications_notification_configuration` | marker-carried | in-contract |  |
