@@ -46,7 +46,12 @@
         "aws_rekognition_project.app",
         "aws_rekognition_stream_processor.app"
       ],
-      "detail": "Error: creating Amazon Bedrock Guardrail (\"tofu-ai-location-cohort-bedrock-guardrail\"): operation error Bedrock: CreateGuardrail, https response error StatusCode: 404, RequestID: 591adfa6-1cfa-4c09-b2a9-99907fbe7278, api error UnknownOperationException: Unknown operation: POST //guardrails"
+      "detail": "Error: creating Amazon Bedrock Guardrail (\"tofu-ai-location-cohort-bedrock-guardrail\"): operation error Bedrock: CreateGuardrail, https response error StatusCode: 404, RequestID: 591adfa6-1cfa-4c09-b2a9-99907fbe7278, api error UnknownOperationException: Unknown operation: POST //guardrails",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "apigateway",
@@ -56,13 +61,23 @@
       "failed_resources": [
         "aws_lb.apigateway"
       ],
-      "detail": "Error: Invalid combination of arguments"
+      "detail": "Error: Invalid combination of arguments",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "aps",
       "status": "pass",
       "phase": "pass",
-      "resources": 5
+      "resources": 5,
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "compute-platforms",
@@ -94,14 +109,24 @@
         "aws_lightsail_lb.app",
         "aws_lightsail_lb_certificate.app"
       ],
-      "detail": "Error: creating Amplify App (tofu-compute-platforms-cohort-amplify-app): operation error Amplify: CreateApp, https response error StatusCode: 404, RequestID: 16af9e8e-80a3-4be7-8081-c4ac2e764e60, api error UnknownOperationException: Unknown operation: POST /apps"
+      "detail": "Error: creating Amplify App (tofu-compute-platforms-cohort-amplify-app): operation error Amplify: CreateApp, https response error StatusCode: 404, RequestID: 16af9e8e-80a3-4be7-8081-c4ac2e764e60, api error UnknownOperationException: Unknown operation: POST /apps",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "connect-euc",
       "status": "fail",
       "phase": "apply",
       "resources": 39,
-      "detail": "Error: Missing required argument"
+      "detail": "Error: Missing required argument",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "data",
@@ -119,7 +144,12 @@
         "aws_glue_job.app",
         "aws_kinesis_stream_consumer.app"
       ],
-      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 27d163ee-ed53-4ec0-ba0e-86ca5574bd23, api error InvalidAction: Action CreateDataCatalog is not supported"
+      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 27d163ee-ed53-4ec0-ba0e-86ca5574bd23, api error InvalidAction: Action CreateDataCatalog is not supported",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "data-movement",
@@ -149,7 +179,12 @@
         "aws_transfer_connector.app",
         "aws_transfer_workflow.app"
       ],
-      "detail": "Error: creating AppIntegrations Data Integration (tofu-data-movement-cohort-appintegrations-data-integration): operation error AppIntegrations: CreateDataIntegration, https response error StatusCode: 404, RequestID: e3f65d98-238c-4228-bf40-ab7fbf4ba342, api error UnknownOperationException: Unknown operation: POST /dataIntegrations"
+      "detail": "Error: creating AppIntegrations Data Integration (tofu-data-movement-cohort-appintegrations-data-integration): operation error AppIntegrations: CreateDataIntegration, https response error StatusCode: 404, RequestID: e3f65d98-238c-4228-bf40-ab7fbf4ba342, api error UnknownOperationException: Unknown operation: POST /dataIntegrations",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "databases",
@@ -157,7 +192,12 @@
       "phase": "apply",
       "resources": 36,
       "detail": "deadline: still in flight: aws_opensearch_domain.app at 07m51s",
-      "timed_out": true
+      "timed_out": true,
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "devtools",
@@ -178,7 +218,12 @@
         "aws_codestarconnections_connection.app",
         "aws_ecrpublic_repository.app"
       ],
-      "detail": "Error: creating CodeArtifact Domain (example): operation error codeartifact: CreateDomain, https response error StatusCode: 404, RequestID: 2e95d2d6-8584-4933-ad3e-d2c9de2963f3, api error UnknownOperationException: Unknown operation: POST /v1/domain"
+      "detail": "Error: creating CodeArtifact Domain (example): operation error codeartifact: CreateDomain, https response error StatusCode: 404, RequestID: 2e95d2d6-8584-4933-ad3e-d2c9de2963f3, api error UnknownOperationException: Unknown operation: POST /v1/domain",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "dynamodb-elasticache",
@@ -193,7 +238,12 @@
         "aws_elasticache_user.app",
         "aws_subnet.dynamodb-elasticache"
       ],
-      "detail": "Error: creating DynamoDB Global Table (tofu-dynamodb-elasticache-cohort-dynamodb-global-table): operation error DynamoDB: CreateGlobalTable, https response error StatusCode: 400, RequestID: b2243a61-3789-4120-bbcb-ef74b0b6f8d0, api error UnknownOperationException: Operation CreateGlobalTable is not supported."
+      "detail": "Error: creating DynamoDB Global Table (tofu-dynamodb-elasticache-cohort-dynamodb-global-table): operation error DynamoDB: CreateGlobalTable, https response error StatusCode: 400, RequestID: b2243a61-3789-4120-bbcb-ef74b0b6f8d0, api error UnknownOperationException: Operation CreateGlobalTable is not supported.",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "ec2-core",
@@ -211,7 +261,12 @@
         "aws_volume_attachment.app",
         "aws_subnet.ec2-core"
       ],
-      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: 4184595e-0ff3-4c4a-a187-aee9e42e1c06, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
+      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: 4184595e-0ff3-4c4a-a187-aee9e42e1c06, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported.",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "ec2-networking",
@@ -221,7 +276,12 @@
       "failed_resources": [
         "aws_lb.ec2-networking"
       ],
-      "detail": "Error: Invalid combination of arguments"
+      "detail": "Error: Invalid combination of arguments",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "ecs-eks",
@@ -231,7 +291,12 @@
       "failed_resources": [
         "aws_dynamodb_table.ecs-eks"
       ],
-      "detail": "Error: all indexes must match a defined attribute. Unmatched indexes: [\"GameTitle\" \"TopScore\"]"
+      "detail": "Error: all indexes must match a defined attribute. Unmatched indexes: [\"GameTitle\" \"TopScore\"]",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "governance",
@@ -259,7 +324,12 @@
         "aws_servicecatalogappregistry_application.app",
         "aws_servicecatalogappregistry_attribute_group.app"
       ],
-      "detail": "Error: creating Audit Manager Framework (tofu-governance-cohort-auditmanager-framework)"
+      "detail": "Error: creating Audit Manager Framework (tofu-governance-cohort-auditmanager-framework)",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "iam-ecr",
@@ -270,7 +340,12 @@
         "aws_ecr_registry_scanning_configuration.app",
         "aws_ecr_replication_configuration.app"
       ],
-      "detail": "Error: putting ECR Registry Scanning Configuration: operation error ECR: PutRegistryScanningConfiguration, https response error StatusCode: 400, RequestID: b8c436db-cf4e-4ee6-a8d0-957c7abc0482, api error UnsupportedOperation: Operation PutRegistryScanningConfiguration is not supported."
+      "detail": "Error: putting ECR Registry Scanning Configuration: operation error ECR: PutRegistryScanningConfiguration, https response error StatusCode: 400, RequestID: b8c436db-cf4e-4ee6-a8d0-957c7abc0482, api error UnsupportedOperation: Operation PutRegistryScanningConfiguration is not supported.",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "identity",
@@ -280,7 +355,12 @@
       "failed_resources": [
         "aws_iam_saml_provider.identity"
       ],
-      "detail": "Error: expected length of saml_metadata_document to be in the range (1000 - 10000000), got placeholder"
+      "detail": "Error: expected length of saml_metadata_document to be in the range (1000 - 10000000), got placeholder",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "iot",
@@ -297,7 +377,12 @@
         "aws_iot_thing_type.app",
         "aws_iot_topic_rule_destination.app"
       ],
-      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 404, RequestID: 15a59273-7501-495e-87ee-f6992422628e, api error UnknownOperationException: Unknown operation: POST //authorizer/tofu-iot-cohort-authorizer"
+      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 404, RequestID: 15a59273-7501-495e-87ee-f6992422628e, api error UnknownOperationException: Unknown operation: POST //authorizer/tofu-iot-cohort-authorizer",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "lambda",
@@ -309,19 +394,34 @@
         "aws_lambda_layer_version.app",
         "aws_api_gateway_rest_api.lambda"
       ],
-      "detail": "Error: creating Lambda Code Signing Config: operation error Lambda: CreateCodeSigningConfig, https response error StatusCode: 404, RequestID: 84a9213a-c53c-4527-bd09-7c64149fa2e1, api error UnknownOperationException: Unknown operation: POST //2020-04-22/code-signing-configs"
+      "detail": "Error: creating Lambda Code Signing Config: operation error Lambda: CreateCodeSigningConfig, https response error StatusCode: 404, RequestID: 84a9213a-c53c-4527-bd09-7c64149fa2e1, api error UnknownOperationException: Unknown operation: POST //2020-04-22/code-signing-configs",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "media",
       "status": "pass",
       "phase": "pass",
-      "resources": 7
+      "resources": 7,
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "messaging",
       "status": "pass",
       "phase": "pass",
-      "resources": 9
+      "resources": 9,
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "networking-advanced",
@@ -331,7 +431,12 @@
       "failed_resources": [
         "aws_lb.networking-advanced"
       ],
-      "detail": "Error: Invalid combination of arguments"
+      "detail": "Error: Invalid combination of arguments",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "observability",
@@ -360,7 +465,12 @@
         "aws_xray_resource_policy.app",
         "aws_xray_sampling_rule.app"
       ],
-      "detail": "Error: creating CloudWatch Alarm Mute Rule"
+      "detail": "Error: creating CloudWatch Alarm Mute Rule",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "rds",
@@ -379,7 +489,12 @@
         "aws_rds_shard_group.app",
         "aws_subnet.rds"
       ],
-      "detail": "Error: creating RDS Event Subscription (tofu-rds-cohort-db-event-subscription): operation error RDS: CreateEventSubscription, https response error StatusCode: 400, RequestID: d9950292-161a-4923-bc26-f8d3000374e6, api error UnsupportedOperation: Operation CreateEventSubscription is not supported."
+      "detail": "Error: creating RDS Event Subscription (tofu-rds-cohort-db-event-subscription): operation error RDS: CreateEventSubscription, https response error StatusCode: 400, RequestID: d9950292-161a-4923-bc26-f8d3000374e6, api error UnsupportedOperation: Operation CreateEventSubscription is not supported.",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "remainder",
@@ -413,7 +528,12 @@
         "aws_efs_file_system.remainder",
         "aws_subnet.remainder"
       ],
-      "detail": "Error: creating ARC (Application Recovery Controller) Region Switch Plan"
+      "detail": "Error: creating ARC (Application Recovery Controller) Region Switch Plan",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "route53-cloudfront",
@@ -439,13 +559,23 @@
         "aws_route53profiles_profile.app",
         "aws_route53recoverycontrolconfig_cluster.app"
       ],
-      "detail": "Error: Provider produced inconsistent result after apply"
+      "detail": "Error: Provider produced inconsistent result after apply",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "s3",
       "status": "pass",
       "phase": "pass",
-      "resources": 6
+      "resources": 6,
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "sagemaker",
@@ -474,7 +604,12 @@
         "aws_servicecatalog_product.sagemaker",
         "aws_subnet.sagemaker"
       ],
-      "detail": "Error: creating SageMaker AI App Image Config (tofu-sagemaker-cohort-app-image-config): operation error SageMaker: CreateAppImageConfig, https response error StatusCode: 400, RequestID: d1826dfd-a5ae-42ee-916e-043a715e6425, api error UnknownOperationException: Operation CreateAppImageConfig is not supported by floci"
+      "detail": "Error: creating SageMaker AI App Image Config (tofu-sagemaker-cohort-app-image-config): operation error SageMaker: CreateAppImageConfig, https response error StatusCode: 400, RequestID: d1826dfd-a5ae-42ee-916e-043a715e6425, api error UnknownOperationException: Operation CreateAppImageConfig is not supported by floci",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "security",
@@ -517,7 +652,12 @@
         "aws_iam_role.security",
         "aws_instance.security"
       ],
-      "detail": "Error: Request cancelled"
+      "detail": "Error: Request cancelled",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "storage",
@@ -527,7 +667,12 @@
       "failed_resources": [
         "aws_fsx_lustre_file_system.app"
       ],
-      "detail": "Error: invalid value for import_path (must begin with s3://)"
+      "detail": "Error: invalid value for import_path (must begin with s3://)",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "stragglers",
@@ -546,7 +691,12 @@
         "aws_transfer_web_app.app",
         "aws_transfer_web_app_customization.app"
       ],
-      "detail": "Error: creating ECR Pull Through Cache Rule (tofu-stragglers): operation error ECR: CreatePullThroughCacheRule, https response error StatusCode: 400, RequestID: 05842769-6b5a-40ce-bef7-cdb649fe0860, api error UnsupportedOperation: Operation CreatePullThroughCacheRule is not supported."
+      "detail": "Error: creating ECR Pull Through Cache Rule (tofu-stragglers): operation error ECR: CreatePullThroughCacheRule, https response error StatusCode: 400, RequestID: 05842769-6b5a-40ce-bef7-cdb649fe0860, api error UnsupportedOperation: Operation CreatePullThroughCacheRule is not supported.",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     },
     {
       "name": "streaming",
@@ -564,7 +714,12 @@
         "aws_mskconnect_custom_plugin.app",
         "aws_mskconnect_worker_configuration.app"
       ],
-      "detail": "Error: creating AppFlow Connector Profile (tofu-streaming-cohort-appflow-connector-profile): operation error Appflow: CreateConnectorProfile, https response error StatusCode: 404, RequestID: 54d94b21-6b40-4921-851c-8f213a039cf2, api error UnknownOperationException: Unknown operation: POST /create-connector-profile"
+      "detail": "Error: creating AppFlow Connector Profile (tofu-streaming-cohort-appflow-connector-profile): operation error Appflow: CreateConnectorProfile, https response error StatusCode: 404, RequestID: 54d94b21-6b40-4921-851c-8f213a039cf2, api error UnknownOperationException: Unknown operation: POST /create-connector-profile",
+      "last_run": {
+        "commit": "f748c64b60e3bc476ab56cb0f46e2f9bb96846be",
+        "date": "2026-08-16T18:27:57Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933"
+      }
     }
   ]
 }
