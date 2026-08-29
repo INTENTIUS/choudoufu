@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -212,42 +213,186 @@ func SaveBehaviorIndex(root string, bi *BehaviorIndex) error {
 // fixture, gitignored.
 const BehaviorsLogDir = "live/gauntlet/logs/behaviors"
 
-// DefaultBehaviorsPort is the single FLOCI_PORT every fixture in a
-// `gauntlet behaviors` run is given, whatever its own script-level default.
-// #522 asks for "ONE shared emulator" across the whole matrix; every
-// existing shape script already starts and tears down (`docker run --rm` /
-// `docker rm -f`) its OWN floci container around FLOCI_PORT, so fixtures
-// share this port by running strictly one at a time, in sequence - never two
+// DefaultBehaviorsPort is the single FLOCI_PORT every fixture in a serial
+// (`-parallel 1`) `gauntlet behaviors` run is given, whatever its own
+// script-level default. #522 originally asked for "ONE shared emulator"
+// across the whole matrix, run strictly one fixture at a time - never two
 // containers bound to the same host port at once, and never a script
 // modified to skip container management, which the #522 ruling's "fold in
-// AS-IS" forecloses. Picked clear of every fixture's individual hard-coded
-// default (4599-4800, see each fixture's DefaultPort) and clear of the
-// 20000+ range #520's `-parallel` estate runner assigns, so a `gauntlet
-// behaviors` run and a `gauntlet run -parallel` run never collide even if
-// both happen to be live at once.
+// AS-IS" forecloses; #541 made concurrency (behaviorsParallelPortBase) the
+// default instead, since a serial sum of ten scripts left the five-minute
+// bar a four-second margin. Serial mode, and this port, still exist for
+// debugging one fixture's timing in isolation without the noise of nine
+// others running at once. Picked clear of every fixture's individual
+// hard-coded default (4599-4800, see each fixture's DefaultPort) and clear
+// of the 20000+ range #520's `-parallel` estate runner assigns, so a
+// `gauntlet behaviors` run and a `gauntlet run -parallel` run never collide
+// even if both happen to be live at once.
 const DefaultBehaviorsPort = 4900
+
+// defaultBehaviorsParallel is `gauntlet behaviors -parallel`'s own default
+// (main.go's cmdBehaviors) when the flag is not passed at all - concurrent
+// by default (#541), not 1 like `gauntlet run`'s equivalent flag: an estate
+// run is heavier and has an existing CI dependency on serial-by-default,
+// where the tier-1 matrix has neither yet (it is wired into no `just`
+// recipe or CI step - #541's own context) and #522's whole argument for it
+// is that it has to stay a fast development loop. 8 covers the whole
+// current 10-fixture default set in two waves without assuming every future
+// addition still fits one; a caller measuring a specific fixture's own
+// timing in isolation passes -parallel 1.
+const defaultBehaviorsParallel = 8
+
+// behaviorsParallelPortBase and behaviorsParallelPortStride mirror
+// parallelPortBase/parallelPortStride (run.go, #525's per-slot allocator):
+// each concurrent slot gets its own FLOCI_PORT
+// (behaviorsParallelPortBase + slot*behaviorsParallelPortStride), clear of
+// every fixture's own hard-coded default (4599-4900, see each fixture's
+// DefaultPort and DefaultBehaviorsPort above) and clear of the estate
+// runner's 20000+ range (parallelPortBase in run.go), so a `gauntlet
+// behaviors -parallel` run and a `gauntlet run -parallel` run never collide
+// even if both are live at once. No shape fixture derives a second port
+// from FLOCI_PORT by offset the way some estate scripts do (checked against
+// every live/e2e/*/run.sh's own FLOCI_PORT usage, issue #541), so - unlike
+// run.go's 5000 - a narrow stride is enough; 50 leaves headroom above the
+// one container plus incidental local ports (AWS CLI, docker) each fixture
+// actually opens.
+const (
+	behaviorsParallelPortBase   = 25000
+	behaviorsParallelPortStride = 50
+)
 
 // BehaviorsRunOptions controls RunBehaviors.
 type BehaviorsRunOptions struct {
 	// Names restricts the run to these fixture ids; empty means every
 	// fixture with Runner true.
-	Names  []string
-	All    bool // include every runnable fixture regardless of Runner
-	Port   int  // FLOCI_PORT for the whole run; 0 means DefaultBehaviorsPort
-	Env    []string
-	Stdout io.Writer
+	Names []string
+	All   bool // include every runnable fixture regardless of Runner
+	Port  int  // FLOCI_PORT for a serial run; 0 means DefaultBehaviorsPort. Ignored when Parallel > 1.
+	// Parallel is how many fixtures run concurrently, each against its own
+	// floci emulator on its own port (behaviorsParallelPortBase +
+	// slot*behaviorsParallelPortStride). <=1 means serial against one
+	// shared port (Port, or DefaultBehaviorsPort) - the exact code path
+	// this runner used before #541, so a plain `gauntlet behaviors` with
+	// no -parallel flag is unaffected byte-for-byte by parallel mode
+	// existing at all. Every fixture in the default tier-1 set already
+	// starts and tears down its own `docker run --rm` / `docker rm -f`
+	// container named from its own process id ($$, unique per concurrently
+	// running bash process), so N fixtures really do run against N
+	// isolated emulators - the same precondition #525 established for
+	// concurrent estates.
+	Parallel int
+	Env      []string
+	Stdout   io.Writer
 }
 
-// RunBehaviors runs each selected fixture's script once, sequentially,
-// against one shared FLOCI_PORT, and records pass/fail + wall-clock seconds
-// into bi in memory. The caller saves and renders, exactly like RunEstates.
+// behaviorResult is what runOneBehavior produced for one fixture; used by
+// both the serial and parallel paths so the merge step below (bi.SetFixture
+// + the per-fixture log line) is identical regardless of how the run
+// happened.
+type behaviorResult struct {
+	f       BehaviorFixture
+	exit    int
+	elapsed float64
+	err     error
+}
+
+// runOneBehavior runs one fixture's script to completion and reports its
+// exit code and wall-clock seconds. It does not touch bi or opts.Stdout's
+// per-fixture summary line - callers do that after every fixture in a run
+// has finished, on a single goroutine, so concurrent runs merge exactly
+// like a serial one would (mirrors run.go's runOne/runResults split).
+func runOneBehavior(root string, f BehaviorFixture, env []string, port int, stdout io.Writer) behaviorResult {
+	if !f.Runnable {
+		return behaviorResult{f: f, err: fmt.Errorf("fixture %q is not independently runnable (%s)", f.ID, f.RunnableNote)}
+	}
+	script := filepath.Join(root, f.Script)
+	if _, err := os.Stat(script); err != nil {
+		return behaviorResult{f: f, err: fmt.Errorf("fixture %q: %w", f.ID, err)}
+	}
+	logPath := filepath.Join(root, BehaviorsLogDir, f.ID+".log")
+	logf, err := os.Create(logPath)
+	if err != nil {
+		return behaviorResult{f: f, err: err}
+	}
+	defer logf.Close()
+
+	cmd := exec.Command("bash", script)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = setEnv(cmd.Env, fmt.Sprintf("FLOCI_PORT=%d", port))
+	cmd.Stdout = logf
+	cmd.Stderr = logf
+	fmt.Fprintf(stdout, "%s: running %s (log: %s)\n", f.ID, f.Script, filepath.Join(BehaviorsLogDir, f.ID+".log"))
+	start := time.Now()
+	runErr := cmd.Run()
+	elapsed := time.Since(start).Seconds()
+
+	exit := 0
+	if runErr != nil {
+		if ee, ok := runErr.(*exec.ExitError); ok {
+			exit = ee.ExitCode()
+		} else {
+			return behaviorResult{f: f, err: fmt.Errorf("fixture %q: %w", f.ID, runErr)}
+		}
+	}
+	return behaviorResult{f: f, exit: exit, elapsed: elapsed}
+}
+
+// behaviorResults runs every fixture in selected and returns their results
+// in the same order, regardless of the order they actually finish in.
+// Structured exactly like run.go's runResults: opts.Parallel <=1 runs them
+// one at a time on the calling goroutine against one shared port; >1 runs
+// up to that many at once, each on its own port from a channel-backed slot
+// pool, with opts.Stdout wrapped in a syncWriter so two goroutines' first
+// "running ..." lines cannot interleave mid-line.
+func behaviorResults(root string, selected []BehaviorFixture, opts BehaviorsRunOptions) []behaviorResult {
+	results := make([]behaviorResult, len(selected))
+	parallel := opts.Parallel
+	if parallel < 1 {
+		parallel = 1
+	}
+	if parallel > len(selected) {
+		parallel = len(selected)
+	}
+	if parallel <= 1 {
+		port := opts.Port
+		if port == 0 {
+			port = DefaultBehaviorsPort
+		}
+		for i, f := range selected {
+			results[i] = runOneBehavior(root, f, opts.Env, port, opts.Stdout)
+		}
+		return results
+	}
+
+	stdout := &syncWriter{w: opts.Stdout}
+	slots := make(chan int, parallel)
+	for i := 0; i < parallel; i++ {
+		slots <- i
+	}
+	var wg sync.WaitGroup
+	for i, f := range selected {
+		i, f := i, f
+		slot := <-slots
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { slots <- slot }()
+			port := behaviorsParallelPortBase + slot*behaviorsParallelPortStride
+			results[i] = runOneBehavior(root, f, opts.Env, port, stdout)
+		}()
+	}
+	wg.Wait()
+	return results
+}
+
+// RunBehaviors runs each selected fixture's script once - serially against
+// one shared FLOCI_PORT, or concurrently against one port per slot when
+// opts.Parallel > 1 - and records pass/fail + wall-clock seconds into bi in
+// memory. The caller saves and renders, exactly like RunEstates.
 //
 // It returns the number of fixtures that exited non-zero.
 func RunBehaviors(root string, bi *BehaviorIndex, opts BehaviorsRunOptions, commit string) (int, error) {
-	port := opts.Port
-	if port == 0 {
-		port = DefaultBehaviorsPort
-	}
 	if err := os.MkdirAll(filepath.Join(root, BehaviorsLogDir), 0o755); err != nil {
 		return 0, err
 	}
@@ -275,55 +420,34 @@ func RunBehaviors(root string, bi *BehaviorIndex, opts BehaviorsRunOptions, comm
 		}
 	}
 
+	// Run every selected fixture's script first, at whatever concurrency
+	// was asked for, and merge results into bi afterwards in a single
+	// thread, in `selected` order - the same split run.go's RunEstates
+	// uses, and for the same reason: it makes parallel mode a proven
+	// equivalence to serial mode's bookkeeping, not just a faster-looking
+	// one.
+	results := behaviorResults(root, selected, opts)
+
 	failures := 0
-	for _, f := range selected {
-		if !f.Runnable {
-			return failures, fmt.Errorf("fixture %q is not independently runnable (%s)", f.ID, f.RunnableNote)
+	for _, r := range results {
+		if r.err != nil {
+			return failures, r.err
 		}
-		script := filepath.Join(root, f.Script)
-		if _, err := os.Stat(script); err != nil {
-			return failures, fmt.Errorf("fixture %q: %w", f.ID, err)
-		}
-		logPath := filepath.Join(root, BehaviorsLogDir, f.ID+".log")
-		logf, err := os.Create(logPath)
-		if err != nil {
-			return failures, err
-		}
-
-		cmd := exec.Command("bash", script)
-		cmd.Dir = root
-		cmd.Env = append(os.Environ(), opts.Env...)
-		cmd.Env = setEnv(cmd.Env, fmt.Sprintf("FLOCI_PORT=%d", port))
-		cmd.Stdout = logf
-		cmd.Stderr = logf
-		fmt.Fprintf(opts.Stdout, "%s: running %s (log: %s)\n", f.ID, f.Script, filepath.Join(BehaviorsLogDir, f.ID+".log"))
-		start := time.Now()
-		runErr := cmd.Run()
-		elapsed := time.Since(start).Seconds()
-		logf.Close()
-
-		exit := 0
-		if runErr != nil {
-			if ee, ok := runErr.(*exec.ExitError); ok {
-				exit = ee.ExitCode()
-			} else {
-				return failures, fmt.Errorf("fixture %q: %w", f.ID, runErr)
-			}
-		}
+		f := r.f
 		verdict := VerdictPass
-		if exit != 0 {
+		if r.exit != 0 {
 			verdict = VerdictFail
 			failures++
 		}
 		f.LastRun = &BehaviorLastRun{
 			Commit:    commit,
 			Date:      time.Now().UTC().Format(time.RFC3339),
-			ExitCode:  exit,
+			ExitCode:  r.exit,
 			Verdict:   verdict,
-			DurationS: roundSeconds(elapsed),
+			DurationS: roundSeconds(r.elapsed),
 		}
 		bi.SetFixture(f)
-		fmt.Fprintf(opts.Stdout, "%s: exit %d, %.1fs, %s\n", f.ID, exit, elapsed, verdict)
+		fmt.Fprintf(opts.Stdout, "%s: exit %d, %.1fs, %s\n", f.ID, r.exit, r.elapsed, verdict)
 	}
 	return failures, nil
 }

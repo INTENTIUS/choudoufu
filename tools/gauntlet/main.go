@@ -10,7 +10,7 @@
 //	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
 //	go run ./tools/gauntlet next [-n N] [-json]    # the next unit(s) of work, deterministically
 //	go run ./tools/gauntlet run [-set core] [-parallel N] [name] # run crossing scripts, record verdicts, render
-//	go run ./tools/gauntlet behaviors [-all] [-port N] [id...] # run the tier-1 behavior matrix (#522), record verdicts, render
+//	go run ./tools/gauntlet behaviors [-all] [-port N] [-parallel N] [id...] # run the tier-1 behavior matrix (#522), record verdicts, render
 //	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
@@ -247,11 +247,19 @@ func cmdRun(root string, args []string) error {
 // cmdBehaviors is `gauntlet behaviors` (#522): the tier-1 behavior-matrix
 // runner. By default it runs every fixture in live/behaviors.json whose
 // Runner field is true (the purpose-built "shape" fixtures the ruling
-// formalizes as tier 1) sequentially against ONE shared floci emulator -
-// #520's per-slot FLOCI_PORT approach exists for concurrent estates, which
-// this does not need; the whole point of tier 1 is a single fast run - then
-// records pass/fail and wall-clock per fixture, recomputes
-// behaviors_proven, and re-renders.
+// formalizes as tier 1), then records pass/fail and wall-clock per
+// fixture, recomputes behaviors_proven, and re-renders.
+//
+// -parallel defaults to defaultBehaviorsParallel (issue #541): the matrix's
+// own sequential sum passed the five-minute bar by four seconds on a loaded
+// machine, which is a coin flip, not a margin - #522's whole argument for
+// tier 1 is that it is a development loop, and a squeaker stops being one.
+// Every default fixture already starts and tears down its own floci
+// container named from its own process id, so nothing about running them
+// concurrently is new work; #525's per-slot port allocator (run.go) is the
+// proven pattern this reuses. -parallel 1 restores the old fully-serial,
+// one-shared-port behavior for debugging a single fixture's timing in
+// isolation.
 //
 // -all runs every independently Runnable fixture regardless of Runner
 // (including the adoption and legacy-demo scripts catalogued but excluded
@@ -261,7 +269,8 @@ func cmdRun(root string, args []string) error {
 func cmdBehaviors(root string, args []string) error {
 	fs := flag.NewFlagSet("behaviors", flag.ContinueOnError)
 	all := fs.Bool("all", false, "run every independently runnable fixture, not just the default tier-1 set (Runner=true)")
-	port := fs.Int("port", 0, "FLOCI_PORT for the whole run; 0 means DefaultBehaviorsPort")
+	port := fs.Int("port", 0, "FLOCI_PORT for a serial (-parallel 1) run; 0 means DefaultBehaviorsPort")
+	parallel := fs.Int("parallel", defaultBehaviorsParallel, "run this many fixtures concurrently, each against its own isolated floci emulator (#541); 1 is fully serial, byte-for-byte the runner's original behaviour")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -277,7 +286,7 @@ func cmdBehaviors(root string, args []string) error {
 	}
 	commit := headCommit(root)
 	start := time.Now()
-	failures, err := RunBehaviors(root, bi, BehaviorsRunOptions{Names: fs.Args(), All: *all, Port: *port, Env: envs, Stdout: os.Stdout}, commit)
+	failures, err := RunBehaviors(root, bi, BehaviorsRunOptions{Names: fs.Args(), All: *all, Port: *port, Parallel: *parallel, Env: envs, Stdout: os.Stdout}, commit)
 	elapsed := time.Since(start)
 	if err != nil {
 		return err
