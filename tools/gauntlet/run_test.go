@@ -168,14 +168,25 @@ func TestRunEstatesRecordsDurationS(t *testing.T) {
 // script that prints `GAUNTLET protocol=1` and then dies before a single
 // `GAUNTLET stage=` line. res.Spoken is true (the protocol marker was seen)
 // but res.Stages is an empty map, so the per-key merge loop in RunEstates
-// runs zero times and the ENTIRE prior row - including a full pass - is left
-// byte-for-byte untouched, stamped with a fresh commit/date/exit_code. The
-// `res.Spoken == false` (legacy) branch already warns loudly for the
-// analogous case; before the fix this branch (res.Spoken == true) printed
-// nothing at all. This is corpus-sqs-basic's real reproduction, reduced to a
-// fixture: `gauntlet_begin` runs before a step-0 tool/corpus check, so a
+// runs zero times. This is corpus-sqs-basic's real reproduction, reduced to
+// a fixture: `gauntlet_begin` runs before a step-0 tool/corpus check, so a
 // missing prerequisite prints the protocol line and then exits with zero
-// stage lines ever emitted.
+// stage lines ever emitted - the same shape that killed 8 estates nightly in
+// #497 (gauntlet.yml never installing the real tofu binary those estates'
+// own step-0 checks hard-require).
+//
+// Before #497's fix, the ENTIRE prior row - including a full pass on every
+// stage - was left byte-for-byte untouched here, stamped with a fresh
+// commit/date/exit_code: a stale "pass" wearing a brand new timestamp, the
+// exact shape TestNonzeroExitCodeImpliesAFailingStage (gauntlet_test.go)
+// exists to catch. recordRunnerFailure (below, and see
+// TestRecordRunnerFailure for its own focused unit test) now writes a real
+// fail into the earliest active stage (cold_deploy) instead, so this test
+// asserts the corrected split: cold_deploy flips to fail with distinguishing
+// detail, while every OTHER stage this run never reached (day2_rename,
+// day2_remove) is still carried forward untouched - carry-forward is still
+// correct for stages the fix has no evidence about, just not for the one
+// stage this branch now speaks for.
 func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	root := t.TempDir()
 	scriptPath := filepath.Join("live", "e2e", "x", "run.sh")
@@ -194,8 +205,11 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	}
 
 	m := &Manifest{Estates: []Estate{{Name: "x", Source: "s", Lane: "reference", Set: SetGrowing, Script: scriptPath}}}
-	staleStages := map[string]string{
-		"cold_deploy": "pass",
+	// carriedStages are the stages this run never speaks for at all - they
+	// must survive untouched. cold_deploy is deliberately excluded: it is
+	// the one stage recordRunnerFailure now overwrites, asserted separately
+	// below.
+	carriedStages := map[string]string{
 		"day2_rename": "pass",
 		"day2_remove": "pass",
 	}
@@ -204,9 +218,9 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 		Protocol: ProtocolGauntlet,
 		Clear:    true,
 		Stages: map[string]string{
-			"cold_deploy": staleStages["cold_deploy"],
-			"day2_rename": staleStages["day2_rename"],
-			"day2_remove": staleStages["day2_remove"],
+			"cold_deploy": "pass",
+			"day2_rename": carriedStages["day2_rename"],
+			"day2_remove": carriedStages["day2_remove"],
 		},
 		LastRun: &LastRun{
 			Commit:   "priorcommit",
@@ -228,13 +242,17 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	if !ok {
 		t.Fatal("no result for x")
 	}
-	// The stale-carry-forward itself is deliberate and must not change: a
-	// script that reaches zero stages leaves every existing verdict as
-	// recorded, exactly like the legacy branch already does.
-	for id, want := range staleStages {
+	// Stages this run has no evidence about at all must still carry forward
+	// unchanged, exactly like the legacy branch already does.
+	for id, want := range carriedStages {
 		if got := r.Stages[id]; got != want {
 			t.Errorf("stage %s = %q, want %q (carried forward unchanged)", id, got, want)
 		}
+	}
+	// cold_deploy is the one exception: this run died before confirming it,
+	// so its stale "pass" must not survive under a fresh commit/date.
+	if got := r.Stages["cold_deploy"]; got != VerdictFail {
+		t.Errorf("stage cold_deploy = %q, want %q (this run never confirmed it; #497's fix must not let a stale pass survive under a fresh commit/date)", got, VerdictFail)
 	}
 	if r.LastRun == nil || r.LastRun.ExitCode != 1 {
 		t.Fatalf("LastRun.ExitCode = %+v, want 1", r.LastRun)
@@ -245,12 +263,115 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	if r.LastRun.Emulator != "newemulator@sha256:new" {
 		t.Errorf("LastRun.Emulator = %q, want %q (the pin this run actually launched against, not carried from the prior row)", r.LastRun.Emulator, "newemulator@sha256:new")
 	}
+	if r.LastRun.Detail["cold_deploy"] == "" {
+		t.Error("LastRun.Detail[cold_deploy] is empty, want a runner-failure explanation")
+	}
 
 	// What must be different from before the fix: a warning naming this
 	// exact shape, the same way the legacy branch already warns.
 	const wantSubstr = "spoke the gauntlet protocol but reported no stage verdicts this run"
 	if !strings.Contains(out.String(), wantSubstr) {
 		t.Errorf("stdout does not warn about the empty-Stages carry-forward; got:\n%s", out.String())
+	}
+
+	// TestNonzeroExitCodeImpliesAFailingStage's own invariant, re-asserted
+	// directly here rather than only trusted by inference: nonzero exit
+	// code implies at least one real fail somewhere in Stages.
+	hasFail := false
+	for _, v := range r.Stages {
+		if v == VerdictFail {
+			hasFail = true
+		}
+	}
+	if !hasFail {
+		t.Error("no stage reads fail anywhere despite a nonzero exit code - exactly the shape TestNonzeroExitCodeImpliesAFailingStage catches")
+	}
+}
+
+// TestRecordRunnerFailure is the focused, function-level counterpart to
+// TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported above: it calls
+// recordRunnerFailure directly rather than going through a real script and
+// RunEstates, so it can assert its two obligations precisely - write a real
+// fail into the earliest active stage (cold_deploy), and leave every other
+// stage's verdict AND detail exactly as they were - without any of
+// RunEstates's own merge/carry-forward logic able to mask a bug in either
+// direction.
+func TestRecordRunnerFailure(t *testing.T) {
+	r := &EstateResult{
+		Name: "x",
+		Stages: map[string]string{
+			"cold_deploy": VerdictPass,
+			"day2_rename": VerdictFail,
+			"day2_remove": VerdictNotRun,
+		},
+		LastRun: &LastRun{
+			Commit:   "priorcommit",
+			ExitCode: 0,
+			Detail: map[string]string{
+				"cold_deploy": "old cold_deploy detail, must be overwritten",
+				"day2_rename": "old day2_rename detail, must survive untouched",
+			},
+		},
+	}
+
+	got := recordRunnerFailure(r, 1)
+
+	if got != "cold_deploy" {
+		t.Errorf("recordRunnerFailure returned %q, want %q (the earliest active stage)", got, "cold_deploy")
+	}
+	if r.Stages["cold_deploy"] != VerdictFail {
+		t.Errorf("Stages[cold_deploy] = %q, want %q", r.Stages["cold_deploy"], VerdictFail)
+	}
+	// Every other stage's verdict must be untouched.
+	if r.Stages["day2_rename"] != VerdictFail {
+		t.Errorf("Stages[day2_rename] = %q, want %q (untouched)", r.Stages["day2_rename"], VerdictFail)
+	}
+	if r.Stages["day2_remove"] != VerdictNotRun {
+		t.Errorf("Stages[day2_remove] = %q, want %q (untouched)", r.Stages["day2_remove"], VerdictNotRun)
+	}
+
+	detail := r.LastRun.Detail["cold_deploy"]
+	if detail == "" || detail == "old cold_deploy detail, must be overwritten" {
+		t.Errorf("Detail[cold_deploy] = %q, want a fresh runner-failure explanation", detail)
+	}
+	if !strings.Contains(detail, "1") {
+		t.Errorf("Detail[cold_deploy] = %q, want it to name the exit code (1)", detail)
+	}
+	if !strings.Contains(detail, "not a product regression") {
+		t.Errorf("Detail[cold_deploy] = %q, want it to explicitly disclaim being a product regression, so a reader cannot mistake this for one", detail)
+	}
+	// Every other stage's detail must be untouched too.
+	if got := r.LastRun.Detail["day2_rename"]; got != "old day2_rename detail, must survive untouched" {
+		t.Errorf("Detail[day2_rename] = %q, want the original untouched", got)
+	}
+
+	// recordRunnerFailure must not have grown the Detail map beyond the one
+	// key it is responsible for plus whatever pre-existed.
+	if len(r.Stages) != 3 {
+		t.Errorf("Stages has %d entries, want 3 (no new stage ids invented)", len(r.Stages))
+	}
+}
+
+// TestRecordRunnerFailureCreatesDetailMapWhenNil covers the row shape
+// RunEstates actually produces on a brand new estate's very first run: a
+// fresh LastRun with Detail left nil (RunEstates only assigns
+// r.LastRun.Detail when the carried-forward prevDetail map is non-empty -
+// see run.go). recordRunnerFailure must not panic on a nil map, and must
+// leave a real entry behind.
+func TestRecordRunnerFailureCreatesDetailMapWhenNil(t *testing.T) {
+	r := &EstateResult{
+		Name:    "y",
+		Stages:  map[string]string{"cold_deploy": VerdictPass},
+		LastRun: &LastRun{Commit: "c", ExitCode: 0},
+	}
+
+	recordRunnerFailure(r, 7)
+
+	if r.LastRun.Detail == nil {
+		t.Fatal("LastRun.Detail is still nil after recordRunnerFailure")
+	}
+	if r.LastRun.Detail["cold_deploy"] == "" {
+		t.Error("LastRun.Detail[cold_deploy] is empty")
 	}
 }
 
