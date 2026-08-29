@@ -23,4 +23,5 @@ surface.
 | [How to write markers inside a for_each'd module]({{< relref "keyed-modules" >}}) | Threading `each.key` through a wrapped module by hand |
 | [Where things are stored]({{< relref "storage" >}}) | State, records and receipts, and what lives where |
 | [How the compatibility numbers are measured]({{< relref "measurement" >}}) | Where the corpus ranking comes from, and what not to read into it |
+| [How the pinned AWS provider gets bumped]({{< relref "provider-bump" >}}) | What a provider upgrade can change, and how it is reviewed |
 | [Reference]({{< relref "reference" >}}) | The fork's call surface, per stage |

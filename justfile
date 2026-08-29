@@ -1244,6 +1244,43 @@ survey init_bin="terraform":
 survey-render:
     env -u PWD go run ./tools/survey-gen -render
 
+# Issue #418's partition: live/survey-full.json + mapping + rejected.json ->
+# live/readiness.json, every provider type tiered and statused. No provider,
+# no network - reads only already-committed artifacts, so it belongs after
+# `survey` in the pipeline but needs no provider itself.
+readiness:
+    env -u PWD go run ./tools/readiness-gen
+
+# The committed live/readiness.json -> COVERAGE.md's and the docs site's
+# readiness-tiers/readiness-types spans. No provider, no network.
+readiness-render:
+    env -u PWD go run ./tools/readiness-gen -render
+
+# Issue #441: re-run survey-gen and row-gen at VERSION (a hashicorp/aws
+# release), regenerate live/readiness.json, and print the movement report a
+# provider bump's PR should carry - types added/removed, tier movement, the
+# #387 schema-precedence delta (rowgen-convergence.json's schema_reproduces),
+# the ratified-row convergence headline, and whether the golden identity
+# table moved. This is a report, not an event: nothing here bumps
+# internal/live/pins.AWSProviderVersion or commits anything, and
+# live/pins_drift_test.go stays red on the regenerated artifacts until a
+# human bumps that constant too and commits deliberately - review the printed
+# report, then decide.
+#
+# A dry run against the pin already at its current value - `just
+# provider-bump 6.59.0` while internal/live/pins.AWSProviderVersion says
+# 6.59.0 - exercises the whole pipeline for real (a real provider fetch, a
+# real classification pass) and has to report zero movement, since nothing
+# changed: that is the self-test that the override plumbing itself works,
+# with no network access to a hypothetically newer release required to prove
+# it. Needs the provider (network on a cold cache; the plugin cache serves it
+# after the first run).
+provider-bump version init_bin="terraform":
+    env -u PWD go run ./tools/survey-gen -all -provider-version {{version}} -init-bin {{init_bin}}
+    env -u PWD go run ./tools/readiness-gen
+    env -u PWD go run ./tools/row-gen -convergence
+    env -u PWD go run ./tools/provider-bump-report
+
 # Where the sources describing each type's identity disagree (#106), into
 # live/identity-sources.json. No provider, no network.
 #

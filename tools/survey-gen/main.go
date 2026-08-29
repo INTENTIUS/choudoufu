@@ -104,20 +104,36 @@ const (
 	// roster this tool derives signals and paths for.
 	surveyMDRel = "live/SURVEY.md"
 
-	// providerSource and providerVersion pin the provider release surveyed.
-	// The version is internal/live/pins.AWSProviderVersion, one constant
-	// shared with tools/corpus-gen so the instrument that ranks admission
-	// failures and the artifacts that define admission cannot describe
-	// different providers again (#117). The estate fixtures pin their own
-	// release deliberately; see the pins package doc.
-	providerSource  = "hashicorp/aws"
-	providerVersion = pins.AWSProviderVersion
+	// providerSource pins the provider surveyed. The default version is
+	// internal/live/pins.AWSProviderVersion, one constant shared with
+	// tools/corpus-gen so the instrument that ranks admission failures and
+	// the artifacts that define admission cannot describe different
+	// providers again (#117). The estate fixtures pin their own release
+	// deliberately; see the pins package doc.
+	providerSource = "hashicorp/aws"
 
 	// defaultInitBin downloads the provider. Stock terraform, the same
 	// binary the gated test tier drives; -init-bin swaps it for choudoufu
 	// or tofu, which resolve the same release via registry.opentofu.org.
 	defaultInitBin = "terraform"
 )
+
+// providerVersion is the release this run surveys - internal/live/pins.AWSProviderVersion
+// unless -provider-version overrides it (issue #441). A var, not a const,
+// only so main can override it from the flag before run() reads it; every
+// call site (schemas.go's acquireSchemas, classify.go's buildSurvey) reads
+// this package variable exactly as it read the constant before, so a plain
+// `go run ./tools/survey-gen` with no flag surveys the pinned release
+// byte-identically to before this change.
+//
+// The override exists for `just provider-bump`'s movement report
+// (tools/provider-bump-report), not for moving the pin itself: writing
+// live/survey.json and live/survey-full.json at a version other than
+// internal/live/pins.AWSProviderVersion leaves live/pins_drift_test.go
+// failing until a human edits that constant too, which is the point - a
+// bump is a report a maintainer reviews and commits, never a side effect of
+// running this tool.
+var providerVersion = pins.AWSProviderVersion
 
 // repoRoot resolves the checkout's root from this file's own location, the
 // same trick flocitest.RepoRoot uses, so the tool runs from any directory.
@@ -139,7 +155,10 @@ func main() {
 		"also classify the provider's entire resource-type roster and write live/survey-full.json (issue #41); live/survey.json is still written unchanged")
 	accept := flag.Bool("accept", false,
 		"stamp the artifact header's accepted field with today's date, ratifying the regenerated rows for review (tools/registry-gen/pin.go's SpecPin.Accepted vocabulary); omit to regenerate without ratifying, which drops any previously accepted date out of the diff")
+	providerVersionFlag := flag.String("provider-version", pins.AWSProviderVersion,
+		"survey this hashicorp/aws release instead of the pinned internal/live/pins.AWSProviderVersion (issue #441). Written artifacts then disagree with live/pins_drift_test.go until the pin itself is bumped by hand - a movement dry run (see `just provider-bump`) passes the pinned version back to itself so the override is exercised with nothing left to commit")
 	flag.Parse()
+	providerVersion = *providerVersionFlag
 
 	if *render {
 		if err := runRender(); err != nil {

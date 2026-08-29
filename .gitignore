@@ -100,6 +100,7 @@ site/public/
 /mapping-gen
 /merge-guard
 /protobuf-compile
+/provider-bump-report
 /ratification-queue-gen
 /readiness-gen
 /refusal-probe
