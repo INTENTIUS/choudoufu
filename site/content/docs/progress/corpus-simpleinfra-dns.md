@@ -14,22 +14,22 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 
 **Clear.** Every active stage passes.
 
-| Stage | Verdict | Detail |
-|---|---|---|
-| Cold deploy | pass | 35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate |
-| Migrate | pass | 7 stamped, 7 distinct hosted zones, one per module call |
-| Replan from nothing | pass | no resource change proposed, nothing foreign; all 35 rendered identities name a live hosted zone or record set |
-| No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); 7 zones / 28 records unchanged, all 7 markers unmoved |
-| Drift and reconverge | pass | one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname["2016"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact |
-| Rename | pass | moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI |
-| Remove a block | pass | choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; 7 zones down to 6), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it) |
-| Change count (planned) | not run |  |
-| Replace with create_before_destroy | pass | choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZVJXK1CU3OXGKNA) is confirmed gone and the new zone (ZSKMYPT2IKS7QIS) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
-| Crash between create and destroy (planned) | not run |  |
-| Teardown (planned) | not run |  |
-| Plan, review, apply (planned) | not run |  |
-| Greenfield apply | pass | 35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records) |
-| Strict profile (planned) | not run |  |
+| Stage | Verdict | Duration | Detail |
+|---|---|---|---|
+| Cold deploy | pass |  | 35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate |
+| Migrate | pass |  | 7 stamped, 7 distinct hosted zones, one per module call |
+| Replan from nothing | pass |  | no resource change proposed, nothing foreign; all 35 rendered identities name a live hosted zone or record set |
+| No-op apply | pass |  | no-op apply (0 added, 0 changed, 0 destroyed); 7 zones / 28 records unchanged, all 7 markers unmoved |
+| Drift and reconverge | pass |  | one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname["2016"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact |
+| Rename | pass |  | moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI |
+| Remove a block | pass |  | choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; 7 zones down to 6), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it) |
+| Change count (planned) | not run |  |  |
+| Replace with create_before_destroy | pass |  | choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZVJXK1CU3OXGKNA) is confirmed gone and the new zone (ZSKMYPT2IKS7QIS) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
+| Crash between create and destroy (planned) | not run |  |  |
+| Teardown (planned) | not run |  |  |
+| Plan, review, apply (planned) | not run |  |  |
+| Greenfield apply | pass |  | 35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records) |
+| Strict profile (planned) | not run |  |  |
 
 Last run at commit `4ac5ca4425` on 2026-08-25T23:17:08Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

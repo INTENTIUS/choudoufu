@@ -70,4 +70,37 @@ answer is and how each check is proven non-vacuous, is
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass |
 
+## Run time
+
+No estate has a recorded `last_run.duration_s` yet; it is populated the next time each estate runs (#434).
+
+| Estate | Total | Per-stage (active stages, seconds recorded this run) |
+|---|---|---|
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | - | none recorded yet |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | - | none recorded yet |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | - | none recorded yet |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | - | none recorded yet |
+| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | - | none recorded yet |
+| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | - | none recorded yet |
+| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | - | none recorded yet |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | - | none recorded yet |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | - | none recorded yet |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | - | none recorded yet |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | - | none recorded yet |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | - | none recorded yet |
+| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | - | none recorded yet |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | - | none recorded yet |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | - | none recorded yet |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | - | none recorded yet |
+
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
