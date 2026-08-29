@@ -9,7 +9,7 @@
 //
 //	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
 //	go run ./tools/gauntlet next [-n N] [-json]    # the next unit(s) of work, deterministically
-//	go run ./tools/gauntlet run [-set core] [name] # run crossing scripts, record verdicts, render
+//	go run ./tools/gauntlet run [-set core] [-parallel N] [name] # run crossing scripts, record verdicts, render
 //	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
@@ -70,7 +70,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -200,6 +200,7 @@ func cmdRender(root string) error {
 func cmdRun(root string, args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
+	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, byte-for-byte the runner's old behaviour")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -210,7 +211,7 @@ func cmdRun(root string, args []string) error {
 		return err
 	}
 	commit := headCommit(root)
-	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Stdout: os.Stdout}, commit, emulatorPin(root))
+	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout}, commit, emulatorPin(root))
 	if err != nil {
 		return err
 	}
