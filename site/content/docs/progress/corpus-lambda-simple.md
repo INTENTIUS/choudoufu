@@ -29,7 +29,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass | 24s | 8 resources from nothing (3 taggable + 5 record-backed/config-derived), all three module-nested markers verified via the AWS CLI, 8 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (runtime, handler, memory, timeout, log-group retention) |
-| Strict profile (planned) | not run |  |  |
+| Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `8ef3d258a7` on 2026-08-29T10:23:19Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 2m6.4s.
 
