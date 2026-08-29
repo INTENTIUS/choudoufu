@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T16:22:48Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T17:37:22Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -48,7 +48,7 @@ answer is and how each check is proven non-vacuous, is
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
@@ -75,13 +75,13 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-8 of 26 estates have a recorded run duration, totaling 24m16s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
+8 of 26 estates have a recorded run duration, totaling 27m15.8s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 5m41.4s across 1 estate(s) at commit `5106db5ab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 9m14s across 3 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 2m41.6s | cold_deploy 21s, migrate 53s, test_plan 2s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 7s, day2_replace 13s, greenfield 45s |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 5m41.4s | cold_deploy 32s, migrate 2m8s, test_plan 6s, test_apply 10s, drift_reconverge 15s, day2_rename 24s, day2_remove 9s, day2_count 42s, day2_replace 17s, greenfield 57s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
