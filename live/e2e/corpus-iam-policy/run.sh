@@ -1284,7 +1284,7 @@ HCL
     # unmarked object).
     ORACLE_COUNT_DESTROY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform destroy -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_DESTROY_RC=$?
     [ "$ORACLE_COUNT_DESTROY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DESTROY_OUT" | tail -30; fail "the day2_count stock oracle's teardown failed"; }
-    grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$ORACLE_COUNT_DESTROY_OUT" \
+    grep -qE 'Destroy complete! Resources: 2 destroyed' <<< "$ORACLE_COUNT_DESTROY_OUT" \
       || { grep -E 'Destroy complete' <<< "$ORACLE_COUNT_DESTROY_OUT"; fail "the day2_count stock oracle's teardown was not exactly 2 destroys"; }
     log "  stock oracle torn down (2 destroyed): the shared endpoint is clean before the real choudoufu side reuses the same name_prefix"
 
