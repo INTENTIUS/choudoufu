@@ -86,8 +86,26 @@ if have go; then
     echo 'rendered docs: STALE -> env -u PWD go run ./tools/gauntlet render   (TestRenderedDocsAreCurrent is red until then)'
   fi
 fi
+if have python3 && [ -f live/readiness.json ]; then
+  r_commit=$(git log -1 --format=%h -- live/readiness.json)
+  python3 - "$r_commit" <<'EOF4'
+import json,sys
+commit=sys.argv[1]
+r=json.load(open('live/readiness.json'))
+total=r['counts']['types']
+incontract=r['counts']['statuses'].get('in-contract',0)
+print(f"readiness: {incontract} in-contract of {total}, at {commit}")
+EOF4
+fi
 
 # ------------------------------------------------------------- 3. next units
+# The full, unfiltered queue: pickup shows every unit so a session sees the
+# whole board, not a slice of it. `next -types T1,T2,...` (#436) narrows this
+# same queue to estates that exercise the named resource types - useful when
+# a change is known to be type-scoped (e.g. after a repin, `next -types
+# aws_lambda_function` for a lambda-only fix) - but a type-filtered run is
+# never a substitute for this unfiltered one; see live/GAUNTLET.md,
+# "Selective re-queue".
 hr "next units (env -u PWD go run ./tools/gauntlet next -json -n 6; full text: drop -json)"
 if have go; then
   NEXTJSON="$(mktemp -t pickup-next.XXXXXX)"

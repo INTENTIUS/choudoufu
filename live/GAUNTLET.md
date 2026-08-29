@@ -256,6 +256,38 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-xancloud-iac` | opentofu-native | v0.2.0 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `reference-ec2-vpc` | reference |  | the plainest hand-written reference shape, kept in this repository |
 
+## Estate admission
+
+**Estates buy behaviors, cohorts buy types.** Every estate pays for itself
+once, in fetch and configuration, and then again on every run after: every
+active stage above runs it, every re-measure re-runs it, and none of that
+time buys anything but what its topology actually exercises. Coverage
+pressure that reaches for "add another estate" is usually paying that price
+to re-prove a type the board already has.
+
+Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
+before proposing one: it lists, from real committed or fetched
+configuration and no gauntlet run, every resource type each estate in the
+manifest already exercises. Today it reports 26 estates exercising 161
+distinct types between them, of which 86 no cohort fixture covers yet
+(`totals.distinct_types`, `totals.types_in_no_cohort`; re-run the tool
+before quoting either figure, since the manifest grows). A new estate has
+to name the behavior or topology missing from that list - a module shape,
+an ordering, a day-2 operation - not a type; a proposal that only points at
+a type is a proposal for a cohort.
+
+Type-only coverage goes to a cohort instead: `tools/estate-gen` builds a
+minimal fixture straight off the admission table, one resource block per
+type, required arguments only, and `live/cohort-acceptance.json` measures
+its round-trip identity against the emulator - the whole product claim for
+that type, at the cost of an apply and a replan rather than a full estate's
+fourteen stages on every future run. A type already in
+`types_in_no_cohort` is still a cohort's job to pick up, seeding or
+extending one with `-types`, not an estate's.
+
+This does not relax the core-set rule above: an estate that clears this
+bar with a real behavior still needs its own reason to join core.
+
 ## The artifact
 
 `live/gauntlet.json` carries `schema`, `emulator`, the `stages`
@@ -276,6 +308,35 @@ copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)). `go run
 gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
 markdown - board movement per set, which estates newly cleared or
 regressed, and the emulator pin change - for the release body.
+
+## Selective re-queue (`next -types`)
+
+`go run ./tools/gauntlet next` orders whole-estate work: core before
+growing, fewest remaining active stages first, and a repin's stale-clear
+estates trailing every genuine failure. `-types T1,T2,...` (#436) adds an
+orthogonal filter on top of that ordering, never a replacement for it: it
+reads `live/estate-types.json` (#435), the per-estate exercised-type index,
+and drops any ordinary (`fail` or `not_run`) unit whose estate exercises
+none of the requested types. A repin still queues every stale-clear
+estate regardless of `-types` - the stale-pin rule stays completely
+untouched, deliberately, because emulator behaviour is not type-scoped:
+a bad emulator response can corrupt any type, so "was this estate
+re-verified against the current pin" cannot be answered by looking at
+only some of its types.
+
+What that makes `-types` honest to claim, and what it does not: a
+type-filtered confirmation is evidence about those types specifically,
+never a board-wide claim. Clearing what `next -types aws_lambda_function`
+returns says the estates that exercise `aws_lambda_function` still behave
+like stock; it says nothing about the estates or the resource types the
+filter excluded. That is the same house rule the site's own per-row
+emulator provenance already holds to (`boardBanner`,
+`tools/gauntlet/render.go`: render what the rows underneath actually
+support, never a claim wider than the evidence). The two headline bars
+stay computed from every active stage on every estate regardless of any
+`-types` run. Use `-types` to shrink a repin's queue to the estates a
+change could plausibly have touched; use plain `next` when the question
+is whether the board, not a slice of it, still clears.
 
 ## What holds this together
 

@@ -1083,6 +1083,21 @@ EOF
     # "skip the destroy half" of a create-before-destroy replace would
     # leave, produced directly via the AWS CLI rather than by actually
     # interrupting an apply (day2_crash's own job).
+    #
+    # The refusal's message text changed under GitHub issue #409 (choudoufu
+    # #409, unrelated to this corpus): bindCountBlock now routes every count
+    # block carrying any record-backed entry through the address path
+    # unconditionally, before ever asking whether the live set carries slot
+    # tags - trusting slot data for a block containing a record-backed entry
+    # (this queue's own declared instance, converged by STAGE 2's migrate)
+    # is exactly the hazard #409 closed. So this collision, though still a
+    # hard refusal naming both live objects, now reads "Indistinguishable
+    # instances without per-instance markers" rather than the "Two live
+    # resources claiming one slot" this assertion checked before #409
+    # landed - see git history for that prior version if this ever needs
+    # re-deriving. #409's own fix, not a regression in what this stage
+    # proves: no live object collision is ever silently accepted either
+    # way.
     BREAK_COLLISION_NAME="${NAME}-default-collision"
     awsl sqs create-queue --queue-name "$BREAK_COLLISION_NAME" \
       --tags "tofu-estate=$ESTATE,tofu-address=module.default_sqs_renamed.aws_sqs_queue.this:0,tofu-slot=0" \
@@ -1092,9 +1107,9 @@ EOF
     awsl sqs delete-queue --queue-url "$BREAK_COLLISION_URL" >/dev/null 2>&1 || true
     [ "$BREAK_PLAN_RC" -ne 0 ] \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
-    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
-    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+    grep -qF 'Indistinguishable instances without per-instance markers' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the manufactured collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (indistinguishable instances without per-instance markers) rather than silently proposing nothing - the Break text's own outcome"
   else
     log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
     sed -i.bak 's/name = "\${local\.name}-default"/name = "${local.name}-default-v2"/' "$EST/main.tf"
