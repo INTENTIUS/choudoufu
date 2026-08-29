@@ -47,6 +47,25 @@ import (
 // schemas gets exactly the table's answer minus the veto, and a caller with
 // schemas gets that plus whatever the schemas additionally justify.
 //
+// Ruling 2 of rfc/20260823-foundation-order-ruling.md (#387) inverted
+// precedence so the provider's own identity schema wins over a ratified row
+// wherever it reproduces one - but that inversion decides which SOURCE an
+// admitted type's identity is rendered FROM, not whether the type is
+// admitted, so it has nothing to add to the ordering above. A row this
+// function admits unconditionally already answers true on every input a
+// reproducing schema would also admit, so reading the checks below as
+// "schema, then row, then veto" - #387's own first wording - would refuse
+// and admit exactly what "row, then veto, then schema" does, on every type;
+// nothing here regresses by leaving the order as it stands. Where the
+// schema case actually bites is downstream, once a type this function
+// admitted resolves: internal/live/identity's resolver (lookupType,
+// schema_precedence.go's preferSynthesized) is what every caller of
+// [admitted] reaches next, and that is where the row-vs-schema choice is
+// made and is load-bearing. #387's own tracker audit (issue comment,
+// 2026-08-24) found this file untouched and read that as outstanding; this
+// paragraph is that finding's answer - the file was correctly left alone,
+// not merely overlooked.
+//
 // [notImportableVetoed] below is REDUNDANT with the fallback and is kept
 // deliberately, so read this before deleting it as dead: the issue #331 veto
 // now lives inside [identity.SynthesizeTypeIdentity] itself, because lint is
