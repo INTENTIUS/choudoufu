@@ -224,7 +224,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -232,9 +232,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_crash": {
           "pass": 1,
@@ -794,7 +794,7 @@
       "script": "live/e2e/corpus-hongbomiao-storage/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -808,23 +808,37 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "db86858040e118a6d3e22636004a64d03d2c7c44",
-        "date": "2026-08-25T23:51:37Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "5621afcab80ee16d7e250bf9c461cbb52ac3eb28",
+        "date": "2026-08-29T17:43:39Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration",
+          "day2_count": "choudoufu: scaling aws_s3_bucket.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live CreationDate and tofu-address marker unchanged and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 created exactly count_test[1] under the SAME bucket name (deterministic) but a NEW CreationDate (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield real-leg account, shows the identical shape: destroy the higher index only, create the higher index back under the same bucket name but a new CreationDate, the lower index's CreationDate unchanged both times",
           "day2_remove": "choudoufu: deleting module.kafka_kms_key_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable alias and its taggable parent key), applied cleanly (0 added, 0 changed, 2 destroyed) in an order the cloud accepted, the key is genuinely PendingDeletion and the alias is gone (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key) is confirmed gone and the new alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2) points at the SAME key (2475ae47-f8c3-4f53-846f-28ae64aa2426, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one (alias/hongbomiao-storage-crossing-hm-kafka-kms-key -> alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape.",
+          "day2_replace": "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key) is confirmed gone and the new alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2) points at the SAME key (7c21ceef-195e-4cd9-9b0a-11d7bc81577b, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one (alias/hongbomiao-storage-crossing-hm-kafka-kms-key -> alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape.",
           "drift_reconverge": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_iot_data.aws_s3_bucket.main",
           "greenfield": "4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared",
-          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 2475ae47-f8c3-4f53-846f-28ae64aa2426 -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
+          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 7c21ceef-195e-4cd9-9b0a-11d7bc81577b -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
           "test_apply": "genuine no-op: 3 objects before, 3 after, no state file either time",
           "test_plan": "empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key"
+        },
+        "duration_s": 341.9,
+        "stage_seconds": {
+          "cold_deploy": 35,
+          "day2_count": 48,
+          "day2_remove": 11,
+          "day2_rename": 24,
+          "day2_replace": 20,
+          "drift_reconverge": 11,
+          "greenfield": 105,
+          "migrate": 73,
+          "test_apply": 7,
+          "test_plan": 8
         }
       },
       "notes": "Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns \"UnknownOperationException: Operation CreateNotebookInstance is not supported by floci\", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, \"4 added, 0 changed, 0 destroyed\", confirmed 0 objects pre-tagged), migrate (live-import: \"3 of 4 resource instance(s) are eligible for stamping\", 1 UNTAGGABLE - the KMS alias; -approve: \"3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped\"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan \"No changes\", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, \"0 added, 0 changed, 0 destroyed\", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
@@ -1063,7 +1077,7 @@
       "script": "live/e2e/corpus-mastino-dns/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "pass",
+        "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -1077,37 +1091,23 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "71b031b18e53f5702820b754b054b338d63144f3",
-        "date": "2026-08-29T18:12:11Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
+        "commit": "9dbfbae593d1ae5bd3bb0ce947505beba56b4dc5",
+        "date": "2026-08-25T23:55:04Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "63 resources from stock terraform; 4 live zones confirmed unmarked",
-          "day2_count": "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI, and its local record file correctly tombstoned rather than left claiming a live identity - the #398-guard shape, confirmed by reading the file directly rather than assumed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -> 1 add, 0 change, 0 destroy), TTL=300 and record import_id=Z03KR1NUBYDKWBQ_staging12.datacite.org_A (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by the AWS CLI absence check and the tombstone, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold.",
           "day2_remove": "choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - both destroys proposed (matching stock's own oracle exactly) and applied cleanly (Apply complete! Resources: 0 added, 0 changed, 2 destroyed.), the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report); the next plan is empty. The parent-scoped removal sweep gap this estate named (gauntlet:parent-scoped-sweep) is closed: recordOrphanReadSweep composes aws_route53_record's identity from its migrate-seeded record correctly (composeImportIDFromComponents's OmitIfAbsent fix) and carries a destroy-before-parent ordering hint (identity.Resolution.DestroyDependsOn) so the record's own destroy is never raced against its zone's force_destroy cascade.",
           "day2_rename": "moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (Z03KR1NUBYDKWBQ_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (Z03KR1NUBYDKWBQ_status.datacite.org_CNAME -> Z03KR1NUBYDKWBQ_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "day2_replace": "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (Z5ZKFWIMHEM6QEX_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (Z5ZKFWIMHEM6QEX_status.datacite.org_CNAME -> Z5ZKFWIMHEM6QEX_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
           "drift_reconverge": "one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact",
           "greenfield": "63 resources from nothing (4 tagged zones + 59 untaggable records), the production zone's marker verified via the AWS CLI, 63 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches on zone count (4) and total record-set count (63)",
           "migrate": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 59 identity records written (#364), 14 of them also carrying residue (#341), DataCite's own tags survived",
           "test_apply": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 59 identity records intact (14 residue-bearing)",
           "test_plan": "plan empty across 63 instances, no state file; 14 record sets and 4 zones filled residue from the store"
-        },
-        "duration_s": 651.9,
-        "stage_seconds": {
-          "cold_deploy": 118,
-          "day2_count": 74,
-          "day2_remove": 40,
-          "day2_rename": 24,
-          "day2_replace": 57,
-          "drift_reconverge": 32,
-          "greenfield": 243,
-          "migrate": 47,
-          "test_apply": 11,
-          "test_plan": 6
         }
       },
       "notes": "DataCite's own global DNS root module, the largest offline-clean estate (63 instances) that had never touched a cloud. 2 of 5 - and the two stages it does not reach are blocked on one real, general, previously-unrecorded choudoufu defect, not on anything specific to this estate. Still offline-clean when crossing started (refusal-probe -schemas: blocked 0 sites 0 instances 63 at c41279989a); the schema-less mode disagrees (blocked 1 sites 2, both render correctly in the real run - HANDOFF's asymmetry caveat firing on a live estate). Two of team-members-access's four deltas recur (#268 mandatory backend edit, in cloud{} form; #269 provider version skew, ~> 5 -> 5.100.0 with no list resources, all four zones ServerAssigned); the other two do not (one data source answered by an out-of-band VPC; an ordinary emulator override). Two NEW walls: (1) estate-owned, not choudoufu's/floci's - the four *-ns blocks manage each zone's own apex NS set, which Route 53 creates itself, so a from-scratch apply dies with InvalidChangeBatch; fixed with allow_overwrite=true, the same argument the estate's own author already writes on wp-prod-staging. (2) Filed as #341: stage 3's entire plan is 0/14/0, every diff line +allow_overwrite=true (10 of 14 on wp-prod-staging[0..9], carried in DataCite's own text with no deltas needed) - #275's residue mechanism populates and reads back the record store for TAGGABLE resources only (4 zones get 'filled 1 residue attribute(s)'), but none of the 59 untaggable record sets do, because internal/live/liveimport/ratify.go's !taggable() branch returns before the ReadResource that builds the *eligible object residue needs, and Approve's recordResidueFor sits past the continue that skips a resource with no *eligible - one carrier serving two unrelated jobs, and untaggability should only disqualify one of them (the tag write, not the residue read). 342 of 1025 admitted types are untaggable and share this exclusion. Not fixed here - out of scope for a crossing pass. What the run DOES prove: all 63 rendered identities correct and distinct by value against the AWS CLI's own answer, including two same-named datacite.org zones (public/private) that did not swap and ten wp-prod-staging[0..9] instances rendering staging3..staging12 individually. The 59 untaggable record sets are 94% of the estate - the widest derived-from-tagged fan-out in either lane. Script exits 0 only on reaching exactly this blocker (asserting the changed-address set, that allow_overwrite is the only attribute in the whole diff, and the 0/14/0 totals line) and non-zero on anything else including an empty plan, which is the signal to promote this entry to five stages once #341 lands. BREAK=1 verified red at exactly the identity assertion (a swapped zone id). Also filed lex00/floci#81 (floci accepts a record set whose name is outside its hosted zone, a real bug in the estate's own text; blocks nothing here but is the shape where a crossing passes on the emulator and fails on real AWS). Suggested a new 'published-deployment' lane, distinct from terraform-popular/opentofu-native/reference, since this is neither a module example nor an OpenTofu-native project but a company's own live TFC-connected infrastructure. Merged d5e592d67c (crossing e74b6e5c01); just demo-corpus-mastino-dns, port 4731. just ci green (exit 0, read from a file). Follow-up pass 2026-08-20 (#341 fixed and merged, c73a6e4617/78c92ad64a): FIVE OF FIVE, real. Fix is a third carrier (residuable, which eligible now embeds) built for any admitted-untaggable instance with a record_store declared, deliberately with NO ReadResource at ratify time - a residue attribute is by definition one no read returns, so state already has everything the fix needs, and skipping the read means an untaggable instance can never come back MISSING/DRIFTED (a concern the issue itself raised). Verdict stays StatusUntaggable/OutcomeSkipped; only the marker write was ever skippable, not the residue write. Corrected denominator along the way: DefaultTable holds 1040 rows, not 1025 - survey-full.json calls 683 taggable/342 untaggable and doesn't cover 15 at all. Real re-crossing: migrate reports 4 stamped/59 UNTAGGABLE/14 residue records (all 4 zones plus 10 of the 59 record sets, matching the bug's own signature exactly); test_plan EMPTY, all 63 identities asserted by value; test_apply a genuine no-op with all 14 residue records and 4 markers unchanged; drift_reconverge drifts wp-prod-staging[0]'s TTL (untaggable AND residue-carrying) and reconciles exactly that instance, BREAK_STAGE5=1 verified failing. One honest caveat: stages 4/5 had to be WRITTEN (the prior entry's header claimed they existed in git history but e74b6e5c01 is the file's only commit), and the verifying run itself executed in two calls after a SIGTERM mid-init, not one continuous process - same container/workdir throughout, but the committed script has not been run start-to-finish in a single invocation. A real, separate, more urgent finding surfaced while verifying: #340's own change to live-import's summary line (\"%d newly recorded, %d already recorded\" inserted mid-line) broke the exact-string assertion in 19 OTHER crossing scripts on main - invisible to just ci since e2e scripts aren't in that tier. Filed as #342 with the full list and the one-line fix each needs."
