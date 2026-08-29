@@ -433,7 +433,20 @@ func boardBanner(a *Artifact) string {
 			}
 			parts = append(parts, fmt.Sprintf("%d against %s", g.Count, label))
 		}
-		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), a.Emulator)
+		// A row-disagreement claim needs the same date-range evidence the
+		// single-group branches above already carry (dateClause) - found by
+		// TestBoardBannerMatchesEstateRows the first time this artifact ever
+		// had two distinct last_run.emulator groups at once (#434's own
+		// verification run against reference-ec2-vpc and
+		// corpus-dynamodb-table-basic): this branch asserted the emulator
+		// split but never mentioned when any of it was measured, so the
+		// oldest/newest last_run.date the rows actually carry went unstated
+		// on the one board-wide sentence that gets to make a claim at all.
+		dateNote := fmt.Sprintf("last_run.date reads %s on every row measured so far", oldest)
+		if oldest != newest {
+			dateNote = fmt.Sprintf("last_run.date ranges from %s to %s across these rows, not one shared measurement", oldest, newest)
+		}
+		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s (%s). The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), dateNote, a.Emulator)
 	}
 }
 

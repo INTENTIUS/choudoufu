@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, recorded between 2026-08-25T23:17:08Z and 2026-08-26T04:54:08Z. Each row below carries its own `last_run` date; they are not all the same run. The pin has since moved to `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; every row below is stale evidence against the current image.
+Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:29:33Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -45,7 +45,7 @@ answer is and how each check is proven non-vacuous, is
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL pass pass pass |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
@@ -72,13 +72,13 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-No estate has a recorded `last_run.duration_s` yet; it is populated the next time each estate runs (#434).
+2 of 26 estates have a recorded run duration, totaling 5m9.8s at commit `eff9afb400`. This is not a full-board figure: 24 of 26 estates have no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | - | none recorded yet |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 1m37.5s | cold_deploy 21s, migrate 55s, test_plan 3s, test_apply 2s, drift_reconverge 7s, day2_rename 9s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
@@ -100,7 +100,7 @@ No estate has a recorded `last_run.duration_s` yet; it is populated the next tim
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | - | none recorded yet |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | - | none recorded yet |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 3m32.3s | cold_deploy 1m17s, migrate 57s, test_plan 5s, test_apply 4s, drift_reconverge 7s, day2_rename 12s, day2_remove 7s, day2_replace 31s, greenfield 3s |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | - | none recorded yet |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
