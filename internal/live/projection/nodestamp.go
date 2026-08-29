@@ -279,16 +279,19 @@ const SummaryMarkerConflict = "Ownership marker conflict"
 // is exactly that pair's non-per-instance branch, with the same two
 // messages, word for word, because an operator reading a conflict from
 // this path must not be able to tell it apart from one internal/live/stamp
-// raised for the same resource on a different run. Absent, null, unknown
-// or non-string existing values are not conflicts - there is nothing to
-// disagree with yet, or nothing this pass can read to compare - so the
-// pass proceeds to write its own value exactly as it did before this
-// check existed.
+// raised for the same resource on a different run. Absent, null, unknown,
+// marked or non-string existing values are not conflicts - there is
+// nothing to disagree with yet, or nothing this pass can read to compare
+// (internal/live/marksafe's ProofUnmarked discipline: a marked value must
+// never reach AsString, so a marked entry is treated the same as an
+// unreadable one rather than unmarked and inspected) - so the pass
+// proceeds to write its own value exactly as it did before this check
+// existed.
 func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Value, key, want string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	existing, ok := elems[key]
-	if !ok || existing.IsNull() || !existing.IsKnown() || existing.Type() != cty.String {
+	if !ok || existing.IsNull() || !existing.IsKnown() || existing.IsMarked() || existing.Type() != cty.String {
 		return diags
 	}
 	got := existing.AsString()
