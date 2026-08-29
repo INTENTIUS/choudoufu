@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Clear.** Every headline stage passes.
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -29,7 +29,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass | 38s | 28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on $ENDPOINT matches on tagged-object count (21), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias |
-| Strict profile (planned) | not run |  |  |
+| Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `5a591a776f` on 2026-08-29T08:45:02Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 3m16.2s.
 

@@ -29,7 +29,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass |  | 11 resources from nothing (7 tag-stamped, 2 recorded via markers = record, 2 untaggable/derived - route_table_association and volume_attachment), replan empty, stock oracle in its own namespace matches on vpc cidr, security-group rule counts and the instance's ami+type |
-| Strict profile (planned) | not run |  |  |
+| Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `125371fc68` on 2026-08-26T00:08:28Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

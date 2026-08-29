@@ -29,7 +29,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass |  | 3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
-| Strict profile (planned) | not run |  |  |
+| Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `1cb2431712` on 2026-08-25T23:56:01Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

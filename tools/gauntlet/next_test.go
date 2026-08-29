@@ -14,12 +14,12 @@ import (
 )
 
 // TestNextIsDeterministicAndOrdered: core before growing, fewest remaining
-// active stages first, name as the tiebreak, first non-pass active stage per
-// estate, clear estates skipped, and two calls agree.
+// headline stages first, name as the tiebreak, first non-pass headline stage
+// per estate, clear estates skipped, and two calls agree.
 func TestNextIsDeterministicAndOrdered(t *testing.T) {
-	active := ActiveStages()
+	active := HeadlineStages()
 	if len(active) < 2 {
-		t.Skip("needs at least two active stages")
+		t.Skip("needs at least two headline stages")
 	}
 	m := &Manifest{Estates: []Estate{
 		{Name: "g-close", Source: "s", URL: "u", Pin: "p", Lane: "published-deployment", Set: SetGrowing},
@@ -41,7 +41,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 		allPass[s.ID] = VerdictPass
 	}
 	set("c-done", allPass)
-	// c-close: everything passes except the last active stage.
+	// c-close: everything passes except the last headline stage.
 	close := map[string]string{}
 	for k, v := range allPass {
 		close[k] = v
@@ -91,9 +91,9 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 // outranks one merely unconfirmed. A clear estate whose last run DOES match
 // the current pin must not appear at all - it is not work.
 func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
-	active := ActiveStages()
+	active := HeadlineStages()
 	if len(active) == 0 {
-		t.Skip("no active stages")
+		t.Skip("no headline stages")
 	}
 	m := &Manifest{Estates: []Estate{
 		{Name: "c-fresh", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},

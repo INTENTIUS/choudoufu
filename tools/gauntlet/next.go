@@ -18,7 +18,7 @@ import (
 const StageStalePin = "stale_pin"
 
 // Unit is one piece of work the gauntlet can hand to anyone: an estate and
-// the first active stage it does not pass. `gauntlet next` computes the
+// the first headline stage it does not pass. `gauntlet next` computes the
 // ordered list deterministically from the artifact, so two contributors
 // running it at the same time pick the same unit, and the worker's claim
 // (an open pull request carrying the unit's ID) is how the second one finds
@@ -31,7 +31,7 @@ type Unit struct {
 	StageTitle string `json:"stage_title"`
 	Verdict    string `json:"verdict"` // fail or not_run
 	Detail     string `json:"detail,omitempty"`
-	Remaining  int    `json:"remaining"` // active stages this estate does not yet pass
+	Remaining  int    `json:"remaining"` // headline stages this estate does not yet pass
 	Script     string `json:"script"`
 	Proves     string `json:"proves"`
 	Oracle     string `json:"oracle"`
@@ -39,14 +39,25 @@ type Unit struct {
 
 // NextUnits orders the work. Core estates first (the bar that can reach
 // 100%), then growing. Within a set, the estate with the fewest remaining
-// active stages comes first, because finishing an estate moves the headline
-// number and starting a fresh one does not; ties break by name. Within an
-// estate, the first active stage in stage order that is not pass. An estate
-// whose script is legacy still yields a unit: its first unit is always
-// "convert the script to the protocol and re-run", which the worker brief
-// says.
+// headline stages comes first, because finishing an estate moves the
+// headline number and starting a fresh one does not; ties break by name.
+// Within an estate, the first headline stage in stage order that is not
+// pass - a stage marked non-headline (Headline: false, e.g. "strict") never
+// gates an estate's Clear flag and never surfaces here as the unit to fix
+// (#482); it still runs and is reported per estate, just not through this
+// selection. An estate whose script is legacy still yields a unit: its
+// first unit is always "convert the script to the protocol and re-run",
+// which the worker brief says.
 func NextUnits(a *Artifact, set string) []Unit {
-	active := ActiveStages()
+	return nextUnitsAgainst(HeadlineStages(), a, set)
+}
+
+// nextUnitsAgainst is NextUnits' logic against an explicit headline stage
+// list. Split out so a test can pin the headline-exemption behavior against
+// a synthetic stage list, independent of which real stage in Stages()
+// happens to be both active and non-headline today (next_test.go).
+func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
+	active := headline
 	type cand struct {
 		r         EstateResult
 		remaining int
@@ -58,7 +69,7 @@ func NextUnits(a *Artifact, set string) []Unit {
 			continue
 		}
 		if r.Clear {
-			// A clear estate has no failing or not-run active stage, so it
+			// A clear estate has no failing or not-run headline stage, so it
 			// is not ordinary work - unless the evidence backing "clear" is
 			// stale: last_run.emulator names an image the current pin has
 			// since superseded (or never recorded one at all, IsStale's
@@ -131,7 +142,7 @@ func NextUnits(a *Artifact, set string) []Unit {
 			ID: r.Name + "/" + StageStalePin, Estate: r.Name, Set: r.Set,
 			Stage: StageStalePin, StageTitle: "Re-verify against the current emulator pin",
 			Verdict:   "stale_evidence",
-			Detail:    fmt.Sprintf("every active stage passed, but last verified against %s; the current pin is %s", emu, a.Emulator),
+			Detail:    fmt.Sprintf("every headline stage passed, but last verified against %s; the current pin is %s", emu, a.Emulator),
 			Remaining: 0, Script: r.Script,
 			Proves: "the estate still behaves like stock against the CURRENT emulator pin, not a superseded one",
 			Oracle: "re-run against the pinned image and confirm the same verdicts",
@@ -144,7 +155,7 @@ func NextUnits(a *Artifact, set string) []Unit {
 func FormatUnit(u Unit, r EstateResult) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "unit      %s\n", u.ID)
-	fmt.Fprintf(&b, "estate    %s (%s, %d active stage(s) still to pass)\n", u.Estate, u.Set, u.Remaining)
+	fmt.Fprintf(&b, "estate    %s (%s, %d headline stage(s) still to pass)\n", u.Estate, u.Set, u.Remaining)
 	fmt.Fprintf(&b, "stage     %s: %s\n", u.Stage, u.StageTitle)
 	fmt.Fprintf(&b, "verdict   %s\n", u.Verdict)
 	if u.Detail != "" {

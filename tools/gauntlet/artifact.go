@@ -261,10 +261,21 @@ func (a *Artifact) Rebuild(m *Manifest, emulator string) {
 	}
 }
 
-// isClear is the definition of the headline number: every active stage
-// passes. Planned stages do not count either way.
+// isClear is the definition of the headline number: every headline stage
+// (active and Headline: true, see HeadlineStages in stages.go) passes.
+// Planned stages do not count either way, and neither does an active stage
+// marked non-headline (#482) - "strict" is the current example: it can run,
+// pass or fail per estate, without ever moving this.
 func isClear(stages map[string]string) bool {
-	for _, s := range ActiveStages() {
+	return isClearAgainst(HeadlineStages(), stages)
+}
+
+// isClearAgainst is isClear's logic against an explicit headline stage list.
+// Split out so a test can pin the headline-exemption behavior against a
+// synthetic stage list, independent of which real stage in Stages() happens
+// to be both active and non-headline today (gauntlet_test.go).
+func isClearAgainst(headline []Stage, stages map[string]string) bool {
+	for _, s := range headline {
 		if stages[s.ID] != VerdictPass {
 			return false
 		}

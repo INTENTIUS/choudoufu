@@ -29,7 +29,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass |  | 62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence |
-| Strict profile (planned) | not run |  |  |
+| Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `85ffcf09c4` on 2026-08-26T00:02:01Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

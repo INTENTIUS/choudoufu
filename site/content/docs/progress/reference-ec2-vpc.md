@@ -10,7 +10,7 @@ Set: core. Lane: reference.
 
 Why it is in the core set: the plainest hand-written reference shape, kept in this repository
 
-**Clear.** Every active stage passes.
+**Clear.** Every headline stage passes.
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
 | Greenfield apply | pass | 3s | 5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store |
-| Strict profile (planned) | pass | 2s | every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers "record" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's "strict-secrets" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = "refuse" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to "store" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build. |
+| Strict profile (not a headline stage) | pass | 2s | every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers "record" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's "strict-secrets" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = "refuse" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to "store" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build. |
 
 Last run at commit `c3a37c0e8e` on 2026-08-29T09:26:45Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 3m27.4s.
 
