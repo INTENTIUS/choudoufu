@@ -105,6 +105,13 @@ set -uo pipefail
 #                  config; the plan below must propose no destroy for it
 #                  at all - the Break text in tools/gauntlet/stages.go,
 #                  verbatim.
+#   BREAK_COUNT=1  day2_count's own break control (PART G, after the real
+#                  removal): after the real scale-down plan, assert the
+#                  WRONG sibling (module.rustconf_com.aws_route53_record.
+#                  cname["2022"] rather than cname["2024"]) was destroyed -
+#                  the assertion must fail. Only reachable when BREAK is
+#                  not 2 and BREAK_REMOVE is not 1, because PART G starts
+#                  from PART E's real, completed removal.
 #
 #   bash live/e2e/corpus-simpleinfra-dns/run.sh
 #
@@ -126,6 +133,8 @@ set -uo pipefail
 #   BREAK_STAGE5  set to 1 to drift a second record before stage 5.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead of
 #                 the real removal (see above).
+#   BREAK_COUNT   set to 1 to run day2_count's own break control instead of
+#                 the real scale (see above).
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and the
 #                 WORK directory are left behind for inspection.
 
@@ -743,6 +752,101 @@ grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_
 log "  stock: exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
 CURRENT_STAGE=""
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock (day2_count, active - live/GAUNTLET.md
+# #8, issue #359/#488)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The real for_each set this estate offers day2_count: module.rustconf_com's
+# own CNAME map (impl/variables.tf's `variable "CNAME"`, live since STAGE
+# 1/cold deploy) - the "harder, preferred shape" issue #488 asks for over a
+# synthetic block, since this estate already has one. "2024" is the key
+# scaled here; PART G below (after STAGE 5/day2_remove) is the choudoufu
+# leg and explains why that specific key.
+#
+# Same timing discipline as D-ORACLE/E-ORACLE/F-ORACLE, above: a copy of
+# $PLAIN's own state, before choudoufu or live-import ever touch these
+# objects. And, like F-ORACLE, PLAN ONLY, never applied - this copy shares
+# the SAME $ENDPOINT account $PLAIN's own state, read by STAGE 2/migrate
+# right after this section, depends on finding undisturbed; applying here
+# would for-real destroy/recreate the live cname["2024"] record out from
+# under $PLAIN's own terraform.tfstate. The down-plan reads directly off
+# cold_deploy's untouched state (matches the real cloud); the up-plan's
+# "not there yet" starting point is simulated with `terraform state rm` on
+# a SEPARATE copy - a pure local state edit, no provider API call, so it
+# can never touch a live object (the same technique corpus-xancloud-iac's
+# own day2_count oracle uses).
+CURRENT_STAGE=day2_count
+COUNT_ZONE_MARKER='module.rustconf_com.aws_route53_zone.zone'
+COUNT_RECORD_NAME='2024.rustconf.com.'
+COUNT_RECORD_TYPE='CNAME'
+COUNT_RECORD_VALUE='wp.wpenginepowered.com'
+COUNT_ADDR='module.rustconf_com.aws_route53_record.cname["2024"]'
+COUNT_LINE='    "2024" = ["wp.wpenginepowered.com"],'
+COUNT_SIBLING_NAME='2022.rustconf.com.'
+COUNT_SIBLING_TYPE='CNAME'
+COUNT_SIBLING_ADDR='module.rustconf_com.aws_route53_record.cname["2022"]'
+COUNT_SIBLING_LINE='    "2022" = ["rustconf-2022.netlify.app"],'
+
+# drop_count_record/add_count_record <dir>: mutate <dir>/rustconf.com.tf's
+# CNAME map by removing/restoring exactly the "2024" entry - the module's
+# own documented for_each input, the real knob day2_count scales here
+# rather than a synthetic block, per #488's preference for a real knob.
+# "2024" is the only CNAME key in this estate no other stage ever names
+# (STAGE 5/BREAK_STAGE5 use "2016"/"2017"; day2_rename/day2_remove/
+# day2_replace never touch module.rustconf_com at all).
+drop_count_record() {
+  local dir="$1"
+  grep -qF "$COUNT_LINE" "$dir/rustconf.com.tf" \
+    || fail "rustconf.com.tf's \"2024\" CNAME line is not what this script expects - the corpus pin has moved"
+  COUNT_LINE="$COUNT_LINE" perl -0777 -i -pe 's/\Q$ENV{COUNT_LINE}\E\n//' "$dir/rustconf.com.tf"
+  grep -qF "$COUNT_LINE" "$dir/rustconf.com.tf" \
+    && fail "removing the \"2024\" CNAME line from $dir/rustconf.com.tf did not take"
+}
+add_count_record() {
+  local dir="$1"
+  grep -qF "$COUNT_LINE" "$dir/rustconf.com.tf" \
+    && fail "the \"2024\" CNAME line is unexpectedly already present in $dir/rustconf.com.tf"
+  grep -qF "$COUNT_SIBLING_LINE" "$dir/rustconf.com.tf" \
+    || fail "rustconf.com.tf's \"2022\" CNAME line is not what this script expects - the corpus pin has moved"
+  SIBLING_LINE="$COUNT_SIBLING_LINE" COUNT_LINE="$COUNT_LINE" perl -0777 -i -pe 's/\Q$ENV{SIBLING_LINE}\E\n/$ENV{SIBLING_LINE}\n$ENV{COUNT_LINE}\n/' "$dir/rustconf.com.tf"
+  grep -qF "$COUNT_LINE" "$dir/rustconf.com.tf" \
+    || fail "adding the \"2024\" CNAME line back to $dir/rustconf.com.tf did not take"
+}
+
+log "=== G-ORACLE: stock, dropping then restoring \"2024\" from module.rustconf_com's CNAME map, on cold_deploy's own state (plan-only - see header) ==="
+PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
+cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
+drop_count_record "$PLAIN_COUNT_ORACLE"
+( cd "$PLAIN_COUNT_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
+[ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
+grep -qF "  # $COUNT_ADDR will be destroyed" <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy $COUNT_ADDR"; }
+ORACLE_OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.rustconf_com\.aws_route53_record\.' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -vF "$COUNT_ADDR" || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_DOWN"; fail "stock's scale-down plan touches a rustconf_com record other than $COUNT_ADDR"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+log "  stock (plan-only): exactly one destroy proposed ($COUNT_ADDR), every sibling rustconf_com record untouched"
+
+PLAIN_COUNT_ORACLE_UP="$WORK/plain-count-oracle-up"
+cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE_UP"
+( cd "$PLAIN_COUNT_ORACLE_UP" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE_UP" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+STATE_RM_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP" && terraform state rm "$COUNT_ADDR" 2>&1)"; STATE_RM_RC=$?
+[ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
+ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
+[ "$ORACLE_COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_COUNT_UP_PLAN_RC"; }
+grep -qF "  # $COUNT_ADDR will be created" <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create $COUNT_ADDR"; }
+ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.rustconf_com\.aws_route53_record\.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" | grep -vF "$COUNT_ADDR" || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_UP" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_UP"; fail "stock's scale-up plan touches a rustconf_com record other than $COUNT_ADDR"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+log "  stock (plan-only): exactly one create proposed ($COUNT_ADDR, state simulated with 'terraform state rm' - no live object ever touched), every sibling rustconf_com record untouched"
+CURRENT_STAGE=""
+
 CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1347,6 +1451,154 @@ EOF
       log "STAGE E (day2_remove): PASS"
       gauntlet_stage day2_remove pass "choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; $ZONES zones down to $(( ZONES - 1 ))), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it)"
       log ""
+
+      # ══════════════════════════════════════════════════════════════════
+      # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8,
+      # issue #359/#488)
+      # ══════════════════════════════════════════════════════════════════
+      #
+      # Starts from Part E's real, completed removal: module.cratesio_com_
+      # final is gone, the plan is empty (E2). The real knob this estate
+      # offers day2_count: module.rustconf_com's own CNAME for_each set
+      # (impl/variables.tf's `variable "CNAME"`, live since STAGE 1/cold
+      # deploy and untouched by every stage above). "2024" is the key
+      # scaled - the only CNAME key in this estate no other stage ever
+      # names (STAGE 5/BREAK_STAGE5 use "2016"/"2017", day2_rename/
+      # day2_remove/day2_replace never touch module.rustconf_com at all).
+      # G-ORACLE, right after F-ORACLE far above, is the stock oracle for
+      # the identical change, plan-only on a copy of cold_deploy's own
+      # state (never applied - see G-ORACLE's own comment for why: it
+      # shares the same $ENDPOINT account $PLAIN's own state, read by
+      # STAGE 2/migrate right after it, depends on finding undisturbed).
+      #
+      # THE IDENTITY TRAP THIS SECTION FOUND (verified directly against
+      # floci, no tofu in the loop, before writing any assertion below): a
+      # Route 53 record set carries NO server-minted identifier of its own
+      # at all. Unlike aws_iam_policy's PolicyId or an EC2 VPC endpoint's
+      # VpcEndpointId - this same stage's own precedents in
+      # corpus-iam-read-only-policy and corpus-xancloud-iac, both of which
+      # assert a NEW id after a genuine destroy+recreate - a genuine
+      # delete-then-recreate of the identical name/type/value returns a
+      # byte-identical ListResourceRecordSets entry (Name, Type, TTL,
+      # ResourceRecords) both times, confirmed by direct probe: create,
+      # delete, recreate the same CNAME against floci with the AWS CLI, no
+      # tofu in the loop - the only value that ever differed was
+      # ChangeResourceRecordSets' own response ChangeInfo.Id, which is a
+      # per-API-call change-batch tracking token, never a queryable
+      # attribute of the record set itself afterward (list-resource-
+      # record-sets does not return it). So "genuinely destroyed and
+      # recreated" cannot be proven by an id-diff here - it is proven by
+      # provable ABSENCE in between (the record missing entirely from
+      # list-resource-record-sets during the scaled-down window), which is
+      # what G1/G2 below check instead.
+      #
+      # BREAK_COUNT=1 exercises this stage's own Break control instead of
+      # the real checks: after the real scale-down plan, assert the WRONG
+      # sibling ($COUNT_SIBLING_ADDR rather than $COUNT_ADDR) was the one
+      # destroyed - the Break text in tools/gauntlet/stages.go for
+      # day2_count, verbatim: "Expect a different instance to be
+      # destroyed; the assertion must fail."
+      CURRENT_STAGE=day2_count
+      COUNT_ZONE_ID="$(zone_by_marker "$COUNT_ZONE_MARKER")" \
+        || fail "no hosted zone carries tofu-address=$COUNT_ZONE_MARKER ahead of day2_count"
+      log "=== G0. capture the live sibling record a for_each scale must not disturb ==="
+      COUNT_SIBLING_TTL_BEFORE="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_SIBLING_NAME" "$COUNT_SIBLING_TYPE")"
+      [ "$COUNT_SIBLING_TTL_BEFORE" = "$WANT_TTL" ] \
+        || fail "the sibling $COUNT_SIBLING_NAME's live TTL is $COUNT_SIBLING_TTL_BEFORE ahead of day2_count, expected $WANT_TTL"
+      COUNT_TTL_BEFORE="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_RECORD_NAME" "$COUNT_RECORD_TYPE")"
+      [ "$COUNT_TTL_BEFORE" = "$WANT_TTL" ] \
+        || fail "$COUNT_RECORD_NAME's live TTL is $COUNT_TTL_BEFORE ahead of day2_count, expected $WANT_TTL - it is not there to scale down"
+      log "  $COUNT_ADDR present (TTL=$COUNT_TTL_BEFORE), sibling $COUNT_SIBLING_ADDR present (TTL=$COUNT_SIBLING_TTL_BEFORE) - the sibling must stay untouched throughout"
+
+      log "=== G1. scale the for_each down: drop \"2024\" from module.rustconf_com's CNAME map ==="
+      drop_count_record "$ESTATE"
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+        ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the count-scale-down reinit failed"; }
+      COUNT_DOWN_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+      [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+      if [ "${BREAK_COUNT:-}" = "1" ]; then
+        log "  BREAK_COUNT=1: asserting the WRONG instance ($COUNT_SIBLING_ADDR) was destroyed instead of $COUNT_ADDR"
+        if grep -qF "  # $COUNT_SIBLING_ADDR will be destroyed" <<< "$COUNT_DOWN_PLAN_OUT"; then
+          fail "BREAK_COUNT=1: the plan actually destroys $COUNT_SIBLING_ADDR - this assertion is not load-bearing"
+        fi
+        log "  BREAK_COUNT=1: correctly does NOT destroy $COUNT_SIBLING_ADDR - the wrong-instance assertion above fails to hold, as it must"
+      else
+        grep -qF "  # $COUNT_ADDR will be destroyed" <<< "$COUNT_DOWN_PLAN_OUT" \
+          || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy $COUNT_ADDR"; }
+        OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.rustconf_com\.aws_route53_record\.' <<< "$COUNT_DOWN_PLAN_OUT" | grep -vF "$COUNT_ADDR" || true)"
+        [ -z "$OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$OTHER_TOUCHED_DOWN"; fail "choudoufu's scale-down plan touches a rustconf_com record other than $COUNT_ADDR"; }
+        grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+          || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+        log "  choudoufu: exactly one destroy ($COUNT_ADDR), every sibling untouched"
+
+        COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+        [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+        grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+          || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+        # No PolicyId/VpcEndpointId equivalent exists for a Route 53 record
+        # (see this section's own header comment) - the destroy is proven
+        # by provable ABSENCE, not an id-diff.
+        COUNT_ABSENT="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_RECORD_NAME" "$COUNT_RECORD_TYPE")"
+        [ "$COUNT_ABSENT" = "None" ] \
+          || fail "$COUNT_RECORD_NAME is still present (TTL=$COUNT_ABSENT) after the scale-down destroy - it was not genuinely removed"
+        COUNT_SIBLING_TTL_AFTER_DOWN="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_SIBLING_NAME" "$COUNT_SIBLING_TYPE")"
+        [ "$COUNT_SIBLING_TTL_AFTER_DOWN" = "$COUNT_SIBLING_TTL_BEFORE" ] \
+          || fail "the sibling $COUNT_SIBLING_NAME's TTL changed across the scale-down: $COUNT_SIBLING_TTL_BEFORE -> $COUNT_SIBLING_TTL_AFTER_DOWN"
+        [ "$(record_count)" = "$(( RECORDS - 1 ))" ] \
+          || fail "the record set count is not $(( RECORDS - 1 )) after the scale-down destroy"
+        log "  $COUNT_RECORD_NAME is genuinely absent from Route 53 (list-resource-record-sets returns no TTL, not merely a report from choudoufu); sibling $COUNT_SIBLING_NAME unchanged (TTL=$COUNT_SIBLING_TTL_AFTER_DOWN); $(( RECORDS - 1 )) record sets remain - all read via the AWS CLI"
+
+        log "=== G2. scale back up: restore \"2024\" to module.rustconf_com's CNAME map ==="
+        add_count_record "$ESTATE"
+        ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+          ( cd "$ESTATE" && "$TOFU" init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -20 ); fail "the count-scale-up reinit failed"; }
+        COUNT_UP_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; COUNT_UP_PLAN_RC=$?
+        [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -40; fail "the day2_count scale-up plan exited $COUNT_UP_PLAN_RC"; }
+        grep -qF "  # $COUNT_ADDR will be created" <<< "$COUNT_UP_PLAN_OUT" \
+          || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create $COUNT_ADDR"; }
+        OTHER_TOUCHED_UP="$(grep -E '^  # module\.rustconf_com\.aws_route53_record\.' <<< "$COUNT_UP_PLAN_OUT" | grep -vF "$COUNT_ADDR" || true)"
+        [ -z "$OTHER_TOUCHED_UP" ] || { printf '%s\n' "$OTHER_TOUCHED_UP"; fail "choudoufu's scale-up plan touches a rustconf_com record other than $COUNT_ADDR"; }
+        grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+          || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+        log "  choudoufu: exactly one create ($COUNT_ADDR), every sibling untouched"
+
+        COUNT_UP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+        [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+        grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+          || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+        COUNT_TTL_AFTER_UP="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_RECORD_NAME" "$COUNT_RECORD_TYPE")"
+        [ "$COUNT_TTL_AFTER_UP" = "$WANT_TTL" ] \
+          || fail "$COUNT_RECORD_NAME's TTL after the scale-up is $COUNT_TTL_AFTER_UP, not the configuration's $WANT_TTL - it was not genuinely recreated"
+        COUNT_VALUE_AFTER_UP="$(awsl route53 list-resource-record-sets --hosted-zone-id "$COUNT_ZONE_ID" \
+          --query "ResourceRecordSets[?Name=='$COUNT_RECORD_NAME' && Type=='$COUNT_RECORD_TYPE'].ResourceRecords[0].Value | [0]" --output text)"
+        [ "$COUNT_VALUE_AFTER_UP" = "$COUNT_RECORD_VALUE" ] \
+          || fail "$COUNT_RECORD_NAME's value after the scale-up is $COUNT_VALUE_AFTER_UP, not $COUNT_RECORD_VALUE"
+        COUNT_SIBLING_TTL_AFTER_UP="$(live_record_ttl "$COUNT_ZONE_ID" "$COUNT_SIBLING_NAME" "$COUNT_SIBLING_TYPE")"
+        [ "$COUNT_SIBLING_TTL_AFTER_UP" = "$COUNT_SIBLING_TTL_BEFORE" ] \
+          || fail "the sibling $COUNT_SIBLING_NAME's TTL changed across the scale-up: $COUNT_SIBLING_TTL_BEFORE -> $COUNT_SIBLING_TTL_AFTER_UP"
+        [ "$(record_count)" = "$RECORDS" ] \
+          || fail "the record set count is not back to $RECORDS after the scale-up create"
+        # The zone's own marker, unaffected throughout - only its
+        # untaggable record child ever moved.
+        COUNT_ZONE_AFTER="$(awsl route53 list-tags-for-resource --resource-type hostedzone --resource-id "$COUNT_ZONE_ID" \
+          --query "ResourceTagSet.Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+        [ "$COUNT_ZONE_AFTER" = "$COUNT_ZONE_MARKER" ] \
+          || fail "module.rustconf_com's zone tofu-address changed across day2_count: $COUNT_ZONE_MARKER -> $COUNT_ZONE_AFTER"
+        log "  $COUNT_RECORD_NAME recreated (TTL=$COUNT_TTL_AFTER_UP, value=$COUNT_VALUE_AFTER_UP - Route 53 gives it no id of its own to diff, see this section's header); sibling $COUNT_SIBLING_NAME unchanged (TTL=$COUNT_SIBLING_TTL_AFTER_UP); $RECORDS record sets restored; the zone's own marker untouched - all read via the AWS CLI"
+
+        log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+        COUNT_FINAL_PLAN_OUT="$(plan_into_retrying_route53 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+        [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+        grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$COUNT_FINAL_PLAN_OUT" \
+          && { grep -E '^  # .+ will be' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan proposes a resource change"; }
+        log "  no resource action proposed. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+        gauntlet_stage day2_count pass "choudoufu: dropping \"2024\" from module.rustconf_com's CNAME for_each map destroyed exactly $COUNT_ADDR (0 add, 0 change, 1 destroy), leaving sibling $COUNT_SIBLING_ADDR's TTL and $(( RECORDS - 1 )) remaining record sets untouched; adding it back created exactly the same key (0 add, 0 change -> 1 add, 0 change, 0 destroy), restoring its TTL/value and the $RECORDS record-set count, while the sibling and the parent zone's own marker stayed untouched throughout; the next plan is empty; a Route 53 record set carries no server-minted identifier of its own (verified directly against floci, no tofu in the loop: ListResourceRecordSets returns a byte-identical entry across a genuine delete/recreate, only ChangeResourceRecordSets' own per-call ChangeInfo.Id differs), so the destroy is proven by verified ABSENCE rather than an id-diff, unlike this stage's aws_iam_policy/PolicyId and EC2/VpcEndpointId precedents; the G-ORACLE stock oracle on the identical for_each change, plan-only on cold_deploy's own state, shows the identical shape: destroy the dropped key only, propose creating it back, every sibling key untouched both times"
+      fi
+      CURRENT_STAGE=""
     fi
     CURRENT_STAGE=""
   fi
