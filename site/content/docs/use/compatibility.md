@@ -49,9 +49,9 @@ context.
 |---|---|---|---|---|---|---|---|
 | marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
 | declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
-| record-carried | 99 | 294 | 3 | 16 | 60 | 0 | 472 |
-| excluded by design | 0 | 0 | 0 | 0 | 0 | 2 | 2 |
-| **Total** | 1122 | 492 | 4 | 19 | 60 | 2 | 1699 |
+| record-carried | 99 | 294 | 3 | 16 | 59 | 0 | 471 |
+| excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
+| **Total** | 1122 | 492 | 4 | 19 | 59 | 3 | 1699 |
 <!-- readiness-gen:end readiness-tiers -->
 
 ## How your configuration is written
