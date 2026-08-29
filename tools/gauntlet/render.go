@@ -388,7 +388,17 @@ func boardBanner(a *Artifact) string {
 			}
 			parts = append(parts, fmt.Sprintf("%d against %s", g.Count, label))
 		}
-		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), a.Emulator)
+		// dateClause carries oldest/newest, computed above alongside the
+		// two len(groups)==1 cases - it was silently dropped here before
+		// (found the moment a single estate advanced to a new pin while
+		// the rest stayed behind, the first artifact ever to reach two
+		// emulator groups: TestBoardBannerMatchesEstateRows failed because
+		// the rendered page carried no last_run.date at all, having never
+		// been reachable through this branch before). Every other branch
+		// includes it; this one must too, or the same "measured at an
+		// instant the rows don't support" gap #414 already closed once
+		// reopens here.
+		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s, %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), dateClause, a.Emulator)
 	}
 }
 
