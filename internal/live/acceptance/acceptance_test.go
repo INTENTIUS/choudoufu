@@ -52,7 +52,7 @@ func TestArtifactRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cohort-acceptance.json")
 
-	art := buildArtifact("img@sha256:abc", "hashicorp/aws 6.58.0", []CohortResult{
+	art := buildArtifact("img@sha256:abc", "hashicorp/aws 6.58.0", "deadbeef", "2026-08-28T00:00:00Z", []CohortResult{
 		{Name: "s3", Status: "pass", Phase: PhasePass, Resources: 6},
 		{Name: "lambda", Status: "fail", Phase: PhaseApply, Resources: 9, FailedResources: []string{"aws_lambda_function.app"}},
 	})
@@ -61,6 +61,11 @@ func TestArtifactRoundTrip(t *testing.T) {
 	}
 	if art.Cohorts[0].Name != "lambda" {
 		t.Fatalf("artifact not sorted by name: %q first", art.Cohorts[0].Name)
+	}
+	for _, r := range art.Cohorts {
+		if r.LastRun == nil || r.LastRun.Commit != "deadbeef" || r.LastRun.Emulator != "img@sha256:abc" || r.LastRun.Date != "2026-08-28T00:00:00Z" {
+			t.Fatalf("%s: last_run not stamped from this run's own provenance: %+v", r.Name, r.LastRun)
+		}
 	}
 
 	if err := writeArtifact(path, art); err != nil {
@@ -73,9 +78,38 @@ func TestArtifactRoundTrip(t *testing.T) {
 	if back.Totals != art.Totals || len(back.Cohorts) != 2 {
 		t.Fatalf("round trip lost data: %+v", back)
 	}
+	for _, r := range back.Cohorts {
+		if r.LastRun == nil || r.LastRun.Commit != "deadbeef" {
+			t.Fatalf("%s: last_run did not survive the round trip: %+v", r.Name, r.LastRun)
+		}
+	}
 
 	if _, ok, err := readArtifact(filepath.Join(dir, "absent.json")); err != nil || ok {
 		t.Fatalf("a missing artifact must read as (not present, no error), got ok=%t err=%v", ok, err)
+	}
+}
+
+// TestIsStale guards the per-row staleness primitive a future "cohort next"
+// would key off of - the same comparison tools/gauntlet.IsStale makes for
+// live/gauntlet.json's estate rows, proven load-bearing there by #414.
+func TestIsStale(t *testing.T) {
+	cases := []struct {
+		name string
+		r    CohortResult
+		cur  string
+		want bool
+	}{
+		{"never run", CohortResult{Name: "s3"}, "img@sha256:current", false},
+		{"matches the current pin", CohortResult{Name: "s3", LastRun: &LastRun{Emulator: "img@sha256:current"}}, "img@sha256:current", false},
+		{"measured against a superseded pin", CohortResult{Name: "s3", LastRun: &LastRun{Emulator: "img@sha256:old"}}, "img@sha256:current", true},
+		{"unrecorded provenance reads as stale, never as current", CohortResult{Name: "s3", LastRun: &LastRun{Emulator: ""}}, "img@sha256:current", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := IsStale(c.r, c.cur); got != c.want {
+				t.Errorf("IsStale(%+v, %q) = %t, want %t", c.r, c.cur, got, c.want)
+			}
+		})
 	}
 }
 

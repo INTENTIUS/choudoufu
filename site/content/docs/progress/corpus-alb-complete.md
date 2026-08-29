@@ -14,22 +14,22 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 
 **Clear.** Every active stage passes.
 
-| Stage | Verdict | Detail |
-|---|---|---|
-| Cold deploy | pass | 80 resources, once for real (floci fixes #58, #61, #62) |
-| Migrate | pass | 51 of 80 stamped, 1 recorded, 0 failed, 28 skipped |
-| Replan from nothing | pass | empty live-plan with no state file; 0 Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets |
-| No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 50 tofu-estate-tagged objects before, 50 after |
-| Drift and reconverge | pass | one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged |
-| Rename | pass | moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | pass | choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects |
-| Change count (planned) | not run |  |
-| Replace with create_before_destroy | pass | choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-70c1bed69c4fba9fd) is confirmed terminated and the new instance (i-2b74af6b59729dd07) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-70c1bed69c4fba9fd -> i-2b74af6b59729dd07); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
-| Crash between create and destroy (planned) | not run |  |
-| Teardown (planned) | not run |  |
-| Plan, review, apply (planned) | not run |  |
-| Greenfield apply | pass | 80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag |
-| Strict profile (planned) | not run |  |
+| Stage | Verdict | Duration | Detail |
+|---|---|---|---|
+| Cold deploy | pass |  | 80 resources, once for real (floci fixes #58, #61, #62) |
+| Migrate | pass |  | 51 of 80 stamped, 1 recorded, 0 failed, 28 skipped |
+| Replan from nothing | pass |  | empty live-plan with no state file; 0 Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets |
+| No-op apply | pass |  | genuine no-op (0 added, 0 changed, 0 destroyed); 50 tofu-estate-tagged objects before, 50 after |
+| Drift and reconverge | pass |  | one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged |
+| Rename | pass |  | moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
+| Remove a block | pass |  | choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects |
+| Change count (planned) | not run |  |  |
+| Replace with create_before_destroy | pass |  | choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-70c1bed69c4fba9fd) is confirmed terminated and the new instance (i-2b74af6b59729dd07) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-70c1bed69c4fba9fd -> i-2b74af6b59729dd07); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
+| Crash between create and destroy (planned) | not run |  |  |
+| Teardown (planned) | not run |  |  |
+| Plan, review, apply (planned) | not run |  |  |
+| Greenfield apply | pass |  | 80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag |
+| Strict profile (planned) | not run |  |  |
 
 Last run at commit `bb30c9a03f` on 2026-08-25T23:44:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

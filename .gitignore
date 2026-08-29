@@ -86,6 +86,7 @@ site/public/
 /credential-sweep
 /estate-gen
 /estate-plan
+/estate-types
 /find-dep-upgrades
 /find-pkg-importer
 /floci-capability-gen
