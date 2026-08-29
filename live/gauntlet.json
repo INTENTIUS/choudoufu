@@ -147,7 +147,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -155,9 +155,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "day2_crash": {
           "pass": 1,
@@ -224,7 +224,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -232,9 +232,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_crash": {
           "pass": 1,
@@ -794,7 +794,7 @@
       "script": "live/e2e/corpus-hongbomiao-storage/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -808,23 +808,37 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "db86858040e118a6d3e22636004a64d03d2c7c44",
-        "date": "2026-08-25T23:51:37Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "5621afcab80ee16d7e250bf9c461cbb52ac3eb28",
+        "date": "2026-08-29T17:43:39Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration",
+          "day2_count": "choudoufu: scaling aws_s3_bucket.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live CreationDate and tofu-address marker unchanged and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 created exactly count_test[1] under the SAME bucket name (deterministic) but a NEW CreationDate (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield real-leg account, shows the identical shape: destroy the higher index only, create the higher index back under the same bucket name but a new CreationDate, the lower index's CreationDate unchanged both times",
           "day2_remove": "choudoufu: deleting module.kafka_kms_key_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable alias and its taggable parent key), applied cleanly (0 added, 0 changed, 2 destroyed) in an order the cloud accepted, the key is genuinely PendingDeletion and the alias is gone (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.hm_production_bucket renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.kafka_kms_key renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key) is confirmed gone and the new alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2) points at the SAME key (2475ae47-f8c3-4f53-846f-28ae64aa2426, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one (alias/hongbomiao-storage-crossing-hm-kafka-kms-key -> alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape.",
+          "day2_replace": "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key) is confirmed gone and the new alias (alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2) points at the SAME key (7c21ceef-195e-4cd9-9b0a-11d7bc81577b, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one (alias/hongbomiao-storage-crossing-hm-kafka-kms-key -> alias/hongbomiao-storage-crossing-hm-kafka-kms-key-v2), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape.",
           "drift_reconverge": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_iot_data.aws_s3_bucket.main",
           "greenfield": "4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared",
-          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 2475ae47-f8c3-4f53-846f-28ae64aa2426 -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
+          "migrate": "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 7c21ceef-195e-4cd9-9b0a-11d7bc81577b -> tofu-address=module.kafka_kms_key.aws_kms_key.main",
           "test_apply": "genuine no-op: 3 objects before, 3 after, no state file either time",
           "test_plan": "empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key"
+        },
+        "duration_s": 341.9,
+        "stage_seconds": {
+          "cold_deploy": 35,
+          "day2_count": 48,
+          "day2_remove": 11,
+          "day2_rename": 24,
+          "day2_replace": 20,
+          "drift_reconverge": 11,
+          "greenfield": 105,
+          "migrate": 73,
+          "test_apply": 7,
+          "test_plan": 8
         }
       },
       "notes": "Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns \"UnknownOperationException: Operation CreateNotebookInstance is not supported by floci\", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, \"4 added, 0 changed, 0 destroyed\", confirmed 0 objects pre-tagged), migrate (live-import: \"3 of 4 resource instance(s) are eligible for stamping\", 1 UNTAGGABLE - the KMS alias; -approve: \"3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped\"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan \"No changes\", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, \"0 added, 0 changed, 0 destroyed\", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
@@ -917,8 +931,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "7b106cad3e385c1c71a84054486b6f97f7ade5cf",
-        "date": "2026-08-29T18:02:11Z",
+        "commit": "aa5c8a0d457effeeb0f6593335905ad0e7897dd5",
+        "date": "2026-08-29T15:57:00Z",
         "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
@@ -926,25 +940,25 @@
           "day2_count": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times",
           "day2_remove": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)",
           "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-757282fb0d79c746cbef8d9d14) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-602ec4380d6419f4f93d4be325) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-757282fb0d79c746cbef8d9d14 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-602ec4380d6419f4f93d4be325); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-757282fb0d79c746cbef8d9d14's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-ee4ab0961f67ae7932aa75a9a7) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-ee4ab0961f67ae7932aa75a9a7); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "greenfield": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
         },
-        "duration_s": 204.2,
+        "duration_s": 175,
         "stage_seconds": {
-          "cold_deploy": 20,
-          "day2_count": 27,
+          "cold_deploy": 14,
+          "day2_count": 23,
           "day2_remove": 9,
-          "day2_rename": 15,
-          "day2_replace": 10,
-          "drift_reconverge": 8,
-          "greenfield": 37,
-          "migrate": 69,
-          "test_apply": 5,
-          "test_plan": 4
+          "day2_rename": 12,
+          "day2_replace": 8,
+          "drift_reconverge": 5,
+          "greenfield": 32,
+          "migrate": 65,
+          "test_apply": 3,
+          "test_plan": 3
         }
       },
       "notes": "Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, same upgrade as corpus-iam-policy and following the same corpus-vpc-complete/corpus-lambda-simple structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout. All five stages pass cleanly: cold_deploy (plain terraform apply, \"Apply complete! Resources: 1 added\" - only the first of this module's three instantiations contributes a resource, confirmed 0 objects tagged before migration), migrate (live-import dry run verifies \"1 of 1 resource instance(s) are eligible for stamping\", -approve reports \"1 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped\", tofu-address=module.read_only_iam_policy.aws_iam_policy.policy:0 read directly through the AWS CLI against the real, server-assigned name IAM minted), test_plan (live-plan genuinely empty, identity re-read unchanged after the state file's only copy was deleted), test_apply (\"0 added, 0 changed, 0 destroyed\", object count unchanged at 1), and drift_reconverge (the one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object by address, apply reconverges to \"0 added, 1 changed, 0 destroyed\"). Same tofu-slot finding as corpus-iam-policy (see that entry) applies identically here - the module's aws_iam_policy also declares count = var.create && var.create_policy ? 1 : 0 - and is folded into stage 2 the same way (\"0 added, 1 changed, 0 destroyed\" before stage 3 is attempted). Genuine constraint found here that corpus-iam-policy does not share: this estate creates exactly ONE real object (the other two module calls contribute nothing), so stage 5's BREAK=1 cannot prove non-vacuousness by tampering a second object the way corpus-iam-policy's or corpus-vpc-complete's can - there isn't one. Used the address-corruption technique instead (the same shape and resource type, naming a module that in fact creates nothing) and verified it independently at both sites it appears: run as committed it fails stage 3's identity check; run separately with stage 3's corruption disabled, it correctly fails stage 5's exact-address assertion instead. That second, isolated verification also caught a real bug in this script's first draft: the exact-equality comparison against a live-plan diff header's address (bracket form, \"policy[0]\") was written against the escaped tag-value form (\"policy:0\") and could never have matched even on the correct object - fixed by keeping both address forms as separate variables, and the fix was re-verified with a full clean pass afterward."
