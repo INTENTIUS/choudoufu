@@ -157,6 +157,12 @@ set -uo pipefail
 #                 behind (PART F).
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead.
+#   BREAK_COUNT   set to 1 to run day2_count's own break control (PART G,
+#                 far below): after the real scale-down plan, assert the
+#                 WRONG subnet (a survivor) was destroyed instead of the
+#                 dropped one - the assertion must fail. Only reachable when
+#                 BREAK is not "rename" and BREAK_REMOVE is not 1, because
+#                 PART G starts from PART E's real, completed removal.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -289,6 +295,35 @@ remove_module_block() {
   rm -f "$file.bak"
   grep -q "module \"$name\"" "$file" \
     && fail "removing module \"$name\"'s block did not match in $file - the corpus pin has moved"
+}
+
+# set_public_subnets FILE MODULE_NAME HCL_LIST - day2_count's own edit:
+# public_subnets is aws/networking's own documented list(string) variable
+# (default ["10.0.101.0/24","10.0.102.0/24","10.0.103.0/24"]), not exposed
+# as a root variable by write_root's own module block, so this writes (or,
+# with HCL_LIST="", removes) a `public_subnets = HCL_LIST` argument directly
+# inside the named module block - the real, already-live for_each knob PART
+# G/G-ORACLE scale, never a synthetic resource. Balanced on the module
+# block's own boundaries (python, not a line-anchored sed) because
+# `environment  = "..."` - the nearest fixed anchor - also appears verbatim
+# inside module "sessions_table"'s own block, so a sed pattern would not be
+# scoped to the right module.
+set_public_subnets() {
+  local file="$1" mod="$2" list="$3"
+  python3 - "$file" "$mod" "$list" <<'PYEOF'
+import re, sys
+path, mod, lst = sys.argv[1], sys.argv[2], sys.argv[3]
+s = open(path).read()
+marker = 'module "%s" {\n' % mod
+i = s.index(marker)
+close = s.index('\n}\n', i)
+block = s[i:close]
+block = re.sub(r'\n  public_subnets\s*=\s*\[[^\n]*\]', '', block)
+if lst:
+    block = block + '\n  public_subnets = %s' % lst
+s = s[:i] + block + s[close:]
+open(path, 'w').write(s)
+PYEOF
 }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -716,6 +751,80 @@ grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this must be replaced
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
 log "  stock: exactly one replace proposed (destroy the old sessions table, create the sessions-v2 table) at the same declared address, on the state cold_deploy produced - plan only, not applied"
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
+# issue #359/#488)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The real, already-live for_each knob this module-heavy estate offers:
+# aws/networking's own public_subnets variable
+# (default ["10.0.101.0/24","10.0.102.0/24","10.0.103.0/24"]), which drives
+# TWO for_each resources in one edit - aws_subnet.public itself, keyed by
+# CIDR, and aws_route_table_association.public, whose own for_each is
+# `aws_subnet.public` (a RESOURCE's instance map, not a variable) so it
+# tracks the subnet set exactly. Dropping the LAST list element (not a
+# middle one) is deliberate: `for idx, cidr in var.public_subnets : cidr =>
+# local.selected_availability_zones[idx]` keys the map by CIDR but still
+# reads its VALUE positionally by idx, so removing anything but the last
+# element would reassign a surviving CIDR's own availability_zone (idx
+# shifts) and turn "survivors keep identity" into "survivors get an
+# in-place update" - dropping the last element leaves every other element's
+# own idx, and therefore its own value, untouched. No synthetic resource
+# needed (unlike corpus-iam-read-only-policy/corpus-iam-policy, whose only
+# real objects are instantiated through non-countable booleans - issue
+# #488's fallback clause; this estate's own networking module has the
+# harder, real shape corpus-xancloud-iac's PART G already established this
+# pattern for).
+#
+# A THIRD, separate copy of cold_deploy's own state ($PLAIN), untouched by
+# the rename/remove/replace oracles above. PLAN ONLY, never applied, same
+# discipline as every oracle above: this copy shares floci's account with
+# $ESTATE, and $ESTATE's own migrate stage (next) still depends on finding
+# all three subnets and associations exactly as $PLAIN's cold deploy left
+# them. The down-plan reads directly off that untouched state; the up-plan's
+# "the member is not there yet" starting point is simulated with `tofu state
+# rm` on a SEPARATE copy - a pure local state edit, no provider API call, so
+# it can never touch a live object - the same technique corpus-xancloud-iac's
+# own F-ORACLE and corpus-iam-read-only-policy's own G-ORACLE use.
+CURRENT_STAGE=day2_count
+DROPPED_CIDR="${SUBNET_CIDRS[2]}"
+log "=== G-ORACLE: stock tofu, dropping then restoring the last public_subnets CIDR ($DROPPED_CIDR), on cold_deploy's own state (plan-only - see header) ==="
+PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
+cp -r "$PLAIN" "$PLAIN_ORACLE_COUNT"
+set_public_subnets "$PLAIN_ORACLE_COUNT/main.tofu" "networking" '["10.0.101.0/24", "10.0.102.0/24"]'
+( cd "$PLAIN_ORACLE_COUNT" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
+[ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
+grep -qF "# module.networking.aws_subnet.public[\"$DROPPED_CIDR\"] will be destroyed" <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy the dropped subnet"; }
+grep -qF "# module.networking.aws_route_table_association.public[\"$DROPPED_CIDR\"] will be destroyed" <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy the dropped subnet's route table association"; }
+ORACLE_OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.networking\.(aws_subnet\.public|aws_route_table_association\.public)\[' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" | grep -vF "\"$DROPPED_CIDR\"" || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_DOWN"; fail "stock's scale-down plan touches a subnet or association other than $DROPPED_CIDR"; }
+grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly two destroys (the subnet and its association)"; }
+log "  stock (plan-only): exactly two destroys proposed (subnet + association for $DROPPED_CIDR), every other subnet/association untouched"
+
+PLAIN_ORACLE_COUNT_UP="$WORK/plain-oracle-count-up"
+cp -r "$PLAIN" "$PLAIN_ORACLE_COUNT_UP"
+( cd "$PLAIN_ORACLE_COUNT_UP" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT_UP" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+STATE_RM_OUT="$(cd "$PLAIN_ORACLE_COUNT_UP" && tofu state rm "module.networking.aws_route_table_association.public[\"$DROPPED_CIDR\"]" "module.networking.aws_subnet.public[\"$DROPPED_CIDR\"]" 2>&1)"; STATE_RM_RC=$?
+[ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
+ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT_UP" && tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
+[ "$ORACLE_COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_COUNT_UP_PLAN_RC"; }
+grep -qF "# module.networking.aws_subnet.public[\"$DROPPED_CIDR\"] will be created" <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create the dropped subnet"; }
+grep -qF "# module.networking.aws_route_table_association.public[\"$DROPPED_CIDR\"] will be created" <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create the dropped subnet's route table association"; }
+ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.networking\.(aws_subnet\.public|aws_route_table_association\.public)\[' <<< "$ORACLE_COUNT_UP_PLAN_OUT" | grep -vF "\"$DROPPED_CIDR\"" || true)"
+[ -z "$ORACLE_OTHER_TOUCHED_UP" ] || { printf '%s\n' "$ORACLE_OTHER_TOUCHED_UP"; fail "stock's scale-up plan touches a subnet or association other than $DROPPED_CIDR"; }
+grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly two creates"; }
+log "  stock (plan-only): exactly two creates proposed (subnet + association for $DROPPED_CIDR, state simulated with 'tofu state rm' - no live object ever touched), every other subnet/association untouched"
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1284,6 +1393,151 @@ EOF
     log "  No changes. The removal is complete and invisible to the next plan."
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.sessions_table_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), address-for-address identical to stock's oracle on cold_deploy's own state (module.sessions_table); applied cleanly (0 added, 0 changed, 1 destroyed); the table is genuinely gone from the live account (describe-table now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because no other module.sessions_table* block is declared anywhere in this config"
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8, issue
+    # #359/#488)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part D's real, completed rename: module.networking_renamed
+    # (this estate's only surviving module - Part E just destroyed
+    # module.sessions_table_renamed's own table for good) is bound and
+    # converged, its three subnets and three route-table associations live
+    # and marked. See G-ORACLE's own header (above stage 2) for why the
+    # LAST public_subnets CIDR is the one dropped and restored, and why that
+    # scales BOTH aws_subnet.public (taggable, server-assigned id) and
+    # aws_route_table_association.public (untaggable, composite identity,
+    # record-located rather than record-backed - #364 A2) in one edit,
+    # through the module's own real, documented variable rather than a
+    # synthetic resource.
+    #
+    # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+    # real checks: after the real scale-down plan, assert the WRONG subnet
+    # (a survivor) was the one destroyed - the Break text in
+    # tools/gauntlet/stages.go for day2_count, verbatim: "Expect a different
+    # instance to be destroyed; the assertion must fail." Only reachable
+    # when BREAK is not "rename" and BREAK_REMOVE is not 1, because PART G
+    # starts from PART E's real, completed removal.
+    CURRENT_STAGE=day2_count
+    SURVIVOR_CIDR_0="${SUBNET_CIDRS[0]}"
+    SURVIVOR_CIDR_1="${SUBNET_CIDRS[1]}"
+    G_SUBNET_ADDR="module.networking_renamed.aws_subnet.public[\"$DROPPED_CIDR\"]"
+    G_ASSOC_ADDR="module.networking_renamed.aws_route_table_association.public[\"$DROPPED_CIDR\"]"
+    G_SUBNET_MARKER="${SUBNET_MARKERS[2]/module.networking./module.networking_renamed.}"
+
+    log "=== G0. capture the live ids day2_count must not disturb ==="
+    G_DROPPED_SID="${SUBNET_IDS[2]}"
+    G_SURVIVOR_SID_0="${SUBNET_IDS[0]}"
+    G_SURVIVOR_SID_1="${SUBNET_IDS[1]}"
+    G_DROPPED_ADDR_TAG="$(awsl ec2 describe-subnets --subnet-ids "$G_DROPPED_SID" --query "Subnets[0].Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$G_DROPPED_ADDR_TAG" = "$G_SUBNET_MARKER" ] || fail "$G_DROPPED_SID carries tofu-address=$G_DROPPED_ADDR_TAG ahead of day2_count, not $G_SUBNET_MARKER"
+    G_DROPPED_ASSOC="$(awsl ec2 describe-route-tables --route-table-ids "$RT_ID" --query "RouteTables[0].Associations[?SubnetId=='$G_DROPPED_SID'].RouteTableAssociationId | [0]" --output text)"
+    [ -n "$G_DROPPED_ASSOC" ] && [ "$G_DROPPED_ASSOC" != "None" ] || fail "no live association joins route table $RT_ID to subnet $G_DROPPED_SID ahead of day2_count"
+    G_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_subnet/$(record_key "$G_SUBNET_ADDR")"
+    [ -f "$G_RECORD" ] || fail "no local record file found for $G_SUBNET_ADDR ahead of day2_count"
+    jq -e '(.identity != null) and (.tombstone == null)' "$G_RECORD" >/dev/null \
+      || fail "the record at $G_SUBNET_ADDR does not read as identity-present, tombstone-absent ahead of day2_count"
+    log "  subnet $G_DROPPED_SID (tofu-address=$G_DROPPED_ADDR_TAG), association $G_DROPPED_ASSOC = $RT_ID/$G_DROPPED_SID, record carries identity and no tombstone - all read directly, not through choudoufu's own report"
+
+    log "=== G1. scale down: drop the last public_subnets CIDR ($DROPPED_CIDR) ==="
+    set_public_subnets "$ESTATE/main.tofu" "networking_renamed" '["10.0.101.0/24", "10.0.102.0/24"]'
+    COUNT_DOWN_PLAN_OUT="$(plan_into 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+    [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      log "  BREAK_COUNT=1: asserting the WRONG instance (module.networking_renamed.aws_subnet.public[\"$SURVIVOR_CIDR_0\"]) was destroyed instead of $DROPPED_CIDR"
+      if grep -qF "# module.networking_renamed.aws_subnet.public[\"$SURVIVOR_CIDR_0\"] will be destroyed" <<< "$COUNT_DOWN_PLAN_OUT"; then
+        fail "BREAK_COUNT=1: the plan actually destroys the survivor subnet ($SURVIVOR_CIDR_0) - this assertion is not load-bearing"
+      fi
+      log "  BREAK_COUNT=1: correctly does NOT destroy the survivor - the wrong-instance assertion above fails to hold, as it must"
+    else
+      grep -qF "# $G_SUBNET_ADDR will be destroyed" <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy the dropped subnet"; }
+      grep -qF "# $G_ASSOC_ADDR will be destroyed" <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy the dropped subnet's route table association"; }
+      OTHER_TOUCHED_DOWN="$(grep -E '^  # module\.networking_renamed\.(aws_subnet\.public|aws_route_table_association\.public)\[' <<< "$COUNT_DOWN_PLAN_OUT" | grep -vF "\"$DROPPED_CIDR\"" || true)"
+      [ -z "$OTHER_TOUCHED_DOWN" ] || { printf '%s\n' "$OTHER_TOUCHED_DOWN"; fail "choudoufu's scale-down plan touches a subnet or association other than $DROPPED_CIDR"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly two destroys"; }
+      log "  choudoufu: exactly two destroys (subnet + association for $DROPPED_CIDR), every other subnet/association untouched"
+
+      COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+      [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly two destroys"; }
+
+      if G_DROPPED_STILL="$(awsl ec2 describe-subnets --subnet-ids "$G_DROPPED_SID" 2>&1)"; then
+        echo "$G_DROPPED_STILL"; fail "$G_DROPPED_SID still exists in the live account after the scale-down destroy"
+      fi
+      grep -qi 'InvalidSubnetID.NotFound' <<< "$G_DROPPED_STILL" \
+        || { echo "$G_DROPPED_STILL"; fail "describe-subnets for $G_DROPPED_SID failed with an unexpected error, not InvalidSubnetID.NotFound"; }
+      G_ASSOC_AFTER_DOWN="$(awsl ec2 describe-route-tables --route-table-ids "$RT_ID" --query "RouteTables[0].Associations[?SubnetId=='$G_DROPPED_SID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || true)"
+      [ -z "$G_ASSOC_AFTER_DOWN" ] || [ "$G_ASSOC_AFTER_DOWN" = "None" ] \
+        || fail "an association still joins route table $RT_ID to the destroyed subnet $G_DROPPED_SID"
+      SURVIVOR_SID_0_AFTER_DOWN="$(awsl ec2 describe-subnets --subnet-ids "$G_SURVIVOR_SID_0" --query 'Subnets[0].SubnetId' --output text 2>/dev/null || true)"
+      SURVIVOR_SID_1_AFTER_DOWN="$(awsl ec2 describe-subnets --subnet-ids "$G_SURVIVOR_SID_1" --query 'Subnets[0].SubnetId' --output text 2>/dev/null || true)"
+      [ "$SURVIVOR_SID_0_AFTER_DOWN" = "$G_SURVIVOR_SID_0" ] || fail "survivor subnet $SURVIVOR_CIDR_0's id changed across the scale-down ($G_SURVIVOR_SID_0 -> $SURVIVOR_SID_0_AFTER_DOWN)"
+      [ "$SURVIVOR_SID_1_AFTER_DOWN" = "$G_SURVIVOR_SID_1" ] || fail "survivor subnet $SURVIVOR_CIDR_1's id changed across the scale-down ($G_SURVIVOR_SID_1 -> $SURVIVOR_SID_1_AFTER_DOWN)"
+      log "  $G_DROPPED_SID ($DROPPED_CIDR) no longer exists (InvalidSubnetID.NotFound), its association is gone from route table $RT_ID; both survivor subnets ($G_SURVIVOR_SID_0, $G_SURVIVOR_SID_1) unchanged - all read via the AWS CLI"
+
+      # The record store, asserted by value (HANDOFF's safety rule; the
+      # #398-guard shape: a stale record still naming the destroyed subnet's
+      # identity would be exactly the wrong-marker failure that outranks a
+      # missing one). A destroyed count/for_each instance's record is
+      # TOMBSTONED, not deleted - the same shape day2_replace's F2 already
+      # established for this estate, checked here by value rather than by
+      # file absence.
+      jq -e '(has("tombstone")) and (has("identity") | not)' "$G_RECORD" >/dev/null \
+        || { cat "$G_RECORD"; fail "the record at $G_SUBNET_ADDR is not tombstoned (has(tombstone) and not has(identity)) after the scale-down destroy"; }
+      log "  record store: $G_SUBNET_ADDR is tombstoned, not deleted - read directly off the local record store file, not through choudoufu's own report"
+
+      log "=== G2. scale count back up: restore the last public_subnets CIDR ($DROPPED_CIDR) ==="
+      set_public_subnets "$ESTATE/main.tofu" "networking_renamed" ""
+      COUNT_UP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_UP_PLAN_RC=$?
+      [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -40; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+      grep -qF "# $G_SUBNET_ADDR will be created" <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create the dropped subnet"; }
+      grep -qF "# $G_ASSOC_ADDR will be created" <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create the dropped subnet's route table association"; }
+      OTHER_TOUCHED_UP="$(grep -E '^  # module\.networking_renamed\.(aws_subnet\.public|aws_route_table_association\.public)\[' <<< "$COUNT_UP_PLAN_OUT" | grep -vF "\"$DROPPED_CIDR\"" || true)"
+      [ -z "$OTHER_TOUCHED_UP" ] || { printf '%s\n' "$OTHER_TOUCHED_UP"; fail "choudoufu's scale-up plan touches a subnet or association other than $DROPPED_CIDR"; }
+      grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly two creates"; }
+      log "  choudoufu: exactly two creates (subnet + association for $DROPPED_CIDR), every other subnet/association untouched"
+
+      COUNT_UP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+      [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+      grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly two creates"; }
+
+      G_NEW_SID="$(awsl ec2 describe-subnets --filters "$(marker_filter "$G_SUBNET_MARKER")" --query 'Subnets[0].SubnetId' --output text)"
+      [ -n "$G_NEW_SID" ] && [ "$G_NEW_SID" != "None" ] || fail "no live subnet carries tofu-address=$G_SUBNET_MARKER after the scale-up"
+      [ "$G_NEW_SID" != "$G_DROPPED_SID" ] || fail "the recreated subnet ($G_NEW_SID) came back with the SAME subnet id it had before being destroyed - the destroy in G1 was not real (verified directly against floci ahead of writing this stage: a subnet's id is server-minted and always differs after a real delete+create)"
+      G_NEW_CIDR="$(awsl ec2 describe-subnets --subnet-ids "$G_NEW_SID" --query 'Subnets[0].CidrBlock' --output text)"
+      [ "$G_NEW_CIDR" = "$DROPPED_CIDR" ] || fail "the recreated subnet's CIDR is $G_NEW_CIDR, not $DROPPED_CIDR"
+      G_NEW_ASSOC="$(awsl ec2 describe-route-tables --route-table-ids "$RT_ID" --query "RouteTables[0].Associations[?SubnetId=='$G_NEW_SID'].RouteTableAssociationId | [0]" --output text)"
+      [ -n "$G_NEW_ASSOC" ] && [ "$G_NEW_ASSOC" != "None" ] || fail "no live association joins route table $RT_ID to the recreated subnet $G_NEW_SID"
+      [ "$G_NEW_ASSOC" != "$G_DROPPED_ASSOC" ] || fail "the recreated association ($G_NEW_ASSOC) came back with the SAME association id it had before being destroyed"
+      SURVIVOR_SID_0_AFTER_UP="$(awsl ec2 describe-subnets --subnet-ids "$G_SURVIVOR_SID_0" --query 'Subnets[0].SubnetId' --output text)"
+      SURVIVOR_SID_1_AFTER_UP="$(awsl ec2 describe-subnets --subnet-ids "$G_SURVIVOR_SID_1" --query 'Subnets[0].SubnetId' --output text)"
+      [ "$SURVIVOR_SID_0_AFTER_UP" = "$G_SURVIVOR_SID_0" ] || fail "survivor subnet $SURVIVOR_CIDR_0's id changed across the scale-up"
+      [ "$SURVIVOR_SID_1_AFTER_UP" = "$G_SURVIVOR_SID_1" ] || fail "survivor subnet $SURVIVOR_CIDR_1's id changed across the scale-up"
+      log "  subnet recreated as $G_NEW_SID (CIDR $G_NEW_CIDR, tofu-address=$G_SUBNET_MARKER, a NEW subnet id - was $G_DROPPED_SID), association recreated as $G_NEW_ASSOC (a NEW association id - was $G_DROPPED_ASSOC); both survivor subnets ($G_SURVIVOR_SID_0, $G_SURVIVOR_SID_1) unchanged throughout - all read via the AWS CLI"
+
+      G_RECORD_AFTER_UP="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_subnet/$(record_key "$G_SUBNET_ADDR")"
+      jq -e '(.identity != null) and (.tombstone != null)' "$G_RECORD_AFTER_UP" >/dev/null \
+        || { cat "$G_RECORD_AFTER_UP"; fail "the record at $G_SUBNET_ADDR does not read as identity-present after the scale-up (its own prior tombstone entry, if any, should still be kept alongside the new identity)"; }
+      log "  record store: $G_SUBNET_ADDR carries a live identity again after the scale-up"
+
+      log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+      COUNT_FINAL_PLAN_OUT="$(plan_into 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+      [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+      log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+      gauntlet_stage day2_count pass "choudoufu: dropping the last public_subnets CIDR ($DROPPED_CIDR) destroyed exactly its subnet and route-table-association instances (0 add, 0 change, 2 destroy), leaving both survivor subnets' live ids and tofu-address markers unchanged; the destroyed subnet's local record is tombstoned, not deleted (#398-guard shape, asserted by value); restoring the CIDR created exactly the same two instances under NEW live ids (subnet id and association id both server-minted, verified directly against floci with no tofu in the loop before writing this assertion) while both survivors stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical public_subnets edit, applied plan-only on cold_deploy's own state, shows the identical shape: destroy the dropped CIDR's subnet and association only, create them back under new ids, every other subnet/association's id unchanged both times"
+    fi
   fi
   CURRENT_STAGE=""
 fi
