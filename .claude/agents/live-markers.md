@@ -7,7 +7,10 @@ You are working on choudoufu. Read this before your first tool call. If you
 are the session's first agent, or picking up after another session, run
 `bash scripts/pickup.sh` first and read `HANDOFF.md` "Pick up here" for what
 its output means; a worker spawned into a named worktree may skip that and
-read its branch's last commits, `ci.rc` and `ci.out` instead.
+read its branch's last commits, `ci.rc`, `ci.meta` and `ci.out` instead -
+run `scripts/ci-gate.sh check` before trusting any `ci.rc` you find there
+(#519: it refuses a gate that is missing, incomplete, or written for a
+commit that is no longer HEAD).
 
 ## What the product is
 
@@ -249,8 +252,10 @@ must build concurrently work in isolated worktrees.
 - Name branches so `scripts/pickup.sh` can read them: `gauntlet/<estate>-<stage>`
   for a unit, `live/<topic>` for anything else. Commit early with the unit
   ID; a branch with commits is resumed, a branch with none is deleted.
-- Leave `ci.rc` and `ci.out` in the worktree. They are the gate the
-  orchestrator reads, and what a successor reads after a crash.
+- Leave `ci.rc`, `ci.meta` and `ci.out` in the worktree, written by
+  `scripts/ci-gate.sh run` (not typed by hand - #519). They are the gate the
+  orchestrator reads via `scripts/ci-gate.sh check`, and what a successor
+  reads after a crash.
 
 ## Run an adversarial audit after each substantial change
 

@@ -23,7 +23,7 @@ backgrounded and waited on:
 
 ```
 env -u PWD go run ./tools/gauntlet run <estate>     # many minutes - wait for it
-{ just ci; } > ci.out 2>&1; echo $? > ci.rc         # many minutes - wait for it
+scripts/ci-gate.sh run                              # many minutes - wait for it
 ```
 
 Never `&`. Never a background launch you intend to check on later. Never
@@ -46,9 +46,11 @@ beats a stopped worker; a stopped worker reports nothing at all.
    safety rule, the five-row difference table, and "The order" underneath
    the units. Those decide what counts as a fix. (You do not need
    `scripts/pickup.sh`; the orchestrator ran it. If you were told you are
-   RESUMING a branch, read its last commits, `ci.rc`, `ci.out` and
+   RESUMING a branch, read its last commits, `ci.rc`, `ci.meta`, `ci.out` and
    `live/gauntlet/logs/<estate>.log` in your worktree before anything else, and continue
-   from there rather than starting over.)
+   from there rather than starting over. Run `scripts/ci-gate.sh check` before
+   trusting an existing `ci.rc` at all - #519: it refuses a gate that is
+   missing, incomplete, or written for a commit that is no longer HEAD.)
 2. `live/GAUNTLET.md`: the stages, what each proves and how it is compared
    with stock, the script protocol, the artifact.
 3. `.claude/agents/live-markers.md`, "Traps" and "Working model" only, for the
@@ -98,8 +100,9 @@ all three known 2026-08-29 incidents and should not need reinventing.
 in every message**, starting with the first thing you learn (a converted
 script, a reproduced failure, a test that shows it): a session can end
 without warning, and a branch with commits is resumed by the next worker
-while a branch with none is deleted. Leave `ci.rc` and `ci.out` in the
-worktree; they are how the orchestrator, or your successor, reads your gate.
+while a branch with none is deleted. Leave `ci.rc`, `ci.meta` and `ci.out` in
+the worktree; they are how the orchestrator, or your successor, reads your
+gate.
 
 ## What a unit is
 
@@ -202,7 +205,26 @@ also asserted by value; an exit code is not a verdict.
    code path, not that the defect is upstream.
 8. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
-9. **Gate**: run `gofmt -l` over every Go file you touched and fix what it
+9. **Order matters at the end**: run the estate LAST, then `render`, then
+   **commit** (script, code, artifact and rendered docs together, with `-F`
+   from a message file since shell substitution eats `${count.index}`; one
+   commit per unit is fine), and only THEN gate (step 10). Rendering before
+   the final run leaves a rendered page behind the artifact and
+   `TestRenderedDocsAreCurrent` fails. Committing before gating, not after, is
+   what makes `ci.meta`'s recorded sha (step 10) equal the commit a PR
+   actually carries: `scripts/ci-gate.sh check` compares `ci.meta` against
+   `git rev-parse HEAD`, and a gate run against an uncommitted working tree
+   records the PARENT commit's sha, which reads as stale the moment you
+   commit on top of it - not a bug in `check`, a real mismatch between what
+   was tested and what HEAD now points at.
+   When you rebase, only the rendered files conflict: resolve them with
+   `git checkout --ours` (during a rebase that is the branch you are landing
+   ON) and then RE-RUN your estate so the runner rewrites its row, commit the
+   resolution, and gate again - a rebase changes HEAD's sha even when nothing
+   else did, so a gate from before it is stale by the same rule. Taking the
+   other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
+   estates moved while you worked.
+10. **Gate**: run `gofmt -l` over every Go file you touched and fix what it
    names BEFORE the gate - three merges in one day reached the full tier
    red on formatting alone because the per-worker gates run tests, not fmt.
    Then: not the whole tier - the packages your change touches, plus the
@@ -215,23 +237,24 @@ also asserted by value; an exit code is not a verdict.
    the ordinary way to produce one, and the fix is always a guard that REFUSES
    - never an Unmark, because a forcibly unmarked value can flow on into an
    identity component or a cloud tag. Several
-   workers running `just ci` each repeats the same minutes N times. Write it
-   from a file: `{ ...; } > ci.out 2>&1; echo $? > ci.rc`, and LEAVE BOTH FILES
-   THERE. The orchestrator reads `ci.rc` itself and cannot merge what it cannot
-   read; deleting them as tidy-up costs a round trip. The full tier runs once
-   on the merge result before the push.
-10. **Order matters at the end**: run the estate LAST, then `render`, then
-   gate. Rendering before the final run leaves a rendered page behind the
-   artifact and `TestRenderedDocsAreCurrent` fails.
-   When you rebase, only the rendered files conflict: resolve them with
-   `git checkout --ours` (during a rebase that is the branch you are landing
-   ON) and then RE-RUN your estate so the runner rewrites its row. Taking the
-   other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
-   estates moved while you worked.
-11. **Commit** the script, the code, the artifact and the rendered docs
-   together, with `-F` from a message file (shell substitution eats
-   `${count.index}`). One commit per unit is fine.
-12. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
+   workers running `just ci` each repeats the same minutes N times, so run
+   the narrower set through `scripts/ci-gate.sh run -- env -u PWD go test
+   <packages>` rather than typing the old inline idiom by hand
+   (`{ ...; } > ci.out 2>&1; echo $? > ci.rc`) - that idiom is #519: it is one
+   shell command end to end, and a kill between the two halves, or before
+   either runs, leaves an EARLIER run's `ci.rc` sitting there reading green
+   with nothing to say it is stale. `scripts/ci-gate.sh run` deletes
+   `ci.rc`/`ci.out`/`ci.meta` BEFORE it starts, so a kill anywhere in the run
+   leaves no readable gate at all, and it writes the HEAD sha into `ci.meta`
+   so a reader can tell a leftover gate from a fresh one even when the run
+   genuinely completed - for a commit you have since moved past (which is
+   exactly why this step runs AFTER step 9's commit, never before it). LEAVE
+   ALL THREE FILES THERE. The orchestrator verifies with `scripts/ci-gate.sh
+   check` (not by reading `ci.rc` alone) and cannot merge what that refuses;
+   deleting them as tidy-up costs a round trip. The full tier - also through
+   `scripts/ci-gate.sh run`, no `-- CMD` needed since `just ci` is its default
+   - runs once on the merge result before the push.
+11. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
    - title: `[gauntlet:<estate>/<stage>] <one line: what moved or what was found>`
    - body: the unit, the stage's verdict before and after (copy the
      `GAUNTLET stage=` lines from the log), which row of the five-row table
