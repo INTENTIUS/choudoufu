@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -310,5 +311,83 @@ func TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed(t *testing.T) {
 				t.Errorf("the record-backed resolution for %s was rewritten even though it was never bound: %s", r.Addr, r)
 			}
 		}
+	}
+}
+
+// TestDiscover_recordBackedCollisionOnCountBlockIsReported is GitHub issue
+// #411: a manufactured marker collision on a ServerAssigned/ARN-identity
+// type's fungible count member - a second live object carrying the exact
+// same tofu-address/tofu-slot as the one the estate record already answers
+// for - used to be silently dropped rather than refused. Root cause: a
+// record-backed count entry ([declared.recordBacked], edge 3 of the plan-node
+// seam, GitHub issue #388) was excluded from [declared.entryFor], so a live
+// claimant naming its address fell through to declares()+displacedFrom, which
+// answers "not displaced" unconditionally for a ClassNeedsDiscovery address -
+// an invariant that used to make this code unreachable (see displaced.go's
+// own doc comment) until RecordBackedAddrs started excluding a
+// ClassNeedsDiscovery entry from entryFor's index without also excluding it
+// from declares(). The claimant was neither bound, nor an orphan, nor a
+// Problem: it vanished.
+//
+// The fixture mirrors corpus-iam-policy's real BREAK=replace reproduction
+// (live/e2e/corpus-iam-policy/run.sh, PART F): a count = 1 block whose sole
+// declared instance is record-backed (the shape a migrated single-member
+// count set takes, per TestDiscover_recordBackedWholeCountBlockStillMintsSlot
+// just above), with TWO live members carrying the identical tofu-address and
+// tofu-slot - the state a skipped destroy in a create-before-destroy replace
+// leaves behind. Sweep+CollectUnclaimed is what corpus-sqs-basic's
+// real live-plan callers always set (statelessDiscover, internal/command/
+// live_plan.go) and what makes a record-backed type's own live objects
+// still get listed at all (see partitionSweepTypes and
+// TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed above) - without
+// it this fixture would prove nothing, because the type would never be
+// scanned in the first place.
+//
+// The expected outcome is the established matrix's fungible-set answer -
+// corpus-sqs-basic's own "Two live resources claiming one slot"
+// (ProblemDuplicateSlot) - not the scalar "Live resource displaced..."
+// warning: a count block's collision is a set-membership question
+// (count.go's slots.Match), never a single address's identity question
+// (displaced.go).
+func TestDiscover_recordBackedCollisionOnCountBlockIsReported(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.noFilter("aws_eip") // matches the real aws_eip list schema's own shape
+	// Two live objects, the SAME tofu-address and tofu-slot - the exact
+	// shape a manufactured (or crash-left-behind) collision takes.
+	cloud.slotted("eipalloc-a", "0")
+	cloud.slotted("eipalloc-collision", "0")
+
+	cfg1 := loadCountConfig(t, 1)
+	res, diags := Discover(context.Background(), Request{
+		Estate:            countEstate,
+		Config:            cfg1,
+		Resolutions:       resolveOrFail(t, cfg1).All(),
+		RecordBackedAddrs: map[string]bool{`aws_eip.pool[0]`: true},
+		CollectUnclaimed:  true,
+		Sweep:             true,
+		Provider:          cloud,
+	})
+	if !diags.HasErrors() {
+		t.Fatalf("a manufactured collision on a record-backed count instance produced no error:\n%s", res)
+	}
+
+	problems := res.ProblemsOfKind(ProblemDuplicateSlot)
+	if len(problems) != 1 {
+		t.Fatalf("want exactly one duplicate-slot problem, got %d:\n%s", len(problems), res)
+	}
+	if !strings.Contains(problems[0].Detail, "eipalloc-a") || !strings.Contains(problems[0].Detail, "eipalloc-collision") {
+		t.Errorf("the problem does not name both claimants: %s", problems[0].Detail)
+	}
+	if problems[0].TypeName != "aws_eip" {
+		t.Errorf("the problem names type %q, want aws_eip", problems[0].TypeName)
+	}
+
+	// The collision must not be quietly resolved into a Binding either -
+	// this is the refusal shape, not a guess about which claimant is real.
+	if len(res.Bindings) != 0 {
+		t.Errorf("a contested record-backed set bound anyway:\n%s", res)
+	}
+	if len(res.Unbound) != 0 {
+		t.Errorf("a contested record-backed set was reported Unbound instead of refused:\n%s", res)
 	}
 }

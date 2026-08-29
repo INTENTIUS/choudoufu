@@ -842,12 +842,45 @@ func (d *declared) record(typeName, escaped string, r identity.Resolution) {
 // to. The canonical index is consulted first, so a declared address always
 // beats an alias and a moved block can never redirect a live resource away
 // from an instance the configuration still declares.
+//
+// GitHub issue #411's fix is the third fallback: a record-backed count-block
+// member (d.recordBacked, entry.inCount) that a plain d.types/d.typeAliases
+// lookup cannot find, because RecordBackedAddrs deliberately keeps it out of
+// both (see recordBacked's own doc comment). Before this, every scan leg that
+// calls entryFor and misses fell through to declares()+displacedFrom, which
+// answers "not displaced" unconditionally for a ClassNeedsDiscovery address
+// (see displaced.go's own doc comment - "a needs-discovery address never
+// reaches this code at all," an invariant RecordBackedAddrs quietly broke) -
+// so a second live object manufacturing or reproducing a marker collision on
+// a record-backed address was silently dropped: never bound, never an
+// orphan, never a Problem. Returning the record-backed entry here lets it
+// collect claimants exactly like an ordinary entry, which is what feeds
+// count.go's already-correct, already-tested set matcher
+// (bindCountByAddress/bindCountBySlot) - the same machinery a
+// non-record-backed collision on the same block already goes through. A
+// single matching claimant still produces no Binding for a record-backed
+// entry (count.go special-cases entry.recordBacked at exactly one claimant,
+// so the "wasted binding ATTEMPT" this field's own doc comment names stays
+// skipped); two or more produces the same collision refusal a
+// non-record-backed set already gets.
+//
+// Scoped to entry.inCount on purpose: a scalar (non-count) record-backed
+// address is not the shape #411 reports, and bind()'s scalar loop reads
+// d.order/d.types directly rather than through entryFor, so a scalar
+// record-backed entry returned here would collect claimants nothing ever
+// drains - it is left on declares()+displacedFrom's existing answer, exactly
+// as before.
 func (d *declared) entryFor(typeName, escaped string) (*declaredEntry, bool) {
 	if entry, ok := d.types[typeName][escaped]; ok {
 		return entry, true
 	}
-	entry, ok := d.typeAliases[typeName][escaped]
-	return entry, ok
+	if entry, ok := d.typeAliases[typeName][escaped]; ok {
+		return entry, true
+	}
+	if entry, ok := d.recordBacked[typeName][escaped]; ok && entry.inCount {
+		return entry, true
+	}
+	return nil, false
 }
 
 func (d *declared) typeNames() []string {

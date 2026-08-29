@@ -897,14 +897,18 @@ EOF
   # (this instance is policy[0]) - a fungible, count-indexed set, the SAME
   # shape corpus-sqs-basic's aws_sqs_queue.this[0] is, not the scalar
   # shape corpus-evoteum-modules/corpus-giantswarm-crossplane/corpus-
-  # hongbomiao-harbor's own PART F sections document. Tried first against
-  # the assumption a manufactured collision here would take corpus-sqs-
-  # basic's own fungible-set "Two live resources claiming one slot" hard-
-  # refusal path - VERIFIED (see the BREAK=replace branch below for the
-  # full finding) that it does not: aws_iam_policy's ServerAssigned/ARN
-  # identity is resolved record-primary, so the plan proceeds silently
-  # (rc=0, bare "No changes.") with the second, decoy object never
-  # mentioned at all. Not fixed in this script-only unit.
+  # hongbomiao-harbor's own PART F sections document. A manufactured
+  # collision here takes corpus-sqs-basic's own fungible-set "Two live
+  # resources claiming one slot" hard-refusal path, exactly as the shape
+  # predicts (see the BREAK=replace branch below) - GitHub issue #411
+  # fixed: entryFor (internal/live/discovery/discovery.go) used to exclude
+  # a record-backed count entry from its own index, so a live claimant
+  # naming its address fell through to declares()+displacedFrom, which is
+  # a no-op for a ClassNeedsDiscovery address - a second live object
+  # carrying a duplicate marker was silently dropped: never bound, never
+  # an orphan, never a Problem. Root cause and fix reached every
+  # ServerAssigned/ARN-identity type under a fungible (count/for_each)
+  # set, not aws_iam_policy alone.
   CURRENT_STAGE=day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
@@ -926,36 +930,17 @@ EOF
     # tofu-slot as the one a genuine replace would destroy - the state
     # "skip the destroy half" of a create-before-destroy replace would
     # leave, produced directly via the AWS CLI rather than by actually
-    # interrupting an apply (day2_crash's own job).
-    #
-    # VERIFIED FINDING, not fixed in this script-only unit. Tried first
-    # against the assumption this would match corpus-sqs-basic's own
-    # fungible-set "Two live resources claiming one slot" hard refusal
-    # (aws_iam_policy.policy[0] is count-indexed the same way
-    # aws_sqs_queue.this[0] is) - it does not. Reproduced directly, no
-    # BREAK-branch code in the loop (a fresh floci container, the
-    # collision policy created and tagged exactly as below, then a plan
-    # run by hand): the plan exits 0 with a bare "No changes." and never
-    # mentions the collision policy's ARN at all - genuinely silent, not
-    # even a warning. Root cause read directly off the two other shapes'
-    # own findings in this same unit: aws_iam_policy's identity is
-    # ServerAssigned/ARN (table_generated.go), resolved record-primary
-    # (#364) rather than re-derived from configuration every plan the way
-    # a client-named type is. The record already names the REAL policy's
-    # ARN; since that object still exists and still satisfies the config,
-    # the plan proceeds straight from the record and never compares it
-    # against the marker sweep's OWN independent read of "what carries
-    # this address" the way a client-named type's derivation does - so a
-    # second object carrying a duplicate marker is simply never looked at.
-    # This is a materially different, and weaker, guarantee than either
-    # corpus-evoteum-modules/corpus-giantswarm-crossplane/corpus-
-    # hongbomiao-harbor's named "displaced" warning or corpus-sqs-basic's
-    # hard refusal, and it plausibly reaches every ServerAssigned/ARN-
-    # identity type under a fungible (count/for_each) set - not narrowed
-    # further here; worth its own follow-on issue. Asserted below by its
-    # own exact, verified shape (silent success), not by what the Break
-    # text says SHOULD happen, so a future fix landing here breaks this
-    # assertion first.
+    # interrupting an apply (day2_crash's own job). Same shape as
+    # corpus-sqs-basic's own BREAK=replace, and now the same outcome:
+    # GitHub issue #411 fixed choudoufu's plan-node seam
+    # (internal/live/discovery, entryFor + count.go's set matcher) to
+    # cross-check a record-backed count entry against the marker sweep's
+    # own claimants, so this collision is refused exactly like
+    # corpus-sqs-basic's own aws_sqs_queue.this[0] one - "Two live
+    # resources claiming one slot" - rather than silently proceeding. Before
+    # the fix this section asserted the opposite (a verified, silent rc=0
+    # "No changes." with the decoy object never mentioned); see git history
+    # for that shape if #411 ever regresses.
     BREAK_COLLISION_DOC='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"ec2:DescribeInstances","Resource":"*"}]}'
     BREAK_COLLISION_ARN="$(awsl iam create-policy --policy-name "example-collision" \
       --policy-document "$BREAK_COLLISION_DOC" \
@@ -964,15 +949,11 @@ EOF
     [ -n "$BREAK_COLLISION_ARN" ] && [ "$BREAK_COLLISION_ARN" != "None" ] || fail "BREAK=replace: could not create the collision policy"
     BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
     awsl iam delete-policy --policy-arn "$BREAK_COLLISION_ARN" >/dev/null 2>&1 || true
-    [ "$BREAK_PLAN_RC" -eq 0 ] \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: this estate's own verified finding (see the comment immediately above) has changed - the plan now exits $BREAK_PLAN_RC instead of 0; re-check whether a fix landed"; }
-    grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: this estate's own verified finding has changed - the plan no longer reports a bare no-op; re-check whether a fix landed"; }
-    if grep -qF "$BREAK_COLLISION_ARN" <<< "$BREAK_PLAN_OUT"; then
-      log "  BREAK=replace: the plan now DOES mention the collision policy ($BREAK_COLLISION_ARN) - the gap this section's own header documents may have closed; re-verify and update the comment/assertions above"
-    else
-      log "  BREAK=replace: VERIFIED FINDING (not fixed here, see this section's own header) - choudoufu proceeds silently (rc=0, bare \"No changes.\") with the manufactured collision policy never mentioned at all; a materially weaker outcome than corpus-sqs-basic's hard refusal or corpus-evoteum-modules'/corpus-giantswarm-crossplane's/corpus-hongbomiao-harbor's named warning, traced to aws_iam_policy's ServerAssigned/ARN identity being resolved record-primary rather than re-derived from configuration"
-    fi
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - GitHub issue #411's fix"
   else
     log "=== F1. choudoufu: change the ForceNew name_prefix argument, forcing a replace at the same declared address ==="
     sed -i.bak 's/name_prefix = "example-"/name_prefix = "example-v2-"/' "$EST/main.tf"
@@ -1031,7 +1012,7 @@ EOF
     # section's own gauntlet_stage report below.
     D_POLICY2_ARN="$F_NEW_ARN"
 
-    gauntlet_stage day2_replace pass "choudoufu: changing module.iam_policy_renamed2's ForceNew name_prefix argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old policy ($F_OLD_IMPORT_ID) is confirmed gone and the new policy ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's ARN, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.6) also proposes exactly one replace at the same address (plan only, not applied). Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one; (2) BREAK=replace's manufactured marker collision is NOT reported for this type - VERIFIED FINDING, not fixed here: aws_iam_policy's ServerAssigned/ARN identity is resolved record-primary, so a second live object carrying a duplicate tofu-address/tofu-slot marker is never compared against the record and the plan proceeds silently (rc=0, bare 'No changes.'), unlike corpus-sqs-basic's fungible-set hard refusal or corpus-evoteum-modules'/corpus-giantswarm-crossplane's/corpus-hongbomiao-harbor's named warning - see PART F's own header and its BREAK=replace branch for the full reasoning; plausibly reaches every ServerAssigned/ARN-identity type under a fungible set."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.iam_policy_renamed2's ForceNew name_prefix argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old policy ($F_OLD_IMPORT_ID) is confirmed gone and the new policy ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's ARN, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.6) also proposes exactly one replace at the same address (plan only, not applied). Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. BREAK=replace's manufactured marker collision IS now reported for this type (GitHub issue #411, fixed): 'Two live resources claiming one slot', the same fungible-set hard refusal corpus-sqs-basic's own BREAK=replace gets - see PART F's own header and its BREAK=replace branch."
   fi
   CURRENT_STAGE=""
   log ""

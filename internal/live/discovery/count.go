@@ -195,19 +195,20 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 		switch len(entry.claimants) {
 		case 0:
 			// A record-backed entry (see [declaredEntry.recordBacked]'s own
-			// doc comment) ALWAYS has zero claimants here, by construction
-			// - it was excluded from the scan, not left unanswered by it -
-			// so it is not genuinely unbound and must not be reported as
-			// one: classifyOrphans's rename guard reads Unbound as "this
-			// block still has an unclaimed declared instance" and withholds
-			// a real removal on a sibling block sharing the same
-			// [blockKey] otherwise (the #388 default-flip's own regression
-			// on corpus-iam-policy's day2_remove stage - two modules'
-			// aws_iam_policy.policy blocks share a blockKey, and the
-			// surviving, record-backed one being misreported Unbound
-			// withheld the destroy for the block actually being removed).
-			// The slot still has to be minted or carried - that half of
-			// this case is unrelated to Unbound and correct either way.
+			// doc comment) has zero claimants here by construction whenever
+			// nothing live collided with it - it was excluded from the
+			// scan, not left unanswered by it - so it is not genuinely
+			// unbound and must not be reported as one: classifyOrphans's
+			// rename guard reads Unbound as "this block still has an
+			// unclaimed declared instance" and withholds a real removal on
+			// a sibling block sharing the same [blockKey] otherwise (the
+			// #388 default-flip's own regression on corpus-iam-policy's
+			// day2_remove stage - two modules' aws_iam_policy.policy blocks
+			// share a blockKey, and the surviving, record-backed one being
+			// misreported Unbound withheld the destroy for the block
+			// actually being removed). The slot still has to be minted or
+			// carried - that half of this case is unrelated to Unbound and
+			// correct either way.
 			if !entry.recordBacked {
 				res.Unbound = append(res.Unbound, entry.res.Addr)
 			}
@@ -216,6 +217,24 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 				Slot: slots.Slot(i).String(), Origin: SlotMinted,
 			})
 		case 1:
+			if entry.recordBacked {
+				// GitHub issue #411: since entryFor now lets a record-backed
+				// count member collect claimants (to catch a genuine
+				// collision below), a lone claimant reaches here on the
+				// ordinary, non-colliding path too - the estate record
+				// already answered this instance's identity, and a single
+				// live object confirms it rather than adding anything a
+				// Binding would say better. Building one here is exactly
+				// the "wasted binding ATTEMPT" RecordBackedAddrs exists to
+				// skip (see that field's own doc comment), so this stays
+				// inert: no Binding, no Unbound - only the same slot
+				// bookkeeping the zero-claimant case above always did.
+				res.Slots = append(res.Slots, SlotAssignment{
+					Addr: entry.res.Addr, Key: entry.escaped,
+					Slot: slots.Slot(i).String(), Origin: SlotMinted,
+				})
+				continue
+			}
 			c := entry.claimants[0]
 			b, ok := bindOne(cb.typeName, entry.res.Addr, entry.escaped, c, res, &diags)
 			if !ok {
@@ -228,6 +247,14 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 				Slot: slots.Slot(i).String(), Origin: SlotMigrated,
 			})
 		default:
+			// GitHub issue #411: reached for a record-backed entry too, now
+			// that entryFor lets it collect claimants - two or more live
+			// objects naming one record-backed count instance is exactly
+			// the same fungible-set collision this branch already refuses
+			// for a non-record-backed one, and collisionProblem does not
+			// read entry.recordBacked, so the message is identical either
+			// way: "Indistinguishable instances without per-instance
+			// markers" naming this address, pointing at tofu-slot.
 			diags = diags.Append(problemDiag(res, collisionProblem(req, cb.typeName, entry)))
 		}
 	}
@@ -297,6 +324,23 @@ func bindCountBySlot(req Request, cb *countBlock, res *Result, bound map[string]
 
 	for _, b := range match.Bound {
 		entry := cb.entries[b.Index]
+		if entry.recordBacked {
+			// GitHub issue #411: entryFor now lets a record-backed count
+			// member collect claimants, so its own single, non-colliding
+			// live object reaches a successful match here exactly like an
+			// ordinary entry's does - a genuine collision never reaches
+			// this loop at all, because slots.Match above already returned
+			// a DuplicateError for it. One matching claimant on a
+			// record-backed entry is confirmation of what the estate
+			// record already answered, not new information, so this stays
+			// the same no-Binding outcome bindCountByAddress's own case-1
+			// gives a record-backed entry - the "wasted binding ATTEMPT"
+			// RecordBackedAddrs exists to skip (see that field's own doc
+			// comment). Slot bookkeeping is unaffected: it happens in the
+			// unconditional loop below, keyed off cb.entries and match.Slots
+			// rather than off what this loop binds.
+			continue
+		}
 		c := bySlot[b.Slot.String()]
 		binding, ok := bindOne(cb.typeName, entry.res.Addr, entry.escaped, c, res, &diags)
 		if !ok {
