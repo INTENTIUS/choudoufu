@@ -700,6 +700,20 @@ recovers a class shrinks these buckets, and the ledger of what still
 resists extraction is `tools/row-gen/annotations.json`, where every
 entry names what a fuller extraction would have to capture to retire it.
 
+Issue #427 re-derived the needs-hand-separator bucket's current
+membership (76, by `live/rowgen-buckets.json`'s own count) rather than
+trusting the figure its own plan document cited, and found every one of
+the 76 already had, or now has, a disposition: 49 hand-ratified already
+(`tools/row-gen/annotations.json`), 6 already vetoed with full evidence,
+1 already admitted through the record-located mechanism instead of a
+table row (no separator needed at all), and 21 that carried only bare
+provenance until this sweep read the provider's own doc cache and the
+registry evidence for each and recorded it in `tools/row-gen/rejected.json`
+- 14 with a separator and worked example a ratification batch can paste
+directly, 6 with no worked example anywhere in the doc (the
+`aws_acmpca_permission` precedent). `tools/row-gen/separator-evidence.json`
+is the review index over all 76; it admits nothing itself.
+
 ## The unmapped tail is a taxonomy, not a backlog
 
 Earlier versions of this page described a 900-type unmapped set that was

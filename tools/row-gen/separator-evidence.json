@@ -1,0 +1,473 @@
+{
+  "note": "Issue #427's evidence-table review index for row-gen's current needs_hand_separator bucket (live/rowgen-buckets.json's own count, re-derived at commit f08a8f64bd via `go run ./tools/row-gen` and cross-referenced against tools/row-gen/ratified.json and tools/row-gen/rejected.json rather than trusting the issue's own plan-document figure of 76 as a fixed target: it happens to still be 76, but every one of the 76 names has moved since the plan was written. 49 were hand-ratified into internal/live/identity.DefaultTable by prior batches (each with its own tools/row-gen/annotations.json ruling explaining the fresh-proposal-vs-ratified diff). Of the remaining 27, already in tools/row-gen/rejected.json's veto ledger: 6 already carried a full, evidenced reason from a prior batch (evidence_state 'rejected-full-evidence-pre-427'); 21 carried only bare recovered_from provenance or a provenance-only note with no reasoning about THIS type's own separator until this batch enriched them - 14 where the provider's Import section names a separator and worked example a later ratification batch (issue #426's queue-emitter, not yet built) can paste directly (evidence_state 'propose-separator', 13 of the 14 flagged as untaggable members of issue #233's server-assigned-tail population, where the real blocker is #233 rather than the separator), 6 where no worked example exists anywhere in the doc at all (evidence_state 'evidence-absent', the tools/row-gen/rejected.json aws_acmpca_permission precedent the issue itself cites, and for all 6 here also independently and decisively a current internal/live/identity.NotImportableTypes member, issue #331, so the separator question is moot regardless of the doc gap), and 1 (aws_vpn_gateway_attachment) where the type turned out not to need a Components row at all: it is already admitted today through the record-located mechanism (LocatedType's bare-id branch), pinned by internal/live/identity/located_flatregression_test.go and re-run clean by this batch (evidence_state 'already-located-admitted'). This file does NOT admit anything - internal/live/identity/table_generated.go and tools/row-gen/ratified.json are untouched by issue #427. The full quoted doc prose, worked examples and registry fields for the 21 types this batch actually evidenced live in tools/row-gen/rejected.json's own entries (the load-bearing, tested ledger; this file is a review index over it, not a second copy of it) - this file's own 'evidence' field is a pointer plus a short summary, not the full citation.",
+  "issue": "#427",
+  "derived_from": "live/rowgen-buckets.json needs_hand_separator bucket, re-derived via `go run ./tools/row-gen` at commit f08a8f64bd",
+  "counts": {
+    "needs_hand_separator_bucket_total": 76,
+    "already_ratified": 49,
+    "already_rejected_full_evidence_pre_427": 6,
+    "rejected_evidence_enriched_by_427": 21,
+    "of_which_propose_separator": 14,
+    "of_which_evidence_absent": 6,
+    "of_which_already_located_admitted": 1
+  },
+  "entries": {
+    "aws_acmpca_permission": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Evidence-absent, the issue's own cited precedent: aws_acmpca_permission.html.markdown carries no Import section at all - no import block, no `terraform import` example. No worked example anywhere to read a separator off. Also a current internal/live/identity.NotImportableTypes member (issue #331): the provider reports no classic Importer for it either, so the separator question is moot regardless. See tools/row-gen/rejected.json's own entry (unmodified by this batch)."
+    },
+    "aws_api_gateway_authorizer": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "REST-API-ID/AUTHORIZER-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `12345abcde/example`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_api_gateway_base_path_mapping": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "DOMAIN-NAME/BASE-PATH",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_api_gateway_base_path_mapping for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_api_gateway_deployment": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "REST-API-ID/DEPLOYMENT-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_api_gateway_documentation_part": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "REST-API-ID/DOC-PART-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `5i4e1ko720/3oyy3t`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_api_gateway_request_validator": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "REST-API-ID/REQUEST-VALIDATOR-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `12345abcde/67890fghij`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_api_gateway_resource": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Not a separator gap: the doc's composite import ID (REST-API-ID/RESOURCE-ID) is fully evidenced, but the resource is untaggable with a server-minted resource_id and no marker-capable argument - BLOCKED ON #233, the same population this batch's aws_api_gateway_authorizer/aws_apigatewayv2_* entries land in. See tools/row-gen/rejected.json's own entry (unmodified by this batch; the population-level accounting this batch's own entries reference)."
+    },
+    "aws_apigatewayv2_api_mapping": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "MAPPING-ID/DOMAIN-NAME (order reversed vs siblings)",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `1122334/ws-api.example.com`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_authorizer": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/AUTHORIZER-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_deployment": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/DEPLOYMENT-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_integration": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/INTEGRATION-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_integration_response": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/INTEGRATION-ID/INTEGRATION-RESPONSE-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334/998877`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_model": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/MODEL-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_route_response": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "API-ID/ROUTE-ID/ROUTE-RESPONSE-ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `aabbccddee/1122334/998877`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_apigatewayv2_stage": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "API-ID/STAGE-NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_apigatewayv2_stage for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_appautoscaling_policy": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "SERVICE_NAMESPACE/RESOURCE_ID/SCALABLE_DIMENSION/NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_appautoscaling_policy for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cloudwatch_event_permission": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "STATEMENT_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cloudwatch_event_permission for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_codedeploy_deployment_group": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "APP_NAME:DEPLOYMENT_GROUP_NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_codedeploy_deployment_group for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_codepipeline_custom_action_type": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "CATEGORY:PROVIDER:VERSION",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_codepipeline_custom_action_type for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cognito_identity_pool_provider_principal_tag": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "IDENTITYPOOLID:IDENTITYPROVIDERNAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cognito_identity_pool_provider_principal_tag for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cognito_resource_server": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "USERPOOLID|IDENTIFIER",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cognito_resource_server for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cognito_user": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "USERPOOLID/USERNAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cognito_user for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cognito_user_group": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "USERPOOLID/NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cognito_user_group for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_cognito_user_in_group": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "USERPOOLID,GROUPNAME,USERNAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_cognito_user_in_group for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_controltower_control": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TARGETIDENTIFIER,CONTROLIDENTIFIER",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_controltower_control for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_local_gateway_route": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "LOCAL_GATEWAY_ROUTE_TABLE_ID_DESTINATION_CIDR_BLOCK",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_local_gateway_route for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_transit_gateway_metering_policy_entry": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRANSITGATEWAYMETERINGPOLICYID,POLICYRULENUMBER",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_transit_gateway_metering_policy_entry for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_transit_gateway_multicast_domain_association": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_ec2_transit_gateway_multicast_group_member": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_ec2_transit_gateway_multicast_group_source": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_ec2_transit_gateway_policy_table_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRANSITGATEWAYPOLICYTABLEID_TRANSITGATEWAYATTACHMENTID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_transit_gateway_policy_table_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_transit_gateway_route": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRANSITGATEWAYROUTETABLEID_DESTINATIONCIDRBLOCK",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_transit_gateway_route for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_transit_gateway_route_table_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRANSITGATEWAYROUTETABLEID_TRANSITGATEWAYATTACHMENTID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_transit_gateway_route_table_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ec2_transit_gateway_route_table_propagation": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRANSITGATEWAYROUTETABLEID_TRANSITGATEWAYATTACHMENTID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ec2_transit_gateway_route_table_propagation for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_eks_access_entry": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "CLUSTERNAME:PRINCIPALARN",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_eks_access_entry for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_eks_identity_provider_config": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": ":",
+      "proposed_import_syntax": "CLUSTER_NAME:IDENTITY_PROVIDER_CONFIG_NAME",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `example-cluster:example-config`; live/import-grammar.json's own scraped row already resolves separator=':' from the same page. Taggable (signals.taggable=true): the ordinary marker path applies once a Block-aware component exists for the second segment, which lives inside the resource's required `oidc` nested block rather than at the top level. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_elastic_beanstalk_application_version": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_elastic_beanstalk_configuration_template": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_iam_group_policy": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "GROUPNAME:POLICYNAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_iam_group_policy for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_iam_user_policy": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "USERNAME:POLICYNAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_iam_user_policy for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_identitystore_group": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": "/",
+      "proposed_import_syntax": "IDENTITY_STORE_ID/GROUP_ID",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `d-9c6705e95c/b8a1c340-8031-7071-a2fb-7dc540320c30`; live/import-grammar.json's own scraped row already resolves separator='/' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_internet_gateway_attachment": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "INTERNET_GATEWAY_ID:VPC_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_internet_gateway_attachment for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_kendra_data_source": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "DATA_SOURCE_ID/INDEX_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_kendra_data_source for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_kendra_faq": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "FAQ_ID/INDEX_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_kendra_faq for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_lakeformation_data_cells_filter": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "DATABASE_NAME,NAME,TABLE_CATALOG_ID,TABLE_NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_lakeformation_data_cells_filter for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_lb_trust_store_revocation": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "TRUST_STORE_ARN,REVOCATION_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_lb_trust_store_revocation for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_lexv2models_bot_version": {
+      "disposition": "rejected",
+      "evidence_state": "propose-separator",
+      "proposed_separator": ",",
+      "proposed_import_syntax": "BOT_ID,BOT_VERSION",
+      "evidence": "Provider's own Import section states the grammar and shows worked example `id-12345678,1`; live/import-grammar.json's own scraped row already resolves separator=',' from the same page. Untaggable (live/survey-full.json signals.taggable=false) and a MarkerlessTypes member: this ledger's own aws_api_gateway_resource and aws_apigatewayv2_route entries name this exact shape BLOCKED ON #233 (server-assigned identity, no marker-capable argument) - the separator below is not the open question for this type; see tools/row-gen/rejected.json's own entry for the full reasoning. See tools/row-gen/rejected.json's own entry (enriched by issue #427) for the full quoted evidence."
+    },
+    "aws_lightsail_lb_certificate": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "LBNAME,CERTIFICATENAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_lightsail_lb_certificate for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_medialive_multiplex_program": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Not a separator gap: the documented PROGRAM_NAME/MULTIPLEX_ID import leaves multiplex_id (ForceNew) unset on the resulting state, reproduced directly against floci - every marker-rebuilt plan proposes replacement (#124). Re-admittable once a pass backfills null ForceNew arguments from identity components. See tools/row-gen/rejected.json's own entry (unmodified by this batch)."
+    },
+    "aws_notifications_channel_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "NOTIFICATION_CONFIGURATION_ARN,ARN",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_notifications_channel_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_qldb_stream": {
+      "disposition": "rejected",
+      "evidence_state": "evidence-absent",
+      "evidence": "Confirmed directly against the pinned provider doc cache (hashicorp/aws 6.59.0): the page carries no `## Import` heading at all - no worked example exists anywhere to read a separator off (the aws_acmpca_permission precedent, same ledger). Independently, and decisively on its own: this type is a current internal/live/identity.NotImportableTypes member (issue #331, live/survey-full.json signals.importable=false) - the provider reports no classic Importer for it, so the separator question is moot regardless of the missing doc example. See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    },
+    "aws_quicksight_analysis": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,ANALYSIS_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_analysis for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_custom_permissions": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,CUSTOM_PERMISSIONS_NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_custom_permissions for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_dashboard": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,DASHBOARD_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_dashboard for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_data_set": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,DATA_SET_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_data_set for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_data_source": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID/DATA_SOURCE_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_data_source for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_folder": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Not a separator gap: row-gen -propose's own 16/16 rule-class record failed its 17th spot-check - the provider's Argument Reference does not back the proposed attribution. See tools/row-gen/rejected.json's own entry (unmodified by this batch)."
+    },
+    "aws_quicksight_refresh_schedule": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,DATA_SET_ID,SCHEDULE_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_refresh_schedule for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_template": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,TEMPLATE_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_template for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_theme": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,THEME_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_theme for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_quicksight_vpc_connection": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "AWS_ACCOUNT_ID,VPC_CONNECTION_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_quicksight_vpc_connection for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_redshift_endpoint_authorization": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ACCOUNT:CLUSTER_IDENTIFIER",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_redshift_endpoint_authorization for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_route": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ROUTETABLEID_DESTINATION",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_route for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_route53_key_signing_key": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "HOSTEDZONEID,NAME",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_route53_key_signing_key for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_servicecatalog_portfolio_share": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "PORTFOLIOID:TYPE:PRINCIPALID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_servicecatalog_portfolio_share for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_servicecatalog_principal_portfolio_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ACCEPT_LANGUAGE,PRINCIPAL_ARN,PORTFOLIO_ID,PRINCIPAL_TYPE",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_servicecatalog_principal_portfolio_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_servicecatalog_product_portfolio_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ACCEPT_LANGUAGE:PORTFOLIO_ID:PRODUCT_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_servicecatalog_product_portfolio_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_signer_signing_profile_permission": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "PROFILE_NAME/STATEMENT_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_signer_signing_profile_permission for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ssm_maintenance_window_target": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "WINDOW_ID/ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ssm_maintenance_window_target for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_ssoadmin_application_assignment": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "APPLICATION_ARN,PRINCIPAL_ID,PRINCIPAL_TYPE",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_ssoadmin_application_assignment for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_vpc_ipam_pool_cidr": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "CIDR_IPAMPOOLID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_vpc_ipam_pool_cidr for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_vpc_network_performance_metric_subscription": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Evidence-absent, same shape as aws_acmpca_permission: primary_identifier is a 4-part composite (Source, Destination, Metric, Statistic) but the provider's doc has no Import section - it ends at Attribute Reference. No worked example to read a 3- or 4-part separator and ordering off of. See tools/row-gen/rejected.json's own entry (unmodified by this batch)."
+    },
+    "aws_vpc_route_server_propagation": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ROUTE_SERVER_ID,ROUTE_TABLE_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_vpc_route_server_propagation for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_vpc_route_server_vpc_association": {
+      "disposition": "ratified",
+      "separator_decided_by": "prior ratification batch",
+      "import_syntax": "ROUTE_SERVER_ID,VPC_ID",
+      "evidence": "Already admitted; the separator and full ImportSyntax were hand-ratified in an earlier batch. See tools/row-gen/annotations.json's ruling for aws_vpc_route_server_vpc_association for the doc evidence and the fresh-vs-ratified diff, and internal/live/identity/table_generated.go for the live row."
+    },
+    "aws_vpn_connection_route": {
+      "disposition": "rejected",
+      "evidence_state": "rejected-full-evidence-pre-427",
+      "evidence": "Evidence-absent, same shape as aws_acmpca_permission: primary_identifier is a 2-part composite (DestinationCidrBlock, VpnConnectionId) but the doc's Attribute Reference only echoes the two arguments back as computed values, never as a joined import string. See tools/row-gen/rejected.json's own entry (unmodified by this batch)."
+    },
+    "aws_vpn_gateway_attachment": {
+      "disposition": "rejected",
+      "evidence_state": "already-located-admitted",
+      "evidence": "Not a separator gap and not actually blocked: untaggable, but its provider schema exports a plain top-level Computed `id` string with no wire Identity Schema, so it stays on LocatedType's bare-id default branch and is admitted through the record-located mechanism today with no Components row, separator or ImportSyntax at all - pinned by internal/live/identity/located_flatregression_test.go's TestLocatedTypeAdmitsVPNGatewayAttachment (re-run clean by this batch, 2026-08-29). See tools/row-gen/rejected.json's own entry (enriched by issue #427)."
+    }
+  }
+}
