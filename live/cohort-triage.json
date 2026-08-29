@@ -1,0 +1,186 @@
+{
+  "generated_by": "issue #432: hand triage, cross-checked against live/floci-capabilities.json and live-verified against a fresh floci container",
+  "image": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
+  "measured_at": {
+    "note": "this artifact's own conclusions (the family/issue calls below) were live-verified against 'image' above, live/flociimage_test.go's field for this file - not against cohort_acceptance_image, which is only the stale pin the source artifact (live/cohort-acceptance.json) itself was measured against and is carried here for provenance, not as a claim this table's own findings are that old",
+    "cohort_acceptance_commit": "0928959f84",
+    "cohort_acceptance_image": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933",
+    "live_verification_image": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948"
+  },
+  "failing_count_at_read_commit": 27,
+  "families": {
+    "emulator-gap": "the pinned floci emulator does not implement, or misimplements, an AWS API the cohort needs. One issue filed on lex00/floci per row, naming the exact operation, confirmed by a direct AWS CLI call against a fresh floci container at the current main pin (sha256:c55d74e1) - not by inference from the recorded error text alone, per HANDOFF.md's 'read the API directly, with no tofu in the loop' rule.",
+    "fixture-defect": "the estate's own generated .tf is wrong - a malformed resource block, not an emulator or choudoufu problem. Every row in this family was small enough to fix in this same unit."
+  },
+  "notes": [
+    "No row is classified choudoufu-defect: every one of the 27 failing cohorts fails in PhaseApply, and the apply phase runs stock 'terraform' (internal/live/acceptance/acceptance_live_test.go's terraformBin), never choudoufu's own tofu binary - choudoufu's code (live-plan) only runs in the later replan/empty phases, which none of these 27 cohorts reached. A choudoufu defect cannot be the cause of an apply-phase failure by construction of this test.",
+    "live/cohort-acceptance.json was measured at an older emulator pin (sha256:1362e856) than the repo's current one (sha256:c55d74e1, live/gauntlet.json). Live-probing every cohort's recorded blocker against the current pin found 6 operations already fixed upstream since that measurement (Bedrock CreateGuardrail, Athena CreateDataCatalog, AppIntegrations CreateDataIntegration, CodeArtifact CreateDomain, EC2 EnableSnapshotBlockPublicAccess, IoT CreateAuthorizer) and 3 cohorts (apigateway, ec2-networking, networking-advanced) whose recorded aws_lb failure no longer reproduces at all. For every cohort, this table's 'reasoning' records what is confirmed live and current, not just what the artifact recorded; issues filed on lex00/floci name the operation actually still broken now, which in six cases is a different, later operation than the one the artifact recorded.",
+    "Fixing the two fixture bugs in 'identity' and 'storage' each uncovered a second, deeper emulator gap sitting right behind the fixture bug (IAM CreateSAMLProvider and FSx CreateFileSystem respectively) - both confirmed live and filed as their own floci issues.",
+    "A pre-existing floci tracking issue, lex00/floci#50, covers this same ground from 2026-08-14 against a much older image; commented there cross-linking the 21 new per-cohort issues plus the 2 uncovered-behind-a-fixture ones (23 total) rather than leaving it orphaned.",
+    "Not independently re-run through the full acceptance harness after these fixes: TF_FLOCI_TEST=1 go test ./internal/live/acceptance -run TestCohortAcceptance was not executed in this unit (it needs the emulator pinned at sha256:1362e856 specifically to be a fair before/after, and takes hours for all 31 cohorts) - see 'What I did NOT verify' in the PR description."
+  ],
+  "rows": [
+    {
+      "cohort": "ai-location",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#158",
+      "reasoning": "Bedrock CreateGuardrail (the recorded blocker) is now fixed upstream, but live probing found Comprehend CreateDocumentClassifier, Kendra CreateIndex, Rekognition CreateCollection, QBusiness CreateApplication all still 'Unknown operation', and Location's per-API endpoint routing doesn't even resolve - any one of these still blocks this cohort."
+    },
+    {
+      "cohort": "apigateway",
+      "family": "fixture-defect",
+      "issue": "none filed - does not reproduce at HEAD",
+      "reasoning": "The recorded 'Invalid combination of arguments' on aws_lb (load_balancer_type=network, one subnet) does not reproduce: terraform validate is clean and a live target-apply of the same resource against the current pin creates successfully in ~1 minute with no error. Left unfixed since there is nothing to fix; recommend re-running cohort-acceptance to refresh the stale artifact and confirm this cohort's real next blocker, if any."
+    },
+    {
+      "cohort": "compute-platforms",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#159",
+      "reasoning": "Amplify CreateApp confirmed still 'Unknown operation: POST /apps' at the current pin, same as recorded."
+    },
+    {
+      "cohort": "connect-euc",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#160",
+      "reasoning": "The recorded 'Missing required argument' does not reproduce (terraform validate and plan are both clean against the current fixture). Live-applying the actual fixture surfaces a different, more informative failure set: AppStream CreateStack/CreateUser, WorkSpaces CreateIpGroup/CreateWorkspaces, seven WorkSpacesWeb create operations, and two Connect operations (SearchAvailablePhoneNumbers, UpdateUserHierarchyStructure) all still unimplemented at the current pin."
+    },
+    {
+      "cohort": "data",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#161",
+      "reasoning": "Athena CreateDataCatalog (the recorded blocker) is now fixed upstream, but Glue CreateClassifier confirmed still 'not supported' (InvalidAction) at the current pin."
+    },
+    {
+      "cohort": "data-movement",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#162",
+      "reasoning": "AppIntegrations CreateDataIntegration (the recorded blocker) is now fixed upstream, but Transfer CreateConnector and CreateWorkflow are both confirmed still 'Unknown operation' at the current pin."
+    },
+    {
+      "cohort": "databases",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#163",
+      "reasoning": "Confirmed live: OpenSearch CreateDomain/DescribeDomain reports Processing=false immediately but Endpoint stays empty forever (polled repeatedly over 15s, unchanged), so terraform-provider-aws's active-domain waiter polls until the harness's 8-minute apply deadline kills it. A misimplementation, not a missing operation or a genuinely slow create."
+    },
+    {
+      "cohort": "devtools",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#164",
+      "reasoning": "CodeArtifact CreateDomain (the recorded blocker) is now fixed upstream, but CodeBuild CreateFleet, CodeCommit CreateRepository, CodeConnections CreateConnection and ECR-Public CreateRepository are all confirmed still unimplemented at the current pin."
+    },
+    {
+      "cohort": "dynamodb-elasticache",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#165",
+      "reasoning": "DynamoDB CreateGlobalTable confirmed still 'not supported' at the current pin, same as recorded."
+    },
+    {
+      "cohort": "ec2-core",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#166",
+      "reasoning": "EC2 EnableSnapshotBlockPublicAccess (the recorded blocker) is now fixed upstream, but EC2 CreatePlacementGroup and AllocateHosts (dedicated hosts) are both confirmed still 'not supported' at the current pin."
+    },
+    {
+      "cohort": "ec2-networking",
+      "family": "fixture-defect",
+      "issue": "none filed - does not reproduce at HEAD",
+      "reasoning": "Same aws_lb/single-subnet pattern and same recorded error as apigateway; live target-apply of the same resource against the current pin creates successfully with no error. Left unfixed since there is nothing to fix; recommend re-running cohort-acceptance."
+    },
+    {
+      "cohort": "ecs-eks",
+      "family": "fixture-defect",
+      "issue": "fixed in this PR",
+      "reasoning": "aws_dynamodb_table declared a global_secondary_index keyed on GameTitle (hash) and TopScore (range) but the table's own attribute blocks only defined UserId - DynamoDB's CreateTable rejects a GSI key with no matching attribute definition, exactly the recorded 'Unmatched indexes' error. Added the two missing attribute blocks and confirmed live that CreateTable now succeeds. Root cause is a generator bug (estate-gen's seedFromExample only seeds one repeated 'attribute' block from the provider's doc example, silently dropping the other two); fixing seedFromExample itself is out of this unit's scope, so the fix is recorded as known, reasoned drift in tools/estate-gen/drift_test.go's knownDrift table rather than silently diverging from a fresh regeneration."
+    },
+    {
+      "cohort": "governance",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#167",
+      "reasoning": "Audit Manager CreateAssessmentFramework confirmed still 'Unknown operation: POST //assessmentFrameworks' at the current pin, past client-side parameter validation (also confirmed: ListAssessmentFrameworks is unimplemented too)."
+    },
+    {
+      "cohort": "iam-ecr",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#168",
+      "reasoning": "ECR PutRegistryScanningConfiguration confirmed still 'not supported' at the current pin, same as recorded. (live/floci-capabilities.json's cloudcontrol-list probe marks the type 'implemented' at an older pin, but that is a different, generic Cloud Control code path - not the native ECR call the AWS provider actually makes, which is confirmed broken.)"
+    },
+    {
+      "cohort": "identity",
+      "family": "fixture-defect",
+      "issue": "fixed in this PR; emulator gap uncovered behind it filed as lex00/floci#180",
+      "reasoning": "aws_iam_saml_provider.saml_metadata_document was the literal 11-character string \"placeholder\", failing the provider's own client-side length check (1000 - 10000000 characters) before any API call. Added a new estate-gen override (tools/estate-gen/overrides_cohort_identity.go) with a syntactically well-formed, padded (1814-character) dummy SAML metadata document and regenerated the fixture. That gets past the length check, but live target-apply then hits IAM CreateSAMLProvider itself being unimplemented ('Operation CreateSAMLProvider is not supported') - filed separately as lex00/floci#180."
+    },
+    {
+      "cohort": "iot",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#169",
+      "reasoning": "CreateAuthorizer (the recorded blocker) is now fixed upstream, but CreateBillingGroup, CreateRoleAlias and CreateTopicRuleDestination are all confirmed still 'Unknown operation' at the current pin."
+    },
+    {
+      "cohort": "lambda",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#170",
+      "reasoning": "Lambda CreateCodeSigningConfig confirmed still 'Unknown operation' at the current pin, same as recorded."
+    },
+    {
+      "cohort": "networking-advanced",
+      "family": "fixture-defect",
+      "issue": "none filed - does not reproduce at HEAD",
+      "reasoning": "Same aws_lb/single-subnet pattern and same recorded error as apigateway and ec2-networking; live target-apply of the same resource against the current pin creates successfully with no error. Left unfixed since there is nothing to fix; recommend re-running cohort-acceptance."
+    },
+    {
+      "cohort": "observability",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#171",
+      "reasoning": "CloudWatch PutAlarmMuteRule confirmed still 'not supported by CloudWatch JSON' at the current pin, past client-side parameter validation."
+    },
+    {
+      "cohort": "rds",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#172",
+      "reasoning": "RDS CreateEventSubscription confirmed still 'not supported' at the current pin, same as recorded."
+    },
+    {
+      "cohort": "remainder",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#173",
+      "reasoning": "The recorded detail was truncated to one line; confirmed live that both ArcRegionSwitch.ListPlans and ArcRegionSwitch.CreatePlan are 'Unknown operation' at the current pin - the whole arc-region-switch service looks absent from floci."
+    },
+    {
+      "cohort": "route53-cloudfront",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#174",
+      "reasoning": "The recorded 'Provider produced inconsistent result after apply' does not reproduce in that shape; a live target-apply of the actual fixture's first resource, aws_cloudfront_anycast_ip_list.app, surfaces CloudFront CreateAnycastIpList returning a malformed, empty-body 404 (api error UnknownError: UnknownError, empty RequestID) - confirmed the cohort's current actual blocker, whether or not it is also what produced the differently-shaped symptom recorded at the older pin."
+    },
+    {
+      "cohort": "sagemaker",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#175",
+      "reasoning": "SageMaker CreateAppImageConfig confirmed still 'not supported by floci' (floci's own error text) at the current pin, same as recorded."
+    },
+    {
+      "cohort": "security",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#176",
+      "reasoning": "The recorded 'Request cancelled' is the downstream symptom of terraform cancelling other resources' in-flight applies once one resource hard-fails; GuardDuty CreateDetector, alphabetically first in the recorded failed_resources list, is confirmed still 'Unknown operation' at the current pin and is the most likely trigger."
+    },
+    {
+      "cohort": "storage",
+      "family": "fixture-defect",
+      "issue": "fixed in this PR; emulator gap uncovered behind it filed as lex00/floci#179",
+      "reasoning": "aws_fsx_lustre_file_system.import_path was wired to a bare aws_s3_bucket.storage.bucket reference (just the bucket name) with no \"s3://\" prefix, failing the provider's own client-side format check before any API call. Root cause: estate-gen's seedFromExample seeds the doc example's \"s3://${...}\" string template by re-wiring the argument to the bare reference behind the interpolation, dropping the literal template text around it. Added a new estate-gen override (tools/estate-gen/overrides_cohort_storage.go) that restores the \"s3://\" prefix (and the storage_capacity value the override otherwise suppressed) and regenerated the fixture. That gets past the format check, but live target-apply then hits FSx CreateFileSystem itself being unimplemented ('Unknown operation: AWSSimbaAPIService_v20180301.CreateFileSystem', which folds all four FSx file-system Terraform types onto one API) - filed separately as lex00/floci#179."
+    },
+    {
+      "cohort": "stragglers",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#177",
+      "reasoning": "ECR CreatePullThroughCacheRule confirmed still 'not supported' at the current pin, same as recorded."
+    },
+    {
+      "cohort": "streaming",
+      "family": "emulator-gap",
+      "issue": "lex00/floci#178",
+      "reasoning": "AppFlow CreateConnectorProfile confirmed still 'Unknown operation' at the current pin, same as recorded."
+    }
+  ]
+}
