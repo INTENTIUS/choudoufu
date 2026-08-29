@@ -266,7 +266,11 @@ per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,
 `emulator` - the pin THAT run actually used, distinct from the
 top-level `emulator`, which is the pin the NEXT run will use -
 `exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot
-<version>` copies it to `live/history/<version>.json` at release.
+<version>` copies it to `live/history/<version>.json` at release; `go run
+./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just
+gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
+markdown - board movement per set, which estates newly cleared or
+regressed, and the emulator pin change - for the release body.
 
 ## What holds this together
 
