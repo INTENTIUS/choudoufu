@@ -179,6 +179,23 @@ else
   log "  built $TOFU"
 fi
 
+# day2_crash (Part H below) needs a build with e2eTestingFeatures set - the
+# same ldflags-gated feature TOFU_E2E_APPLY_RESOURCE_PANIC already sits
+# behind (internal/command/apply_e2etesting.go) - so its own
+# TOFU_E2E_APPLY_RESOURCE_INTERRUPT hook (apply_e2etesting_crash.go) is
+# reachable at all. Built fresh from THIS worktree's own source regardless
+# of whether $TOFU came from TOFU_BIN, since the point is to exercise this
+# tree's own engine, and unconditionally (not only when day2_crash's own
+# BREAK_CRASH branch runs) since both the real check and its Break control
+# need it. Behaviourally identical to $TOFU for every other stage: the
+# hook is a no-op unless TOFU_E2E_APPLY_RESOURCE_INTERRUPT names a matching
+# address.
+mkdir -p "$WORK/bin"
+TOFU_CRASH="$WORK/bin/choudoufu-e2e"
+( cd "$ROOT" && env -u PWD go build -ldflags="-X 'main.e2eTestingFeatures=yes'" -o "$TOFU_CRASH" ./cmd/choudoufu ) \
+  || fail "go build -ldflags e2eTestingFeatures ./cmd/choudoufu failed"
+log "  built $TOFU_CRASH (e2eTestingFeatures=yes, for day2_crash's deterministic interrupt)"
+
 wait_healthy() {
   local ep="$1"
   for _ in $(seq 1 45); do
@@ -1940,7 +1957,8 @@ EOF
 
       # ══════════════════════════════════════════════════════════════════
       # PART H: CRASH BETWEEN CREATE AND DESTROY (day2_crash, planned stage
-      # - live/GAUNTLET.md #10, issue #361)
+      # - live/GAUNTLET.md #10, issue #361; the interrupt mechanism below
+      # replaces #483's own retry-lottery one - issue #490)
       # ══════════════════════════════════════════════════════════════════
       #
       # Starts from Part F's real, completed state: the adopted estate plans
@@ -1950,44 +1968,78 @@ EOF
       # replace under create-then-destroy ordering - the only ordering that
       # has a window "between the create and the destroy" at all.
       #
-      # THE INTERRUPT ITSELF IS REAL, not simulated or hand-constructed:
-      # `apply -parallelism=1` runs in the background; this script watches
-      # its streamed output for the literal hook line
-      # "aws_instance.main: Creation complete", and the instant that line
-      # appears sends SIGTERM to the running choudoufu process - the same
-      # signal cmd/choudoufu's own makeShutdownCh forwards identically to
-      # SIGINT (an ordinary Ctrl-C), triggering the graceful-stop path
-      # already in internal/backend/local (stopCtx, then tfCtx.Stop()):
-      # nodes already in flight are allowed to finish, but nothing not yet
-      # started is. Landing this cleanly - after the create commits but
-      # before the destroy of the deposed old object is even dispatched -
-      # is a real wall-clock race against floci's own response latency, not
-      # a guaranteed instant; Part F's own count_test block, widened by 6
-      # more members every attempt and never scaled back down until H4,
-      # gives the single-worker graph walker other queued work so the
-      # destroy node has somewhere to queue behind rather than always being
-      # the only thing left to dispatch next - a scaling that is pure
-      # addition (a fresh index every attempt, nothing already declared
-      # ever replaced), the load-bearing reason this filler mechanism was
-      # chosen over an early draft's own dedicated, description-toggled
-      # security group: that version's OWN replace could itself be cut
-      # short by the same interrupt, leaving one retry attempt's leftover
-      # to collide with the next attempt's fresh create (a real
-      # InvalidGroup.Duplicate error, caught while building this check).
-      # H1 retries up to 20 times and PROVES each attempt's outcome via the
-      # AWS CLI AND the local record rather than assuming the interrupt
-      # landed where intended: two live claimants alone is necessary but
-      # not sufficient, since real investigation found a signal can also
-      # land in a WIDER, unrecoverable window (the create's own hook fires,
-      # but the crashed apply's write-back never commits anything for the
-      # address at all) that this stage does not claim to recover from -
-      # see "an unrecorded orphan" in H1's own loop for how that miss is
-      # told apart from a real, recoverable landing and cleaned up before
-      # retrying. Every attempt writes a fresh main.tf so a landed-too-late
-      # attempt (the replace simply finished) is retried cleanly rather
-      # than treated as a dead end.
+      # THE INTERRUPT IS STILL A REAL SIGTERM against a real running
+      # choudoufu process, but it is no longer detected from OUTSIDE that
+      # process. #483's own version ran `apply -parallelism=1` in the
+      # background, tailed its streamed output for the literal hook line
+      # "aws_instance.main: Creation complete", and sent SIGTERM the
+      # instant that line appeared - racing an external tail/grep/kill
+      # chain (file I/O, a 50ms poll loop, a process fork+exec) against the
+      # internal gap between the graph walker finishing that node and
+      # considering the next one. That race could not be won reliably -
+      # issue #490 is the retry-lottery it produced ("landed on attempt N
+      # of 20") - and no amount of external tuning closes it, because the
+      # external detect-and-signal chain is both slower and far more
+      # variable than what it is racing.
       #
-      # THE REAL FIX THIS UNIT NEEDED: investigating why a first hand-built
+      # So the interrupt is now delivered by the ENGINE ITSELF.
+      # internal/command/apply_e2etesting_crash.go adds a PostApply hook,
+      # reachable only in an e2eTestingFeatures build ($TOFU_CRASH above),
+      # that self-delivers SIGTERM - the same signal cmd/choudoufu's own
+      # makeShutdownCh forwards identically to an ordinary Ctrl-C - the
+      # instant TOFU_E2E_APPLY_RESOURCE_INTERRUPT's named address completes
+      # a real, non-null apply (a create, never a destroy). Two facts make
+      # this deterministic BY CONSTRUCTION rather than by a wider margin:
+      #
+      #   1. node_resource_apply_instance.go's own managedResourceExecute
+      #      deposes the prior current object
+      #      (state.DeposeResourceInstanceObject) BEFORE calling the
+      #      provider's Create, and writes the new object as current
+      #      (writeResourceInstanceState) BEFORE this hook's own PostApply
+      #      ever fires - both confirmed by reading that function, not
+      #      assumed - so by the moment the signal is sent, the in-memory
+      #      state this stage's whole assertion set cares about
+      #      (current=new, deposed=old) already holds. The record file
+      #      itself is written LATER still, once - backend_apply.go's
+      #      opApply calls Stateless.WriteBack exactly once, after
+      #      lr.Core.Apply has returned for the whole graph, from whatever
+      #      applyState the (possibly interrupted) walk left behind - so
+      #      there is no window in which the create half is live but the
+      #      record does not yet know about it; #483's "unrecorded orphan"
+      #      case this script used to defend against cannot arise from
+      #      this mechanism.
+      #   2. -parallelism=1 serializes the graph walker to a single
+      #      worker, and this hook runs synchronously inside that worker's
+      #      own call stack for the create node. Nothing else in the graph
+      #      CAN be dispatched until PostApply returns, so
+      #      interruptSettleTime's fixed pause before it does
+      #      (apply_e2etesting_crash.go) is a guaranteed lower bound on
+      #      the window's width, not a hopeful one - it only has to
+      #      outlast in-process signal delivery (the runtime's signal
+      #      goroutine waking cmd/choudoufu's shutdown listener, which
+      #      calls tofu.Context.Stop()), which on any real system is
+      #      microseconds.
+      #
+      # This also means the filler work #483's version scaled count_test
+      # by (to give the walker something else to dispatch while the
+      # external race played out) is no longer needed: nothing else has
+      # to be queued up, because nothing else can run at all until the
+      # signal has already been delivered. count_test stays at Part F's
+      # own steady state (2) throughout - no more widening, no more H4
+      # teardown.
+      #
+      # H1 below still retries up to a small, DOCUMENTED bound
+      # (H1_ATTEMPT_MAX) rather than assuming attempt 1 always lands - a
+      # genuinely unrelated failure (an emulator hiccup on the create
+      # itself, say) still deserves a retry - but that bound is
+      # belt-and-braces only, never load-bearing: the pass line below
+      # records which attempt landed, so a run that ever needed more than
+      # one can never again be mistaken for a clean pass. Issue #490's own
+      # acceptance evidence is five consecutive real runs, each showing
+      # attempt 1 of H1_ATTEMPT_MAX.
+      #
+      # THE ENGINE FIX #361 ITSELF NEEDED (unchanged by #490, carried
+      # forward from #483): investigating why a first hand-built
       # reproduction of this exact crash window (a scratch estate, not this
       # script) still refused with "Two live resources claiming one
       # address" surfaced a genuine, generalizable gap in the crash-window
@@ -2055,53 +2107,39 @@ EOF
         echo
         resource_block_crash "$G_PRE_AMI"
         echo
-        count_test_block 8 "aws_vpc.main.id"
+        count_test_block 2 "aws_vpc.main.id"
       } > "$ADOPTED/main.tf"
-      G_BASELINE_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_BASELINE_RC=$?
-      [ "$G_BASELINE_RC" -eq 0 ] || { printf '%s\n' "$G_BASELINE_OUT" | tail -30; fail "adding create_before_destroy and widening count_test failed to apply cleanly"; }
-      grep -qE 'Resources: 6 added, 0 changed, 0 destroyed' <<< "$G_BASELINE_OUT" \
-        || { grep -E 'Apply complete' <<< "$G_BASELINE_OUT"; fail "adding the lifecycle block (which must be a no-op diff) and widening count_test from 2 to 8 did not apply as exactly 6 creates"; }
-      log "  create_before_destroy added to aws_instance.main with no diff of its own; count_test widened from 2 to 8 (6 throwaway members, cleaned up at H4)"
-      G_COUNT=8
+      G_BASELINE_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_BASELINE_RC=$?
+      [ "$G_BASELINE_RC" -eq 0 ] || { printf '%s\n' "$G_BASELINE_OUT" | tail -30; fail "the create_before_destroy no-op plan exited $G_BASELINE_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_BASELINE_OUT" \
+        || { grep -E '^  #' <<< "$G_BASELINE_OUT"; fail "adding the lifecycle block alone is not a no-op diff"; }
+      log "  create_before_destroy added to aws_instance.main with no diff of its own"
       G_ADDR_KEY="$(record_key aws_instance.main)"
       G_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_instance/$G_ADDR_KEY"
 
       log "=== H1. interrupt a real create_before_destroy replace between the create committing and the destroy dispatching ==="
+      # H1_ATTEMPT_MAX bounds a belt-and-braces retry, not the interrupt
+      # itself - see this part's own header comment. The interrupt has
+      # landed on attempt 1 every time this script has been run while
+      # writing and proving #490 (its own accept evidence: 5 consecutive
+      # real runs, each attempt 1 of H1_ATTEMPT_MAX, quoted in the PR).
+      H1_ATTEMPT_MAX=3
       G_LANDED=0
       G_NEW_ID=""
       G_ATTEMPT=0
-      # count_test (Part F's own resource, count_test_block above) is this
-      # stage's own filler work under -parallelism=1, not a dedicated
-      # resource type: real investigation (a scratch reproduction outside
-      # this script) found that a filler whose OWN identity can be
-      # interrupted mid-replace - the first version of this section used a
-      # dedicated, description-toggled security group - compounds exactly
-      # the failure mode this stage exists to recover from onto a SECOND
-      # address, turning one retry attempt's leftover into the next
-      # attempt's own "Two live resources" collision (a real
-      # InvalidGroup.Duplicate error, caught while building this check).
-      # Scaling count_test strictly UPWARD every attempt (never back down
-      # until H4) is pure addition - a fresh index every time, never a
-      # replace of an existing one - so an attempt an interrupt cuts short
-      # simply leaves fewer of the new members created; nothing already
-      # declared is ever put at risk of its own collision.
-      while [ "$G_ATTEMPT" -lt 20 ] && [ "$G_LANDED" -eq 0 ]; do
+      while [ "$G_ATTEMPT" -lt "$H1_ATTEMPT_MAX" ] && [ "$G_LANDED" -eq 0 ]; do
         G_ATTEMPT=$((G_ATTEMPT + 1))
-        G_COUNT=$((G_COUNT + 6))
 
         # Read the CURRENTLY live instance and its ami fresh every attempt -
         # never $G_PRE_ID/$G_PRE_AMI, which name only the ORIGINAL
-        # pre-crash object. A prior attempt that failed to land the
-        # interrupt still completed its own replace for real (the create
-        # AND the destroy both ran; the only thing that did not happen is
-        # OUR signal landing in the narrow window between them), so the
-        # live instance and its ami genuinely move on every attempt, landed
-        # or not - picking a target ami from a fixed pool without checking
-        # what is actually live would silently propose no change at all on
-        # a later attempt (the shape a stale check like the old $G_PRE_AMI
-        # comparison here produced, caught by this script itself: three
-        # straight "did not land" attempts all reporting the identical live
-        # instance id, because the target ami happened to already be live).
+        # pre-crash object. A retry here means the interrupt mechanism
+        # itself did not fail (that would be a bug in
+        # apply_e2etesting_crash.go worth stopping and investigating, not
+        # retrying past) - it means some genuinely unrelated apply error
+        # occurred, which could have completed the replace in full, left
+        # it fully applied with no crash window at all, or left the prior
+        # object untouched; re-reading what is actually live is what keeps
+        # every attempt correct regardless of which of those happened.
         G_STEP_OLD_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances \
           --filters "Name=tag:tofu-address,Values=aws_instance.main" "Name=instance-state-name,Values=running,pending" \
           --query "Reservations[0].Instances[0].InstanceId" --output text)"
@@ -2134,35 +2172,26 @@ EOF
           echo
           resource_block_crash "$G_AMI"
           echo
-          count_test_block "$G_COUNT" "aws_vpc.main.id"
+          count_test_block 2 "aws_vpc.main.id"
         } > "$ADOPTED/main.tf"
 
+        # The interrupt is delivered by the engine itself (this part's own
+        # header comment), so this runs in the plain foreground: no
+        # background process, no output-tailing, no poll loop. The apply
+        # is expected to self-terminate mid-flight, so a non-zero exit
+        # here is the NORMAL outcome, not a failure - see this stage's own
+        # H1 header comment for what makes that deterministic.
         G_LOG="$WORK/day2_crash_attempt_${G_ATTEMPT}.log"
-        : > "$G_LOG"
-        ( cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color -parallelism=1 > "$G_LOG" 2>&1 ) &
-        G_PID=$!
-        ( tail -n0 -F "$G_LOG" 2>/dev/null & echo $! > "$WORK/day2_crash_tailpid" ) \
-          | grep -m1 -E '^aws_instance\.main: Creation complete' > /dev/null &
-        G_WATCH_PID=$!
-        G_WAIT_ITERS=0
-        while kill -0 "$G_WATCH_PID" 2>/dev/null && kill -0 "$G_PID" 2>/dev/null && [ "$G_WAIT_ITERS" -lt 1200 ]; do
-          sleep 0.05
-          G_WAIT_ITERS=$((G_WAIT_ITERS + 1))
-        done
-        kill -TERM "$G_PID" 2>/dev/null || true
-        kill "$(cat "$WORK/day2_crash_tailpid" 2>/dev/null)" 2>/dev/null || true
-        kill "$G_WATCH_PID" 2>/dev/null || true
-        wait "$G_PID" 2>/dev/null
+        G_CRASH_OUT="$(cd "$ADOPTED" && TOFU_E2E_APPLY_RESOURCE_INTERRUPT="aws_instance.main" "$TOFU_CRASH" apply -input=false -auto-approve -no-color -parallelism=1 2>&1)"; G_CRASH_RC=$?
+        printf '%s\n' "$G_CRASH_OUT" > "$G_LOG"
+        log "  attempt $G_ATTEMPT: interrupted apply exited $G_CRASH_RC (a genuine crash is not expected to exit 0)"
 
         G_OLD_STATE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_STEP_OLD_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || echo gone)"
         # A landed crash leaves TWO live instances carrying aws_instance.main's
         # marker at once (that is the whole shape this stage exercises) -
         # Reservations[0].Instances[0] alone is ambiguous between them, so
         # every matching id is read and the one that is NOT $G_STEP_OLD_ID
-        # is what "new" means here. A stray first-match pick here is exactly
-        # the bug this comment now documents: it silently misread a real
-        # landed attempt as "did not land" and let the loop pile a second
-        # interrupted replace on top of an already-unresolved crash window.
+        # is what "new" means here.
         G_NEW_ID=""
         for G_CANDIDATE_ID in $(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances \
           --filters "Name=tag:tofu-address,Values=aws_instance.main" "Name=instance-state-name,Values=running,pending" \
@@ -2173,19 +2202,14 @@ EOF
           # Two live claimants is necessary but not sufficient: the ONE
           # write-back this whole stage is about (current=new, deposed=old,
           # committed together) has to have actually happened for this to
-          # be the recoverable window day2_crash proves. Real investigation
-          # (a scratch reproduction outside this script) found a signal can
-          # land AFTER the create's own hook fires but before that write-back
-          # commits - the cloud object exists and carries its marker, but
-          # the record never learns about it at all, leaving a genuinely
-          # ambiguous, unrecoverable collision (a real "Two live resources"
-          # refusal against no informative record, confirmed reproducing
-          # it directly before writing this check). That is a DIFFERENT,
-          # wider crash window than this stage's own scope - #361's design
-          # is about the create/destroy gap specifically - so it is treated
-          # here as a miss, not a pass: the orphan the record never learned
-          # about is cleaned up directly (never through choudoufu, which
-          # has no way to know it exists either) and the loop retries.
+          # be the recoverable window day2_crash proves. This part's own
+          # header comment (point 1) is why this mechanism should never
+          # actually land here with an unrecorded orphan - the deposing and
+          # the current-object write both happen, in memory, strictly
+          # before the signal is even sent, and the record write-back reads
+          # whatever that in-memory state shows once, after the walk
+          # returns - but the check stays as a defensive backstop rather
+          # than an assumption, and cleans up directly if it ever fires.
           G_REC_CURRENT="$(jq -r '.identity.import_id // empty' "$G_RECORD" 2>/dev/null)"
           G_REC_DEPOSED_N="$(jq '.deposed | length' "$G_RECORD" 2>/dev/null || echo 0)"
           if [ "$G_REC_CURRENT" = "$G_NEW_ID" ] && [ "$G_REC_DEPOSED_N" = "1" ]; then
@@ -2206,7 +2230,7 @@ EOF
           log "  attempt $G_ATTEMPT: did not land (old $G_STEP_OLD_ID state=$G_OLD_STATE, new=$G_NEW_ID, ami $G_STEP_OLD_AMI -> $G_AMI) - retrying with a fresh replace"
         fi
       done
-      [ "$G_LANDED" -eq 1 ] || fail "could not reproduce a real crash window (old object still alive, new object bound, record confirming it) after 20 real interrupted-apply attempts"
+      [ "$G_LANDED" -eq 1 ] || fail "could not reproduce a real crash window (old object still alive, new object bound, record confirming it) after $H1_ATTEMPT_MAX real interrupted-apply attempts - the interrupt mechanism itself (internal/command/apply_e2etesting_crash.go) is meant to land on attempt 1 every time and may need investigating"
 
       [ -f "$G_RECORD" ] || fail "no local record file found for aws_instance.main after the crash"
       G_DEPOSED_COUNT="$(jq '.deposed | length' "$G_RECORD")"
@@ -2260,39 +2284,7 @@ EOF
         log "  No changes. The crash window is closed, recovered without a human."
         PLAIN_INSTANCE_ID="$G_NEW_ID"
 
-        log "=== H4. cleanup: scale count_test back down to 2, back to Part F's own shape ==="
-        G_TEARDOWN_N=$((G_COUNT - 2))
-        {
-          cat <<EOF
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
-  }
-  live {
-    estate = "$ESTATE"
-    record_store "local" {
-      path = ".tofu-records"
-    }
-  }
-}
-
-EOF
-          provider_block
-          echo
-          resource_block_crash "$G_AMI"
-          echo
-          count_test_block 2 "aws_vpc.main.id"
-        } > "$ADOPTED/main.tf"
-        G_CLEANUP_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_CLEANUP_RC=$?
-        [ "$G_CLEANUP_RC" -eq 0 ] || { printf '%s\n' "$G_CLEANUP_OUT" | tail -30; fail "scaling count_test back down to 2 failed to apply cleanly"; }
-        grep -qE "Resources: 0 added, 0 changed, $G_TEARDOWN_N destroyed" <<< "$G_CLEANUP_OUT" \
-          || { grep -E 'Apply complete' <<< "$G_CLEANUP_OUT"; fail "scaling count_test back down to 2 did not destroy exactly $G_TEARDOWN_N (widened to $G_COUNT across the retry loop's own filler work)"; }
-        log "  count_test scaled back down to 2 ($G_TEARDOWN_N throwaway members removed); the estate is back to its own five resources plus Part F's count_test pair"
-
-        gauntlet_stage day2_crash pass "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt $G_ATTEMPT of 20) strictly between the create committing (new object $G_NEW_ID, confirmed running via the AWS CLI) and the destroy of the deposed old object ($G_PRE_ID, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=$G_NEW_ID, deposed=$G_DEPOSED_ID). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
+        gauntlet_stage day2_crash pass "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt $G_ATTEMPT of $H1_ATTEMPT_MAX; deterministic by construction, not by timing luck - internal/command/apply_e2etesting_crash.go self-signals synchronously inside the single -parallelism=1 graph-walker goroutine the instant the create half's own write-back commits in memory, replacing #483's external tail/grep/kill race that produced issue #490's own retry-lottery evidence) strictly between the create committing (new object $G_NEW_ID, confirmed running via the AWS CLI) and the destroy of the deposed old object ($G_PRE_ID, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=$G_NEW_ID, deposed=$G_DEPOSED_ID). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
       fi
       CURRENT_STAGE=""
     fi
