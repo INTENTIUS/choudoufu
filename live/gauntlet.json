@@ -147,7 +147,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 5,
+      "clear": 6,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -155,9 +155,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_crash": {
           "pass": 1,
@@ -224,7 +224,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 5,
+      "clear": 6,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -232,9 +232,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 5,
+          "pass": 6,
           "fail": 0,
-          "not_run": 20
+          "not_run": 19
         },
         "day2_crash": {
           "pass": 1,
@@ -748,7 +748,7 @@
       "script": "live/e2e/corpus-hongbomiao-labelbox/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -762,15 +762,16 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a22908f734745d5449cb30dd4b85659b088d3cb6",
-        "date": "2026-08-25T23:58:49Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "eaefdaf3b52a7a54026485752a376990e0f29818",
+        "date": "2026-08-29T18:06:43Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration",
+          "day2_count": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address/tofu-slot markers unchanged, and tombstoning count_test[1]'s own record in place (has tombstone, no identity - the #398-guard shape, not file absence); scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout, and its record regained a live identity alongside its kept tombstone; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times; BREAK_COUNT=1 confirms the wrong-instance assertion above is load-bearing",
           "day2_remove": "choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects",
           "day2_rename": "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "day2_replace": "choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role LabelboxRole-hm-labelbox -> LabelboxRole-hm-labelbox-v2; policy LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox -> LabelboxRole-hm-labelbox-v2:LabelboxRoleS3Policy-hm-labelbox-v2) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing.",
@@ -779,6 +780,19 @@
           "migrate": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file",
           "test_plan": "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"
+        },
+        "duration_s": 196.6,
+        "stage_seconds": {
+          "cold_deploy": 16,
+          "day2_count": 31,
+          "day2_remove": 11,
+          "day2_rename": 14,
+          "day2_replace": 12,
+          "drift_reconverge": 9,
+          "greenfield": 56,
+          "migrate": 37,
+          "test_apply": 4,
+          "test_plan": 6
         }
       },
       "notes": "Landed 2026-08-18 as the second estate in the OpenTofu-native lane and the first to clear all five stages there. Stronger OpenTofu-native evidence than corpus-sumaform-aws (which only describes itself as OpenTofu-native but ships plain .tf once its .example template is copied in): every file under infrastructure/opentofu/ genuinely uses the .tofu extension, its own justfile drives init/plan/apply/refresh/destroy exclusively via `tofu`, and common_tags carries \"hm_managed_by\" = \"opentofu\" - proven rather than asserted, since the crossing script's own stock terraform init against this estate reports \"The directory has no Terraform configuration files.\" Scoped to the self-contained \"Labelbox\" slice (S3 bucket, its CORS configuration, an IAM role with an inline S3-read policy - three real leaf modules copied byte-identical from the pinned commit, diffed programmatically in the script) out of a much larger monorepo (AWS+Nebius+Cloudflare+Snowflake+EKS, cross-wired via terraform_remote_state) too large to stand up in one sitting - the same scoping convention corpus-sumaform-aws's module.base stand-in uses. All five stages verified for real: cold_deploy (tofu apply, 4 resources, confirmed unmarked via resourcegroupstaggingapi), migrate (live-import: \"2 of 4 resource instance(s) are eligible for stamping\" - 2 correctly UNTAGGABLE, the CORS config via provider-schema fallback and the inline policy via the generated table's composite ROLENAME:POLICYNAME identity; -approve stamped both taggable resources, markers verified directly via aws s3api get-bucket-tagging / aws iam list-role-tags), test_plan (state deleted, live-plan \"No changes\", identities re-checked against the AWS CLI including the two untaggable resources' own content - CORS AllowedOrigins, inline policy's Resource ARN - since they carry no tag to re-read), test_apply (genuine no-op, 2 tagged objects before and after), and drift_reconverge (the bucket's hm_team tag tampered out of band, plan proposed fixing exactly that object, apply reconverged it; BREAK=1 verified load-bearing for both stage 2's identity check and stage 5's single-object assertion, tested in isolation for stage 5 per the corpus-vpc-complete convention since the shared BREAK var fails fast at stage 2 otherwise). Two non-blocking findings documented in the script's own header rather than routed around: aws_s3_bucket/aws_iam_role report DRIFTED during verification from AWS's own deprecated cors_rule/inline_policy shadow attributes reflecting a sibling resource created after the state snapshot (harmless, resolves by plan time), and the schema-admitted aws_s3_bucket_cors_configuration triggers the already-documented \"Resource type has no orphan recovery\" warning (live/LIMITATIONS.md, not a new gap). No choudoufu or floci gaps found - nothing filed. Merged to local main as c7fb650f4c (fix itself: 30577f6a56); justfile gained recipe demo-corpus-hongbomiao-labelbox; live/corpus-manifest.json gained the pin (reproducibility only, same convention as the sumaform entry - contributes nothing to a corpus-gen number)."
