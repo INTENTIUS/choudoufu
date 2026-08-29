@@ -173,15 +173,23 @@ while IFS= read -r b; do
   wt="$(wt_of_branch "$b")"
   pr=$(pr_of_branch "$b")
   pr="${pr:-}"
+  # #519: a ci.rc file existing and reading 0 does not mean the run that
+  # wrote it finished, or that it finished for this worktree's current HEAD.
+  # scripts/ci-gate.sh check reads ci.rc AND ci.meta (the run's identity -
+  # the sha it was written for) and refuses anything missing, incomplete, or
+  # stale, rather than pickup.sh trusting ci.rc's bare content the way it
+  # used to.
   gate=""
-  if [ -n "$wt" ] && [ -f "$wt/ci.rc" ]; then gate="ci.rc=$(cat "$wt/ci.rc" 2>/dev/null | tr -d '[:space:]')"; fi
+  if [ -n "$wt" ] && { [ -f "$wt/ci.rc" ] || [ -f "$wt/ci.meta" ]; }; then
+    gate="$(cd "$wt" && bash "$ROOT/scripts/ci-gate.sh" check 2>&1)"
+  fi
   # Uncommitted work and recent writes: an Agent-tool worker runs inside its
   # parent's process, so no `claude` process names it; the only liveness
-  # signal is the worktree itself. ci.out/ci.rc/.bin are a worker's scratch
-  # and do not count as work.
+  # signal is the worktree itself. ci.out/ci.rc/ci.meta/.bin are a worker's
+  # scratch and do not count as work.
   uncommitted=0; recent=""
   if [ -n "$wt" ]; then
-    uncommitted=$(git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|\.bin[^/]*/)$' | wc -l | tr -d ' ')
+    uncommitted=$(git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|ci\.meta(\.tmp)?|\.bin[^/]*/)$' | wc -l | tr -d ' ')
     if find "$wt" -path "$wt/.git" -prune -o -type f -mmin -15 -print 2>/dev/null | grep -q .; then recent="written in the last 15 min"; fi
   fi
   stage=""
@@ -203,7 +211,7 @@ while IFS= read -r b; do
   elif git merge-base --is-ancestor "$b" main 2>/dev/null && [ "$ahead" = "0" ]; then
     disp="MERGED/EMPTY  -> delete branch and worktree (ancestor of main with 0 commits ahead, nothing uncommitted, no recent write)"
   elif [ -n "$pr" ]; then
-    disp="PR OPEN $pr   -> orchestrator: verify (read ci.rc, GAUNTLET lines, artifact diff) then merge on green"
+    disp="PR OPEN $pr   -> orchestrator: verify (scripts/ci-gate.sh check, GAUNTLET lines, artifact diff) then merge on green"
   elif [ "$ahead" != "0" ]; then
     disp="COMMITS, NO PR -> resume in its worktree from the last commit; do not start the unit over"
   else
@@ -215,7 +223,7 @@ while IFS= read -r b; do
   [ -n "$stage" ] && printf '      last run %s\n' "$stage"
   if [ "$uncommitted" != "0" ]; then
     printf '      uncommitted %s path(s):' "$uncommitted"
-    git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|\.bin[^/]*/)$' | head -5 | awk '{printf " %s", $2}'
+    git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|ci\.meta(\.tmp)?|\.bin[^/]*/)$' | head -5 | awk '{printf " %s", $2}'
     printf '\n'
   fi
   printf '      %s\n' "$disp"
