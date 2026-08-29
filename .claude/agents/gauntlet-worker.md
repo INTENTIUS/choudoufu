@@ -70,7 +70,31 @@ to do", stop and say so. Record the unit you took; it goes in the PR title as
 Work in a worktree off local `main`, on the branch `next` printed
 (`gauntlet/<estate>-<stage>`), and on no other name: `scripts/pickup.sh`
 reconstructs who was doing what from branch names alone. Never work in the
-primary checkout. **Commit early and often on that branch, with the unit ID
+primary checkout.
+
+**First action, before any `Edit` or `Write` call:** run
+`git rev-parse --show-toplevel` and read what it prints. The primary
+checkout is `/Users/alex/Documents/checkouts/intentius/choudoufu`; if the
+toplevel matches that path, you are not in your worktree. Derive every
+later path (the binary you build, the logs you read, `ci.rc`) from the
+toplevel value you just read, not from memory or a path carried over from
+an earlier step. Three workers made exactly this mistake during the #488
+catch-up on 2026-08-29 (a stale absolute path, or plain habit); each caught
+it and restored the primary checkout, but one run in between exercised the
+unmodified script and reported `day2_count=not_run` with exit 0, a
+clean-looking pass on the wrong tree. Editing the wrong tree does not fail
+loudly: a stage that reports `not_run` with exit 0 may mean you edited the
+wrong tree, not that the stage is missing.
+
+**If you already edited the primary checkout, recover before doing
+anything else**, in this order: `git status` there to see what changed;
+`git diff > /tmp/x.patch` to pull the change out; `git checkout -- <paths>`
+there to restore clean; `git apply /tmp/x.patch` in your actual worktree to
+replay the change where it belongs; `git status` there again to confirm
+clean; then commit in the worktree right away. This sequence has recovered
+all three known 2026-08-29 incidents and should not need reinventing.
+
+**Commit early and often on that branch, with the unit ID
 in every message**, starting with the first thing you learn (a converted
 script, a reproduced failure, a test that shows it): a session can end
 without warning, and a branch with commits is resumed by the next worker
