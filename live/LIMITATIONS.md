@@ -808,11 +808,18 @@ reached, and a round trip to be told no for a type the derivation has
 already refused on evidence. This rule offers no next step, because there
 is none: no configuration edit changes it, and no batch reaches it.
 
-Two of the four credential types the project excludes by standing ruling
-(`aws_iam_access_key`, `aws_iot_certificate`) are also on this roster and
-report through this rule. Both reasons are true of them; the roster's is
-the one the code can derive, and the credential ruling stands behind it
-unchanged.
+Three of the five credential types the project excludes by standing ruling
+(`aws_iam_access_key`, `aws_iot_certificate`, `aws_wafv2_api_key`) are also
+on this roster and report through this rule. Every reason is true of them;
+the roster's is the one the code can derive, and the credential ruling
+stands behind it unchanged. `aws_wafv2_api_key` differs from the other two
+in what the ruling settles: `aws_iam_access_key` and `aws_iot_certificate`
+are admitted by default through the record-located route
+(`strict-secrets` below), while `aws_wafv2_api_key` has no route at all -
+its own `id` is the secret, so there is nothing non-sensitive left to
+record. Issue #431's provider-wide sweep (`tools/credential-sweep`,
+`live/credential-sweep.json`) is what confirmed it is the only markerless
+type in that shape.
 
 **Forwarding address.** None for the type as written. Where the same cloud
 object can be expressed by a taggable parent resource - a policy or
@@ -1673,7 +1680,11 @@ secrets setting must not open that route:
   back for the record is refused rather than unmarked, so admitting that
   shape would stop the run at apply with the object already live — a plan
   refusal traded for an apply-time failure, which is the one trade the
-  record-located mechanism is forbidden to make.
+  record-located mechanism is forbidden to make. Issue #431's provider-wide
+  sweep confirmed this is the only markerless type in that shape and ledgered
+  it in `tools/row-gen/rejected.json` alongside the two standing exclusions
+  the paragraph above already names — a third type with no route at all
+  under any secrets setting, not a fourth kind of bound.
 
 The `markers "record"` selection reaches the second of these on its own and
 is safe there for a reason that does not transfer: a selected type is
@@ -1712,6 +1723,42 @@ question the paragraph above still poses is about the OTHER shape —
 whether the secrets *setting* should ever admit a type like
 `aws_iam_access_key`, whose located record would still exclude the secret
 itself — and stays open; it is not what blocked this one type.
+
+**The complete list.** Issue #431 turned the credential exclusion class from
+a set of precedents into a measurement: every attribute
+`identity.CredentialMaterial` flags — Sensitive and not Deprecated,
+anywhere in a type's schema, nested blocks and nested attribute objects
+included — swept across every resource type hashicorp/aws 6.59.0 ships, not
+only the two routes above that already consulted the predicate.
+`tools/credential-sweep` is the tool and `live/credential-sweep.json` is the
+full, re-runnable hit list (107 types at that release); five are excluded,
+the other 102 are admitted, on the record-located route, or unadmitted for a
+reason this predicate does not describe (untaggable with a server-minted
+component, no documented import path, and so on — ordinary admission debt,
+not a credential wall).
+
+| Type | Excluded because | Route |
+|---|---|---|
+| `aws_appstream_directory_config` | client-supplied AD service-account password, no route at all | none, under any setting |
+| `aws_ivs_playback_key_pair` | required, `ForceNew`, write-only public key material; no IVS read ever returns it | none, under any setting |
+| `aws_wafv2_api_key` | the recorded identity is itself the secret (`id` is `api_key`) | none, under any setting |
+| `aws_iam_access_key` | the secret half is returned once at create and never again | record-located, admitted by default; refused under `strict { secrets = "refuse" }` |
+| `aws_iot_certificate` | same shape as `aws_iam_access_key`; also unreachable via `NotImportable` regardless | record-located, admitted by default; refused under `strict { secrets = "refuse" }` |
+
+The first three are `tools/row-gen/rejected.json`'s hand veto ledger,
+checked against `internal/live/identity.DefaultTable` by
+`internal/live/harness`'s `credential-exclusions-are-sanctioned` assumption
+(`live/HARNESS.md`); the last two are ruling 5
+(`rfc/20260823-foundation-order-ruling.md`) and
+`internal/live/identity/located.go`'s `strictSecretsLocatedExclusion`. No
+sixth type qualifies: every other hit the sweep found either is admitted
+with its identity independent of the flagged attribute (measured, not
+asserted — `live/credential-sweep.json`'s `identity_uses_sensitive_attr` is
+false for all 63 admitted hits), is already refused for an unrelated,
+already-documented reason (a composite import ID, `NotImportable`), or is a
+type no cohort has surveyed yet, credential-shaped or not. Once issue #418
+builds `live/readiness.json`, tier D should consume this sweep's committed
+hit list rather than re-deriving it.
 
 **Forwarding address.** Correct the spelling, or remove the argument (which
 means `"store"`).
