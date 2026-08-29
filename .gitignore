@@ -88,6 +88,7 @@ site/public/
 /find-dep-upgrades
 /find-pkg-importer
 /floci-capability-gen
+/forkdiff-gen
 /harness-gen
 /iamref-gen
 /importdocs-gen
