@@ -99,6 +99,7 @@ site/public/
 /mapping-gen
 /merge-guard
 /protobuf-compile
+/ratification-queue-gen
 /readiness-gen
 /refusal-probe
 /registry-gen

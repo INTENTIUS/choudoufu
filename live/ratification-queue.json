@@ -1,0 +1,5742 @@
+{
+  "generated_by": "go run ./tools/ratification-queue-gen",
+  "issue": "#426",
+  "purpose": "The ordered ratification worklist: every live/readiness.json pending-ratification type, batched by service family in COVERAGE.md's usage-weighted order, with each type's evidence pointer. Produces no admission itself - see this file's package doc comment for the family rule and tools/row-gen/propose.go for the PROPOSE evidence channel.",
+  "inputs": {
+    "readiness_json": "live/readiness.json",
+    "readiness_generated_by": "go run ./tools/readiness-gen",
+    "mapping_json": "live/mapping.json",
+    "propose_command": "go run ./tools/row-gen -propose",
+    "propose_summary": "row-gen -propose: 20 rule class(es) considered (min sample 5), 5 qualify at 100% historical adoption, 1 new logical type(s) proposed for auto-admission"
+  },
+  "batch_size_target": 25,
+  "priority_families": [
+    "EC2/VPC",
+    "S3",
+    "IAM",
+    "Lambda",
+    "RDS",
+    "DynamoDB",
+    "SQS/SNS",
+    "EKS/ECS",
+    "ELB",
+    "Route53",
+    "KMS",
+    "CloudWatch"
+  ],
+  "counts": {
+    "pending_ratification": 492,
+    "batches": 160,
+    "families": 158,
+    "types_with_propose_evidence": 1,
+    "types_with_readiness_facts_only": 491
+  },
+  "batch_template": {
+    "note": "Issue #426's 'Batch template' section, instantiated once per batch when a follow-up unit files the per-batch issues: SERVICE-FAMILY is the batch's family field, N is len(types).",
+    "title_pattern": "ratification batch: SERVICE-FAMILY (N types)",
+    "body_spot_check_steps": [
+      "Open the provider documentation's Import section (or Identity Schema block, where the evidence pointer says the entry came from precedence evidence) for the type and confirm the pasted argument or attribute is what that section documents.",
+      "Confirm the type creates or exports no credential material. If it does, do not paste it - record the rejection by name in tools/row-gen/rejected.json with a reason, so PROPOSE and future batches never offer it again.",
+      "Paste the printed block(s) unedited into tools/row-gen/ratified.json, then re-run `go run ./tools/row-gen -emit`.",
+      "Build the cohort estate, run the suites, and get a floci probe before merging - the same as any hand-ratified batch."
+    ],
+    "accept": [
+      "Types admitted with fixtures and tests.",
+      "Golden diff (internal/live/check's TestIdentityGolden) explained line by line.",
+      "live/readiness.json regenerated and docs re-rendered in the same PR.",
+      "Per-type evidence listed in the PR description."
+    ]
+  },
+  "batches": [
+    {
+      "number": 1,
+      "family": "EC2/VPC",
+      "types": [
+        {
+          "type": "aws_ami",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ami_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ami_from_instance",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ami_launch_permission",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_default_subnet",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_default_vpc",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_default_vpc_dhcp_options",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ebs_default_kms_key",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ebs_encryption_by_default",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ebs_snapshot",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ebs_snapshot_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ebs_snapshot_import",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ebs_volume_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ec2_availability_zone_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_capacity_block_reservation",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_carrier_gateway",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::EC2::CarrierGateway",
+            "rejected": true,
+            "rejected_reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but internal/live/discovery/tagging_test.go's TestJoinTaggedResourceRealArtifacts and TestTaggableSetCoversAdmissionTable-adjacent fixtures name this exact type, by constant (unswept = \"aws_ec2_carrier_gateway\"), as the canonical 'mapped in live/mapping.json but not in identity.DefaultTable' real-artifact example (residue.go's own comment traces the aws_instance -\u003e aws_nat_gateway -\u003e aws_ec2_carrier_gateway baton this fork has passed before; a prior batch tried swapping the fixture to aws_verifiedaccess_group and reverted when that swap needed a live/mapping.json via this package's Roster does not count as mapped). Admitting this type breaks that fixture. Left unadmitted; the fix is swapping the fixture's canonical example in internal/live/discovery, outside this batch's write surface."
+          }
+        },
+        {
+          "type": "aws_ec2_default_credit_specification",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_image_block_public_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ec2_instance_metadata_defaults",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ec2_instance_state",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ec2_secondary_network",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_secondary_subnet",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_serial_console_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_subnet_cidr_reservation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "family": "EC2/VPC",
+      "types": [
+        {
+          "type": "aws_ec2_transit_gateway_default_route_table_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ec2_transit_gateway_default_route_table_propagation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ec2_transit_gateway_peering_attachment_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ec2_transit_gateway_prefix_list_reference",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ec2_transit_gateway_vpc_attachment_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_eip_domain_name",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_snapshot_create_volume_permission",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_spot_instance_request",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_vpc_endpoint_connection_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_vpc_endpoint_service_allowed_principal",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::EC2::VPCEndpointServicePermissions",
+            "mapping_cfn_type": "AWS::EC2::VPCEndpointServicePermissions",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_vpc_endpoint_service_private_dns_verification",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_vpc_ipam_organization_admin_account",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_vpc_ipam_preview_next_cidr",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_vpc_ipv6_cidr_block_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::EC2::VPCCidrBlock",
+            "mapping_cfn_type": "AWS::EC2::VPCCidrBlock"
+          }
+        },
+        {
+          "type": "aws_vpc_peering_connection_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_vpc_peering_connection_options",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "family": "S3",
+      "types": [
+        {
+          "type": "aws_s3_access_point",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::S3::AccessPoint",
+            "rejected": true,
+            "rejected_reason": "issue #245's composite-bucket ratification batch: the provider's own Import section documents TWO distinct forms - `account_id:name` for an access point on a general-purpose S3 bucket, and a bare ARN (`arn:aws:s3-outposts:...:accesspoint/NAME`) for one on an S3 on Outposts bucket, chosen by which kind of bucket the access point belongs to, not by which of the two arguments is present. identity.Component's OmitIfAbsent only expresses an optional SEGMENT within one fixed grammar (aws_lambda_permission's qualifier is the precedent); it cannot express two entirely different ID grammars for the same type. A fuller extraction would need a discriminated-union identity shape - an ARN-template form (the 'proposed: assembled template' bucket's own mechanism) alongside the composite form, chosen by whether `bucket` resolves to an Outposts ARN - which does not exist yet."
+          }
+        },
+        {
+          "type": "aws_s3_bucket_abac",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_acl",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_cors_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_logging",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_metadata_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_notification",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_object",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_ownership_controls",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_bucket_website_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3::Bucket",
+            "mapping_cfn_type": "AWS::S3::Bucket"
+          }
+        },
+        {
+          "type": "aws_s3_object",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_s3_object_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_s3control_access_grant",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::S3::AccessGrant"
+          }
+        },
+        {
+          "type": "aws_s3control_access_grants_instance",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::S3::AccessGrantsInstance"
+          }
+        },
+        {
+          "type": "aws_s3control_access_grants_instance_resource_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_s3control_access_grants_location",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::S3::AccessGrantsLocation"
+          }
+        },
+        {
+          "type": "aws_s3control_access_point_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_s3control_directory_bucket_access_point_scope",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3Express::AccessPoint",
+            "mapping_cfn_type": "AWS::S3Express::AccessPoint"
+          }
+        },
+        {
+          "type": "aws_s3control_multi_region_access_point_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::S3::MultiRegionAccessPointPolicy",
+            "rejected": true,
+            "rejected_reason": "the classifier's client-named proposal captured only account_id, but the provider's Import section requires account_id AND the Multi-Region Access Point's name, colon-separated - account_id alone does not distinguish between multiple MRAPs in the same account. Left unadmitted."
+          }
+        },
+        {
+          "type": "aws_s3control_multi_region_access_point_routes",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_s3files_synchronization_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3Files::FileSystem",
+            "mapping_cfn_type": "AWS::S3Files::FileSystem"
+          }
+        },
+        {
+          "type": "aws_s3tables_namespace",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::S3Tables::Namespace"
+          }
+        },
+        {
+          "type": "aws_s3tables_table",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::S3Tables::Table"
+          }
+        },
+        {
+          "type": "aws_s3tables_table_bucket_replication",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::S3Tables::TableBucket",
+            "mapping_cfn_type": "AWS::S3Tables::TableBucket"
+          }
+        },
+        {
+          "type": "aws_s3tables_table_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::S3Tables::TablePolicy",
+            "rejected": true,
+            "rejected_reason": "the classifier's client-named proposal captured only table_bucket_arn, but the provider's Import section requires table_bucket_arn, namespace and name, semicolon-separated - table_bucket_arn alone does not distinguish between multiple tables in the same bucket. Left unadmitted."
+          }
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "family": "S3",
+      "types": [
+        {
+          "type": "aws_s3tables_table_replication",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "family": "IAM",
+      "types": [
+        {
+          "type": "aws_iam_group_policies_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iam_group_policy_attachments_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iam_organizations_features",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iam_outbound_web_identity_federation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "none"
+          }
+        },
+        {
+          "type": "aws_iam_policy_attachment",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_iam_security_token_service_preferences",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_iam_signing_certificate",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_iam_user_policies_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iam_user_policy_attachments_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iam_user_ssh_key",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "family": "Lambda",
+      "types": [
+        {
+          "type": "aws_lambda_alias",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Lambda::Alias",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_lambda_function_recursion_config",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_lambda_function_url",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Lambda::Url"
+          }
+        },
+        {
+          "type": "aws_lambda_invocation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_lambda_runtime_management_config",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "family": "RDS",
+      "types": [
+        {
+          "type": "aws_db_cluster_snapshot",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_db_instance_automated_backups_replication",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_db_proxy_target",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::RDS::DBProxyTargetGroup",
+            "mapping_cfn_type": "AWS::RDS::DBProxyTargetGroup",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_db_snapshot",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_db_snapshot_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_rds_certificate",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_rds_cluster_activity_stream",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_rds_cluster_snapshot_copy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_rds_export_task",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_rds_instance_state",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_rds_reserved_instance",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "family": "DynamoDB",
+      "types": [
+        {
+          "type": "aws_dynamodb_contributor_insights",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::DynamoDB::Table",
+            "mapping_cfn_type": "AWS::DynamoDB::Table",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_dynamodb_table_export",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_dynamodb_table_item",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_dynamodb_table_replica",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "none"
+          }
+        },
+        {
+          "type": "aws_dynamodb_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "family": "SQS/SNS",
+      "types": [
+        {
+          "type": "aws_sns_platform_application",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sns_sms_preferences",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sns_topic_data_protection_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SNS::Topic",
+            "mapping_cfn_type": "AWS::SNS::Topic"
+          }
+        },
+        {
+          "type": "aws_sqs_queue_redrive_allow_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SQS::Queue",
+            "mapping_cfn_type": "AWS::SQS::Queue"
+          }
+        },
+        {
+          "type": "aws_sqs_queue_redrive_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SQS::Queue",
+            "mapping_cfn_type": "AWS::SQS::Queue"
+          }
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "family": "EKS/ECS",
+      "types": [
+        {
+          "type": "aws_ecs_account_setting_default",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ecs_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_eks_identity_provider_config",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::EKS::IdentityProviderConfig",
+            "rejected": true,
+            "rejected_reason": "issue #427's hand-separator evidence sweep (2026-08-29): the provider's Import section names the separator and both segments in plain prose - \"using the `cluster_name` and `identity_provider_config_name` separated by a colon (`:`)\" - worked example `example-cluster:example-config` (`terraform import aws_eks_identity_provider_config.example example-cluster:example-config`; the page also documents the 1.12+ identity-block form with the same two named fields). row-gen's own scraped row resolves separator=':' and composed_of_arguments=true but captures only cluster_name as a matched argument, because identity_provider_config_name - though a plain Required field per the doc's own prose - is Required *inside* the resource's required, max_items:1 `oidc` nested block, not a top-level Argument Reference entry; the classifier's top-level-only match cannot cross that boundary without a Block-aware component (the same gap this repo's aws_autoscaling_traffic_source_attachment admission used a Component.Block field, issue #310, to close). Registry: primary_identifier=[\"IdentityProviderConfigName\", \"ClusterName\", \"Type\"] names a third segment, Type, that the documented import ID does not carry at all - Type is a create_only argument alongside Oidc and ClusterName, and every example in the doc is the OIDC identity provider (the only kind IAM currently returns for this resource), so the omission looks like a fixed \"oidc\" literal rather than a real third component; a ratifier should confirm that reading against the provider's own Go source rather than infer it from the CFN registry alone. Unlike this ledger's other apigatewayv2/api_gateway/identitystore/lexv2models entries in this batch, this type is taggable (live/survey-full.json signals.taggable=true at v6.59.0, path 'marker') and so is NOT part of the untaggable, BLOCKED-ON-#233 population those entries name - the ordinary Components-based ratification path applies once a Block-capable component is available."
+          }
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "family": "Route53",
+      "types": [
+        {
+          "type": "aws_route53_delegation_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_route53_query_log",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Route53::HostedZone",
+            "mapping_cfn_type": "AWS::Route53::HostedZone",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_route53_records_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_route53_resolver_firewall_config",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_route53_traffic_policy_instance",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_route53domains_domain",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_route53domains_registered_domain",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "family": "KMS",
+      "types": [
+        {
+          "type": "aws_kms_ciphertext",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_kms_key_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::KMS::Key",
+            "mapping_cfn_type": "AWS::KMS::Key"
+          }
+        },
+        {
+          "type": "aws_kms_replica_external_key",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 13,
+      "family": "CloudWatch",
+      "types": [
+        {
+          "type": "aws_cloudwatch_log_data_protection_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Logs::LogGroup",
+            "mapping_cfn_type": "AWS::Logs::LogGroup"
+          }
+        },
+        {
+          "type": "aws_cloudwatch_log_delivery_destination_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Logs::DeliveryDestination",
+            "mapping_cfn_type": "AWS::Logs::DeliveryDestination"
+          }
+        },
+        {
+          "type": "aws_cloudwatch_log_destination_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Logs::Destination",
+            "mapping_cfn_type": "AWS::Logs::Destination"
+          }
+        },
+        {
+          "type": "aws_cloudwatch_log_index_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Logs::LogGroup",
+            "mapping_cfn_type": "AWS::Logs::LogGroup"
+          }
+        },
+        {
+          "type": "aws_cloudwatch_log_storage_tier_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 14,
+      "family": "Redshift",
+      "types": [
+        {
+          "type": "aws_redshift_authentication_profile",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_cluster_iam_roles",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Redshift::Cluster",
+            "mapping_cfn_type": "AWS::Redshift::Cluster"
+          }
+        },
+        {
+          "type": "aws_redshift_cluster_snapshot",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_data_share_authorization",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_data_share_consumer_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_event_subscription",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Redshift::EventSubscription"
+          }
+        },
+        {
+          "type": "aws_redshift_hsm_client_certificate",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_hsm_configuration",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_idc_application",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_integration",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Redshift::Integration"
+          }
+        },
+        {
+          "type": "aws_redshift_namespace_registration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_partner",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_resource_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_scheduled_action",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Redshift::ScheduledAction"
+          }
+        },
+        {
+          "type": "aws_redshift_snapshot_copy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_redshift_snapshot_copy_grant",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_snapshot_schedule_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshift_usage_limit",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 15,
+      "family": "Quicksight",
+      "types": [
+        {
+          "type": "aws_quicksight_account_settings",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_account_subscription",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_folder_membership",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_group_membership",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_iam_policy_assignment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_ingestion",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_quicksight_ip_restriction",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_key_registration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_quicksight_namespace",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_role_custom_permission",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_role_membership",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_template_alias",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_quicksight_user",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_quicksight_user_custom_permission",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 16,
+      "family": "Pinpoint",
+      "types": [
+        {
+          "type": "aws_pinpoint_adm_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::ADMChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_apns_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::APNSChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_apns_sandbox_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::APNSSandboxChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_apns_voip_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::APNSVoipChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_apns_voip_sandbox_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::APNSVoipSandboxChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_app",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::App",
+            "rejected": true,
+            "rejected_reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but live/residue.go's DeprecatedServices roster hand-excludes the entire aws_pinpoint_ prefix: AWS announced Pinpoint end-of-support for October 30, 2026, folding existing functionality into End User Messaging, and internal/live/lint/residue_test.go's TestRefusalNamesDeprecatedServiceCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and contradicts the maintainer's own deprecated-service policy, which is not an identity-correctness question this batch's evidence can override. Left unadmitted."
+          }
+        },
+        {
+          "type": "aws_pinpoint_baidu_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::BaiduChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_email_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::EmailChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_email_template",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::EmailTemplate"
+          }
+        },
+        {
+          "type": "aws_pinpoint_event_stream",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::EventStream"
+          }
+        },
+        {
+          "type": "aws_pinpoint_gcm_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::GCMChannel"
+          }
+        },
+        {
+          "type": "aws_pinpoint_sms_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Pinpoint::SMSChannel"
+          }
+        }
+      ]
+    },
+    {
+      "number": 17,
+      "family": "Dx",
+      "types": [
+        {
+          "type": "aws_dx_bgp_peer",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "none",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_dx_connection_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_dx_connection_confirmation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_dx_gateway_association_proposal",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_dx_hosted_connection",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_dx_hosted_private_virtual_interface_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_dx_hosted_public_virtual_interface_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_dx_hosted_transit_virtual_interface_accepter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_dx_macsec_key_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 18,
+      "family": "Storagegateway",
+      "types": [
+        {
+          "type": "aws_storagegateway_cache",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_cached_iscsi_volume",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_file_system_association",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_gateway",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_nfs_file_share",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_smb_file_share",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_stored_iscsi_volume",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_upload_buffer",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_storagegateway_working_storage",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 19,
+      "family": "Bedrock",
+      "types": [
+        {
+          "type": "aws_bedrock_custom_model",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_bedrock_evaluation_job",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_bedrock_foundation_model_agreement",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_bedrock_provisioned_model_throughput",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_bedrock_use_case_for_model_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_bedrockagent_agent_action_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Bedrock::Agent",
+            "mapping_cfn_type": "AWS::Bedrock::Agent",
+            "rejected": true,
+            "rejected_reason": "CAUSE CORRECTED 2026-08-16 (#242, wall/servermint): the sentence above is accurate about the import ID's shape and wrong about what that shape costs. A composite whose parent scope is config-supplied and whose remaining segment is server-minted is not outside this table's vocabulary - internal/live/identity/table_generated.go carries 51 ServerAssigned rows with a separator in their ImportSyntax, and ImportSyntax is documentation only (TypeIdentity's own doc comment): a ServerAssigned row never builds its identity from Components, it reads it back from discovery. The actual blocker is SERVER-ASSIGNED IDENTITY WITH NO MARKER-CAPABLE ARGUMENT, BLOCKED ON #233. live/survey-full.json records signals.taggable=false for this type at v6.59.0, so admitting it would put every instance in NeedsDiscovery, make stamp.go:743's mustStamp true, and raise an unconditional unstampable fatal at stamp.go:537 - and live-mv's locateByList (mv.go:673) would match on a tofu-address tag that cannot exist, reporting \"No live resource carries estate X and address Y\" about an account it never checked. That is strictly worse than today's refusal, which is why this stays. EVIDENCE FOR THE SHAPE, recomputed from committed artifacts rather than quoted: live/import-grammar.json's own per-segment attribution for this type labels \"the action group ID\" from the doc's Attribute Reference and \"the agent ID\", \"the agent version\" from its Argument Reference. The four taggable members of the same bucket (aws_ecs_task_set, aws_eks_pod_identity_association, aws_prometheus_anomaly_detector, aws_service_discovery_private_dns_namespace) were admitted in the same batch, because for them the ownership marker is the discriminator and the parent scope only narrows the candidate set: parent-scoped enumeration can CONFIRM an identity the configuration has already narrowed to one, it cannot SUPPLY one."
+          }
+        },
+        {
+          "type": "aws_bedrockagent_agent_collaborator",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Bedrock::Agent",
+            "mapping_cfn_type": "AWS::Bedrock::Agent",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_bedrockagent_agent_knowledge_base_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Bedrock::Agent",
+            "mapping_cfn_type": "AWS::Bedrock::Agent",
+            "rejected": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 20,
+      "family": "Lightsail",
+      "types": [
+        {
+          "type": "aws_lightsail_bucket_access_key",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lightsail_container_service_deployment_version",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lightsail::Container",
+            "mapping_cfn_type": "AWS::Lightsail::Container"
+          }
+        },
+        {
+          "type": "aws_lightsail_disk_attachment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lightsail_domain",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Lightsail::Domain",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_lightsail_key_pair",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_lightsail_lb_https_redirection_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lightsail::LoadBalancerTlsCertificate",
+            "mapping_cfn_type": "AWS::Lightsail::LoadBalancerTlsCertificate"
+          }
+        },
+        {
+          "type": "aws_lightsail_lb_stickiness_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lightsail::LoadBalancer",
+            "mapping_cfn_type": "AWS::Lightsail::LoadBalancer"
+          }
+        },
+        {
+          "type": "aws_lightsail_static_ip_attachment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lightsail::StaticIp",
+            "mapping_cfn_type": "AWS::Lightsail::StaticIp"
+          }
+        }
+      ]
+    },
+    {
+      "number": 21,
+      "family": "AppMesh",
+      "types": [
+        {
+          "type": "aws_appmesh_gateway_route",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::GatewayRoute"
+          }
+        },
+        {
+          "type": "aws_appmesh_mesh",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::Mesh"
+          }
+        },
+        {
+          "type": "aws_appmesh_route",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::Route"
+          }
+        },
+        {
+          "type": "aws_appmesh_virtual_gateway",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::VirtualGateway"
+          }
+        },
+        {
+          "type": "aws_appmesh_virtual_node",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::VirtualNode"
+          }
+        },
+        {
+          "type": "aws_appmesh_virtual_router",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::VirtualRouter"
+          }
+        },
+        {
+          "type": "aws_appmesh_virtual_service",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppMesh::VirtualService"
+          }
+        }
+      ]
+    },
+    {
+      "number": 22,
+      "family": "Chime",
+      "types": [
+        {
+          "type": "aws_chime_voice_connector",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_logging",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_origination",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_streaming",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_termination",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chime_voice_connector_termination_credentials",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 23,
+      "family": "Config",
+      "types": [
+        {
+          "type": "aws_config_configuration_recorder",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Config::ConfigurationRecorder"
+          }
+        },
+        {
+          "type": "aws_config_configuration_recorder_status",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_config_delivery_channel",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Config::DeliveryChannel"
+          }
+        },
+        {
+          "type": "aws_config_organization_custom_policy_rule",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Config::OrganizationConfigRule"
+          }
+        },
+        {
+          "type": "aws_config_organization_custom_rule",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Config::OrganizationConfigRule"
+          }
+        },
+        {
+          "type": "aws_config_organization_managed_rule",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Config::OrganizationConfigRule"
+          }
+        },
+        {
+          "type": "aws_config_retention_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 24,
+      "family": "Finspace",
+      "types": [
+        {
+          "type": "aws_finspace_kx_cluster",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_database",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_dataview",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_environment",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_scaling_group",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_user",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_finspace_kx_volume",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 25,
+      "family": "Lex",
+      "types": [
+        {
+          "type": "aws_lex_bot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lex_bot_alias",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lex_intent",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lex_slot_type",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_lexv2models_intent",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lex::Bot",
+            "mapping_cfn_type": "AWS::Lex::Bot",
+            "rejected": true,
+            "rejected_reason": "CAUSE CORRECTED 2026-08-16 (#242, wall/servermint): the sentence above is accurate about the import ID's shape and wrong about what that shape costs. A composite whose parent scope is config-supplied and whose remaining segment is server-minted is not outside this table's vocabulary - internal/live/identity/table_generated.go carries 51 ServerAssigned rows with a separator in their ImportSyntax, and ImportSyntax is documentation only (TypeIdentity's own doc comment): a ServerAssigned row never builds its identity from Components, it reads it back from discovery. The actual blocker is SERVER-ASSIGNED IDENTITY WITH NO MARKER-CAPABLE ARGUMENT, BLOCKED ON #233. live/survey-full.json records signals.taggable=false for this type at v6.59.0, so admitting it would put every instance in NeedsDiscovery, make stamp.go:743's mustStamp true, and raise an unconditional unstampable fatal at stamp.go:537 - and live-mv's locateByList (mv.go:673) would match on a tofu-address tag that cannot exist, reporting \"No live resource carries estate X and address Y\" about an account it never checked. That is strictly worse than today's refusal, which is why this stays. EVIDENCE FOR THE SHAPE, recomputed from committed artifacts rather than quoted: live/import-grammar.json's own per-segment attribution for this type labels \"intent_id\" from the doc's Attribute Reference and \"bot_id\", \"bot_version\", \"locale_id\" from its Argument Reference. The four taggable members of the same bucket (aws_ecs_task_set, aws_eks_pod_identity_association, aws_prometheus_anomaly_detector, aws_service_discovery_private_dns_namespace) were admitted in the same batch, because for them the ownership marker is the discriminator and the parent scope only narrows the candidate set: parent-scoped enumeration can CONFIRM an identity the configuration has already narrowed to one, it cannot SUPPLY one."
+          }
+        },
+        {
+          "type": "aws_lexv2models_slot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lex::Bot",
+            "mapping_cfn_type": "AWS::Lex::Bot",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_lexv2models_slot_type",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Lex::Bot",
+            "mapping_cfn_type": "AWS::Lex::Bot",
+            "rejected": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 26,
+      "family": "SES",
+      "types": [
+        {
+          "type": "aws_ses_configuration_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SES::ConfigurationSet"
+          }
+        },
+        {
+          "type": "aws_ses_domain_dkim",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SES::EmailIdentity",
+            "mapping_cfn_type": "AWS::SES::EmailIdentity"
+          }
+        },
+        {
+          "type": "aws_ses_domain_mail_from",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SES::EmailIdentity",
+            "mapping_cfn_type": "AWS::SES::EmailIdentity"
+          }
+        },
+        {
+          "type": "aws_ses_email_identity",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SES::EmailIdentity"
+          }
+        },
+        {
+          "type": "aws_ses_event_destination",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "former2",
+            "mapping_cfn_type": "AWS::SES::ConfigurationSetEventDestination"
+          }
+        },
+        {
+          "type": "aws_sesv2_email_identity_feedback_attributes",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SES::EmailIdentity",
+            "mapping_cfn_type": "AWS::SES::EmailIdentity"
+          }
+        },
+        {
+          "type": "aws_sesv2_email_identity_mail_from_attributes",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SES::EmailIdentity",
+            "mapping_cfn_type": "AWS::SES::EmailIdentity"
+          }
+        }
+      ]
+    },
+    {
+      "number": 27,
+      "family": "Sagemaker",
+      "types": [
+        {
+          "type": "aws_sagemaker_flow_definition",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_human_task_ui",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_hyper_parameter_tuning_job",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_labeling_job",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_model_card_export_job",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_training_job",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sagemaker_workforce",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 28,
+      "family": "Devicefarm",
+      "types": [
+        {
+          "type": "aws_devicefarm_device_pool",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_devicefarm_instance_profile",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_devicefarm_network_profile",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_devicefarm_project",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_devicefarm_test_grid_project",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_devicefarm_upload",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 29,
+      "family": "Appfabric",
+      "types": [
+        {
+          "type": "aws_appfabric_app_authorization",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_appfabric_app_authorization_connection",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_appfabric_app_bundle",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_appfabric_ingestion",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_appfabric_ingestion_destination",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 30,
+      "family": "Auditmanager",
+      "types": [
+        {
+          "type": "aws_auditmanager_assessment_delegation",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_auditmanager_assessment_report",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_auditmanager_control",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_auditmanager_framework_share",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_auditmanager_organization_admin_account_registration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 31,
+      "family": "Backup",
+      "types": [
+        {
+          "type": "aws_backup_global_settings",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_backup_region_settings",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_backup_vault_lock_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Backup::BackupVault",
+            "mapping_cfn_type": "AWS::Backup::BackupVault"
+          }
+        },
+        {
+          "type": "aws_backup_vault_notifications",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Backup::BackupVault",
+            "mapping_cfn_type": "AWS::Backup::BackupVault"
+          }
+        },
+        {
+          "type": "aws_backup_vault_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Backup::BackupVault",
+            "mapping_cfn_type": "AWS::Backup::BackupVault"
+          }
+        }
+      ]
+    },
+    {
+      "number": 32,
+      "family": "Directory",
+      "types": [
+        {
+          "type": "aws_directory_service_directory",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "none"
+          }
+        },
+        {
+          "type": "aws_directory_service_log_subscription",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_directory_service_radius_settings",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_directory_service_shared_directory",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_directory_service_shared_directory_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 33,
+      "family": "Waf",
+      "types": [
+        {
+          "type": "aws_waf_geo_match_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_waf_rate_based_rule",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_waf_regex_match_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_waf_regex_pattern_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_waf_rule_group",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 34,
+      "family": "CloudFormation",
+      "types": [
+        {
+          "type": "aws_cloudformation_stack",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::CloudFormation::Stack"
+          }
+        },
+        {
+          "type": "aws_cloudformation_stack_instances",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::CloudFormation::StackSet",
+            "mapping_cfn_type": "AWS::CloudFormation::StackSet"
+          }
+        },
+        {
+          "type": "aws_cloudformation_stack_set",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::CloudFormation::StackSet"
+          }
+        },
+        {
+          "type": "aws_cloudformation_stack_set_instance",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::CloudFormation::StackSet",
+            "mapping_cfn_type": "AWS::CloudFormation::StackSet"
+          }
+        }
+      ]
+    },
+    {
+      "number": 35,
+      "family": "Grafana",
+      "types": [
+        {
+          "type": "aws_grafana_license_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_grafana_role_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_grafana_workspace_api_key",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_grafana_workspace_service_account_token",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 36,
+      "family": "MediaLive",
+      "types": [
+        {
+          "type": "aws_medialive_channel",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::MediaLive::Channel"
+          }
+        },
+        {
+          "type": "aws_medialive_input",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::MediaLive::Input"
+          }
+        },
+        {
+          "type": "aws_medialive_input_security_group",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::MediaLive::InputSecurityGroup"
+          }
+        },
+        {
+          "type": "aws_medialive_multiplex_program",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::MediaLive::Multiplexprogram",
+            "rejected": true,
+            "rejected_reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
+          }
+        }
+      ]
+    },
+    {
+      "number": 37,
+      "family": "Neptune",
+      "types": [
+        {
+          "type": "aws_neptune_cluster_endpoint",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_neptune_cluster_snapshot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_neptune_event_subscription",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Neptune::EventSubscription"
+          }
+        },
+        {
+          "type": "aws_neptune_global_cluster",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Neptune::GlobalCluster"
+          }
+        }
+      ]
+    },
+    {
+      "number": 38,
+      "family": "Ses",
+      "types": [
+        {
+          "type": "aws_ses_active_receipt_rule_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ses_domain_identity",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "none"
+          }
+        },
+        {
+          "type": "aws_ses_domain_identity_verification",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_ses_identity_notification_topic",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 39,
+      "family": "Transcribe",
+      "types": [
+        {
+          "type": "aws_transcribe_language_model",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_transcribe_medical_vocabulary",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_transcribe_vocabulary",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_transcribe_vocabulary_filter",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Transcribe::VocabularyFilter"
+          }
+        }
+      ]
+    },
+    {
+      "number": 40,
+      "family": "Account",
+      "types": [
+        {
+          "type": "aws_account_alternate_contact",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_account_primary_contact",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_account_region",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 41,
+      "family": "Chimesdkvoice",
+      "types": [
+        {
+          "type": "aws_chimesdkvoice_global_settings",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_chimesdkvoice_sip_media_application",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_chimesdkvoice_voice_profile_domain",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 42,
+      "family": "Codecatalyst",
+      "types": [
+        {
+          "type": "aws_codecatalyst_dev_environment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_codecatalyst_project",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_codecatalyst_source_repository",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 43,
+      "family": "DAX",
+      "types": [
+        {
+          "type": "aws_dax_cluster",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::DAX::Cluster"
+          }
+        },
+        {
+          "type": "aws_dax_parameter_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::DAX::ParameterGroup"
+          }
+        },
+        {
+          "type": "aws_dax_subnet_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::DAX::SubnetGroup"
+          }
+        }
+      ]
+    },
+    {
+      "number": 44,
+      "family": "Dataexchange",
+      "types": [
+        {
+          "type": "aws_dataexchange_data_set",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_dataexchange_revision",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_dataexchange_revision_assets",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 45,
+      "family": "Detective",
+      "types": [
+        {
+          "type": "aws_detective_invitation_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_detective_organization_admin_account",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "propose",
+            "propose_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+            "propose_track_record": "15/15 (100%) admitted unchanged against internal/live/identity.DefaultTable; not recorded in tools/row-gen/rejected.json",
+            "propose_block": "rule class track record: 15/15 (100%) admitted unchanged against internal/live/identity.DefaultTable; not recorded in tools/row-gen/rejected.json\n## aws_detective_organization_admin_account -\u003e AWS::Detective::OrganizationAdmin [proposed: client-named]\nrule: import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference\nregistry fields read: primary_identifier=[\"AccountId\"] read_only_properties=[\"GraphArn\"] create_only_properties=[\"AccountId\"]\nenumeration: list-free\nargument: account_id (source: import grammar argument reference (live/import-grammar.json))\nnote: argument name GUESSED, not backed by a provider identity schema or the carve seed; evidence only, never a pastable row\nnote: Argument Reference documents \"account_id\" as Required, confirming the CFN-property-derived guess\nbefore ratifying: \"identity_attrs\" names the resolved argument only; \"id\" is intentionally omitted (issue #44 non-goals).\n\n--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---\n  \"aws_detective_organization_admin_account\": {\n    \"type\": \"aws_detective_organization_admin_account\",\n    \"components\": [\n      {\n        \"attrs\": [\n          \"account_id\"\n        ],\n        \"identity_attr\": \"*\"\n      }\n    ],\n    \"import_syntax\": \"ACCOUNT_ID\",\n    \"identity_attrs\": [\n      \"account_id\"\n    ]\n  },\n\nspot-check: read the provider's Import/Identity-Schema doc cited above, confirm no credential material, paste unedited, then build + test + floci as usual.",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Detective::OrganizationAdmin"
+          }
+        },
+        {
+          "type": "aws_detective_organization_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 46,
+      "family": "Globalaccelerator",
+      "types": [
+        {
+          "type": "aws_globalaccelerator_custom_routing_accelerator",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_globalaccelerator_custom_routing_endpoint_group",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_globalaccelerator_custom_routing_listener",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 47,
+      "family": "Guardduty",
+      "types": [
+        {
+          "type": "aws_guardduty_invite_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_guardduty_member_detector_feature",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_guardduty_organization_configuration_feature",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 48,
+      "family": "Kendra",
+      "types": [
+        {
+          "type": "aws_kendra_experience",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_kendra_query_suggestions_block_list",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_kendra_thesaurus",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 49,
+      "family": "Lakeformation",
+      "types": [
+        {
+          "type": "aws_lakeformation_identity_center_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_lakeformation_opt_in",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_lakeformation_resource_lf_tags",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 50,
+      "family": "Networkfirewall",
+      "types": [
+        {
+          "type": "aws_networkfirewall_container_association",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_networkfirewall_firewall_transit_gateway_attachment_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_networkfirewall_resource_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 51,
+      "family": "Networkmanager",
+      "types": [
+        {
+          "type": "aws_networkmanager_attachment_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        },
+        {
+          "type": "aws_networkmanager_connection",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_networkmanager_transit_gateway_connect_peer_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 52,
+      "family": "ObservabilityAdmin",
+      "types": [
+        {
+          "type": "aws_observabilityadmin_centralization_rule_for_organization",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::ObservabilityAdmin::OrganizationCentralizationRule"
+          }
+        },
+        {
+          "type": "aws_observabilityadmin_telemetry_rule",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::ObservabilityAdmin::TelemetryRule"
+          }
+        },
+        {
+          "type": "aws_observabilityadmin_telemetry_rule_for_organization",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::ObservabilityAdmin::OrganizationTelemetryRule"
+          }
+        }
+      ]
+    },
+    {
+      "number": 53,
+      "family": "OpenSearchService",
+      "types": [
+        {
+          "type": "aws_opensearch_application",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::OpenSearchService::Application"
+          }
+        },
+        {
+          "type": "aws_opensearch_domain_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::OpenSearchService::Domain",
+            "mapping_cfn_type": "AWS::OpenSearchService::Domain"
+          }
+        },
+        {
+          "type": "aws_opensearch_domain_saml_options",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::OpenSearchService::Domain",
+            "mapping_cfn_type": "AWS::OpenSearchService::Domain"
+          }
+        }
+      ]
+    },
+    {
+      "number": 54,
+      "family": "Ram",
+      "types": [
+        {
+          "type": "aws_ram_resource_share_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ram_resource_share_associations_exclusive",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_ram_sharing_with_organization",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 55,
+      "family": "Redshiftserverless",
+      "types": [
+        {
+          "type": "aws_redshiftserverless_endpoint_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshiftserverless_resource_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_redshiftserverless_usage_limit",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 56,
+      "family": "Shield",
+      "types": [
+        {
+          "type": "aws_shield_drt_access_log_bucket_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Shield::DRTAccess",
+            "mapping_cfn_type": "AWS::Shield::DRTAccess"
+          }
+        },
+        {
+          "type": "aws_shield_drt_access_role_arn_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Shield::DRTAccess",
+            "mapping_cfn_type": "AWS::Shield::DRTAccess"
+          }
+        },
+        {
+          "type": "aws_shield_subscription",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 57,
+      "family": "Ssoadmin",
+      "types": [
+        {
+          "type": "aws_ssoadmin_application_access_scope",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ssoadmin_application_assignment_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_ssoadmin_trusted_token_issuer",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 58,
+      "family": "Transfer",
+      "types": [
+        {
+          "type": "aws_transfer_host_key",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_transfer_ssh_key",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Transfer::User",
+            "mapping_cfn_type": "AWS::Transfer::User",
+            "rejected": true
+          }
+        },
+        {
+          "type": "aws_transfer_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 59,
+      "family": "APS",
+      "types": [
+        {
+          "type": "aws_prometheus_resource_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::APS::ResourcePolicy"
+          }
+        },
+        {
+          "type": "aws_prometheus_workspace_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::APS::Workspace",
+            "mapping_cfn_type": "AWS::APS::Workspace"
+          }
+        }
+      ]
+    },
+    {
+      "number": 60,
+      "family": "AppSync",
+      "types": [
+        {
+          "type": "aws_appsync_datasource",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::AppSync::DataSource"
+          }
+        },
+        {
+          "type": "aws_appsync_resolver",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AppSync::Resolver"
+          }
+        }
+      ]
+    },
+    {
+      "number": 61,
+      "family": "Apprunner",
+      "types": [
+        {
+          "type": "aws_apprunner_connection",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_apprunner_deployment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 62,
+      "family": "Athena",
+      "types": [
+        {
+          "type": "aws_athena_capacity_reservation",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Athena::CapacityReservation"
+          }
+        },
+        {
+          "type": "aws_athena_database",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 63,
+      "family": "Bedrockagentcore",
+      "types": [
+        {
+          "type": "aws_bedrockagentcore_registry",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "cfn-unmodeled",
+            "rejected": true,
+            "rejected_reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+          }
+        },
+        {
+          "type": "aws_bedrockagentcore_token_vault_cmk",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 64,
+      "family": "Cloudsearch",
+      "types": [
+        {
+          "type": "aws_cloudsearch_domain",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_cloudsearch_domain_service_access_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 65,
+      "family": "Codecommit",
+      "types": [
+        {
+          "type": "aws_codecommit_approval_rule_template",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_codecommit_trigger",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 66,
+      "family": "Computeoptimizer",
+      "types": [
+        {
+          "type": "aws_computeoptimizer_enrollment_status",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_computeoptimizer_recommendation_preferences",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 67,
+      "family": "Connect",
+      "types": [
+        {
+          "type": "aws_connect_bot_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_connect_vocabulary",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 68,
+      "family": "Costoptimizationhub",
+      "types": [
+        {
+          "type": "aws_costoptimizationhub_enrollment_status",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_costoptimizationhub_preferences",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 69,
+      "family": "EventSchemas",
+      "types": [
+        {
+          "type": "aws_schemas_registry",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::EventSchemas::Registry"
+          }
+        },
+        {
+          "type": "aws_schemas_registry_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::EventSchemas::RegistryPolicy"
+          }
+        }
+      ]
+    },
+    {
+      "number": 70,
+      "family": "Evidently",
+      "types": [
+        {
+          "type": "aws_evidently_feature",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Evidently::Feature"
+          }
+        },
+        {
+          "type": "aws_evidently_launch",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Evidently::Launch"
+          }
+        }
+      ]
+    },
+    {
+      "number": 71,
+      "family": "Fsx",
+      "types": [
+        {
+          "type": "aws_fsx_backup",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_fsx_file_cache",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 72,
+      "family": "Glacier",
+      "types": [
+        {
+          "type": "aws_glacier_vault",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_glacier_vault_lock",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 73,
+      "family": "Inspector2",
+      "types": [
+        {
+          "type": "aws_inspector2_enabler",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_inspector2_organization_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 74,
+      "family": "Iot",
+      "types": [
+        {
+          "type": "aws_iot_indexing_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_iot_logging_options",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 75,
+      "family": "Licensemanager",
+      "types": [
+        {
+          "type": "aws_licensemanager_grant_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_licensemanager_license_configuration",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 76,
+      "family": "Macie2",
+      "types": [
+        {
+          "type": "aws_macie2_invitation_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        },
+        {
+          "type": "aws_macie2_organization_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 77,
+      "family": "MediaStore",
+      "types": [
+        {
+          "type": "aws_media_store_container",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::MediaStore::Container"
+          }
+        },
+        {
+          "type": "aws_media_store_container_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::MediaStore::Container",
+            "mapping_cfn_type": "AWS::MediaStore::Container"
+          }
+        }
+      ]
+    },
+    {
+      "number": 78,
+      "family": "NeptuneGraph",
+      "types": [
+        {
+          "type": "aws_neptunegraph_graph",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::NeptuneGraph::Graph"
+          }
+        },
+        {
+          "type": "aws_neptunegraph_private_graph_endpoint",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::NeptuneGraph::PrivateGraphEndpoint"
+          }
+        }
+      ]
+    },
+    {
+      "number": 79,
+      "family": "Networkmonitor",
+      "types": [
+        {
+          "type": "aws_networkmonitor_monitor",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_networkmonitor_probe",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 80,
+      "family": "Organizations",
+      "types": [
+        {
+          "type": "aws_organizations_aws_service_access",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_organizations_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 81,
+      "family": "SSM",
+      "types": [
+        {
+          "type": "aws_ssm_default_patch_baseline",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SSM::PatchBaseline",
+            "mapping_cfn_type": "AWS::SSM::PatchBaseline"
+          }
+        },
+        {
+          "type": "aws_ssm_document",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SSM::Document",
+            "rejected": true,
+            "rejected_reason": "identity verifies cleanly (client-named via name, confirmed against the provider's own Identity Schema, v6.59.0 Required: name) but live/residue.go's hand-curated emulatorBlocked roster excludes it outright: \"floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)\", and internal/live/lint/residue_test.go's TestRefusalNamesEmulatorBlockedCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and outruns what this batch's e2e/floci validation can confirm. Left unadmitted."
+          }
+        }
+      ]
+    },
+    {
+      "number": 82,
+      "family": "SecurityLake",
+      "types": [
+        {
+          "type": "aws_securitylake_aws_log_source",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SecurityLake::AwsLogSource"
+          }
+        },
+        {
+          "type": "aws_securitylake_subscriber_notification",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SecurityLake::SubscriberNotification"
+          }
+        }
+      ]
+    },
+    {
+      "number": 83,
+      "family": "Securityhub",
+      "types": [
+        {
+          "type": "aws_securityhub_action_target",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_securityhub_invite_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 84,
+      "family": "Servicequotas",
+      "types": [
+        {
+          "type": "aws_servicequotas_template",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_servicequotas_template_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 85,
+      "family": "Sesv2",
+      "types": [
+        {
+          "type": "aws_sesv2_account_suppression_attributes",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_sesv2_dedicated_ip_assignment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 86,
+      "family": "Wafregional",
+      "types": [
+        {
+          "type": "aws_wafregional_regex_match_set",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_wafregional_rule_group",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 87,
+      "family": "Workmail",
+      "types": [
+        {
+          "type": "aws_workmail_default_domain",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "cfn-unmodeled"
+          }
+        },
+        {
+          "type": "aws_workmail_organization",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 88,
+      "family": "Acm",
+      "types": [
+        {
+          "type": "aws_acm_certificate_validation",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 89,
+      "family": "Api",
+      "types": [
+        {
+          "type": "aws_api_gateway_rest_api_put",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 90,
+      "family": "ApplicationInsights",
+      "types": [
+        {
+          "type": "aws_applicationinsights_application",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::ApplicationInsights::Application"
+          }
+        }
+      ]
+    },
+    {
+      "number": 91,
+      "family": "Appsync",
+      "types": [
+        {
+          "type": "aws_appsync_type",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 92,
+      "family": "AutoScaling",
+      "types": [
+        {
+          "type": "aws_autoscaling_group_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::AutoScaling::AutoScalingGroup",
+            "mapping_cfn_type": "AWS::AutoScaling::AutoScalingGroup"
+          }
+        }
+      ]
+    },
+    {
+      "number": 93,
+      "family": "AutoScalingPlans",
+      "types": [
+        {
+          "type": "aws_autoscalingplans_scaling_plan",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::AutoScalingPlans::ScalingPlan"
+          }
+        }
+      ]
+    },
+    {
+      "number": 94,
+      "family": "BedrockAgentCore",
+      "types": [
+        {
+          "type": "aws_bedrockagentcore_memory_strategy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::BedrockAgentCore::Memory",
+            "mapping_cfn_type": "AWS::BedrockAgentCore::Memory",
+            "rejected": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 95,
+      "family": "Ce",
+      "types": [
+        {
+          "type": "aws_ce_cost_allocation_tag",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 96,
+      "family": "Chatbot",
+      "types": [
+        {
+          "type": "aws_chatbot_teams_channel_configuration",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::Chatbot::MicrosoftTeamsChannelConfiguration"
+          }
+        }
+      ]
+    },
+    {
+      "number": 97,
+      "family": "Chimesdkmediapipelines",
+      "types": [
+        {
+          "type": "aws_chimesdkmediapipelines_media_insights_pipeline_configuration",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 98,
+      "family": "Cloud9",
+      "types": [
+        {
+          "type": "aws_cloud9_environment_membership",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 99,
+      "family": "Cloudcontrolapi",
+      "types": [
+        {
+          "type": "aws_cloudcontrolapi_resource",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 100,
+      "family": "Cloudformation",
+      "types": [
+        {
+          "type": "aws_cloudformation_type",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "none",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 101,
+      "family": "Cloudfrontkeyvaluestore",
+      "types": [
+        {
+          "type": "aws_cloudfrontkeyvaluestore_keys_exclusive",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 102,
+      "family": "Cloudhsm",
+      "types": [
+        {
+          "type": "aws_cloudhsm_v2_cluster",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 103,
+      "family": "Cloudtrail",
+      "types": [
+        {
+          "type": "aws_cloudtrail_organization_delegated_admin_account",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 104,
+      "family": "CodeGuruProfiler",
+      "types": [
+        {
+          "type": "aws_codeguruprofiler_profiling_group",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::CodeGuruProfiler::ProfilingGroup"
+          }
+        }
+      ]
+    },
+    {
+      "number": 105,
+      "family": "Codebuild",
+      "types": [
+        {
+          "type": "aws_codebuild_resource_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 106,
+      "family": "Codeconnections",
+      "types": [
+        {
+          "type": "aws_codeconnections_host",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 107,
+      "family": "Codestarconnections",
+      "types": [
+        {
+          "type": "aws_codestarconnections_host",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 108,
+      "family": "Cognito",
+      "types": [
+        {
+          "type": "aws_cognito_log_delivery_configuration",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "parent-derived",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Cognito::LogDeliveryConfiguration"
+          }
+        }
+      ]
+    },
+    {
+      "number": 109,
+      "family": "CustomerProfiles",
+      "types": [
+        {
+          "type": "aws_customerprofiles_domain",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::CustomerProfiles::Domain"
+          }
+        }
+      ]
+    },
+    {
+      "number": 110,
+      "family": "Customerprofiles",
+      "types": [
+        {
+          "type": "aws_customerprofiles_profile",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 111,
+      "family": "DSQL",
+      "types": [
+        {
+          "type": "aws_dsql_cluster_peering",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::DSQL::Cluster",
+            "mapping_cfn_type": "AWS::DSQL::Cluster"
+          }
+        }
+      ]
+    },
+    {
+      "number": 112,
+      "family": "Datazone",
+      "types": [
+        {
+          "type": "aws_datazone_glossary_term",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 113,
+      "family": "DirectConnect",
+      "types": [
+        {
+          "type": "aws_dx_gateway_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "alias",
+            "mapping_cfn_type": "AWS::DirectConnect::DirectConnectGatewayAssociation"
+          }
+        }
+      ]
+    },
+    {
+      "number": 114,
+      "family": "DocDB",
+      "types": [
+        {
+          "type": "aws_docdb_global_cluster",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::DocDB::GlobalCluster"
+          }
+        }
+      ]
+    },
+    {
+      "number": 115,
+      "family": "Docdb",
+      "types": [
+        {
+          "type": "aws_docdb_cluster_snapshot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 116,
+      "family": "Drs",
+      "types": [
+        {
+          "type": "aws_drs_replication_configuration_template",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 117,
+      "family": "EMR",
+      "types": [
+        {
+          "type": "aws_emr_managed_scaling_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::EMR::Cluster",
+            "mapping_cfn_type": "AWS::EMR::Cluster",
+            "rejected": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 118,
+      "family": "Ecr",
+      "types": [
+        {
+          "type": "aws_ecr_account_setting",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 119,
+      "family": "Elasticache",
+      "types": [
+        {
+          "type": "aws_elasticache_reserved_cache_node",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 120,
+      "family": "Elasticsearch",
+      "types": [
+        {
+          "type": "aws_elasticsearch_domain_saml_options",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 121,
+      "family": "Elastictranscoder",
+      "types": [
+        {
+          "type": "aws_elastictranscoder_preset",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 122,
+      "family": "Emr",
+      "types": [
+        {
+          "type": "aws_emr_block_public_access_configuration",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 123,
+      "family": "Emrcontainers",
+      "types": [
+        {
+          "type": "aws_emrcontainers_job_template",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 124,
+      "family": "Events",
+      "types": [
+        {
+          "type": "aws_cloudwatch_event_bus_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "service-alias",
+            "mapping_cfn_type": "AWS::Events::EventBusPolicy"
+          }
+        }
+      ]
+    },
+    {
+      "number": 125,
+      "family": "FMS",
+      "types": [
+        {
+          "type": "aws_fms_policy",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::FMS::Policy",
+            "rejected": true,
+            "rejected_reason": "verifies cleanly (server-assigned via ARN) but ties with the already-admitted aws_iam_policy under internal/live/identity/parent.go's _policy suffix convention: both are fourteen characters, and lexicographically 'aws_fms_policy' \u003c 'aws_iam_policy', so parentByConvention's shortest-then-alphabetical tie-break risks silently redirecting a policy_arn-shaped argument's convention match away from aws_iam_policy once aws_fms_policy joins DefaultTable (live/e2e/estates/remainder/README.md, 'A naming collision the identity package's convention-based parent inference cannot disambiguate'). Left unadmitted; the fix belongs in parent.go's tie-break rule, out of this batch's write surface."
+          }
+        }
+      ]
+    },
+    {
+      "number": 126,
+      "family": "Fms",
+      "types": [
+        {
+          "type": "aws_fms_admin_account",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 127,
+      "family": "GameLift",
+      "types": [
+        {
+          "type": "aws_gamelift_game_session_queue",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::GameLift::GameSessionQueue"
+          }
+        }
+      ]
+    },
+    {
+      "number": 128,
+      "family": "Glue",
+      "types": [
+        {
+          "type": "aws_glue_partition_index",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 129,
+      "family": "Identitystore",
+      "types": [
+        {
+          "type": "aws_identitystore_user",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 130,
+      "family": "IoT",
+      "types": [
+        {
+          "type": "aws_iot_ca_certificate",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::IoT::CACertificate",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 131,
+      "family": "KinesisVideo",
+      "types": [
+        {
+          "type": "aws_kinesis_video_stream",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::KinesisVideo::Stream",
+            "rejected": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 132,
+      "family": "Kinesisanalyticsv2",
+      "types": [
+        {
+          "type": "aws_kinesisanalyticsv2_application_snapshot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 133,
+      "family": "M2",
+      "types": [
+        {
+          "type": "aws_m2_deployment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::M2::Deployment",
+            "rejected": true,
+            "rejected_reason": "the registry's primaryIdentifier (ApplicationId alone) undersells the real identity: the provider's Import section requires APPLICATION-ID,DEPLOYMENT-ID (a deployment is one of potentially many under an application), so the classifier's client-named proposal (application_id alone) would resolve every deployment under one application to the same identity - a genuine wrong-object risk. Left unadmitted."
+          }
+        }
+      ]
+    },
+    {
+      "number": 134,
+      "family": "Main",
+      "types": [
+        {
+          "type": "aws_main_route_table_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 135,
+      "family": "MediaConvert",
+      "types": [
+        {
+          "type": "aws_media_convert_queue",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::MediaConvert::Queue"
+          }
+        }
+      ]
+    },
+    {
+      "number": 136,
+      "family": "Memorydb",
+      "types": [
+        {
+          "type": "aws_memorydb_snapshot",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 137,
+      "family": "Networkflowmonitor",
+      "types": [
+        {
+          "type": "aws_networkflowmonitor_scope",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 138,
+      "family": "Notifications",
+      "types": [
+        {
+          "type": "aws_notifications_organizations_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 139,
+      "family": "Oam",
+      "types": [
+        {
+          "type": "aws_oam_sink_policy",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::Oam::Sink",
+            "mapping_cfn_type": "AWS::Oam::Sink"
+          }
+        }
+      ]
+    },
+    {
+      "number": 140,
+      "family": "OpenSearchServerless",
+      "types": [
+        {
+          "type": "aws_opensearchserverless_security_config",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::OpenSearchServerless::SecurityConfig"
+          }
+        }
+      ]
+    },
+    {
+      "number": 141,
+      "family": "Opensearch",
+      "types": [
+        {
+          "type": "aws_opensearch_inbound_connection_accepter",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 142,
+      "family": "Osis",
+      "types": [
+        {
+          "type": "aws_osis_resource_policy",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 143,
+      "family": "RedshiftServerless",
+      "types": [
+        {
+          "type": "aws_redshiftserverless_snapshot",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::RedshiftServerless::Snapshot"
+          }
+        }
+      ]
+    },
+    {
+      "number": 144,
+      "family": "Rum",
+      "types": [
+        {
+          "type": "aws_rum_metrics_destination",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 145,
+      "family": "SSO",
+      "types": [
+        {
+          "type": "aws_ssoadmin_customer_managed_policy_attachment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SSO::PermissionSet",
+            "mapping_cfn_type": "AWS::SSO::PermissionSet"
+          }
+        }
+      ]
+    },
+    {
+      "number": 146,
+      "family": "SageMaker",
+      "types": [
+        {
+          "type": "aws_sagemaker_device",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::SageMaker::Device"
+          }
+        }
+      ]
+    },
+    {
+      "number": 147,
+      "family": "Savingsplans",
+      "types": [
+        {
+          "type": "aws_savingsplans_savings_plan",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 148,
+      "family": "SecretsManager",
+      "types": [
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "enumerable, unbindable",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::SecretsManager::Secret",
+            "mapping_cfn_type": "AWS::SecretsManager::Secret",
+            "rejected": true,
+            "rejected_reason": "CAUSE CORRECTED 2026-08-16 (#242, wall/servermint): the sentence above is accurate about the import ID's shape and wrong about what that shape costs. A composite whose parent scope is config-supplied and whose remaining segment is server-minted is not outside this table's vocabulary - internal/live/identity/table_generated.go carries 51 ServerAssigned rows with a separator in their ImportSyntax, and ImportSyntax is documentation only (TypeIdentity's own doc comment): a ServerAssigned row never builds its identity from Components, it reads it back from discovery. The actual blocker is SERVER-ASSIGNED IDENTITY WITH NO MARKER-CAPABLE ARGUMENT, BLOCKED ON #233. live/survey-full.json records signals.taggable=false for this type at v6.59.0, so admitting it would put every instance in NeedsDiscovery, make stamp.go:743's mustStamp true, and raise an unconditional unstampable fatal at stamp.go:537 - and live-mv's locateByList (mv.go:673) would match on a tofu-address tag that cannot exist, reporting \"No live resource carries estate X and address Y\" about an account it never checked. That is strictly worse than today's refusal, which is why this stays. EVIDENCE FOR THE SHAPE, recomputed from committed artifacts rather than quoted: the provider's v6.59.0 identity schema requires secret_id, version_id for import, of which version_id has no Argument Reference bullet at any block depth in the pinned doc cache. The four taggable members of the same bucket (aws_ecs_task_set, aws_eks_pod_identity_association, aws_prometheus_anomaly_detector, aws_service_discovery_private_dns_namespace) were admitted in the same batch, because for them the ownership marker is the discriminator and the parent scope only narrows the candidate set: parent-scoped enumeration can CONFIRM an identity the configuration has already narrowed to one, it cannot SUPPLY one."
+          }
+        }
+      ]
+    },
+    {
+      "number": 149,
+      "family": "Securitylake",
+      "types": [
+        {
+          "type": "aws_securitylake_custom_log_source",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 150,
+      "family": "Serverlessapplicationrepository",
+      "types": [
+        {
+          "type": "aws_serverlessapplicationrepository_cloudformation_stack",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 151,
+      "family": "Servicecatalog",
+      "types": [
+        {
+          "type": "aws_servicecatalog_organizations_access",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "tf-only",
+            "not_importable": true
+          }
+        }
+      ]
+    },
+    {
+      "number": 152,
+      "family": "Signer",
+      "types": [
+        {
+          "type": "aws_signer_signing_profile",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "name",
+            "mapping_cfn_type": "AWS::Signer::SigningProfile"
+          }
+        }
+      ]
+    },
+    {
+      "number": 153,
+      "family": "Ssm",
+      "types": [
+        {
+          "type": "aws_ssm_activation",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "tf-only"
+          }
+        }
+      ]
+    },
+    {
+      "number": 154,
+      "family": "Swf",
+      "types": [
+        {
+          "type": "aws_swf_domain",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 155,
+      "family": "Uxc",
+      "types": [
+        {
+          "type": "aws_uxc_account_customizations",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 156,
+      "family": "VerifiedPermissions",
+      "types": [
+        {
+          "type": "aws_verifiedpermissions_schema",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::VerifiedPermissions::PolicyStore",
+            "mapping_cfn_type": "AWS::VerifiedPermissions::PolicyStore"
+          }
+        }
+      ]
+    },
+    {
+      "number": 157,
+      "family": "Vpclattice",
+      "types": [
+        {
+          "type": "aws_vpclattice_target_group_attachment",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 158,
+      "family": "WAFv2",
+      "types": [
+        {
+          "type": "aws_wafv2_web_acl_rule_group_association",
+          "tier": "record-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "moves to Ops",
+            "mapping_via": "fold",
+            "mapping_fold_parent": "AWS::WAFv2::WebACL",
+            "mapping_cfn_type": "AWS::WAFv2::WebACL"
+          }
+        }
+      ]
+    },
+    {
+      "number": 159,
+      "family": "Workspaces",
+      "types": [
+        {
+          "type": "aws_workspaces_directory",
+          "tier": "marker-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "marker",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    },
+    {
+      "number": 160,
+      "family": "Xray",
+      "types": [
+        {
+          "type": "aws_xray_indexing_rule",
+          "tier": "declaration-carried",
+          "evidence": {
+            "source": "readiness-facts",
+            "survey_path": "client-named",
+            "mapping_via": "cfn-unmodeled"
+          }
+        }
+      ]
+    }
+  ]
+}
