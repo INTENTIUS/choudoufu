@@ -142,9 +142,7 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 				t.Errorf("%q: artifact carries unknown stage %q", e.Name, id)
 			}
 		}
-		switch r.Protocol {
-		case ProtocolGauntlet, ProtocolLegacy:
-		default:
+		if !IsValidEstateProtocol(r.Protocol) {
 			t.Errorf("%q: protocol %q unknown", e.Name, r.Protocol)
 		}
 	}

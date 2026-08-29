@@ -106,4 +106,19 @@ answer is and how each check is proven non-vacuous, is
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m48.4s | cold_deploy 1m46s, migrate 54s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 8s, day2_count 25s, day2_replace 29s, greenfield 4s, strict 2s |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 9m57.6s | cold_deploy 1m55s, migrate 43s, test_plan 6s, test_apply 9s, drift_reconverge 28s, day2_rename 19s, day2_remove 33s, day2_count 1m2s, day2_replace 47s, greenfield 3m55s |
 
+## Live-AWS certification
+
+Separate from the two bars above, and never counted toward either of
+them: a real-AWS run for the named estate, at the date and account
+below, is evidence about ONE run against a real account, not a
+repeatable comparison against stock the way an emulator row is. See
+[HANDOFF.md](https://github.com/INTENTIUS/choudoufu/blob/main/HANDOFF.md)
+"What a measurement is worth" for why the two are never averaged
+together.
+
+| Estate | Target | Region | Clear | Date | Ceiling |
+|---|---|---|---|---|---|
+| reference-ec2-vpc | aws | us-east-2 | no | 2026-08-29T20:56:06Z | $5.00 |
+
+
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).

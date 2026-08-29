@@ -1700,5 +1700,28 @@
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
     }
+  ],
+  "live_cert": [
+    {
+      "estate": "reference-ec2-vpc",
+      "protocol": "live-aws",
+      "target": "aws",
+      "region": "us-east-2",
+      "ceiling_usd": 5,
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail"
+      },
+      "clear": false,
+      "commit": "9f6dda2a3e8269459d532f2b4895e995cd61d9c0",
+      "date": "2026-08-29T20:56:06Z",
+      "exit_code": 1,
+      "detail": {
+        "cold_deploy": "5 resources from stock terraform against aws, AMI ami-06475e8f54266e38e, tofu-cert-run=440-stage2-1788036305",
+        "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
+        "test_plan": "the post-migrate plan exited 1"
+      }
+    }
   ]
 }
