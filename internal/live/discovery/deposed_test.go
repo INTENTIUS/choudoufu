@@ -126,3 +126,100 @@ func TestDiscoverDeposedDisambiguationBothMatchStillCollides(t *testing.T) {
 		t.Errorf("the diagnostic does not name the colliding resources:\n%s", renderDiags(diags))
 	}
 }
+
+// TestDiscoverDeposedDisambiguationRecordBacked is
+// TestDiscoverDeposedDisambiguation's own fixture, replayed for the
+// population issue #415 added: a scalar address whose CURRENT identity is
+// already answered by the estate's record (Request.RecordBackedAddrs) never
+// reaches the decl.types scan TestDiscoverDeposedDisambiguation exercises -
+// it is filed under decl.recordBacked instead, and reached only through
+// [Request.Sweep] / [Request.CollectUnclaimed] (see
+// TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed). That is exactly
+// the shape a real create-before-destroy crash leaves: WriteBack commits the
+// NEW object as the record's current identity in the SAME pass it records
+// the OLD one as deposed, so the very next plan finds aws_vpc.main
+// record-backed, not needs-discovery, while the old (deposed) object is
+// still live and still marked. Before this fix, decl.recordBacked's own
+// 2-claimant branch called collisionProblem unconditionally, with no
+// matchDeposedClaimant call at all, so a record-backed crash window could
+// never recover on its own - this pins that it now does, the same
+// disambiguation TestDiscoverDeposedDisambiguation already proves for the
+// needs-discovery population.
+func TestDiscoverDeposedDisambiguationRecordBacked(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	addr := mustAddr(t, `aws_vpc.main`)
+	res, diags := discoverFixture(t, cloud, Request{
+		RecordBackedAddrs: map[string]bool{addr.String(): true},
+		Sweep:             true,
+		CollectUnclaimed:  true,
+		DeposedRecords: map[string]map[string]projection.DeposedRecord{
+			addr.String(): {
+				"deadbeef": {ImportID: "vpc-old", Provider: `provider["registry.opentofu.org/hashicorp/aws"]`},
+			},
+		},
+	})
+	assertNoErrors(t, diags)
+
+	if problems := res.ProblemsOfKind(ProblemCollision); len(problems) != 0 {
+		t.Fatalf("a disambiguated deposed pair on a record-backed address still raised a collision:\n%s", res)
+	}
+
+	if len(res.DeposedBindings) != 1 {
+		t.Fatalf("want exactly one deposed binding, got %d:\n%s", len(res.DeposedBindings), res)
+	}
+	db := res.DeposedBindings[0]
+	if db.Addr.String() != addr.String() {
+		t.Errorf("deposed binding addr = %s, want %s", db.Addr, addr)
+	}
+	if string(db.DeposedKey) != "deadbeef" {
+		t.Errorf("deposed binding key = %q, want %q", db.DeposedKey, "deadbeef")
+	}
+	if db.ImportID != "vpc-old" {
+		t.Errorf("deposed binding import id = %q, want %q", db.ImportID, "vpc-old")
+	}
+
+	// A record-backed address's own remaining (current) claimant is
+	// confirmation, never a Binding - the same "silence" every other
+	// one-claimant record-backed case documents (see
+	// TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed). The
+	// disambiguation must not manufacture one.
+	if _, bound := res.BindingFor(addr); bound {
+		t.Errorf("the record-backed address's remaining claimant was bound, which a record-backed address never is:\n%s", res)
+	}
+}
+
+// TestDiscoverDeposedDisambiguationRecordBackedNoMatchStillCollides is
+// TestDiscoverDeposedDisambiguationNoMatchStillCollides's own fixture for
+// the record-backed population: a stale or wrong deposed record must still
+// raise ProblemCollision here exactly as it does for the needs-discovery
+// path - the record-backed branch guesses through none of the ambiguous
+// cases either.
+func TestDiscoverDeposedDisambiguationRecordBackedNoMatchStillCollides(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-2", `aws_vpc.main`)
+
+	addr := mustAddr(t, `aws_vpc.main`)
+	res, diags := discoverFixture(t, cloud, Request{
+		RecordBackedAddrs: map[string]bool{addr.String(): true},
+		Sweep:             true,
+		CollectUnclaimed:  true,
+		DeposedRecords: map[string]map[string]projection.DeposedRecord{
+			addr.String(): {
+				"deadbeef": {ImportID: "vpc-neither-claimant"},
+			},
+		},
+	})
+	if !diags.HasErrors() {
+		t.Fatalf("a non-matching deposed record silently resolved a record-backed collision:\n%s", res)
+	}
+	if problems := res.ProblemsOfKind(ProblemCollision); len(problems) != 1 {
+		t.Fatalf("want one collision problem when the record matches nothing live, got:\n%s", res)
+	}
+	if len(res.DeposedBindings) != 0 {
+		t.Errorf("a deposed binding was produced with no matching claimant:\n%s", res)
+	}
+}
