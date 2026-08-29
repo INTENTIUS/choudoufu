@@ -90,17 +90,30 @@ livecert_ami() {
 }
 
 # livecert_verify_empty checks that nothing tagged tofu-cert-run=$RUN_ID
-# remains live. It NEVER trusts a destroy command's own exit code (the
-# caller's job, not this function's - see livecert_teardown in the crossing
+# remains live or billable. It NEVER trusts a destroy command's own exit
+# code (the caller's job, not this function's - see teardown in the crossing
 # script): this is the independent listing HANDOFF.md's safety rule and
-# #440's own brief both ask for. resourcegroupstaggingapi is tried first
-# (matches the pattern live/e2e/reference-ec2-vpc/run.sh's B5 test_apply
-# stage already uses), then every EC2 resource type this estate can create
-# is checked directly by tag, because #440's own build found
-# resourcegroupstaggingapi does not index an aws_internet_gateway on floci -
-# relying on it alone would have reported "empty" while an internet gateway
-# was still live. Prints what it found; returns 0 only when every check
-# agrees nothing remains.
+# #440's own brief both ask for.
+#
+# resourcegroupstaggingapi is read first, but ONLY as a human-readable hint,
+# never as the gate: AWS documents that a just-terminated EC2 instance stays
+# tag-visible for a while after termination (and floci matches this - a
+# terminated instance kept showing up in a get-resources listing for
+# several seconds during this script's own build, 2026-08-29, well after
+# terminate-instances had genuinely been accepted), so treating ANY
+# RGTA hit as "still not empty" would make this function report a real,
+# fully-terminated instance as a leak indefinitely. The actual gate below is
+# per-service and per-state: an instance only counts as "still there" in
+# pending/running/stopping/stopped - never shutting-down or terminated, both
+# of which mean the delete already committed and only AWS's own bookkeeping
+# is catching up. Every other type this estate creates (subnet, sg, igw,
+# vpc) has no such "gone but still tag-visible" state, so those checks stay
+# a flat existence test. resourcegroupstaggingapi is also not complete on its
+# own even for the types that ARE a flat test:
+# #440's own build found it does not index an aws_internet_gateway on floci
+# at all - relying on it alone would have reported "empty" while an
+# internet gateway was still live. Prints what it found; returns 0 only when
+# every per-service check agrees nothing remains.
 livecert_verify_empty() {
   local tag="tofu-cert-run"
   local dirty=0
@@ -110,10 +123,9 @@ livecert_verify_empty() {
     --tag-filters "Key=$tag,Values=$RUN_ID" \
     --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
   if [ "$rgta_n" != "0" ]; then
-    printf '  livecert_verify_empty: resourcegroupstaggingapi reports %s resource(s) tagged %s=%s\n' "$rgta_n" "$tag" "$RUN_ID"
+    printf '  livecert_verify_empty: resourcegroupstaggingapi reports %s resource(s) tagged %s=%s (informational only - a just-terminated instance can linger here; the per-service checks below are what actually gates the verdict)\n' "$rgta_n" "$tag" "$RUN_ID"
     livecert_aws resourcegroupstaggingapi get-resources --tag-filters "Key=$tag,Values=$RUN_ID" \
       --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/    /'
-    dirty=1
   fi
 
   local instances

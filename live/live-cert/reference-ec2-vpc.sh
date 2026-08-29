@@ -110,17 +110,51 @@ teardown() {
   log "=== TEARDOWN (target=$TARGET run=$RUN_ID) ==="
 
   if [ "$MIGRATE_DONE" = "1" ] && [ -d "$ADOPTED_DIR" ]; then
-    log "  attempting choudoufu's own destroy path ($ADOPTED_DIR) - best effort, proves the live-managed path independent of the fallback below"
-    ( cd "$ADOPTED_DIR" && "${TOFU:-}" apply -destroy -input=false -auto-approve -no-color ) \
+    # `apply -destroy` against a live-marker estate refuses outright today
+    # ("Only the normal planning mode is available under live resource
+    # markers... destroying a whole estate in one command is not verified
+    # against a live-markers apply yet" - discovered running this exact
+    # command here, 2026-08-29; day2_teardown, live/GAUNTLET.md #11, is
+    # still a planned stage for exactly this reason). The SAME error names
+    # the tested path: delete the resource blocks and `apply` - "the estate
+    # sweep plans an owned resource with no configuration as a destroy".
+    # That is what this block does, rather than a command choudoufu itself
+    # says is unverified.
+    log "  attempting choudoufu's own destroy path ($ADOPTED_DIR): the tested route (empty the config, apply) - best effort, proves the live-managed path independent of the stock fallback below"
+    {
+      cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+      provider_block
+    } > "$ADOPTED_DIR/main.tf"
+    ( cd "$ADOPTED_DIR" && "${TOFU:-}" apply -input=false -auto-approve -no-color ) \
       > "$WORK/teardown_choudoufu_destroy.out" 2>&1
-    log "    exit=$? (see $WORK/teardown_choudoufu_destroy.out) - not trusted alone, verifying by listing below regardless"
+    cd_rc=$?
+    log "    exit=$cd_rc (see $WORK/teardown_choudoufu_destroy.out) - not trusted alone, verifying by listing below regardless"
+    [ "$cd_rc" -ne 0 ] && tail -15 "$WORK/teardown_choudoufu_destroy.out" | sed 's/^/    | /'
   fi
 
   if [ -d "$COLD_DIR" ] && [ -f "$COLD_DIR/terraform.tfstate" ]; then
     log "  destroying the plain stock state ($COLD_DIR) - this is the primary path: valid the instant cold_deploy finishes, untouched by anything migrate/test_plan/test_apply do afterward"
     ( cd "$COLD_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform destroy -input=false -auto-approve -no-color ) \
       > "$WORK/teardown_stock_destroy.out" 2>&1
-    log "    exit=$? (see $WORK/teardown_stock_destroy.out) - not trusted alone, verifying by listing next"
+    sd_rc=$?
+    log "    exit=$sd_rc (see $WORK/teardown_stock_destroy.out) - not trusted alone, verifying by listing next"
+    [ "$sd_rc" -ne 0 ] && tail -15 "$WORK/teardown_stock_destroy.out" | sed 's/^/    | /'
   fi
 
   if livecert_verify_empty; then
