@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 3 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:54:45Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 3 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T08:10:10Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -45,7 +45,7 @@ answer is and how each check is proven non-vacuous, is
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL pass pass pass |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
@@ -72,13 +72,13 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-2 of 26 estates have a recorded run duration, totaling 6m8.1s, but not from one sweep: 4m30.6s across 1 estate(s) at commit `9259ff2e73`; 1m37.5s across 1 estate(s) at commit `eff9afb400`. This total spans different commits, not a single board run, and excludes 24 estate(s) with no recorded duration yet.
+2 of 26 estates have a recorded run duration, totaling 7m55s, but not from one sweep: 3m24.4s across 1 estate(s) at commit `0400bd36ed`; 4m30.6s across 1 estate(s) at commit `9259ff2e73`. This total spans different commits, not a single board run, and excludes 24 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 1m37.5s | cold_deploy 21s, migrate 55s, test_plan 3s, test_apply 2s, drift_reconverge 7s, day2_rename 9s |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 3m24.4s | cold_deploy 38s, migrate 1m11s, test_plan 2s, test_apply 3s, drift_reconverge 7s, day2_rename 12s, day2_remove 7s, day2_replace 13s, greenfield 50s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
