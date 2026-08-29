@@ -93,10 +93,14 @@ const (
 // secret unreadable after create". The ownership marker goes into a TAG,
 // never into the secret, so nothing about marking a secret version reads or
 // exposes its contents and the credential-material rationale never applied
-// to it. It was also never on CLAUDE.md's sanctioned list, which is exactly
-// four types (aws_iam_access_key, aws_iot_certificate,
-// aws_ivs_playback_key_pair, aws_appstream_directory_config) and does not
-// grow. So the type is admission debt like any other and classifies from
+// to it. It was also never on the sanctioned list (originally CLAUDE.md's,
+// now internal/live/harness's credential-exclusions-are-sanctioned
+// assumption): four types at the time of this ruling
+// (aws_iam_access_key, aws_iot_certificate, aws_ivs_playback_key_pair,
+// aws_appstream_directory_config), later reshaped twice by measurement
+// rather than by a fifth precedent someone happened to notice - see that
+// assumption's own doc comment for the current set and why each move
+// happened. So the type is admission debt like any other and classifies from
 // its own schema below, which on the pinned release lands it on
 // "enumerable, unbindable": untaggable, but the provider does ship a native
 // list resource for it, and its identity schema requires the server-minted

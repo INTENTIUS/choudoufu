@@ -502,6 +502,9 @@
         "live/e2e/estates/remainder/README.md"
       ],
       "reason": "verifies as needing two config-supplied components (vpn_gateway_id, route_table_id) the classifier's flat server-assigned proposal dropped: this is a pure association resource with no independent server-minted id; both arguments are the resource's own real, non-computed arguments. Left unadmitted."
+    },
+    "aws_wafv2_api_key": {
+      "reason": "credential material, and a third of the kind ruling 5 (rfc/20260823-foundation-order-ruling.md) left no toggle for: the provider's own Import section reads 'api_key,scope' - the ONLY documented way to name an instance is the secret itself, since the resource has no other id, arn or tag (untaggable; live/survey-full.json signals.taggable=false at v6.59.0). internal/live/identity's LocatedType already refuses it unconditionally today via recordableIdentitySchema's sensitiveIdentityAttr check - live/LIMITATIONS.md's strict-secrets entry has named this exact type as the sole known 'recorded identity is itself the secret' case since 2026-08-22 - so this entry ledgers an existing, code-enforced refusal rather than creating a new one. Measured by issue #431's provider-wide sweep (tools/credential-sweep): of 107 types anywhere in hashicorp/aws 6.59.0 carrying a live sensitive attribute, this is the only one with no non-secret identity at all. Joins aws_appstream_directory_config and aws_ivs_playback_key_pair as the third type with no route to admission under any setting; internal/live/harness's credential-exclusions-are-sanctioned assumption (renamed from credential-exclusions-are-exactly-two) is updated with it."
     }
   }
 }

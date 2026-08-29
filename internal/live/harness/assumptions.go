@@ -68,7 +68,7 @@ func Assumptions() []Assumption {
 	return []Assumption{
 		checkedLayersAreFour(),
 		corpusArtifactCurrency(),
-		credentialExclusionsAreTwo(),
+		credentialExclusionsAreSanctioned(),
 		artifactsAreCommitDated(),
 		onboardingNonBlockingIDs(),
 	}
@@ -246,9 +246,13 @@ func checkedLayersAreFour() Assumption {
 	}
 }
 
-// SanctionedCredentialExclusions is CLAUDE.md's list, shrunk from four to
-// two by the maintainer's 2026-08-23 ruling (rfc/20260823-foundation-order-ruling.md,
-// ruling 5): aws_iam_access_key and aws_iot_certificate moved off this
+// SanctionedCredentialExclusions is CLAUDE.md's list: four types down to two
+// by the maintainer's 2026-08-23 ruling (rfc/20260823-foundation-order-ruling.md,
+// ruling 5), and back up to three by issue #431's provider-wide sweep
+// (tools/credential-sweep), which is a measurement rather than a second
+// ruling of the same kind - see below.
+//
+// Ruling 5 moved aws_iam_access_key and aws_iot_certificate off this
 // unconditional, admission-table-wide veto and onto a `strict { secrets }`
 // toggle instead - internal/live/identity/located.go's
 // strictSecretsLocatedExclusion and LocatedStrictSecretsRefusal, tracked by
@@ -257,8 +261,7 @@ func checkedLayersAreFour() Assumption {
 // route, not through internal/live/identity.DefaultTable this check reads)
 // and this ratchet's own claim - "none of them is admitted" - would be false
 // for them. What remains here is client-supplied or minted secret material
-// with NO route to admission at all, under any setting: the maintainer's
-// 2026-08-15 parity ruling says this two-entry set does not grow either.
+// with NO route to admission at all, under any setting.
 //
 // Exported (2026-08-28, issue #418) so tools/readiness-gen can read the same
 // hand list rather than re-deriving tier D's population from
@@ -267,9 +270,29 @@ func checkedLayersAreFour() Assumption {
 // rfc/20260828-readiness-tiers.md's tier D section is explicit that a
 // generator has to read this list (or an exported form of it) rather than
 // infer membership from a schema signal.
+//
+// aws_wafv2_api_key joined 2026-08-28 (issue #431), after the export above
+// landed. It is not a new ruling of the kind the two departures above were:
+// internal/live/identity's LocatedType already refuses it unconditionally,
+// on every run, regardless of the secrets setting -
+// recordableIdentitySchema's sensitiveIdentityAttr check, because the
+// provider's only documented way to name an instance is `api_key,scope` and
+// api_key IS the secret (no arn, no tag, no other id; live/survey-full.json
+// signals.taggable=false at v6.59.0). This entry ledgers a refusal the code
+// already performs; it does not create one. live/LIMITATIONS.md's
+// strict-secrets entry has named this exact type as the sole known
+// "recorded identity is itself the secret" case since 2026-08-22, before
+// this ledger entry existed. Issue #431 swept every attribute
+// identity.CredentialMaterial flags across the whole provider
+// (tools/credential-sweep, live/credential-sweep.json, 107 hits at
+// hashicorp/aws 6.59.0) and confirmed this is the only one of them with no
+// non-secret identity at all - the same shape as the two ruling 5 left in
+// place, not a new class of exception. tools/readiness-gen picks it up as
+// tier D through the export above with no further wiring.
 var SanctionedCredentialExclusions = []string{
 	"aws_appstream_directory_config",
 	"aws_ivs_playback_key_pair",
+	"aws_wafv2_api_key",
 }
 
 // credentialReason recognises a veto reasoned on credential material.
@@ -282,24 +305,30 @@ var SanctionedCredentialExclusions = []string{
 // assumption to watch it fail is what showed it silently missed one of the
 // two types it exists to be about. Hyphens are folded before the match for
 // that reason. A ledger entry that avoids the word entirely is outside what
-// this can see - the other leg, that all four sanctioned types are vetoed
-// and none admitted, does not depend on text at all.
+// this can see - the other leg, that every sanctioned type is vetoed and
+// none admitted, does not depend on text at all.
 func credentialReason(reason string) bool {
 	return strings.Contains(strings.ReplaceAll(strings.ToLower(reason), "-", " "), "credential material")
 }
 
-func credentialExclusionsAreTwo() Assumption {
+func credentialExclusionsAreSanctioned() Assumption {
 	return Assumption{
-		ID: "credential-exclusions-are-exactly-two",
-		Claim: "Exactly two provider types are excluded from admission on credential-material grounds with no " +
-			"route to admission at all, they are all in the hand veto ledger, and none of them is admitted.",
-		Consequence: "Type-for-type coverage is the bar, and this credential exclusion is its one remaining sanctioned hole - " +
-			"down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto " +
-			"strict { secrets } instead, where they are admitted by default. A third type vetoed on credential " +
-			"grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the coverage " +
-			"denominator without anybody deciding to. This has already drifted once in the other direction: " +
-			"aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading \"credential\" " +
-			"until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.",
+		ID: "credential-exclusions-are-sanctioned",
+		Claim: fmt.Sprintf("Exactly %d provider types are excluded from admission on credential-material grounds "+
+			"with no route to admission at all, they are all in the hand veto ledger, and none of them is admitted.",
+			len(SanctionedCredentialExclusions)),
+		Consequence: "Type-for-type coverage is the bar, and this credential exclusion is its one remaining sanctioned hole. " +
+			"It has moved twice: down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and " +
+			"aws_iot_certificate onto strict { secrets } instead, where they are admitted by default; back up to " +
+			"three after issue #431's provider-wide sweep (tools/credential-sweep) found aws_wafv2_api_key already " +
+			"refused unconditionally by internal/live/identity.LocatedType's own sensitiveIdentityAttr check, with " +
+			"no ledger entry naming it. Either direction of drift is the same failure this assumption exists to " +
+			"catch: an exclusion nobody decided (this ID's own history before #431 - the sanctioned list undercounted " +
+			"a refusal the code already performed), or an exclusion that shrinks the coverage denominator without " +
+			"anybody deciding to (a veto with no route at all, added without joining this list). This has already " +
+			"drifted in that second direction once before: aws_secretsmanager_secret_version sat on " +
+			"tools/survey-gen's ops-excluded list reading \"credential\" until the 2026-08-16 ruling that the " +
+			"marker goes into a tag and never into the secret.",
 		Evidence: "CLAUDE.md's sanctioned list, checked against tools/row-gen/rejected.json's own " +
 			"reason text and against internal/live/identity.DefaultTable. See credentialReason for " +
 			"what the text half of this cannot see.",
@@ -323,11 +352,12 @@ func credentialExclusionsAreTwo() Assumption {
 					problems = append(problems, t+" is admitted by internal/live/identity.DefaultTable")
 				}
 			}
-			// The other half: nothing outside the two may cite credential
-			// material as its reason. A veto reasoned that way is either a
-			// third exclusion with no route at all, or a type whose real
-			// obstacle is something else described in borrowed language -
-			// or, now, one of ruling 5's two names, whose rejected.json
+			// The other half: nothing outside the sanctioned set may cite
+			// credential material as its reason. A veto reasoned that way is
+			// either a fourth exclusion with no route at all that this list
+			// has not caught up to, or a type whose real obstacle is
+			// something else described in borrowed language - or one of
+			// ruling 5's two toggle-governed names, whose rejected.json
 			// entries carry no "reason" text at all and so never trip this
 			// leg either way.
 			var extra []string
@@ -342,14 +372,14 @@ func credentialExclusionsAreTwo() Assumption {
 			if len(extra) > 0 {
 				sort.Strings(extra)
 				problems = append(problems, fmt.Sprintf(
-					"%d veto entr(y/ies) outside the sanctioned two cite credential material: %s",
+					"%d veto entr(y/ies) outside the sanctioned set cite credential material: %s",
 					len(extra), strings.Join(extra, " ")))
 			}
 			if len(problems) > 0 {
 				sort.Strings(problems)
 				return "", fmt.Errorf("%s", strings.Join(problems, "; "))
 			}
-			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no third veto cites credential material",
+			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no further veto cites credential material",
 				len(SanctionedCredentialExclusions)), nil
 		},
 	}

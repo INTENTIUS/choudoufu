@@ -147,15 +147,19 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 10, Code: 0,
 	},
 	"internal/live/harness/assumptions.go": {
-		Reason: "SanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
-			"admission route at all, because their identity IS credential material and a marker goes in a tag rather " +
-			"than in the secret. Shrunk from four by the 2026-08-23 ruling (#365 ruling 5), which moved " +
-			"aws_iam_access_key and aws_iot_certificate to internal/live/identity/located.go's toggle-gated exclusion " +
-			"below - they are admitted by default now, through a route this ratchet's own check does not read, so " +
-			"its \"none of them is admitted\" claim would be false for them. A ruling is the one thing that cannot be " +
-			"derived - no schema records what a maintainer decided - and the assumption exists precisely to fail when " +
-			"the veto set drifts away from those two. Naming them here is the check, not the hand-wiring.",
-		Data: 2, Code: 0,
+		Reason: "SanctionedCredentialExclusions: the types with no admission route at all, because their identity IS " +
+			"credential material and a marker goes in a tag rather than in the secret. Four at the start, shrunk to " +
+			"two by the 2026-08-23 ruling (#365 ruling 5), which moved aws_iam_access_key and aws_iot_certificate to " +
+			"internal/live/identity/located.go's toggle-gated exclusion below - they are admitted by default now, " +
+			"through a route this ratchet's own check does not read, so its \"none of them is admitted\" claim would " +
+			"be false for them. Grown back to three by issue #431's provider-wide credentialMaterial sweep " +
+			"(tools/credential-sweep), which added aws_wafv2_api_key: not a fresh ruling on the maintainer's part but " +
+			"a measurement that the code (LocatedType's sensitiveIdentityAttr check) already refused it unconditionally " +
+			"with no ledger entry naming it. A ruling - or a measurement standing in the maintainer's place for a fact " +
+			"the code already enforces - is the one thing that cannot be derived from a schema, and the assumption " +
+			"exists precisely to fail when the veto set drifts away from what it names. Naming them here is the " +
+			"check, not the hand-wiring. Exported (issue #418) so tools/readiness-gen can read it directly.",
+		Data: 3, Code: 0,
 	},
 	"internal/live/identity/docimportid.go": {
 		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
@@ -173,7 +177,8 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	"internal/live/identity/located.go": {
 		Reason: "strictSecretsLocatedExclusion: aws_iam_access_key and aws_iot_certificate, the maintainer's 2026-08-23 " +
 			"ruling (rfc/20260823-foundation-order-ruling.md, ruling 5) moving them off the four-type unconditional " +
-			"veto this file carried before (live/HARNESS.md's now-two-entry credential-exclusions ratchet) onto the " +
+			"veto this file carried before (live/HARNESS.md's credential-exclusions-are-sanctioned ratchet, a " +
+			"three-entry set as of issue #431) onto the " +
 			"same strict { secrets } toggle a RECORD_BACKED type's SecretMaterial already uses: stored by default, " +
 			"refused under strict.Refuse. Kept a named list rather than a schema-derived one on purpose - the " +
 			"2026-08-22 census this ruling cites (issue #365 population 2) measured against the real provider that " +
@@ -435,7 +440,14 @@ const (
 	// an interpolated reference, which is broader than one type and out of
 	// #432's scope. Two Data literals (the map key and the NeedsSupporting
 	// entry), one Code literal, nothing moved.
-	typeLiteralDataTotal = 443
+	// 443 -> 444 data, 2026-08-28 (issue #431): internal/live/harness/
+	// assumptions.go's sanctionedCredentialExclusions gains aws_wafv2_api_key,
+	// measured by issue #431's provider-wide credentialMaterial sweep
+	// (tools/credential-sweep) as already unconditionally refused by
+	// LocatedType's sensitiveIdentityAttr check, with no ledger entry naming
+	// it - a third type with no admission route at all, not a fourth kind of
+	// veto. One Data literal added, no Code, nothing moved.
+	typeLiteralDataTotal = 444
 	typeLiteralCodeTotal = 127
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

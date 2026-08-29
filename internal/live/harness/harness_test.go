@@ -52,7 +52,7 @@ var registeredBurndownIDs = []string{
 var registeredAssumptionIDs = []string{
 	"checked-layers-are-lint-identity-dataread-stamp",
 	"corpus-artifact-currency",
-	"credential-exclusions-are-exactly-two",
+	"credential-exclusions-are-sanctioned",
 	"measurement-artifacts-are-commit-dated",
 	"onboarding-non-blocking-ids",
 }
