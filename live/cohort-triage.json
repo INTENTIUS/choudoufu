@@ -1,6 +1,8 @@
 {
   "generated_by": "issue #432: hand triage, cross-checked against live/floci-capabilities.json and live-verified against a fresh floci container",
+  "image": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
   "measured_at": {
+    "note": "this artifact's own conclusions (the family/issue calls below) were live-verified against 'image' above, live/flociimage_test.go's field for this file - not against cohort_acceptance_image, which is only the stale pin the source artifact (live/cohort-acceptance.json) itself was measured against and is carried here for provenance, not as a claim this table's own findings are that old",
     "cohort_acceptance_commit": "0928959f84",
     "cohort_acceptance_image": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933",
     "live_verification_image": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948"
