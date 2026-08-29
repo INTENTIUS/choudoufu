@@ -83,6 +83,7 @@ site/public/
 /cloudcontrol-probe
 /corpus-fetch
 /corpus-gen
+/credential-sweep
 /estate-gen
 /estate-plan
 /find-dep-upgrades
