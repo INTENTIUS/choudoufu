@@ -88,6 +88,15 @@ alone.
    estate the branch claims (plus `emulator`, if a pin bump is what
    conflicted). A conflict INSIDE an estate row is never yours: the worker
    rebases and re-runs.
+   **Flip PRs gate on HANDOFF's flip rule.** A PR that flips a stage's
+   `Status` to active while `Headline: true` (HANDOFF's loop step 5, "a
+   headline flip is half a unit") merges only if it lands as part of a series
+   with the catch-up queue already dispatched, or its own body states the
+   resulting board number and names a catch-up tracking issue that already
+   exists. No series and no tracking issue in hand: stop, do not merge, and
+   say so, rather than merging a flip that drops the board with nothing
+   dispatched behind it. #480 -> core 2/25, all 2/26 -> #488 is the case that
+   made this a gate rather than a reminder.
    **Before the merge commit, always:** `grep -c '<<<<<<<'` on every
    conflicted file must print 0, and the guard tests must be GREEN, before
    `git commit` runs — never in the same compound command that commits.
@@ -109,7 +118,14 @@ alone.
    chat; the artifact and the tracker carry it. If a batch of merged units
    moved no bar, say so as the first line of the report: that is the signal
    to take the next foundation item from HANDOFF's "The order" instead of
-   another unit, because it is what the measurement says moves bars.
+   another unit, because it is what the measurement says moves bars. Any
+   status or completion report, to the maintainer or written anywhere else,
+   leads with `bash scripts/pickup.sh`'s board line (clear counts,
+   stale-evidence count, queue depth), never with an issue count; an issue
+   count may follow, it may not lead. The tracker and the board are allowed
+   to disagree by design, so a report built from the tracker alone can call
+   itself finished while the board does not agree: read the board before
+   writing the report, not the other way round.
 
 A full re-measure (`just gauntlet`, the core set, a few hours) is the
 nightly's job. Run one yourself only after a change to a shared layer

@@ -15,7 +15,10 @@ name: Gauntlet
 #   TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance -v -timeout 6h
 #
 # Needs Docker (the emulator image), the AWS CLI, a stock terraform binary
-# for the cold deploy, and the corpus materialised by tools/corpus-fetch.
+# and a real OpenTofu (tofu) binary for the cold deploy - some estates are an
+# OpenTofu-native lane (real .tofu-suffixed source) and hard-require tofu on
+# PATH with no terraform fallback - and the corpus materialised by
+# tools/corpus-fetch.
 #
 # Opening the pull request needs a GAUNTLET_PR_TOKEN secret (a fine-grained
 # PAT with contents:write and pull-requests:write on this repo): this repo's
@@ -58,6 +61,17 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          # No pinned tofu_version: it defaults to "latest", same as
+          # terraform_version above. The estates that hard-require tofu only
+          # assert a floor (required_version >= 1.11.0, the highest lower
+          # bound among them; see live/e2e/corpus-*/run.sh), so "latest"
+          # always clears it without pinning a version this workflow would
+          # need to keep bumping. tofu_wrapper: false for the same reason as
+          # terraform_wrapper above - the wrapper script would sit between
+          # these scripts and the real binary's stdout/stderr/exit code.
+          tofu_wrapper: false
       - name: Materialise the corpus
         run: go run ./tools/corpus-fetch
       - name: Build choudoufu

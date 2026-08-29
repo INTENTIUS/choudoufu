@@ -25,7 +25,7 @@ them moves. The prose on this page quotes none of the numbers.
 <!-- survey-gen:begin coverage-layers -->
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
-| Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
+| Round-trip proven against the emulator | 5 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
 | Admitted (the shipped table) | 1049 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 575, client-named 480, composite 152, assembled 33) | 1240 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 76 types | One one-character import-separator decision each. |
