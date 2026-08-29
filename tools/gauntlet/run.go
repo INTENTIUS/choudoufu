@@ -156,13 +156,23 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			if len(res.Stages) == 0 {
 				// Spoke the protocol (printed GAUNTLET protocol=1) but died
 				// before a single GAUNTLET stage= line - e.g. failed the
-				// step-0 tool/corpus check. r.Stages above is unchanged from
+				// step-0 tool/corpus check (the exact shape of #497:
+				// gauntlet.yml never installed the real tofu binary eight
+				// estates hard-require). r.Stages above is unchanged from
 				// the prior run in this case (the merge loop ran zero
-				// times), so every existing verdict, including a full pass,
-				// is being carried forward untouched. The legacy branch
-				// below already warns this loudly for res.Spoken == false;
-				// this case is otherwise silent, so warn here too.
-				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; verdicts left as recorded, exit code %d noted\n", e.Name, exit)
+				// times), so without recordRunnerFailure below, every
+				// existing verdict, including a full pass, would be carried
+				// forward untouched while Commit/Date/ExitCode stamp
+				// fresh - exactly the stale-carry-forward shape
+				// TestNonzeroExitCodeImpliesAFailingStage
+				// (gauntlet_test.go) exists to catch, and did catch (#497).
+				// recordRunnerFailure writes a real fail into the earliest
+				// active stage so the guard passes honestly instead of
+				// being relaxed; every other stage's carried-forward
+				// verdict is left untouched, because this run genuinely
+				// says nothing new about them.
+				failedStage := recordRunnerFailure(&r, exit)
+				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; recorded %s=%s as a runner/environment failure (not a product regression), every other stage carried forward untouched, exit code %d noted\n", e.Name, failedStage, VerdictFail, exit)
 			}
 			for _, u := range res.Unknown {
 				fmt.Fprintf(opts.Stdout, "%s: reported unknown stage %q; add it to tools/gauntlet/stages.go or fix the script\n", e.Name, u)
@@ -178,6 +188,38 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		fmt.Fprintf(opts.Stdout, "%s: exit %d, %s\n", e.Name, exit, summarize(r.Stages))
 	}
 	return failures, nil
+}
+
+// recordRunnerFailure marks r as having failed the earliest active stage
+// (today: cold_deploy, the stage every script confirms before anything
+// else) with a detail line that names this as a runner/environment
+// failure rather than a product regression. It is called only from the
+// res.Spoken && len(res.Stages) == 0 branch above: the script spoke the
+// gauntlet protocol but died before its first GAUNTLET stage= line, so
+// r.Stages was left exactly as the prior run recorded it and would
+// otherwise carry a stale "pass" forward under a freshly stamped
+// commit/date/exit_code (#497).
+//
+// It returns the stage id it wrote, for the caller's own log line.
+//
+// r.Stages must already be non-nil (RunEstates's res.Spoken branch
+// guarantees this before calling) and r.LastRun must already be set; both
+// are asserted implicitly by writing straight into them, matching every
+// other write in this file's merge loop.
+func recordRunnerFailure(r *EstateResult, exit int) string {
+	active := ActiveStages()
+	if len(active) == 0 {
+		// Stages() always declares cold_deploy active; this is defensive,
+		// not a reachable case today.
+		return ""
+	}
+	id := active[0].ID
+	r.Stages[id] = VerdictFail
+	if r.LastRun.Detail == nil {
+		r.LastRun.Detail = map[string]string{}
+	}
+	r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol but reported zero stage verdicts this run (exit code %d) - environment/setup failure before stage 1, not a product regression; every other stage below is carried forward from an earlier run, not reconfirmed this run", exit)
+	return id
 }
 
 // oneResult is what runOne produced for one estate; runResults collects one
