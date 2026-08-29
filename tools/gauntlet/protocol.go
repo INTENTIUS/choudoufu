@@ -9,13 +9,19 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
 // The stage protocol. A crossing script reports each stage on stdout as one
 // line:
 //
-//	GAUNTLET stage=<id> verdict=<pass|fail|not_run> [detail=<free text>]
+//	GAUNTLET stage=<id> verdict=<pass|fail|not_run> [duration_s=<seconds>] [detail=<free text>]
+//
+// duration_s is optional (a script sourcing an older live/e2e/lib/gauntlet.sh
+// omits it, which is not an error) and, when present, must parse as a
+// float64: the wall-clock seconds gauntlet_stage measured since the previous
+// GAUNTLET line, i.e. this stage's own run time, not a cumulative total.
 //
 // and announces that it speaks the protocol with
 //
@@ -35,10 +41,11 @@ const (
 
 // ProtocolResult is what the parser extracts from a script's stdout.
 type ProtocolResult struct {
-	Spoken  bool              // the protocol line was seen
-	Stages  map[string]string // stage id -> verdict
-	Detail  map[string]string // stage id -> detail, when given
-	Unknown []string          // stage ids not in the registry, reported not silently dropped
+	Spoken  bool               // the protocol line was seen
+	Stages  map[string]string  // stage id -> verdict
+	Detail  map[string]string  // stage id -> detail, when given
+	Seconds map[string]float64 // stage id -> wall-clock seconds, when the script reported duration_s (live/e2e/lib/gauntlet.sh emits it on every gauntlet_stage call; a script that sources an older copy simply omits the key, which is why this is a plain lookup miss, never an error)
+	Unknown []string           // stage ids not in the registry, reported not silently dropped
 }
 
 // ParseProtocol reads stdout and returns the verdicts. Lines that do not
@@ -46,7 +53,7 @@ type ProtocolResult struct {
 // because a script that half-speaks the protocol is worse than one that does
 // not speak it at all.
 func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
-	res := &ProtocolResult{Stages: map[string]string{}, Detail: map[string]string{}}
+	res := &ProtocolResult{Stages: map[string]string{}, Detail: map[string]string{}, Seconds: map[string]float64{}}
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	line := 0
@@ -81,6 +88,13 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 			res.Unknown = append(res.Unknown, id)
 		}
 		res.Stages[id] = verdict
+		if s, ok := fields["duration_s"]; ok {
+			secs, err := strconv.ParseFloat(s, 64)
+			if err != nil {
+				return nil, fmt.Errorf("line %d: stage %q has invalid duration_s %q: %w", line, id, s, err)
+			}
+			res.Seconds[id] = secs
+		}
 		if d, ok := fields["detail"]; ok && d != "" {
 			res.Detail[id] = d
 		}

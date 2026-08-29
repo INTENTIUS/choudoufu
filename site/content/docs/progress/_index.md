@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 1 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin), recorded between 2026-08-25T23:17:08Z and 2026-08-29T05:52:31Z. Each row below carries its own `last_run` date; they are not all the same run. The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 3 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:54:45Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -45,7 +45,7 @@ answer is and how each check is proven non-vacuous, is
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL pass pass pass |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass |
@@ -69,5 +69,38 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass |
+
+## Run time
+
+2 of 26 estates have a recorded run duration, totaling 6m8.1s, but not from one sweep: 4m30.6s across 1 estate(s) at commit `9259ff2e73`; 1m37.5s across 1 estate(s) at commit `eff9afb400`. This total spans different commits, not a single board run, and excludes 24 estate(s) with no recorded duration yet.
+
+| Estate | Total | Per-stage (active stages, seconds recorded this run) |
+|---|---|---|
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 1m37.5s | cold_deploy 21s, migrate 55s, test_plan 3s, test_apply 2s, drift_reconverge 7s, day2_rename 9s |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | - | none recorded yet |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | - | none recorded yet |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | - | none recorded yet |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | - | none recorded yet |
+| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | - | none recorded yet |
+| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | - | none recorded yet |
+| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | - | none recorded yet |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | - | none recorded yet |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | - | none recorded yet |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | - | none recorded yet |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | - | none recorded yet |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | - | none recorded yet |
+| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | - | none recorded yet |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | - | none recorded yet |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m30.6s | cold_deploy 1m37s, migrate 1m0s, test_plan 4s, test_apply 9s, drift_reconverge 11s, day2_rename 17s, day2_remove 13s, day2_replace 36s, greenfield 5s |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | - | none recorded yet |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).

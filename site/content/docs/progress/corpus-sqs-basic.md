@@ -14,22 +14,22 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 
 **Clear.** Every active stage passes.
 
-| Stage | Verdict | Detail |
-|---|---|---|
-| Cold deploy | pass | 6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration |
-| Migrate | pass | 4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply |
-| Replan from nothing | pass | no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS |
-| No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file |
-| Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
-| Rename | pass | moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | pass | choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it) |
-| Change count (planned) | not run |  |
-| Replace with create_before_destroy | pass | choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default) is confirmed gone and the new object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default -> https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $EST); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
-| Crash between create and destroy (planned) | not run |  |
-| Teardown (planned) | not run |  |
-| Plan, review, apply (planned) | not run |  |
-| Greenfield apply | pass | 6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues |
-| Strict profile (planned) | not run |  |
+| Stage | Verdict | Duration | Detail |
+|---|---|---|---|
+| Cold deploy | pass |  | 6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration |
+| Migrate | pass |  | 4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot=0 written on all 4 queues by the stamp itself (issue #372's remainder), confirmed by value and by a genuine no-op on the follow-up apply |
+| Replan from nothing | pass |  | no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS |
+| No-op apply | pass |  | genuine no-op (0 added, 0 changed, 0 destroyed); 4 objects before, 4 after, no state file |
+| Drift and reconverge | pass |  | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
+| Rename | pass |  | moved block: module.default_sqs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.unencrypted_sqs renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
+| Remove a block | pass |  | choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it) |
+| Change count (planned) | not run |  |  |
+| Replace with create_before_destroy | pass |  | choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default) is confirmed gone and the new object (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default -> https://sqs.eu-west-1.amazonaws.com/000000000000/ex-complete-default-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $EST); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
+| Crash between create and destroy (planned) | not run |  |  |
+| Teardown (planned) | not run |  |  |
+| Plan, review, apply (planned) | not run |  |  |
+| Greenfield apply | pass |  | 6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues |
+| Strict profile (planned) | not run |  |  |
 
 Last run at commit `c22d0fb7aa` on 2026-08-26T03:31:42Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

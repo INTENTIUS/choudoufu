@@ -62,12 +62,62 @@ type CohortResult struct {
 	// rather than exiting - the API Gateway availability waiter against
 	// floci is the known shape.
 	TimedOut bool `json:"timed_out,omitempty"`
+	// LastRun is this row's own provenance: the commit and emulator digest
+	// this cohort was actually measured against, the same per-row idiom
+	// live/gauntlet.json's estates carry (last_run.commit since #413,
+	// last_run.emulator since #414/f27f19d443). See LastRun's doc comment
+	// for why this lives on the row and not only at the artifact's
+	// top-level Image/GeneratedBy.
+	LastRun *LastRun `json:"last_run,omitempty"`
+}
+
+// LastRun records the run that produced one cohort's verdict.
+//
+// TestCohortAcceptance writes the whole artifact in one pass today - every
+// row in one test run, all-or-nothing (see enforceRatchet's refusal to
+// write a partial artifact) - so Commit/Emulator are identical across every
+// row in a given write. That is an artifact of how the runner happens to
+// work today, not a property this schema may assume: #414 (f27f19d443)
+// found the same "true for one instant, false after an incremental re-run"
+// trap one layer up, in live/gauntlet.json, where per-estate runs made the
+// board-wide claim silently stale. A per-row stamp costs nothing when runs
+// are monolithic and is the only thing that stays honest if a future change
+// ever runs cohorts incrementally (a `-run` subset, a per-cohort retry) the
+// way gauntlet.json's estates already do - so a board-wide claim must always
+// be able to say it derived from these rows, never from the top-level
+// Image/GeneratedBy fields, which describe the checkout's CURRENT
+// configuration (the pin the NEXT run will use), not evidence about what
+// any past row was actually measured against.
+type LastRun struct {
+	Commit   string `json:"commit"`
+	Date     string `json:"date"`
+	Emulator string `json:"emulator"`
+}
+
+// IsStale reports whether r's last recorded run measured against a
+// different emulator image than currentEmulator - the same fact
+// tools/gauntlet.IsStale computes for live/gauntlet.json's estate rows. A
+// row with no LastRun at all (r.LastRun == nil) is a different fact from
+// "measured, but against a superseded pin" and callers should check for it
+// separately; this function only answers the second question.
+//
+// Nothing in this package queues stale cohorts as work yet - unlike
+// tools/gauntlet's `next`, there is no `cohort next` command, and wiring one
+// is left as a follow-up (issue #433's PR says so explicitly) rather than
+// done blind alongside the schema change. This is the primitive a future
+// "cohort next" would need, published now so that follow-up does not have
+// to invent the field names or the comparison a second time.
+func IsStale(r CohortResult, currentEmulator string) bool {
+	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
 }
 
 // Artifact is live/cohort-acceptance.json's whole shape.
 type Artifact struct {
 	GeneratedBy string `json:"generated_by"`
-	// Image is the emulator image the run used, digest included.
+	// Image is the emulator image this run's checkout is pinned to,
+	// digest included - CONFIGURATION, not a claim about what any one row
+	// was measured against. Read per-row LastRun.Emulator for evidence (see
+	// LastRun's doc comment).
 	Image string `json:"image"`
 	// Provider is the AWS provider release the fixtures pin.
 	Provider string `json:"provider"`
@@ -79,14 +129,24 @@ type Artifact struct {
 	Cohorts []CohortResult `json:"cohorts"`
 }
 
-// buildArtifact folds per-cohort results into the artifact, sorted by name.
-func buildArtifact(image, provider string, results []CohortResult) Artifact {
+// buildArtifact folds per-cohort results into the artifact, sorted by name,
+// and stamps each row's own LastRun from commit/image - the values this
+// call's caller read at the moment it actually ran (TestCohortAcceptance:
+// flocitest.HeadCommit and flocitest.Image), never recomputed later at
+// render time. date is the single instant this whole (currently monolithic)
+// run happened; every row shares it for the same reason every row shares
+// commit and image today - see LastRun's doc comment on why that is not
+// assumed to stay true forever.
+func buildArtifact(image, provider, commit, date string, results []CohortResult) Artifact {
 	art := Artifact{
 		GeneratedBy: "TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance",
 		Image:       image,
 		Provider:    provider,
 	}
-	art.Cohorts = append(art.Cohorts, results...)
+	for _, r := range results {
+		r.LastRun = &LastRun{Commit: commit, Date: date, Emulator: image}
+		art.Cohorts = append(art.Cohorts, r)
+	}
 	sort.Slice(art.Cohorts, func(i, j int) bool { return art.Cohorts[i].Name < art.Cohorts[j].Name })
 	for _, r := range art.Cohorts {
 		art.Totals.Cohorts++

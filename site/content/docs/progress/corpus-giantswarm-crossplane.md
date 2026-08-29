@@ -14,22 +14,22 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 
 **Clear.** Every active stage passes.
 
-| Stage | Verdict | Detail |
-|---|---|---|
-| Cold deploy | pass | 6 resource instances added, 0 already tofu-estate-marked before migration |
-| Migrate | pass | 2 of 6 stamped (role, managed policy), 4 untaggable skipped, module's own tags survived the stamp |
-| Replan from nothing | pass | live-plan empty, role/policy tofu-address unchanged, both *_exclusive resources re-derived by value |
-| No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, both exclusive sets unchanged |
-| Drift and reconverge | pass | role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured |
-| Rename | pass | moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
-| Remove a block | pass | choudoufu: deleting module.crossplane_final's block proposed 6 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty |
-| Change count (planned) | not run |  |
-| Replace with create_before_destroy | pass | choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a 6 add / 0 change / 6 destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role (giantswarm-gsprereqs-crossplane) is confirmed gone and the new role (giantswarm-gsprereqs-v2-crossplane) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one (giantswarm-gsprereqs-crossplane -> giantswarm-gsprereqs-v2-crossplane); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
-| Crash between create and destroy (planned) | not run |  |
-| Teardown (planned) | not run |  |
-| Plan, review, apply (planned) | not run |  |
-| Greenfield apply | pass | 6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy |
-| Strict profile (planned) | not run |  |
+| Stage | Verdict | Duration | Detail |
+|---|---|---|---|
+| Cold deploy | pass |  | 6 resource instances added, 0 already tofu-estate-marked before migration |
+| Migrate | pass |  | 2 of 6 stamped (role, managed policy), 4 untaggable skipped, module's own tags survived the stamp |
+| Replan from nothing | pass |  | live-plan empty, role/policy tofu-address unchanged, both *_exclusive resources re-derived by value |
+| No-op apply | pass |  | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, both exclusive sets unchanged |
+| Drift and reconverge | pass |  | role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured |
+| Rename | pass |  | moved block: module.crossplane renamed to .crossplane_renamed with zero churn (0 add, 2 change, 0 destroy - role and policy), markers rewritten in place; live-mv: .crossplane_renamed renamed to .crossplane_final with zero churn, both markers rewritten in place (one live-mv call per taggable object); stock oracle over the same chained module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
+| Remove a block | pass |  | choudoufu: deleting module.crossplane_final's block proposed 6 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty |
+| Change count (planned) | not run |  |  |
+| Replace with create_before_destroy | pass |  | choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a 6 add / 0 change / 6 destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role (giantswarm-gsprereqs-crossplane) is confirmed gone and the new role (giantswarm-gsprereqs-v2-crossplane) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one (giantswarm-gsprereqs-crossplane -> giantswarm-gsprereqs-v2-crossplane); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
+| Crash between create and destroy (planned) | not run |  |  |
+| Teardown (planned) | not run |  |  |
+| Plan, review, apply (planned) | not run |  |  |
+| Greenfield apply | pass |  | 6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy |
+| Strict profile (planned) | not run |  |  |
 
 Last run at commit `cbd8943145` on 2026-08-25T23:43:21Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`.
 

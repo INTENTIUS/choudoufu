@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Rendered outputs, relative to the repository root. Everything here is
@@ -239,8 +240,13 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("`protocol` (`gauntlet` or `legacy`), `last_run` (`commit`, `date`,")
 	w("`emulator` - the pin THAT run actually used, distinct from the")
 	w("top-level `emulator`, which is the pin the NEXT run will use -")
-	w("`exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot")
-	w("<version>` copies it to `live/history/<version>.json` at release; `go run")
+	w("`exit_code`, optional per-stage `detail`, `duration_s` (the whole")
+	w("script's wall-clock seconds, recorded for every run regardless of")
+	w("protocol) and optional per-stage `stage_seconds` (wall-clock seconds")
+	w("each stage took, recorded only for a gauntlet-protocol script whose")
+	w("copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)). `go run")
+	w("./tools/gauntlet snapshot <version>` copies it to")
+	w("`live/history/<version>.json` at release; `go run")
 	w("./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just")
 	w("gauntlet-notes`) diffs two such snapshots into paste-ready release-notes")
 	w("markdown - board movement per set, which estates newly cleared or")
@@ -427,17 +433,24 @@ func boardBanner(a *Artifact) string {
 			}
 			parts = append(parts, fmt.Sprintf("%d against %s", g.Count, label))
 		}
-		// dateClause carries oldest/newest, computed above alongside the
-		// two len(groups)==1 cases - it was silently dropped here before
-		// (found the moment a single estate advanced to a new pin while
-		// the rest stayed behind, the first artifact ever to reach two
-		// emulator groups: TestBoardBannerMatchesEstateRows failed because
-		// the rendered page carried no last_run.date at all, having never
-		// been reachable through this branch before). Every other branch
-		// includes it; this one must too, or the same "measured at an
-		// instant the rows don't support" gap #414 already closed once
-		// reopens here.
-		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s, %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), dateClause, a.Emulator)
+		// A row-disagreement claim needs the same date-range evidence the
+		// single-group branches above already carry (dateClause) - found by
+		// TestBoardBannerMatchesEstateRows the first time this artifact ever
+		// had two distinct last_run.emulator groups at once (#434's own
+		// verification run against reference-ec2-vpc and
+		// corpus-dynamodb-table-basic): this branch asserted the emulator
+		// split but never mentioned when any of it was measured, so the
+		// oldest/newest last_run.date the rows actually carry went unstated
+		// on the one board-wide sentence that gets to make a claim at all.
+		// (#411's own worktree found and fixed the same gap independently,
+		// the same night, against #411's own gauntlet run advancing
+		// corpus-iam-policy to a new pin - #434's fix landed on main first,
+		// so it is what stands here.)
+		dateNote := fmt.Sprintf("last_run.date reads %s on every row measured so far", oldest)
+		if oldest != newest {
+			dateNote = fmt.Sprintf("last_run.date ranges from %s to %s across these rows, not one shared measurement", oldest, newest)
+		}
+		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s (%s). The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), dateNote, a.Emulator)
 	}
 }
 
@@ -490,8 +503,118 @@ func renderProgressIndex(a *Artifact) string {
 		w("| [%s]({{< relref \"%s\" >}}) | %s | %s | %s | %s |", r.Name, r.Name, r.Set, r.Lane, clear, stageCells(r, a))
 	}
 	w("")
+	w("## Run time")
+	w("")
+	w("%s", runtimeBanner(a))
+	w("")
+	w("| Estate | Total | Per-stage (active stages, seconds recorded this run) |")
+	w("|---|---|---|")
+	for _, r := range rows {
+		w("| [%s]({{< relref \"%s\" >}}) | %s | %s |", r.Name, r.Name, runtimeTotalCell(r), mdCell(runtimeStageCells(r, a)))
+	}
+	w("")
 	w("To add an estate, see [Add an estate]({{< relref \"add-an-estate\" >}}).")
 	return b.String()
+}
+
+// runtimeBanner is the one board-wide sentence about wall-clock time this
+// page gets to make (#434), held to the same discipline boardBanner already
+// holds the emulator/date claims to: it may only assert what the rows below
+// actually support, computed fresh from a.Estates on every render rather
+// than carried over, so it cannot go stale independently of what it
+// summarizes. duration_s (run.go) is new with #434, so most rows will have
+// none for a while after this lands - that must read as "partial, N of M
+// estates recorded" rather than a "the full board takes N hours" claim no
+// single sweep has actually produced (see HANDOFF.md's #414 lesson: no
+// procedure runs the whole board in one shot, so no field may claim it did).
+func runtimeBanner(a *Artifact) string {
+	type group struct {
+		total float64
+		count int
+	}
+	groups := map[string]*group{}
+	var order []string
+	recorded := 0
+	for _, r := range a.Estates {
+		if r.LastRun == nil || r.LastRun.DurationS <= 0 {
+			continue
+		}
+		recorded++
+		g, ok := groups[r.LastRun.Commit]
+		if !ok {
+			g = &group{}
+			groups[r.LastRun.Commit] = g
+			order = append(order, r.LastRun.Commit)
+		}
+		g.total += r.LastRun.DurationS
+		g.count++
+	}
+	if recorded == 0 {
+		return "No estate has a recorded `last_run.duration_s` yet; it is populated the next time each estate runs (#434)."
+	}
+	sort.Strings(order) // commit hashes have no other natural order; sorted only for determinism
+	var parts []string
+	var grandTotal float64
+	for _, c := range order {
+		g := groups[c]
+		grandTotal += g.total
+		parts = append(parts, fmt.Sprintf("%s across %d estate(s) at commit `%s`", formatDuration(g.total), g.count, short(c)))
+	}
+	missing := len(a.Estates) - recorded
+	if len(order) == 1 {
+		note := ""
+		if missing > 0 {
+			note = fmt.Sprintf(" This is not a full-board figure: %d of %d estates have no recorded duration yet.", missing, len(a.Estates))
+		}
+		return fmt.Sprintf("%d of %d estates have a recorded run duration, totaling %s at commit `%s`.%s", recorded, len(a.Estates), formatDuration(grandTotal), short(order[0]), note)
+	}
+	return fmt.Sprintf("%d of %d estates have a recorded run duration, totaling %s, but not from one sweep: %s. This total spans different commits, not a single board run, and excludes %d estate(s) with no recorded duration yet.", recorded, len(a.Estates), formatDuration(grandTotal), strings.Join(parts, "; "), missing)
+}
+
+// formatDuration renders seconds the way a human reads a stopwatch
+// ("3m45s", "1h2m3s"); time.Duration.String() already does exactly this and
+// is what a full-board figure needs to read as hours once one exists.
+func formatDuration(seconds float64) string {
+	if seconds <= 0 {
+		return "-"
+	}
+	return time.Duration(seconds * float64(time.Second)).Round(100 * time.Millisecond).String()
+}
+
+// runtimeTotalCell is one estate row's last_run.duration_s, or "-" when this
+// run predates #434 or never completed.
+func runtimeTotalCell(r EstateResult) string {
+	if r.LastRun == nil {
+		return "-"
+	}
+	return formatDuration(r.LastRun.DurationS)
+}
+
+// runtimeStageCells lists "<stage id> <duration>" for every active stage
+// that recorded one, omitting stages with none rather than padding every
+// row with dashes - a row from before #434, or from a script sourcing an
+// older live/e2e/lib/gauntlet.sh that does not emit duration_s, legitimately
+// has zero of these, and the sentence says so plainly instead of a wall of
+// dashes.
+func runtimeStageCells(r EstateResult, a *Artifact) string {
+	var parts []string
+	for _, s := range a.Stages {
+		if s.Status != StatusActive {
+			continue
+		}
+		if r.LastRun == nil {
+			continue
+		}
+		secs, ok := r.LastRun.Seconds[s.ID]
+		if !ok {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s %s", s.ID, formatDuration(secs)))
+	}
+	if len(parts) == 0 {
+		return "none recorded yet"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func stageCells(r EstateResult, a *Artifact) string {
@@ -541,30 +664,37 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 		w("**Not clear yet.**")
 	}
 	w("")
-	w("| Stage | Verdict | Detail |")
-	w("|---|---|---|")
+	w("| Stage | Verdict | Duration | Detail |")
+	w("|---|---|---|---|")
 	for _, s := range a.Stages {
-		detail := ""
+		detail, duration := "", ""
 		if r.LastRun != nil {
 			detail = r.LastRun.Detail[s.ID]
+			if secs, ok := r.LastRun.Seconds[s.ID]; ok {
+				duration = formatDuration(secs)
+			}
 		}
 		title := s.Title
 		if s.Status != StatusActive {
 			title += " (planned)"
 		}
-		w("| %s | %s | %s |", title, verdictMark(r.Stages[s.ID]), mdCell(detail))
+		w("| %s | %s | %s | %s |", title, verdictMark(r.Stages[s.ID]), duration, mdCell(detail))
 	}
 	w("")
+	durationNote := ""
+	if r.LastRun != nil && r.LastRun.DurationS > 0 {
+		durationNote = fmt.Sprintf(" Total run time %s.", formatDuration(r.LastRun.DurationS))
+	}
 	switch r.Protocol {
 	case ProtocolGauntlet:
 		if r.LastRun != nil {
 			switch {
 			case r.LastRun.Emulator == "":
-				w("Last run at commit `%s` on %s, exit code %d. This run's emulator image was not recorded.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode)
+				w("Last run at commit `%s` on %s, exit code %d. This run's emulator image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote)
 			case r.LastRun.Emulator == a.Emulator:
-				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator)
+				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator, durationNote)
 			default:
-				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`. **Stale**: the current pin is `%s`.", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator, a.Emulator)
+				w("Last run at commit `%s` on %s, exit code %d, against emulator image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.Emulator, a.Emulator, durationNote)
 			}
 		}
 	default:

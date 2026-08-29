@@ -33,8 +33,8 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 	// standing in for a script that aborts before reaching day2_remove.
 	script := "#!/usr/bin/env bash\n" +
 		"printf 'GAUNTLET protocol=1\\n'\n" +
-		"printf 'GAUNTLET stage=cold_deploy verdict=pass detail=ok\\n'\n" +
-		"printf 'GAUNTLET stage=day2_rename verdict=fail detail=regressed\\n'\n" +
+		"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=5 detail=ok\\n'\n" +
+		"printf 'GAUNTLET stage=day2_rename verdict=fail duration_s=7 detail=regressed\\n'\n" +
 		"exit 1\n"
 	if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -55,6 +55,11 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 				"cold_deploy": "old cold_deploy detail",
 				"day2_rename": "old day2_rename detail (was passing)",
 				"day2_remove": "old, precisely-named day2_remove wall - must survive an early abort",
+			},
+			Seconds: map[string]float64{
+				"cold_deploy": 1,
+				"day2_rename": 2,
+				"day2_remove": 99,
 			},
 		},
 	}}}
@@ -87,8 +92,71 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 	if got := r.LastRun.Detail["day2_rename"]; got != "regressed" {
 		t.Errorf("day2_rename detail = %q, want this run's fresh detail (\"regressed\"), not the stale pass-era text", got)
 	}
+	if got := r.LastRun.Seconds["day2_remove"]; got != 99 {
+		t.Errorf("day2_remove duration_s was dropped by the early abort: %v", got)
+	}
+	if got := r.LastRun.Seconds["day2_rename"]; got != 7 {
+		t.Errorf("day2_rename duration_s = %v, want this run's fresh value (7), not the stale pass-era value (2)", got)
+	}
+	if got := r.LastRun.Seconds["cold_deploy"]; got != 5 {
+		t.Errorf("cold_deploy duration_s = %v, want this run's fresh value (5)", got)
+	}
+	// DurationS is rounded to 0.1s (roundSeconds, run.go), so this fixture -
+	// a script with no real work - legitimately rounds to exactly 0; the
+	// invariant this asserts is "measured, never negative", not "nonzero".
+	if r.LastRun.DurationS < 0 {
+		t.Errorf("LastRun.DurationS = %v, want a non-negative whole-run wall-clock time", r.LastRun.DurationS)
+	}
 	if got := r.LastRun.Detail["cold_deploy"]; got != "ok" {
 		t.Errorf("cold_deploy detail = %q, want this run's fresh detail", got)
+	}
+}
+
+// TestRunEstatesRecordsDurationS proves LastRun.DurationS (#434) is a real
+// measurement of the script's own wall-clock time, not a placeholder that
+// happens to be present. A script that sleeps a known amount must produce a
+// DurationS in a window around it; a script with two GAUNTLET stage lines
+// separated by a known sleep must produce a per-stage duration_s in a
+// window around that sleep for the LATER stage specifically (the delta is
+// measured from the PRIOR stage line, per live/e2e/lib/gauntlet.sh), not
+// for the one before it. This is the check-that-can-fail HANDOFF.md asks
+// for: it was run once against a version of run.go that never called
+// time.Now() around cmd.Run() and failed exactly as expected (DurationS
+// read back as 0).
+func TestRunEstatesRecordsDurationS(t *testing.T) {
+	root := t.TempDir()
+	scriptPath := filepath.Join("live", "e2e", "y", "run.sh")
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(scriptPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/usr/bin/env bash\n" +
+		"printf 'GAUNTLET protocol=1\\n'\n" +
+		"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n" +
+		"sleep 1.2\n" +
+		"printf 'GAUNTLET stage=migrate verdict=pass duration_s=1\\n'\n"
+	if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := &Manifest{Estates: []Estate{{Name: "y", Source: "s", Lane: "reference", Set: SetGrowing, Script: scriptPath}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"y"}, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := a.Result("y")
+	if !ok {
+		t.Fatal("no result for y")
+	}
+	if r.LastRun == nil {
+		t.Fatal("LastRun is nil")
+	}
+	// The process ran for at least the 1.2s sleep; give generous headroom
+	// above it for CI scheduling noise without accepting "any nonnegative
+	// number", which is what a stub that never measures anything would also
+	// satisfy.
+	if r.LastRun.DurationS < 1.0 || r.LastRun.DurationS > 10.0 {
+		t.Errorf("LastRun.DurationS = %v, want roughly 1.2s (the script's sleep)", r.LastRun.DurationS)
 	}
 }
 
