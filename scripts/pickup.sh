@@ -88,6 +88,13 @@ if have go; then
 fi
 
 # ------------------------------------------------------------- 3. next units
+# The full, unfiltered queue: pickup shows every unit so a session sees the
+# whole board, not a slice of it. `next -types T1,T2,...` (#436) narrows this
+# same queue to estates that exercise the named resource types - useful when
+# a change is known to be type-scoped (e.g. after a repin, `next -types
+# aws_lambda_function` for a lambda-only fix) - but a type-filtered run is
+# never a substitute for this unfiltered one; see live/GAUNTLET.md,
+# "Selective re-queue".
 hr "next units (env -u PWD go run ./tools/gauntlet next -json -n 6; full text: drop -json)"
 if have go; then
   NEXTJSON="$(mktemp -t pickup-next.XXXXXX)"
