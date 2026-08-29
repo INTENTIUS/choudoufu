@@ -36,15 +36,27 @@ import (
 // the same shape as ciExcludedPackages and estate-gen's knownDrift.
 
 // flociImageFields names each artifact under live/ that records the emulator
-// image it was measured against, and the field holding it.
+// image it was measured against, and the field holding it. Reads a flat
+// top-level string field only - no nested-path support, so an artifact that
+// carries a per-image ref (cohort-triage.json's own detail, below) still
+// needs a plain top-level field this map can name.
 //
 // Derived from a walk rather than assumed complete: TestEveryFlociImageRef
 // IsAccountedFor scans every artifact for a floci ref, so a new one is a
 // failure here rather than an omission nobody sees.
+//
+// cohort-triage.json (issue #432) genuinely carries two refs: the stale
+// pin its source artifact (cohort-acceptance.json) was measured against,
+// kept under measured_at for provenance, and the current pin its own
+// findings were live-verified against. Only the second is what this guard
+// means by "measured against" - it is what the table's family/issue calls
+// actually rest on - so that is the top-level "image" field registered
+// here, not measured_at's nested pair.
 var flociImageFields = map[string]string{
 	"plan-budget.json":       "measured_against",
 	"cohort-acceptance.json": "image",
 	"gauntlet.json":          "emulator",
+	"cohort-triage.json":     "image",
 }
 
 // staleFlociMeasurements are artifacts knowingly measured against an older
