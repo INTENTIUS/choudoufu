@@ -7,10 +7,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestRunEstatesPreservesDetailForUnreachedStages: found re-verifying
@@ -248,5 +251,189 @@ func TestRunEstatesWarnsWhenProtocolSpokenButNoStageReported(t *testing.T) {
 	const wantSubstr = "spoke the gauntlet protocol but reported no stage verdicts this run"
 	if !strings.Contains(out.String(), wantSubstr) {
 		t.Errorf("stdout does not warn about the empty-Stages carry-forward; got:\n%s", out.String())
+	}
+}
+
+// writeFakeEstate writes a minimal crossing script for the fake estates the
+// parallel tests below use, and registers it in a fresh Manifest/Artifact
+// pair. body is the script's own logic; it can rely on FLOCI_PORT (unset
+// unless the runner injects one), and must speak the gauntlet protocol
+// itself since these tests are exercising RunEstates/runResults, not a real
+// live/e2e/lib/gauntlet.sh source.
+func writeFakeEstate(t *testing.T, root, name, body string) {
+	t.Helper()
+	dir := filepath.Join(root, "live", "e2e", name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/usr/bin/env bash\nset -euo pipefail\n" + body
+	if err := os.WriteFile(filepath.Join(dir, "run.sh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestRunEstatesParallelAssignsDistinctPortsPerSlot is #437's proof that
+// "-parallel N" really does give N estates N isolated emulators rather than
+// N estates racing over one shared FLOCI_PORT: three fake estates each echo
+// their own FLOCI_PORT into their stage detail, and each reports a
+// DIFFERENT, deliberately estate-specific verdict (pass/fail/not_run) so a
+// result landing under the wrong estate's name - a slot/index mixup in the
+// concurrent path - would be caught even if the ports happened to come out
+// right.
+func TestRunEstatesParallelAssignsDistinctPortsPerSlot(t *testing.T) {
+	root := t.TempDir()
+	verdicts := map[string]string{"pa": "pass", "pb": "fail", "pc": "not_run"}
+	var names []string
+	for name, verdict := range verdicts {
+		names = append(names, name)
+		writeFakeEstate(t, root, name, fmt.Sprintf(
+			"printf 'GAUNTLET protocol=1\\n'\n"+
+				"printf 'GAUNTLET stage=cold_deploy verdict=%s duration_s=0 detail=port=%%s\\n' \"${FLOCI_PORT:-unset}\"\n",
+			verdict))
+	}
+
+	m := &Manifest{}
+	for _, name := range names {
+		m.Estates = append(m.Estates, Estate{Name: name, Source: "s", Lane: "reference", Set: SetGrowing})
+	}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: names, Parallel: 3, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+
+	seenPorts := map[string]bool{}
+	for name, wantVerdict := range verdicts {
+		r, ok := a.Result(name)
+		if !ok {
+			t.Fatalf("no result for %s", name)
+		}
+		if got := r.Stages["cold_deploy"]; got != wantVerdict {
+			t.Errorf("%s: verdict = %q, want %q (own-estate result must land under its own name, not another slot's)", name, got, wantVerdict)
+		}
+		detail := r.LastRun.Detail["cold_deploy"]
+		if !strings.HasPrefix(detail, "port=") || strings.Contains(detail, "unset") {
+			t.Fatalf("%s: detail %q does not carry a real FLOCI_PORT - parallel mode did not inject one", name, detail)
+		}
+		seenPorts[strings.TrimPrefix(detail, "port=")] = true
+	}
+	if len(seenPorts) != 3 {
+		t.Errorf("saw %d distinct FLOCI_PORT values across 3 concurrent estates, want 3: %v", len(seenPorts), seenPorts)
+	}
+	for port := range seenPorts {
+		want := false
+		for slot := 0; slot < 3; slot++ {
+			if port == fmt.Sprintf("%d", parallelPortBase+slot*parallelPortStride) {
+				want = true
+			}
+		}
+		if !want {
+			t.Errorf("port %s is not one of the documented per-slot values (base %d, stride %d)", port, parallelPortBase, parallelPortStride)
+		}
+	}
+}
+
+// TestRunEstatesParallelMatchesSerial is the Go-level half of #437's
+// equivalence requirement: for a script whose own output does not depend on
+// FLOCI_PORT (unlike the fixture above, which deliberately does, to prove
+// isolation), running the very same set of estates serially and with
+// -parallel N must produce an identical merged artifact row for every
+// estate - same stages, same detail, same protocol, same exit code, same
+// clear flag - because the concurrency lives entirely in runResults and the
+// merge loop that turns a []oneResult into artifact rows never changes
+// between the two modes. Commit/date/duration are excluded: those are
+// legitimately different measurements taken at different times, not part of
+// what "verdicts byte-identical" means (live/GAUNTLET.md's own protocol
+// line format also excludes wall-clock noise when comparing runs - only
+// stage=/verdict=/detail= are the claim).
+func TestRunEstatesParallelMatchesSerial(t *testing.T) {
+	root := t.TempDir()
+	names := []string{"ma", "mb", "mc"}
+	for i, name := range names {
+		writeFakeEstate(t, root, name, fmt.Sprintf(
+			"printf 'GAUNTLET protocol=1\\n'\n"+
+				"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0 detail=estate-%s-fixed-detail\\n'\n"+
+				"printf 'GAUNTLET stage=day2_rename verdict=%s duration_s=0 detail=second-stage\\n'\n",
+			name, []string{"pass", "fail", "pass"}[i]))
+	}
+	m := &Manifest{}
+	for _, name := range names {
+		m.Estates = append(m.Estates, Estate{Name: name, Source: "s", Lane: "reference", Set: SetGrowing})
+	}
+
+	run := func(parallel int) *Artifact {
+		a := &Artifact{Schema: 1}
+		var out bytes.Buffer
+		if _, err := RunEstates(root, m, a, RunOptions{Names: names, Parallel: parallel, Stdout: &out}, "commit", "emulator"); err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+
+	serial := run(1)
+	parallel := run(3)
+
+	normalize := func(a *Artifact) map[string]EstateResult {
+		out := map[string]EstateResult{}
+		for _, r := range a.Estates {
+			if r.LastRun != nil {
+				cp := *r.LastRun
+				cp.Commit, cp.Date, cp.DurationS = "", "", 0
+				r.LastRun = &cp
+			}
+			out[r.Name] = r
+		}
+		return out
+	}
+
+	got, want := normalize(parallel), normalize(serial)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parallel run's merged rows differ from serial's (commit/date/duration excluded):\nserial:   %+v\nparallel: %+v", want, got)
+	}
+}
+
+// TestRunEstatesParallelOverlapsInWallClock proves -parallel actually runs
+// estates concurrently rather than serialising them behind a lock that
+// would make the flag a no-op: N scripts that each sleep a fixed amount
+// must finish in roughly one sleep's worth of wall clock at -parallel N,
+// not N sleeps' worth.
+func TestRunEstatesParallelOverlapsInWallClock(t *testing.T) {
+	root := t.TempDir()
+	const n = 4
+	const sleep = "0.3"
+	var names []string
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("wc%d", i)
+		names = append(names, name)
+		writeFakeEstate(t, root, name,
+			"sleep "+sleep+"\n"+
+				"printf 'GAUNTLET protocol=1\\n'\n"+
+				"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n")
+	}
+	m := &Manifest{}
+	for _, name := range names {
+		m.Estates = append(m.Estates, Estate{Name: name, Source: "s", Lane: "reference", Set: SetGrowing})
+	}
+
+	timeRun := func(parallel int) time.Duration {
+		a := &Artifact{Schema: 1}
+		var out bytes.Buffer
+		start := time.Now()
+		if _, err := RunEstates(root, m, a, RunOptions{Names: names, Parallel: parallel, Stdout: &out}, "c", "e"); err != nil {
+			t.Fatal(err)
+		}
+		return time.Since(start)
+	}
+
+	serialElapsed := timeRun(1)
+	parallelElapsed := timeRun(n)
+
+	// n sleeps serially is at least n*0.3s; n at once is close to one
+	// 0.3s sleep plus process overhead. A generous threshold (well under
+	// the 2x a broken "-parallel that still runs one at a time" would
+	// produce, well above the ~4x a truly parallel run should show) keeps
+	// this robust on a loaded CI box while still catching a no-op flag.
+	if parallelElapsed >= serialElapsed/2 {
+		t.Errorf("parallel(%d) took %v, serial took %v - parallel run did not overlap (expected well under half the serial time for %d estates each sleeping %ss)", n, parallelElapsed, serialElapsed, n, sleep)
 	}
 }
