@@ -219,6 +219,6 @@ var estateSpecs = []estateSpec{
 		Name:       "reference-ec2-vpc",
 		ConfigDirs: nil,
 		ScanScript: true,
-		Note:       `The "reference" lane: no external source (live/GAUNTLET.md - "the plainest hand-written reference shape, kept in this repository"). run.sh's resource_block()/resource_block_ami_replaced() heredocs are the entire estate: aws_vpc, aws_subnet, aws_internet_gateway, aws_security_group, aws_instance - five resources, no module.`,
+		Note:       `The "reference" lane: no external source (live/GAUNTLET.md - "the plainest hand-written reference shape, kept in this repository"). run.sh's resource_block()/resource_block_ami_replaced() heredocs carry the five-resource estate: aws_vpc, aws_subnet, aws_internet_gateway, aws_security_group, aws_instance - no module. GitHub issue #363's strict_block() heredoc (Part G, the strict-stage scratch estate) adds a sixth, random_password, local to the hashicorp/random provider and outside the five above.`,
 	},
 }
