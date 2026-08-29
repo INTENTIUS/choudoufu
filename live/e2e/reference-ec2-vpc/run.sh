@@ -105,6 +105,16 @@ set -uo pipefail
 #                BREAK_REMOVE and only reachable when neither is 1, because
 #                Part F starts from Part E's real, completed removal - see
 #                Part F's header.
+#   BREAK_CRASH  set to 1 to run day2_crash's own negative control instead of
+#                the real checks: after a real create_before_destroy replace
+#                is genuinely interrupted between the create committing and
+#                the destroy dispatching, assert nothing is proposed on the
+#                next plan (the Break text in tools/gauntlet/stages.go for
+#                day2_crash is literally "Interrupt and then assert nothing
+#                is proposed; the assertion must fail"). Independent of
+#                BREAK, BREAK_REMOVE and BREAK_COUNT and only reachable when
+#                none of them is 1, because Part G starts from Part F's real,
+#                completed count cycle - see Part G's header.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -604,6 +614,76 @@ resource "aws_vpc" "count_oracle" {
   cidr_block = "10.99.0.0/16"
   tags = {
     Name = "ec2-reference-count-oracle-vpc"
+  }
+}
+EOF
+}
+
+# resource_block_crash($1 = ami) is resource_block_igw_removed() (the
+# internet gateway removed by day2_remove, the security group renamed by
+# day2_rename) with a lifecycle { create_before_destroy = true } block added
+# to aws_instance.main - day2_crash's own replace target. A crash strictly
+# "between the create and the destroy" is only reachable through the
+# create-then-destroy ordering that lifecycle block requests; the default
+# ordering destroys first, so there would be no window between the two at
+# all. $1 lets the caller drive the ForceNew ami argument through successive
+# crash attempts without a second heredoc.
+resource_block_crash() {
+  local ami="$1"
+  cat <<EOF
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_security_group" "renamed" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "$ami"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.renamed.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 EOF
@@ -1848,6 +1928,364 @@ EOF
       log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
 
       gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live id and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW live id (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the B1.7 stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under a new id, the lower index's id unchanged both times"
+
+      # ══════════════════════════════════════════════════════════════════
+      # PART G: CRASH BETWEEN CREATE AND DESTROY (day2_crash, planned stage
+      # - live/GAUNTLET.md #10, issue #361)
+      # ══════════════════════════════════════════════════════════════════
+      #
+      # Starts from Part F's real, completed state: the adopted estate plans
+      # empty with count_test back at 2. aws_instance.main gets a
+      # lifecycle { create_before_destroy = true } block (a no-op diff on
+      # its own, confirmed at G0) and its ami changes again, forcing a real
+      # replace under create-then-destroy ordering - the only ordering that
+      # has a window "between the create and the destroy" at all.
+      #
+      # THE INTERRUPT ITSELF IS REAL, not simulated or hand-constructed:
+      # `apply -parallelism=1` runs in the background; this script watches
+      # its streamed output for the literal hook line
+      # "aws_instance.main: Creation complete", and the instant that line
+      # appears sends SIGTERM to the running choudoufu process - the same
+      # signal cmd/choudoufu's own makeShutdownCh forwards identically to
+      # SIGINT (an ordinary Ctrl-C), triggering the graceful-stop path
+      # already in internal/backend/local (stopCtx, then tfCtx.Stop()):
+      # nodes already in flight are allowed to finish, but nothing not yet
+      # started is. Landing this cleanly - after the create commits but
+      # before the destroy of the deposed old object is even dispatched -
+      # is a real wall-clock race against floci's own response latency, not
+      # a guaranteed instant; Part F's own count_test block, widened by 6
+      # more members every attempt and never scaled back down until G4,
+      # gives the single-worker graph walker other queued work so the
+      # destroy node has somewhere to queue behind rather than always being
+      # the only thing left to dispatch next - a scaling that is pure
+      # addition (a fresh index every attempt, nothing already declared
+      # ever replaced), the load-bearing reason this filler mechanism was
+      # chosen over an early draft's own dedicated, description-toggled
+      # security group: that version's OWN replace could itself be cut
+      # short by the same interrupt, leaving one retry attempt's leftover
+      # to collide with the next attempt's fresh create (a real
+      # InvalidGroup.Duplicate error, caught while building this check).
+      # G1 retries up to 20 times and PROVES each attempt's outcome via the
+      # AWS CLI AND the local record rather than assuming the interrupt
+      # landed where intended: two live claimants alone is necessary but
+      # not sufficient, since real investigation found a signal can also
+      # land in a WIDER, unrecoverable window (the create's own hook fires,
+      # but the crashed apply's write-back never commits anything for the
+      # address at all) that this stage does not claim to recover from -
+      # see "an unrecorded orphan" in G1's own loop for how that miss is
+      # told apart from a real, recoverable landing and cleaned up before
+      # retrying. Every attempt writes a fresh main.tf so a landed-too-late
+      # attempt (the replace simply finished) is retried cleanly rather
+      # than treated as a dead end.
+      #
+      # THE REAL FIX THIS UNIT NEEDED: investigating why a first hand-built
+      # reproduction of this exact crash window (a scratch estate, not this
+      # script) still refused with "Two live resources claiming one
+      # address" surfaced a genuine, generalizable gap in the crash-window
+      # recovery design merged for this same issue
+      # (internal/live/discovery/deposed_test.go's own money test,
+      # TestCrashWindowBWriteBackThenBuildRecoversTheDeposedObject, already
+      # proved the write-back and build seams in isolation and named "the
+      # actual plan" - this script - as the next unit to prove the last
+      # step). A create_before_destroy replace's own write-back commits the
+      # NEW object as the record's CURRENT identity in the same pass it
+      # records the OLD one as deposed, so the very next plan finds
+      # aws_instance.main record-backed rather than needs-discovery -
+      # issue #415's own population (decl.recordBacked), never issue #361's
+      # own decl.types scalar loop the merged design wired
+      # matchDeposedClaimant into. decl.recordBacked's 2-claimant branch
+      # called collisionProblem unconditionally, with no deposed-record
+      # lookup at all, so a record-backed crash window could never recover
+      # on its own - confirmed with a debug build and a stack trace before
+      # writing the fix, not guessed. The fix (internal/live/discovery/
+      # discovery.go) mirrors the scalar path's own disambiguation exactly:
+      # try matchDeposedClaimant first, and only fall through to
+      # collisionProblem when it does not resolve the pair. Generic by
+      # construction - no resource type name in the fix, the same property
+      # matchDeposedClaimant/deposedClaimantMatches already have - and
+      # covered by two new unit tests in internal/live/discovery/
+      # deposed_test.go mirroring the existing needs-discovery pair
+      # (TestDiscoverDeposedDisambiguationRecordBacked and its own
+      # no-match-still-collides sibling).
+      #
+      # BREAK_CRASH=1 exercises this stage's own Break control instead of
+      # the real checks: after the SAME real interrupt lands, assert
+      # nothing is proposed - the Break text in tools/gauntlet/stages.go
+      # for day2_crash, verbatim: "Interrupt and then assert nothing is
+      # proposed; the assertion must fail." A real crash-window recovery
+      # DOES propose a destroy, so this assertion is wrong and must fail to
+      # hold - proving the real check above is load-bearing rather than a
+      # grep that always matches.
+
+      CURRENT_STAGE=day2_crash
+      log "=== G0. capture the pre-crash instance; confirm create_before_destroy is a no-op on its own ==="
+      G_PRE_ID="$PLAIN_INSTANCE_ID"
+      G_PRE_LIVE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_PRE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || true)"
+      [ "$G_PRE_LIVE" = "running" ] || fail "the pre-crash instance $G_PRE_ID is not running ahead of day2_crash (state=$G_PRE_LIVE)"
+      G_PRE_AMI="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_PRE_ID" --query "Reservations[0].Instances[0].ImageId" --output text)"
+
+      {
+        cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+        provider_block
+        echo
+        resource_block_crash "$G_PRE_AMI"
+        echo
+        count_test_block 8 "aws_vpc.main.id"
+      } > "$ADOPTED/main.tf"
+      G_BASELINE_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_BASELINE_RC=$?
+      [ "$G_BASELINE_RC" -eq 0 ] || { printf '%s\n' "$G_BASELINE_OUT" | tail -30; fail "adding create_before_destroy and widening count_test failed to apply cleanly"; }
+      grep -qE 'Resources: 6 added, 0 changed, 0 destroyed' <<< "$G_BASELINE_OUT" \
+        || { grep -E 'Apply complete' <<< "$G_BASELINE_OUT"; fail "adding the lifecycle block (which must be a no-op diff) and widening count_test from 2 to 8 did not apply as exactly 6 creates"; }
+      log "  create_before_destroy added to aws_instance.main with no diff of its own; count_test widened from 2 to 8 (6 throwaway members, cleaned up at G4)"
+      G_COUNT=8
+      G_ADDR_KEY="$(record_key aws_instance.main)"
+      G_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_instance/$G_ADDR_KEY"
+
+      log "=== G1. interrupt a real create_before_destroy replace between the create committing and the destroy dispatching ==="
+      G_LANDED=0
+      G_NEW_ID=""
+      G_ATTEMPT=0
+      # count_test (Part F's own resource, count_test_block above) is this
+      # stage's own filler work under -parallelism=1, not a dedicated
+      # resource type: real investigation (a scratch reproduction outside
+      # this script) found that a filler whose OWN identity can be
+      # interrupted mid-replace - the first version of this section used a
+      # dedicated, description-toggled security group - compounds exactly
+      # the failure mode this stage exists to recover from onto a SECOND
+      # address, turning one retry attempt's leftover into the next
+      # attempt's own "Two live resources" collision (a real
+      # InvalidGroup.Duplicate error, caught while building this check).
+      # Scaling count_test strictly UPWARD every attempt (never back down
+      # until G4) is pure addition - a fresh index every time, never a
+      # replace of an existing one - so an attempt an interrupt cuts short
+      # simply leaves fewer of the new members created; nothing already
+      # declared is ever put at risk of its own collision.
+      while [ "$G_ATTEMPT" -lt 20 ] && [ "$G_LANDED" -eq 0 ]; do
+        G_ATTEMPT=$((G_ATTEMPT + 1))
+        G_COUNT=$((G_COUNT + 6))
+
+        # Read the CURRENTLY live instance and its ami fresh every attempt -
+        # never $G_PRE_ID/$G_PRE_AMI, which name only the ORIGINAL
+        # pre-crash object. A prior attempt that failed to land the
+        # interrupt still completed its own replace for real (the create
+        # AND the destroy both ran; the only thing that did not happen is
+        # OUR signal landing in the narrow window between them), so the
+        # live instance and its ami genuinely move on every attempt, landed
+        # or not - picking a target ami from a fixed pool without checking
+        # what is actually live would silently propose no change at all on
+        # a later attempt (the shape a stale check like the old $G_PRE_AMI
+        # comparison here produced, caught by this script itself: three
+        # straight "did not land" attempts all reporting the identical live
+        # instance id, because the target ami happened to already be live).
+        G_STEP_OLD_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances \
+          --filters "Name=tag:tofu-address,Values=aws_instance.main" "Name=instance-state-name,Values=running,pending" \
+          --query "Reservations[0].Instances[0].InstanceId" --output text)"
+        [ -n "$G_STEP_OLD_ID" ] && [ "$G_STEP_OLD_ID" != "None" ] || fail "no live aws_instance.main found by its marker ahead of day2_crash attempt $G_ATTEMPT"
+        G_STEP_OLD_AMI="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_STEP_OLD_ID" --query "Reservations[0].Instances[0].ImageId" --output text)"
+        G_AMI=""
+        for G_CANDIDATE in ami-91000001 ami-92000002 ami-93000003; do
+          if [ "$G_CANDIDATE" != "$G_STEP_OLD_AMI" ]; then G_AMI="$G_CANDIDATE"; break; fi
+        done
+        [ -n "$G_AMI" ] || fail "every candidate crash-replace ami matched the live instance's own ami ($G_STEP_OLD_AMI) - the candidate pool needs a fourth literal"
+        {
+          cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+          provider_block
+          echo
+          resource_block_crash "$G_AMI"
+          echo
+          count_test_block "$G_COUNT" "aws_vpc.main.id"
+        } > "$ADOPTED/main.tf"
+
+        G_LOG="$WORK/day2_crash_attempt_${G_ATTEMPT}.log"
+        : > "$G_LOG"
+        ( cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color -parallelism=1 > "$G_LOG" 2>&1 ) &
+        G_PID=$!
+        ( tail -n0 -F "$G_LOG" 2>/dev/null & echo $! > "$WORK/day2_crash_tailpid" ) \
+          | grep -m1 -E '^aws_instance\.main: Creation complete' > /dev/null &
+        G_WATCH_PID=$!
+        G_WAIT_ITERS=0
+        while kill -0 "$G_WATCH_PID" 2>/dev/null && kill -0 "$G_PID" 2>/dev/null && [ "$G_WAIT_ITERS" -lt 1200 ]; do
+          sleep 0.05
+          G_WAIT_ITERS=$((G_WAIT_ITERS + 1))
+        done
+        kill -TERM "$G_PID" 2>/dev/null || true
+        kill "$(cat "$WORK/day2_crash_tailpid" 2>/dev/null)" 2>/dev/null || true
+        kill "$G_WATCH_PID" 2>/dev/null || true
+        wait "$G_PID" 2>/dev/null
+
+        G_OLD_STATE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_STEP_OLD_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || echo gone)"
+        # A landed crash leaves TWO live instances carrying aws_instance.main's
+        # marker at once (that is the whole shape this stage exercises) -
+        # Reservations[0].Instances[0] alone is ambiguous between them, so
+        # every matching id is read and the one that is NOT $G_STEP_OLD_ID
+        # is what "new" means here. A stray first-match pick here is exactly
+        # the bug this comment now documents: it silently misread a real
+        # landed attempt as "did not land" and let the loop pile a second
+        # interrupted replace on top of an already-unresolved crash window.
+        G_NEW_ID=""
+        for G_CANDIDATE_ID in $(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances \
+          --filters "Name=tag:tofu-address,Values=aws_instance.main" "Name=instance-state-name,Values=running,pending" \
+          --query "Reservations[].Instances[].InstanceId" --output text 2>/dev/null); do
+          if [ "$G_CANDIDATE_ID" != "$G_STEP_OLD_ID" ]; then G_NEW_ID="$G_CANDIDATE_ID"; break; fi
+        done
+        if [ "$G_OLD_STATE" = "running" ] && [ -n "$G_NEW_ID" ]; then
+          # Two live claimants is necessary but not sufficient: the ONE
+          # write-back this whole stage is about (current=new, deposed=old,
+          # committed together) has to have actually happened for this to
+          # be the recoverable window day2_crash proves. Real investigation
+          # (a scratch reproduction outside this script) found a signal can
+          # land AFTER the create's own hook fires but before that write-back
+          # commits - the cloud object exists and carries its marker, but
+          # the record never learns about it at all, leaving a genuinely
+          # ambiguous, unrecoverable collision (a real "Two live resources"
+          # refusal against no informative record, confirmed reproducing
+          # it directly before writing this check). That is a DIFFERENT,
+          # wider crash window than this stage's own scope - #361's design
+          # is about the create/destroy gap specifically - so it is treated
+          # here as a miss, not a pass: the orphan the record never learned
+          # about is cleaned up directly (never through choudoufu, which
+          # has no way to know it exists either) and the loop retries.
+          G_REC_CURRENT="$(jq -r '.identity.import_id // empty' "$G_RECORD" 2>/dev/null)"
+          G_REC_DEPOSED_N="$(jq '.deposed | length' "$G_RECORD" 2>/dev/null || echo 0)"
+          if [ "$G_REC_CURRENT" = "$G_NEW_ID" ] && [ "$G_REC_DEPOSED_N" = "1" ]; then
+            G_LANDED=1
+            G_PRE_ID="$G_STEP_OLD_ID"
+            log "  attempt $G_ATTEMPT: landed - old $G_STEP_OLD_ID still running (untouched), new $G_NEW_ID running, ami $G_STEP_OLD_AMI -> $G_AMI; record confirms current=$G_REC_CURRENT deposed_count=$G_REC_DEPOSED_N"
+          else
+            log "  attempt $G_ATTEMPT: two live claimants but the record does not reflect the crash (current=$G_REC_CURRENT, want $G_NEW_ID; deposed_count=$G_REC_DEPOSED_N) - cleaning up the unrecorded orphan directly and retrying"
+            aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 terminate-instances --instance-ids "$G_NEW_ID" >/dev/null
+            for G_CLEAN_ITER in $(seq 1 30); do
+              G_CLEAN_STATE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_NEW_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || echo gone)"
+              [ "$G_CLEAN_STATE" = "terminated" ] && break
+              sleep 1
+            done
+            [ "$G_CLEAN_STATE" = "terminated" ] || fail "cleaning up the unrecorded orphan $G_NEW_ID after attempt $G_ATTEMPT did not converge (state=$G_CLEAN_STATE) - day2_crash cannot proceed safely"
+          fi
+        else
+          log "  attempt $G_ATTEMPT: did not land (old $G_STEP_OLD_ID state=$G_OLD_STATE, new=$G_NEW_ID, ami $G_STEP_OLD_AMI -> $G_AMI) - retrying with a fresh replace"
+        fi
+      done
+      [ "$G_LANDED" -eq 1 ] || fail "could not reproduce a real crash window (old object still alive, new object bound, record confirming it) after 20 real interrupted-apply attempts"
+
+      [ -f "$G_RECORD" ] || fail "no local record file found for aws_instance.main after the crash"
+      G_DEPOSED_COUNT="$(jq '.deposed | length' "$G_RECORD")"
+      [ "$G_DEPOSED_COUNT" = "1" ] || fail "expected exactly one deposed entry recorded after the crash, found $G_DEPOSED_COUNT"
+      G_DEPOSED_ID="$(jq -r '.deposed | to_entries[0].value.identity.import_id' "$G_RECORD")"
+      [ "$G_DEPOSED_ID" = "$G_PRE_ID" ] || fail "the recorded deposed object is $G_DEPOSED_ID, not the interrupted replace's old object $G_PRE_ID"
+      G_CURRENT_ID="$(record_import_id "$G_RECORD")"
+      [ "$G_CURRENT_ID" = "$G_NEW_ID" ] || fail "the record's current identity is $G_CURRENT_ID, not the new object $G_NEW_ID"
+      log "  record: current=$G_CURRENT_ID deposed=$G_DEPOSED_ID, written in the one crashed apply's own write-back - a real create_before_destroy replace was genuinely interrupted between the create committing and the destroy dispatching"
+
+      if [ "${BREAK_CRASH:-}" = "1" ]; then
+        log "=== G2 (BREAK_CRASH=1). assert nothing is proposed after the interrupt - this must fail ==="
+        G_BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_BREAK_PLAN_RC=$?
+        [ "$G_BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_BREAK_PLAN_OUT" | tail -30; fail "the BREAK_CRASH=1 plan exited $G_BREAK_PLAN_RC"; }
+        if grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_BREAK_PLAN_OUT"; then
+          fail "BREAK_CRASH=1: the plan after a real interrupted create_before_destroy replace came back empty - this stage's own check is not load-bearing"
+        fi
+        grep -qE 'aws_instance\.main \(deposed object [0-9a-f]+\) will be destroyed' <<< "$G_BREAK_PLAN_OUT" \
+          || { printf '%s\n' "$G_BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_CRASH=1: the plan after the crash does not even propose the expected destroy - the fixture is not what this control expects"; }
+        log "  BREAK_CRASH=1: correctly proposes destroying the deposed object ($G_DEPOSED_ID) - the empty-plan assertion above correctly fails to hold"
+      else
+        log "=== G2. the next plan recovers on its own: destroy the deposed object, nothing else ==="
+        G_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_PLAN_RC=$?
+        [ "$G_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_PLAN_OUT" | tail -40; fail "the day2_crash recovery plan exited $G_PLAN_RC"; }
+        grep -qE 'aws_instance\.main \(deposed object [0-9a-f]+\) will be destroyed' <<< "$G_PLAN_OUT" \
+          || { printf '%s\n' "$G_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the recovery plan does not propose destroying the deposed object"; }
+        grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$G_PLAN_OUT" \
+          || { printf '%s\n' "$G_PLAN_OUT" | tail -10; fail "the recovery plan proposes something other than exactly one destroy"; }
+        log "  choudoufu: exactly one destroy - the deposed object ($G_DEPOSED_ID), nothing else"
+
+        G_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_APPLY_RC=$?
+        [ "$G_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_APPLY_OUT" | tail -40; fail "the day2_crash recovery apply exited $G_APPLY_RC"; }
+        grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$G_APPLY_OUT" \
+          || { grep -E 'Apply complete' <<< "$G_APPLY_OUT"; fail "the recovery apply did not match the planned 0 add / 1 destroy"; }
+
+        G_OLD_FINAL_STATE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_PRE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>&1)"
+        [ "$G_OLD_FINAL_STATE" = "terminated" ] || fail "$G_PRE_ID (the crashed-out old object) is not terminated after the recovery apply (state=$G_OLD_FINAL_STATE)"
+        log "  $G_PRE_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
+
+        G_DEPOSED_AFTER="$(jq '.deposed | length' "$G_RECORD")"
+        [ "$G_DEPOSED_AFTER" = "0" ] || fail "the record still carries $G_DEPOSED_AFTER deposed entries after the recovery apply"
+        G_CURRENT_AFTER="$(record_import_id "$G_RECORD")"
+        [ "$G_CURRENT_AFTER" = "$G_NEW_ID" ] || fail "the record's current identity changed unexpectedly across the recovery apply: $G_CURRENT_AFTER"
+        log "  record: the deposed entry is cleared, current identity is unchanged ($G_NEW_ID)"
+
+        log "=== G3. one more plan: fully converged, nothing left to propose ==="
+        G_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_FINAL_PLAN_RC=$?
+        [ "$G_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_FINAL_PLAN_OUT" | tail -30; fail "the post-recovery plan exited $G_FINAL_PLAN_RC"; }
+        grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_FINAL_PLAN_OUT" \
+          || { grep -E '^  #' <<< "$G_FINAL_PLAN_OUT"; fail "the post-recovery plan is not empty"; }
+        log "  No changes. The crash window is closed, recovered without a human."
+        PLAIN_INSTANCE_ID="$G_NEW_ID"
+
+        log "=== G4. cleanup: scale count_test back down to 2, back to Part F's own shape ==="
+        G_TEARDOWN_N=$((G_COUNT - 2))
+        {
+          cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+          provider_block
+          echo
+          resource_block_crash "$G_AMI"
+          echo
+          count_test_block 2 "aws_vpc.main.id"
+        } > "$ADOPTED/main.tf"
+        G_CLEANUP_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_CLEANUP_RC=$?
+        [ "$G_CLEANUP_RC" -eq 0 ] || { printf '%s\n' "$G_CLEANUP_OUT" | tail -30; fail "scaling count_test back down to 2 failed to apply cleanly"; }
+        grep -qE "Resources: 0 added, 0 changed, $G_TEARDOWN_N destroyed" <<< "$G_CLEANUP_OUT" \
+          || { grep -E 'Apply complete' <<< "$G_CLEANUP_OUT"; fail "scaling count_test back down to 2 did not destroy exactly $G_TEARDOWN_N (widened to $G_COUNT across the retry loop's own filler work)"; }
+        log "  count_test scaled back down to 2 ($G_TEARDOWN_N throwaway members removed); the estate is back to its own five resources plus Part F's count_test pair"
+
+        gauntlet_stage day2_crash pass "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt $G_ATTEMPT of 20) strictly between the create committing (new object $G_NEW_ID, confirmed running via the AWS CLI) and the destroy of the deposed old object ($G_PRE_ID, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=$G_NEW_ID, deposed=$G_DEPOSED_ID). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
+      fi
+      CURRENT_STAGE=""
     fi
     CURRENT_STAGE=""
   fi
