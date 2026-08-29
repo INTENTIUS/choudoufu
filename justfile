@@ -1176,7 +1176,7 @@ corpus init_bin="terraform":
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.
-tables: mapping row-emit convergence identity-sources survey-render limits harness toggles
+tables: mapping row-emit convergence identity-sources survey-render tagverbs-render limits harness toggles
     @git status --porcelain || true
 
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
@@ -1200,6 +1200,10 @@ iamref:
 # botocore -> live/tag-verbs.json and reference.md's tagging-verb span.
 tagverbs:
     env -u PWD go run ./tools/tagverbs-gen
+
+# The committed live/tag-verbs.json -> reference.md's tagging-verb spans (#421). No network.
+tagverbs-render:
+    env -u PWD go run ./tools/tagverbs-gen -render
 
 # internal/live/strict.Toggles (registry.go, #365) -> reference.md's strict
 # block toggle table. No network, no artifact - rendered straight from the
