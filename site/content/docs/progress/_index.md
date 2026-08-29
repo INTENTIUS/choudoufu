@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 13 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 13 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T20:07:22Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 13 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 13 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T20:11:38Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -48,7 +48,7 @@ answer is and how each check is proven non-vacuous, is
 |---|---|---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
@@ -75,13 +75,13 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-13 of 26 estates have a recorded run duration, totaling 53m51s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 13 estate(s) with no recorded duration yet.
+13 of 26 estates have a recorded run duration, totaling 55m8.5s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 9m14s across 3 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 3m59.1s across 1 estate(s) at commit `a1605b4688`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 13 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
 | [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | - | none recorded yet |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | - | none recorded yet |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 2m41.6s | cold_deploy 21s, migrate 53s, test_plan 2s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 7s, day2_replace 13s, greenfield 45s |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 3m59.1s | cold_deploy 22s, migrate 1m33s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 13s, day2_remove 7s, day2_count 32s, day2_replace 14s, greenfield 45s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
