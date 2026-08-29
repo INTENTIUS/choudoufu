@@ -1114,7 +1114,17 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	// already moved it, so MoveRecord finds nothing left at req.Old and
 	// no-ops on the second pass - the same idempotent shape a re-run after
 	// a crash relies on (this function's own doc comment above).
-	if _, err := store.MoveRecord(ctx, m.req.Old, m.req.New); err != nil {
+	//
+	// ownMoved records whether this call actually relocated something, for
+	// the module-boundary sweep below: when it did, req.New's slot is
+	// already correctly occupied by the freshest copy, and any further
+	// stale duplicate the sweep finds mapping to that same destination
+	// (GitHub issue #467, this call's own interaction with the moved-block-
+	// origin chase [renameBoundaryOrigins] adds) is cleaned up rather than
+	// moved into an address [staterecord.Store.PutIfVersion] will now,
+	// correctly, refuse to overwrite.
+	ownMoved, err := store.MoveRecord(ctx, m.req.Old, m.req.New)
+	if err != nil {
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"This resource's own record could not be moved",
@@ -1189,7 +1199,53 @@ func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	// so an interrupted run is still safe to retry: on a second pass,
 	// MoveRecord finds nothing left at an already-moved winner's address
 	// and no-ops, while a not-yet-deleted loser is still there to clean up.
-	for _, group := range groups {
+	//
+	// One destination is special: req.New's own. Whenever the unconditional
+	// call above actually moved something (ownMoved), the freshest copy -
+	// conceptually hop -1, closer than anything [renameBoundaryOrigins]
+	// chases - already sits at req.New, written and CAS-confirmed before
+	// [store.List] above ever ran; that is exactly why it can never appear
+	// in this group itself (its stored key changed out from under it before
+	// the sweep looked). So every entry the sweep still found for req.New's
+	// own destination is, without exception, a stale duplicate the moved-
+	// block-only hop (D1's own apply, in the day2_rename estate this was
+	// found on) left behind - not a copy still waiting to move. Cleaning
+	// each one up directly, with no MoveRecord attempt, is what GitHub
+	// issue #467 needed: the ordinary winner/MoveRecord path below would
+	// try to write into req.New's slot a second time and fail with exactly
+	// the version conflict [projection.RecordStore.MoveRecord]'s own
+	// PutIfVersion(..., "") call is supposed to raise for a genuinely
+	// contested key.
+	newAddrKey := m.req.New.String()
+	for dest, group := range groups {
+		if dest == newAddrKey && ownMoved {
+			for _, mt := range group {
+				_, version, keyExists, _, gErr := store.GetIdentity(ctx, mt.addr)
+				if gErr != nil {
+					return diags.Append(tfdiags.Sourceless(
+						tfdiags.Error,
+						"A superseded record could not be read before cleanup",
+						fmt.Sprintf(
+							"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward by this rename's own unconditional move, and could not be read to clean it up: %s.",
+							m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, m.req.New, gErr),
+					))
+				}
+				if !keyExists {
+					continue
+				}
+				if dErr := store.DeleteRecord(ctx, mt.addr, version); dErr != nil {
+					return diags.Append(tfdiags.Sourceless(
+						tfdiags.Error,
+						"A superseded record could not be cleaned up",
+						fmt.Sprintf(
+							"Renaming %s to %s moved module boundary %s to %s. %s is a stale duplicate of %s, already carried forward by this rename's own unconditional move, and could not be removed: %s. Nothing is lost - %s already holds the correct record - but %s should be cleaned up by hand or by rerunning the same live-mv command.",
+							m.req.Old, m.req.New, oldPrefix, newPrefix, mt.addr, m.req.New, dErr, m.req.New, mt.addr),
+					))
+				}
+			}
+			continue
+		}
+
 		winner := group[0]
 		for _, mt := range group[1:] {
 			if mt.hop < winner.hop {
