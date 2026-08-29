@@ -93,6 +93,23 @@ func (cb *countBlock) claimants() []claimant {
 	return out
 }
 
+// hasRecordBackedEntry reports whether any of this block's declared
+// instances was excluded from the scan because its identity already came
+// from the estate record ([declaredEntry.recordBacked]'s own doc comment).
+// [bindCountBlock] reads this before ever classifying the live set: a
+// record-backed entry's own tofu-slot is unknown to this pass by
+// construction, not merely absent from a set that otherwise saw everything,
+// and that distinction is exactly what decides whether set-matching the
+// rest of the block is safe (GitHub issue #409).
+func (cb *countBlock) hasRecordBackedEntry() bool {
+	for _, entry := range cb.entries {
+		if entry.recordBacked {
+			return true
+		}
+	}
+	return false
+}
+
 // countBlockFor finds the count block a marker value names, if any.
 //
 // A count instance's marker is the block address with a numeric index -
@@ -143,8 +160,40 @@ func countBlockFor(blocks map[string]*countBlock, escaped string) *countBlock {
 // compatibility path for an estate that predates them, and a set that carries
 // both at once is a named error rather than a guess about which half to
 // believe.
+//
+// GitHub issue #409: a block with any record-backed declared entry
+// ([countBlock.hasRecordBackedEntry]) always takes the address path,
+// regardless of what [slots.Classify] would say. A record-backed entry
+// contributes no claimant here by construction - its identity already came
+// from the estate record, not from a live read, so this pass never learns
+// what tofu-slot its own live object carries - and classifying the block
+// from cb.claimants() alone is unsafe the moment anything else in the block
+// DOES carry one: a single genuinely-surplus instance the sweep found (the
+// reference-ec2-vpc day2_count shape - a shrunk count block whose declared
+// members were created, and record-backed, by an earlier apply through this
+// fork) is enough to tip Classify to ModeAll, and bindCountBySlot would then
+// set-match the declared count against a live population it was never shown
+// in full: it mints invented slots for the record-backed entries it cannot
+// see, and - because the matcher then has too few live members for the
+// declared count - it can absorb the genuine surplus into a declared index
+// instead of ever flagging it for destroy. bindCountByAddress carries no
+// version of that hazard: every declared entry, record-backed or not, gets
+// the positional slot equal to its own index unconditionally (case 0's
+// SlotMinted assignment below, [declaredEntry.recordBacked]'s own doc
+// comment) - exactly what a record-backed entry already carries in
+// practice, since nothing upstream of the record-backed skip ever assigns
+// one out of index order (TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots
+// pins the same assumption for the whole-block-record-backed case) - and a
+// live member the declared addresses do not account for still reaches
+// res.Orphans, removal planning's own business (P5.1), which is the same
+// mechanism that already destroys a shrunk, slotless estate's leftover
+// cleanly.
 func bindCountBlock(req Request, cb *countBlock, res *Result, bound map[string]Binding) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	if cb.hasRecordBackedEntry() {
+		return bindCountByAddress(req, cb, res, bound)
+	}
 
 	live := cb.claimants()
 	set := make([]slots.Live, 0, len(live))
