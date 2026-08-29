@@ -3529,6 +3529,34 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 			if len(entry.claimants) < 2 {
 				continue
 			}
+			// GitHub issue #361's crash-window recovery, extended to the
+			// record-backed population issue #415 added: a record-backed
+			// address's own current identity is already answered by the
+			// record, so it never reaches the ordinary decl.types scalar
+			// loop above (see that loop's own #361 comment) - but a
+			// create-before-destroy replace interrupted after the create
+			// and before the destroy leaves the exact same two-claimant
+			// shape here, because the record answering this address's
+			// CURRENT identity is precisely what a real crash's write-back
+			// leaves behind, alongside the Deposed entry for the old
+			// object. The record naming a deposed candidate for this
+			// address breaks the tie the same way: pull the deposed
+			// claimant out into a DeposedBinding and let the remaining one
+			// stand as the record's own confirmed claim (silence, the same
+			// as the ordinary one-claimant case just above) rather than
+			// falling through to collisionProblem unchanged.
+			if rec, dk, idx, ok := matchDeposedClaimant(req, entry.res.Addr, entry.claimants); ok {
+				remainingCount := 0
+				for i := range entry.claimants {
+					if i != idx {
+						remainingCount++
+					}
+				}
+				if remainingCount == 1 {
+					res.DeposedBindings = append(res.DeposedBindings, projection.NewDeposedBinding(entry.res.Addr, dk, rec))
+					continue
+				}
+			}
 			diags = diags.Append(problemDiag(res, collisionProblem(req, typeName, entry)))
 		}
 
