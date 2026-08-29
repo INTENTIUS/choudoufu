@@ -876,12 +876,22 @@ func (d *declared) record(typeName, escaped string, r identity.Resolution) {
 // routing and TestDiscover_recordBackedCollisionOnCountBlockIsReported for
 // the pinned message.
 //
-// Scoped to entry.inCount on purpose: a scalar (non-count) record-backed
-// address is not the shape #411 reports, and bind()'s scalar loop reads
-// d.order/d.types directly rather than through entryFor, so a scalar
-// record-backed entry returned here would collect claimants nothing ever
-// drains - it is left on declares()+displacedFrom's existing answer, exactly
-// as before.
+// GitHub issue #415 closed the gap #411 deliberately left open: a scalar or
+// for_each (non-count) record-backed entry was excluded here by an
+// `entry.inCount` guard, on the reasoning that bind()'s scalar loop reads
+// d.order/d.types directly rather than through entryFor and so nothing would
+// ever drain the claimants such an entry collected. The collision-outcome
+// matrix (internal/live/discovery/collisionmatrix_test.go) proved that
+// reasoning correct AND the outcome silent: two live objects manufacturing a
+// collision on a record-backed scalar or for_each address took the exact
+// #411 shape - never bound, never an orphan, never a Problem - because
+// [declared.declares]+[declared.displacedFrom] answers "not displaced"
+// unconditionally for a non-[identity.ClassConcrete] resolution, which every
+// record-backed entry's own resolution is (it stays ClassNeedsDiscovery
+// until something actually binds it - see recordbacked_demand_test.go). The
+// guard is gone, and [bind]'s own new pass over decl.recordBacked's
+// non-count entries is what drains what this now lets through: see that
+// pass's comment for the other half.
 func (d *declared) entryFor(typeName, escaped string) (*declaredEntry, bool) {
 	if entry, ok := d.types[typeName][escaped]; ok {
 		return entry, true
@@ -889,7 +899,7 @@ func (d *declared) entryFor(typeName, escaped string) (*declaredEntry, bool) {
 	if entry, ok := d.typeAliases[typeName][escaped]; ok {
 		return entry, true
 	}
-	if entry, ok := d.recordBacked[typeName][escaped]; ok && entry.inCount {
+	if entry, ok := d.recordBacked[typeName][escaped]; ok {
 		return entry, true
 	}
 	return nil, false
@@ -3479,6 +3489,49 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 			}
 		}
 
+		// Record-backed instances outside a count block (GitHub issue #415):
+		// a scalar or for_each entry filed under decl.recordBacked rather
+		// than decl.types (see recordBacked's own doc comment) never joins
+		// decl.order, so the ordinary scalar loop just above never sees it -
+		// but entryFor (see its own doc comment, the #415 paragraph) lets it
+		// collect claimants during the scan exactly like any other declared
+		// entry. Something has to read what it collected, or the fix in
+		// entryFor is half done: a claimant would be gathered and then never
+		// looked at, which is not better than never gathering it. This is
+		// that other half.
+		//
+		// A record-backed count member (entry.inCount) is skipped here on
+		// purpose: bindCountBlock already accounts for every one of
+		// cb.entries, record-backed or not (see that function's own
+		// comment, and TestDiscover_recordBackedCollisionOnCountBlockIsReported),
+		// so draining it a second time here would raise the same collision
+		// twice.
+		//
+		// Zero or one claimant is silence, deliberately: zero is the same
+		// "excluded from the scan, not left unanswered by it" absence
+		// bindCountByAddress's own case-0 arm documents, and one is the live
+		// object confirming what the record already answered rather than
+		// adding anything a Binding would say better - the same "wasted
+		// binding ATTEMPT" [Request.RecordBackedAddrs] exists to skip. Two or
+		// more is the shape #411 fixed for a count member and this closes for
+		// everything else: collisionProblem is type-shape-generic (it reads
+		// only whether the address is count-keyed), so a scalar or for_each
+		// record-backed collision gets the exact same [ProblemCollision]
+		// ("Two live resources claiming one address") an ordinary, non-record-
+		// backed collision at the same address shape already gets - the
+		// record answering identity for this pass changes nothing about what
+		// a second live object claiming it means.
+		for _, escaped := range sortedRecordBackedAddrs(decl.recordBacked[typeName]) {
+			entry := decl.recordBacked[typeName][escaped]
+			if entry.inCount {
+				continue
+			}
+			if len(entry.claimants) < 2 {
+				continue
+			}
+			diags = diags.Append(problemDiag(res, collisionProblem(req, typeName, entry)))
+		}
+
 		// Markers naming a whole for_each block rather than one of its
 		// instances: pre-instance-key writers. Never bound by guess, and
 		// never resolvable by slots either - a for_each instance's key is
@@ -3777,6 +3830,20 @@ func claimantIDs(cs []claimant) []string {
 }
 
 func sortedBlockAddrs(m map[string]*declaredBlock) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sortedRecordBackedAddrs returns one type's record-backed entries' escaped
+// addresses in sorted order, for [bind]'s own non-count drain pass (GitHub
+// issue #415) - deterministic the same way every other map-ranging helper in
+// this file is, so which of several collisions gets reported first never
+// depends on Go's map iteration order.
+func sortedRecordBackedAddrs(m map[string]*declaredEntry) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
