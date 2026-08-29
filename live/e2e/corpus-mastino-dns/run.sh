@@ -1743,6 +1743,24 @@ json.dump(d, open(p, 'w'))
       fail "BREAK_COUNT=1: the plan actually destroys wp-prod-staging[0] - this assertion is not load-bearing"
     fi
     log "  BREAK_COUNT=1: correctly does NOT destroy wp-prod-staging[0] - the wrong-instance assertion above fails to hold, as it must"
+    # This branch never applies, so the live estate never moved - but
+    # $EST/main.tf itself is still left declaring count = 9 from the sed
+    # edit above, mismatched against the still-10 live/record reality.
+    # MEASURED HERE: a first attempt at this control left that edit in
+    # place and Part E (day2_remove), right below, inherited it - its own
+    # apply destroyed 3 objects instead of the expected 1-2 (the eu zone,
+    # its apex NS record, AND wp-prod-staging[9], which the leftover
+    # count=9 config now ALSO orphans), failing day2_remove's own
+    # assertion for a reason that has nothing to do with day2_remove.
+    # Reverted here so every part after this stage's own BREAK control
+    # sees the config exactly as it would if BREAK_COUNT had never been
+    # set - the same discipline Part D's own BREAK=1 branch keeps by
+    # skipping everything downstream of it entirely, applied here by
+    # cleaning up after itself instead, since this stage does not own
+    # everything below it the way Part D's own if/else does.
+    sed -i.bak 's/count           = 9/count           = 10/' "$EST/main.tf"
+    rm -f "$EST/main.tf.bak"
+    grep -q 'count           = 10' "$EST/main.tf" || fail "BREAK_COUNT=1: reverting the count edit back to 10 did not match"
   else
     grep -qE '^  # aws_route53_record\.wp-prod-staging\[9\] will be destroyed' <<< "$G_DOWN_PLAN_OUT" \
       || { printf '%s\n' "$G_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy wp-prod-staging[9]"; }
