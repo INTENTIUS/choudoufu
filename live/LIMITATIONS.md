@@ -1684,17 +1684,34 @@ comes from. See `strict-markers-unrecordable`.
 holds both halves.
 
 This bound is not free, and saying what it costs is part of stating it: as
-of 2026-08-22 the credential veto is the **sole** remaining wall for the
+of 2026-08-22 the credential veto was the **sole** remaining wall for the
 `corpus-alb-complete` gauntlet estate's `test_plan` stage, on one
-`aws_cognito_user_pool_client`. The rule that would clear it already exists
-and already ships — `sensitiveIdentityAttr`, the same blanket narrowed to
+`aws_cognito_user_pool_client`. The rule that would clear it already existed
+and already shipped — `sensitiveIdentityAttr`, the same blanket narrowed to
 exactly the attributes a record would hold, written for the selection route
 in `markers "record"` — and applying it here would refuse the second shape
-above while admitting the first. What is missing is one measurement, not one
-rule: whether every sensitive attribute of each type it would newly admit
-survives an import-and-read, or is picked up as residue instead. That is a
-per-type, post-apply fact about a provider, and lint has to answer at the
-configuration.
+above while admitting the first.
+
+**RESOLVED.** The narrowing landed as ruling 5 (`rfc/20260823-foundation-order-ruling.md`,
+commit `2019d8dd73`): `LocatedType`'s credential condition is
+`sensitiveIdentityAttr` unconditionally now, not the whole-schema
+`credentialMaterial` sweep, so `aws_cognito_user_pool_client` clears it —
+its recorded identity is `user_pool_id`/`id`, never `client_secret`.
+Landing that alongside issues #329/#337's composite located payload (a
+located record can hold a provider identity object or a documented
+composed import-ID string, not only a bare `id`) and #309 step 2's
+markerless-veto widening, in that order, is what let this type reach the
+located route at all. `corpus-alb-complete` clears all 8 active stages as
+of commit `bb30c9a03f` (`live/gauntlet.json`), `test_plan` included. See
+`tools/row-gen/rejected.json`'s `aws_cognito_user_pool_client` entry and
+`internal/live/projection/located_composed_test.go`
+(`TestComposedLocatedRoundTripImportsTheDocumentedString`, issue #429) for
+the measurement and the unit-level round trip. The per-type,
+post-apply "does the sensitive attribute survive an import-and-read"
+question the paragraph above still poses is about the OTHER shape —
+whether the secrets *setting* should ever admit a type like
+`aws_iam_access_key`, whose located record would still exclude the secret
+itself — and stays open; it is not what blocked this one type.
 
 **Forwarding address.** Correct the spelling, or remove the argument (which
 means `"store"`).
