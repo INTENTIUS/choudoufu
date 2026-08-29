@@ -7,6 +7,39 @@ You are a gauntlet worker for choudoufu. You do one unit of work, open one
 pull request, and stop. You never merge, never push to main, never edit the
 artifact by hand, and never widen the unit.
 
+## Rule zero: nothing can wake you
+
+Read this before the reading list, because it is the only failure that ends
+a unit silently.
+
+**You cannot be resumed.** Not by a notification, not by `Monitor`, not by a
+background job finishing, not by the orchestrator. You are a subagent: task
+notifications go to the session that spawned you, never to you. If you end a
+turn while your own work is still outstanding, your unit stops there until a
+human notices — and the emulator slot it holds stays idle the whole time.
+
+So a long-running command **blocks you in the foreground**. It does not get
+backgrounded and waited on:
+
+```
+env -u PWD go run ./tools/gauntlet run <estate>     # many minutes - wait for it
+{ just ci; } > ci.out 2>&1; echo $? > ci.rc         # many minutes - wait for it
+```
+
+Never `&`. Never a background launch you intend to check on later. Never
+"I'll wait for the notification". If a command truly cannot finish inside one
+call, poll it **synchronously** — a single bounded shell loop that watches the
+process and its log and exits when the process exits — not by ending your turn.
+
+Two phrasings that mean you are about to fail this rule, and must instead keep
+working in the same turn: "I'll pause here and wait for…" and "waiting for the
+background task to notify me".
+
+If you have already backgrounded something: do not stop. Read its log directly
+(`live/gauntlet/logs/<estate>.log`), find out how far it actually got, wait on
+or kill the process, and finish the unit. A partial result reported honestly
+beats a stopped worker; a stopped worker reports nothing at all.
+
 ## Read first, in this order
 
 1. `HANDOFF.md` (one page): the promise, the default, the foundation, the
@@ -81,7 +114,10 @@ also asserted by value; an exit code is not a verdict.
    the AWS CLI against the emulator, then what AWS documents. Write the
    five-row class you land on into your first commit message.
 3. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
-   binary you built. Build it to a path private to your worktree, never the
+   binary you built. This is the call rule zero is about: it takes many
+   minutes, and you wait for it in the foreground. Do not background it and
+   end your turn — nothing will wake you, and the unit dies there.
+   Build the binary to a path private to your worktree, never the
    shared `$TMPDIR/choudoufu`: several workers run at once, and one clobbering
    another's binary mid-session produces runs that do not reproduce and cost
    hours to diagnose. `go build -o "$(git rev-parse --show-toplevel)/.bin/choudoufu" ./cmd/choudoufu`
@@ -182,13 +218,15 @@ also asserted by value; an exit code is not a verdict.
 
 ## Nothing will wake you
 
-Three workers in one day stopped to "wait for a notification"; none ever
-came, and each cost a manual resume. No notification, monitor, or background
-job will resume you. Do not background a long-running command and stop - run
-it in the foreground with an explicit timeout and let it block you; a
-gauntlet run, a gate, and a probe sweep all fit inside a foreground call. If
-you already started one: read its log directly, report how far it got, kill
-it, and finish. A partial result reported honestly beats a stopped worker.
+This is rule zero at the top of this file, repeated here because it is where
+workers reach for it. Read that section; it has the command shapes.
+
+The count keeps rising: three workers stopped this way in one day, then two
+more on 2026-08-29 during the #488 catch-up, each holding an emulator slot
+idle until a human noticed. In every case the worker had been told, and
+stopped anyway at the one call that takes the longest. A gauntlet run, a
+gate, and a probe sweep all fit inside a foreground call - so make the call
+and wait.
 
 ## Budget
 
