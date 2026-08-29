@@ -12,10 +12,10 @@
     },
     "statuses": {
       "excluded": 3,
-      "in-contract": 1122,
+      "in-contract": 1119,
       "needs-evidence": 19,
       "needs-separator": 4,
-      "pending-mechanism": 59,
+      "pending-mechanism": 62,
       "pending-ratification": 492
     }
   },
@@ -1005,14 +1005,14 @@
     {
       "type": "aws_apigatewayv2_routing_rule",
       "tier": "record-carried",
-      "status": "in-contract",
+      "status": "pending-mechanism",
       "facts": {
         "taggable": false,
         "survey_path": "moves to Ops",
         "admitted": false,
         "markerless": true,
         "not_importable": false,
-        "located_approx": true,
+        "no_located_identity_attr": true,
         "tier_d": false,
         "rejected": false,
         "mapping_via": "name"
@@ -15302,14 +15302,14 @@
     {
       "type": "aws_network_interface_permission",
       "tier": "record-carried",
-      "status": "in-contract",
+      "status": "pending-mechanism",
       "facts": {
         "taggable": false,
         "survey_path": "moves to Ops",
         "admitted": false,
         "markerless": true,
         "not_importable": false,
-        "located_approx": true,
+        "no_located_identity_attr": true,
         "tier_d": false,
         "rejected": false,
         "mapping_via": "alias"
@@ -15860,14 +15860,14 @@
     {
       "type": "aws_notifications_event_rule",
       "tier": "record-carried",
-      "status": "in-contract",
+      "status": "pending-mechanism",
       "facts": {
         "taggable": false,
         "survey_path": "moves to Ops",
         "admitted": false,
         "markerless": true,
         "not_importable": false,
-        "located_approx": true,
+        "no_located_identity_attr": true,
         "tier_d": false,
         "rejected": false,
         "mapping_via": "name"
