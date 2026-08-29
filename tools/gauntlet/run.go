@@ -23,9 +23,9 @@ const LogDir = "live/gauntlet/logs"
 
 // RunOptions controls a run.
 type RunOptions struct {
-	Names  []string // estates to run; empty means the selected set
-	Set    string   // "core", "all"; used when Names is empty
-	Env    []string // extra KEY=VALUE for every script
+	Names []string // estates to run; empty means the selected set
+	Set   string   // "core", "all"; used when Names is empty
+	Env   []string // extra KEY=VALUE for every script
 	// Parallel is how many estates run concurrently, each against its own
 	// isolated floci emulator (#437). <=1 means serial: the exact code path
 	// this runner has always used, so a plain `gauntlet run` is unaffected
