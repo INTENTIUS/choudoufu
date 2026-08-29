@@ -146,6 +146,41 @@ Oracle: No stock equivalent. The toggle documentation is the oracle, and each to
 
 Break: Turn a toggle off; its refusal must disappear and no other may appear.
 
+## The plan-fidelity contract
+
+What every stage above adds up to, stated as one promise: an equal plan, or
+a refusal this document names in advance. Anything else is a defect.
+
+"Equal" is checked after one normalisation, applied the same way on every
+stage that compares a plan or the resulting cloud: the marker tags choudoufu
+writes for identity (`tofu-estate` and `tofu-address`, see
+[Identity](https://github.com/INTENTIUS/choudoufu/blob/main/site/content/docs/model/identity.md))
+are stripped from both sides first. Stock has no argument to write them
+into, so their presence is not a difference to explain, and nothing else is
+normalised away.
+
+Past that, HANDOFF.md's five-row table is what turns a remaining difference
+into an action: choudoufu refusing where stock proceeds is a defect, the
+plans or the cloud differing is a defect, stock failing too still leaves the
+estate to clear, a wrong answer from the emulator is fixed in the emulator,
+and an instance that would need a wrong marker to converge drops to the
+record rung and proceeds rather than forcing one. None of those five rows
+closes a finding without fixing something.
+
+A "named refusal" is the one way "choudoufu refuses where stock proceeds"
+is not automatically that table's first row: a stage whose own Proves and
+Oracle text above commits, before any estate runs against it, to refusing on
+purpose. Today that is `plan_approval` (stage 12, planned): its Oracle
+states plainly that the planfile applies when the world has not moved, and
+that choudoufu is stricter than stock by design when it has, so that refusal
+is asserted rather than diffed against stock. A refusal no stage names this
+way is not exempt; it is the table's first row, and it is a defect.
+
+The Break line under every stage above is the enforcement mechanism:
+`BREAK=1` forces the exact defect the stage exists to catch, and the stage
+must fail. A check that cannot be made to fail this way is not proving the
+contract, whatever verdict it reports.
+
 ## The protocol a script speaks
 
 A crossing script lives at `live/e2e/<name>/run.sh`, sources
@@ -231,7 +266,11 @@ per-stage tally), and one row per estate: `name`, `source`, `url`, `pin`,
 `emulator` - the pin THAT run actually used, distinct from the
 top-level `emulator`, which is the pin the NEXT run will use -
 `exit_code`, optional per-stage `detail`). `go run ./tools/gauntlet snapshot
-<version>` copies it to `live/history/<version>.json` at release.
+<version>` copies it to `live/history/<version>.json` at release; `go run
+./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just
+gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
+markdown - board movement per set, which estates newly cleared or
+regressed, and the emulator pin change - for the release body.
 
 ## What holds this together
 

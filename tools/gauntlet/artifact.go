@@ -149,7 +149,17 @@ var SetLabels = map[string]string{
 // LoadArtifact reads the committed artifact. A missing file is an empty
 // artifact, so the first run starts from nothing rather than erroring.
 func LoadArtifact(root string) (*Artifact, error) {
-	b, err := os.ReadFile(filepath.Join(root, ArtifactPath))
+	return loadArtifactFile(filepath.Join(root, ArtifactPath))
+}
+
+// loadArtifactFile reads an artifact from an arbitrary path - live/gauntlet.json
+// or one of its live/history/<version>.json snapshots (cmdNotes, notes.go).
+// Snapshots can predate a schema change; Go's decoder already does the right
+// thing for that (unknown fields are ignored, missing ones zero-value), so
+// this is the one loader every schema variant goes through. See notes.go's
+// package comment for which fields that leaves safe to read across versions.
+func loadArtifactFile(path string) (*Artifact, error) {
+	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return &Artifact{Schema: 1}, nil
 	}
@@ -158,7 +168,7 @@ func LoadArtifact(root string) (*Artifact, error) {
 	}
 	var a Artifact
 	if err := json.Unmarshal(b, &a); err != nil {
-		return nil, fmt.Errorf("%s: %w", ArtifactPath, err)
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &a, nil
 }

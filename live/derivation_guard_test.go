@@ -147,7 +147,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 10, Code: 0,
 	},
 	"internal/live/harness/assumptions.go": {
-		Reason: "sanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
+		Reason: "SanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
 			"admission route at all, because their identity IS credential material and a marker goes in a tag rather " +
 			"than in the secret. Shrunk from four by the 2026-08-23 ruling (#365 ruling 5), which moved " +
 			"aws_iam_access_key and aws_iot_certificate to internal/live/identity/located.go's toggle-gated exclusion " +
@@ -293,7 +293,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	"tools/estate-gen/overrides_cohort_ecs_eks.go":              {Reason: estateGenCohortReason, Data: 11, Code: 1},
 	"tools/estate-gen/overrides_cohort_governance.go":           {Reason: estateGenCohortReason, Data: 13, Code: 1},
 	"tools/estate-gen/overrides_cohort_iam_ecr.go":              {Reason: estateGenCohortReason, Data: 4, Code: 1},
-	"tools/estate-gen/overrides_cohort_identity.go":             {Reason: estateGenCohortReason, Data: 18, Code: 2},
+	"tools/estate-gen/overrides_cohort_identity.go":             {Reason: estateGenCohortReason, Data: 19, Code: 2},
 	"tools/estate-gen/overrides_cohort_iot.go":                  {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_lambda.go":               {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_media.go":                {Reason: estateGenCohortReason, Data: 2, Code: 0},
@@ -305,7 +305,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	"tools/estate-gen/overrides_cohort_route53_cloudfront.go":   {Reason: estateGenCohortReason, Data: 18, Code: 0},
 	"tools/estate-gen/overrides_cohort_sagemaker.go":            {Reason: estateGenCohortReason, Data: 14, Code: 4},
 	"tools/estate-gen/overrides_cohort_security.go":             {Reason: estateGenCohortReason, Data: 32, Code: 12},
-	"tools/estate-gen/overrides_cohort_storage.go":              {Reason: estateGenCohortReason, Data: 11, Code: 0},
+	"tools/estate-gen/overrides_cohort_storage.go":              {Reason: estateGenCohortReason, Data: 13, Code: 1},
 	"tools/estate-gen/overrides_cohort_stragglers.go":           {Reason: estateGenCohortReason, Data: 9, Code: 0},
 	"tools/estate-gen/overrides_cohort_streaming.go":            {Reason: estateGenCohortReason, Data: 12, Code: 4},
 }
@@ -381,7 +381,7 @@ const (
 	// literals stay in internal/live/identity/located.go (renamed
 	// sanctionedCredentialExclusion -> strictSecretsLocatedExclusion, same
 	// two names, so that file's own count is unchanged), but
-	// internal/live/harness/assumptions.go's sanctionedCredentialExclusions
+	// internal/live/harness/assumptions.go's SanctionedCredentialExclusions
 	// drops the two literal type names it carried for them - they moved off
 	// that unconditional, admission-table-wide ratchet onto a
 	// strict{secrets}-gated one, so the harness ratchet's own four-entry
@@ -412,8 +412,31 @@ const (
 	// awsRDSClusterInstanceTypeName, following the identical Data-not-Code
 	// precedent the entry above already set. Two Data literals added, no
 	// Code, nothing moved.
-	typeLiteralDataTotal = 440
-	typeLiteralCodeTotal = 126
+	// 440 -> 443 data, 126 -> 127 code, 2026-08-29 (issue #432): two
+	// fixture bugs found triaging the acceptance cohorts, each fixed with a
+	// new typeOverrides entry rather than a hand-edit, following this
+	// file's own "regenerate, never hand-edit" rule.
+	// tools/estate-gen/overrides_cohort_identity.go gained one entry -
+	// aws_iam_saml_provider, whose saml_metadata_document the generic
+	// pass's 11-character placeholder failed the provider's own
+	// 1000-character minimum against. One Data literal (the map key), no
+	// Code, no NeedsSupporting.
+	// tools/estate-gen/overrides_cohort_storage.go gained one entry -
+	// aws_fsx_lustre_file_system, whose import_path was wired to a bare
+	// sibling reference with no "s3://" prefix (seedFromExample drops the
+	// literal template text around a doc example's interpolated
+	// reference). Fixed with a NeedsSupporting: []string{"aws_s3_bucket"}
+	// entry plus a g.byType["aws_s3_bucket"] sibling lookup in its Apply
+	// closure - the same shape this log's apigateway entry above already
+	// used for aws_api_gateway_vpc_link's aws_lb lookup, and the same
+	// class of debt commit 4251066763 generically retired for the plural
+	// <base>_arns shape; a generic fix here would mean teaching
+	// seedFromExample to keep a doc example's literal template text around
+	// an interpolated reference, which is broader than one type and out of
+	// #432's scope. Two Data literals (the map key and the NeedsSupporting
+	// entry), one Code literal, nothing moved.
+	typeLiteralDataTotal = 443
+	typeLiteralCodeTotal = 127
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and

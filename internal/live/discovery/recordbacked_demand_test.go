@@ -236,6 +236,97 @@ func TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots(t *testing.
 	})
 }
 
+// TestDiscover_recordBackedCountBlockShrinkDestroysSurplus is GitHub issue
+// #409 (day2_count, reference-ec2-vpc Part F): a record-backed count
+// block - every currently-DECLARED member's identity already answered by
+// the estate record, the shape a choudoufu-created count set's own second
+// plan takes - whose configuration just shrank still has to destroy the
+// live member the shrink dropped, exactly as stock's own oracle for the
+// identical shape does (destroy the one dropped instance, touch nothing
+// else).
+//
+// Unlike [TestDiscover_recordBackedMultiInstanceCountBlockStillMintsSlots],
+// this block is not entirely quiet: one live member the shrink dropped is
+// still there, found by the sweep since it is no longer declared. That one
+// slotted claimant is the whole regression - before this fix, it alone was
+// enough to tip [slots.Classify] to ModeAll, and bindCountBySlot then
+// set-matched the declared count against a live population it was never
+// shown in full (the record-backed entries contribute no claimant of their
+// own, by construction): it invented a slot CHANGE for a survivor that
+// never changed and swallowed the dropped instance into a declared index
+// instead of ever flagging it for destroy - the exact
+// updated-in-place/no-destroy plan the issue's live evidence recorded on
+// reference-ec2-vpc's own count_test security groups.
+func TestDiscover_recordBackedCountBlockShrinkDestroysSurplus(t *testing.T) {
+	cloud := newFakeCloud()
+	// The live member the shrink from 3 to 2 drops: still real, still
+	// carrying the tofu-slot tag its original apply gave it, found only by
+	// the sweep because index 2 is no longer declared. Indices 0 and 1
+	// contribute no claimant at all - RecordBackedAddrs excludes them from
+	// the scan below - which is the shape this test is pinning: a lone
+	// claimant belonging to nobody's declared entry.
+	cloud.slotted("eipalloc-c", "2")
+
+	cfg2 := loadCountConfig(t, 2)
+	res, diags := Discover(context.Background(), Request{
+		Estate:      countEstate,
+		Config:      cfg2,
+		Resolutions: resolveOrFail(t, cfg2).All(),
+		RecordBackedAddrs: map[string]bool{
+			`aws_eip.pool[0]`: true,
+			`aws_eip.pool[1]`: true,
+		},
+		Provider: cloud,
+		// live-plan's own real request always sets both (statelessDiscover),
+		// and TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed pins
+		// why aws_eip needs it here too: with every declared instance
+		// record-backed, aws_eip has no non-record-backed member left to
+		// put it in the ordinary needs-discovery demand, so only the sweep
+		// - not a shrunk demand's own type list - is what finds eipalloc-c
+		// at all.
+		Sweep:            true,
+		CollectUnclaimed: true,
+	})
+	assertNoErrors(t, diags)
+
+	// The two declared, record-backed members: never bound by this pass
+	// (their identity is the record's business), never reported Unbound
+	// (recordBacked's own doc comment - that would withhold a sibling
+	// block's own genuine removal), and each carries the slot equal to its
+	// own index - unchanged from whatever its live object already has,
+	// since nothing upstream of the record-backed skip ever assigns one
+	// out of index order.
+	if len(res.Bindings) != 0 {
+		t.Errorf("a record-backed instance was bound by a scan it should never have run: %v", res.Bindings)
+	}
+	if len(res.Unbound) != 0 {
+		t.Errorf("a record-backed instance was reported Unbound: %v", res.Unbound)
+	}
+	assertSlotTable(t, res, map[string]string{
+		"aws_eip.pool:0": "0", "aws_eip.pool:1": "1",
+	})
+
+	// The dropped instance: exactly one orphan, at its own address, which
+	// is removal planning's business (P5.1) - the same mechanism that
+	// already destroys a shrunk, slotless estate's leftover cleanly.
+	if len(res.Orphans) != 1 || res.Orphans[0].ImportID != "eipalloc-c" {
+		t.Fatalf("want the dropped instance reported as the sole orphan:\n%s", res)
+	}
+	if res.Orphans[0].Normalized != "aws_eip.pool:2" {
+		t.Errorf("the orphan does not carry the address the shrink dropped: %s", res.Orphans[0])
+	}
+	// Never Surplus: that path needs a slot decision this pass cannot make
+	// for a block it cannot see in full, which is exactly the defect this
+	// test pins - before the fix, this member matched into Surplus (or
+	// worse, into a declared Bound index) instead of Orphans.
+	if len(res.Surplus) != 0 {
+		t.Errorf("the dropped instance was set-matched into Surplus instead of reported as an orphan:\n%s", res)
+	}
+	if len(res.Problems) != 0 {
+		t.Errorf("no problem should have been raised:\n%s", res)
+	}
+}
+
 // TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed is GitHub issue
 // #388 edge 3's foreign-coverage regression, found live on
 // corpus-ec2-instance-complete's test_plan stage: "Foreign resources:

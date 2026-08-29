@@ -11,6 +11,16 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
+// samlFixtureMetadata is a syntactically well-formed but entirely fake SAML
+// IdP metadata document - not a real certificate, just XML-shaped and
+// padded (1814 characters) past the 1000-character floor
+// aws_iam_saml_provider's saml_metadata_document argument validates in
+// practice (see that type's override below). One line on purpose:
+// exprTokens renders whatever it is handed as a plain HCL string literal,
+// and a %q-escaped multi-line string is harder to read in the generated
+// .tf than one long line is.
+const samlFixtureMetadata = `<?xml version="1.0" encoding="UTF-8"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com/tofu-fixture"><md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:KeyDescriptor use="signing"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>+iX8xFu+aBARK7DB6uiMnODWpoPoRMYnMV3H2gnJIdrXMycLxqGN6FDk+KXIlkIVIYyB+iQw69TQuWLbIJ6J/Ts0IKsrbSVLkOFGMRN12yaw9bfpfkSnAXPsEcFobW0/bmHYs85B7agcduTncSjswM/Me1C5P0epjHAkvF6qCnC7EB4oUyUR0/eo4X42JqVdZ9bcDyMx9tmo+rogEYxzICg11KY8qMX0nQLaDPZah1A/sdDhEh8OOqfaRZf69J4HWptl17okGnGzQdF9fMflEZdU/yrufR9U5fBs+P9YgLI/U7lGbX82W3uyEhC44lFUXOdMbdEOmbjtq/KQQcB67LhJYM/bWgyAQ8BRymh1FW1C7yvEmC0qUyVY10T47LjuyvdV3LZf4oUzInJ+uPpyUwzHoPsTZxZSxXzT6pZihfpKBhg9GEvyKnsSPEEv37PTp70hllkhMo1kt9b6sIZBcfRx6H5jxv2Xg7yGSNg/5zisvEoumqkImOrMYtVn8/BtbphCf6BJZ8wLuV83ykRmR7cResbZaW7NfUZmlEbqnhKaWZcsrltAmBlLeryJPMnuc4htM9OvIV9pxy5+OIhfs/KgNEb3orTAJ99KRdXO3rP0glvq9RuS8i21Our7TRQL65NVSeNnlnucL48UT+0uTtNH6E2IY4ZzBaBe/ZQzRyJb2a5D/bPeg9lGOt6lR1gm5hkKZnZlvFyOfOq5dheJAryX8XJnsYgBwuKdTJF2jBf2rmmknD7cArZ617yiYcdQVrtt0/aXTvA9CTUVGq6Brw/ZfjjQ2QRK9y3zPM3/i49fjhYAk4ZRV9mYMQyPIn6UIqKwrw3xIVmCc0Q1+eNmW0elEDsLPm8Q1fzWPfMHyx4GTynmWyAM6WAqhO8hvoIGEJDBVtUW6zAOG7M4dgDeHxsSjrX0ghoG91Jz4nWHHYRAQjmoGm/THn9fYoM2qUmtCuiqnBYVqVAsbdbDQdhaUI9tURM3JnmyDw3BiiFJyULWVuoU8LWWUsFtqgC4ySvNNRu+qRKRW+8PGna1NAMAefo/ReFTP/9e+2y6trj87zA6AC/0znms8v/EEl/H43J8TJ0q2cl7d177LbUQscBxnfgLoJdH8vn9vPfmXavYlDBgdhHaV+yjsXkTzN9/TnJrO/tGjCt0Cpx6xay/RKDW+C1kc0/6Y/fDqo82I4JIYGYMneRx</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/tofu-fixture/sso"/></md:IDPSSODescriptor></md:EntityDescriptor>`
+
 // typeOverridesIdentity is the identity cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesIdentity = map[string]typeOverride{
@@ -188,6 +198,14 @@ var typeOverridesIdentity = map[string]typeOverride{
 			body.SetAttributeRaw("target_type", exprTokens(`"AWS_ACCOUNT"`))
 			body.SetAttributeRaw("principal_id", exprTokens(`"12345678-1234-1234-1234-123456789012"`))
 			body.SetAttributeRaw("target_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_iam_saml_provider": {
+		Reasons: []string{
+			`"saml_metadata_document" is a required string the schema does not constrain, but the provider validates its length (1000 - 10000000 characters, validate: "expected length of saml_metadata_document to be in the range (1000 - 10000000)"); the generic "placeholder" literal is 11 characters. Found triaging issue #432 (cohort "identity" fails apply on this exact check). Set to a well-formed, if fake, SAML IdP metadata document - not a real certificate, just XML shaped and padded past the provider's own floor so this exercises the actual CreateSAMLProvider call during a floci apply instead of failing before it`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("saml_metadata_document", exprTokens(fmt.Sprintf("%q", samlFixtureMetadata)))
 		},
 	},
 	"aws_ssoadmin_application": {

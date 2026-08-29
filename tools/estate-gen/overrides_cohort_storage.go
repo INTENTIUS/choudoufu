@@ -86,6 +86,20 @@ var typeOverridesStorage = map[string]typeOverride{
 			body.SetAttributeRaw("throughput_capacity", exprTokens(`128`))
 		},
 	},
+	"aws_fsx_lustre_file_system": {
+		Reasons: []string{
+			`import_path and storage_capacity were both seeded from the provider doc's example (that pass is skipped for any type carrying an override, this one included, so both need setting by hand here now). import_path's doc example wraps it in a "s3://${...}" string template, but seedFromExample's reference extraction re-wires the argument to the bare sibling reference behind the interpolation and drops the surrounding template text, leaving a plain bucket-name reference the provider rejects (validate: "invalid value for import_path (must begin with s3://)"). Found triaging issue #432 (cohort "storage" fails apply on this exact check). Set by hand to the same sibling reference wrapped back in the "s3://" prefix the doc example actually used, with a NeedsSupporting aws_s3_bucket since skipping seedFromExample also skips the reference-seeding pass that used to pull one in. storage_capacity keeps the doc example's own value (1200 MB/s, a valid SCRATCH_2 size) rather than falling back to the generic pass's unset default`,
+		},
+		NeedsSupporting: []string{"aws_s3_bucket"},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			bucketExpr := fmt.Sprintf(`"tofu-%s-cohort-bucket"`, g.cohort)
+			if sup, ok := g.byType["aws_s3_bucket"]; ok {
+				bucketExpr = sup.Type + "." + sup.Label + ".bucket"
+			}
+			body.SetAttributeRaw("import_path", exprTokens(fmt.Sprintf(`"s3://${%s}"`, bucketExpr)))
+			body.SetAttributeRaw("storage_capacity", exprTokens(`1200`))
+		},
+	},
 	"aws_fsx_windows_file_system": {
 		Reasons: []string{
 			`throughput_capacity is optional/computed in the schema, rendered as the generic pass's numeric zero placeholder, but the provider validates it against a fixed set of MB/s values (validate: "expected throughput_capacity to be one of [8 16 32 ...]"), none of which is zero`,

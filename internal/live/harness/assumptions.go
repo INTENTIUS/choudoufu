@@ -246,7 +246,7 @@ func checkedLayersAreFour() Assumption {
 	}
 }
 
-// sanctionedCredentialExclusions is CLAUDE.md's list, shrunk from four to
+// SanctionedCredentialExclusions is CLAUDE.md's list, shrunk from four to
 // two by the maintainer's 2026-08-23 ruling (rfc/20260823-foundation-order-ruling.md,
 // ruling 5): aws_iam_access_key and aws_iot_certificate moved off this
 // unconditional, admission-table-wide veto and onto a `strict { secrets }`
@@ -259,7 +259,15 @@ func checkedLayersAreFour() Assumption {
 // for them. What remains here is client-supplied or minted secret material
 // with NO route to admission at all, under any setting: the maintainer's
 // 2026-08-15 parity ruling says this two-entry set does not grow either.
-var sanctionedCredentialExclusions = []string{
+//
+// Exported (2026-08-28, issue #418) so tools/readiness-gen can read the same
+// hand list rather than re-deriving tier D's population from
+// tools/row-gen/rejected.json's free text, which credentialReason's own doc
+// comment already calls the weakest part of this check -
+// rfc/20260828-readiness-tiers.md's tier D section is explicit that a
+// generator has to read this list (or an exported form of it) rather than
+// infer membership from a schema signal.
+var SanctionedCredentialExclusions = []string{
 	"aws_appstream_directory_config",
 	"aws_ivs_playback_key_pair",
 }
@@ -296,18 +304,18 @@ func credentialExclusionsAreTwo() Assumption {
 			"reason text and against internal/live/identity.DefaultTable. See credentialReason for " +
 			"what the text half of this cannot see.",
 		Tracker:  "the type-coverage ruling; no issue - the list is a standing exclusion, not work.",
-		Recorded: sanctionedCredentialExclusions,
+		Recorded: SanctionedCredentialExclusions,
 		Check: func(r *Repo) (string, error) {
 			rj, err := r.Rejected()
 			if err != nil {
 				return "", err
 			}
 			sanctioned := map[string]bool{}
-			for _, t := range sanctionedCredentialExclusions {
+			for _, t := range SanctionedCredentialExclusions {
 				sanctioned[t] = true
 			}
 			var problems []string
-			for _, t := range sanctionedCredentialExclusions {
+			for _, t := range SanctionedCredentialExclusions {
 				if _, ok := rj.Rejected[t]; !ok {
 					problems = append(problems, t+" is not in "+RejectedJSON)
 				}
@@ -342,7 +350,7 @@ func credentialExclusionsAreTwo() Assumption {
 				return "", fmt.Errorf("%s", strings.Join(problems, "; "))
 			}
 			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no third veto cites credential material",
-				len(sanctionedCredentialExclusions)), nil
+				len(SanctionedCredentialExclusions)), nil
 		},
 	}
 }
