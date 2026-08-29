@@ -19,11 +19,15 @@ contributing compute is `site/content/docs/progress/contribute.md`.
 
 ## The two numbers
 
-An estate is **clear** when every active stage passes. The first bar is clear
-estates over the core set; the second is clear estates over every estate in
-the manifest. Planned stages are listed so the target is visible, but do not
-count until their status is flipped to active in `tools/gauntlet/stages.go`,
-which is a deliberate change that lowers the bars until estates catch up.
+An estate is **clear** when every headline stage passes: an active stage
+whose own entry below is not marked "not part of the headline bars". The
+first bar is clear estates over the core set; the second is clear estates
+over every estate in the manifest. Planned stages are listed so the target
+is visible, but do not count until their status is flipped to active in
+`tools/gauntlet/stages.go`. For a headline stage that flip is the deliberate
+change that lowers the bars until estates catch up; a non-headline stage
+(`strict` today) can be active, and pass or fail per estate, without ever
+moving either bar.
 
 Core is a pinned population that can reach 100%. The rule for membership is
 in "The core set" below; a core estate carries its reason in the manifest.
@@ -138,7 +142,7 @@ Oracle: The cloud after stock's cold deploy, compared object by object with mark
 
 Break: Drop one resource from the expected inventory; the comparison must fail.
 
-### 14. Strict profile (`strict`, planned)
+### 14. Strict profile (`strict`, active, not part of the headline bars)
 
 Proves: With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. Tested and shown per estate; not part of the headline bars.
 
@@ -312,7 +316,7 @@ regressed, and the emulator pin change - for the release body.
 ## Selective re-queue (`next -types`)
 
 `go run ./tools/gauntlet next` orders whole-estate work: core before
-growing, fewest remaining active stages first, and a repin's stale-clear
+growing, fewest remaining headline stages first, and a repin's stale-clear
 estates trailing every genuine failure. `-types T1,T2,...` (#436) adds an
 orthogonal filter on top of that ordering, never a replacement for it: it
 reads `live/estate-types.json` (#435), the per-estate exercised-type index,
@@ -333,7 +337,7 @@ filter excluded. That is the same house rule the site's own per-row
 emulator provenance already holds to (`boardBanner`,
 `tools/gauntlet/render.go`: render what the rows underneath actually
 support, never a claim wider than the evidence). The two headline bars
-stay computed from every active stage on every estate regardless of any
+stay computed from every headline stage on every estate regardless of any
 `-types` run. Use `-types` to shrink a repin's queue to the estates a
 change could plausibly have touched; use plain `next` when the question
 is whether the board, not a slice of it, still clears.

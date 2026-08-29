@@ -24,12 +24,14 @@ func testRoot(t *testing.T) string {
 }
 
 // TestStagesAreWellFormed: unique IDs, contiguous order from 1, every prose
-// field present, status in the known set, and at least one active stage so
-// "clear" can never be vacuously true.
+// field present, status in the known set, and at least one active headline
+// stage so "clear" can never be vacuously true. A stage's own Proves text
+// saying it is "not part of the headline bars" must agree with its Headline
+// field, in both directions, so the two never drift apart silently.
 func TestStagesAreWellFormed(t *testing.T) {
 	stages := Stages()
 	seen := map[string]bool{}
-	active := 0
+	active, headlineActive := 0, 0
 	for i, s := range stages {
 		if s.Order != i+1 {
 			t.Errorf("stage %q has order %d, want %d (orders must be contiguous from 1)", s.ID, s.Order, i+1)
@@ -49,13 +51,26 @@ func TestStagesAreWellFormed(t *testing.T) {
 		switch s.Status {
 		case StatusActive:
 			active++
+			if s.Headline {
+				headlineActive++
+			}
 		case StatusPlanned:
 		default:
 			t.Errorf("stage %q: status %q is not active or planned", s.ID, s.Status)
 		}
+		saysNonHeadline := strings.Contains(s.Proves, "not part of the headline bars")
+		if saysNonHeadline && s.Headline {
+			t.Errorf("stage %q: Proves says \"not part of the headline bars\" but Headline is true", s.ID)
+		}
+		if !saysNonHeadline && !s.Headline {
+			t.Errorf("stage %q: Headline is false but Proves does not say \"not part of the headline bars\"", s.ID)
+		}
 	}
 	if active == 0 {
-		t.Fatal("no active stage; clear would be vacuous")
+		t.Fatal("no active stage")
+	}
+	if headlineActive == 0 {
+		t.Fatal("no active headline stage; clear would be vacuous")
 	}
 }
 
@@ -430,8 +445,11 @@ func TestProtocolParser(t *testing.T) {
 	}
 }
 
-// TestClearNeedsEveryActiveStage: the definition of the headline number.
-func TestClearNeedsEveryActiveStage(t *testing.T) {
+// TestClearNeedsEveryHeadlineStage: the definition of the headline number.
+// A headline stage (active and Headline: true) must pass; a planned stage,
+// or an active stage marked non-headline (#482 - "strict" today), must not
+// affect clear either way.
+func TestClearNeedsEveryHeadlineStage(t *testing.T) {
 	all := map[string]string{}
 	for _, s := range Stages() {
 		all[s.ID] = VerdictPass
@@ -439,18 +457,18 @@ func TestClearNeedsEveryActiveStage(t *testing.T) {
 	if !isClear(all) {
 		t.Fatal("all pass should be clear")
 	}
-	for _, s := range ActiveStages() {
+	for _, s := range HeadlineStages() {
 		cp := map[string]string{}
 		for k, v := range all {
 			cp[k] = v
 		}
 		cp[s.ID] = VerdictNotRun
 		if isClear(cp) {
-			t.Errorf("not_run on active stage %q should not be clear", s.ID)
+			t.Errorf("not_run on headline stage %q should not be clear", s.ID)
 		}
 	}
 	for _, s := range Stages() {
-		if s.Status == StatusActive {
+		if s.Status == StatusActive && s.Headline {
 			continue
 		}
 		cp := map[string]string{}
@@ -459,8 +477,65 @@ func TestClearNeedsEveryActiveStage(t *testing.T) {
 		}
 		cp[s.ID] = VerdictFail
 		if !isClear(cp) {
-			t.Errorf("fail on planned stage %q must not affect clear", s.ID)
+			t.Errorf("fail on non-headline stage %q (status=%s, headline=%v) must not affect clear", s.ID, s.Status, s.Headline)
 		}
+	}
+}
+
+// TestNonHeadlineActiveStageDoesNotGateOrGetPicked is the guard for #482:
+// isClear and NextUnits must ignore a stage that is Status active but
+// Headline false, exactly as they ignore a merely-planned one. Built from a
+// synthetic two-stage list, independent of whatever real stage in Stages()
+// happens to be non-headline today (currently "strict"), so this pins the
+// mechanism itself rather than one stage's current spec - it would still
+// catch a regression even if "strict" were later made headline or removed.
+func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
+	headlineStage := Stage{ID: "h1", Order: 1, Title: "Headline stage", Status: StatusActive, Headline: true}
+	sideStage := Stage{ID: "nh1", Order: 2, Title: "Side stage (non-headline)", Status: StatusActive, Headline: false}
+	headlineOnly := []Stage{headlineStage} // what HeadlineStages() would return for this synthetic pair
+
+	// isClear: a fail on the non-headline stage must not break clear; a fail
+	// on the headline stage must.
+	if !isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictPass, sideStage.ID: VerdictFail}) {
+		t.Error("a fail on a non-headline active stage broke isClear")
+	}
+	if isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictFail, sideStage.ID: VerdictPass}) {
+		t.Error("isClear did not gate on the headline stage")
+	}
+
+	// NextUnits: an estate that fails only the non-headline stage must be
+	// reported clear and never picked as work; one that fails the headline
+	// stage must be picked, and never on the non-headline stage's id.
+	a := &Artifact{Emulator: "e"}
+	sideOnlyFails := EstateResult{
+		Name: "side-only-fails", Set: SetCore, Protocol: ProtocolGauntlet,
+		Stages: map[string]string{headlineStage.ID: VerdictPass, sideStage.ID: VerdictFail},
+	}
+	sideOnlyFails.Clear = isClearAgainst(headlineOnly, sideOnlyFails.Stages)
+	headlineFails := EstateResult{
+		Name: "headline-fails", Set: SetCore, Protocol: ProtocolGauntlet,
+		Stages: map[string]string{headlineStage.ID: VerdictFail, sideStage.ID: VerdictPass},
+	}
+	headlineFails.Clear = isClearAgainst(headlineOnly, headlineFails.Stages)
+	if !sideOnlyFails.Clear {
+		t.Fatal("an estate failing only a non-headline stage must be Clear")
+	}
+	if headlineFails.Clear {
+		t.Fatal("an estate failing the headline stage must not be Clear")
+	}
+	a.Estates = []EstateResult{sideOnlyFails, headlineFails}
+
+	units := nextUnitsAgainst(headlineOnly, a, "all")
+	for _, u := range units {
+		if u.Estate == sideOnlyFails.Name {
+			t.Errorf("estate failing only a non-headline stage was selected as next work: %+v", u)
+		}
+		if u.Stage == sideStage.ID {
+			t.Errorf("the non-headline stage surfaced as a unit to fix: %+v", u)
+		}
+	}
+	if len(units) != 1 || units[0].Estate != headlineFails.Name || units[0].Stage != headlineStage.ID {
+		t.Errorf("expected exactly one unit, %s/%s, got %+v", headlineFails.Name, headlineStage.ID, units)
 	}
 }
 

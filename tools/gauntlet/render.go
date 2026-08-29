@@ -123,11 +123,15 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("")
 	w("## The two numbers")
 	w("")
-	w("An estate is **clear** when every active stage passes. The first bar is clear")
-	w("estates over the core set; the second is clear estates over every estate in")
-	w("the manifest. Planned stages are listed so the target is visible, but do not")
-	w("count until their status is flipped to active in `tools/gauntlet/stages.go`,")
-	w("which is a deliberate change that lowers the bars until estates catch up.")
+	w("An estate is **clear** when every headline stage passes: an active stage")
+	w("whose own entry below is not marked \"not part of the headline bars\". The")
+	w("first bar is clear estates over the core set; the second is clear estates")
+	w("over every estate in the manifest. Planned stages are listed so the target")
+	w("is visible, but do not count until their status is flipped to active in")
+	w("`tools/gauntlet/stages.go`. For a headline stage that flip is the deliberate")
+	w("change that lowers the bars until estates catch up; a non-headline stage")
+	w("(`strict` today) can be active, and pass or fail per estate, without ever")
+	w("moving either bar.")
 	w("")
 	w("Core is a pinned population that can reach 100%%. The rule for membership is")
 	w("in \"The core set\" below; a core estate carries its reason in the manifest.")
@@ -139,7 +143,11 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("load-bearing (`BREAK=1` must make the stage fail).")
 	w("")
 	for _, s := range a.Stages {
-		w("### %d. %s (`%s`, %s)", s.Order, s.Title, s.ID, s.Status)
+		label := s.Status
+		if !s.Headline {
+			label += ", not part of the headline bars"
+		}
+		w("### %d. %s (`%s`, %s)", s.Order, s.Title, s.ID, label)
 		w("")
 		w("Proves: %s", s.Proves)
 		w("")
@@ -287,7 +295,7 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("## Selective re-queue (`next -types`)")
 	w("")
 	w("`go run ./tools/gauntlet next` orders whole-estate work: core before")
-	w("growing, fewest remaining active stages first, and a repin's stale-clear")
+	w("growing, fewest remaining headline stages first, and a repin's stale-clear")
 	w("estates trailing every genuine failure. `-types T1,T2,...` (#436) adds an")
 	w("orthogonal filter on top of that ordering, never a replacement for it: it")
 	w("reads `%s` (#435), the per-estate exercised-type index,", TypeIndexPath)
@@ -308,7 +316,7 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("emulator provenance already holds to (`boardBanner`,")
 	w("`tools/gauntlet/render.go`: render what the rows underneath actually")
 	w("support, never a claim wider than the evidence). The two headline bars")
-	w("stay computed from every active stage on every estate regardless of any")
+	w("stay computed from every headline stage on every estate regardless of any")
 	w("`-types` run. Use `-types` to shrink a repin's queue to the estates a")
 	w("change could plausibly have touched; use plain `next` when the question")
 	w("is whether the board, not a slice of it, still clears.")
@@ -525,7 +533,8 @@ func renderProgressIndex(a *Artifact) string {
 	w("Two numbers, both read from the same artifact the test suite writes. An")
 	w("estate is a real OpenTofu or Terraform configuration, pinned by commit, run")
 	w("through every active stage below side by side with stock OpenTofu against the")
-	w("pinned emulator. It is clear when every active stage passes.")
+	w("pinned emulator. It is clear when every headline stage passes - an active")
+	w("stage not marked \"no\" in the Headline column below.")
 	w("")
 	w("{{< gauntlet-bars >}}")
 	w("")
@@ -533,15 +542,21 @@ func renderProgressIndex(a *Artifact) string {
 	w("")
 	w("## The stages")
 	w("")
-	w("| | Stage | Status | What a pass proves |")
-	w("|---|---|---|---|")
+	w("| | Stage | Status | Headline | What a pass proves |")
+	w("|---|---|---|---|---|")
 	for _, s := range a.Stages {
-		w("| %d | %s | %s | %s |", s.Order, s.Title, s.Status, mdCell(firstSentence(s.Proves)))
+		headline := "yes"
+		if !s.Headline {
+			headline = "no"
+		}
+		w("| %d | %s | %s | %s | %s |", s.Order, s.Title, s.Status, headline, mdCell(firstSentence(s.Proves)))
 	}
 	w("")
 	w("Planned stages are listed so the target is visible. They do not count toward")
-	w("clear until they are activated, and activating one lowers the bars until the")
-	w("estates catch up. The full definition of every stage, including what stock's")
+	w("clear until they are activated, and, for a headline stage, activating one")
+	w("lowers the bars until the estates catch up - a non-headline stage can be")
+	w("active, and measured per estate, without moving either bar. The full")
+	w("definition of every stage, including what stock's")
 	w("answer is and how each check is proven non-vacuous, is")
 	w("[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md).")
 	w("")
@@ -720,7 +735,7 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 	}
 	w("")
 	if r.Clear {
-		w("**Clear.** Every active stage passes.")
+		w("**Clear.** Every headline stage passes.")
 	} else {
 		w("**Not clear yet.**")
 	}
@@ -738,6 +753,8 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 		title := s.Title
 		if s.Status != StatusActive {
 			title += " (planned)"
+		} else if !s.Headline {
+			title += " (not a headline stage)"
 		}
 		w("| %s | %s | %s | %s |", title, verdictMark(r.Stages[s.ID]), duration, mdCell(detail))
 	}
