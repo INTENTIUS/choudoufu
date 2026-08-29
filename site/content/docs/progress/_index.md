@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 15 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 11 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T19:56:54Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 14 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 12 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T20:05:16Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -65,7 +65,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
@@ -75,7 +75,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-11 of 26 estates have a recorded run duration, totaling 44m14.4s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 15 estate(s) with no recorded duration yet.
+12 of 26 estates have a recorded run duration, totaling 52m0.9s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`; 9m51.8s across 1 estate(s) at commit `df65acf822`. This total spans different commits, not a single board run, and excludes 14 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -98,7 +98,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | - | none recorded yet |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | - | none recorded yet |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | - | none recorded yet |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | - | none recorded yet |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | 7m46.5s | cold_deploy 1m11s, migrate 38s, test_plan 6s, test_apply 13s, drift_reconverge 24s, day2_rename 18s, day2_remove 26s, day2_count 50s, day2_replace 1m9s, greenfield 2m31s |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | - | none recorded yet |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
