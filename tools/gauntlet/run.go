@@ -28,8 +28,14 @@ type RunOptions struct {
 	Env   []string // extra KEY=VALUE for every script
 	// Parallel is how many estates run concurrently, each against its own
 	// isolated floci emulator (#437). <=1 means serial: the exact code path
-	// this runner has always used, so a plain `gauntlet run` is unaffected
-	// byte-for-byte by parallel mode existing at all.
+	// this runner has always used - one estate at a time, in order - with
+	// one addition since #520: every run this package launches, serial
+	// included, is assigned an explicit FLOCI_PORT (flociPortEnv(0) for
+	// serial, the same allocator -parallel N>1 uses per slot), so a plain
+	// `gauntlet run` no longer leaves FLOCI_PORT unset for the script's own
+	// hard-coded default to catch. Nothing else about the serial path
+	// changed; #437's equivalence argument still holds for everything but
+	// the port itself.
 	Parallel int
 	Stdout   io.Writer
 }
@@ -45,10 +51,35 @@ type RunOptions struct {
 // FLOCI_PORT+20). 5000 leaves headroom above that without the base climbing
 // anywhere near a fixed script's own hard-coded default (4600-4800) or the
 // 65535 ceiling for any parallelism this runner is actually asked for.
+//
+// #520: every run this package launches - serial included - is assigned a
+// FLOCI_PORT from this same allocator (flociPortEnv below), not only
+// -parallel N>1 runs. Before #520, a serial run (the default: a plain
+// `gauntlet run <estate>`, or -parallel 1 explicitly) left FLOCI_PORT unset
+// and so fell back to whatever constant that estate's own run.sh hard-coded
+// - a fixed set of defaults allocated one apart while several scripts derive
+// green/oracle ports as base+1 and base+2, so they land on neighbours'
+// bases. Two estates only actually collide when they run at the same time
+// on the same host, which a purely serial runner invocation never does to
+// itself - but every worker in this repo's catch-up work invokes estates
+// directly, several at once, and every one of them fell back to the same
+// colliding defaults. Making the runner assign a port on every invocation,
+// not just concurrent ones, means a script's own default is a fallback for
+// hand-invocation only and never participates in a runner-launched run,
+// concurrent or not.
 const (
 	parallelPortBase   = 20000
 	parallelPortStride = 5000
 )
+
+// flociPortEnv returns the FLOCI_PORT=<port> environment entry for
+// concurrency slot n (0 for the serial path, which only ever has one slot
+// live at a time). It is the single source both runResults branches use, so
+// the serial path's port and slot 0 of a parallel run are computed exactly
+// the same way.
+func flociPortEnv(slot int) string {
+	return fmt.Sprintf("FLOCI_PORT=%d", parallelPortBase+slot*parallelPortStride)
+}
 
 // RunEstates executes each selected estate's script, parses the protocol,
 // and updates the artifact in memory. It returns the number of scripts that
@@ -238,7 +269,12 @@ type oneResult struct {
 // goroutine - textually the same loop this function replaced, so serial
 // mode's behaviour (including "stop dispatching more scripts after the
 // first hard runOne error", which the merge loop in RunEstates still relies
-// on) is unchanged.
+// on) is unchanged apart from the one thing #520 adds: each call now also
+// gets an explicit FLOCI_PORT (flociPortEnv(0), the same value slot 0 of a
+// parallel run would get), instead of leaving FLOCI_PORT unset the way
+// serial mode did before #520. Nothing else about the serial code path
+// moved - #437's equivalence argument (see RunOptions.Parallel) rests on
+// that.
 //
 // opts.Parallel >1 runs up to that many scripts at once. Each concurrent
 // slot (not each estate - a slot is handed back to the pool and reused the
@@ -263,7 +299,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 	}
 	if parallel <= 1 {
 		for i, e := range selected {
-			res, exit, elapsed, err := runOne(root, e, opts, nil)
+			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(0)})
 			results[i] = oneResult{res, exit, elapsed, err}
 			if err != nil {
 				// Matches the pre-#437 loop exactly: a hard runOne error
@@ -299,7 +335,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 		go func() {
 			defer wg.Done()
 			defer func() { slots <- slot }()
-			env := []string{fmt.Sprintf("FLOCI_PORT=%d", parallelPortBase+slot*parallelPortStride)}
+			env := []string{flociPortEnv(slot)}
 			res, exit, elapsed, err := runOne(root, e, runOpts, env)
 			results[i] = oneResult{res, exit, elapsed, err}
 		}()

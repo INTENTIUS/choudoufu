@@ -203,7 +203,7 @@ func cmdRender(root string) error {
 func cmdRun(root string, args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
-	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, byte-for-byte the runner's old behaviour")
+	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
 	if err := fs.Parse(args); err != nil {
