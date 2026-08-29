@@ -434,17 +434,44 @@ func TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed(t *testing.T) {
 // it this fixture would prove nothing, because the type would never be
 // scanned in the first place.
 //
-// The expected outcome is the established matrix's fungible-set answer -
-// corpus-sqs-basic's own "Two live resources claiming one slot"
-// (ProblemDuplicateSlot) - not the scalar "Live resource displaced..."
-// warning: a count block's collision is a set-membership question
-// (count.go's slots.Match), never a single address's identity question
-// (displaced.go).
+// The expected outcome is [ProblemNeedsSlotMarkers] ("Indistinguishable
+// instances without per-instance markers"), NOT corpus-sqs-basic's own
+// "Two live resources claiming one slot" (ProblemDuplicateSlot) this test
+// originally asserted, and not the scalar "Live resource displaced..."
+// warning either. Reconciled against GitHub issue #409, landed on main
+// after this fix and merged into this branch afterward: #409 made
+// bindCountBlock route every count block carrying any record-backed entry
+// through bindCountByAddress unconditionally
+// ([countBlock.hasRecordBackedEntry]), before ever asking whether the live
+// set carries slot tags at all - trusting slot data for a block containing
+// a record-backed entry (whose OWN slot this pass never learns, per
+// [declaredEntry.recordBacked]) is exactly the hazard #409 closed, for a
+// shrink as much as for a collision. So bindCountBySlot's own
+// slots.Match-based duplicate detection (ProblemDuplicateSlot) is now
+// provably unreachable for any record-backed block, this fixture's
+// aws_eip.pool[0] included, regardless of whether the colliding claimants
+// themselves carry matching tofu-slot tags: this exact fixture predates
+// #409 and asserted ProblemDuplicateSlot correctly against #411's own fix
+// alone (confirmed against a real emulator, live/e2e/corpus-iam-policy's
+// BREAK=replace, before #409 merged) - #409 changed the answer, not this
+// fix. bindCountByAddress's own collision branch (collisionProblem, count.go)
+// is what a record-backed block's collision reaches instead, and for a
+// count-indexed address that is ProblemNeedsSlotMarkers unconditionally -
+// see collisionProblem's own IntKey branch. It still refuses (an ERROR,
+// SeverityForRefusal's default), still names both live objects, still binds
+// nothing: the same practical guarantee #411 asks for, under the message
+// #409 makes correct for this shape.
 func TestDiscover_recordBackedCollisionOnCountBlockIsReported(t *testing.T) {
 	cloud := newFakeCloud()
 	cloud.noFilter("aws_eip") // matches the real aws_eip list schema's own shape
 	// Two live objects, the SAME tofu-address and tofu-slot - the exact
-	// shape a manufactured (or crash-left-behind) collision takes.
+	// shape a manufactured (or crash-left-behind) collision takes. The
+	// matching tofu-slot tags are deliberately kept (rather than switched to
+	// bare tofu-address markers) even though #409 means they no longer
+	// select a different code path here: they are what the real
+	// corpus-iam-policy/corpus-sqs-basic BREAK=replace reproductions
+	// actually write (live-import stamps tofu-slot on every count member),
+	// and the point of this fixture is to match that shape byte for byte.
 	cloud.slotted("eipalloc-a", "0")
 	cloud.slotted("eipalloc-collision", "0")
 
@@ -462,15 +489,25 @@ func TestDiscover_recordBackedCollisionOnCountBlockIsReported(t *testing.T) {
 		t.Fatalf("a manufactured collision on a record-backed count instance produced no error:\n%s", res)
 	}
 
-	problems := res.ProblemsOfKind(ProblemDuplicateSlot)
+	problems := res.ProblemsOfKind(ProblemNeedsSlotMarkers)
 	if len(problems) != 1 {
-		t.Fatalf("want exactly one duplicate-slot problem, got %d:\n%s", len(problems), res)
+		t.Fatalf("want exactly one needs-slot-markers problem (#409's bindCountByAddress routing for any record-backed block), got %d:\n%s", len(problems), res)
 	}
 	if !strings.Contains(problems[0].Detail, "eipalloc-a") || !strings.Contains(problems[0].Detail, "eipalloc-collision") {
 		t.Errorf("the problem does not name both claimants: %s", problems[0].Detail)
 	}
 	if problems[0].TypeName != "aws_eip" {
 		t.Errorf("the problem names type %q, want aws_eip", problems[0].TypeName)
+	}
+	if problems[0].Kind.Severity() != SeverityError {
+		t.Errorf("NEEDS_SLOT_MARKERS is not an error severity, so this collision would not actually block a plan: %s", problems[0].Kind.Severity())
+	}
+
+	// No duplicate-slot problem either: bindCountBySlot never runs for a
+	// record-backed block post-#409, so asserting its absence pins that
+	// routing rather than merely tolerating whichever fires first.
+	if dup := res.ProblemsOfKind(ProblemDuplicateSlot); len(dup) != 0 {
+		t.Errorf("a duplicate-slot problem fired for a record-backed block; #409's hasRecordBackedEntry gate should have routed this through bindCountByAddress instead: %v", dup)
 	}
 
 	// The collision must not be quietly resolved into a Binding either -

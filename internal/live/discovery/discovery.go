@@ -855,14 +855,26 @@ func (d *declared) record(typeName, escaped string, r identity.Resolution) {
 // a record-backed address was silently dropped: never bound, never an
 // orphan, never a Problem. Returning the record-backed entry here lets it
 // collect claimants exactly like an ordinary entry, which is what feeds
-// count.go's already-correct, already-tested set matcher
-// (bindCountByAddress/bindCountBySlot) - the same machinery a
-// non-record-backed collision on the same block already goes through. A
-// single matching claimant still produces no Binding for a record-backed
-// entry (count.go special-cases entry.recordBacked at exactly one claimant,
-// so the "wasted binding ATTEMPT" this field's own doc comment names stays
-// skipped); two or more produces the same collision refusal a
-// non-record-backed set already gets.
+// count.go's own set matcher. A single matching claimant still produces no
+// Binding for a record-backed entry (count.go special-cases
+// entry.recordBacked at exactly one claimant, so the "wasted binding
+// ATTEMPT" this field's own doc comment names stays skipped); two or more
+// produces a named collision refusal instead of the previous silence.
+//
+// GitHub issue #409, landed after this fix, narrowed WHICH refusal that is:
+// bindCountBlock now routes every block carrying any record-backed entry
+// through bindCountByAddress unconditionally, before ever classifying the
+// live set by slot - so a record-backed block's collision is always
+// [ProblemNeedsSlotMarkers] ("Indistinguishable instances without
+// per-instance markers"), never [ProblemDuplicateSlot] ("Two live resources
+// claiming one slot"), regardless of whether the colliding claimants
+// themselves carry tofu-slot tags. That is #409's own fix working as
+// intended, not a gap in this one: trusting slot data for a block
+// containing a record-backed entry is exactly the hazard #409 closed, and a
+// collision is a member of "the live set" like any other claimant. See
+// count.go's own bindCountBlock/bindCountByAddress comments for the current
+// routing and TestDiscover_recordBackedCollisionOnCountBlockIsReported for
+// the pinned message.
 //
 // Scoped to entry.inCount on purpose: a scalar (non-count) record-backed
 // address is not the shape #411 reports, and bind()'s scalar loop reads

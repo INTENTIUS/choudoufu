@@ -374,20 +374,22 @@ func bindCountBySlot(req Request, cb *countBlock, res *Result, bound map[string]
 	for _, b := range match.Bound {
 		entry := cb.entries[b.Index]
 		if entry.recordBacked {
-			// GitHub issue #411: entryFor now lets a record-backed count
-			// member collect claimants, so its own single, non-colliding
-			// live object reaches a successful match here exactly like an
-			// ordinary entry's does - a genuine collision never reaches
-			// this loop at all, because slots.Match above already returned
-			// a DuplicateError for it. One matching claimant on a
-			// record-backed entry is confirmation of what the estate
-			// record already answered, not new information, so this stays
-			// the same no-Binding outcome bindCountByAddress's own case-1
-			// gives a record-backed entry - the "wasted binding ATTEMPT"
-			// RecordBackedAddrs exists to skip (see that field's own doc
-			// comment). Slot bookkeeping is unaffected: it happens in the
-			// unconditional loop below, keyed off cb.entries and match.Slots
-			// rather than off what this loop binds.
+			// Same guard as the Deficit loop below, and for the same
+			// reason it gives: not reachable via bindCountBlock's current
+			// dispatch - GitHub issue #409 made that stronger, not weaker,
+			// after this was written for #411. #409's hasRecordBackedEntry
+			// check runs BEFORE bindCountBlock ever calls this function, so
+			// a block with any record-backed entry never reaches
+			// bindCountBySlot at all any more; every entry cb.entries holds
+			// here is therefore guaranteed non-record-backed, and this
+			// branch can never fire. Kept, not deleted, because the entries
+			// this function reads are not restricted to non-record-backed
+			// ones BY CONSTRUCTION (there is no type-level guarantee, only
+			// bindCountBlock's own runtime check) - the same distinction
+			// the Deficit loop's own comment already draws. Left inert
+			// exactly as bindCountByAddress's own case-1 arm is: no
+			// Binding, no new information over what the estate record
+			// already answered.
 			continue
 		}
 		c := bySlot[b.Slot.String()]
