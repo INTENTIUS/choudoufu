@@ -193,7 +193,17 @@ a regression; the estate usually got better and the script did not.
    rendered docs together. `just ci` must be green.
 5. When a planned stage is implemented for enough estates to be honest, flip
    its status to active in `tools/gauntlet/stages.go`. The bars drop; that is
-   the point.
+   the point. **A headline flip is half a unit.** A PR that flips a stage's
+   `Status` to active while `Headline: true` must either land as part of a
+   series with the catch-up queue already dispatched, or state the resulting
+   board number in its own body and name the catch-up tracking issue, which
+   must exist before merge. Sections-first-flip-last is the default ordering
+   for future stage activations (#491 is the working example); flip-early
+   requires the catch-up tracking issue in hand. #480 flipped `day2_count` on
+   two estates of evidence, correctly citing this precedent and correctly
+   saying the bars would drop, and the session stopped there: the board went
+   to core 2/25 clear, all 2/26 clear with nothing dispatched behind it, and
+   #488 had to be opened after the fact to carry it back to clear.
 
 ## The order
 
@@ -264,6 +274,13 @@ Rules are tests. The ones that hold this document to the tree:
   diffed proves determinism, not correctness.
 - A brief is a lead, not a fact: re-verify against the code before fixing.
 - `gh` defaults to upstream in this clone; pass `-R INTENTIUS/choudoufu`.
+- Status and completion reports lead with `bash scripts/pickup.sh`'s board
+  line (clear counts, stale-evidence count, queue depth), never with an
+  issue count; an issue count may follow, it may not lead. Issue state and
+  board state are allowed to disagree here by design (the queue is the
+  tracker for gauntlet work), so a report built from the tracker alone can
+  call itself finished while the board does not agree: read the board before
+  writing the report, not the other way round.
 
 ## Retired
 
