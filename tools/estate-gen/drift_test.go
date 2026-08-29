@@ -122,6 +122,23 @@ var knownDrift = map[string]driftEntry{
 		files:  []string{"route53-cloudfront.tf: content differs"},
 		reason: "aws_route53_zone_association's OmitIfAbsent \"vpc_region\" identity component now force-fills a generic placeholder (\"vpc_region = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - the same unfiled OmitIfAbsent force-fill defect lambda had above (#294 closed lambda's entry by regenerating that cohort; this one is still open)",
 	},
+	// Found triaging issue #432 (acceptance cohort "ecs-eks" fails apply
+	// with "all indexes must match a defined attribute. Unmatched indexes:
+	// [\"GameTitle\" \"TopScore\"]"): seedFromExample seeds aws_dynamodb_table
+	// from the provider doc's example, which declares three "attribute"
+	// blocks (UserId, GameTitle, TopScore), but only the first survives -
+	// the doc example's GameTitle/TopScore attributes never reach the
+	// rendered block even though hash_key/range_key/global_secondary_index
+	// (which name them) do, leaving two GSI/range keys with no matching
+	// top-level attribute, which DynamoDB's CreateTable rejects unconditionally
+	// (confirmed against a live floci probe, not an emulator gap). Hand-added
+	// the two missing attribute blocks directly rather than fixing
+	// seedFromExample's repeated-block seeding, which is shared by every
+	// cohort's regeneration and out of this unit's scope.
+	"ecs-eks": {
+		files:  []string{"supporting.tf: content differs"},
+		reason: "seedFromExample only seeds one \"attribute\" block from aws_dynamodb_table's doc example; GameTitle (S) and TopScore (N) are hand-added so the table's global_secondary_index has attribute definitions for both of its keys, matching what DynamoDB's CreateTable requires - #432",
+	},
 }
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
