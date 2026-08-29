@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T16:01:22Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T16:05:01Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -75,7 +75,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-8 of 26 estates have a recorded run duration, totaling 23m10.6s, but not from one sweep: 2m35.3s across 1 estate(s) at commit `516718befb`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 13m51.7s across 5 estate(s) at commit `8ef3d258a7`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
+8 of 26 estates have a recorded run duration, totaling 23m12.8s, but not from one sweep: 3m16.2s across 1 estate(s) at commit `5a591a776f`; 13m51.7s across 5 estate(s) at commit `8ef3d258a7`; 2m37.5s across 1 estate(s) at commit `a65cecb7c2`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -90,7 +90,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | - | none recorded yet |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | - | none recorded yet |
 | [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | - | none recorded yet |
-| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | 2m35.3s | cold_deploy 15s, migrate 16s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 9s, day2_remove 7s, day2_count 41s, day2_replace 8s, greenfield 47s |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | 2m37.5s | cold_deploy 15s, migrate 17s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 9s, day2_remove 8s, day2_count 41s, day2_replace 8s, greenfield 47s |
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | 1m56.1s | cold_deploy 13s, migrate 40s, test_plan 3s, test_apply 2s, drift_reconverge 5s, day2_rename 9s, day2_remove 6s, day2_replace 7s, greenfield 30s |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | 2m6.4s | cold_deploy 12s, migrate 12s, test_plan 3s, test_apply 4s, drift_reconverge 18s, day2_rename 24s, day2_remove 11s, day2_replace 18s, greenfield 24s |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | - | none recorded yet |
