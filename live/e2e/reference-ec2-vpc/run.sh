@@ -113,8 +113,17 @@ set -uo pipefail
 #                day2_crash is literally "Interrupt and then assert nothing
 #                is proposed; the assertion must fail"). Independent of
 #                BREAK, BREAK_REMOVE and BREAK_COUNT and only reachable when
-#                none of them is 1, because Part G starts from Part F's real,
-#                completed count cycle - see Part G's header.
+#                none of them is 1, because Part H starts from Part F's real,
+#                completed count cycle - see Part H's header.
+#   BREAK_STRICT set to 1 to run Part G's (strict) own negative control
+#                instead of the real check: turn the secrets toggle back to
+#                "store" and assert its refusal is gone and no other
+#                appeared (the Break text in tools/gauntlet/stages.go for
+#                "strict" is literally "Turn a toggle off; its refusal must
+#                disappear and no other may appear"). Independent of every
+#                other BREAK* var - Part G carries its own scratch estate
+#                and does not touch the adopted infra parts B-F left
+#                behind - see Part G's own header.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -1930,14 +1939,14 @@ EOF
       gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live id and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW live id (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the B1.7 stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under a new id, the lower index's id unchanged both times"
 
       # ══════════════════════════════════════════════════════════════════
-      # PART G: CRASH BETWEEN CREATE AND DESTROY (day2_crash, planned stage
+      # PART H: CRASH BETWEEN CREATE AND DESTROY (day2_crash, planned stage
       # - live/GAUNTLET.md #10, issue #361)
       # ══════════════════════════════════════════════════════════════════
       #
       # Starts from Part F's real, completed state: the adopted estate plans
       # empty with count_test back at 2. aws_instance.main gets a
       # lifecycle { create_before_destroy = true } block (a no-op diff on
-      # its own, confirmed at G0) and its ami changes again, forcing a real
+      # its own, confirmed at H0) and its ami changes again, forcing a real
       # replace under create-then-destroy ordering - the only ordering that
       # has a window "between the create and the destroy" at all.
       #
@@ -1954,7 +1963,7 @@ EOF
       # before the destroy of the deposed old object is even dispatched -
       # is a real wall-clock race against floci's own response latency, not
       # a guaranteed instant; Part F's own count_test block, widened by 6
-      # more members every attempt and never scaled back down until G4,
+      # more members every attempt and never scaled back down until H4,
       # gives the single-worker graph walker other queued work so the
       # destroy node has somewhere to queue behind rather than always being
       # the only thing left to dispatch next - a scaling that is pure
@@ -1965,14 +1974,14 @@ EOF
       # short by the same interrupt, leaving one retry attempt's leftover
       # to collide with the next attempt's fresh create (a real
       # InvalidGroup.Duplicate error, caught while building this check).
-      # G1 retries up to 20 times and PROVES each attempt's outcome via the
+      # H1 retries up to 20 times and PROVES each attempt's outcome via the
       # AWS CLI AND the local record rather than assuming the interrupt
       # landed where intended: two live claimants alone is necessary but
       # not sufficient, since real investigation found a signal can also
       # land in a WIDER, unrecoverable window (the create's own hook fires,
       # but the crashed apply's write-back never commits anything for the
       # address at all) that this stage does not claim to recover from -
-      # see "an unrecorded orphan" in G1's own loop for how that miss is
+      # see "an unrecorded orphan" in H1's own loop for how that miss is
       # told apart from a real, recoverable landing and cleaned up before
       # retrying. Every attempt writes a fresh main.tf so a landed-too-late
       # attempt (the replace simply finished) is retried cleanly rather
@@ -2018,7 +2027,7 @@ EOF
       # grep that always matches.
 
       CURRENT_STAGE=day2_crash
-      log "=== G0. capture the pre-crash instance; confirm create_before_destroy is a no-op on its own ==="
+      log "=== H0. capture the pre-crash instance; confirm create_before_destroy is a no-op on its own ==="
       G_PRE_ID="$PLAIN_INSTANCE_ID"
       G_PRE_LIVE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_PRE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || true)"
       [ "$G_PRE_LIVE" = "running" ] || fail "the pre-crash instance $G_PRE_ID is not running ahead of day2_crash (state=$G_PRE_LIVE)"
@@ -2052,12 +2061,12 @@ EOF
       [ "$G_BASELINE_RC" -eq 0 ] || { printf '%s\n' "$G_BASELINE_OUT" | tail -30; fail "adding create_before_destroy and widening count_test failed to apply cleanly"; }
       grep -qE 'Resources: 6 added, 0 changed, 0 destroyed' <<< "$G_BASELINE_OUT" \
         || { grep -E 'Apply complete' <<< "$G_BASELINE_OUT"; fail "adding the lifecycle block (which must be a no-op diff) and widening count_test from 2 to 8 did not apply as exactly 6 creates"; }
-      log "  create_before_destroy added to aws_instance.main with no diff of its own; count_test widened from 2 to 8 (6 throwaway members, cleaned up at G4)"
+      log "  create_before_destroy added to aws_instance.main with no diff of its own; count_test widened from 2 to 8 (6 throwaway members, cleaned up at H4)"
       G_COUNT=8
       G_ADDR_KEY="$(record_key aws_instance.main)"
       G_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_instance/$G_ADDR_KEY"
 
-      log "=== G1. interrupt a real create_before_destroy replace between the create committing and the destroy dispatching ==="
+      log "=== H1. interrupt a real create_before_destroy replace between the create committing and the destroy dispatching ==="
       G_LANDED=0
       G_NEW_ID=""
       G_ATTEMPT=0
@@ -2072,7 +2081,7 @@ EOF
       # attempt's own "Two live resources" collision (a real
       # InvalidGroup.Duplicate error, caught while building this check).
       # Scaling count_test strictly UPWARD every attempt (never back down
-      # until G4) is pure addition - a fresh index every time, never a
+      # until H4) is pure addition - a fresh index every time, never a
       # replace of an existing one - so an attempt an interrupt cuts short
       # simply leaves fewer of the new members created; nothing already
       # declared is ever put at risk of its own collision.
@@ -2209,7 +2218,7 @@ EOF
       log "  record: current=$G_CURRENT_ID deposed=$G_DEPOSED_ID, written in the one crashed apply's own write-back - a real create_before_destroy replace was genuinely interrupted between the create committing and the destroy dispatching"
 
       if [ "${BREAK_CRASH:-}" = "1" ]; then
-        log "=== G2 (BREAK_CRASH=1). assert nothing is proposed after the interrupt - this must fail ==="
+        log "=== H2 (BREAK_CRASH=1). assert nothing is proposed after the interrupt - this must fail ==="
         G_BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_BREAK_PLAN_RC=$?
         [ "$G_BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_BREAK_PLAN_OUT" | tail -30; fail "the BREAK_CRASH=1 plan exited $G_BREAK_PLAN_RC"; }
         if grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_BREAK_PLAN_OUT"; then
@@ -2219,7 +2228,7 @@ EOF
           || { printf '%s\n' "$G_BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_CRASH=1: the plan after the crash does not even propose the expected destroy - the fixture is not what this control expects"; }
         log "  BREAK_CRASH=1: correctly proposes destroying the deposed object ($G_DEPOSED_ID) - the empty-plan assertion above correctly fails to hold"
       else
-        log "=== G2. the next plan recovers on its own: destroy the deposed object, nothing else ==="
+        log "=== H2. the next plan recovers on its own: destroy the deposed object, nothing else ==="
         G_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_PLAN_RC=$?
         [ "$G_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_PLAN_OUT" | tail -40; fail "the day2_crash recovery plan exited $G_PLAN_RC"; }
         grep -qE 'aws_instance\.main \(deposed object [0-9a-f]+\) will be destroyed' <<< "$G_PLAN_OUT" \
@@ -2243,7 +2252,7 @@ EOF
         [ "$G_CURRENT_AFTER" = "$G_NEW_ID" ] || fail "the record's current identity changed unexpectedly across the recovery apply: $G_CURRENT_AFTER"
         log "  record: the deposed entry is cleared, current identity is unchanged ($G_NEW_ID)"
 
-        log "=== G3. one more plan: fully converged, nothing left to propose ==="
+        log "=== H3. one more plan: fully converged, nothing left to propose ==="
         G_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; G_FINAL_PLAN_RC=$?
         [ "$G_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_FINAL_PLAN_OUT" | tail -30; fail "the post-recovery plan exited $G_FINAL_PLAN_RC"; }
         grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_FINAL_PLAN_OUT" \
@@ -2251,7 +2260,7 @@ EOF
         log "  No changes. The crash window is closed, recovered without a human."
         PLAIN_INSTANCE_ID="$G_NEW_ID"
 
-        log "=== G4. cleanup: scale count_test back down to 2, back to Part F's own shape ==="
+        log "=== H4. cleanup: scale count_test back down to 2, back to Part F's own shape ==="
         G_TEARDOWN_N=$((G_COUNT - 2))
         {
           cat <<EOF
@@ -2292,6 +2301,127 @@ EOF
   CURRENT_STAGE=""
 fi
 CURRENT_STAGE=""
+
+# ════════════════════════════════════════════════════════════════════════
+# G. strict (GitHub issue #363; tools/gauntlet/stages.go's "strict" stage,
+# Order 14, Status still StatusPlanned - see this section's tail comment
+# for why flipping it active is not part of this unit). "With every strict
+# toggle on, the estate is refused for exactly the things the toggles name
+# ... and for nothing else." No stock oracle: live/LIMITATIONS.md's
+# "strict-secrets" / "strict-no-source-create" / "strict-marker-repair"
+# sections are what a refusal is compared against.
+#
+# BREAK_STRICT=1 exercises this stage's own Break control instead of the
+# real check: turn ONE toggle (secrets) back off and assert its refusal is
+# gone and no other appeared - the Break text in tools/gauntlet/stages.go
+# for "strict", verbatim: "Turn a toggle off; its refusal must disappear
+# and no other may appear." Independent of BREAK, BREAK_REMOVE and
+# BREAK_COUNT: this stage carries its own scratch estate below, so it
+# neither depends on nor disturbs the adopted infra parts B-F left behind.
+#
+# The scratch estate is deliberately not reference-ec2-vpc's own five
+# resources. The refusal this stage checks is a config-time one
+# (internal/live/lint's checkLiveStrict, which never reads live state), so
+# the `random` provider alone carries it - no cloud call, no Docker, no AWS
+# CLI - and it runs whether or not the parts above it did.
+# random_password.db is the one resource declared here, purpose-built to
+# be the one thing every toggle but "secrets" leaves alone:
+#   - secrets = "refuse" refuses it outright: hashicorp/random 3.9.0 marks
+#     bcrypt_hash and result sensitive, and strict.Refuse's own text is
+#     what the assertion below matches, word for word.
+#   - no_source_create = "refuse" (the schema default, named explicitly so
+#     "every toggle" is not just secrets by omission) has nothing here to
+#     refuse: internal/live/projection/noderesolver.go only ever fires it
+#     on a CONFIG-IDENTIFIED type with no record, no marker and no
+#     derivable identity, and random_password is a logical (non-cloud)
+#     resource, outside that check entirely - the aws_* types this same
+#     script's parts A-F carry are all ServerAssigned, exempted the same
+#     way, and every "No changes" assertion since part A has already
+#     exercised that exemption for real, against the live emulator.
+#   - marker_repair = "never", paired with a markers "record" selection
+#     naming aws_ebs_volume (a real, recordable AWS type this scratch
+#     config never declares an instance of), is accepted rather than
+#     refused at the config level (checkLiveStrict: a non-empty selection
+#     gives "never" a mechanism), and reaches nothing: its own per-resource
+#     limit, checkIgnoreChanges, fires only on a resource that declares
+#     lifecycle { ignore_changes }, and none does here.
+# Both are "on" in the block below and both are silent in the plan - not
+# left out, but exercised and confirmed to change nothing for a config
+# they do not reach, which is the other half of "for nothing else".
+
+CURRENT_STAGE=strict
+STRICT="$WORK/strict"
+mkdir -p "$STRICT"
+strict_block() { # $1 = the secrets setting under test ("refuse" or "store")
+  cat <<EOF
+terraform {
+  required_providers {
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+  }
+  live {
+    estate = "ec2-reference-strict"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+    strict {
+      secrets          = "$1"
+      no_source_create = "refuse"
+      marker_repair    = "never"
+      markers "record" {
+        types = ["aws_ebs_volume"]
+      }
+    }
+  }
+}
+
+resource "random_password" "db" {
+  length = 16
+}
+EOF
+}
+
+log "=== G0. every strict toggle on ==="
+strict_block "refuse" > "$STRICT/main.tf"
+STRICT_INIT_OUT="$(cd "$STRICT" && "$TOFU" init -input=false -no-color 2>&1)"; STRICT_INIT_RC=$?
+[ "$STRICT_INIT_RC" -eq 0 ] || { printf '%s\n' "$STRICT_INIT_OUT" | tail -30; fail "choudoufu init for the strict-stage scratch estate exited $STRICT_INIT_RC"; }
+STRICT_PLAN_ON_OUT="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_PLAN_ON_RC=$?
+
+if [ "${BREAK_STRICT:-}" = "1" ]; then
+  log "=== G1 (BREAK_STRICT=1). turn secrets off; its refusal must disappear and no other may appear ==="
+  strict_block "store" > "$STRICT/main.tf"
+  STRICT_PLAN_OFF_OUT="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_PLAN_OFF_RC=$?
+  [ "$STRICT_PLAN_OFF_RC" -eq 0 ] \
+    || { printf '%s\n' "$STRICT_PLAN_OFF_OUT" | tail -30; fail "BREAK_STRICT=1: the plan with secrets = \"store\" exited $STRICT_PLAN_OFF_RC - a refusal appeared where none should"; }
+  grep -q "^Error:" <<< "$STRICT_PLAN_OFF_OUT" \
+    && { printf '%s\n' "$STRICT_PLAN_OFF_OUT"; fail "BREAK_STRICT=1: turning secrets off did not clear every refusal - this stage's check is not load-bearing"; }
+  grep -qF 'random_password.db will be created' <<< "$STRICT_PLAN_OFF_OUT" \
+    || { printf '%s\n' "$STRICT_PLAN_OFF_OUT"; fail "BREAK_STRICT=1: the plan with secrets = \"store\" does not propose creating random_password.db"; }
+  log "  BREAK_STRICT=1: with secrets back to \"store\", the refusal is gone and the plan is an ordinary create - the real check below is skipped"
+else
+  [ "$STRICT_PLAN_ON_RC" -eq 1 ] \
+    || { printf '%s\n' "$STRICT_PLAN_ON_OUT" | tail -30; fail "the every-toggle-on plan exited $STRICT_PLAN_ON_RC, not the refusal's usual 1"; }
+  STRICT_ERR_COUNT="$(grep -c "^Error:" <<< "$STRICT_PLAN_ON_OUT")"
+  [ "$STRICT_ERR_COUNT" -eq 1 ] \
+    || { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "every strict toggle on refused $STRICT_ERR_COUNT things, not exactly 1"; }
+  grep -qF 'Error: Logical resource is not admitted' <<< "$STRICT_PLAN_ON_OUT" \
+    || { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "the one refusal is not \"Logical resource is not admitted\""; }
+  grep -qF 'random_password.db: "random_password" is a logical resource, classified' <<< "$STRICT_PLAN_ON_OUT" \
+    || { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "the refusal does not name random_password.db as the refused instance"; }
+  grep -qF 'strict { secrets = "refuse" }' <<< "$STRICT_PLAN_ON_OUT" \
+    || { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "the refusal's detail does not cite strict { secrets = \"refuse\" }, live/LIMITATIONS.md's own \"strict-secrets\" wording"; }
+  grep -qi "no_source" <<< "$STRICT_PLAN_ON_OUT" \
+    && { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "no_source_create = \"refuse\" (also on) unexpectedly surfaced its own refusal text"; }
+  grep -qi "marker" <<< "$STRICT_PLAN_ON_OUT" \
+    && { printf '%s\n' "$STRICT_PLAN_ON_OUT"; fail "marker_repair = \"never\" (also on, with its markers \"record\" selection) unexpectedly surfaced its own refusal text"; }
+  log "  every strict toggle on (secrets = \"refuse\", no_source_create = \"refuse\", marker_repair = \"never\" with a markers \"record\" selection): exactly one refusal, random_password.db under strict { secrets = \"refuse\" }, matching live/LIMITATIONS.md's \"strict-secrets\" wording word for word; the other two toggles are on and refuse nothing, because neither reaches anything this scratch estate declares"
+
+  gauntlet_stage strict pass "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build."
+fi
+CURRENT_STAGE=""
+
 gauntlet_end
 
 log ""

@@ -4,8 +4,8 @@
   "method": "static config parsing: internal/live/check.Load (the module-graph loader tools/corpus-fetch and tools/corpus-gen already use) reads each estate's .corpus configuration directory/directories - see spec.go for the directory list and the run.sh line each was traced against - and every instance's managed-resource type is collected across the whole resolved module tree, local and registry alike. A handful of estates whose crossing script writes its own root wiring with a heredoc (rather than deploying a .corpus directory verbatim) add a text scan of that script for literal resource blocks - see estateSpec.ScanScript. No gauntlet run, no docker, no cloud calls: every estate's types come from its committed or fetched configuration, not from a live plan or state file.",
   "totals": {
     "estates": 26,
-    "distinct_types": 161,
-    "types_in_no_cohort": 86
+    "distinct_types": 162,
+    "types_in_no_cohort": 87
   },
   "estates": [
     {
@@ -903,9 +903,10 @@
         "aws_internet_gateway",
         "aws_security_group",
         "aws_subnet",
-        "aws_vpc"
+        "aws_vpc",
+        "random_password"
       ],
-      "count": 5,
+      "count": 6,
       "sources": [
         "script"
       ],

@@ -69,7 +69,7 @@
       "id": "day2_count",
       "order": 8,
       "title": "Change count",
-      "status": "planned",
+      "status": "active",
       "proves": "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
       "oracle": "Stock's plan for the same count change, normalised.",
       "break": "Expect a different instance to be destroyed; the assertion must fail."
@@ -133,7 +133,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 26,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -141,8 +141,8 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 1,
-          "fail": 1,
+          "pass": 2,
+          "fail": 0,
           "not_run": 24
         },
         "day2_crash": {
@@ -191,9 +191,9 @@
           "not_run": 26
         },
         "strict": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 26
+          "not_run": 25
         },
         "test_apply": {
           "pass": 26,
@@ -210,7 +210,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 25,
+      "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -218,8 +218,8 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 1,
-          "fail": 1,
+          "pass": 2,
+          "fail": 0,
           "not_run": 23
         },
         "day2_crash": {
@@ -268,9 +268,9 @@
           "not_run": 25
         },
         "strict": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "test_apply": {
           "pass": 25,
@@ -311,7 +311,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
@@ -357,7 +357,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "e6e56813fe22ec8fa08eea2d6e92f4736bc9f349",
@@ -403,7 +403,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "0400bd36edfffc1192aceee7fae9151bbbb69f3e",
@@ -461,7 +461,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bb30c9a03f08433dda76619553ff8a54d1205799",
@@ -506,7 +506,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1e14e60cfb812f90ed2ae5bf8ef144222d5b6043",
@@ -552,7 +552,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1c29f4f5d92aea8e9ae00d392599aed40f84590f",
@@ -598,7 +598,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "9c6de78732305d68858dfb23ecb1b29819dae6d3",
@@ -644,7 +644,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "cbd8943145faf77a7b0eaa7ada2ab7e26f3cce04",
@@ -690,7 +690,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "1cb2431712cfbdd42cf524d89e8066a3f3db5e60",
@@ -736,7 +736,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "a22908f734745d5449cb30dd4b85659b088d3cb6",
@@ -782,7 +782,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "db86858040e118a6d3e22636004a64d03d2c7c44",
@@ -828,7 +828,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "0928959f84460ce2d6a136226408babb20cbffa3",
@@ -874,7 +874,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "a4eafb052ed9a9adffe7d3fca247670db10e4cd9",
@@ -920,7 +920,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "b18019e6ac5948bb9b38239088fc9d8e842409ab",
@@ -966,7 +966,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "0f474c7a6e600d0a2130c1da4a9ff7ecde90e87d",
@@ -1011,7 +1011,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "9dbfbae593d1ae5bd3bb0ce947505beba56b4dc5",
@@ -1057,7 +1057,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "8a5c21a1c6d8fd0c8abe18cd3ad5c62f7d1b02f9",
@@ -1103,7 +1103,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "37e19eed6ee0ff32cc08555aced8685b9d75613c",
@@ -1149,7 +1149,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "ca150737ba7698d6b5f4bc130b3ac2e3db073e72",
@@ -1195,7 +1195,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "cca7b918f82420f824ccc986cecbcd2abab3fa05",
@@ -1241,7 +1241,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "4ac5ca4425d7b53c6dc2b8287b2c9fdb2fa4f05d",
@@ -1287,7 +1287,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
@@ -1333,7 +1333,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "125371fc68cd159a8afb6a548613e288883e53af",
@@ -1379,7 +1379,7 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "85ffcf09c467e68d55314e0c75dd0106904dec37",
@@ -1428,9 +1428,9 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c22d0fb7aaec6495509bb2c3003162a50f191d47",
-        "date": "2026-08-26T03:30:19Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "5a591a776fcedc27c46cf50b7876369a9d7d73d5",
+        "date": "2026-08-29T08:45:02Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
@@ -1443,6 +1443,19 @@
           "migrate": "live-import -approve completed cleanly against the cold state",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 21",
           "test_plan": "no resource change proposed"
+        },
+        "duration_s": 196.2,
+        "stage_seconds": {
+          "cold_deploy": 39,
+          "day2_count": 28,
+          "day2_remove": 17,
+          "day2_rename": 9,
+          "day2_replace": 7,
+          "drift_reconverge": 7,
+          "greenfield": 38,
+          "migrate": 44,
+          "test_apply": 3,
+          "test_plan": 3
         }
       },
       "notes": "Landed 2026-08-19, the fifth OpenTofu-native estate. Genuinely different from every prior crossing in this lane. OpenTofu-native evidence: README/badges state \"OpenTofu-first ... native state encryption, S3 locking without DynamoDB, no vendor lock-in\", required_version >= 1.11.0, and docs/TROUBLESHOOTING.md carries a dedicated real-usage \"OpenTofu general\" section (tofu init -upgrade) rather than just a badge - weaker than corpus-hongbomiao's genuine .tofu files (this ships plain .tf), comparable to sumaform/overture-tiles. Several other candidates evaluated and rejected first (an account-singleton-heavy 0-star repo, a devtool's test fixture masquerading as an estate, multiple 0-1-star scaffolds). cold_deploy genuinely passes (28 resources, plain tofu apply, unmodified). migrate genuinely passes: live-import 22 of 28 eligible (21 VERIFIED, 1 DRIFTED), -approve 22 newly stamped, 6 correctly UNTAGGABLE, 0 failed. test_plan BLOCKED, deterministically asserted (Plan: 2 to add, 3 to change, 1 to destroy, all 5 addresses traced to three independent, filed, evidence-backed gaps, not routed around); the VPC's own marker re-verified directly against the AWS CLI after state deletion, BREAK=1 confirmed load-bearing. Six real floci gaps filed with full evidence: lex00/floci#73 (S3Control PutPublicAccessBlock unimplemented), #74 (IAM UpdateAccountPasswordPolicy unsupported), #75 (IAM Access Analyzer - whole missing service), #76 (EC2 ModifyInstanceMetadataDefaults unsupported), #77 (CloudTrail tagging trio missing, blocks any tagged aws_cloudtrail), #78 (EC2 CreateFlowLogs ignores TagSpecifications) - none fixed, per this session's standing instruction. Two choudoufu gaps filed: INTENTIUS/choudoufu#327 (aws_nat_gateway's ForceNew args read null from a stateless prior, forcing a spurious replace), #328 (aws_default_security_group.revoke_rules_on_delete, write-only with no live representation, always diffs) - not fixed. A REAL BUG found and fixed along the way, outside this task's own estate work: #325's marker-alias fix (merged just before this crossing started) double-counted a live object when an estate declares BOTH sides of a default-adopter pair (this module does, aws_default_security_group next to an unrelated aws_security_group) - both scanType passes appended an identical claimant, producing a false \"Two live resources claiming one address\" collision on a single real object (confirmed via direct AWS CLI query). Fixed with claimantAlreadyPresent (dedupe by import ID), covered by a new regression test reproducing the exact real-world error text before the fix and passing after. Stages 4-5 not attempted - both need a genuinely empty first plan. Merged to local main as 62e63a3eb5 (crossing: 427977009a, the discovery double-count fix: 3bdceb43e3); rebased onto a concurrent sibling's internal/live/identity work mid-session, one conflict (the generated identity-golden.txt) resolved by regenerating, not hand-merging; justfile gained recipe demo-corpus-xancloud-iac; live/corpus-manifest.json gained the pin. Re-verified 2026-08-19 after #327's fix (56e807062e/b5bb09d27e, generic - reuses #275's existing residueCandidates/ResidueStore mechanism unchanged, adding one new call site: live-import's Approve now records residue for every eligible instance using the migrated state's own real prior value, not #327-specific): plan moved from 2 to add/3 to change/1 to destroy down to 1 to add/1 to change/0 to destroy - aws_nat_gateway.this[\"main-0\"] no longer proposes a spurious replace. Remaining test_plan blockers are exactly the still-unfixed floci gaps (#73-#78, S3Control/IAM password policy/IAM Access Analyzer/EC2 metadata defaults/CloudTrail tagging/EC2 flow logs), not a choudoufu-side gap. A residual, lower-severity, choudoufu-specific diff on regional_nat_gateway_address (pure-Computed set(object), harmless) remains and was deliberately not filed - residueCandidates correctly excludes pure-Computed attributes, and broadening that needs its own corpus-wide validation before it's safe (risk: masking real out-of-band drift). Follow-up pass 2026-08-20 (this session): #73/#74/#75 fixed and closed (lex00/floci commits 51c00478/08d92407/be3f7ffd - S3 account-level PutPublicAccessBlock, IAM UpdateAccountPasswordPolicy, AccessAnalyzer as a whole new service), joining #76/#77/#78 which other concurrent sessions closed the same night (all six of the floci gaps this estate originally filed are now closed). Re-pinned floci-image to be3f7ffd (sha256:8a882bcc, CI+GHCR-publish both green) and regenerated floci-capabilities.json (verified additive: one digest block added, none removed, no existing block changed). Re-crossed for real against the new pin, the script AS COMMITTED (still setting TF_VAR_cloudtrail_enabled=false and the three iam_baseline_enable_* toggles off, so the five originally-toggled-off features are not re-exercised by this run - re-enabling them is separate, larger follow-up work, not attempted here). Real result: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before); stage 3 still FAILS the script's own hard-coded assertion (which expects the stale 'Plan: 2 to add, 3 to change, 1 to destroy.' shape from before tonight's floci fixes), but the REAL diagnostic surface changed: only two addresses appear in the plan now, not five - 'module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place' (the pre-existing, previously-noted harmless regional_nat_gateway_address residual, #327 itself still holding - no force-replace) and, newly, 'module.vpc.aws_flow_log.cloudwatch[\"main\"] must be replaced' - a force-replace that could not appear before tonight because the flow log was never migrated at all (floci#78 blocked its tag write, so live-import never had a marker to find). This is very likely the same #327-shaped bug class (a ForceNew argument reading null from a stateless prior) now hitting aws_flow_log instead of aws_nat_gateway, not yet diagnosed or filed as its own issue - flagged here rather than assumed. A second confirmatory run was attempted to capture the exact 'Plan: N to add, M to change, K to destroy' totals line and pin down the flow_log diff further, but was lost to a session interruption before completing; the two-address finding above is from one complete, real, natural-exit run and was not re-confirmed a second time this session. The script's own hard-coded assertion (both the exact-string check and the per-address list) is now stale relative to the pin and needs updating by whoever picks this back up, once the flow_log diff is diagnosed. Stages 4-5 remain not_run (unchanged - both need a genuinely empty first plan, which this has not yet reached). RESOLVED as #347 (2026-08-20, 2cb473affd/27cafb1650): the flow_log diff was diagnosed - iam_role_arn (ForceNew) reads null on the stateless prior because floci's own FlowLogService never learns or emits it at all (Ec2QueryHandler.handleCreateFlowLogs ignores DeliverLogsPermissionArn; handleDescribeFlowLogs never returns it), confirmed via TF_LOG=trace straight through Ratification.Approve's residue classification (#327's residueCandidates/ResidueStore mechanism correctly DECLINES to record it, since both classification reads come back empty on any prior, not just the stateless one - the opposite of #327's shape, where the provider preserves without truly reading). Confirmed parity label 1, \"OpenTofu fails here too\": the PLAIN cold-deploy state (written by a real, non-choudoufu tofu apply) already carries iam_role_arn=\"\" immediately after apply, so a stock stateful tofu plan would show the identical perpetual diff. Filed as lex00/floci#87 (open, emulator gap, not a choudoufu defect). run.sh's stage-3 assertions were updated to match reality: 2 addresses (aws_flow_log.cloudwatch[\"main\"] must be replaced; aws_nat_gateway.this[\"main-0\"] will be updated in-place, #327's own still-harmless residual) and \"Plan: 1 to add, 1 to change, 1 to destroy.\" RE-VERIFIED 2026-08-21 (this session, worktree live/reverify-limitations, floci pinned at the current e61a987/d65baf42 image): real re-run of run.sh, exit 0, every hard-coded assertion passed byte-for-byte against the #347 shape above - same 2 addresses, same summary line, same 28/22/21+1/6/0 stage 1-2 counts. lex00/floci#87 confirmed still OPEN (not narrowed by the e61a987 re-pin, which addressed #86/#88 only). None of tonight's #331/#337/#340/#343/#344 admission/identity/record-store changes touched this estate. Wall unchanged; stages 4-5 remain not_run. UPDATE 2026-08-21 (lex00/floci#87 FIXED via lex00/floci#96, PR squash-merged as 17c7f7ef, published sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9, verified via the GHCR packages API and `docker buildx imagetools inspect` on both the :17c7f7e and :latest tags): CreateFlowLogs/DescribeFlowLogs now carry DeliverLogsPermissionArn. Re-pinned floci-image to this digest and regenerated floci-capabilities.json (verified additive: one digest block added - 87 services, 747 type rows, matching every prior digest's shape - none removed, no existing block changed). Re-crossed for real against the new pin: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before). Stage 3 (test_plan) genuinely changed shape: aws_flow_log.cloudwatch[\"main\"] no longer appears anywhere in the plan - the force-replace lex00/floci#87 caused is gone. The plan is narrower but NOT empty: 'Plan: 0 to add, 1 to change, 0 to destroy.', the sole remaining address module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place - the same pre-existing, harmless #327 regional_nat_gateway_address residual this estate has carried since before #87 was ever diagnosed. run.sh's stage-3 header and assertions rewritten to match this reality (single-address plan, exact 'Plan: 0 to add, 1 to change, 0 to destroy.' string, an explicit assertion that aws_flow_log no longer appears), re-run clean end to end (exit 0, no FAIL), and BREAK=1 re-confirmed load-bearing (the VPC identity check fails exactly as designed against a wrong expected address). test_plan stays 'fail' by this repo's own convention (a first plan must be empty to pass) - #327's own NAT-gateway residual is the estate's only remaining wall, unchanged in kind from before, just no longer sharing the plan with #87. Stages 4-5 remain not_run: both still need a genuinely empty first plan, which this estate has not yet reached. NOT a new estate at full parity - one wall cleared (lex00/floci#87), one wall (#327, already tracked, not this session's to fix) remains. UNIT gauntlet:corpus-xancloud-iac/test_plan (2026-08-21, orchestrator-run worker): stage 3 (test_plan) is now PASS. Root cause traced and fixed generically, not scoped around: aws_nat_gateway.this[\"main-0\"] regional_nat_gateway_address (Computed only - this NAT gateway has connectivity_type=public, not \"regional\", confirmed directly against floci's own DescribeNatGateways response, which carries no such field for this object at all) was showing \"+ regional_nat_gateway_address = (known after apply)\" on every stateless first plan. internal/live/projection/residue.go's residueCandidates and fillResidue used to refuse a purely-Computed attribute a residue candidacy at all (\"it cannot be set in configuration, so there is nothing to remember\") - that reasoning undercounted a real case: the provider's Read does not re-derive this attribute from a bare identity-only prior, it leaves whatever the prior held (null), and OpenTofu marks a null Computed attribute unknown forever. Fixed by dropping the Required/Optional restriction from both functions, keeping every other exclusion (identity, sensitive, write-only, NestedType) - safety comes from classifyResidue's own two-read discriminator, not from that schema-shape filter. internal/live/projection/residue_test.go and internal/live/liveimport/residue_test.go updated to match (arn, Computed-only in the lambda-like fixture, is now a legitimate candidate; a new TestFillResidueFillsAComputedOnlyAttribute pins the positive case). Re-crossed for real: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped, unchanged); stage 3 now PASS - \"No changes. Your infrastructure matches the configuration.\", BREAK=1 re-confirmed load-bearing against the VPC identity check. Stages 4-5 remain not_run: not yet written, since stage 3 only just started passing in this run - a follow-up unit's work, not attempted here."
@@ -1456,7 +1469,7 @@
       "script": "live/e2e/reference-ec2-vpc/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "fail",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -1466,41 +1479,43 @@
         "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
-        "strict": "not_run",
+        "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9259ff2e73f673c89c1f02e9fda2d919f58f47e3",
-        "date": "2026-08-29T05:54:45Z",
+        "commit": "c3a37c0e8ebc59593df6a9eaae80b35d4f305d06",
+        "date": "2026-08-29T09:26:45Z",
         "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
-        "exit_code": 1,
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
-          "day2_count": "choudoufu's scale-down plan does not destroy count_test[1]",
+          "day2_count": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live id and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW live id (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the B1.7 stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under a new id, the lower index's id unchanged both times",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-4dfb9ec303026e7c2) is confirmed terminated and the new instance (i-45d3808d5f6021150) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-e862a571265b867d0) is confirmed terminated and the new instance (i-243a3210fde19aeaa) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build.",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
           "test_plan": "post-adoption plan is empty; markers read back through the AWS CLI in part A"
         },
-        "duration_s": 270.6,
+        "duration_s": 207.4,
         "stage_seconds": {
-          "cold_deploy": 97,
-          "day2_count": 18,
-          "day2_remove": 13,
-          "day2_rename": 17,
-          "day2_replace": 36,
-          "drift_reconverge": 11,
-          "greenfield": 5,
-          "migrate": 60,
-          "test_apply": 9,
-          "test_plan": 4
+          "cold_deploy": 83,
+          "day2_count": 17,
+          "day2_remove": 6,
+          "day2_rename": 9,
+          "day2_replace": 26,
+          "drift_reconverge": 5,
+          "greenfield": 3,
+          "migrate": 51,
+          "strict": 2,
+          "test_apply": 3,
+          "test_plan": 2
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."

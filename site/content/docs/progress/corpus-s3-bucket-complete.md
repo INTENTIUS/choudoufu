@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Drift and reconverge | pass |  | accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty |
 | Rename | pass |  | moved block: module.cloudfront_log_bucket renamed to module.cloudfront_log_bucket_renamed with zero churn (0 add, 1 change, 0 destroy), the bucket's tofu-address marker rewritten in place; live-mv: module.simple_bucket renamed to module.simple_bucket_renamed with zero churn, marker rewritten in place; both live bucket names unchanged, read via the AWS CLI; the post-rename plan proposes no resource action |
 | Remove a block | pass |  | choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-choice-leopard now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.log_bucket's ForceNew bucket argument proposed exactly one bucket replace at the same declared address, cascading into its ownership_controls, policy and public_access_block (all replaced) plus module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old bucket (logs-choice-leopard) is confirmed gone and the new bucket (logs-choice-leopard-replaced) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new bucket, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly ("Live resource displaced from the address it is marked for", naming the manufactured bucket, proposing nothing for it) rather than silently proposed as nothing - the name-derived-identity shape of this diagnostic, distinct from EC2/SQS's fungible-set "Two live resources claiming one slot" because aws_s3_bucket's identity resolves straight from the config's own computed name rather than only through a marker sweep. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
