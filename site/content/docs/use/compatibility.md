@@ -42,7 +42,9 @@ state file, or the tool itself is gone: marker-carried, declaration-carried,
 record-carried, and excluded by design. `live/readiness.json` assigns every
 provider type exactly one tier and one of six statuses; the table below is
 generated from it. `live/COVERAGE.md` carries the same table with more
-context.
+context, and [Resource tier lookup]({{< relref "/docs/use/resource-tiers"
+>}}) carries it broken out per type, in customer language, with a reason for
+anything short of in-contract.
 
 <!-- readiness-gen:begin readiness-tiers -->
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |

@@ -14,6 +14,7 @@ surface.
 | Page | Question it answers |
 |------|---------------------|
 | [Compatibility reference]({{< relref "compatibility" >}}) | What in a real configuration this fork accepts or refuses |
+| [Resource tier lookup]({{< relref "resource-tiers" >}}) | Your resource types, one by one: tier, status, and why for anything not admitted yet |
 | [How to check a configuration before migrating]({{< relref "check-a-config" >}}) | Running `choudoufu live-check` against your own code |
 | [Migrate an existing estate]({{< relref "migrate" >}}) | How resources you already manage bind to their markers |
 | [Day-2 operations]({{< relref "day2" >}}) | Renaming, removing, recording effects and working with other people, indexed |
