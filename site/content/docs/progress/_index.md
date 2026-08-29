@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T16:22:48Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 17 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 9 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T17:37:11Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -52,7 +52,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
@@ -75,7 +75,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-8 of 26 estates have a recorded run duration, totaling 24m16s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
+9 of 26 estates have a recorded run duration, totaling 27m30.1s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m14.1s across 1 estate(s) at commit `b985bcc747`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 17 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -85,7 +85,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | - | none recorded yet |
 | [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | - | none recorded yet |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | - | none recorded yet |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | - | none recorded yet |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | 3m14.1s | cold_deploy 16s, migrate 45s, test_plan 6s, test_apply 4s, drift_reconverge 8s, day2_rename 15s, day2_remove 11s, day2_count 18s, day2_replace 18s, greenfield 52s |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | 1m8.4s | cold_deploy 5s, migrate 19s, test_plan 3s, test_apply 3s, drift_reconverge 4s, day2_rename 10s, day2_remove 5s, day2_replace 6s, greenfield 13s |
 | [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | - | none recorded yet |
 | [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | - | none recorded yet |

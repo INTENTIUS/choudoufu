@@ -1466,11 +1466,18 @@ EOF
       grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
         || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly two destroys"; }
 
-      if G_DROPPED_STILL="$(awsl ec2 describe-subnets --subnet-ids "$G_DROPPED_SID" 2>&1)"; then
-        echo "$G_DROPPED_STILL"; fail "$G_DROPPED_SID still exists in the live account after the scale-down destroy"
-      fi
-      grep -qi 'InvalidSubnetID.NotFound' <<< "$G_DROPPED_STILL" \
-        || { echo "$G_DROPPED_STILL"; fail "describe-subnets for $G_DROPPED_SID failed with an unexpected error, not InvalidSubnetID.NotFound"; }
+      # A --subnet-ids lookup by explicit id is the wrong shape to prove
+      # absence with: real AWS throws InvalidSubnetID.NotFound for an
+      # unknown id there, but floci's own DescribeSubnets returns a plain
+      # empty list with exit 0 instead (confirmed directly against this
+      # floci image, no tofu in the loop, ahead of writing this check) - an
+      # emulator gap in its own right (lex00/floci, not filed here: it
+      # changes nothing about whether the subnet is actually gone, only
+      # which CLI shape proves it). A --filters lookup sidesteps the whole
+      # question: EC2's filter mechanism never errors on zero matches, on
+      # real AWS or on floci, so it is the portable way to assert absence.
+      G_DROPPED_STILL_N="$(awsl ec2 describe-subnets --filters "Name=subnet-id,Values=$G_DROPPED_SID" --query 'length(Subnets)' --output text)"
+      [ "$G_DROPPED_STILL_N" = "0" ] || fail "$G_DROPPED_SID still exists in the live account after the scale-down destroy"
       G_ASSOC_AFTER_DOWN="$(awsl ec2 describe-route-tables --route-table-ids "$RT_ID" --query "RouteTables[0].Associations[?SubnetId=='$G_DROPPED_SID'].RouteTableAssociationId | [0]" --output text 2>/dev/null || true)"
       [ -z "$G_ASSOC_AFTER_DOWN" ] || [ "$G_ASSOC_AFTER_DOWN" = "None" ] \
         || fail "an association still joins route table $RT_ID to the destroyed subnet $G_DROPPED_SID"
@@ -1478,7 +1485,7 @@ EOF
       SURVIVOR_SID_1_AFTER_DOWN="$(awsl ec2 describe-subnets --subnet-ids "$G_SURVIVOR_SID_1" --query 'Subnets[0].SubnetId' --output text 2>/dev/null || true)"
       [ "$SURVIVOR_SID_0_AFTER_DOWN" = "$G_SURVIVOR_SID_0" ] || fail "survivor subnet $SURVIVOR_CIDR_0's id changed across the scale-down ($G_SURVIVOR_SID_0 -> $SURVIVOR_SID_0_AFTER_DOWN)"
       [ "$SURVIVOR_SID_1_AFTER_DOWN" = "$G_SURVIVOR_SID_1" ] || fail "survivor subnet $SURVIVOR_CIDR_1's id changed across the scale-down ($G_SURVIVOR_SID_1 -> $SURVIVOR_SID_1_AFTER_DOWN)"
-      log "  $G_DROPPED_SID ($DROPPED_CIDR) no longer exists (InvalidSubnetID.NotFound), its association is gone from route table $RT_ID; both survivor subnets ($G_SURVIVOR_SID_0, $G_SURVIVOR_SID_1) unchanged - all read via the AWS CLI"
+      log "  $G_DROPPED_SID ($DROPPED_CIDR) no longer matches any live subnet (describe-subnets --filters subnet-id, 0 results), its association is gone from route table $RT_ID; both survivor subnets ($G_SURVIVOR_SID_0, $G_SURVIVOR_SID_1) unchanged - all read via the AWS CLI"
 
       # The record store, asserted by value (HANDOFF's safety rule; the
       # #398-guard shape: a stale record still naming the destroyed subnet's
