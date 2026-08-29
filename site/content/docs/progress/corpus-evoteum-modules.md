@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Drift and reconverge | pass |  | VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update |
 | Rename | pass |  | moved block: module.networking renamed with zero churn (0 add, 6 change, 0 destroy), marker rewritten in place across its taggable objects including the untaggable route-table-association children resolving structurally; live-mv: module.sessions_table renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting module.sessions_table_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), address-for-address identical to stock's oracle on cold_deploy's own state (module.sessions_table); applied cleanly (0 added, 0 changed, 1 destroyed); the table is genuinely gone from the live account (describe-table now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because no other module.sessions_table* block is declared anywhere in this config |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.sessions_table_renamed's ForceNew table_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old table (arn:aws:dynamodb:us-west-2:000000000000:table/evtx-development-sessions) is confirmed gone and the new table (evtx-development-sessions-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new table's name, not the destroyed one (evtx-development-sessions -> evtx-development-sessions-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |

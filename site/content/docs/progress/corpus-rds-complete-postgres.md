@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Drift and reconverge | pass |  | one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag |
 | Rename | pass |  | moved block: module.security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.db_default's db instance renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting module.db_default_renamed's block proposed exactly two destroys (the db instance and its own local random_id.snapshot_identifier, no cloud representation - issue #340), applied cleanly, the db instance is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on the same renamed oracle tree also proposes exactly the same two destroys; the target was chosen (see header) because its own nested module.db_instance call has no untaggable AWS-side sibling under this estate's create_db_option_group=false/create_db_parameter_group=false, unlike the shapes that surfaced issue #410 for corpus-s3-bucket-complete and corpus-overture-tiles |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.db's ForceNew db_name argument (plus identifier, for an observable identity change) proposed exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance (arn:aws:rds:eu-west-1:000000000000:db:complete-postgresql) is confirmed gone and the new instance (arn:aws:rds:eu-west-1:000000000000:db:complete-postgresql-replaced) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new identifier, not the destroyed one (complete-postgresql -> complete-postgresql-replaced); the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
