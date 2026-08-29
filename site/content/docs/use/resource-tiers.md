@@ -75,9 +75,9 @@ says why for each type that carries it.
 |---|---|---|---|---|---|---|---|
 | marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
 | declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
-| record-carried | 99 | 294 | 3 | 16 | 60 | 0 | 472 |
-| excluded by design | 0 | 0 | 0 | 0 | 0 | 2 | 2 |
-| **Total** | 1122 | 492 | 4 | 19 | 60 | 2 | 1699 |
+| record-carried | 99 | 294 | 3 | 16 | 59 | 0 | 471 |
+| excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
+| **Total** | 1122 | 492 | 4 | 19 | 59 | 3 | 1699 |
 <!-- readiness-gen:end readiness-tiers -->
 
 ## Look up your own resource type
@@ -1756,7 +1756,7 @@ types, ruled out by standing policy rather than left pending.
 | `aws_wafregional_web_acl` | marker-carried | in-contract |  |
 | `aws_wafregional_web_acl_association` | declaration-carried | in-contract |  |
 | `aws_wafregional_xss_match_set` | record-carried | in-contract |  |
-| `aws_wafv2_api_key` | record-carried | pending-mechanism | record-carried, markerless, but its identity is composite and the record can only carry a flat id today (issue #429). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type). |
+| `aws_wafv2_api_key` | excluded by design | excluded | excluded by design: generates credential material this fork can never read back and verify again (maintainer ruling, 2026-08-15, issue #175). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type). |
 | `aws_wafv2_ip_set` | marker-carried | in-contract |  |
 | `aws_wafv2_regex_pattern_set` | marker-carried | in-contract |  |
 | `aws_wafv2_rule_group` | marker-carried | in-contract |  |

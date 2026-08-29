@@ -165,7 +165,7 @@ Every type the pinned provider serves is in one of three rosters - admitted by i
 
 Now **463 provider resource types**, at most **613**, so the bound is stale by 150 and should be lowered to the measurement.
 
-1049 admitted, 100 hand-vetoed, 159 markerless-vetoed, over a roster of 1699.
+1049 admitted, 101 hand-vetoed, 159 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.
@@ -226,15 +226,16 @@ Evidence: git log over live/corpus-refusals.json's own path versus internal/live
 
 Tracker: #256
 
-<a id="credential-exclusions-are-exactly-two"></a>
-### `credential-exclusions-are-exactly-two`
+<a id="credential-exclusions-are-sanctioned"></a>
+### `credential-exclusions-are-sanctioned`
 
-Exactly two provider types are excluded from admission on credential-material grounds with no route to admission at all, they are all in the hand veto ledger, and none of them is admitted.
+Exactly 3 provider types are excluded from admission on credential-material grounds with no route to admission at all, they are all in the hand veto ledger, and none of them is admitted.
 
-**If this stops being true.** Type-for-type coverage is the bar, and this credential exclusion is its one remaining sanctioned hole - down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto strict { secrets } instead, where they are admitted by default. A third type vetoed on credential grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the coverage denominator without anybody deciding to. This has already drifted once in the other direction: aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading "credential" until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.
+**If this stops being true.** Type-for-type coverage is the bar, and this credential exclusion is its one remaining sanctioned hole. It has moved twice: down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto strict { secrets } instead, where they are admitted by default; back up to three after issue #431's provider-wide sweep (tools/credential-sweep) found aws_wafv2_api_key already refused unconditionally by internal/live/identity.LocatedType's own sensitiveIdentityAttr check, with no ledger entry naming it. Either direction of drift is the same failure this assumption exists to catch: an exclusion nobody decided (this ID's own history before #431 - the sanctioned list undercounted a refusal the code already performed), or an exclusion that shrinks the coverage denominator without anybody deciding to (a veto with no route at all, added without joining this list). This has already drifted in that second direction once before: aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading "credential" until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.
 
 - `aws_appstream_directory_config`
 - `aws_ivs_playback_key_pair`
+- `aws_wafv2_api_key`
 
 Evidence: CLAUDE.md's sanctioned list, checked against tools/row-gen/rejected.json's own reason text and against internal/live/identity.DefaultTable. See credentialReason for what the text half of this cannot see.
 
