@@ -3,15 +3,16 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "b504cd6bb0c6843c86b06e92d91f0278fef146f7",
+  "measured_at_head": "394bb435253decf7bc5c5f9abfd6661891b40cf9",
+  "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
-    "internal/live/": 1191,
-    "live/": 420,
+    "internal/live/": 1193,
+    "live/": 427,
     "other": 370,
-    "rfc/": 5,
-    "site/": 80,
-    "tools/": 348
+    "rfc/": 6,
+    "site/": 81,
+    "tools/": 371
   },
   "files": {
     ".github/": [
@@ -1503,6 +1504,10 @@
       },
       {
         "path": "internal/live/identity/located_composite_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/located_flatregression_test.go",
         "status": "A"
       },
       {
@@ -4030,6 +4035,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/located_composed_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/located_composite_test.go",
         "status": "A"
       },
@@ -4940,6 +4949,10 @@
         "status": "A"
       },
       {
+        "path": "live/cohort-triage.json",
+        "status": "A"
+      },
+      {
         "path": "live/composite-import-roster.json",
         "status": "A"
       },
@@ -4961,6 +4974,10 @@
       },
       {
         "path": "live/corpus-refusals.json",
+        "status": "A"
+      },
+      {
+        "path": "live/credential-sweep.json",
         "status": "A"
       },
       {
@@ -6432,6 +6449,10 @@
         "status": "A"
       },
       {
+        "path": "live/estate-types.json",
+        "status": "A"
+      },
+      {
         "path": "live/floci-capabilities.json",
         "status": "A"
       },
@@ -6449,6 +6470,14 @@
       },
       {
         "path": "live/flociimage_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/fork-surface.json",
+        "status": "A"
+      },
+      {
+        "path": "live/forkdiff_test.go",
         "status": "A"
       },
       {
@@ -6509,6 +6538,14 @@
       },
       {
         "path": "live/providerversion.go",
+        "status": "A"
+      },
+      {
+        "path": "live/ratification-queue.json",
+        "status": "A"
+      },
+      {
+        "path": "live/readiness.json",
         "status": "A"
       },
       {
@@ -8074,6 +8111,10 @@
       {
         "path": "rfc/20260823-foundation-order-ruling.md",
         "status": "A"
+      },
+      {
+        "path": "rfc/20260828-readiness-tiers.md",
+        "status": "A"
       }
     ],
     "site/": [
@@ -8342,6 +8383,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/resource-tiers.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/start.md",
         "status": "A"
       },
@@ -8493,6 +8538,10 @@
       },
       {
         "path": "tools/corpus-gen/pins.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/credential-sweep/main.go",
         "status": "A"
       },
       {
@@ -8684,6 +8733,34 @@
         "status": "A"
       },
       {
+        "path": "tools/estate-types/artifact.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/cohort.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/main_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/scan.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/spec.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/sumaform.go",
+        "status": "A"
+      },
+      {
         "path": "tools/find-dep-upgrades/main.go",
         "status": "M"
       },
@@ -8744,6 +8821,14 @@
         "status": "A"
       },
       {
+        "path": "tools/forkdiff-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/forkdiff-gen/main_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/add.go",
         "status": "A"
       },
@@ -8801,6 +8886,14 @@
       },
       {
         "path": "tools/gauntlet/stages.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/typeindex.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/typeindex_test.go",
         "status": "A"
       },
       {
@@ -9232,6 +9325,46 @@
         "status": "A"
       },
       {
+        "path": "tools/ratification-queue-gen/build.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/ratification-queue-gen/build_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/ratification-queue-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/ratification-queue-gen/proposeparse.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/build.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/build_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/classify_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/render.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/readiness-gen/render_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/refusal-probe/cause.go",
         "status": "A"
       },
@@ -9593,6 +9726,10 @@
       },
       {
         "path": "tools/row-gen/schemafirst.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/separator-evidence.json",
         "status": "A"
       },
       {

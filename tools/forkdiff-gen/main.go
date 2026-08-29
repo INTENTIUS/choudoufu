@@ -30,6 +30,13 @@
 // The tool's own error message says so when the commit is missing; it never
 // fetches on its own.
 //
+// A second mode, mirroring tools/readiness-gen -render, rewrites the
+// fork-surface span of the docs site's positioning page in place, from the
+// already-committed live/fork-surface.json rather than a fresh diff - see
+// render.go:
+//
+//	go run ./tools/forkdiff-gen -render
+//
 // # Limits (read this before trusting a "0" in the other bucket)
 //
 // The fork point is the fixed commit above, named by hash, not re-derived
@@ -71,6 +78,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -135,6 +143,17 @@ func repoRoot() (string, error) {
 }
 
 func main() {
+	render := flag.Bool("render", false,
+		"rewrite the docs site's positioning-page fork-surface span from the committed live/fork-surface.json instead of regenerating the artifact (needs no git diff)")
+	flag.Parse()
+
+	if *render {
+		if err := runRender(); err != nil {
+			fmt.Fprintf(os.Stderr, "forkdiff-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "forkdiff-gen: %v\n", err)
 		os.Exit(1)
@@ -175,6 +194,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	baseVersion, err := readBaseOpenTofuVersion(root)
+	if err != nil {
+		return err
+	}
+	surface.BaseOpenTofuVersion = baseVersion
 
 	data, err := json.MarshalIndent(surface, "", "  ")
 	if err != nil {
@@ -229,10 +254,40 @@ type forkSurface struct {
 	ForkPointShort         string                  `json:"fork_point_short"`
 	ForkPointSubject       string                  `json:"fork_point_subject"`
 	MeasuredAtHead         string                  `json:"measured_at_head"`
+	BaseOpenTofuVersion    string                  `json:"base_opentofu_version"`
 	Counts                 map[string]int          `json:"counts"`
 	Files                  map[string][]fileChange `json:"files"`
 	MechanicalModuleRename mechanicalSummary       `json:"mechanical_module_rename"`
 	Limits                 string                  `json:"limits"`
+}
+
+// baseOpenTofuVersionFile is version/VERSION, the same file
+// version/version.go embeds at build time (`//go:embed VERSION`) to compute
+// the binary's own reported version. Issue #424's positioning page quotes
+// this fork's base OpenTofu release ("N files diverge from OpenTofu 1.13.0
+// at ...") and that number has to come from a committed source rather than
+// be hand-typed, the same as every other number on that page - this is the
+// one committed file that already carries it.
+const baseOpenTofuVersionFile = "version/VERSION"
+
+// readBaseOpenTofuVersion reads version/VERSION and returns its release
+// core: the part before any "-dev" or other prerelease suffix, the same
+// trim version/version.go's own init() performs by calling go-version's
+// Core(). Plain string splitting here rather than importing
+// hashicorp/go-version as a second dependency: the file's grammar (a bare
+// semver, optionally followed by "-" and a prerelease tag) is fixed and
+// simple enough not to need it.
+func readBaseOpenTofuVersion(root string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(baseOpenTofuVersionFile))) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", baseOpenTofuVersionFile, err)
+	}
+	raw := strings.TrimSpace(string(data))
+	core, _, _ := strings.Cut(raw, "-")
+	if core == "" {
+		return "", fmt.Errorf("%s is empty after trimming", baseOpenTofuVersionFile)
+	}
+	return core, nil
 }
 
 const limitsNote = "The fork point is the fixed commit named in fork_point, not re-derived from git ancestry (this checkout's history was purged and re-rooted 2026-08-14, so the fork point is not an ancestor of HEAD; the comparison is a content diff, not a merge-base walk). A future upstream backport into internal/ outside internal/live/ shows up here as growth in the other bucket - there is no named root for stock-owned internal/ packages - and live/forkdiff_test.go's allowlist is where such an entry gets named and justified; the fork point itself only moves by deliberate, separate action. mechanical_module_rename excludes only the quoted Go-import half of the module-path rename under internal/; every other path, including internal/**/*.go files with any other change on top of the rename, is counted and, if it falls outside the six named roots, must be allowlisted."
