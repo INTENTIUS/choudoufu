@@ -240,8 +240,8 @@ func TestComposedLocatedRoundTripImportsTheDocumentedString(t *testing.T) {
 	}
 	target := targets[0]
 	if target.IsIdentityBased() {
-		t.Fatalf("the replan imported by identity object rather than by ID string.\n"+
-			"aws_cognito_user_pool_client serves no wire identity schema at hashicorp/aws 6.59.0, so importTarget "+
+		t.Fatalf("the replan imported by identity object rather than by ID string.\n" +
+			"aws_cognito_user_pool_client serves no wire identity schema at hashicorp/aws 6.59.0, so importTarget " +
 			"must fall back to the ID string; sending an identity object here is a shape the real provider refuses.")
 	}
 	if target.ID != wantComposed {
