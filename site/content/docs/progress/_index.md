@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:29:33Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:54:45Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -72,7 +72,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-2 of 26 estates have a recorded run duration, totaling 5m9.8s at commit `eff9afb400`. This is not a full-board figure: 24 of 26 estates have no recorded duration yet.
+2 of 26 estates have a recorded run duration, totaling 6m8.1s, but not from one sweep: 4m30.6s across 1 estate(s) at commit `9259ff2e73`; 1m37.5s across 1 estate(s) at commit `eff9afb400`. This total spans different commits, not a single board run, and excludes 24 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -100,7 +100,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | - | none recorded yet |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 3m32.3s | cold_deploy 1m17s, migrate 57s, test_plan 5s, test_apply 4s, drift_reconverge 7s, day2_rename 12s, day2_remove 7s, day2_replace 31s, greenfield 3s |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m30.6s | cold_deploy 1m37s, migrate 1m0s, test_plan 4s, test_apply 9s, drift_reconverge 11s, day2_rename 17s, day2_remove 13s, day2_replace 36s, greenfield 5s |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | - | none recorded yet |
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).
