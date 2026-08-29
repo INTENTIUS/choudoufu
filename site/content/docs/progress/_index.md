@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 2 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:54:45Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 3 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T05:54:45Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 

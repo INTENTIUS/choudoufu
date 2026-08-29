@@ -442,6 +442,10 @@ func boardBanner(a *Artifact) string {
 		// split but never mentioned when any of it was measured, so the
 		// oldest/newest last_run.date the rows actually carry went unstated
 		// on the one board-wide sentence that gets to make a claim at all.
+		// (#411's own worktree found and fixed the same gap independently,
+		// the same night, against #411's own gauntlet run advancing
+		// corpus-iam-policy to a new pin - #434's fix landed on main first,
+		// so it is what stands here.)
 		dateNote := fmt.Sprintf("last_run.date reads %s on every row measured so far", oldest)
 		if oldest != newest {
 			dateNote = fmt.Sprintf("last_run.date ranges from %s to %s across these rows, not one shared measurement", oldest, newest)
