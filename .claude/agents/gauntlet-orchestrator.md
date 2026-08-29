@@ -26,7 +26,9 @@ dispositions are acted on BEFORE any new worker starts:
 - `PR OPEN`: verify and merge (step 4 below), or say in the PR why not.
 - `COMMITS, NO PR`: a worker was mid-unit. Resume it: spawn a worker INTO
   that worktree, telling it the branch, the last commit, and to read
-  `ci.rc`/`ci.out` and `live/gauntlet/logs/<estate>.log` there before doing anything.
+  `ci.rc`/`ci.meta`/`ci.out` and `live/gauntlet/logs/<estate>.log` there before
+  doing anything, and to run `scripts/ci-gate.sh check` before trusting any
+  `ci.rc` it finds (#519: it refuses a gate that predates HEAD).
   Never start the same unit over on a fresh branch while that one exists.
 - `MERGED/EMPTY`: delete the branch and the worktree.
 - Agent-tool worktrees with commits ahead: read the commits; they are
@@ -37,9 +39,10 @@ dispositions are acted on BEFORE any new worker starts:
 Leave the state the same way: every worker you spawn gets its worktree and
 branch named per the convention the moment it starts (`gauntlet/<estate>-<stage>`
 for a unit, `live/<topic>` otherwise), commits early with the unit ID, and
-leaves `ci.rc`/`ci.out` in place. Then the next `pickup.sh` reconstructs
-everything you knew, and nothing about the loop's state is in your context
-alone.
+leaves `ci.rc`/`ci.meta`/`ci.out` in place, written by `scripts/ci-gate.sh run`
+rather than the retired hand-typed idiom. Then the next `pickup.sh`
+reconstructs everything you knew, and nothing about the loop's state is in
+your context alone.
 
 ## The loop
 
@@ -64,10 +67,16 @@ alone.
    bar were all walls recorded as external that were not.
 4. When a worker reports, verify before you believe: read the
    `GAUNTLET stage=` lines in `live/gauntlet/logs/<estate>.log` in its
-   worktree; read its gate from a file (`ci.rc`), which is the packages its
-   change touches rather than the whole tier, since running `just ci` once
-   per worker duplicates the same minutes N times; confirm the artifact diff
-   moves only the estate it claims and nothing backwards. A worker's summary
+   worktree; verify its gate by running `scripts/ci-gate.sh check` IN THAT
+   WORKTREE - never `cat ci.rc` alone (#519: a `ci.rc` file existing and
+   reading `0` does not mean the run that wrote it finished, or that it
+   finished for the commit you are about to merge; `check` refuses a gate
+   that is missing, incomplete, or written for a sha that is not the
+   worktree's current HEAD, and only exits 0 for a fresh, passing one). The
+   gate a worker leaves is the packages its change touches rather than the
+   whole tier, since running `just ci` once per worker duplicates the same
+   minutes N times; confirm the artifact diff moves only the estate it
+   claims and nothing backwards. A worker's summary
    is a lead, not a fact. Because each branch re-renders the artifact from
    its own base, a branch cut before an earlier merge will silently drop that
    estate's row: make the worker rebase and RE-RUN its estate so the runner
@@ -194,12 +203,20 @@ Do not proceed past any of these; state the question and wait.
 - Hand-edit `live/gauntlet.json`, `live/GAUNTLET.md`, `live/gauntlet/estates.json`
   or `site/content/docs/progress/`; they are rendered.
 - Run a crossing script in your own session; that is what workers are for.
-- Merge a branch whose gate you did not read from a file, or push a `main`
-  you have not put a full `just ci` through. The full tier runs once per
-  merge batch, on the merge result, before the push. Gate the push on the
-  FILE'S CONTENT, never on a command's exit: `[ "$(cat ci.rc)" = 0 ] && git
-  push ...`. On 2026-08-23 the orchestrator ran `cat ci.rc && git push`, the
-  file said `1`, `cat` exited 0, and a red `main` was pushed.
+- Merge a branch whose gate you did not verify with `scripts/ci-gate.sh
+  check`, or push a `main` you have not put a full `just ci` through. The
+  full tier runs once per merge batch, on the merge result, in the primary
+  checkout, before the push: `scripts/ci-gate.sh run` (defaults to `just
+  ci`), then gate the push on `scripts/ci-gate.sh check`'s exit code, which
+  reads the FILES' CONTENT and their run identity, never a command's exit on
+  its own: `scripts/ci-gate.sh check && git push origin main`. On 2026-08-23
+  the orchestrator ran `cat ci.rc && git push`, the file said `1`, `cat`
+  exited 0, and a red `main` was pushed - the reason `check` reads `ci.rc`
+  itself rather than leaving that to a hand-typed `cat`. And on 2026-08-28/29
+  (#519) a `ci.rc` left over from an EARLIER run - or one killed mid-write -
+  read exactly like a fresh pass with no distinguishing mark; `check` refuses
+  both, because it also requires `ci.meta` to exist and to name the CURRENT
+  HEAD, not just `ci.rc` to say `0`.
 - Work in the primary checkout's working tree, `git stash`, or prune a
   worktree by whether its branch merged (a branch with no commits is
   trivially merged). `pickup.sh`'s `MERGED/EMPTY` is the one case where
