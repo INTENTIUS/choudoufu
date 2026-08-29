@@ -162,6 +162,10 @@ var refusals = []Refusal{
 		What:    "A provider read or import returned no object at all, so there is nothing to project for that resource.",
 	},
 	{
+		Summary: SummaryMarkerConflict,
+		What:    "GitHub issue #451's node-path stamp (NodeResolver.AdjustConfigValue) found a resource instance's own configuration already declaring a tofu-estate or tofu-address tag that names a different estate or address than this run resolved. A plan never overwrites a marker naming another estate or address: fix the tag, or - for an address conflict - run live-mv. Ports internal/live/stamp's own SummaryMarkerConflict refusal (stamp/summaries.go) to the node path, with matched text.",
+	},
+	{
 		Summary: "Parent-derived identity with no formula",
 		What:    "A resource's identity is meant to be derived from its parent's, and the identity table carries no formula saying how.",
 	},

@@ -1594,6 +1594,22 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 // recordBackedBlocks is [recordBackedNeedsDiscoveryBlocks]'s result, or nil
 // for a flag-off run - see that function's own doc comment for what it
 // means and why [statelessStampGaps] is where it has to apply.
+//
+// GitHub issue #451: with [nodeResolveEnabled] true (the default since
+// #388's own flip), this whole pass - the HCL rewrite in
+// internal/live/stamp - does not run at all, and this function returns nil
+// with no diagnostic, the same nil [stamp.Result] every caller already
+// tolerates from the no-estate-name branch below. The node path
+// (internal/live/projection.NodeResolver.AdjustConfigValue, wired in as
+// tofu.ConfigValueAdjuster) writes the same two tags per instance, and as
+// of this issue also carries the marker-conflict refusal and the #380
+// ignore_changes protection this pass used to be the only source of - see
+// nodestamp.go and nodestamp_ignorechanges.go. This is the redo of the
+// gate the branch live/retire-stamp-gate (sha bb4299bc1e) attempted and
+// reverted: that attempt gated this pass with neither capability ported
+// yet, and TestLivePlan_markerConflictIsFatal and
+// TestLivePlan_markersRecordPreservesExistingMarker (plus its
+// _NodeResolve twin) failed. Both are green with the gate in place now.
 func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]identity.BlockDiscovery, policyUntag map[string]string, recordBackedBlocks map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
 	if diags.HasErrors() {
@@ -1630,6 +1646,22 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 				),
 			))
 		}
+	}
+
+	if nodeResolveEnabled() {
+		// GitHub issue #451: the plan-node seam's own marker-conflict
+		// detection and #380's ignore_changes protection
+		// (internal/live/projection/nodestamp.go and
+		// nodestamp_ignorechanges.go) now cover what this pass's HCL
+		// rewrite used to, on the node path - see the revert this redoes,
+		// issuecomment-5406571644 on #388, for why a blanket gate here was
+		// not safe until those two capabilities existed. Both writer paths
+		// (this one and NodeResolver.AdjustConfigValue) still agree on the
+		// two marker keys they write, so nothing downstream that reads
+		// res's tags needs to change - there is simply no res on this
+		// path, exactly as the no-estate-name branch above already
+		// produces nil, and every caller already tolerates that.
+		return nil, diags
 	}
 
 	res, stampDiags := stamp.Stamp(ctx, stamp.Request{

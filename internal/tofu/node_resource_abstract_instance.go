@@ -1205,6 +1205,13 @@ func (n *NodeAbstractResourceInstance) plan(
 	// the provider itself returned, which permanently rules out mutating
 	// anything after PlanResourceChange runs. See ConfigValueAdjuster's
 	// doc comment in resource_identity.go.
+	// extraIgnoreChanges is GitHub issue #451's second, narrower hook
+	// (IgnoreChangesAdjuster, resource_identity.go): an optional capability
+	// the same adjuster value may implement, checked once here rather than
+	// re-fetched at n.processIgnoreChanges' two call sites below. See that
+	// interface's own doc comment for why it exists as a type assertion on
+	// this value instead of a new ContextOpts field of its own.
+	var extraIgnoreChanges []cty.Path
 	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
 		adjustedConfigVal, adjustDiags := adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
 		diags = diags.Append(adjustDiags)
@@ -1212,6 +1219,10 @@ func (n *NodeAbstractResourceInstance) plan(
 			return nil, nil, keyData, diags
 		}
 		origConfigVal = adjustedConfigVal
+
+		if ia, ok := adjuster.(IgnoreChangesAdjuster); ok {
+			extraIgnoreChanges = ia.AdjustIgnoreChanges(ctx, n.Addr, *schema)
+		}
 	}
 
 	metaConfigVal, metaDiags := n.providerMetas(ctx, evalCtx)
@@ -1270,7 +1281,7 @@ func (n *NodeAbstractResourceInstance) plan(
 	// starting values.
 	// Here we operate on the marked values, so as to revert any changes to the
 	// marks as well as the value.
-	configValIgnored, ignoreChangeDiags := n.processIgnoreChanges(priorVal, origConfigVal, schema.Block)
+	configValIgnored, ignoreChangeDiags := n.processIgnoreChanges(priorVal, origConfigVal, schema.Block, extraIgnoreChanges)
 	diags = diags.Append(ignoreChangeDiags)
 	if ignoreChangeDiags.HasErrors() {
 		return nil, nil, keyData, diags
@@ -1389,7 +1400,7 @@ func (n *NodeAbstractResourceInstance) plan(
 		// A nil schema is passed to processIgnoreChanges to indicate that we
 		// don't want to fixup a config value according to the schema when
 		// ignoring "all", rather we are reverting provider imposed changes.
-		plannedNewVal, ignoreChangeDiags = n.processIgnoreChanges(unmarkedPriorVal, plannedNewVal, nil)
+		plannedNewVal, ignoreChangeDiags = n.processIgnoreChanges(unmarkedPriorVal, plannedNewVal, nil, extraIgnoreChanges)
 		diags = diags.Append(ignoreChangeDiags)
 		if ignoreChangeDiags.HasErrors() {
 			return nil, nil, keyData, diags
@@ -1735,7 +1746,14 @@ func (n *NodeAbstractResourceInstance) plan(
 	return plan, state, keyData, diags
 }
 
-func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, schema *configschema.Block) (cty.Value, tfdiags.Diagnostics) {
+// extra is GitHub issue #451's IgnoreChangesAdjuster contribution
+// (resource_identity.go), unioned onto whatever the configuration's own
+// lifecycle block already lists - see that interface's doc comment and
+// this method's callers in [NodeAbstractResourceInstance.plan]. nil for
+// every call site until a ConfigValueAdjuster optionally implementing it
+// is configured, which keeps this identical to the pre-#451 behavior in
+// that case.
+func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, schema *configschema.Block, extra []cty.Path) (cty.Value, tfdiags.Diagnostics) {
 	// ignore_changes only applies when an object already exists, since we
 	// can't ignore changes to a thing we've not created yet.
 	if prior.IsNull() {
@@ -1743,6 +1761,7 @@ func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, sch
 	}
 
 	ignoreChanges := traversalsToPaths(n.Config.Managed.IgnoreChanges)
+	ignoreChanges = append(ignoreChanges, extra...)
 	ignoreAll := n.Config.Managed.IgnoreAllChanges
 
 	if len(ignoreChanges) == 0 && !ignoreAll {
