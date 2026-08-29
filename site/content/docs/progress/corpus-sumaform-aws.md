@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Drift and reconverge | pass |  | the crossing VPC's Name tag tampered out of band, plan proposed fixing exactly aws_vpc.crossing, apply changed 1 and reconverged the tag to sumaform-crossing-vpc; module.server's record-based identities unaffected |
 | Rename | pass |  | moved block: aws_eip.crossing_nat renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_route_table.crossing_public renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting module.server's block proposed exactly three destroys (0 add, 0 change, 3 destroy: the record-based instance and EBS volume, plus the untaggable/derived volume attachment), applied cleanly (0 added, 0 changed, 3 destroyed), the instance and volume are genuinely gone from the live account (instance State=terminated, volume absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes the same three destroys |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.server's image input (ubuntu2204 -> ubuntu2404, both real, both in floci's seeded AMI catalog) proposed exactly one instance replace at the same declared address, cascading into the volume attachment (instance_id is ForceNew there too) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated via the AWS CLI and the new instance is confirmed running the new image; the local record store's record at the same address now names the new instance's id, not the terminated one (i-7c07ee3d4e79b83a9 -> i-6767503dfb925f633); the next plan proposes no resource action; BREAK=replace confirms this section's own record check discriminates (a deliberately-wrong expectation against the same real record fails, rather than vacuously passing). Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. A manufactured live-object collision (the shape ec2-instance-complete's and corpus-sqs-basic's own BREAK=replace controls report) has no tag surface to be detected from on this markers=record instance and is not exercised here - verified directly that an untagged extra instance is simply invisible to this plan, correctly, not incorrectly. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
