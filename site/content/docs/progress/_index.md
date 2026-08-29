@@ -13,7 +13,7 @@ stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 18 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 8 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:17:08Z to 2026-08-29T16:22:48Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 17 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844`, 9 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin) (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-29T17:21:38Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 ## The stages
 
@@ -65,7 +65,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
@@ -75,7 +75,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-8 of 26 estates have a recorded run duration, totaling 24m16s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`. This total spans different commits, not a single board run, and excludes 18 estate(s) with no recorded duration yet.
+9 of 26 estates have a recorded run duration, totaling 33m10.2s, but not from one sweep: 2m41.8s across 1 estate(s) at commit `0a05c31d8a`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 11m55.6s across 4 estate(s) at commit `8ef3d258a7`; 2m55s across 1 estate(s) at commit `aa5c8a0d45`; 3m27.4s across 1 estate(s) at commit `c3a37c0e8e`; 8m54.2s across 1 estate(s) at commit `eb631fa5ed`. This total spans different commits, not a single board run, and excludes 17 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -98,7 +98,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | - | none recorded yet |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | - | none recorded yet |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | - | none recorded yet |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | - | none recorded yet |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | 8m54.2s | cold_deploy 1m12s, migrate 58s, test_plan 11s, test_apply 23s, drift_reconverge 27s, day2_rename 21s, day2_remove 26s, day2_count 54s, day2_replace 1m12s, greenfield 2m50s |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | - | none recorded yet |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | - | none recorded yet |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |

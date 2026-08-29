@@ -147,7 +147,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -155,9 +155,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 22
+          "not_run": 21
         },
         "day2_crash": {
           "pass": 0,
@@ -224,7 +224,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 4,
+      "clear": 5,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -232,9 +232,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 4,
+          "pass": 5,
           "fail": 0,
-          "not_run": 21
+          "not_run": 20
         },
         "day2_crash": {
           "pass": 0,
@@ -1305,7 +1305,7 @@
       "script": "live/e2e/corpus-simpleinfra-dns/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -1319,23 +1319,37 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "4ac5ca4425d7b53c6dc2b8287b2c9fdb2fa4f05d",
-        "date": "2026-08-25T23:17:08Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844",
+        "commit": "eb631fa5eda5a517d9b6d0e7354d0cc4ba9f5f97",
+        "date": "2026-08-29T17:21:38Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate",
+          "day2_count": "choudoufu: dropping \"2024\" from module.rustconf_com's CNAME for_each map destroyed exactly module.rustconf_com.aws_route53_record.cname[\"2024\"] (0 add, 0 change, 1 destroy), leaving sibling module.rustconf_com.aws_route53_record.cname[\"2022\"]'s TTL and 27 remaining record sets untouched; adding it back created exactly the same key (0 add, 0 change -> 1 add, 0 change, 0 destroy), restoring its TTL/value and the 28 record-set count, while the sibling and the parent zone's own marker stayed untouched throughout; the next plan is empty; a Route 53 record set carries no server-minted identifier of its own (verified directly against floci, no tofu in the loop: ListResourceRecordSets returns a byte-identical entry across a genuine delete/recreate, only ChangeResourceRecordSets' own per-call ChangeInfo.Id differs), so the destroy is proven by verified ABSENCE rather than an id-diff, unlike this stage's aws_iam_policy/PolicyId and EC2/VpcEndpointId precedents; the G-ORACLE stock oracle on the identical for_each change, plan-only on cold_deploy's own state, shows the identical shape: destroy the dropped key only, propose creating it back, every sibling key untouched both times",
           "day2_remove": "choudoufu: deleting module.cratesio_com_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the hosted zone is genuinely gone from the live account (route53 get-hosted-zone on the old id now errors, read via the AWS CLI, not choudoufu's own report; 7 zones down to 6), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same zone (before any rename ever touched it)",
           "day2_rename": "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZVJXK1CU3OXGKNA) is confirmed gone and the new zone (ZSKMYPT2IKS7QIS) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_replace": "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZO4SAF6WSPEQ47B) is confirmed gone and the new zone (ZQ6GMQ89RCSGQ0S) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname[\"2016\"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact",
           "greenfield": "35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records)",
           "migrate": "7 stamped, 7 distinct hosted zones, one per module call",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 7 zones / 28 records unchanged, all 7 markers unmoved",
           "test_plan": "no resource change proposed, nothing foreign; all 35 rendered identities name a live hosted zone or record set"
+        },
+        "duration_s": 534.2,
+        "stage_seconds": {
+          "cold_deploy": 72,
+          "day2_count": 54,
+          "day2_remove": 26,
+          "day2_rename": 21,
+          "day2_replace": 72,
+          "drift_reconverge": 27,
+          "greenfield": 170,
+          "migrate": 58,
+          "test_apply": 23,
+          "test_plan": 11
         }
       },
       "notes": "35 instances: 7 aws_route53_zone TAGGABLE (7 markers, each verified against the domain that module call declares - a fact the marker does not supply), 28 aws_route53_record UNTAGGABLE and re-derived from their tagged parent zone. Found and corrected a census error in issue #274's own thread first: live/e2e/repeated-module/run.sh has targeted this same directory since #280 but never runs live-import (grep -c live-import -> 0), applies with the live block already declared so genuinely unmarked infrastructure never exists, and has no drift stage - it is not a five-stage crossing despite being counted as one, though it does cover stages 3/4 well. Cold-deployed by real Terraform v1.15.8 (35/0/0), 7 stamped + 28 skipped by live-import -approve, state deleted, live-plan empty with all 35 rendered identities checked as strings against Route 53's own answer, no-op apply 0/0/0 with all 7 markers unmoved. Stage 5 drifts an UNTAGGABLE object out of band - a record set's TTL 300 -> 60 via change-resource-record-sets - which no other crossing's drift stage does: with no state file and no tag on the object, the drift is only visible if the derived-from-tagged identity re-derived correctly. Plan proposes exactly module.rustconf_com.aws_route53_record.cname[\"2016\"] and nothing else; apply 0 added/1 changed/0 destroyed; TTL read back as 300. Three of team-members-access's four deltas recur (#268 mandatory backend edit, #269 provider version skew ~> 5.64 -> = 6.59.0, an emulator provider override), asserted; the fourth (five seeded data-source reads) does not - 0 data blocks anywhere, asserted. One delta deliberately absent: the four trailing-dot record names (#281) are unchanged, asserted at count 4. BREAK=1 exits 1 at stage 2c on the corrupted marker; BREAK_STAGE5=1 exercises a real hole found on adversarial re-read - the first stage-5 assertion counted only will-be-updated addresses, so a destroy or create alongside the expected update would have passed silently under BREAK_STAGE5 (which skips the apply that would eventually have caught it) - fixed by asserting the plan's own totals line first, mutation-checked (clean run reads exactly '0 to add, 1 to change, 0 to destroy', BREAK_STAGE5=1 reads '0 to add, 2 to change, 0 to destroy'). Zero choudoufu defects found. A reusable methodology finding: any crossing whose cold deploy uses real Terraform (not tofu) cannot use corpus-giantswarm-crossplane's lock-file-seeding fix for the 320s uncached-init tax, because terraform and choudoufu resolve providers from different registries (terraform.io vs opentofu.org) so neither's lock file satisfies the other - measured here, plain terraform init >600s (timed out), -plugin-dir=<cache> 0.35s. -plugin-dir is strictly better than lock-seeding for tofu-cold-deployed estates too. justfile gained demo-corpus-simpleinfra-dns (port 4741); live/corpus-manifest.json gained the pin. Verified 2026-08-19 at 07b72f9977, 145s."
