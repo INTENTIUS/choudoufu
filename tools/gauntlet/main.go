@@ -70,15 +70,25 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | next [-n N] [-set core|all] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
 // committed artifact. See next.go for the ordering.
+//
+// -types is an additional, orthogonal filter (#436) on top of that ordering:
+// it intersects live/estate-types.json's per-estate exercised-type index
+// against the requested types and drops any ordinary unit for an estate that
+// exercises none of them. It never touches the stale-pin rule (FilterByTypes,
+// typeindex.go) - a repin still queues every stale-clear estate regardless of
+// -types, since emulator behaviour is not type-scoped. A type-filtered
+// confirmation is evidence about those types specifically, never a
+// board-wide claim; see live/GAUNTLET.md.
 func cmdNext(root string, args []string) error {
 	fs := flag.NewFlagSet("next", flag.ContinueOnError)
 	n := fs.Int("n", 1, "how many units to print")
 	set := fs.String("set", "all", "core or all; core first either way")
+	types := fs.String("types", "", "comma-separated resource type names; only queue estates that exercise at least one (live/estate-types.json, #435); additional to, never a replacement for, the stale-pin rule")
 	asJSON := fs.Bool("json", false, "print JSON, one unit per line")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,8 +98,20 @@ func cmdNext(root string, args []string) error {
 		return err
 	}
 	units := NextUnits(a, *set)
+	wanted := ParseTypes(*types)
+	if len(wanted) > 0 {
+		idx, err := LoadTypeIndex(root)
+		if err != nil {
+			return err
+		}
+		units = FilterByTypes(units, idx, wanted)
+	}
 	if len(units) == 0 {
-		fmt.Println("nothing to do: every estate in the set is clear")
+		if len(wanted) > 0 {
+			fmt.Printf("nothing to do: no estate in the set exercises any of %s (per %s)\n", strings.Join(wanted, ","), TypeIndexPath)
+		} else {
+			fmt.Println("nothing to do: every estate in the set is clear")
+		}
 		return nil
 	}
 	if *n < len(units) {

@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// StageStalePin is the synthetic stage id NextUnits gives a clear estate
+// whose last recorded run predates the current emulator pin (see the
+// trailing-work block below). It is not a real stage in Stages(); FilterByTypes
+// tests against it to keep --types from touching the stale-pin rule.
+const StageStalePin = "stale_pin"
+
 // Unit is one piece of work the gauntlet can hand to anyone: an estate and
 // the first active stage it does not pass. `gauntlet next` computes the
 // ordered list deterministically from the artifact, so two contributors
@@ -122,8 +128,8 @@ func NextUnits(a *Artifact, set string) []Unit {
 			emu = r.LastRun.Emulator
 		}
 		units = append(units, Unit{
-			ID: r.Name + "/stale_pin", Estate: r.Name, Set: r.Set,
-			Stage: "stale_pin", StageTitle: "Re-verify against the current emulator pin",
+			ID: r.Name + "/" + StageStalePin, Estate: r.Name, Set: r.Set,
+			Stage: StageStalePin, StageTitle: "Re-verify against the current emulator pin",
 			Verdict:   "stale_evidence",
 			Detail:    fmt.Sprintf("every active stage passed, but last verified against %s; the current pin is %s", emu, a.Emulator),
 			Remaining: 0, Script: r.Script,

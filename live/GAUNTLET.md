@@ -277,6 +277,35 @@ gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
 markdown - board movement per set, which estates newly cleared or
 regressed, and the emulator pin change - for the release body.
 
+## Selective re-queue (`next -types`)
+
+`go run ./tools/gauntlet next` orders whole-estate work: core before
+growing, fewest remaining active stages first, and a repin's stale-clear
+estates trailing every genuine failure. `-types T1,T2,...` (#436) adds an
+orthogonal filter on top of that ordering, never a replacement for it: it
+reads `live/estate-types.json` (#435), the per-estate exercised-type index,
+and drops any ordinary (`fail` or `not_run`) unit whose estate exercises
+none of the requested types. A repin still queues every stale-clear
+estate regardless of `-types` - the stale-pin rule stays completely
+untouched, deliberately, because emulator behaviour is not type-scoped:
+a bad emulator response can corrupt any type, so "was this estate
+re-verified against the current pin" cannot be answered by looking at
+only some of its types.
+
+What that makes `-types` honest to claim, and what it does not: a
+type-filtered confirmation is evidence about those types specifically,
+never a board-wide claim. Clearing what `next -types aws_lambda_function`
+returns says the estates that exercise `aws_lambda_function` still behave
+like stock; it says nothing about the estates or the resource types the
+filter excluded. That is the same house rule the site's own per-row
+emulator provenance already holds to (`boardBanner`,
+`tools/gauntlet/render.go`: render what the rows underneath actually
+support, never a claim wider than the evidence). The two headline bars
+stay computed from every active stage on every estate regardless of any
+`-types` run. Use `-types` to shrink a repin's queue to the estates a
+change could plausibly have touched; use plain `next` when the question
+is whether the board, not a slice of it, still clears.
+
 ## What holds this together
 
 `tools/gauntlet/gauntlet_test.go`: the stage registry is well formed; the
