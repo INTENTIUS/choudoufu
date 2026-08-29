@@ -40,4 +40,4 @@ jobs:
             echo "not artifact-only; a maintainer merges this one:"; printf '  %s\n' $bad; exit 0
           fi
           echo "artifact-only: enabling auto-merge"
-          gh pr merge "$PR" -R "$REPO" --auto --squash
+          gh pr merge "$PR" -R "$REPO" --auto --merge
