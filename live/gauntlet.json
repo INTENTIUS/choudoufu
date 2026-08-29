@@ -191,9 +191,9 @@
           "not_run": 26
         },
         "strict": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 26
+          "not_run": 25
         },
         "test_apply": {
           "pass": 26,
@@ -268,9 +268,9 @@
           "not_run": 25
         },
         "strict": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "test_apply": {
           "pass": 25,
@@ -1479,15 +1479,15 @@
         "greenfield": "pass",
         "migrate": "pass",
         "plan_approval": "not_run",
-        "strict": "not_run",
+        "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "5a591a776fcedc27c46cf50b7876369a9d7d73d5",
-        "date": "2026-08-29T08:41:41Z",
+        "commit": "c3a37c0e8ebc59593df6a9eaae80b35d4f305d06",
+        "date": "2026-08-29T09:26:45Z",
         "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
@@ -1495,23 +1495,25 @@
           "day2_count": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live id and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW live id (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the B1.7 stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under a new id, the lower index's id unchanged both times",
           "day2_remove": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config",
           "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-8166225861b9ee0df) is confirmed terminated and the new instance (i-19b688f47a4a29b6c) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
+          "day2_replace": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-e862a571265b867d0) is confirmed terminated and the new instance (i-243a3210fde19aeaa) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here).",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build.",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
           "test_plan": "post-adoption plan is empty; markers read back through the AWS CLI in part A"
         },
-        "duration_s": 205,
+        "duration_s": 207.4,
         "stage_seconds": {
-          "cold_deploy": 87,
-          "day2_count": 18,
+          "cold_deploy": 83,
+          "day2_count": 17,
           "day2_remove": 6,
-          "day2_rename": 8,
-          "day2_replace": 27,
-          "drift_reconverge": 4,
+          "day2_rename": 9,
+          "day2_replace": 26,
+          "drift_reconverge": 5,
           "greenfield": 3,
-          "migrate": 47,
+          "migrate": 51,
+          "strict": 2,
           "test_apply": 3,
           "test_plan": 2
         }
