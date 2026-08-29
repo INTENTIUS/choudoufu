@@ -86,6 +86,17 @@ if have go; then
     echo 'rendered docs: STALE -> env -u PWD go run ./tools/gauntlet render   (TestRenderedDocsAreCurrent is red until then)'
   fi
 fi
+if have python3 && [ -f live/readiness.json ]; then
+  r_commit=$(git log -1 --format=%h -- live/readiness.json)
+  python3 - "$r_commit" <<'EOF4'
+import json,sys
+commit=sys.argv[1]
+r=json.load(open('live/readiness.json'))
+total=r['counts']['types']
+incontract=r['counts']['statuses'].get('in-contract',0)
+print(f"readiness: {incontract} in-contract of {total}, at {commit}")
+EOF4
+fi
 
 # ------------------------------------------------------------- 3. next units
 # The full, unfiltered queue: pickup shows every unit so a session sees the

@@ -34,6 +34,26 @@ three admission paths.
 
 `live/LIMITATIONS.md` carries the per-type detail.
 
+### Readiness tiers
+
+Admission is not the whole story. `rfc/20260828-readiness-tiers.md` names
+four tiers by what recovers a type's identity when the record store, the
+state file, or the tool itself is gone: marker-carried, declaration-carried,
+record-carried, and excluded by design. `live/readiness.json` assigns every
+provider type exactly one tier and one of six statuses; the table below is
+generated from it. `live/COVERAGE.md` carries the same table with more
+context.
+
+<!-- readiness-gen:begin readiness-tiers -->
+| Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
+|---|---|---|---|---|---|---|---|
+| marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
+| declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
+| record-carried | 99 | 294 | 3 | 16 | 60 | 0 | 472 |
+| excluded by design | 0 | 0 | 0 | 0 | 0 | 2 | 2 |
+| **Total** | 1122 | 492 | 4 | 19 | 60 | 2 | 1699 |
+<!-- readiness-gen:end readiness-tiers -->
+
 ## How your configuration is written
 
 This is the group that catches people. Every row below is a different way of

@@ -34,6 +34,28 @@ them moves. The prose on this page quotes none of the numbers.
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
 | Of those, with no CloudFormation model | 310 cfn-unmodeled, 116 tf-only, 0 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
+## Readiness tiers
+
+The layers above answer "is the type admitted." `live/readiness.json`
+(issue #418) answers a different question: what recovers a type's
+identity, and at what cost, when the strongest recovery path - a record
+store, a state file, the tool itself - is gone.
+`rfc/20260828-readiness-tiers.md` fixes the four tier names, in precedence
+order, and the six statuses. The table below crosses them, tallied from the
+artifact's own per-type rows rather than copied from its `counts` block,
+which carries only each axis's marginal. Run `go run ./tools/readiness-gen
+-render` after `live/readiness.json` changes.
+
+<!-- readiness-gen:begin readiness-tiers -->
+| Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
+|---|---|---|---|---|---|---|---|
+| marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
+| declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
+| record-carried | 99 | 294 | 3 | 16 | 60 | 0 | 472 |
+| excluded by design | 0 | 0 | 0 | 0 | 0 | 2 | 2 |
+| **Total** | 1122 | 492 | 4 | 19 | 60 | 2 | 1699 |
+<!-- readiness-gen:end readiness-tiers -->
+
 ## The admitted set
 
 The admission table is the entire subset of resource types live markers can
