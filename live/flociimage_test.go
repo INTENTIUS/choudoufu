@@ -68,14 +68,6 @@ var staleFlociMeasurements = map[string]string{
 		"sha256:1362e856, sha256:a1c729f4, sha256:94c5a40e, sha256:62476090); re-measuring means re-running issue " +
 		"#64's estate benchmark against the current emulator, which is an acceptance-tier run rather than a " +
 		"regeneration",
-	"cohort-acceptance.json": "measured against sha256:1362e856, three pin moves back (sha256:a1c729f4 for the " +
-		"resourcegroupstaggingapi union-index fix, sha256:94c5a40e for the security-group rule identity and Lambda " +
-		"VpcConfig, sha256:62476090 for private hosted zones with a VPC and ELBv2 attribute defaults). Each was " +
-		"verified live against the calls it changed. Re-measuring means re-running all 31 cohorts' apply/replan " +
-		"round-trip against one shared emulator, which is an acceptance-tier run rather than a regeneration - and " +
-		"the expectation is that it does not move the 4/27 split, only that it makes the 4 passes' removal leg " +
-		"non-vacuous (a blind tagging index answered \"nothing extra to destroy\" for the same reason a working one " +
-		"does)",
 }
 
 // flociPinRef is live/floci-image's full ref.
