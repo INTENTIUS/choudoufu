@@ -52,6 +52,13 @@
 // the same vocabulary tools/importdocs-gen's and tools/survey-gen's -accept
 // flags document: omitting it leaves the field unset, so an unreviewed
 // regeneration shows up in the diff as the accepted date disappearing.
+//
+// -render (issue #421, the same vocabulary tools/survey-gen's own -render
+// flag uses) rewrites site/content/docs/use/reference.md's spans from the
+// already-committed live/tag-verbs.json instead of regenerating it, so a
+// doc-only drift needs no network to repair:
+//
+//	go run ./tools/tagverbs-gen -render
 package main
 
 import (
@@ -86,7 +93,16 @@ func repoRoot() (string, error) {
 func main() {
 	accept := flag.Bool("accept", false, "stamp the artifact header's accepted field with today's date")
 	cacheDirOverride := flag.String("cache-dir", "", "use this directory as the fetch cache instead of the OS user cache directory")
+	render := flag.Bool("render", false, "rewrite site/content/docs/use/reference.md's spans from the committed live/tag-verbs.json instead of regenerating the artifact (needs no network)")
 	flag.Parse()
+
+	if *render {
+		if err := runRender(); err != nil {
+			fmt.Fprintf(os.Stderr, "tagverbs-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if err := run(*accept, *cacheDirOverride, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "tagverbs-gen: %v\n", err)

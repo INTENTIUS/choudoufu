@@ -323,7 +323,7 @@ exactly as any OpenTofu run. The fork's own surface follows.
 
 Each row names the file making the calls. That list is short and fixed, so a
 generated span for ten names would cost more machinery than it saves. The
-tagging verbs below move with botocore across 205 services, so they are
+tagging verbs below move with botocore across <!-- tagverbs-gen:begin tag-verbs-total -->205<!-- tagverbs-gen:end tag-verbs-total --> services, so they are
 generated.
 
 ## Marker stamping

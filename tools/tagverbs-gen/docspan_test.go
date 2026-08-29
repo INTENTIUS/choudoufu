@@ -45,9 +45,20 @@ func TestSpansAreCurrent(t *testing.T) {
 			referenceMDRel, spanTagVerbs, got, want)
 	}
 
-	// The whole-file check catches what the per-span one cannot: the
-	// marker pair itself going missing or duplicated.
-	out, err := markers.Replace(referenceMDRel, string(doc), spanTagVerbs, want)
+	wantTotal := renderTagVerbTotal(rows)
+	gotTotal, err := markers.ContentInline(referenceMDRel, string(doc), spanTagVerbsTotal)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if gotTotal != wantTotal {
+		t.Errorf("%s's %q span is stale (committed %q, rendered %q); run `just tagverbs` and commit the result",
+			referenceMDRel, spanTagVerbsTotal, gotTotal, wantTotal)
+	}
+
+	// The whole-file check catches what the per-span ones cannot: a marker
+	// pair going missing or duplicated, or the two spans' replacements
+	// interfering with each other.
+	out, err := applyTagVerbSpans(string(doc), rows)
 	if err != nil {
 		t.Fatalf("rendering %s: %v", referenceMDRel, err)
 	}
