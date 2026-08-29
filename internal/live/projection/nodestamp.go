@@ -57,43 +57,29 @@ import (
 // returns config completely unchanged - no tofu-estate, no tofu-address,
 // nothing.
 //
-// It deliberately does NOT try to reproduce GitHub issue #380's
-// ignore_changes synthesis here. #380's fix appends
-// tags["tofu-estate"]/tags["tofu-address"] to the resource's own
-// configs.Resource.Managed.IgnoreChanges - a fact about the CONFIGURATION,
-// read by n.processIgnoreChanges from n.Config.Managed a few lines after
-// this adjuster runs (node_resource_abstract_instance.go). Nothing in
-// tofu.ConfigValueAdjuster's interface - by ruling 2's own constraint, only
-// (ctx, addr, evaluated config value, schema) - reaches that field, and
-// deliberately so: widening the interface to carry a *configs.Resource, or
-// worse an EvalContext, is exactly the graph-node coupling ruling 2 rules
-// out so the same resolver keeps working under upstream's proposed
-// event-model runtime (#3414). Nor does this adjuster have prior state to
-// read, so it could not reconstruct #380's preserved value even by
-// inspection: it has no way to know what a live object's tofu-estate tag
-// currently says.
-//
-// This is not a gap this unit is leaving open, though. The HCL stamp is not
-// retired in this unit (see internal/live/stamp/doc.go and this package's
-// own noderesolver.go doc comment: the migration flag routes identity
-// resolution and now marker stamping through the node ADDITIONALLY, not
-// INSTEAD, until the gauntlet holds without the static path), so
-// internal/live/stamp still runs on every estate this flag reaches, and its
-// #380 fix already appends the per-key ignore_changes to
-// n.Config.Managed.IgnoreChanges before the graph walk ever starts -
-// exactly the same n.Config.Managed.IgnoreChanges
-// n.processIgnoreChanges reads, unmodified, immediately after this
-// adjuster returns. A record-selected resource's existing marker therefore
-// survives today for the same reason it already did before this file
-// existed: #380's mechanism runs earlier in the pipeline than the node does,
-// on the configuration text, and this adjuster's only obligation is to stay
-// out of its way - which "set nothing" does. See
+// Until GitHub issue #451, this file did not try to reproduce issue #380's
+// ignore_changes synthesis here, and leaned entirely on internal/live/stamp
+// still running unconditionally, flag on or off, to protect an existing
+// live marker from being planned away. #451 closed that gap with
+// [NodeResolver.AdjustIgnoreChanges] (nodestamp_ignorechanges.go): a
+// SEPARATE hook, tofu.IgnoreChangesAdjuster, that this same *NodeResolver*
+// value also implements. It exists as its own interface, rather than a
+// second return value here, because AdjustConfigValue's own contract - by
+// ruling 2's own constraint, only (ctx, addr, evaluated config value,
+// schema) - deliberately has no prior state to compare a value against and
+// no way to reach configs.Resource.Managed.IgnoreChanges from the cty.Value
+// it returns; widening it to carry a *configs.Resource, or worse an
+// EvalContext, is exactly the graph-node coupling ruling 2 rules out.
+// AdjustIgnoreChanges instead returns the two marker-tag PATHS to protect,
+// which internal/tofu unions onto configs.Resource.Managed.IgnoreChanges
+// itself before n.processIgnoreChanges runs - the ordinary ignore_changes
+// mechanism doing the ordinary ignore_changes thing, told what to protect
+// by this pass instead of by an operator's own lifecycle block. See that
+// method's own doc comment for the detail, and
 // TestLivePlan_markersRecordPreservesExistingMarker_NodeResolve in
-// internal/command/live_plan_test.go for the by-value proof that the two
-// mechanisms compose correctly with the flag on. The day the HCL stamp
-// retires, this withholding path will need its OWN way to protect an
-// existing marker with no configuration-level ignore_changes to lean on -
-// flagged here so that day's unit does not have to rediscover the gap.
+// internal/command/live_plan_test.go for the by-value proof with
+// internal/live/stamp gated off entirely (GitHub issue #451's own
+// retirement re-attempt).
 //
 // # tofu-slot: threaded through, not left behind
 //
@@ -146,13 +132,13 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 		return config, diags
 	}
 
-	resourceType := addr.Resource.Resource.Type
-	if n.Selection.Selects(addr.ConfigResource()) &&
-		identity.SelectedLocatedType(resourceType, map[string]providers.Schema{resourceType: schema}) {
+	if n.recordSelected(addr, schema) {
 		// strict { markers "record" }: this instance's identity lives in
 		// the estate's record store, not in a live tag. See this file's
 		// own doc comment for why setting nothing here is deliberate and
-		// what still protects an existing marker.
+		// what still protects an existing marker - as of GitHub issue #451,
+		// [NodeResolver.AdjustIgnoreChanges] below, not merely a comment
+		// pointing at internal/live/stamp's #380 fix.
 		return config, diags
 	}
 
@@ -246,6 +232,21 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		}
 	}
 
+	// GitHub issue #451: before overwriting whatever this instance's
+	// configuration already declared for the two ownership-marker keys,
+	// check whether it declared one at all and, if it did, whether it
+	// agrees with what this run would write. See [markerConflictDiag]'s
+	// own doc comment for why this is a fatal refusal rather than a
+	// silent overwrite, and internal/live/stamp's verifyValue (stamp.go)
+	// for the sibling pass this ports - the message text is matched
+	// deliberately, so an operator sees the same sentence whichever path
+	// found the conflict.
+	diags = diags.Append(markerConflictDiag(addr, elems, markers.TagEstate, n.Estate))
+	diags = diags.Append(markerConflictDiag(addr, elems, markers.TagAddress, address))
+	if diags.HasErrors() {
+		return tagsVal.WithMarks(tagsMarks), diags
+	}
+
 	elems[markers.TagEstate] = cty.StringVal(n.Estate)
 	elems[markers.TagAddress] = cty.StringVal(address)
 	if slot, ok := n.Slots[address]; ok {
@@ -253,4 +254,74 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 	}
 
 	return cty.MapVal(elems).WithMarks(tagsMarks), diags
+}
+
+// SummaryMarkerConflict names the fatal diagnostic [markerConflictDiag]
+// raises. It is [refusalscan]'s registered form of the same summary text
+// internal/live/stamp.SummaryMarkerConflict carries (stamp/summaries.go) -
+// a separate package-level constant rather than an import of the stamp
+// package, because this package must not depend on the one GitHub issue
+// #452 retires. The two strings are kept identical by hand; a test in
+// nodestamp_test.go pins that they do not drift apart.
+const SummaryMarkerConflict = "Ownership marker conflict"
+
+// markerConflictDiag checks one marker key already present in elems - the
+// tags map this instance's OWN configuration declared, before this pass's
+// entries are added - against the value this run would write, and reports
+// a fatal conflict when the two disagree.
+//
+// Every instance [NodeResolver.AdjustConfigValue] is called for already
+// names one concrete resource instance (ruling 3's whole point - see this
+// file's own doc comment on "why the module-instance problem this
+// package's sibling has does not exist here"), so there is no per-instance
+// template case to consider the way internal/live/stamp's verify/
+// verifyValue pair has to for a count- or for_each-expanded HCL body: this
+// is exactly that pair's non-per-instance branch, with the same two
+// messages, word for word, because an operator reading a conflict from
+// this path must not be able to tell it apart from one internal/live/stamp
+// raised for the same resource on a different run. Absent, null, unknown,
+// marked or non-string existing values are not conflicts - there is
+// nothing to disagree with yet, or nothing this pass can read to compare
+// (internal/live/marksafe's ProofUnmarked discipline: a marked value must
+// never reach AsString, so a marked entry is treated the same as an
+// unreadable one rather than unmarked and inspected) - so the pass
+// proceeds to write its own value exactly as it did before this check
+// existed.
+func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Value, key, want string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	existing, ok := elems[key]
+	if !ok || existing.IsNull() || !existing.IsKnown() || existing.IsMarked() || existing.Type() != cty.String {
+		return diags
+	}
+	got := existing.AsString()
+	if got == want {
+		return diags
+	}
+
+	switch key {
+	case markers.TagEstate:
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
+			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: name %s in the live block (or with -estate, if this configuration has no live block) if that is the estate this run is for, or correct the tag.",
+			addr, markers.TagEstate, got, want, got)))
+	case markers.TagAddress:
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
+			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See live/MARKERS.md, \"The rename rule\".",
+			addr, markers.TagAddress, got, want, got, want)))
+	}
+	return diags
+}
+
+// recordSelected reports whether addr is covered by strict { markers
+// "record" } AND its type is one [identity.SelectedLocatedType] can
+// actually honour that selection for - the same two-part test
+// AdjustConfigValue's own doc comment describes, factored out so
+// [NodeResolver.AdjustIgnoreChanges] (nodestamp_ignorechanges.go) reaches
+// the identical verdict for the identical instance rather than
+// re-deriving it and risking the two ever disagreeing about which
+// instance the selection covers.
+func (n *NodeResolver) recordSelected(addr addrs.AbsResourceInstance, schema providers.Schema) bool {
+	resourceType := addr.Resource.Resource.Type
+	return n.Selection.Selects(addr.ConfigResource()) &&
+		identity.SelectedLocatedType(resourceType, map[string]providers.Schema{resourceType: schema})
 }
