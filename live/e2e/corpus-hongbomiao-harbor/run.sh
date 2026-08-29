@@ -122,6 +122,16 @@ set -uo pipefail
 #                 inventory; the comparison must fail"). Independent of the
 #                 other BREAK flags - greenfield runs before all of them,
 #                 right after STAGE 1's cold deploy.
+#   BREAK_COUNT   set to 1 to run day2_count's own break control instead of
+#                 the real scale-down checks: after the real scale-down
+#                 plan, assert the WRONG instance (count_test[0] rather
+#                 than count_test[1]) was the one destroyed (the Break
+#                 text in tools/gauntlet/stages.go for day2_count is
+#                 literally "Expect a different instance to be destroyed;
+#                 the assertion must fail"). Only reachable when BREAK is
+#                 not "rename" and BREAK_REMOVE is not 1, because
+#                 day2_count starts from day2_remove's own real, completed
+#                 removal.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -582,7 +592,14 @@ log "PART GREENFIELD (greenfield): PASS"
 gauntlet_stage greenfield pass "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
 log ""
 CURRENT_STAGE=""
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+# $FLOCI_GREEN_NAME/$GREEN_ENDPOINT is deliberately kept alive past this
+# point, unlike every other estate's own greenfield container: day2_count,
+# far below, reuses it as its stock oracle's idle account, the same
+# discipline reference-ec2-vpc's own B1.7 and corpus-iam-read-only-
+# policy's own G-ORACLE both use ("the greenfield account already
+# finished with, holding only a completely different-named estate,
+# never touched again") - torn down for good only by the top-level
+# cleanup() trap, alongside $FLOCI_NAME, when the whole script exits.
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -1085,6 +1102,281 @@ EOF
     log "STAGE E (day2_remove): PASS"
     gauntlet_stage day2_remove pass "choudoufu: deleting module.harbor_iam_user_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent user), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the user is genuinely gone from the live account (iam get-user on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
     log ""
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8, issue
+    # #359/#488)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part E's real, completed state: the estate plans empty
+    # with module.harbor_iam_user_renamed gone (Part E just destroyed this
+    # estate's only removable object; the renamed bucket module stays -
+    # `lifecycle { prevent_destroy = true }`, see PART F's own header).
+    # Neither of this estate's two leaf modules
+    # (amazon_s3_bucket/harbor_iam_user) takes a numeric count or for_each
+    # argument a caller can vary - both are single, plain module calls -
+    # so there is no honest countable knob of this estate's own (issue
+    # #488's fallback clause, the same one corpus-iam-read-only-policy's
+    # own PART G documents). A NEW, entirely synthetic resource
+    # (aws_iam_user.count_test, count_test_block() below) is added here,
+    # in its own file, so day2_count's own history is self-contained and
+    # never revisits an address any other stage already used - the same
+    # discipline live/e2e/reference-ec2-vpc/run.sh's own Part F and
+    # corpus-iam-read-only-policy's own PART G use.
+    #
+    # IDENTITY, established directly against floci with no tofu in the
+    # loop before writing a single assertion below: `aws iam create-user
+    # --user-name probe --path /example/`, then delete, then create again
+    # with the same name and path - the ARN
+    # (arn:aws:iam::<account>:user/<path><name>) came back byte-identical
+    # both times (deterministic from account+path+name, exactly like
+    # aws_iam_policy's ARN - see corpus-iam-read-only-policy's own
+    # finding), but UserId (AIDA...) came back DIFFERENT each time - an
+    # AWS-assigned identifier, minted fresh on every CreateUser call,
+    # independent of name/path. UserId, not ARN, is this section's
+    # "genuinely a new object" discriminator below.
+    #
+    # THE ORACLE REUSES THE IDLE GREENFIELD ACCOUNT ($GREEN_ENDPOINT,
+    # $FLOCI_GREEN_NAME - kept alive past PART GREENFIELD for exactly this,
+    # see that section's own closing comment), applied for real with plain
+    # `tofu`, never the shared $ENDPOINT this estate's own real objects
+    # live on - the same discipline reference-ec2-vpc's own B1.7 and
+    # corpus-iam-read-only-policy's own G-ORACLE use. A sibling estate's
+    # earlier attempt at this shape (PR #502, corpus-iam-policy) applied
+    # its stock oracle for real on the SAME account the real leg reads
+    # from, and its untagged leftover objects were then picked up by the
+    # real leg's own list-based identity lookup, which read
+    # tofu-address=None off them - a false failure with nothing wrong in
+    # choudoufu. A separate account, never shared with $ENDPOINT, makes
+    # that collision structurally impossible rather than merely avoided.
+    # count_test's own name ("hm-harbor-count-test-N") collides with
+    # nothing PART GREENFIELD's own bucket/user ($BUCKET_NAME/$USER_NAME)
+    # ever named, and nothing else touches $GREEN_ENDPOINT again after
+    # this section.
+    #
+    # BREAK_COUNT=1 exercises this stage's own Break control instead of
+    # the real checks: after the real scale-down plan, assert the WRONG
+    # instance (count_test[0] rather than count_test[1]) was the one
+    # destroyed - the Break text in tools/gauntlet/stages.go for
+    # day2_count, verbatim: "Expect a different instance to be destroyed;
+    # the assertion must fail."
+
+    CURRENT_STAGE=day2_count
+    count_test_block() { # $1 = count
+      local n="$1"
+      cat <<COUNTEOF
+resource "aws_iam_user" "count_test" {
+  count = $n
+  name  = "hm-harbor-count-test-\${count.index}"
+  path  = "/example/"
+  tags = {
+    "hm_environment" = "production"
+    "hm_team"        = "hongbomiao"
+    "hm_managed_by"  = "opentofu"
+  }
+}
+COUNTEOF
+    }
+    oracle_count_provider() {
+      cat <<EOF
+terraform {
+  required_version = ">= 1.11"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
+}
+
+EOF
+    }
+    awslo() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+
+    log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in the (idle) greenfield account ==="
+    PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
+    mkdir -p "$PLAIN_ORACLE_COUNT"
+    { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
+    ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+    ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+      printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+    grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+      || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 2 count-test users for the day2_count oracle"; }
+
+    ORACLE_CT0_ARN="$(awslo iam get-user --user-name hm-harbor-count-test-0 --query 'User.Arn' --output text)"
+    ORACLE_CT1_ARN="$(awslo iam get-user --user-name hm-harbor-count-test-1 --query 'User.Arn' --output text)"
+    [ -n "$ORACLE_CT0_ARN" ] && [ "$ORACLE_CT0_ARN" != "None" ] || fail "no oracle count_test[0] user found by name"
+    [ -n "$ORACLE_CT1_ARN" ] && [ "$ORACLE_CT1_ARN" != "None" ] || fail "no oracle count_test[1] user found by name"
+    ORACLE_CT0_ID="$(awslo iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text)"
+    ORACLE_CT1_ID="$(awslo iam get-user --user-name hm-harbor-count-test-1 --query 'User.UserId' --output text)"
+    log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) count_test[1]=$ORACLE_CT1_ARN (id=$ORACLE_CT1_ID)"
+
+    { oracle_count_provider; count_test_block 1; } > "$PLAIN_ORACLE_COUNT/main.tf"
+    ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+    [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+    grep -qE '^  # aws_iam_user\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+    grep -qE '^  # aws_iam_user\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+    ORACLE_DOWN_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+      printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+    ORACLE_CT0_ID_AFTER_DOWN="$(awslo iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text 2>/dev/null || true)"
+    [ "$ORACLE_CT0_ID_AFTER_DOWN" = "$ORACLE_CT0_ID" ] || fail "stock's surviving count_test[0] changed UserId across the scale-down ($ORACLE_CT0_ID -> $ORACLE_CT0_ID_AFTER_DOWN)"
+    if ORACLE_CT1_STILL="$(awslo iam get-user --user-name hm-harbor-count-test-1 2>&1)"; then
+      echo "$ORACLE_CT1_STILL"; fail "stock's count_test[1] ($ORACLE_CT1_ARN) still exists after the scale-down destroy"
+    fi
+    log "  stock: exactly one destroy (count_test[1]=$ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged"
+
+    { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
+    ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+    [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+    grep -qE '^  # aws_iam_user\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+    grep -qE '^  # aws_iam_user\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+      && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+    ORACLE_UP_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+      printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+    ORACLE_CT1_NEW_ARN="$(awslo iam get-user --user-name hm-harbor-count-test-1 --query 'User.Arn' --output text)"
+    [ -n "$ORACLE_CT1_NEW_ARN" ] && [ "$ORACLE_CT1_NEW_ARN" != "None" ] || fail "no oracle count_test[1] user found after the scale-up"
+    [ "$ORACLE_CT1_NEW_ARN" = "$ORACLE_CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($ORACLE_CT1_NEW_ARN) differs from its pre-destroy ARN ($ORACLE_CT1_ARN) - unexpected: aws_iam_user's ARN is name/path-derived and should be identical both times"
+    ORACLE_CT1_NEW_ID="$(awslo iam get-user --user-name hm-harbor-count-test-1 --query 'User.UserId' --output text)"
+    [ "$ORACLE_CT1_NEW_ID" != "$ORACLE_CT1_ID" ] || fail "stock's recreated count_test[1] came back with the SAME UserId it had before being destroyed - the destroy was not real"
+    ORACLE_CT0_ID_AFTER_UP="$(awslo iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text 2>/dev/null || true)"
+    [ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed UserId across the scale-up"
+    log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from name+path - but a NEW UserId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
+    CURRENT_STAGE=""
+
+    CURRENT_STAGE=day2_count
+    log "=== G0. choudoufu: add aws_iam_user.count_test, count = 2 ==="
+    count_test_block 2 > "$ESTATE/day2_count.tf"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the count-block-add reinit failed"; }
+    COUNT_ADD_PLAN_OUT="$(plan_into 2>&1)"; COUNT_ADD_PLAN_RC=$?
+    [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -30; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -10; fail "adding the count block did not plan exactly 2 creates"; }
+    COUNT_ADD_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+    [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -30; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+    CT0_ARN="$(awsl iam get-user --user-name hm-harbor-count-test-0 --query 'User.Arn' --output text)"
+    CT1_ARN="$(awsl iam get-user --user-name hm-harbor-count-test-1 --query 'User.Arn' --output text)"
+    [ -n "$CT0_ARN" ] && [ "$CT0_ARN" != "None" ] || fail "no live count_test[0] user found by name"
+    [ -n "$CT1_ARN" ] && [ "$CT1_ARN" != "None" ] || fail "no live count_test[1] user found by name"
+    CT0_ADDR_TAG="$(awsl iam list-user-tags --user-name hm-harbor-count-test-0 --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    CT1_ADDR_TAG="$(awsl iam list-user-tags --user-name hm-harbor-count-test-1 --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT0_ADDR_TAG" = 'aws_iam_user.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not aws_iam_user.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+    [ "$CT1_ADDR_TAG" = 'aws_iam_user.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $CT1_ADDR_TAG, not aws_iam_user.count_test:1"
+    # aws_iam_user's ARN is name/path-derived, not server-random (verified
+    # directly against the emulator ahead of writing this stage, no tofu in
+    # the loop - see the header above), so a destroy+recreate under the
+    # same name yields the SAME ARN. UserId, not ARN, is what the
+    # "genuinely a new object" checks below compare.
+    CT0_ID="$(awsl iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text)"
+    CT1_ID="$(awsl iam get-user --user-name hm-harbor-count-test-1 --query 'User.UserId' --output text)"
+    [ -n "$CT0_ID" ] && [ "$CT0_ID" != "None" ] || fail "live count_test[0] has no UserId"
+    [ -n "$CT1_ID" ] && [ "$CT1_ID" != "None" ] || fail "live count_test[1] has no UserId"
+    log "  2 instances created: index 0 = $CT0_ARN (tofu-address=$CT0_ADDR_TAG, id=$CT0_ID), index 1 = $CT1_ARN (tofu-address=$CT1_ADDR_TAG, id=$CT1_ID) - read via the AWS CLI"
+
+    COUNT_NOOP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+    [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_NOOP_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+    log "  No changes - both new instances plan empty immediately after creation"
+
+    log "=== G1. scale count down: 2 -> 1 ==="
+    count_test_block 1 > "$ESTATE/day2_count.tf"
+    COUNT_DOWN_PLAN_OUT="$(plan_into 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+    [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -30; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1]"
+      if grep -qE '^  # aws_iam_user\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
+        fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
+      fi
+      log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+    else
+      grep -qE '^  # aws_iam_user\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+      grep -qE '^  # aws_iam_user\.count_test\[0\] will be' <<< "$COUNT_DOWN_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+      log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched"
+
+      COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+      [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -30; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+      CT0_ID_AFTER_DOWN="$(awsl iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text 2>/dev/null || true)"
+      [ "$CT0_ID_AFTER_DOWN" = "$CT0_ID" ] || fail "count_test[0]'s UserId changed across the scale-down ($CT0_ID -> $CT0_ID_AFTER_DOWN) - it was destroyed and recreated, not left alone"
+      if CT1_STILL="$(awsl iam get-user --user-name hm-harbor-count-test-1 2>&1)"; then
+        echo "$CT1_STILL"; fail "count_test[1] ($CT1_ARN) still exists in the live account after the scale-down destroy"
+      fi
+      CT0_ADDR_AFTER_DOWN="$(awsl iam list-user-tags --user-name hm-harbor-count-test-0 --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT0_ADDR_AFTER_DOWN" = 'aws_iam_user.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $CT0_ADDR_AFTER_DOWN"
+      log "  $CT1_ARN (count_test[1]) no longer exists (NoSuchEntity); $CT0_ARN (count_test[0]) unchanged UserId ($CT0_ID) and marker - all read via the AWS CLI"
+
+      log "=== G2. scale count back up: 1 -> 2 ==="
+      count_test_block 2 > "$ESTATE/day2_count.tf"
+      COUNT_UP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_UP_PLAN_RC=$?
+      [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -30; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+      grep -qE '^  # aws_iam_user\.count_test\[1\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+      grep -qE '^  # aws_iam_user\.count_test\[0\] will be' <<< "$COUNT_UP_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+      log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+      COUNT_UP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+      [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -30; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+      grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+      CT1_NEW_ARN="$(awsl iam get-user --user-name hm-harbor-count-test-1 --query 'User.Arn' --output text)"
+      [ -n "$CT1_NEW_ARN" ] && [ "$CT1_NEW_ARN" != "None" ] || fail "no live count_test[1] user found by name after the scale-up"
+      [ "$CT1_NEW_ARN" = "$CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($CT1_NEW_ARN) differs from its pre-destroy ARN ($CT1_ARN) - unexpected: aws_iam_user's ARN is name/path-derived and should be identical both times"
+      CT1_NEW_ID="$(awsl iam get-user --user-name hm-harbor-count-test-1 --query 'User.UserId' --output text)"
+      [ "$CT1_NEW_ID" != "$CT1_ID" ] || fail "count_test[1] came back with the SAME UserId ($CT1_ID) it had before being destroyed - the destroy in G1 was not real"
+      CT1_NEW_ADDR_TAG="$(awsl iam list-user-tags --user-name hm-harbor-count-test-1 --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT1_NEW_ADDR_TAG" = 'aws_iam_user.count_test:1' ] || fail "the recreated count_test[1] ($CT1_NEW_ARN) carries tofu-address=$CT1_NEW_ADDR_TAG, not aws_iam_user.count_test:1"
+      CT0_ID_AFTER_UP="$(awsl iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text 2>/dev/null || true)"
+      [ "$CT0_ID_AFTER_UP" = "$CT0_ID" ] || fail "count_test[0]'s UserId changed across the scale-up"
+      log "  count_test[1] recreated under the same ARN ($CT1_NEW_ARN, deterministic from name+path) but a NEW UserId ($CT1_NEW_ID, was $CT1_ID), tofu-address=$CT1_NEW_ADDR_TAG; count_test[0] ($CT0_ARN, id=$CT0_ID) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+
+      log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+      COUNT_FINAL_PLAN_OUT="$(plan_into 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+      [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -30; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+      log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_user.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live UserId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW UserId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new UserId, the lower index's UserId unchanged both times"
+    fi
+    CURRENT_STAGE=""
   fi
   CURRENT_STAGE=""
 fi

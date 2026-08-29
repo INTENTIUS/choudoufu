@@ -235,8 +235,54 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt stage 2's identity assertion and
 #                 tamper both alarms ahead of stage 5's, proving both are
 #                 load-bearing.
+#   BREAK_REMOVE  set to 1 to exercise day2_remove's own break control (PART
+#                 E, far below): keep the CloudFront alarm's block and
+#                 assert no destroy is proposed. Only reachable when BREAK
+#                 is not 1, because day2_rename's own control fires first.
+#   BREAK_COUNT   set to 1 to exercise day2_count's own break control (PART
+#                 G, far below): after the real scale-down plan, assert the
+#                 WRONG instance (count_test[0] rather than count_test[1])
+#                 was destroyed - the assertion must fail. Only reachable
+#                 when BREAK is not 1 and BREAK_REMOVE is not 1, because
+#                 PART G starts from PART E's real, completed removal.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
+#
+# ISSUE #488 / #359 (day2_count). modules/monitoring declares no `count` or
+# `for_each` anywhere - every resource (the excluded budget, both alarms,
+# the dashboard) is a single hardcoded block with no countable knob of its
+# own, confirmed by reading modules/monitoring/main.tofu and dashboard.tofu
+# in full: no `count`, no `for_each`, no module-level scaling variable. So
+# the PREFERRED shape (a real, already-live count/for_each knob scaled
+# through the module's own documented variable, corpus-xancloud-iac's own
+# Part F/F-ORACLE) is not honest here - there is no such knob to scale. This
+# follows live/e2e/corpus-iam-read-only-policy/run.sh's own PART G/G-ORACLE
+# precedent instead (merged as #500, issue #488's own fallback clause): a
+# synthetic aws_cloudwatch_metric_alarm.count_test resource, added and
+# removed entirely within PART G-ORACLE and PART G below, nothing else in
+# this estate ever names it. CloudWatch, not IAM, because this is a
+# monitoring estate and the two real alarms already prove the type works
+# against this floci pin - reusing it means day2_count exercises the same
+# resource type the rest of this crossing already trusts rather than
+# introducing a new one purely for this stage.
+#
+# THE IDENTITY SHAPE, established directly against floci before writing any
+# assertion (HANDOFF.md's "identity semantics vary by type" rule) - no tofu
+# in the loop: put-metric-alarm twice, describe-alarms, delete-alarms,
+# describe-alarms again, put-metric-alarm again, describe-alarms again.
+# aws_cloudwatch_metric_alarm has NO server-minted id anywhere in
+# DescribeAlarms' response - AlarmArn is
+# arn:aws:cloudwatch:<region>:<account>:alarm:<name>, fully determined by
+# account, region and name alone (identical both before and after a real
+# delete-then-recreate cycle - verified: same ARN both times). This is the
+# Route53 shape HANDOFF.md's trap table names, not the IAM-policy shape
+# corpus-iam-read-only-policy's own G-ORACLE uses (PolicyId): there is no
+# second field to compare. So "genuinely destroyed and recreated" here can
+# only be shown by ABSENCE then re-appearance - describe-alarms returning an
+# empty MetricAlarms list is the proof of the destroy, not an id changing -
+# the same technique this estate's own day2_remove and day2_replace stages
+# already use for the identical reason (aws_cloudwatch_metric_alarm's ARN
+# is name-derived there too).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC="$ROOT/.corpus/leynos-df12-www/modules/monitoring"
@@ -668,6 +714,121 @@ grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_
 # here would destroy and recreate the real alarm $ESTATE's own later
 # stages still depend on.
 log "  stock: exactly one replace at the same declared address (module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike), plan only, never applied"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock (day2_count, active - live/GAUNTLET.md
+# #8, issue #359/#488)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# modules/monitoring has no real count/for_each knob (see header, issue
+# #488's fallback clause) - a synthetic aws_cloudwatch_metric_alarm.
+# count_test resource, count_test_block() below, is added and removed
+# entirely within this oracle and PART G (its real-leg counterpart, far
+# below); nothing else in this estate ever names it. Applied for real,
+# twice (2 -> 1 -> 2), in the SAME otherwise-idle account PART GREENFIELD's
+# own oracle ($ORACLE_ENDPOINT) already finished with above and never
+# touches again - a fresh alarm-name prefix collides with nothing that
+# account already holds (its own two alarms are named S3GetRequestsSpike/
+# CFRequestsSpike). Using this same idle, separate account - rather than
+# $ENDPOINT, which the real leg still depends on - is deliberate: PR #502's
+# oracle leftovers on a SHARED endpoint once poisoned the real leg's own
+# lookup.
+CURRENT_STAGE=day2_count
+count_test_block() { # $1 = count
+  local n="$1"
+  cat <<COUNTEOF
+resource "aws_cloudwatch_metric_alarm" "count_test" {
+  count               = $n
+  alarm_name          = "leynos-monitoring-count-test-\${count.index}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  statistic           = "Sum"
+  threshold           = 100000
+  metric_name         = "GetRequests"
+  namespace           = "AWS/S3"
+  treat_missing_data  = "ignore"
+}
+COUNTEOF
+}
+oracle_count_provider() {
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+}
+
+EOF
+}
+
+log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in the (idle) greenfield-oracle account ==="
+COUNT_ORACLE_DIR="$WORK/count-oracle"
+mkdir -p "$COUNT_ORACLE_DIR"
+{ oracle_count_provider; count_test_block 2; } > "$COUNT_ORACLE_DIR/main.tf"
+( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+ORACLE_COUNT_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 2 count-test alarms for the day2_count oracle"; }
+awso() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+ORACLE_CT0_STILL="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+ORACLE_CT1_STILL="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_CT0_STILL" = "1" ] || fail "no oracle count_test[0] alarm found by name after the baseline apply"
+[ "$ORACLE_CT1_STILL" = "1" ] || fail "no oracle count_test[1] alarm found by name after the baseline apply"
+log "  stock: 2 instances created (leynos-monitoring-count-test-0, leynos-monitoring-count-test-1), confirmed present via the AWS CLI"
+
+{ oracle_count_provider; count_test_block 1; } > "$COUNT_ORACLE_DIR/main.tf"
+ORACLE_DOWN_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+[ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+ORACLE_DOWN_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+ORACLE_CT0_AFTER_DOWN="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_CT0_AFTER_DOWN" = "1" ] || fail "stock's surviving count_test[0] no longer exists after the scale-down"
+ORACLE_CT1_AFTER_DOWN="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_CT1_AFTER_DOWN" = "0" ] || fail "stock's count_test[1] still exists after the scale-down destroy"
+log "  stock: exactly one destroy (count_test[1], confirmed genuinely gone via describe-alarms - aws_cloudwatch_metric_alarm has no server-minted id, see header), count_test[0] unchanged"
+
+{ oracle_count_provider; count_test_block 2; } > "$COUNT_ORACLE_DIR/main.tf"
+ORACLE_UP_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+[ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+ORACLE_UP_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+ORACLE_CT1_AFTER_UP="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_CT1_AFTER_UP" = "1" ] || fail "no oracle count_test[1] alarm found by name after the scale-up"
+ORACLE_CT0_AFTER_UP="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_CT0_AFTER_UP" = "1" ] || fail "stock's count_test[0] no longer exists after the scale-up"
+log "  stock: exactly one create (count_test[1], recreated - confirmed via describe-alarms), count_test[0] unchanged throughout"
+CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -1254,6 +1415,159 @@ PYEOF
     log "  No changes. The removal is complete and invisible to the next plan."
 
     gauntlet_stage day2_remove pass "choudoufu: deleting the CloudFront alarm's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-alarms on its name no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; classifyOrphans did not withhold the destroy because the S3-requests alarm, the surviving aws_cloudwatch_metric_alarm instance, is bound, not unclaimed"
+
+    # ════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8, issue
+    # #359/#488)
+    # ════════════════════════════════════════════════════════════════════
+    #
+    # Starts from Part E's real, completed state. A NEW, entirely synthetic
+    # resource (aws_cloudwatch_metric_alarm.count_test, count_test_block()
+    # defined above PART G-ORACLE) is added here at the ESTATE root - not
+    # inside modules/monitoring, so this never touches the pinned module
+    # source and never revisits an address any other stage already used.
+    # G-ORACLE above is the stock oracle for the identical shape, applied
+    # for real in a separate, otherwise-idle account.
+    #
+    # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+    # real checks: after the real scale-down plan, assert the WRONG
+    # instance (count_test[0] rather than count_test[1]) was the one
+    # destroyed - the Break text in tools/gauntlet/stages.go for
+    # day2_count, verbatim: "Expect a different instance to be destroyed;
+    # the assertion must fail." Only reachable when BREAK is not 1 and
+    # BREAK_REMOVE is not 1, because PART G starts from PART E's real,
+    # completed removal.
+    CURRENT_STAGE=day2_count
+    COUNT_TAG0='aws_cloudwatch_metric_alarm.count_test:0'
+    COUNT_TAG1='aws_cloudwatch_metric_alarm.count_test:1'
+    COUNT_RECORD1="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_cloudwatch_metric_alarm/$(record_key 'aws_cloudwatch_metric_alarm.count_test[1]')"
+
+    log "=== G0. choudoufu: add aws_cloudwatch_metric_alarm.count_test, count = 2 ==="
+    count_test_block 2 > "$ESTATE/day2_count.tofu"
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the count-block-add reinit failed"; }
+    COUNT_ADD_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_ADD_PLAN_RC=$?
+    [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -30; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -10; fail "adding the count block did not plan exactly 2 creates"; }
+    COUNT_ADD_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+    [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -30; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+    CT0_STILL="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+    CT1_STILL="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+    [ "$CT0_STILL" = "1" ] || fail "no live count_test[0] alarm found by name"
+    [ "$CT1_STILL" = "1" ] || fail "no live count_test[1] alarm found by name"
+    CT0_ARN="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'MetricAlarms[0].AlarmArn' --output text)"
+    CT1_ARN="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'MetricAlarms[0].AlarmArn' --output text)"
+    CT0_ADDR_TAG="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    CT1_ADDR_TAG="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CT1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT0_ADDR_TAG" = "$COUNT_TAG0" ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not $COUNT_TAG0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+    [ "$CT1_ADDR_TAG" = "$COUNT_TAG1" ] || fail "count_test[1]'s live tofu-address tag is $CT1_ADDR_TAG, not $COUNT_TAG1"
+    log "  2 instances created: index 0 = $CT0_ARN (tofu-address=$CT0_ADDR_TAG), index 1 = $CT1_ARN (tofu-address=$CT1_ADDR_TAG) - read via the AWS CLI"
+
+    COUNT_NOOP_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+    [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_NOOP_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+    log "  No changes - both new instances plan empty immediately after creation"
+
+    log "=== G1. scale count down: 2 -> 1 ==="
+    count_test_block 1 > "$ESTATE/day2_count.tofu"
+    COUNT_DOWN_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+    [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -30; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1]"
+      if grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
+        fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
+      fi
+      log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+    else
+      grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+      grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[0\] will be' <<< "$COUNT_DOWN_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+      log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched"
+
+      COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+      [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -30; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+      grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+      # aws_cloudwatch_metric_alarm has no server-minted id (see header's
+      # identity-shape note) - absence via describe-alarms, not an id
+      # changing, is what proves count_test[1] was genuinely destroyed.
+      CT1_GONE="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+      [ "$CT1_GONE" = "0" ] || fail "count_test[1] ($CT1_ARN) still exists in the live account after the scale-down destroy"
+      CT0_STILL_AFTER_DOWN="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+      [ "$CT0_STILL_AFTER_DOWN" = "1" ] || fail "count_test[0] no longer exists after the scale-down - it should be untouched"
+      CT0_ADDR_AFTER_DOWN="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT0_ADDR_AFTER_DOWN" = "$COUNT_TAG0" ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $CT0_ADDR_AFTER_DOWN"
+      log "  leynos-monitoring-count-test-1 no longer exists (0 found via describe-alarms); $CT0_ARN (count_test[0]) unchanged and marker intact - all read via the AWS CLI"
+
+      # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+      # #398-guard shape). A destroyed count instance's local record is
+      # TOMBSTONED, not deleted - the key must still exist, carrying no
+      # current Identity but a Tombstone entry for the object it used to
+      # name. Read directly off the local record store file, never through
+      # choudoufu's own report.
+      [ -f "$COUNT_RECORD1" ] || fail "the record file for count_test[1] is gone after the scale-down destroy - a destroyed count instance's record must be tombstoned, not deleted (#398-guard shape)"
+      jq -e 'has("tombstone") and (has("identity") | not)' "$COUNT_RECORD1" >/dev/null \
+        || { cat "$COUNT_RECORD1"; fail "count_test[1]'s record does not read as tombstoned (has(\"tombstone\") and not has(\"identity\")) after the scale-down destroy"; }
+      log "  record store: count_test[1]'s record is tombstoned (has(\"tombstone\"), no current \"identity\") - the #398-guard shape, read directly off the local record store file"
+
+      log "=== G2. scale count back up: 1 -> 2 ==="
+      count_test_block 2 > "$ESTATE/day2_count.tofu"
+      COUNT_UP_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_UP_PLAN_RC=$?
+      [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -30; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+      grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+      grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[0\] will be' <<< "$COUNT_UP_PLAN_OUT" \
+        && { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+      grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+      log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+      COUNT_UP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+      [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -30; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+      grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+        || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+      CT1_NEW_STILL="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+      [ "$CT1_NEW_STILL" = "1" ] || fail "no live count_test[1] alarm found by name after the scale-up"
+      CT1_NEW_ARN="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-1 --query 'MetricAlarms[0].AlarmArn' --output text)"
+      # aws_cloudwatch_metric_alarm's ARN is name/region/account-derived, not
+      # server-random (established directly against floci ahead of writing
+      # this stage - see header) - a destroy+recreate under the same name
+      # yields the SAME ARN. That is expected, not a failure: the genuine
+      # destroy was already proven by absence in G1 above.
+      [ "$CT1_NEW_ARN" = "$CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($CT1_NEW_ARN) differs from its pre-destroy ARN ($CT1_ARN) - unexpected: aws_cloudwatch_metric_alarm's ARN is name/region/account-derived and should be identical both times"
+      CT1_NEW_ADDR_TAG="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CT1_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT1_NEW_ADDR_TAG" = "$COUNT_TAG1" ] || fail "the recreated count_test[1] ($CT1_NEW_ARN) carries tofu-address=$CT1_NEW_ADDR_TAG, not $COUNT_TAG1"
+      CT0_STILL_AFTER_UP="$(awsl cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
+      [ "$CT0_STILL_AFTER_UP" = "1" ] || fail "count_test[0] no longer exists after the scale-up - it should be untouched"
+      CT0_ADDR_AFTER_UP="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+      [ "$CT0_ADDR_AFTER_UP" = "$COUNT_TAG0" ] || fail "count_test[0]'s tofu-address tag changed across the scale-up: $CT0_ADDR_AFTER_UP"
+      log "  count_test[1] recreated under the same ARN ($CT1_NEW_ARN, deterministic from name/region/account), tofu-address=$CT1_NEW_ADDR_TAG; count_test[0] ($CT0_ARN) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+
+      jq -e 'has("identity") and (.identity.import_id == "leynos-monitoring-count-test-1")' "$COUNT_RECORD1" >/dev/null \
+        || { cat "$COUNT_RECORD1"; fail "count_test[1]'s record does not carry a fresh \"identity\" naming the recreated alarm after the scale-up"; }
+      log "  record store: count_test[1]'s record carries a live \"identity\" again (import_id=leynos-monitoring-count-test-1), the tombstone entry from G1 carried alongside it - read directly off the local record store file"
+
+      log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+      COUNT_FINAL_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+      [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -30; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+      grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+        || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+      log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_cloudwatch_metric_alarm.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), confirmed genuinely gone via describe-alarms (no server-minted id on this type - see header), leaving count_test[0] and its tofu-address marker unchanged; the local record store's record for count_test[1] read tombstoned (has(\"tombstone\"), no current \"identity\") at that same key, the #398-guard shape; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (name/region/account-derived) with a fresh \"identity\" record entry (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only (confirmed absent via describe-alarms), create it back (confirmed present again), the lower index untouched both times"
+    fi
+    CURRENT_STAGE=""
   fi
   CURRENT_STAGE=""
 fi
