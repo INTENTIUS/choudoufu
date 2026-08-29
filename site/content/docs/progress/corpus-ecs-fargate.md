@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Drift and reconverge | pass |  | one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged |
 | Rename | pass |  | moved block: module.alb renamed with zero churn (0 add, 9 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting module.ecs_task_definition's block proposed exactly 8 destroys (0 add, 0 change, 8 destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, 8 destroyed); the standalone task definition family (ex-fargate-standalone) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address (Plan: 8 to add, 0 to change, 8 to destroy.), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1) carries the marker, moved via the tofu-address tag (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone:1 -> arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address (Plan: 8 to add, 0 to change, 8 to destroy., plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include `revision`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices (aws_service_discovery_http_namespace.this_renamed, module.alb_renamed) each found a genuine, separate defect not fixed here - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |

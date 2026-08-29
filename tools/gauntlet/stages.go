@@ -79,7 +79,7 @@ func Stages() []Stage {
 			Break:  "Keep the block; no destroy may be proposed.",
 		},
 		{
-			ID: "day2_count", Order: 8, Title: "Change count", Status: StatusPlanned,
+			ID: "day2_count", Order: 8, Title: "Change count", Status: StatusActive,
 			Proves: "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
 			Oracle: "Stock's plan for the same count change, normalised.",
 			Break:  "Expect a different instance to be destroyed; the assertion must fail.",

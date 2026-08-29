@@ -10,7 +10,7 @@ Source: <https://github.com/datacite/mastino.git> at `4d8c1f1bebd91e73195017ce44
 
 Set: growing. Lane: published-deployment.
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -21,7 +21,7 @@ Set: growing. Lane: published-deployment.
 | Drift and reconverge | pass |  | one untaggable record drifted, exactly aws_route53_record.wp-prod-staging[0]/ttl proposed and applied, reconverged to 300, marker intact |
 | Rename | pass |  | moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - both destroys proposed (matching stock's own oracle exactly) and applied cleanly (Apply complete! Resources: 0 added, 0 changed, 2 destroyed.), the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report); the next plan is empty. The parent-scoped removal sweep gap this estate named (gauntlet:parent-scoped-sweep) is closed: recordOrphanReadSweep composes aws_route53_record's identity from its migrate-seeded record correctly (composeImportIDFromComponents's OmitIfAbsent fix) and carries a destroy-before-parent ordering hint (identity.Resolution.DestroyDependsOn) so the record's own destroy is never raced against its zone's force_destroy cascade. |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (Z5ZKFWIMHEM6QEX_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (Z5ZKFWIMHEM6QEX_status.datacite.org_CNAME -> Z5ZKFWIMHEM6QEX_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |

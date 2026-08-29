@@ -90,7 +90,7 @@ Oracle: Stock with the same block removed plans the same destroys in a working o
 
 Break: Keep the block; no destroy may be proposed.
 
-### 8. Change count (`day2_count`, planned)
+### 8. Change count (`day2_count`, active)
 
 Proves: Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.
 

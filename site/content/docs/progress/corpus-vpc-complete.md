@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Drift and reconverge | pass |  | one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete |
 | Rename | pass |  | moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting the dynamodb endpoint's map entry (module.vpc_endpoints_renamed.aws_vpc_endpoint.this["dynamodb"]) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (State=absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing customer_gateways["IP1"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-12d215ffd51faeef4) is confirmed gone/deleted and the new gateway (cgw-a8cd64446e4173d97) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |

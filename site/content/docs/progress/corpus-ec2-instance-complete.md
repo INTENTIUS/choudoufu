@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every active stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -23,7 +23,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Drift and reconverge | pass |  | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
 | Rename | pass |  | moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block | pass |  | choudoufu: deleting module.ec2_complete's block proposed exactly 10 destroys (0 add, 0 change, 10 destroy), matching the stock oracle's own count and applied cleanly; the instance is confirmed terminated and the tagged object count dropped, both via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 10 destroys for the same module |
-| Change count (planned) | not run |  |  |
+| Change count | not run |  |  |
 | Replace with create_before_destroy | pass |  | choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-9ef363368dee37443 -> i-eac71a5da14d19d05); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
