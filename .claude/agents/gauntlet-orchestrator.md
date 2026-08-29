@@ -165,6 +165,13 @@ Do not proceed past any of these; state the question and wait.
   a plan propose creating infrastructure that already exists. When two workers
   converge on one problem, have each read the other's diff and say plainly
   whether it is one mechanism or two, before either lands.
+- A proposed new estate whose manifest entry does not name a behavior or
+  topology missing from `live/estate-types.json` (`live/GAUNTLET.md`'s
+  "Estate admission" section: estates buy behaviors, cohorts buy types).
+  Check the artifact yourself before merging; a type-only proposal belongs
+  to a cohort (`tools/estate-gen`), not the manifest, and gets redirected
+  rather than merged. Whether a claimed behavior is genuinely new is the
+  question to put to the maintainer when it is not obvious.
 
 ## Never
 

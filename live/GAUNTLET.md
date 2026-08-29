@@ -256,6 +256,38 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-xancloud-iac` | opentofu-native | v0.2.0 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `reference-ec2-vpc` | reference |  | the plainest hand-written reference shape, kept in this repository |
 
+## Estate admission
+
+**Estates buy behaviors, cohorts buy types.** Every estate pays for itself
+once, in fetch and configuration, and then again on every run after: every
+active stage above runs it, every re-measure re-runs it, and none of that
+time buys anything but what its topology actually exercises. Coverage
+pressure that reaches for "add another estate" is usually paying that price
+to re-prove a type the board already has.
+
+Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
+before proposing one: it lists, from real committed or fetched
+configuration and no gauntlet run, every resource type each estate in the
+manifest already exercises. Today it reports 26 estates exercising 161
+distinct types between them, of which 86 no cohort fixture covers yet
+(`totals.distinct_types`, `totals.types_in_no_cohort`; re-run the tool
+before quoting either figure, since the manifest grows). A new estate has
+to name the behavior or topology missing from that list - a module shape,
+an ordering, a day-2 operation - not a type; a proposal that only points at
+a type is a proposal for a cohort.
+
+Type-only coverage goes to a cohort instead: `tools/estate-gen` builds a
+minimal fixture straight off the admission table, one resource block per
+type, required arguments only, and `live/cohort-acceptance.json` measures
+its round-trip identity against the emulator - the whole product claim for
+that type, at the cost of an apply and a replan rather than a full estate's
+fourteen stages on every future run. A type already in
+`types_in_no_cohort` is still a cohort's job to pick up, seeding or
+extending one with `-types`, not an estate's.
+
+This does not relax the core-set rule above: an estate that clears this
+bar with a real behavior still needs its own reason to join core.
+
 ## The artifact
 
 `live/gauntlet.json` carries `schema`, `emulator`, the `stages`
