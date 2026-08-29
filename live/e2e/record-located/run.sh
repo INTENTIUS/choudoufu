@@ -50,10 +50,15 @@ set -euo pipefail
 #
 # Env overrides:
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
-#   FLOCI_PORT   host port for the emulator (default 4605, clear of run.sh's
+#   FLOCI_PORT   host port for the emulator (default 4608, clear of run.sh's
 #                4566, dataread-projection's 4599, tagging-sweep's 4601,
-#                create-over's 4602 and per-element's 4604, so every harness
-#                can run at once).
+#                create-over's 4602 and per-element's 4604 - moved off 4605
+#                itself in #520, which had been shared with corpus-crossing
+#                and so could never run alongside it - so every harness can
+#                run at once). Note this default only matters for a
+#                hand-invoked run: `go run ./tools/gauntlet run` always
+#                assigns FLOCI_PORT itself (#520) and never falls back to
+#                this value.
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
 #
@@ -64,7 +69,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 FIXTURE="$ROOT/live/e2e/record-located"
 WORK="$(mktemp -d)"
-FLOCI_PORT="${FLOCI_PORT:-4605}"
+FLOCI_PORT="${FLOCI_PORT:-4608}"
 FLOCI_NAME="choudoufu-record-located-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
