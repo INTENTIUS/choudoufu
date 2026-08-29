@@ -1,3 +1,0 @@
-corpus-alb-complete: running live/e2e/corpus-alb-complete/run.sh (log: live/gauntlet/logs/corpus-alb-complete.log)
-corpus-alb-complete: exit 0, cold_deploy=pass migrate=pass test_plan=pass test_apply=pass drift_reconverge=pass day2_rename=pass day2_remove=pass day2_replace=pass greenfield=pass
-corpus-autoscaling-complete: running live/e2e/corpus-autoscaling-complete/run.sh (log: live/gauntlet/logs/corpus-autoscaling-complete.log)
