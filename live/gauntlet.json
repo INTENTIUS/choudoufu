@@ -147,7 +147,7 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -155,9 +155,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_crash": {
           "pass": 0,
@@ -224,7 +224,7 @@
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -232,9 +232,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 2,
+          "pass": 3,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_crash": {
           "pass": 0,
@@ -886,7 +886,7 @@
       "script": "live/e2e/corpus-iam-read-only-policy/run.sh",
       "stages": {
         "cold_deploy": "pass",
-        "day2_count": "not_run",
+        "day2_count": "pass",
         "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
@@ -900,34 +900,36 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8ef3d258a7982f823fa13bb0c745c94faa35269f",
-        "date": "2026-08-29T10:21:13Z",
+        "commit": "aa5c8a0d457effeeb0f6593335905ad0e7897dd5",
+        "date": "2026-08-29T15:57:00Z",
         "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
+          "day2_count": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times",
           "day2_remove": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)",
           "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-03b204854eeba92a16766f10a0) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-cc31876f695cbf68f201f94287) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-03b204854eeba92a16766f10a0 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-cc31876f695cbf68f201f94287); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-03b204854eeba92a16766f10a0's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-ee4ab0961f67ae7932aa75a9a7) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-ee4ab0961f67ae7932aa75a9a7); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-719850c07faba879551e9c3668's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "greenfield": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
         },
-        "duration_s": 116.1,
+        "duration_s": 175,
         "stage_seconds": {
-          "cold_deploy": 13,
-          "day2_remove": 6,
-          "day2_rename": 9,
-          "day2_replace": 7,
+          "cold_deploy": 14,
+          "day2_count": 23,
+          "day2_remove": 9,
+          "day2_rename": 12,
+          "day2_replace": 8,
           "drift_reconverge": 5,
-          "greenfield": 30,
-          "migrate": 40,
-          "test_apply": 2,
+          "greenfield": 32,
+          "migrate": 65,
+          "test_apply": 3,
           "test_plan": 3
         }
       },
