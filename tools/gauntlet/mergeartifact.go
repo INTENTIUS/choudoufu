@@ -392,7 +392,11 @@ func MergeArtifact(root, baseRev, oursRev, theirsRev string) (*Artifact, error) 
 	if err != nil {
 		return nil, err
 	}
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return nil, err
+	}
 	merged := &Artifact{Estates: rows}
-	merged.Rebuild(m, emulatorPin(root))
+	merged.Rebuild(m, bi, emulatorPin(root))
 	return merged, nil
 }

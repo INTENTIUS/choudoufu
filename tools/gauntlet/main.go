@@ -10,6 +10,7 @@
 //	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
 //	go run ./tools/gauntlet next [-n N] [-json]    # the next unit(s) of work, deterministically
 //	go run ./tools/gauntlet run [-set core] [-parallel N] [name] # run crossing scripts, record verdicts, render
+//	go run ./tools/gauntlet behaviors [-all] [-port N] [id...] # run the tier-1 behavior matrix (#522), record verdicts, render
 //	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
@@ -27,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -43,6 +45,8 @@ func main() {
 		fatalIf(cmdRender(root))
 	case "run":
 		fatalIf(cmdRun(root, os.Args[2:]))
+	case "behaviors":
+		fatalIf(cmdBehaviors(root, os.Args[2:]))
 	case "add":
 		fatalIf(cmdAdd(root, os.Args[2:]))
 	case "import-legacy":
@@ -73,7 +77,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -173,7 +177,9 @@ func emulatorPin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// loadAll loads manifest and artifact and rebuilds the derived parts.
+// loadAll loads manifest and artifact and rebuilds the derived parts,
+// including the #522 behaviors-proven metric from live/behaviors.json (a
+// missing file loads as an empty index, same rule as LoadArtifact).
 func loadAll(root string) (*Manifest, *Artifact, error) {
 	m, err := LoadManifest(root)
 	if err != nil {
@@ -183,7 +189,11 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, emulatorPin(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	a.Rebuild(m, bi, emulatorPin(root))
 	return m, a, nil
 }
 
@@ -218,7 +228,11 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, emulatorPin(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -228,6 +242,84 @@ func cmdRun(root string, args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// cmdBehaviors is `gauntlet behaviors` (#522): the tier-1 behavior-matrix
+// runner. By default it runs every fixture in live/behaviors.json whose
+// Runner field is true (the purpose-built "shape" fixtures the ruling
+// formalizes as tier 1) sequentially against ONE shared floci emulator -
+// #520's per-slot FLOCI_PORT approach exists for concurrent estates, which
+// this does not need; the whole point of tier 1 is a single fast run - then
+// records pass/fail and wall-clock per fixture, recomputes
+// behaviors_proven, and re-renders.
+//
+// -all runs every independently Runnable fixture regardless of Runner
+// (including the adoption and legacy-demo scripts catalogued but excluded
+// from the default matrix) - useful for auditing the full catalogue's
+// timing, never for the five-minute bar itself, which is about the default
+// set only.
+func cmdBehaviors(root string, args []string) error {
+	fs := flag.NewFlagSet("behaviors", flag.ContinueOnError)
+	all := fs.Bool("all", false, "run every independently runnable fixture, not just the default tier-1 set (Runner=true)")
+	port := fs.Int("port", 0, "FLOCI_PORT for the whole run; 0 means DefaultBehaviorsPort")
+	var envs multiFlag
+	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	commit := headCommit(root)
+	start := time.Now()
+	failures, err := RunBehaviors(root, bi, BehaviorsRunOptions{Names: fs.Args(), All: *all, Port: *port, Env: envs, Stdout: os.Stdout}, commit)
+	elapsed := time.Since(start)
+	if err != nil {
+		return err
+	}
+	if err := SaveBehaviorIndex(root, bi); err != nil {
+		return err
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root))
+	if _, err := Render(root, m, a); err != nil {
+		return err
+	}
+	selected := len(fs.Args())
+	if selected == 0 {
+		selected = countRunner(bi, *all)
+	}
+	fmt.Printf("behaviors: %d fixture(s) run in %s, %d failed; behaviors_proven %d of %d\n", selected, elapsed.Round(time.Millisecond), failures, a.BehaviorsProven, a.BehaviorsTotal)
+	if failures > 0 {
+		os.Exit(1)
+	}
+	return nil
+}
+
+// countRunner reports how many fixtures a Names-less RunBehaviors call
+// selects, purely for cmdBehaviors's own summary line.
+func countRunner(bi *BehaviorIndex, all bool) int {
+	n := 0
+	for _, f := range bi.Fixtures {
+		if all {
+			if f.Runnable {
+				n++
+			}
+			continue
+		}
+		if f.Runner {
+			n++
+		}
+	}
+	return n
 }
 
 // cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`
@@ -357,7 +449,11 @@ func cmdImportLegacy(root string) error {
 			imported++
 		}
 	}
-	a.Rebuild(m, emulatorPin(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -394,9 +490,13 @@ func StaleFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return nil, err
+	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, emulatorPin(root))
+	a.Rebuild(m, bi, emulatorPin(root))
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
 		return nil, err

@@ -551,9 +551,9 @@ func TestRebuildIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	a.Rebuild(m, "img")
+	a.Rebuild(m, nil, "img")
 	b1, _ := a.Canonical()
-	a.Rebuild(m, "img")
+	a.Rebuild(m, nil, "img")
 	b2, _ := a.Canonical()
 	if !bytes.Equal(b1, b2) {
 		t.Error("rebuild is not deterministic")
