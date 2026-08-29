@@ -119,6 +119,19 @@ type convergenceArtifact struct {
 	// comment for why the ledger shrink itself waits for #388.
 	SchemaReproduces schemaReproducesBucket `json:"schema_reproduces"`
 
+	// EvidenceOnlySchema is issue #428's own measurement: the same
+	// schema-first idea, one admission step earlier, over
+	// bucketEvidenceOnly - a type with no ratified row at all - rather than
+	// over an already-ratified one. Unlike SchemaReproduces, this ONE DOES
+	// act: evidenceschema.go's applySchemaFirstArgName reclassifies a
+	// Covered row to bucketClientNamed before -service's report or
+	// live/rowgen-buckets.json are ever built, which is safe here in a way
+	// it was not for SchemaReproduces's population (see evidenceschema.go's
+	// own doc comment for why: nothing in tools/row-gen/ratified.json or
+	// DefaultTable moves either way). This field is the resulting count,
+	// not a proposal to act on later.
+	EvidenceOnlySchema evidenceOnlySchemaBucket `json:"evidence_only_schema"`
+
 	Types []convergenceRow `json:"types"`
 }
 

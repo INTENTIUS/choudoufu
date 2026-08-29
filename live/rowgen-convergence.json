@@ -1219,6 +1219,220 @@
     ],
     "not_reproduced_count": 27
   },
+  "evidence_only_schema": {
+    "evidence_only_total": 314,
+    "has_identity_schema": 53,
+    "covered": [
+      "aws_acm_certificate_validation",
+      "aws_bedrock_foundation_model_agreement",
+      "aws_iam_policy_attachment"
+    ],
+    "covered_count": 3,
+    "not_covered": [
+      {
+        "type": "aws_appfabric_app_bundle",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_auditmanager_control",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_auditmanager_framework_share",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_bedrock_custom_model",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_bedrock_evaluation_job",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_bedrock_provisioned_model_throughput",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_bedrock_use_case_for_model_access",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_bedrockagentcore_registry",
+        "class": "enumerable-unbindable"
+      },
+      {
+        "type": "aws_chimesdkmediapipelines_media_insights_pipeline_configuration",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_cloudwatch_log_s3_table_integration_source",
+        "class": "enumerable-unbindable"
+      },
+      {
+        "type": "aws_codeconnections_host",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_codestarconnections_host",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_config_retention_configuration",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_datazone_glossary",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_datazone_glossary_term",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_default_vpc",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_device_pool",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_instance_profile",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_network_profile",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_project",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_test_grid_project",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_devicefarm_upload",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_dynamodb_table_export",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_dynamodb_table_item",
+        "class": "enumerable-unbindable"
+      },
+      {
+        "type": "aws_ebs_volume_copy",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_ec2_image_block_public_access",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_ec2_secondary_network",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_ec2_secondary_subnet",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_ec2_serial_console_access",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_globalaccelerator_custom_routing_accelerator",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_globalaccelerator_custom_routing_endpoint_group",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_globalaccelerator_custom_routing_listener",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_iam_outbound_web_identity_federation",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_iot_indexing_configuration",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_iot_logging_options",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_neptunegraph_private_graph_endpoint",
+        "class": "multi-attribute"
+      },
+      {
+        "type": "aws_networkfirewall_container_association",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_opensearchserverless_security_config",
+        "class": "multi-attribute"
+      },
+      {
+        "type": "aws_osis_pipeline_endpoint",
+        "class": "enumerable-unbindable"
+      },
+      {
+        "type": "aws_outposts_capacity_task",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_redshift_namespace_registration",
+        "class": "multi-attribute"
+      },
+      {
+        "type": "aws_s3_bucket_object",
+        "class": "multi-attribute"
+      },
+      {
+        "type": "aws_s3_object",
+        "class": "multi-attribute"
+      },
+      {
+        "type": "aws_securityhub_action_target",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_securityhub_member",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_ssoadmin_trusted_token_issuer",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_uxc_account_customizations",
+        "class": "ops-excluded"
+      },
+      {
+        "type": "aws_workmail_group",
+        "class": "enumerable-unbindable"
+      },
+      {
+        "type": "aws_workmail_organization",
+        "class": "taggable-marker-path"
+      },
+      {
+        "type": "aws_workmail_user",
+        "class": "enumerable-unbindable"
+      }
+    ],
+    "not_covered_count": 50,
+    "no_identity_schema_count": 261
+  },
   "types": [
     {
       "tf_type": "aws_accessanalyzer_analyzer",

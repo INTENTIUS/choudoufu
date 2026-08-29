@@ -224,6 +224,11 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 	}
 	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
 	fresh.SchemaReproduces = buildSchemaReproducesBucket(loadRatifiedForTest(t), loadImportGrammarForTest(t))
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		t.Fatalf("loadSurvey: %v", err)
+	}
+	fresh.EvidenceOnlySchema = buildEvidenceOnlySchemaBucket(proposals, survey)
 
 	committed := loadCommittedConvergence(t)
 

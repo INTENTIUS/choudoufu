@@ -93,6 +93,17 @@ const (
 	argSourceArgumentReference argSource = "import grammar argument reference (live/import-grammar.json)"
 	argSourceCarveSeed         argSource = "carve seed (tools/mapping-gen/carve-seed.json)"
 	argSourceGuessed           argSource = "GUESSED: snake_cased CFN property name"
+	// argSourceIdentitySchemaEvidenceOnly names evidenceschema.go's own
+	// promotion (issue #428): the same provider identity schema
+	// argSourceIdentitySchema names, but reached for a row the
+	// CFN-registry-shaped classifyMapped rule 2 never got to run
+	// resolveArgName over at all - a classifyUnmapped row with no CFN
+	// model, an unresolved fold parent, or a registry primaryIdentifier
+	// shape rule 2 does not fit. Kept distinct from argSourceIdentitySchema
+	// so a reader of the printed report and of live/rowgen-convergence.json's
+	// evidence_only_schema bucket can tell the two provenances apart -
+	// see evidenceschema.go's own doc comment.
+	argSourceIdentitySchemaEvidenceOnly argSource = "provider identity schema (live/survey-full.json), issue #428's evidence-only sweep"
 )
 
 // proposal is one TF type's classification, with the registry evidence that
