@@ -379,7 +379,15 @@ log "=== 2. cold_deploy: $TF_COLD init ==="
   || { tail -20 "$WORK/cold_deploy_init.out"; fail "stock init failed"; }
 
 log "=== 2b. cold_deploy: $TF_COLD apply (backgrounded so a signal can interrupt it - see on_signal above) ==="
-( cd "$COLD_DIR" && "$TF_COLD" apply -input=false -auto-approve -no-color -parallelism=1 ) \
+# `exec` on the last command is deliberate, not stylistic: without it,
+# APPLY_PID names the SUBSHELL wrapping "$TF_COLD" apply, and on some bash
+# versions a signal sent to that PID kills the subshell without reliably
+# reaching the terraform child underneath it - the subshell dying does not
+# by itself interrupt an orphaned child. `exec` replaces the subshell's own
+# process image with $TF_COLD, so APPLY_PID is unambiguously that process,
+# on every bash version, and kill -TERM "$APPLY_PID" in on_signal reaches it
+# directly.
+( cd "$COLD_DIR" && exec "$TF_COLD" apply -input=false -auto-approve -no-color -parallelism=1 ) \
   > "$WORK/cold_deploy_apply.out" 2>&1 &
 APPLY_PID=$!
 wait "$APPLY_PID"

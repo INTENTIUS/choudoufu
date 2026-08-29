@@ -46,10 +46,21 @@ cleanup() {
 trap cleanup EXIT
 
 log "=== selftest-kill: launching the harness (target=floci, run_id=$RUN_ID) in the background ==="
+# `exec` on the last line is load-bearing, not stylistic (found the hard way
+# building this script, 2026-08-29): without it, HARNESS_PID names the
+# SUBSHELL this whole (...) group runs in, not the `bash reference-ec2-vpc.sh`
+# process itself. A SIGTERM sent to that subshell PID kills the subshell
+# under its own default disposition without reliably delivering to (or even
+# reaching) the harness's own bash process - which then never runs its trap
+# at all, and can be left running, orphaned, invisible to this driver's own
+# wait/kill-by-PID. `exec` replaces the subshell's process image with the
+# harness itself, so HARNESS_PID is unambiguously that process on every bash
+# version, and the harness's own `trap ... TERM` fires when this driver
+# signals it.
 (
   cd "$ROOT" && \
-  TARGET=floci RUN_ID="$RUN_ID" FLOCI_PORT="$FLOCI_PORT" LIVECERT_WORK_DIR="$WORK/harness-work" \
-    bash live/live-cert/reference-ec2-vpc.sh
+  export TARGET=floci RUN_ID="$RUN_ID" FLOCI_PORT="$FLOCI_PORT" LIVECERT_WORK_DIR="$WORK/harness-work" && \
+  exec bash live/live-cert/reference-ec2-vpc.sh
 ) > "$LOG" 2>&1 &
 HARNESS_PID=$!
 log "  harness pid=$HARNESS_PID, log=$LOG"
@@ -146,10 +157,12 @@ else
 fi
 
 log ""
+log "=== selftest-kill: full harness log (the evidence this verdict was read from) ==="
+cat "$LOG"
+log ""
 if [ "$pass" = "1" ]; then
   log "=== selftest-kill: PASS - a real SIGTERM delivered to the harness mid-apply (after at least one resource genuinely existed) still ran teardown and left the account (this floci endpoint) verifiably empty, confirmed independently of the harness's own report ==="
 else
-  log "=== selftest-kill: FAIL - see above. Full harness log follows ==="
-  cat "$LOG"
+  log "=== selftest-kill: FAIL - see above ==="
 fi
 exit $((1 - pass))
