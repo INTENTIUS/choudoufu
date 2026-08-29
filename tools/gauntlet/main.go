@@ -15,6 +15,7 @@
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
+//	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 package main
 
 import (
@@ -53,6 +54,8 @@ func main() {
 		fatalIf(cmdSnapshot(root, os.Args[2]))
 	case "notes":
 		fatalIf(cmdNotes(root, os.Args[2:]))
+	case "merge-artifact":
+		fatalIf(cmdMergeArtifact(root, os.Args[2:]))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
@@ -70,7 +73,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -224,6 +227,37 @@ func cmdRun(root string, args []string) error {
 	if failures > 0 {
 		os.Exit(1)
 	}
+	return nil
+}
+
+// cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`
+// (#488): a row-granular three-way merge of live/gauntlet.json across
+// sibling estate PRs, so landing one no longer forces every other open PR
+// to pay a full re-run just to reconcile the aggregate. See MergeArtifact
+// (mergeartifact.go) for the merge itself and live/GAUNTLET.md for when
+// this applies and when a re-run is still mandatory. On success this
+// writes the merged, rebuilt artifact and re-renders every file it drives,
+// exactly like `gauntlet run` does after a real run.
+func cmdMergeArtifact(root string, args []string) error {
+	if len(args) != 3 {
+		return fmt.Errorf("merge-artifact needs exactly 3 revisions: <base> <ours> <theirs>, got %d", len(args))
+	}
+	merged, err := MergeArtifact(root, args[0], args[1], args[2])
+	if err != nil {
+		return err
+	}
+	if err := SaveArtifact(root, merged); err != nil {
+		return err
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, merged); err != nil {
+		return err
+	}
+	core, all := merged.Sets["core"], merged.Sets["all"]
+	fmt.Printf("merged: core %d of %d clear, all %d of %d clear\n", core.Clear, core.Estates, all.Clear, all.Estates)
 	return nil
 }
 
