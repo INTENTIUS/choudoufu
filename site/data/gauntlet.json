@@ -1807,18 +1807,20 @@
       "stages": {
         "cold_deploy": "pass",
         "migrate": "pass",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "commit": "43690d5c9b475971e97b32cebb133ee0bb08e7de",
-      "date": "2026-08-30T18:29:43Z",
-      "exit_code": 1,
+      "clear": true,
+      "commit": "420d460c047132624e7a565fd8dc8803fd372ee2",
+      "date": "2026-08-30T20:00:52Z",
+      "exit_code": 0,
       "detail": {
-        "cold_deploy": "301 resources from stock terraform against aws at scale=4 in 187s, tofu-cert-run=lc1788113580-44034, debug log 5262498B/36 throttle/36 retry",
-        "migrate": "137 of 301 verified, 137 stamped, 164 skipped, in 404s, debug log 7650922B/2 throttle/2 retry",
-        "test_plan": "the post-migrate plan exited 1 with 3 error(s), Rule: count-index - first: Error: count.index is not available in resource arguments"
+        "cold_deploy": "301 resources from stock terraform against aws at scale=4 in 174s, tofu-cert-run=lc1788117668-6931, debug log 5224563B/27 throttle/27 retry",
+        "migrate": "137 of 301 verified, 137 stamped, 164 skipped, in 77s, debug log 7772716B/38 throttle/38 retry",
+        "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 12",
+        "test_plan": "post-migrate plan is empty in 267s; zone/role tofu-address confirmed via the AWS CLI; debug log 3279469 bytes, 3 throttling-error line(s), 3 retry line(s)"
       },
-      "duration_s": 1003.9
+      "duration_s": 2384.4
     }
   ]
 }
