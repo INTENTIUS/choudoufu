@@ -40,30 +40,100 @@ import (
 //
 // # What this measures, and what it deliberately does not
 //
-// This runs identity.Resolve + Discover + projection.BuildFrom exactly as
-// scale_bench_test.go's runScaleBenchmark does (same helpers:
-// launchAWSProvider, loadConfig, resolveOrFail) - the stateless-discovery
-// pipeline, with the state file deleted after apply so nothing here leans
-// on it. It does NOT run live-import (internal/command/live_import.go),
-// which reads an existing tfstate as its migration bridge and is issue
-// #566's own subject ("the migration measurement: stock state -> choudoufu
-// at scale"). This file answers a narrower, prior question: at what
-// estate size does floci itself - not choudoufu's code - start dominating
-// the very same read pattern live-import will also have to pay for every
-// server-assigned (needs-discovery) type. See TestTerralithCeilingAgainstFloci's
-// doc comment for the measured numbers and the ceiling they produced.
+// This runs identity.Resolve + Discover + projection.BuildFrom - the
+// stateless-discovery pipeline, with the state file deleted after apply so
+// nothing here leans on it (mirrors scale_bench_test.go's
+// runScaleBenchmark). It does NOT run live-import
+// (internal/command/live_import.go), which reads an existing tfstate as its
+// migration bridge and is issue #566's own subject ("the migration
+// measurement: stock state -> choudoufu at scale"). This file answers a
+// narrower, prior question: at what estate size does floci itself - not
+// choudoufu's code - start dominating the very same read pattern
+// live-import will also have to pay for every server-assigned
+// (needs-discovery) type.
+//
+// # Measured scaling (2026-08-30, floci pin sha256:c55d74e1, darwin/arm64)
+//
+// Six tiers, each its own `go test` process (TERRALITH_CEILING_SCALE=N),
+// spanning a 73x resource-count range:
+//
+//	scale  resources  calls  pagination  throttle   apply       discover    build      harness_rss  floci_rss  materialized
+//	1      55         77     0           0          31.7s       54.1ms      158.1ms    227MB        245MB      28
+//	4      205        257    0           0          78.0s       82.1ms      453.3ms    225MB        304MB      109
+//	10     505        617    0           0          189.9s      98.5ms      765.5ms    226MB        255MB      271
+//	20     1005       1217   0           0          373.5s      155.3ms     1420.3ms   243MB        276MB      541
+//	40     2005       2417   0           0          743.7s      323.0ms     3270.1ms   267MB        291MB      1081
+//	80     4005       4817   0           0          1499.3s     451.6ms     5298.5ms   288MB        298MB      2161
+//
+// (harness_rss/floci_rss are peak values sampled during the Discover+Build
+// window only - see PeakHarnessRSSKB/PeakFlociRSSKB's own doc comments for
+// what each process is.)
+//
+// Per-unit rates make the shape legible: apply cost is flat at
+// ~0.37s/resource from scale=4 onward (0.577, 0.380, 0.376, 0.372, 0.371,
+// 0.374 s/resource) - floci's own per-create latency, linear with no sign
+// of degradation even with 4005 objects in one account. discover cost per
+// API call FALLS as N grows (0.70, 0.32, 0.16, 0.13, 0.13, 0.09 ms/call) -
+// the opposite of a dominance signal. build cost per materialized instance
+// is flat after the small-N startup effect (5.65, 4.16, 2.82, 2.63, 3.02,
+// 2.45 ms/instance). Peak process memory - both choudoufu's own harness and
+// floci's container - stayed within a ~225-300MB band across the whole
+// range, not proportional to resource count.
+//
+// pagination_total reads zero at EVERY tier, including scale=80's 480
+// aws_iam_policy instances (4.8x real AWS's documented 100-item default
+// page size for IAM ListPolicies) and 80 aws_ecs_task_definition instances
+// in one aws_ecs_task_definition ListTaskDefinitions call. Confirmed by a
+// direct API probe outside choudoufu entirely (no terraform, no provider,
+// plain `aws` CLI against a fresh floci container): 150 IAM policies and
+// 120 ECS task definitions, `--max-items`/`--max-results` given explicitly,
+// both come back in one response with IsTruncated/nextToken unset. This is
+// an emulator gap, not an artifact of these tiers being too small - see
+// lex00/floci#185. throttle_total is also zero at every tier, including the
+// 4817-call scale=80 run; floci applies no rate limiting in this range.
+//
+// # The stated ceiling
+//
+// No wall was found, in the measured range (55-4005 resources / 77-4817 API
+// calls), in any of the metrics that reflect choudoufu's OWN code: API call
+// count, discovery time, build/materialization time, and peak process
+// memory all stay flat or improve as the estate grows. Floci-backed
+// measurements of THOSE components are trustworthy at least through
+// ~4000 resources / ~4800 API calls (this run's own top tier) - the epic's
+// "roughly N resources" framing does not apply to them because no ceiling
+// showed up to look for.
+//
+// Two components of #546's central claim are a DIFFERENT kind of ceiling,
+// though, and it has nothing to do with resource count: list pagination
+// volume and throttling cannot be measured against floci AT ANY SCALE,
+// because the emulator does not implement the AWS behavior being measured
+// (confirmed above and in lex00/floci#185) - not "the estate needs to be
+// bigger" but "no floci-backed N will ever produce a nonzero answer here".
+// Those two components have to come from real AWS (#546E/#567) regardless
+// of how large a floci-backed estate grows.
+//
+// The practical limit on iterating further at THIS tier is apply/teardown
+// wall-clock time, not measurement validity: scale=80 alone cost ~25
+// minutes just to stand up (linear at ~0.37s/resource), which is what
+// stopped this benchmark's own climb, not a signal that anything above it
+// would behave differently.
+//
+// See TestTerralithCeilingAgainstFloci's doc comment for how to reproduce
+// any tier.
 //
 // # Teardown
 //
-// Each scale tier runs as its own t.Run subtest, so its floci container
-// (started fresh per tier by flocitest.StartFloci) is torn down - "docker
-// rm -f", the entire synthetic account gone - by that subtest's own
-// t.Cleanup before the next tier starts, satisfying #546's "teardown is
-// exercised deliberately at each tier before growing to the next" without
-// a separate terraform destroy: the state file was already deleted (like
-// scale_bench_test.go) to exercise the no-state discovery path, so
-// terraform itself has nothing left to destroy with; discarding the whole
-// account is the equivalent operation for an ephemeral emulator account.
+// Each scale tier's own `go test` process starts a fresh floci container
+// (flocitest.StartFloci) and tears it down - "docker rm -f", the entire
+// synthetic account gone - via that process's own t.Cleanup when the
+// process exits, before the next (larger) tier is ever started by hand.
+// That satisfies #546's "teardown is exercised deliberately at each tier
+// before growing to the next" without a separate terraform destroy: the
+// state file was already deleted (like scale_bench_test.go) to exercise
+// the no-state discovery path, so terraform itself has nothing left to
+// destroy with - discarding the whole ephemeral account is the equivalent
+// operation. Verified after this file's own six-tier run: no
+// "cdf-ceiling-*" container remained (`docker ps -a`).
 const terralithCeilingEstate = "ceiling-cohort"
 
 // terralithCeilingScale reads TERRALITH_CEILING_SCALE, defaulting to 1 -
@@ -88,13 +158,16 @@ func terralithCeilingScale(t *testing.T) int {
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTerralithCeilingAgainstFloci -v -timeout 20m
 //	TERRALITH_CEILING_SCALE=10 TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTerralithCeilingAgainstFloci -v -timeout 20m
 //
+// A tier above ~40 (2005 resources) needs a longer -timeout: apply alone
+// took ~25 minutes at scale=80 (4005 resources) on the machine that
+// recorded this file's own "Measured scaling" table above.
+//
 // Never asserts a pass/fail threshold on the measured numbers - unlike
 // scale_bench_test.go's ratchet, there is no committed budget here to
-// compare against, because the deliverable is the ceiling itself, decided
-// by a human reading the logged report across several runs at growing
-// scale (see live/GAUNTLET.md-adjacent doc: HANDOFF's own rule that a
-// finding is not the same thing as a fix - here there is nothing to fix,
-// only something to state).
+// compare against, because the deliverable is the ceiling itself: a
+// statement backed by evidence at named tiers, not a number a future run
+// could regress. See this file's own package doc comment ("Measured
+// scaling" and "The stated ceiling") for what six such runs found.
 func TestTerralithCeilingAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery/terralith-ceiling")
 	flocitest.RequireBinary(t, "docker")
@@ -262,7 +335,29 @@ func runTerralithCeilingBenchmark(t *testing.T, scale int) terralithCeilingRepor
 
 	provider := launchAWSProvider(t, dir)
 	cfg := loadConfig(t, dir)
-	resolutions := resolveOrFail(t, cfg).All()
+
+	// Unlike scale_bench_test.go's single-type (aws_s3_bucket) estate, a
+	// terralith declares cross-resource references in plain config (a DNS
+	// record's name built from its zone's own name argument -
+	// aws_route53_record.rec_N.name reads aws_route53_zone.main.name) -
+	// exactly the shape a real terralith has and estate-gen's one-block-
+	// per-type fixtures never do. identity.Resolve needs the provider's own
+	// schemas to confirm such a reference names a real attribute at all
+	// (see identity.Context.Schemas's doc comment); without them, every
+	// such reference refuses outright. This benchmark is about floci's
+	// cost, not resolution correctness, so a residual refusal after
+	// schemas are supplied is logged and excluded from the resolutions
+	// Discover sees - not fatal, and not silently hidden either.
+	schema := provider.GetProviderSchema(context.Background())
+	if schema.Diagnostics.HasErrors() {
+		t.Fatalf("reading the AWS provider schema: %s", schema.Diagnostics.Err())
+	}
+	resolveResult, resolveDiags := identity.ResolveWith(context.Background(), cfg, identity.Context{Schemas: schema.ResourceTypes})
+	if resolveDiags.HasErrors() {
+		t.Logf("identity resolution diagnostics (%d), not fatal to this benchmark - excluded instances are simply absent from what Discover/BuildFrom below sees:\n%s",
+			len(resolveDiags), renderDiags(resolveDiags))
+	}
+	resolutions := resolveResult.All()
 
 	declaredTypes := map[string]int{}        // type -> instance count
 	needsDiscoveryTypes := map[string]bool{} // type -> at least one NEEDS_DISCOVERY instance
