@@ -36,6 +36,10 @@ set -uo pipefail
 # CLI - never a timeout.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$ROOT/live/e2e/lib/gauntlet.sh"
+gauntlet_begin
+
 WORK="$(mktemp -d)"
 SCALE="${SCALE:-1}"
 FLOCI_PORT="${FLOCI_PORT:-4745}"
@@ -51,7 +55,11 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "${CURRENT_STAGE:-}" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region us-east-1 "$@"; }
 
 # inventory prints one line per live object this run's own prefix could
@@ -98,6 +106,18 @@ export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 # ── 3. terraform apply (plain stock Terraform, no state trickery) ─────────
+#
+# cold_deploy opens here and is reported at the end of section 6, not after
+# the apply assertion below. Its verdict is the apply's - "the stock binary
+# applies the unmodified configuration against the emulator, with no live
+# block and no choudoufu involved" - and reporting it late only makes it
+# stricter, never looser. The reason to report it late is the destroy: a
+# stock teardown that fails would otherwise exit this script non-zero with
+# no stage reading `fail` anywhere in the row, which is precisely what
+# tools/gauntlet's TestNonzeroExitCodeImpliesAFailingStage refuses. There is
+# no active stage of its own for a STOCK destroy (day2_teardown is planned,
+# and is about `choudoufu apply -destroy`), so it stays inside this one.
+gauntlet_begin_stage cold_deploy
 log "=== 3. terraform apply ==="
 ( cd "$WORK/terralith" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "terraform init failed"
 APPLY1="$(cd "$WORK/terralith" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
@@ -139,6 +159,34 @@ log "=== 6. the empty-account assertion ==="
 AFTER="$(inventory)"
 [ -z "$AFTER" ] || { printf '%s\n' "$AFTER"; fail "the account is not empty after terraform destroy: $AFTER"; }
 log "  terraform destroy leaves this prefix's account empty, enumerated across every resource kind the estate used"
+
+gauntlet_stage cold_deploy pass "stock terraform applied ${EXPECTED} resources at scale=${SCALE} from unmodified terralith-gen output (no live block, no choudoufu binary in this script at all), ${BEFORE_N} objects enumerated live across IAM/Route53/ECS/EC2 with a BREAK control proving the enumeration has teeth, then stock destroy removed all ${EXPECTED} and left the prefix's account enumerated empty"
+
+# ── Every other active stage: not_run, and why ────────────────────────────
+#
+# Reported honestly rather than left to the artifact's backfill, so the row
+# says WHY it is empty rather than merely that it is.
+#
+# This script is deliberately choudoufu-free (see the header): its subject
+# is whether the GENERATOR's output is valid, appliable, destroyable stock
+# Terraform. Every stage below needs the choudoufu binary, so none of them
+# is a thing this script declines to check - they are things it is not the
+# script for, yet. Writing them is the crossing work `gauntlet next` will
+# now surface as real units for this estate.
+#
+# Note what is NOT claimed here: migrate, test_plan and test_apply are
+# recorded `pass` for this estate in live/gauntlet.json's separate live_cert
+# array, against a real AWS account. That is different evidence about a
+# different target and it is deliberately not copied into this row - an
+# emulator row and a live-AWS certification are kept apart on purpose
+# (tools/gauntlet/livecert.go's own doc comment).
+for _stage in migrate test_plan test_apply drift_reconverge \
+              day2_rename day2_remove day2_count day2_replace \
+              greenfield strict; do
+  gauntlet_stage "$_stage" not_run "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke"
+done
+
+gauntlet_end
 
 log ""
 log "=== PASS ==="

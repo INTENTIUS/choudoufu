@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
 // Composition, as a function of scale (issue #564's "one flag" requirement).
@@ -248,6 +250,37 @@ func buildEstate(scale int, prefix string) *estate {
 		"ecs.tf":                        header("ecs.tf", "the container-service layer: one cluster, and per service a template task definition plus a service with lifecycle.ignore_changes on task_definition") + ecs.String(),
 		"dns.tf":                        header("dns.tf", "the DNS fan-out: one zone, many for_each'd records (issue #574)") + dns.String(),
 		"GENERATED.md":                  generatedMD(scale, prefix, teams, services, dnsRecords, countTeams, podSize, comp),
+	}
+
+	// Canonicalize the HCL here, in this process, with the same library
+	// `terraform fmt` and `tofu fmt` are built on
+	// (internal/command/fmt.go's formatSourceCode).
+	//
+	// This used to be delegated entirely to the external `fmt` binary
+	// main.go shells out to after write(), and that is the root of issue
+	// #578's defect 1. The templates above are hand-aligned, hand-alignment
+	// drifts from what the formatter would produce - `=` padded across a
+	// multi-line jsonencode, which ends an alignment group - and the drift
+	// was invisible because the external pass silently repaired it on the
+	// way out. So the estate's canonical-ness depended on an OPTIONAL
+	// binary: with no terraform/tofu/choudoufu on PATH, terralith-gen
+	// emitted misformatted HCL and said nothing. #574 then added
+	// modules/team_pod below the root, the external pass was missing
+	// -recursive, and that one file lost even its silent repair.
+	//
+	// Formatting here removes the dependency: what this generator produces
+	// is canonical at every scale and prefix whether or not any binary is
+	// installed, and TestGeneratedTerralithIsCanonicallyFormatted can
+	// assert it with nothing but the process it runs in. main.go's fmt pass
+	// keeps its second job - the free parse of the whole tree - which is
+	// #578's defect 2, and is now a check over already-canonical files
+	// rather than a repair nobody was watching.
+	//
+	// *.tf only: GENERATED.md is Markdown.
+	for name, content := range files {
+		if strings.HasSuffix(name, ".tf") {
+			files[name] = string(hclwrite.Format([]byte(content)))
+		}
 	}
 
 	return &estate{files: files, composition: comp}

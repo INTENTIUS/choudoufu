@@ -544,6 +544,77 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════
+# Plan wall-clock instrumentation (issue #578).
+#
+# Nothing anywhere has ever timed stock `plan` against choudoufu `plan` on
+# the same estate. The only stock number on record for this terralith is
+# `terraform apply`, so there has been no basis for a comparative planning
+# claim in either direction. live/e2e/terralith-scale/MIGRATION.md's 36x
+# and 262x figures are floci, on another machine, and one side of them was
+# taken to establish an adoption ratio rather than to measure planning
+# cost - they are not a baseline and are deliberately not reused here.
+#
+# What makes the two numbers below comparable, and what would void them:
+#
+#   - Same machine, same session, same region, same scale, same estate,
+#     minutes apart. Stock plans its own state after cold_deploy has
+#     converged; choudoufu plans the migrated estate at test_plan.
+#   - Both run with TF_LOG unset. The stage-gating plan at test_plan keeps
+#     its TF_LOG=DEBUG instrumentation for the throttling measurement, and
+#     is reported separately: writing megabytes of debug log inside a timed
+#     region measures the log, not the plan.
+#   - Both are warm - the provider is already installed in each directory
+#     by that directory's own init, well before either timed region opens.
+#   - Three runs each, all three values reported, no mean and no selection.
+#     Whole-second resolution, from date(1), which is what this script
+#     already uses.
+#
+# Emptiness is recorded rather than enforced. Stock's plan is expected to
+# propose nothing; choudoufu's is NOT necessarily expected to, because #566
+# found the ECS identity defect #572 leaving 3/55 unresolved at scale 1 and
+# 9/205 at scale 4. If either plan proposes anything, the comparison is not
+# between two equivalent operations, and the report has to say so rather
+# than quietly present the seconds as like-for-like.
+#
+# This block reports measurements. It never fails the run: a real-money
+# certification must not be lost to an instrumentation error.
+# ══════════════════════════════════════════════════════════════════════
+PLAN_TIMING_REPORT=""
+
+timed_plans() {
+  local label="$1" dir="$2" bin="$3"
+  local i start end secs out rc verdict
+  local secs_list="" verdicts=""
+
+  for i in 1 2 3; do
+    start=$(date +%s)
+    out="$(cd "$dir" && "$bin" plan -input=false -no-color 2>&1)"
+    rc=$?
+    end=$(date +%s)
+    secs=$((end - start))
+
+    if [ "$rc" -ne 0 ]; then
+      verdict="exit${rc}"
+    elif grep -qF "No changes. Your infrastructure matches the configuration." <<< "$out"; then
+      verdict="empty"
+    else
+      verdict="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' <<< "$out" | head -1 | tr ' ' '_')"
+      [ -n "$verdict" ] || verdict="non-empty"
+      printf '%s\n' "$out" > "$WORK/plantiming_${label}_${i}.out"
+      log "    run ${i} was NOT a no-change plan (${verdict}); full output kept at plantiming_${label}_${i}.out"
+      grep -E '^  # ' <<< "$out" | head -10 | sed 's/^/      /'
+    fi
+
+    log "    ${label} plan run ${i}: ${secs}s (${verdict})"
+    secs_list="${secs_list}${secs_list:+ }${secs}"
+    verdicts="${verdicts}${verdicts:+,}${verdict}"
+  done
+
+  PLAN_TIMING_REPORT="${PLAN_TIMING_REPORT}${PLAN_TIMING_REPORT:+
+}  ${label}: ${secs_list} seconds (3 runs, TF_LOG unset, warm provider); verdicts ${verdicts}"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # cold_deploy: stock applies the unmodified (AZ/provider-corrected)
 # generator output for real.
 # ══════════════════════════════════════════════════════════════════════
@@ -583,6 +654,15 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/cold_deploy_apply.debug.log" ]; then
   log "  cold_deploy debug log: ${COLD_LOG_BYTES} bytes, ${COLD_THROTTLE_HITS} throttling-error line(s), ${COLD_RETRY_LINES} genuine-retry line(s) - this is the parallelism=10, single-zone Route53 record fan-out, the most plausible place in this pipeline to see ChangeResourceRecordSets pushed back on"
 fi
 gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD against $TARGET at scale=$SCALE in ${COLD_APPLY_S}s, tofu-cert-run=$RUN_ID, debug log ${COLD_LOG_BYTES}B/${COLD_THROTTLE_HITS} throttle/${COLD_RETRY_LINES} retry"
+
+# Issue #578: stock's own plan on its own state, AFTER the apply has
+# converged and BEFORE anything migrates it - a refresh-and-diff of an
+# already-applied estate, which is the operation choudoufu's post-migration
+# plan at test_plan is compared against. Unattributed on purpose: it reports
+# no verdict, so no stage should be blamed if it goes wrong.
+gauntlet_end_stage
+log "=== 2c. plan timing: stock $TF_COLD plan x3, converged estate, TF_LOG unset (#578) ==="
+timed_plans "stock-terraform" "$COLD_DIR" "$TF_COLD"
 
 # ══════════════════════════════════════════════════════════════════════
 # migrate: choudoufu live-import -approve against the stock state file.
@@ -668,7 +748,19 @@ fi
 PLAN_END=$(date +%s)
 PLAN_S=$((PLAN_END - PLAN_START))
 printf '%s\n' "$PLAN_OUT" > "$WORK/test_plan.out"
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "the post-migrate plan exited $PLAN_RC"; }
+if [ "$PLAN_RC" -ne 0 ]; then
+  printf '%s\n' "$PLAN_OUT" | tail -40
+  # Carry the plan's OWN diagnosis into the stage detail, not the exit code.
+  # "the post-migrate plan exited 1" is the exact shape this repository
+  # refuses everywhere else - an exit code standing in for a verdict - and
+  # it is what the recorded live_cert row is stuck with until the run that
+  # produced it is repeated. A row that names the rule and the first error
+  # is readable without the log; a row that names a number is not.
+  PLAN_ERR="$(grep -m1 -E '^Error: ' <<< "$PLAN_OUT" | tr -d '\r')"
+  PLAN_RULE="$(grep -m1 -oE 'Rule: [a-z0-9-]+' <<< "$PLAN_OUT")"
+  PLAN_ERR_N="$(grep -c -E '^Error: ' <<< "$PLAN_OUT" | tr -d ' ')"
+  fail "the post-migrate plan exited ${PLAN_RC} with ${PLAN_ERR_N} error(s)${PLAN_RULE:+, ${PLAN_RULE}}${PLAN_ERR:+ - first: ${PLAN_ERR}}"
+fi
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
   || { grep -E '^  #' <<< "$PLAN_OUT" | head -20; fail "the post-migrate plan is not empty - see $WORK/test_plan.out"; }
 log "  plan empty in ${PLAN_S}s"
@@ -693,6 +785,17 @@ RTAG="$(livecert_aws iam list-role-tags --role-name "${PREFIX}-team-0000-role" -
 [ "$RTAG" = "aws_iam_role.team_0000_role" ] || fail "the role carries tofu-address=$RTAG, not aws_iam_role.team_0000_role"
 log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI directly"
 gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s)"
+
+# Issue #578: the same three-run, TF_LOG-unset measurement stock got at
+# 2c, on the migrated estate, so the two sides differ in the binary and
+# the state model and in nothing else this script controls. The gating
+# plan above keeps its debug instrumentation and stays out of this number.
+gauntlet_end_stage
+log "=== 4d. plan timing: choudoufu plan x3, migrated estate, TF_LOG unset (#578) ==="
+timed_plans "choudoufu" "$ADOPTED_DIR" "$TOFU"
+log "=== PLAN TIMING SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) ==="
+printf '%s\n' "$PLAN_TIMING_REPORT"
+log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLAN_S}s (${PLAN_LOG_BYTES} bytes of debug log written inside that region)"
 
 # ══════════════════════════════════════════════════════════════════════
 # test_apply: applying the empty plan is a genuine no-op.

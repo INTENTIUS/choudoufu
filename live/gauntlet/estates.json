@@ -246,6 +246,13 @@
       "lane": "reference",
       "set": "core",
       "reason": "the plainest hand-written reference shape, kept in this repository"
+    },
+    {
+      "name": "terralith-scale",
+      "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
+      "lane": "reference",
+      "set": "core",
+      "reason": "the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim"
     }
   ]
 }
