@@ -1,5 +1,9 @@
 # OpenTofu Documentation
 
+> [!NOTE]
+>
+> Inherited from upstream OpenTofu, and describes opentofu.org. choudoufu's own documentation is `site/`, built with Hugo; this directory is not published anywhere by this fork. The instructions below are upstream's and are kept as context for the content they describe.
+
 This directory contains the portions of [the OpenTofu website](https://opentofu.org) that pertain to the core functionality, excluding providers and the overall configuration.
 
 ## Development server

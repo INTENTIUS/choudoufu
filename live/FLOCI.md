@@ -166,6 +166,13 @@ A  wall=274s  plan is NOT empty
 B  wall=7s    plan is EMPTY ("No changes. Your infrastructure matches ...")
 ```
 
+`rfc/20260830-stateful-equivalence.md` reached the same verdict from a
+separate run and a different harness, timing four columns on one commit: the
+generator's own provider block gives 273.42/274.19/273.42s and a non-empty
+plan, and the certification harness's block gives 3.79/2.87/2.73s and an empty
+one, on the same emulator at the same pin. Two independent controls, one
+conclusion.
+
 So the ~267s is a fixed stall from one configuration line, on one resource
 type, independent of estate size — not plan cost, and not floci latency.
 `live/e2e/terralith-scale/MIGRATION.md`'s own diagnosis ("network/API-latency

@@ -82,6 +82,26 @@ in the same `classify.go` as `matchTable` above, skips any address carrying an
 index or a key, so content matching only ever considers instances with
 neither.
 
+The blind spot is quiet, which is why it is worth seeing once. Stood up as a
+stock estate and then migrated by the plan loop, a five-resource
+configuration - `aws_vpc.pool` with `count = 2`, `aws_security_group.svc`
+with a two-key `for_each`, and one plain `aws_vpc.solo` - produced exactly one
+adoption offer:
+
+```
+Adoptable: 1 live resource matches a declared resource
+Plan: 5 to add, 0 to change, 0 to destroy.
+```
+
+All five already existed. Four were invisible to the offer, and the plan
+proposed creating all five. The four do appear, in the `Not read from the live
+system` section, each tagged `[NEEDS_DISCOVERY]` with the explanation "Marker
+discovery will find it; until then the plan will propose creating it." For an
+expanded instance carrying no marker that sentence does not hold: discovery
+has nothing to find, because the only thing that would bind the instance is
+the marker that is not there yet. Read `[NEEDS_DISCOVERY]` on an indexed or
+keyed address as "you have work to do here", not as reassurance.
+
 **That limit belongs to the loop below, not to expanded resources.** It is a
 property of matching configuration content against listed objects, which is
 what `choudoufu plan` does when it has nothing else to go on. `choudoufu
@@ -198,6 +218,23 @@ instead.
    `aws_route53_zone`, `aws_lb`, `aws_lb_target_group` or `aws_sns_topic`
    candidate comes with its marker pair and no command, because each service
    has its own tagging call. Write the same two tags with that call.
+
+   Writing one by hand for an expanded instance, which the loop never offers,
+   needs the escaping rule from `live/MARKERS.md`: `[` becomes `:`, and `]`
+   and `"` are deleted. So `aws_vpc.pool[0]` is written `aws_vpc.pool:0`, and
+   `aws_security_group.svc["alpha"]` is written
+   `aws_security_group.svc:alpha`.
+
+   ```
+   aws ec2 create-tags --resources 'vpc-9a5e998c' \
+     --tags 'Key=tofu-estate,Value=my-estate' 'Key=tofu-address,Value=aws_vpc.pool:0'
+   ```
+
+   Two tags are enough even for a `count` instance. `tofu-slot` binds a
+   `count` instance where it is present, but a hand-written pair without it
+   still binds on `tofu-address`, and the next plan proposes adding the slot
+   as an ordinary in-place tags update. Writing the pair and letting the plan
+   fill in the slot is correct.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
 6. **Delete the state file, if you want it gone.** Not before here, and not
@@ -248,13 +285,15 @@ cannot declare. [Compatibility reference]({{< relref "/docs/use/compatibility" >
 
 ## If you are used to import, moved and removed
 
-Upstream needs those three because state is authoritative and each edits that
+Stock needs those three because state is authoritative and each edits that
 record surgically. `import` writes an entry, `moved` rewrites an address,
 `removed` with `lifecycle { destroy = false }` drops an entry without touching
 the object.
 
-With no file of record there is nothing to edit. Adopting is the marker stamp
-above, or `live-import` in bulk. Renaming is `choudoufu live-mv <old> <new>`,
+Here the record that decides ownership is the marker on the resource, so those
+three have nothing to edit: any tool that can write two tags does the work
+they existed for. Adopting is the marker stamp above, or `live-import` in
+bulk. Renaming is `choudoufu live-mv <old> <new>`,
 rewriting the `tofu-address` tag in place and leaving unadopted resources
 alone. `moved` blocks are refused by lint.
 
