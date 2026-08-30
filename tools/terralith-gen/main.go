@@ -33,10 +33,13 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 const (
@@ -54,7 +57,7 @@ func main() {
 	scale := flag.Int("scale", 1, "scale factor; every count in the composition is linear in this, so the composition's proportions hold as it grows (issue #564)")
 	out := flag.String("out", "", "output directory (required)")
 	prefix := flag.String("prefix", "tl", "short name prefix for every generated resource, so more than one generated terralith can coexist in one account without name collisions")
-	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary used to canonicalize the generated *.tf files' formatting (terraform, tofu or choudoufu); best-effort, skipped if not found")
+	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary used to canonicalize the generated *.tf files' formatting, recursively (terraform, tofu or choudoufu); skipped when not on PATH, but a binary that runs and rejects the generated HCL fails the generation")
 	flag.Parse()
 
 	if err := run(*scale, *out, *prefix, *fmtBin); err != nil {
@@ -80,11 +83,8 @@ func run(scale int, out, prefix, fmtBin string) error {
 		return err
 	}
 
-	if fmtBin != "" {
-		if _, err := exec.LookPath(fmtBin); err == nil {
-			cmd := exec.Command(fmtBin, "fmt", out) //nolint:gosec // caller-provided binary name, the same trust boundary as tools/estate-gen's -fmt-bin
-			_ = cmd.Run()                           // best-effort: formatting failure is not a generation failure
-		}
+	if err := formatWithBinary(fmtBin, out); err != nil {
+		return err
 	}
 
 	c := est.composition
@@ -93,5 +93,49 @@ func run(scale int, out, prefix, fmtBin string) error {
 		out, scale, prefix, c.totalResources(), c.identityResources, c.identityPercent(),
 		c.containerResources, c.dnsResources, c.supportingResources,
 		c.duplicateRolePolicyBlocks, c.totalRolePolicyBlocks, c.duplicationPercent())
+	return nil
+}
+
+// formatWithBinary canonicalizes the HCL under out, recursively, with fmtBin.
+//
+// Two things that both used to read as "fmt failed" are deliberately not the
+// same thing here (issue #578, defect 2):
+//
+//   - fmtBin is not on PATH. Not an error. Formatting is a convenience, and a
+//     caller with none of terraform/tofu/choudoufu installed still gets a
+//     correct estate; refusing to generate one would make a cosmetic pass a
+//     hard dependency.
+//   - fmtBin ran and exited non-zero. A generation failure, returned as one,
+//     with its stderr. `terraform fmt` is a parser before it is a formatter:
+//     it exits 2 with "Error: Invalid expression" and the offending file and
+//     line when it cannot parse what this tool wrote. That is a syntax check
+//     over the whole generated estate needing no Docker, no emulator and no
+//     network - only the binary already being looked up on this line - and
+//     `_ = cmd.Run()` threw it away.
+//
+// -recursive is load-bearing, not tidiness (issue #578, defect 1): `fmt`
+// does not recurse by default, so without it the generated module
+// subdirectory (modules/team_pod, added by #574) was the one part of the
+// estate that was never formatted and, by the paragraph above, never parsed.
+// terraform, tofu and choudoufu all accept the flag.
+func formatWithBinary(fmtBin, out string) error {
+	if fmtBin == "" {
+		return nil
+	}
+	if _, err := exec.LookPath(fmtBin); err != nil {
+		return nil
+	}
+
+	cmd := exec.Command(fmtBin, "fmt", "-recursive", out) //nolint:gosec // caller-provided binary name, the same trust boundary as tools/estate-gen's -fmt-bin
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return fmt.Errorf("%s fmt -recursive %s exited %d - the generated HCL did not survive its own formatter, which is a generation failure:\n%s",
+				fmtBin, out, exit.ExitCode(), strings.TrimRight(stderr.String(), "\n"))
+		}
+		return fmt.Errorf("running %s fmt -recursive %s: %w", fmtBin, out, err)
+	}
 	return nil
 }
