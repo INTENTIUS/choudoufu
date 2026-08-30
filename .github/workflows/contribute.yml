@@ -33,11 +33,18 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - uses: hashicorp/setup-terraform@v3
         with:
+          # Pinned, not "latest" - see gauntlet.yml's matching step for why
+          # (issue #544, root cause of #498) and live/oracle-versions.json
+          # for where this is maintained.
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
       - uses: actions/setup-node@v4
         with:

@@ -182,7 +182,7 @@ func TestRebuildSetsBehaviorsFields(t *testing.T) {
 	}}
 	a := &Artifact{}
 	m := &Manifest{}
-	a.Rebuild(m, bi, "img")
+	a.Rebuild(m, bi, "img", OracleVersions{})
 	if a.BehaviorsProven != 1 {
 		t.Fatalf("a.BehaviorsProven = %d, want 1", a.BehaviorsProven)
 	}
@@ -192,7 +192,7 @@ func TestRebuildSetsBehaviorsFields(t *testing.T) {
 	// A stale value left over from a previous Rebuild must not survive: call
 	// again with an index that proves nothing and confirm it drops back to 0
 	// rather than a max-so-far ratchet leaking in from somewhere.
-	a.Rebuild(m, &BehaviorIndex{}, "img")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{})
 	if a.BehaviorsProven != 0 {
 		t.Fatalf("a.BehaviorsProven = %d after an empty index, want 0 (must not carry the previous run's count forward)", a.BehaviorsProven)
 	}

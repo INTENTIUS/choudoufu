@@ -55,22 +55,35 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+      - name: Read the pinned stock oracle versions (issue #544)
+        id: oracle
+        run: |
+          echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+          echo "tofu=$(jq -r .tofu_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - uses: hashicorp/setup-terraform@v3
         with:
+          # Pinned, not "latest": the stock binary is the ORACLE every stage
+          # compares choudoufu's plan against, so an unpinned oracle silently
+          # changes what "matches stock" means (issue #544, root cause of
+          # #498). live/oracle-versions.json is the single place a human
+          # maintains this deliberately; bump it by hand-editing that file,
+          # then run `just oracle-bump` to re-measure and get the movement
+          # report (tools/oracle-bump-report) before landing it.
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
       - uses: opentofu/setup-opentofu@v2
         with:
-          # No pinned tofu_version: it defaults to "latest", same as
-          # terraform_version above. The estates that hard-require tofu only
-          # assert a floor (required_version >= 1.11.0, the highest lower
-          # bound among them; see live/e2e/corpus-*/run.sh), so "latest"
-          # always clears it without pinning a version this workflow would
-          # need to keep bumping. tofu_wrapper: false for the same reason as
+          # Same pin, same file - see the terraform_version comment above.
+          # The estates that hard-require tofu only assert a floor
+          # (required_version >= 1.11.0, the highest lower bound among them;
+          # see live/e2e/corpus-*/run.sh), which live/oracle-versions.json's
+          # tofu_version clears. tofu_wrapper: false for the same reason as
           # terraform_wrapper above - the wrapper script would sit between
           # these scripts and the real binary's stdout/stderr/exit code.
+          tofu_version: ${{ steps.oracle.outputs.tofu }}
           tofu_wrapper: false
       - name: Materialise the corpus
         run: go run ./tools/corpus-fetch

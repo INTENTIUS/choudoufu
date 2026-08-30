@@ -894,6 +894,18 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 		w("Verdicts were recorded from this estate's crossing script by hand before the")
 		w("script spoke the gauntlet protocol; the next run that does will replace them.")
 	}
+	// Oracle provenance (issue #544), beside the emulator note above: only
+	// present once a real run has probed it (RunEstates, run.go). Silent for
+	// every row that predates this field - never claiming evidence a run
+	// never actually recorded.
+	if r.LastRun != nil && r.LastRun.Oracle != nil {
+		switch {
+		case *r.LastRun.Oracle == a.Oracle:
+			w("Oracle: stock terraform `%s`, stock tofu `%s` (matches the current pin).", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu)
+		default:
+			w("Oracle: stock terraform `%s`, stock tofu `%s`. **Stale**: the current pin is terraform `%s`, tofu `%s`.", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu, a.Oracle.Terraform, a.Oracle.Tofu)
+		}
+	}
 	if r.Notes != "" {
 		w("")
 		w("%s", r.Notes)
