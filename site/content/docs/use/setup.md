@@ -118,15 +118,16 @@ hazard. Believing it still counts for something is.
 
 That harmlessness is why the ordering is safe to get right: **`choudoufu
 live-import` reads that state file**, and it is the command's only input. If
-your estate uses `count` or `for_each`, the bulk path below is the one you
-want, and deleting the state file first throws that input away. Run
-`live-import` before the deletion, not after.
+your estate uses `count` or `for_each`, that command is the path you want, and
+deleting the state file first throws its input away. Run `live-import` before
+the deletion, not after.
 
 ## The record store
 
-Every estate has one. It holds values no cloud object can report back — what a
-`null_resource` ran, what a `random_pet` generated — plus residue for ordinary
-resources. Declaring no `record_store` gets you a local one.
+Every estate has one, and declaring no `record_store` gets you a local one.
+[Where things are stored]({{< relref "/docs/use/storage" >}}) covers what it
+holds and how to choose a backend. This page answers only the setup question:
+what has to exist before the first plan.
 
 | Backend | What must exist first | Created by |
 |---|---|---|
@@ -196,49 +197,14 @@ declares, this is why.
 Create the bucket outside the estate, the way a stock bootstrap configuration
 would, or use `ssm`, which has no such cycle.
 
-### The record store holds secrets by default
+### The store holds secrets by default
 
-Worth knowing before you choose a backend, because it decides who can read
-what.
-
-The default is `strict { secrets = "store" }`, which keeps what a stock state
-file would keep. A `random_password` is admitted and its generated value is
-written to the record store in clear. On `record_store "ssm"` that value lands
-in a `Type: String` parameter with no KMS key, readable with a plain
-`ssm:GetParameter` by anyone holding that permission on the path. On
-`record_store "local"` it lands in a file under `.tofu-records`, which no
-generated `.gitignore` covers, so add it to yours.
-
-Setting the toggle refuses those types instead:
-
-```hcl
-# estate.chdf.hcl
-estate = "my-estate"
-
-record_store "ssm" {}
-
-strict {
-  secrets = "refuse"
-}
-```
-
-```
-Error: Logical resource is not admitted
-```
-
-A platform team can require this from outside the configuration with
-`CHOUDOUFU_STRICT_PIN=1` in the environment that runs the plan, so relaxing
-the toggle and approving the relaxation cannot be the same change. See the
-`strict` block in [Reference]({{< relref "/docs/use/reference" >}}).
-
-### Nothing cleans the record store up
-
-`choudoufu destroy` destroys the resources and leaves records behind. A
-two-resource estate destroyed down to nothing left its guided hint and one
-resource's record still in the store.
-
-On `local` that is a directory to delete. On `ssm` and `s3` it is residue in a
-live account, and removing it is yours to do.
+One thing to know before choosing a backend, because it decides who ends up
+able to read your estate's generated values: the default is `strict { secrets
+= "store" }`, which keeps what a stock state file keeps, in clear.
+[Where things are stored]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
+has the per-backend version of who can read it, and what `strict { secrets =
+"refuse" }` changes.
 
 ## Markers are a command, not configuration
 
@@ -256,72 +222,12 @@ aws_vpc.solo <- aws_vpc vpc-12909d4c
     adopt with: aws ec2 create-tags --resources 'vpc-12909d4c' --tags …
 ```
 
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) covers the
-loop. One part of it deserves louder placement than a setup summary usually
-gets.
-
-### `count` and `for_each` instances are never offered
-
-Content matching skips any address carrying an index or a key, so an expanded
-instance that has no marker is not offered for adoption. It is not reported as
-a problem either.
-
-Stood up as a stock estate and then migrated by the plan loop, a five-resource
-configuration — `aws_vpc.pool` with `count = 2`, `aws_security_group.svc`
-with a two-key `for_each`, and one plain `aws_vpc.solo` — produced exactly
-one adoption offer:
-
-```
-Adoptable: 1 live resource matches a declared resource
-Plan: 5 to add, 0 to change, 0 to destroy.
-```
-
-All five already existed. Four of them were invisible to the offer, and the
-plan proposed creating all five.
-
-The four do appear, in the `Not read from the live system` section, each
-tagged `[NEEDS_DISCOVERY]` with the explanation "Marker discovery will find
-it; until then the plan will propose creating it." For an expanded instance
-carrying no marker that sentence does not hold. Discovery has nothing to find,
-because the only thing that would bind the instance is the marker that is not
-there yet. Read `[NEEDS_DISCOVERY]` on an indexed or keyed address as "you
-have work to do here", not as reassurance.
-
-There are two ways through.
-
-**The bulk path, and the one to reach for.** `choudoufu live-import` takes its
-addresses from the state file rather than by recognising objects, so expansion
-costs it nothing. It needs two flags and the state file you have not deleted
-yet:
-
-```
-choudoufu live-import -state=terraform.tfstate -estate=my-estate
-choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
-```
-
-The first run writes nothing and prints a ratification report. The second
-stamps. On the five-resource estate above it stamped every `count` index and
-every `for_each` key correctly, including the `tofu-slot` tag `count`
-instances carry, and the following plan reported no changes. The command
-announces itself as EXPERIMENTAL in its own help text;
-[Migrate an existing estate]({{< relref "/docs/use/migrate#moving-a-large-estate-in-one-go" >}})
-says what that label covers and what it does not.
-
-**By hand, per instance.** The address goes on the tag escaped, per
-`live/MARKERS.md`: `[` becomes `:`, and `]` and `"` are deleted. So
-`aws_vpc.pool[0]` is written as `aws_vpc.pool:0`, and
-`aws_security_group.svc["alpha"]` as `aws_security_group.svc:alpha`.
-
-```
-aws ec2 create-tags --resources 'vpc-9a5e998c' \
-  --tags 'Key=tofu-estate,Value=my-estate' 'Key=tofu-address,Value=aws_vpc.pool:0'
-```
-
-Two tags are enough even for a `count` instance. `tofu-slot` binds a `count`
-instance where it is present, but a hand-written pair without it still binds
-on `tofu-address`, and the next plan proposes adding the slot as an ordinary
-in-place tags update. Writing the pair and letting the plan fill in the slot
-is correct.
+That covers what the plan can recognise. It does not cover a `count` or
+`for_each` instance, which content matching never offers, and it is not the
+path to reach for on an estate that still has its state file.
+[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has the whole
+loop, the blind spot demonstrated, and `choudoufu live-import`, which takes
+its addresses from the state file and so pays nothing for expansion.
 
 ## Permissions
 

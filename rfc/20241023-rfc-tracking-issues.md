@@ -2,6 +2,10 @@
 
 > [!NOTE]
 >
+> Inherited from upstream OpenTofu. This document describes OpenTofu's RFC workflow and does not apply to choudoufu. How this fork records a design decision is in [rfc/README.md](./README.md).
+
+> [!NOTE]
+>
 > This is a _development process_ RFC rather than a feature RFC. It proposes a change to the workflow we follow for RFCs, rather than a software change in any of the OpenTofu codebases.
 
 An earlier RFC proposed the current [OpenTofu RFC Process](https://github.com/opentofu/opentofu/blob/de9fb7ccca5d02b7b675a036993bc5edcbd28c05/rfc/20240524-OpenTofu-RFC-Process.md), which has done a good job of laying the groundwork for designing new features "in the open" and leaving behind a record of our past decisions.

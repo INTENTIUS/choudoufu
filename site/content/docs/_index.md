@@ -5,9 +5,10 @@ weight: 1
 
 # What choudoufu is
 
-choudoufu is a fork of OpenTofu. Almost everything in it is stock OpenTofu,
-unmodified. On top of that stock base, this fork adds one thing: identity
-that lives on the resource itself, as AWS tags, instead of in a state file.
+**OpenTofu plus identity hooks.** Almost everything in this fork is stock
+OpenTofu, unmodified. On top of that base it adds a set of hooks that put a
+resource's identity on the resource itself, as AWS tags, so that a state file
+becomes a cache rather than the record of what you own.
 
 The promise this buys: **if OpenTofu runs an estate, choudoufu runs it too.**
 Migration from a stock state file is lossless, a greenfield apply is
@@ -16,6 +17,43 @@ measured, continuously, against real Terraform and OpenTofu configurations
 run side by side with stock OpenTofu - not argued. This page names every
 place that measurement lives, so nothing below is a claim you have to take on
 faith.
+
+## The hooks are not all in play at once
+
+Worth knowing before anything else, because the rest of this site reads
+differently once you have it: **none of the machinery below runs unless a
+configuration asks for it, and the ones that do run are not all needed on
+every run.**
+
+A configuration with no `live` block and no `estate.chdf.hcl` sidecar gets
+stock behaviour, and that is measured rather than promised. Over the same
+estate, in the same session, `terraform plan`, `tofu plan` and `choudoufu
+plan` each issued **exactly the same number of AWS API calls** - 150 at 79
+instances and 558 at 301 - with no variance across three runs each. Lint, the
+refusals, marker stamping, discovery and the projection are each behind a
+guard that a missing live block turns off, so none of them fires and none of
+them can refuse a configuration stock accepts. Seven small things do run
+unconditionally; they are enumerated, and the one among them that can change
+a verdict does so in the accepting direction. The measurement and the
+guard-by-guard reading are in
+[`rfc/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stateful-equivalence.md).
+
+Turn a live block on and the hooks below become available. They still differ
+in when they earn their cost:
+
+| Hook | In play when | What it costs |
+|---|---|---|
+| Reading resources this estate owns | Always | Exact call parity with a stock refresh |
+| Marker verification | Whenever identity comes from tags | The tagging leg, `ceil(tagged/100)` calls |
+| Adoption and unclaimed discovery | Migrating, auditing, or hunting drift you did not cause | The estate-wide sweep, the expensive one |
+| Migration by tag | During a migration | `choudoufu live-import`, its own command |
+| Central policy | When governance is configured | Not measured here |
+
+Only the first two are unconditional today. The third is the one that costs,
+and [what a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the
+measured split. That it runs on every plan today is a decision this fork has
+since ruled against; the ruling, and what replaces it, is
+[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md).
 
 ## How far it goes
 

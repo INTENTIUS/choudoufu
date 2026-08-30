@@ -1,5 +1,12 @@
 # OpenTofu RFC Process
 
+> [!NOTE]
+>
+> Inherited from upstream OpenTofu. This document describes OpenTofu's RFC
+> process and does not apply to choudoufu, which files no RFCs with any other
+> project. How this fork records a design decision is in
+> [rfc/README.md](./README.md).
+
 Issue: <N/A>
 
 As the OpenTofu project evolves, the community has been proposing more advanced concepts and ideas that frequently need significant discussion and iterations of feedback. Our Current RFC Process is cumbersome and hard to follow due to the following limitations: single user can edit, pages of comments are overwhelming, sub discussions are not easily possible.
