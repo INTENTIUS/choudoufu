@@ -3,13 +3,17 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// terralith-gen generates a synthetic terralith: a single-root-module,
-// single-state, stock-Terraform-shaped estate whose composition mirrors a
-// real one - dominated by IAM identity resources with deliberate
-// copy-paste duplication, a small ECS container-service layer carrying the
+// terralith-gen generates a synthetic terralith: a single-state,
+// stock-Terraform-shaped estate whose composition mirrors a real one -
+// dominated by IAM identity resources with deliberate copy-paste
+// duplication, a small ECS container-service layer carrying the
 // deploy-time drift pattern, and a Route 53 DNS record fan-out. See issue
 // #564 (child B of the #546 epic) for the shape requirements this
-// implements.
+// implements, and issue #574 for the count/for_each/module-nested
+// expansion added on top: most of the root module's resources are
+// individually named, but a share is `count`-expanded, a share is
+// `for_each`-expanded, and one bucket is nested inside a module call
+// (still one state - see gen.go's buildEstate doc comment).
 //
 // It exists because tools/estate-gen is the wrong tool for this shape:
 // estate-gen emits one resource block per admitted TYPE, for coverage

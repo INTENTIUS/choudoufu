@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Issue #564's own proof: tools/terralith-gen generates a stock-Terraform
-# terralith (no live block, no record_store, no tofu-estate/tofu-address
-# marker anywhere - see tools/terralith-gen/shape_test.go's mechanical
-# check for that half), and a plain `terraform apply` stands it up against
-# floci at the small tier (-scale 1), then a plain `terraform destroy`
-# tears it down - exercised deliberately before #565/#566/#567 attempt
-# anything larger, per #546's own rule ("Teardown is exercised at each
-# tier before growing to the next").
+# Issue #564's own proof (composition since extended by #574's
+# count/for_each/module-nested expansion): tools/terralith-gen generates a
+# stock-Terraform terralith (no live block, no record_store,
+# tofu-estate/tofu-address marker anywhere - see tools/terralith-gen/
+# shape_test.go's mechanical check for that half), and a plain
+# `terraform apply` stands it up against floci at the small tier
+# (-scale 1), then a plain `terraform destroy` tears it down - exercised
+# deliberately before #565/#566/#567 attempt anything larger, per #546's
+# own rule ("Teardown is exercised at each tier before growing to the
+# next"). #574 added a module call (modules/team_pod, wrapped with
+# for_each) to the estate this proves apply/destroy against, so this run
+# is also #574's own apply+destroy proof for the module-nested bucket.
 #
 # This is the oracle-free half on purpose: unlike live/e2e/destroy-teardown,
 # there is no choudoufu binary anywhere in this script. The subject here is
@@ -75,8 +79,8 @@ command -v terraform >/dev/null 2>&1 || fail "a real terraform binary is not on 
 log "=== 1. terralith-gen -scale $SCALE -prefix $PREFIX ==="
 ( cd "$ROOT" && env -u PWD go run ./tools/terralith-gen -scale "$SCALE" -prefix "$PREFIX" -out "$WORK/terralith" ) \
   || fail "terralith-gen failed"
-EXPECTED=$((50 * SCALE + 5))
-log "  expect ${EXPECTED} resources at scale=${SCALE} (36*scale+2*scale identity, 1+2*scale container, 1+10*scale dns, 3 supporting)"
+EXPECTED=$((74 * SCALE + 5))
+log "  expect ${EXPECTED} resources at scale=${SCALE} (62*scale identity [36 named + 2 service-exec + 12 count-expanded + 12 module-nested, issue #574], 1+2*scale container, 1+10*scale dns [one for_each block, #574], 3 supporting)"
 
 # ── 2. floci ────────────────────────────────────────────────────────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
