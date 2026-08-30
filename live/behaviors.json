@@ -132,6 +132,27 @@
       }
     },
     {
+      "id": "destroy-teardown",
+      "script": "live/e2e/destroy-teardown/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "GitHub issue #320's mechanism, ruled in #425: \"choudoufu apply -destroy\" under a live block generalizes the existing orphan sweep - internal/command/live_mode.go no longer refuses plans.DestroyMode, and RefreshOnlyMode stays refused. Five objects across all three #522-mandatory shapes (aws_vpc.pool count=2, aws_subnet.edge for_each={a,b} attached to pool[0] - a real destroy-order dependency, aws_vpc.inner one level inside module.extra) are stood up twice on the same emulator: once with plain terraform and a real state file (the oracle), once with choudoufu under a live block and no state at all. Both are torn down with their own \"apply -destroy\" and both empty-account claims are checked by enumerating the live objects that carry each run's own tag, never by trusting a reported count - the account after choudoufu's destroy is compared object-inventory to the account after stock's. A control (step 7) recreates one resource carrying the estate's own marker directly against the emulator, with no choudoufu involved, and requires the same empty-account check to report it rather than reading empty, proving the check has teeth. No ordering logic of this fork's own is exercised: the plan and apply that follow the lifted refusal are stock's own destroy-graph walker, unmodified, given every owned instance at once instead of one orphan at a time - the same mechanism day2_remove and day2_replace already lean on for a single instance.",
+      "shapes": [
+        "count",
+        "for_each",
+        "module-nested"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 5,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "terraform"
+      ],
+      "default_port": 4743
+    },
+    {
       "id": "lambda-residue",
       "script": "live/e2e/lambda-residue/run.sh",
       "category": "shape",

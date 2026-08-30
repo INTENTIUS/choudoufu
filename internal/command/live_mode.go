@@ -332,17 +332,31 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 		reject("Config generation is not available under live resource markers yet",
 			"-generate-config-out writes generated configuration for import blocks into a file, and that generated form has not been checked against the live-markers configuration subset yet. Rerun without -generate-config-out.")
 	}
-	if op != nil && op.PlanMode != plans.NormalMode {
-		// The remedy has to branch on how the mode was selected. "choudoufu
-		// destroy" is registered as ApplyCommand{Destroy: true}
-		// (cmd/choudoufu/commands.go) and ParseApplyDestroy sets DestroyMode
-		// with no flag involved, so telling that user to "rerun without
-		// -destroy" names a flag they never typed. See #101.
-		detail := "Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -refresh-only."
-		if op.PlanMode == plans.DestroyMode {
-			detail = "Live resource markers produce and apply normal plans, and destroying a whole estate in one command is not verified against a live-markers apply yet. To tear down what this estate owns, delete the resource blocks from the configuration and run \"choudoufu apply\": the estate sweep plans an owned resource with no configuration as a destroy, which is the tested path."
-		}
-		reject("Only the normal planning mode is available under live resource markers", detail)
+	// GitHub issue #320, ruled in #425: DestroyMode is a generalization of
+	// the orphan sweep, not a separate mechanism, so it is no longer
+	// refused here. The sweep already merges any owned instance with no
+	// matching config block into the change set as a destroy (see
+	// internal/live/untag/doc.go); DestroyMode's own contract - "destroy
+	// all remote objects... even if the configuration for those instances
+	// is still present" (plans.DestroyMode's doc comment) - asks for
+	// exactly that same merge applied to every owned instance the
+	// projection built, declared or not. Nothing downstream of
+	// statelessRejections branches on PlanMode: PriorState above builds
+	// the same projection of every owned instance regardless of mode, and
+	// the plan and apply that follow are stock, so it is stock's own
+	// destroy-graph walker - unmodified - that orders the result. See
+	// day2_remove and day2_replace, the two active stages that already
+	// lean on that same walker for a single instance at a time; this lifts
+	// the refusal on the estate-wide case rather than inventing a second
+	// ordering mechanism.
+	//
+	// -refresh-only stays refused: it is a genuinely different operation
+	// (compare a stored record against the live system) that has no
+	// meaning here, where both sides of that comparison are the live
+	// system - not a verification gap the sweep already closes.
+	if op != nil && op.PlanMode == plans.RefreshOnlyMode {
+		reject("Only the normal planning mode is available under live resource markers",
+			"Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -refresh-only.")
 	}
 	if state != nil && (state.StatePath != "" || state.StateOutPath != "" || state.BackupPath != "") {
 		reject("State file options are not available under live resource markers",
