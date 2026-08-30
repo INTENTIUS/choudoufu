@@ -5,10 +5,18 @@ weight: 7
 
 # What a plan costs
 
-There is no file of record, so prior state is rebuilt by reading the live
-system every time you plan. That reading is two costs, not one, and they grow
+Prior state is rebuilt by reading the live system every time you plan, because
+nothing stored is trusted. That reading is two costs, not one, and they grow
 along different axes. Which of the two dominates depends on the size of your
 estate, and the answer flips.
+
+Both belong to hooks, and the hooks differ in when they are needed. The read
+pass is unconditional and costs what stock's refresh costs. The sweep is the
+adoption hook, which answers a question an operator needs during a migration
+or an audit and not on an ordinary plan of an estate that is already adopted.
+It runs on every plan today. That it should not is
+[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md)'s
+ruling; this page is the measurement that ruling rests on.
 
 ## The two terms
 
@@ -133,18 +141,45 @@ same operation:
 Stock finishes the read pass, the term both sides share, in three seconds.
 The remaining 200 seconds is the sweep. Spread over the 558 sweep calls
 counted at that scale it is about 0.36s each, which is one network round trip
-apiece, and that is what it is: the native leg is a plain `for` loop over the
-sweep universe in `Discover`, one list attempt at a time, with nothing
-concurrent about it today.
+apiece, and at the time of that run the sweep made them one after another.
 
 Two bounds on that paragraph. The seconds are real AWS and the call counts are
 the emulator, so 0.36s per call is an estimate built from two measurements
 rather than a measured quantity;
 [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
 sets out when two wall clocks may be combined and when they may not. And the
-sweep being sequential is a property of the code as it stands rather than of
-the cost model. The admission table fixes how many calls there are; nothing
-requires them to be made one after another.
+table predates the sweep becoming concurrent, which is the next section.
+
+### The sweep now overlaps its own waiting
+
+The admission table fixes how many calls there are. Nothing requires them to
+be made one after another, and since
+[#605](https://github.com/INTENTIUS/choudoufu/issues/605) they are not:
+`Discover` prefetches the sweep's per-type listings through a bounded worker
+pool, `DefaultSweepParallelism = 10`
+(`internal/live/discovery/sweepconcurrency.go`), the same bound stock plans an
+estate at. It covers the sweep's per-type listing and nothing else — the
+config-driven scan, the tagging leg's single `GetResources`, and the parent
+and record-orphan reads are untouched.
+
+**The call count does not move, which is the point.** Measured against the
+pinned emulator at four settings and both scales, 558 calls at 79 instances
+and 591 at 301, identical at parallelism 1, 2, 10 and 20, with the scan-row
+order and the diagnostic sequence identical too:
+
+| Scale | Instances | par 1 | par 2 | par 10 | par 20 |
+|---|---|---|---|---|---|
+| 1 | 79 | 433.6ms | 266.4ms | 188.9ms | 154.9ms |
+| 4 | 301 | 419.4ms | 286.7ms | 219.2ms | 173.1ms |
+
+Those are milliseconds over loopback, so they measure the overlap and not the
+saving. A repeat of each parallelism-1 row landed 18% lower (357.4ms and
+355.7ms), so read the ratios as approximate. On real AWS the same change
+should turn the 521-call native leg's sequential 203s into roughly a tenth of
+that — `521 x 0.39s` is where the 203 comes from, and dividing it by 10 is
+arithmetic, not a measurement. **Nobody has re-run the real-AWS table above
+since the change.** Until someone does, the 200s column is what this page can
+say happened, and the projection is a projection.
 
 ## The unmigrated estate, for contrast
 
