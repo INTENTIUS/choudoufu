@@ -45,6 +45,13 @@ var guardedPackages = []string{
 	"lifecycle",
 	"lint",
 	"markerkey",
+	// GitHub issue #613's detection. It reads plan values, which is
+	// deferredPackages' population, but it is held to zero because it
+	// unmarks both sides of every change before it looks at anything -
+	// [Scan] calls UnmarkDeep on Before and After and touches nothing
+	// else - which is the proof deferredPackages exists for the absence
+	// of.
+	"markerstrip",
 	"mdspan",
 	"moved",
 	// Places a resolved identity's own already-computed string values onto

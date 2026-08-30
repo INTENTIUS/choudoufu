@@ -144,6 +144,13 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
 			statelessRejections(args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
+	} else if !diags.HasErrors() {
+		// GitHub issue #613. A state-backed run is the one that can propose
+		// stripping a migrated estate's ownership markers, because it is the
+		// one whose prior state has no record of them. Installed for a
+		// saved-plan apply too: the plan file was made by a run this one
+		// cannot see. See [statefulMarkerGuard].
+		opReq.PlanGuard = statefulMarkerGuard()
 	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics

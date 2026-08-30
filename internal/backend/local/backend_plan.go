@@ -213,6 +213,12 @@ func (b *Local) opPlan(
 
 	op.View.Plan(plan, schemas)
 
+	// Ask the guard about the finished plan, after it has been rendered.
+	// After, not before, so that an operator refused here has already seen
+	// the whole diff the refusal is about. See backend.Operation.PlanGuard.
+	guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
+	diags = diags.Append(guardDiags)
+
 	// If we've accumulated any diagnostics along the way then we'll show them
 	// here just before we show the summary and next steps. This can potentially
 	// include errors, because we intentionally try to show a partial plan
@@ -220,7 +226,9 @@ func (b *Local) opPlan(
 	// creating it.
 	op.ReportResult(runningOp, diags)
 
-	if !runningOp.PlanEmpty {
+	// A refused plan gets no "run apply next" hint: the hint would name the
+	// one command the refusal exists to prevent.
+	if !runningOp.PlanEmpty && !guardRefused {
 		if wroteConfig {
 			op.View.PlanNextStep(op.PlanOutPath, op.GenerateConfigOut)
 		} else {
