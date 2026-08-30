@@ -61,8 +61,23 @@ jobs:
       # resource's identity at a nonexistent argument merged green
       # (issue #164). TestCIRunsEveryForkOwnedTestPackage in ./live keeps
       # this list honest; add a package here, or exclude it by name there.
+      #
+      # internal/command is named package by package rather than as
+      # ./internal/command/..., because most of its subtree is upstream's.
+      # The subpackages listed are the ones holding fork-added files, and
+      # the guard recomputes that against the upstream base commit rather
+      # than trusting this line - arguments and views had held fork files
+      # since 2026-08-12 and were still unrun on 2026-08-30 (issue #591),
+      # which is how -parallelism reached arguments/live_import.go with
+      # that package's 42 test files never executing.
+      #
+      # Measured on 2026-08-30: the two add ~5s of CPU and nothing to wall
+      # clock (97s before, 94s after - inside the run-to-run noise). The
+      # whole subtree instead costs +18s wall and +100s CPU, 44s of it
+      # internal/command/e2etest, whose fork-relevant assertions skip
+      # without TF_ACC.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/ ./internal/tofu/...
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/engine/applying/ ./internal/tofu/...
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
