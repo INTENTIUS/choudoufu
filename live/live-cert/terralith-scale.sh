@@ -748,6 +748,30 @@ fi
 PLAN_END=$(date +%s)
 PLAN_S=$((PLAN_END - PLAN_START))
 printf '%s\n' "$PLAN_OUT" > "$WORK/test_plan.out"
+
+# TP_FAIL defers this stage's failure instead of taking it immediately, so
+# that the plan-timing measurement at 4d still runs (issue #588). It is NOT
+# a softening of the verdict: TP_FAIL is non-empty iff the old code would
+# have called fail(), the same fail() is called with the same message a few
+# steps further down, and the stage still reports `fail`. What changes is
+# only that a run which is going to fail this stage anyway now yields the
+# one number it was dispatched to produce before it exits.
+#
+# Why that matters here specifically: 4d is the ONLY measurement of
+# choudoufu's plan wall-clock, #588's whole blocked cell, and it sat behind
+# an early `exit 1`. #578 got stock's side at scale 4 and lost choudoufu's
+# entirely (to #580's refusal), so the pair could not be formed and the
+# claim's slope stayed unknown - a second run losing it to a DIFFERENT
+# scale-4 failure would repeat that at full price. timed_plans already
+# records a per-run verdict (`empty` / `Plan:_N_to_add...` / `exitN`) beside
+# every duration, so a number taken on a non-empty plan is self-labelling in
+# the output and cannot be mistaken for a no-change plan by a later reader.
+#
+# The success path below is deliberately left in its original order
+# (gating plan -> 4b -> 4c -> stage pass -> 4d), so a passing run's numbers
+# stay directly comparable to #578's scale-1 run; the fallback only fires on
+# the path that previously produced nothing at all.
+TP_FAIL=""
 if [ "$PLAN_RC" -ne 0 ]; then
   printf '%s\n' "$PLAN_OUT" | tail -40
   # Carry the plan's OWN diagnosis into the stage detail, not the exit code.
@@ -759,11 +783,13 @@ if [ "$PLAN_RC" -ne 0 ]; then
   PLAN_ERR="$(grep -m1 -E '^Error: ' <<< "$PLAN_OUT" | tr -d '\r')"
   PLAN_RULE="$(grep -m1 -oE 'Rule: [a-z0-9-]+' <<< "$PLAN_OUT")"
   PLAN_ERR_N="$(grep -c -E '^Error: ' <<< "$PLAN_OUT" | tr -d ' ')"
-  fail "the post-migrate plan exited ${PLAN_RC} with ${PLAN_ERR_N} error(s)${PLAN_RULE:+, ${PLAN_RULE}}${PLAN_ERR:+ - first: ${PLAN_ERR}}"
+  TP_FAIL="the post-migrate plan exited ${PLAN_RC} with ${PLAN_ERR_N} error(s)${PLAN_RULE:+, ${PLAN_RULE}}${PLAN_ERR:+ - first: ${PLAN_ERR}}"
+elif ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT"; then
+  grep -E '^  #' <<< "$PLAN_OUT" | head -20
+  TP_FAIL="the post-migrate plan is not empty - see $WORK/test_plan.out"
+else
+  log "  plan empty in ${PLAN_S}s"
 fi
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
-  || { grep -E '^  #' <<< "$PLAN_OUT" | head -20; fail "the post-migrate plan is not empty - see $WORK/test_plan.out"; }
-log "  plan empty in ${PLAN_S}s"
 
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
@@ -772,6 +798,21 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
 else
   PLAN_LOG_BYTES=0 THROTTLE_HITS=0 RETRY_LINES=0 PAGINATION_HITS=0
   log "  THROTTLE_LOG=$THROTTLE_LOG - not instrumented for this stage"
+fi
+
+# The deferred failure from the gating plan (see TP_FAIL above) is taken
+# HERE, after the plan-timing measurement has had its chance to run. This is
+# the stage's real failure: same message, same fail(), verdict still `fail`.
+if [ -n "$TP_FAIL" ]; then
+  log "=== 4d (fallback path): the gating plan did NOT pass, so this stage will fail - taking the plan-timing measurement first, because it is the one number this run was dispatched for (#588) ==="
+  gauntlet_end_stage
+  timed_plans "choudoufu" "$ADOPTED_DIR" "$TOFU"
+  log "=== PLAN TIMING SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
+  log "  WARNING: choudoufu's gating plan was NOT a no-change plan, so the two sides below are NOT like-for-like. Read each run's own verdict, not the seconds alone."
+  printf '%s\n' "$PLAN_TIMING_REPORT"
+  log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLAN_S}s (${PLAN_LOG_BYTES} bytes of debug log written inside that region)"
+  CURRENT_STAGE=test_plan
+  fail "$TP_FAIL"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="

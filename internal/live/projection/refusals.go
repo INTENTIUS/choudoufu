@@ -126,6 +126,10 @@ var refusals = []Refusal{
 		What:    "The provider's ImportResourceState call for a resource failed with a diagnostic shaped like a generic not-found response (terraform-plugin-sdk's retry.NotFoundError default message, or the raw AWS ResourceNotFoundException code) rather than an empty ImportedResources list. Treated as an ordinary absence, the same as an empty list or a null read result, not a provider failure.",
 	},
 	{
+		Summary: SummaryListedNotImportable,
+		What:    "GitHub issue #596: the provider's own list call returned a live object carrying this estate's tofu-estate marker and a tofu-address marker naming a declared instance, and the provider then answered that nothing exists at the identity that same listing served for it. The two answers contradict each other, so the plan refuses rather than propose creating a duplicate of the object it just listed. A list-served identity is used as the discriminator precisely because a tagging-API sighting is not proof of existence - deleted objects linger in the tag index - so an instance whose only sighting was the tag index still takes the ordinary ABSENT path and a genuine rebuild is never blocked.",
+	},
+	{
 		Summary: "Live resource marked for another address",
 		What:    "A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.",
 	},

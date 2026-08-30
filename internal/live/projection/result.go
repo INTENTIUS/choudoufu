@@ -246,6 +246,19 @@ const (
 	// anything, and is never confused with [ReasonAbsent] (no live object)
 	// or a genuine, unclaimed removal, which stays a destroy.
 	ReasonSuperseded Reason = "SUPERSEDED"
+
+	// ReasonListedNotImportable means the provider's own list call returned
+	// a live object for this instance - carrying this estate's tofu-estate
+	// marker and a tofu-address marker naming this address - and the
+	// provider then reported that nothing exists at the identity that same
+	// listing served for it (GitHub issue #596). The instance is NOT
+	// proposed for creation: doing so would duplicate an object this run
+	// positively identified as the estate's. An error diagnostic
+	// ([SummaryListedNotImportable]) accompanies every omission with this
+	// reason, so the run stops rather than applying half a plan. See
+	// [builder.refuseListedButAbsent] for why a list-served identity is
+	// proof of existence where a tag-index sighting is not.
+	ReasonListedNotImportable Reason = "LISTED_NOT_IMPORTABLE"
 )
 
 // Has reports whether the projection contains an object for the given
