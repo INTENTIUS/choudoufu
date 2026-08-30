@@ -11,7 +11,7 @@ is why they get confused. They do different jobs and have different owners.
 | What | Where it lives | Who reads it | Losing it costs |
 |---|---|---|---|
 | Ownership markers | Two tags on the resource itself | choudoufu, and you, with any cloud tool | The resource goes invisible and the next plan proposes a duplicate |
-| Micro-state records | A local directory beside the module unless you declare a `record_store` on SSM or S3 | choudoufu only | Churn, since the effect re-runs or its value regenerates |
+| Micro-state records | A local directory beside the module unless you declare a `record_store` on SSM or S3 | choudoufu, and anyone with read access to wherever you put it | Churn, since the effect re-runs or its value regenerates |
 | Receipts | Ordinary resources *you* declare, by convention SSM parameters | You, your reviewers, your incident responder | Nothing structural. It is your data, in your configuration |
 
 The first is the product. The second is plumbing that is there by default and
@@ -43,6 +43,19 @@ store for them: a `live` block that names no `record_store` gets a local one,
 a `.tofu-records` directory beside the module, the way stock OpenTofu implies
 a local state file. Nothing to turn on.
 
+Gitignore that directory before the first apply. Nothing generates the line for
+you, and [what the store may contain](#what-the-store-may-contain-and-who-can-read-it)
+below is why it matters.
+
+```
+# .gitignore
+.tofu-records/
+```
+
+This repository carries exactly that line for its own runs, at `.gitignore`.
+The store creates its directories `0700` and its files `0600`, which keeps
+other users on the machine out and does nothing whatsoever about `git add`.
+
 Declare a `record_store` when you want the records somewhere a team shares,
 or somewhere that survives the working copy.
 
@@ -62,7 +75,8 @@ the backend.
 | `ssm` | SSM Parameter Store, under a prefix derived from the estate name | `key_prefix`, `region` |
 | `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region` |
 
-Four things to know first.
+Three things to know first, and then the one that decides where the store
+should live.
 
 **You are not meant to read it.** The payload is a self-describing ctyjson
 envelope for this fork's own code. Not an operator-facing artifact, and its
@@ -77,17 +91,38 @@ value regenerates, and anything reading it plans as a change. It cannot cost
 you a resource, because identity arguments must be statically evaluable, so a
 record-backed value can never name one.
 
-**Secrets go here unless you say otherwise.** The default,
-`strict { secrets = "store" }`, keeps what a stock state file would keep, so
-`random_password`, `random_bytes` and the `tls_*` types are admitted and their
-generated values are recorded in clear. On `ssm` that is a `Type: String`
-parameter with no KMS key, readable with a plain `ssm:GetParameter` by anyone
-holding that permission on the path. On `local` it is a file under
-`.tofu-records`, which nothing gitignores for you.
+### What the store may contain, and who can read it
+
+Read this before picking a backend. It is the thing that decides who ends up
+able to read your estate's generated values.
+
+**The record store may hold any value the state file would have held,
+including secrets, unless you set `strict { secrets = "refuse" }`.** The
+default is `strict { secrets = "store" }`, which keeps what a stock state file
+keeps, so `random_password`, `random_bytes` and the `tls_*` types are admitted
+and their generated values are recorded in clear.
+
+That much is the ordinary bargain of a state-bearing tool. A
+`terraform.tfstate` has always held the same values in the same form, and
+nothing here makes the exposure larger. What is different is where the store
+sits and who already holds a key to that place.
+
+| Backend | Where the value lands | Who can read it |
+|---|---|---|
+| `local` | A file under `.tofu-records`, mode `0600` inside a `0700` directory | Anyone who can read the working copy. Nothing gitignores it for you, so a commit publishes it to everyone with the repository |
+| `ssm` | A Parameter Store parameter, `Type: String`, no KMS key | Anyone holding `ssm:GetParameter` on the path. The payload is base64-encoded, which is an encoding rather than a protection, and no decryption step stands in the way |
+| `s3` | An object in your bucket, written with no `ServerSideEncryption` argument, so the bucket's own default encryption is what applies | Anyone holding `s3:GetObject` on the prefix |
+
+`local` puts the values in a working copy that is yours to protect, and the
+protection is a `.gitignore` line. `ssm` and `s3` put them in a live AWS
+account, under that account's access controls rather than yours, and
+[`choudoufu destroy` leaves records behind]({{< relref "/docs/use/setup#nothing-cleans-the-record-store-up" >}}),
+so the residue outlives the estate that wrote it.
 
 `strict { secrets = "refuse" }` is the other setting, and it is the principle
 this design exists for: those types are refused rather than recorded, so
-nothing the run keeps holds key material. The
+nothing the run keeps holds key material. It is a stronger answer than
+encrypting the store, because there is nothing in the store to decrypt. The
 [`strict` block]({{< relref "/docs/use/reference" >}}) covers both settings and
 the environment pin that stops a configuration relaxing this on its own.
 
@@ -134,15 +169,23 @@ Receipts are for external effects. Keep them apart.
 ## Choosing a record store backend
 
 `local` for a single operator or a demo, where a directory beside the module is
-fine and nothing else needs to read it.
+fine and nothing else needs to read it. Gitignore `.tofu-records/`.
 
 `ssm` when more than one machine runs the estate. No infrastructure to set up,
-since Parameter Store already exists in the account.
+since Parameter Store already exists in the account. Scope `ssm:GetParameter`
+on the prefix the way you would scope read access to a state file.
 
 `s3` to keep records in a bucket you already operate, with your own versioning
 and lifecycle rules. You create and configure the bucket. choudoufu only reads
 and writes keys in it. It has to exist before the first plan, not the first
-apply, and it cannot be a bucket the same estate declares.
+apply, and it cannot be a bucket the same estate declares. Its default
+encryption and its bucket policy are the ones that apply, since the write sets
+neither.
+
+The `ssm` store writes `Type: String` parameters and does not choose a KMS key.
+That default is deliberate and the reasoning is written down, along with what
+`SecureString` would buy and cost, in
+[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-ssm-record-parameter-type-ruling.md).
 
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has the failure
 mode for each backend, and what a `destroy` leaves behind in the store.
