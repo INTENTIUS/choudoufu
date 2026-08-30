@@ -2373,6 +2373,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
 | - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
 | - | - | projection | Import reported absence as an error | error | `internal/live/projection` | "Import reported absence as an error" |
+| - | - | projection | Live resource listed but not importable | error | `internal/live/projection` | "Live resource listed but not importable" |
 | - | - | projection | Live resource marked for another address | error | `internal/live/projection` | "Live resource marked for another address" |
 | - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
 | - | - | projection | Located identity could not be recorded | error | `internal/live/projection` | "Located identity could not be recorded" |
@@ -2405,7 +2406,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**218 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**219 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3656,6 +3657,14 @@ reserved for the limits wing's fixture directories, and
 #### Import reported absence as an error
 
 **What.** The provider's ImportResourceState call for a resource failed with a diagnostic shaped like a generic not-found response (terraform-plugin-sdk's retry.NotFoundError default message, or the raw AWS ResourceNotFoundException code) rather than an empty ImportedResources list. Treated as an ordinary absence, the same as an empty list or a null read result, not a provider failure.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Live resource listed but not importable
+
+**What.** GitHub issue #596: the provider's own list call returned a live object carrying this estate's tofu-estate marker and a tofu-address marker naming a declared instance, and the provider then answered that nothing exists at the identity that same listing served for it. The two answers contradict each other, so the plan refuses rather than propose creating a duplicate of the object it just listed. A list-served identity is used as the discriminator precisely because a tagging-API sighting is not proof of existence - deleted objects linger in the tag index - so an instance whose only sighting was the tag index still takes the ordinary ABSENT path and a genuine rebuild is never blocked.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
