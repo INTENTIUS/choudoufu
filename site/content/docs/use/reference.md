@@ -26,6 +26,7 @@ estate running, use the path pages.
 |---|---|
 | [`live/COVERAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COVERAGE.md) | Which AWS resource types are covered, in layers, and what each layer means. |
 | [`live/SURVEY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SURVEY.md) | How admission is decided per type, the method, and the raw signals behind it. |
+| [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md) | What the pinned AWS emulator can and cannot show. Four questions no emulator-backed run answers at any scale, and where each one's real answer comes from instead. |
 
 ## The demo, which is also the test suite
 

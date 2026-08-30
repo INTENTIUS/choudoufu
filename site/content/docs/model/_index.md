@@ -79,8 +79,13 @@ aws resourcegroupstaggingapi get-resources \
 ## What it costs
 
 Prior state is rebuilt by reading the live system, so a plan does more work
-than reading a file. Identity must be knowable before anything is created,
-which bounds what a configuration may compute.
+than reading a file. That work is two terms with different shapes, one fixed
+by the admission table and one growing with your estate;
+[What a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the split,
+the measured numbers, and which half stock pays too.
+
+Identity must be knowable before anything is created, which bounds what a
+configuration may compute.
 [Identity]({{< relref "/docs/model/identity" >}}) states the rule, and
 [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) lists
 what that rules out.

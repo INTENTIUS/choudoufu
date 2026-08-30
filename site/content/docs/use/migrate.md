@@ -49,9 +49,22 @@ ARN. Write their markers yourself.
 
 `aws_eip` binds by slot marker, so a pre-existing unmarked EIP is never offered.
 The first apply gives it a fresh slot instead of recognising the old one. The
-same holds for every `count` or `for_each` instance of any type, since content
-matching only considers instances still waiting with no index or key.
-Hand-write markers before the first apply if a specific instance must survive.
+same holds for every `count` or `for_each` instance of any type: `buildSlots`,
+in the same `classify.go` as `matchTable` above, skips any address carrying an
+index or a key, so content matching only ever considers instances with
+neither.
+
+**That limit belongs to the loop below, not to expanded resources.** It is a
+property of matching configuration content against listed objects, which is
+what `choudoufu plan` does when it has nothing else to go on. `choudoufu
+live-import` has something else to go on: an existing state file already names
+every instance, index and key included, so it stamps the address it reads
+rather than trying to recognise the object. If your estate is expanded and you
+still have its state file, take [the bulk path](#moving-a-large-estate-in-one-go)
+and hand-write nothing.
+
+Hand-write markers before the first apply only if you are working the loop
+below and a specific instance must survive.
 
 ## The loop
 
@@ -135,6 +148,31 @@ cannot declare. [Compatibility reference]({{< relref "/docs/use/compatibility" >
 `choudoufu live-import` reads an existing state file once, verifies each entry
 against the live system, and stamps markers on what verifies. The bulk path,
 leaving you in the "already marked" group above.
+
+It is also the path that answers the `count`/`for_each` limit above, and the
+one to reach for on an estate that has grown expanded. A generated 79-resource
+estate with `count`, `for_each` and module-nested expansion present, applied by
+stock `terraform` against a local emulator and then migrated (measured in
+[#575](https://github.com/INTENTIUS/choudoufu/pull/575), answering
+[#574](https://github.com/INTENTIUS/choudoufu/issues/574)):
+
+| | Count |
+|---|---|
+| Verified or drifted, so stamped from state | 38 of 79 |
+| Untaggable, so no marker to write; identity composes from a stamped parent | 41 of 79 |
+| **Needed a hand-typed marker** | **0** |
+
+Every `count` instance, every `for_each`'d record, and every module-nested
+`count` instance took its own correctly interpolated marker, down to
+`module.team_pod["pod-a"].aws_iam_role.pod_role[0]`. The plan-based loop's
+blind spot never fires, because nothing on this path matches content.
+
+Two bounds on that measurement, both worth knowing before you rely on it. The
+ratio was taken at one scale, against a generated estate rather than somebody's
+real one. And stamping is one tag-write round trip per resource, so it is
+linear: roughly 1.3 to 1.4 seconds per stamped resource against a local
+emulator (issue #566). Reading the state file and reporting what would be
+stamped is separate, read-only, and near flat at about 1.5 seconds either way.
 
 ## If you are used to import, moved and removed
 
