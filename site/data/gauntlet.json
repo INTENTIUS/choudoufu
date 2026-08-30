@@ -1734,6 +1734,30 @@
         "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
         "test_plan": "post-migrate plan is empty; aws_instance.main's tofu-address/tofu-estate confirmed via the AWS CLI directly"
       }
+    },
+    {
+      "estate": "terralith-scale",
+      "protocol": "live-aws",
+      "target": "aws",
+      "region": "us-east-2",
+      "ceiling_usd": 5,
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_apply": "pass",
+        "test_plan": "pass"
+      },
+      "clear": true,
+      "commit": "e39fc8ef3b856a218e7bfcce620d2c170b8baadf",
+      "date": "2026-08-30T08:26:14Z",
+      "exit_code": 0,
+      "detail": {
+        "cold_deploy": "205 resources from stock terraform against aws at scale=4 in 163s, tofu-cert-run=lc1788076722-97063, debug log 3770714B/35 throttle/35 retry",
+        "migrate": "89 of 205 verified, 89 stamped, 116 skipped, in 269s, debug log 5024007B/5 throttle/5 retry",
+        "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 12",
+        "test_plan": "post-migrate plan is empty in 226s; zone/role tofu-address confirmed via the AWS CLI; debug log 2496700 bytes, 0 throttling-error line(s), 0 retry line(s)"
+      },
+      "duration_s": 1652.3
     }
   ]
 }

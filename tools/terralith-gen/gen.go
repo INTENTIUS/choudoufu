@@ -756,8 +756,25 @@ func writeRecords(w *strings.Builder, n int) {
 			recType = "CNAME"
 			value = fmt.Sprintf("[%q]", fmt.Sprintf("target-%04d.upstream.example.com.", k))
 		default:
+			// TXT: the AWS provider (hashicorp/aws, tested at 6.59.0) already
+			// quote-wraps a TXT record's value itself - Route53 requires each
+			// TXT value to carry a literal pair of double quotes, and the
+			// provider adds that pair, so the text inside this one-element
+			// HCL list must be the bare text with none of its own. Two
+			// earlier versions of this line pre-wrapped the text in a
+			// literal quote pair before the %q that renders the HCL string
+			// literal (the scalar `records = ["..."]` form before #574, and
+			// the map entry's list value after it), producing a value the
+			// provider then quoted AGAIN on top of - real AWS rejects the
+			// resulting double-quoted content with "InvalidCharacterString
+			// (Value should be enclosed in quotation marks) encountered with
+			// '""v=textNNNN""'" (issue #567's live-AWS run against a real
+			// account, 2026-08-30); floci accepted the malformed value
+			// silently, which is why this was never caught by #564/#565/#566's
+			// floci-only measurements. A/CNAME never had the problem: their
+			// values carry no quote pair of their own either.
 			recType = "TXT"
-			value = fmt.Sprintf("[%q]", fmt.Sprintf("\"v=text%04d\"", k))
+			value = fmt.Sprintf("[%q]", fmt.Sprintf("v=text%04d", k))
 		}
 		fmt.Fprintf(&entries, "    %q = { type = %q, value = %s }\n", key, recType, value)
 	}

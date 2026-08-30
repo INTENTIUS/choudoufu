@@ -188,6 +188,97 @@ func TestExpansionIsPresent(t *testing.T) {
 	}
 }
 
+// dnsEntryPattern matches one rendered entry of dns.tf's dns_records map -
+// the key, the record type, and the whole bracketed list its `records`
+// argument is fed. Written against the rendered TEXT rather than against
+// writeRecords' own variables, so it still catches a regression that
+// changes how the value is built.
+var dnsEntryPattern = regexp.MustCompile(`(?m)^\s*"([^"]+)"\s*=\s*\{\s*type\s*=\s*"([^"]+)",\s*value\s*=\s*\[(.*)\]\s*\}\s*$`)
+
+// preQuotedRecordValues returns, for the rendered dns.tf given, every entry
+// whose value carries a quote character of its OWN inside the HCL string
+// literal (rendered as \" by %q).
+//
+// Route53 requires each TXT value to be enclosed in quotation marks, and
+// the AWS provider (hashicorp/aws, 6.59.0) adds that pair itself, so a
+// value that already carries one is quoted twice and real AWS rejects it:
+// InvalidCharacterString (Value should be enclosed in quotation marks)
+// encountered with '""v=textNNNN""'. That is issue #567, found against a
+// real account on 2026-08-30 and invisible to floci, which accepts the
+// malformed value silently. The rule is not TXT-specific - no record type
+// this generator emits has any reason to carry an inner quote - so the
+// check reads every entry rather than switching on the type.
+func preQuotedRecordValues(dnsTF string) []string {
+	var bad []string
+	for _, m := range dnsEntryPattern.FindAllStringSubmatch(dnsTF, -1) {
+		if strings.Contains(m[3], `\"`) {
+			bad = append(bad, fmt.Sprintf("%s (%s): value = [%s]", m[1], m[2], m[3]))
+		}
+	}
+	return bad
+}
+
+// TestRecordValuesAreNotPreQuoted is issue #567's fix held to the tree. It
+// landed once against the pre-#574 scalar `records = ["..."]` form and had
+// to be re-applied when #574's for_each/list-valued expansion carried the
+// original defect forward through a parallel branch (PR #577's conflict
+// resolution) - which is exactly the recurrence a guard exists to stop.
+func TestRecordValuesAreNotPreQuoted(t *testing.T) {
+	for _, scale := range []int{1, 4} {
+		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "terralith")
+			e := buildEstate(scale, "tl")
+			if err := e.write(out); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(out, "dns.tf")) //nolint:gosec // fixed test-generated path
+			if err != nil {
+				t.Fatal(err)
+			}
+			dnsTF := string(data)
+
+			// The map must actually have been read, and all three record
+			// types must be in it - otherwise the scan below passes
+			// vacuously the moment the rendered shape changes.
+			seen := map[string]int{}
+			for _, m := range dnsEntryPattern.FindAllStringSubmatch(dnsTF, -1) {
+				seen[m[2]]++
+			}
+			for _, typ := range []string{"A", "CNAME", "TXT"} {
+				if seen[typ] == 0 {
+					t.Fatalf("no %s entry matched in the rendered dns_records map - the scan would pass vacuously; rendered dns.tf:\n%s", typ, dnsTF)
+				}
+			}
+
+			for _, b := range preQuotedRecordValues(dnsTF) {
+				t.Errorf("record value carries a quote pair of its own: %s\n"+
+					"The AWS provider adds Route53's required quote pair itself, so this one is quoted twice and real AWS rejects it (issue #567).", b)
+			}
+		})
+	}
+}
+
+// TestRecordValuesAreNotPreQuotedHasTeeth feeds the check the exact text
+// the generator emitted before the fix - main's own rendering at
+// 4493af5438, the #574 expansion - and requires it to fail on it. Without
+// this control the scan above is a check that has never been made to fail.
+func TestRecordValuesAreNotPreQuotedHasTeeth(t *testing.T) {
+	broken := `locals {
+  dns_records = {
+    "host-0000" = { type = "A", value = ["10.60.0.0"] }
+    "host-0002" = { type = "TXT", value = ["\"v=text0002\""] }
+  }
+}
+`
+	bad := preQuotedRecordValues(broken)
+	if len(bad) != 1 {
+		t.Fatalf("preQuotedRecordValues on the known-broken pre-#567 rendering returned %d findings, want exactly 1 (the TXT entry): %v", len(bad), bad)
+	}
+	if !strings.Contains(bad[0], "host-0002") {
+		t.Errorf("finding names %q, want the TXT entry host-0002", bad[0])
+	}
+}
+
 // TestValidateGeneratedTerralith is the syntactic half of #564's first
 // acceptance bullet: `terraform validate` passes against the real pinned
 // provider release, at a couple of scales. Gated behind flocitest.Gate
