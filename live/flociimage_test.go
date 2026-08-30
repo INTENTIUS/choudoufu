@@ -63,12 +63,7 @@ var flociImageFields = map[string]string{
 // image than the current pin, with the reason. An entry is a standing
 // decision that says what re-measuring would cost; empty is the intended
 // state.
-var staleFlociMeasurements = map[string]string{
-	"plan-budget.json": "measured against sha256:4753246c, several pin moves back (sha256:488f4d6d, sha256:da6298c1, " +
-		"sha256:1362e856, sha256:a1c729f4, sha256:94c5a40e, sha256:62476090); re-measuring means re-running issue " +
-		"#64's estate benchmark against the current emulator, which is an acceptance-tier run rather than a " +
-		"regeneration",
-}
+var staleFlociMeasurements = map[string]string{}
 
 // flociPinRef is live/floci-image's full ref.
 func flociPinRef(t *testing.T) string {
