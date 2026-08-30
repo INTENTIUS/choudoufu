@@ -238,14 +238,36 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 	}
 }
 
-// TestCommittedBehaviorIndexHasNoStageMapped pins the #522 foundation
-// unit's own honest state: live/behaviors.json ships with every fixture's
-// Stage empty. If this ever fails because a fixture gained a Stage, that is
-// good news (the next unit's cell-mapping work has started) and this test
-// should be updated to check the SPECIFIC mapping is sound, not deleted
-// silently - see BehaviorsProven's own doc comment for why an unmapped
-// stage must never be read as vacuously proven.
-func TestCommittedBehaviorIndexHasNoStageMapped(t *testing.T) {
+// TestCommittedBehaviorIndexStageMappingIsSound replaces
+// TestCommittedBehaviorIndexHasNoStageMapped now that the #522 ruling's
+// per-stage cell-mapping unit has landed - that test's own doc comment
+// asked for exactly this update rather than a silent deletion, "check the
+// SPECIFIC mapping is sound".
+//
+// It pins the committed live/behaviors.json's fixture -> stage mapping BY
+// VALUE, so a future edit that reassigns, adds, or drops a mapping is
+// caught here rather than discovered only by behaviors_proven's number
+// quietly moving. Every mapping was decided by reading the fixture's own
+// run.sh end to end against the target stage's Proves/Oracle text in
+// tools/gauntlet/stages.go (see the #522 stage-mapping unit's PR body for
+// the per-fixture reasoning) - none is a guess from the "seam" summary
+// alone.
+//
+// Two tier-1 shape fixtures are DELIBERATELY left unmapped, pinned as a
+// negative case rather than left to be "discovered" as an oversight:
+//
+//   - dataread-projection proves a data source's projected live read, which
+//     no gauntlet stage's Proves text names at all.
+//   - provisioner-taint proves the fork's own create-time-provisioner taint
+//     tracking (record-primary identity's Provisioned bit surviving a
+//     failed apply). That is a different mechanism from every stage above,
+//     including the planned day2_crash: day2_crash is about an interrupted
+//     CREATE-BEFORE-DESTROY replace's deposed key, not a provisioner
+//     failure, and nothing in this fixture uses create_before_destroy.
+//
+// Both are catalogued, well-tested fixtures; they are simply not evidence
+// for any of the 14 stages as those stages are worded today.
+func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 	root := repoRootForTest(t)
 	bi, err := LoadBehaviorIndex(root)
 	if err != nil {
@@ -254,10 +276,94 @@ func TestCommittedBehaviorIndexHasNoStageMapped(t *testing.T) {
 	if len(bi.Fixtures) == 0 {
 		t.Fatal("live/behaviors.json has no fixtures; the #522 foundation index is missing")
 	}
+
+	// The exact, hand-decided mapping. Exhaustive over every fixture that
+	// carries a non-empty Stage - not a subset - so an unlisted mapped
+	// fixture fails this test rather than passing silently.
+	want := map[string]string{
+		"counted-module":         "test_plan",
+		"create-over":            "test_plan",
+		"deterministic-recreate": "test_plan",
+		"lambda-residue":         "test_plan",
+		"per-element":            "test_plan",
+		"record-located":         "test_plan",
+		"repeated-module":        "test_plan",
+		"tagging-sweep":          "day2_remove",
+		"record-store":           "day2_remove",
+	}
+	unmapped := []string{"dataread-projection", "provisioner-taint"}
+
+	validStage := map[string]bool{}
+	for _, s := range Stages() {
+		validStage[s.ID] = true
+	}
+
+	got := map[string]string{}
 	for _, f := range bi.Fixtures {
-		if f.Stage != "" {
-			t.Fatalf("fixture %q carries stage %q; if cell-mapping has started, this test's purpose has changed - see its doc comment", f.ID, f.Stage)
+		if f.Stage == "" {
+			continue
 		}
+		if !validStage[f.Stage] {
+			t.Errorf("fixture %q maps to %q, which is not a stage id in Stages()", f.ID, f.Stage)
+		}
+		got[f.ID] = f.Stage
+	}
+	if len(got) != len(want) {
+		t.Fatalf("mapped fixtures = %v, want exactly %v", got, want)
+	}
+	for id, stage := range want {
+		if got[id] != stage {
+			t.Errorf("fixture %q maps to %q, want %q", id, got[id], stage)
+		}
+	}
+	for _, id := range unmapped {
+		f, ok := bi.ByID(id)
+		if !ok {
+			t.Fatalf("fixture %q not found", id)
+		}
+		if f.Stage != "" {
+			t.Errorf("fixture %q now carries stage %q; if this is a deliberate new mapping, update this test's own reasoning in its doc comment rather than just relaxing the check", id, f.Stage)
+		}
+	}
+
+	// test_plan is the one stage tier-1 maps with full coverage of the
+	// #522 ruling's mandatory shapes (count, for_each, module-nested) and
+	// all three named identity kinds (server-minted, deterministic, none) -
+	// pinned so that claim stays true rather than merely plausible at
+	// review time.
+	shapes := map[string]bool{}
+	kinds := map[string]bool{}
+	for _, f := range bi.Fixtures {
+		if f.Stage != "test_plan" {
+			continue
+		}
+		for _, s := range f.Shapes {
+			shapes[s] = true
+		}
+		kinds[f.IdentityKind] = true
+	}
+	for _, s := range []string{"count", "for_each", "module-nested"} {
+		if !shapes[s] {
+			t.Errorf("test_plan's mapped fixtures do not cover mandatory shape %q", s)
+		}
+	}
+	for _, k := range []string{"server-minted", "deterministic", "none"} {
+		if !kinds[k] {
+			t.Errorf("test_plan's mapped fixtures do not cover identity_kind %q", k)
+		}
+	}
+
+	// day2_remove, by contrast, covers only the "scalar" shape and two of
+	// the three named identity kinds (server-minted via tagging-sweep, none
+	// via record-store; no deterministic-identity fixture removes a block
+	// today) - a real, named gap for the next unit, not papered over here.
+
+	proven, total := BehaviorsProven(bi)
+	if total != len(Stages()) {
+		t.Fatalf("BehaviorsProven total = %d, want %d", total, len(Stages()))
+	}
+	if proven != 2 {
+		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 2 (test_plan, day2_remove) - if a fixture's last_run now fails, or the mapping changed, update this pin deliberately rather than silencing it", proven)
 	}
 }
 

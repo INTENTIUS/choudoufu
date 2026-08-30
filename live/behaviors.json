@@ -15,10 +15,16 @@
     "each fixture is machine-written, by RunBehaviors (tools/gauntlet/behaviors.go),",
     "exactly like an estate row's own last_run.",
     "",
-    "stage (empty on every fixture below) is deliberately unmapped: the #522",
-    "ruling's per-stage mandatory-shape assignment is the NEXT unit, not this",
-    "one. behaviors_proven (live/gauntlet.json) is 0 of 14 until that mapping",
-    "exists, honestly - a stage with no fixture mapped to it is not proven."
+    "stage is the #522 ruling's per-stage cell mapping (the unit after the one",
+    "that built this index): which gauntlet stage (tools/gauntlet/stages.go)",
+    "each fixture is representative-set evidence for, decided by reading the",
+    "fixture's run.sh against that stage's own Proves/Oracle text - never by",
+    "what would make behaviors_proven look good. tools/gauntlet/behaviors_test.go's",
+    "TestCommittedBehaviorIndexStageMappingIsSound pins the mapping by value,",
+    "including which fixtures are deliberately left unmapped and why. A stage",
+    "with no fixture mapped to it, or with a mapped fixture that last failed,",
+    "is not proven (BehaviorsProven, tools/gauntlet/behaviors.go) - vacuous",
+    "agreement is not evidence."
   ],
   "fixtures": [
     {
@@ -39,6 +45,7 @@
         "aws-cli"
       ],
       "default_port": 4607,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -64,6 +71,7 @@
         "aws-cli"
       ],
       "default_port": 4602,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -114,6 +122,7 @@
         "aws-cli"
       ],
       "default_port": 4608,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -140,6 +149,7 @@
         "corpus"
       ],
       "default_port": 4606,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -165,6 +175,7 @@
         "aws-cli"
       ],
       "default_port": 4604,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -215,6 +226,7 @@
         "aws-cli"
       ],
       "default_port": 4605,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -235,6 +247,7 @@
       ],
       "identity_kind": "none",
       "resources": 4,
+      "stage": "day2_remove",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -261,6 +274,7 @@
         "corpus"
       ],
       "default_port": 4606,
+      "stage": "test_plan",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
@@ -286,6 +300,7 @@
         "aws-cli"
       ],
       "default_port": 4601,
+      "stage": "day2_remove",
       "last_run": {
         "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
         "date": "2026-08-30T02:20:54Z",
