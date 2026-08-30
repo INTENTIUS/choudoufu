@@ -19,26 +19,53 @@ import (
 // produces hold (approximately - see buildEstate's doc comment on the
 // fixed, non-scaling supporting layer) as scale grows.
 //
-//	teams    = teamsPerScale * scale     (6 identity resources each)
-//	services = servicesPerScale * scale  (2 identity + 2 container each)
-//	records  = dnsRecordsPerScale * scale
+//	teams      = teamsPerScale * scale      (6 identity resources each, individually named)
+//	services   = servicesPerScale * scale   (2 identity + 2 container each)
+//	records    = dnsRecordsPerScale * scale (one for_each'd resource, see writeRecords)
+//	countTeams = countTeamsPerScale * scale (6 resource declarations, each count = countTeams)
+//	podTeams   = len(modulePodKeys) * podSizePerScale * scale (module-nested, see buildModulePods)
 //
-// At scale=1 (the "genuinely small tier" #564 asks for): 6 teams (36
+// At scale=1 (the "genuinely small tier" #564 asks for): 6 named teams (36
 // identity resources), 1 service (2 identity + 2 container), 10 DNS
-// records + 1 zone, plus a fixed layer that does not scale with it - 1
-// VPC, 1 subnet, 1 security group (counted as "supporting") and 1 ECS
-// cluster (counted as "container") - because it is realistic for many
-// services to share one VPC and one cluster rather than minting a new one
-// per service. That is 38 identity resources of 55 total, ~69%; see
-// composition.identityPercent and gen_test.go's
+// records + 1 zone (all 10 records from one for_each block, not 10 named
+// blocks - issue #574), 2 count-expanded teams (12 identity resources from
+// one `count`-carrying block set - issue #574), 2 module-nested pods of 1
+// team-equivalent each (12 identity resources, issue #574's "hardest
+// shape" - see buildModulePods), plus a fixed layer that does not scale
+// with it - 1 VPC, 1 subnet, 1 security group (counted as "supporting")
+// and 1 ECS cluster (counted as "container") - because it is realistic for
+// many services to share one VPC and one cluster rather than minting a new
+// one per service. See composition.identityPercent and gen_test.go's
 // TestIdentityShareApproximatesTarget for the measured share at larger
-// scale, where the fixed layer's weight shrinks and identity's share
-// rises toward ~75%.
+// scale.
 const (
 	teamsPerScale      = 6
 	servicesPerScale   = 1
 	dnsRecordsPerScale = 10
+
+	// countTeamsPerScale is the identity layer's `count`-expanded share
+	// (issue #574): one set of six resource declarations, each carrying
+	// `count = countTeamsPerScale * scale`, so a single HCL block produces
+	// that many near-identical live instances distinguished only by
+	// count.index - see buildCountTeams.
+	countTeamsPerScale = 2
+
+	// podSizePerScale is how many team-equivalents each module-nested pod
+	// instance declares via its OWN internal `count` (issue #574's
+	// module-nested share) - see buildModulePods and modulePodKeys.
+	podSizePerScale = 1
 )
+
+// modulePodKeys are the for_each keys the root module call over
+// modules/team_pod uses. Fixed at two regardless of scale, so the module
+// call always has more than one instance - the shape
+// internal/live/markers/modulemarker.go's marker_module_prefix exists to
+// serve (issue #378): a module call whose several instances share one HCL
+// body per resource, where the resource inside ALSO carries its own
+// `count` (podSizePerScale, above). module.team_pod["pod-a"].aws_iam_role.
+// pod_role[0] is exactly that double-indexed shape - issue #574's "at
+// least one module-nested expansion... the hardest shape."
+var modulePodKeys = []string{"pod-a", "pod-b"}
 
 // composition is the actual, computed shape of one generated estate - not
 // asserted, measured from the same counters the generator increments
@@ -60,6 +87,15 @@ type composition struct {
 	// once the resource's own name is set aside.
 	totalRolePolicyBlocks     int
 	duplicateRolePolicyBlocks int
+
+	// Expansion counters, issue #574: how many resource INSTANCES (not HCL
+	// blocks) each meta-argument shape accounts for. All three are already
+	// included in identityResources/dnsResources above - these exist to
+	// report the proportions #574 asks for (see generatedMD and main.go),
+	// not to be summed again.
+	countExpandedInstances   int // buildCountTeams: one block set, `count = n`, root level
+	forEachExpandedInstances int // writeRecords: one block, `for_each` over a map, root level
+	moduleNestedInstances    int // buildModulePods: module call (for_each) whose body ALSO carries `count`
 }
 
 func (c composition) totalResources() int {
@@ -79,6 +115,20 @@ func (c composition) duplicationPercent() float64 {
 		return 0
 	}
 	return 100 * float64(c.duplicateRolePolicyBlocks) / float64(c.totalRolePolicyBlocks)
+}
+
+// expandedPercent is what share of every resource this run generated came
+// from a meta-argument-expanded block (count, for_each, or module-nested)
+// rather than an individually-named one - issue #574's headline shape
+// question, reported next to identityPercent/duplicationPercent rather than
+// asserted, the same convention every other composition metric here uses.
+func (c composition) expandedPercent() float64 {
+	t := c.totalResources()
+	if t == 0 {
+		return 0
+	}
+	expanded := c.countExpandedInstances + c.forEachExpandedInstances + c.moduleNestedInstances
+	return 100 * float64(expanded) / float64(t)
 }
 
 // dupTracker accumulates a canonicalized "content key" per role/policy
@@ -123,14 +173,18 @@ type estate struct {
 // buildEstate is the whole generator. It never emits a "live" block, a
 // record_store, configs.LiveSidecarFilename, or a tofu-estate/tofu-address
 // tag anywhere - see shape_test.go's TestNoChoudoufuConstructLeaks for the
-// mechanical check. Every resource lives in the estate's single root
-// module; there is no module call anywhere in the output, which is what
-// keeps this a single state rather than the decomposition #546's last
-// comment contrasts it with.
+// mechanical check. Every resource lives in one Terraform state - a single
+// root module PLUS one module call (issue #574, "modules/team_pod"),
+// wrapped with for_each so it has more than one instance: still a single
+// state, exercising the module-nested marker-address shape
+// (internal/live/markers/modulemarker.go) rather than the multi-state
+// decomposition #546's last comment contrasts a terralith with.
 func buildEstate(scale int, prefix string) *estate {
 	teams := teamsPerScale * scale
 	services := servicesPerScale * scale
 	dnsRecords := dnsRecordsPerScale * scale
+	countTeams := countTeamsPerScale * scale
+	podSize := podSizePerScale * scale
 
 	dup := newDupTracker()
 
@@ -142,6 +196,16 @@ func buildEstate(scale int, prefix string) *estate {
 		n := buildTeam(&iam, i, prefix, dup)
 		comp.identityResources += n
 	}
+
+	// ── Identity layer: count-expanded teams (issue #574) ────────────────
+	iam.WriteString("\n# count-expanded teams (issue #574): one block set per resource type,\n" +
+		"# count = " + fmt.Sprintf("%d", countTeams) + ", near-identical instances distinguished only by\n" +
+		"# count.index - the idiom docs/use/migrate.md's manual content-matching\n" +
+		"# adoption loop cannot offer for adoption (an indexed instance is never\n" +
+		"# matched), unlike live-import which reads identity from state directly.\n\n")
+	countN := buildCountTeams(&iam, prefix, countTeams)
+	comp.identityResources += countN
+	comp.countExpandedInstances += countN
 
 	// ── Container-service layer ──────────────────────────────────────────
 	var network strings.Builder
@@ -161,22 +225,29 @@ func buildEstate(scale int, prefix string) *estate {
 	var dns strings.Builder
 	writeZone(&dns, prefix)
 	comp.dnsResources++ // zone
-	for k := 0; k < dnsRecords; k++ {
-		writeRecord(&dns, k)
-		comp.dnsResources++
-	}
+	writeRecords(&dns, dnsRecords)
+	comp.dnsResources += dnsRecords
+	comp.forEachExpandedInstances += dnsRecords
 
 	comp.totalRolePolicyBlocks = dup.total()
 	comp.duplicateRolePolicyBlocks = dup.duplicates()
 
+	// ── Identity layer: module-nested pods (issue #574) ──────────────────
+	moduleN := len(modulePodKeys) * podSize * 6
+	comp.identityResources += moduleN
+	comp.moduleNestedInstances += moduleN
+
 	files := map[string]string{
-		"versions.tf":  versionsTF(),
-		"main.tf":      mainTF(prefix),
-		"iam.tf":       header("iam.tf", "the identity layer: team roles/policies/attachments/profiles and each ECS service's execution role") + iam.String(),
-		"network.tf":   header("network.tf", "the one shared VPC/subnet/security group the container-service layer's tasks run in") + network.String(),
-		"ecs.tf":       header("ecs.tf", "the container-service layer: one cluster, and per service a template task definition plus a service with lifecycle.ignore_changes on task_definition") + ecs.String(),
-		"dns.tf":       header("dns.tf", "the DNS fan-out: one zone, many records") + dns.String(),
-		"GENERATED.md": generatedMD(scale, prefix, teams, services, dnsRecords, comp),
+		"versions.tf":                   versionsTF(),
+		"main.tf":                       mainTF(prefix, podSize),
+		"pods.tf":                       modulePodsTF(),
+		"modules/team_pod/variables.tf": podModuleVariablesTF(),
+		"modules/team_pod/main.tf":      podModuleMainTF(),
+		"iam.tf":                        header("iam.tf", "the identity layer: team roles/policies/attachments/profiles and each ECS service's execution role") + iam.String(),
+		"network.tf":                    header("network.tf", "the one shared VPC/subnet/security group the container-service layer's tasks run in") + network.String(),
+		"ecs.tf":                        header("ecs.tf", "the container-service layer: one cluster, and per service a template task definition plus a service with lifecycle.ignore_changes on task_definition") + ecs.String(),
+		"dns.tf":                        header("dns.tf", "the DNS fan-out: one zone, many for_each'd records (issue #574)") + dns.String(),
+		"GENERATED.md":                  generatedMD(scale, prefix, teams, services, dnsRecords, countTeams, podSize, comp),
 	}
 
 	return &estate{files: files, composition: comp}
@@ -197,7 +268,14 @@ func (e *estate) write(out string) error {
 		return err
 	}
 	for name, content := range e.files {
-		if err := os.WriteFile(filepath.Join(out, name), []byte(content), 0o644); err != nil { //nolint:gosec // a generated Terraform fixture, not a secret
+		dst := filepath.Join(out, name)
+		// name may carry a subdirectory (issue #574: modules/team_pod/*.tf),
+		// so its parent needs creating too - unlike every file before #574,
+		// which all landed directly in out.
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(dst, []byte(content), 0o644); err != nil { //nolint:gosec // a generated Terraform fixture, not a secret
 			return err
 		}
 	}
@@ -235,7 +313,7 @@ provider "aws" {
 `, providerSource, providerVersion)
 }
 
-func mainTF(prefix string) string {
+func mainTF(prefix string, podSize int) string {
 	return fmt.Sprintf(`# main.tf - shared locals. Generated by tools/terralith-gen.
 
 locals {
@@ -250,8 +328,14 @@ locals {
   # without Terraform reverting it back to this placeholder on the
   # next plan.
   placeholder_image = "111111111111.dkr.ecr.us-east-1.amazonaws.com/placeholder:latest"
+
+  # pod_size (issue #574): how many team-equivalents each module-nested
+  # pod instance (pods.tf, modules/team_pod) declares via its own internal
+  # count. Passed through rather than hardcoded in pods.tf so it scales
+  # with -scale like every other bucket.
+  pod_size = %d
 }
-`, prefix)
+`, prefix, podSize)
 }
 
 // ── Identity layer ────────────────────────────────────────────────────────
@@ -350,6 +434,165 @@ func buildTeam(w *strings.Builder, i int, prefix string, dup *dupTracker) int {
 `, label, team, label)
 
 	return 6
+}
+
+// buildCountTeams writes the identity layer's `count`-expanded share
+// (issue #574): the same six resource TYPES buildTeam writes per named
+// team, but as one declaration per type carrying `count = n`, so n
+// team-equivalents come from six written blocks total rather than 6*n.
+// Content is deliberately uniform across instances (one trust principal,
+// one policy body) except for the name, which is derived from count.index
+// - the point of `count` is that its instances are near-identical, not
+// that this reproduces buildTeam's boilerplate/scoped alternation inside
+// an HCL ternary. Returns 6*n, the identity resource instances produced.
+func buildCountTeams(w *strings.Builder, prefix string, n int) int {
+	fmt.Fprintf(w, `resource "aws_iam_role" "count_team" {
+  count              = %d
+  name               = "%s-count-team-${format("%%04d", count.index)}-role"
+  assume_role_policy = %s
+}
+
+`, n, prefix, assumeRolePolicyHCL("ec2.amazonaws.com"))
+
+	fmt.Fprintf(w, `resource "aws_iam_role_policy" "count_team_inline" {
+  count  = %d
+  name   = "%s-count-team-${format("%%04d", count.index)}-inline"
+  role   = aws_iam_role.count_team[count.index].name
+  policy = %s
+}
+
+`, n, prefix, inlinePolicyHCL(inlineTemplates[0].actions))
+
+	fmt.Fprintf(w, `resource "aws_iam_policy" "count_team_policy" {
+  count  = %d
+  name   = "%s-count-team-${format("%%04d", count.index)}-policy"
+  policy = %s
+}
+
+`, n, prefix, boilerplatePolicyHCL(boilerplatePolicies[0].actions))
+
+	fmt.Fprintf(w, `resource "aws_iam_role_policy_attachment" "count_team_managed_attach" {
+  count      = %d
+  role       = aws_iam_role.count_team[count.index].name
+  policy_arn = %q
+}
+
+`, n, managedPolicyARNs[0])
+
+	fmt.Fprintf(w, `resource "aws_iam_role_policy_attachment" "count_team_custom_attach" {
+  count      = %d
+  role       = aws_iam_role.count_team[count.index].name
+  policy_arn = aws_iam_policy.count_team_policy[count.index].arn
+}
+
+`, n)
+
+	fmt.Fprintf(w, `resource "aws_iam_instance_profile" "count_team_profile" {
+  count = %d
+  name  = "%s-count-team-${format("%%04d", count.index)}-profile"
+  role  = aws_iam_role.count_team[count.index].name
+}
+
+`, n, prefix)
+
+	return 6 * n
+}
+
+// ── Identity layer: module-nested pods (issue #574) ─────────────────────
+
+// modulePodsTF is the root module call: for_each over modulePodKeys, so it
+// always has more than one instance, wrapping modules/team_pod (see
+// podModuleMainTF) - the module-nested identity bucket. prefix and
+// pod_size are threaded through as variables since a module body has no
+// access to the caller's locals.
+func modulePodsTF() string {
+	keys := make([]string, len(modulePodKeys))
+	for i, k := range modulePodKeys {
+		keys[i] = fmt.Sprintf("%q", k)
+	}
+	return fmt.Sprintf(`# pods.tf - the identity layer's module-nested share (issue #574): a
+# module call with more than one instance (for_each over %d pod keys),
+# each instance declaring its own count-expanded team-equivalents
+# internally (modules/team_pod/main.tf). module.team_pod["pod-a"].
+# aws_iam_role.pod_role[0] is exactly the double-indexed shape
+# internal/live/markers/modulemarker.go's marker_module_prefix exists to
+# serve (issue #378) - the "hardest shape" issue #574 asks this generator
+# to produce at least one of.
+
+module "team_pod" {
+  source = "./modules/team_pod"
+
+  for_each = toset([%s])
+
+  prefix   = "${local.name_prefix}-${each.key}"
+  pod_size = local.pod_size
+}
+`, len(modulePodKeys), strings.Join(keys, ", "))
+}
+
+func podModuleVariablesTF() string {
+	return `# modules/team_pod/variables.tf - generated by tools/terralith-gen
+# (issue #574). Rewritten in full on every run.
+
+variable "prefix" {
+  type = string
+}
+
+variable "pod_size" {
+  type = number
+}
+`
+}
+
+// podModuleMainTF is the wrapped module's own body: the same six resource
+// types buildCountTeams writes at the root, expressed with var.prefix and
+// var.pod_size in place of the literal prefix/n a root-level count block
+// would use - a module has no access to the caller's locals, only what it
+// declares as variables (podModuleVariablesTF).
+func podModuleMainTF() string {
+	return fmt.Sprintf(`# modules/team_pod/main.tf - generated by tools/terralith-gen (issue
+# #574). Rewritten in full on every run. One pod's team-equivalents,
+# count-expanded inside a module call that itself has more than one
+# instance (pods.tf) - the module-nested marker-address shape.
+
+resource "aws_iam_role" "pod_role" {
+  count              = var.pod_size
+  name               = "${var.prefix}-team-${format("%%04d", count.index)}-role"
+  assume_role_policy = %s
+}
+
+resource "aws_iam_role_policy" "pod_inline" {
+  count  = var.pod_size
+  name   = "${var.prefix}-team-${format("%%04d", count.index)}-inline"
+  role   = aws_iam_role.pod_role[count.index].name
+  policy = %s
+}
+
+resource "aws_iam_policy" "pod_policy" {
+  count  = var.pod_size
+  name   = "${var.prefix}-team-${format("%%04d", count.index)}-policy"
+  policy = %s
+}
+
+resource "aws_iam_role_policy_attachment" "pod_managed_attach" {
+  count      = var.pod_size
+  role       = aws_iam_role.pod_role[count.index].name
+  policy_arn = %q
+}
+
+resource "aws_iam_role_policy_attachment" "pod_custom_attach" {
+  count      = var.pod_size
+  role       = aws_iam_role.pod_role[count.index].name
+  policy_arn = aws_iam_policy.pod_policy[count.index].arn
+}
+
+resource "aws_iam_instance_profile" "pod_profile" {
+  count = var.pod_size
+  name  = "${var.prefix}-team-${format("%%04d", count.index)}-profile"
+  role  = aws_iam_role.pod_role[count.index].name
+}
+`, assumeRolePolicyHCL("ec2.amazonaws.com"), inlinePolicyHCL(inlineTemplates[1].actions),
+		boilerplatePolicyHCL(boilerplatePolicies[1].actions), managedPolicyARNs[1])
 }
 
 // ── Container-service layer ─────────────────────────────────────────────
@@ -492,44 +735,60 @@ func writeZone(w *strings.Builder, prefix string) {
 `, prefix)
 }
 
-// writeRecord writes one record, cycling A/CNAME/TXT by index. Every
-// value is declared literally in the record itself - "declaration-carried"
+// writeRecords writes the whole DNS fan-out as a single for_each block over
+// a literal locals map (issue #574's "share expanded with for_each over a
+// map" bullet - the DNS fan-out is the natural fit the issue names
+// explicitly). n named blocks (one per record, before #574) becomes one
+// resource block plus an n-entry map; per-key content is unchanged from
+// the original cycling (A/CNAME/TXT by index, still declaration-carried
 // per #564 - never computed from a data source or another resource's
-// attribute.
-func writeRecord(w *strings.Builder, k int) {
-	label := fmt.Sprintf("rec_%04d", k)
-	name := fmt.Sprintf("host-%04d.${aws_route53_zone.main.name}", k)
-	var recType, value string
-	switch k % 3 {
-	case 0:
-		recType = "A"
-		value = fmt.Sprintf("%q", fmt.Sprintf("10.60.%d.%d", (k/256)%256, k%256))
-	case 1:
-		recType = "CNAME"
-		value = fmt.Sprintf("%q", fmt.Sprintf("target-%04d.upstream.example.com.", k))
-	default:
-		recType = "TXT"
-		value = fmt.Sprintf("%q", fmt.Sprintf("\"v=text%04d\"", k))
+// attribute).
+func writeRecords(w *strings.Builder, n int) {
+	var entries strings.Builder
+	for k := 0; k < n; k++ {
+		key := fmt.Sprintf("host-%04d", k)
+		var recType, value string
+		switch k % 3 {
+		case 0:
+			recType = "A"
+			value = fmt.Sprintf("[%q]", fmt.Sprintf("10.60.%d.%d", (k/256)%256, k%256))
+		case 1:
+			recType = "CNAME"
+			value = fmt.Sprintf("[%q]", fmt.Sprintf("target-%04d.upstream.example.com.", k))
+		default:
+			recType = "TXT"
+			value = fmt.Sprintf("[%q]", fmt.Sprintf("\"v=text%04d\"", k))
+		}
+		fmt.Fprintf(&entries, "    %q = { type = %q, value = %s }\n", key, recType, value)
 	}
-	fmt.Fprintf(w, `resource "aws_route53_record" "%s" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = "%s"
-  type    = "%s"
-  ttl     = 300
-  records = [%s]
+
+	fmt.Fprintf(w, `locals {
+  dns_records = {
+%s  }
 }
 
-`, label, name, recType, value)
+resource "aws_route53_record" "record" {
+  for_each = local.dns_records
+
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "${each.key}.${aws_route53_zone.main.name}"
+  type    = each.value.type
+  ttl     = 300
+  records = each.value.value
+}
+
+`, entries.String())
 }
 
 // ── GENERATED.md ─────────────────────────────────────────────────────────
 
-func generatedMD(scale int, prefix string, teams, services, dnsRecords int, c composition) string {
+func generatedMD(scale int, prefix string, teams, services, dnsRecords, countTeams, podSize int, c composition) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# terralith (scale=%d, prefix=%q)\n\n", scale, prefix)
-	b.WriteString("Generated by `tools/terralith-gen` (issue #564). Rewritten in full on every run.\n\n")
-	fmt.Fprintf(&b, "%d teams, %d service(s), %d DNS record(s) + 1 zone, plus a fixed 3-resource\n", teams, services, dnsRecords)
-	b.WriteString("network layer (1 VPC, 1 subnet, 1 security group) and 1 ECS cluster.\n\n")
+	b.WriteString("Generated by `tools/terralith-gen` (issue #564; expansion added by #574). Rewritten in full on every run.\n\n")
+	fmt.Fprintf(&b, "%d named teams, %d count-expanded team(s) (count=%d), %d module-nested pod(s) of\n", teams, countTeams, countTeams, len(modulePodKeys))
+	fmt.Fprintf(&b, "%d team(s) each, %d service(s), %d DNS record(s) (one for_each block) + 1 zone,\n", podSize, services, dnsRecords)
+	b.WriteString("plus a fixed 3-resource network layer (1 VPC, 1 subnet, 1 security group) and\n1 ECS cluster.\n\n")
 	b.WriteString("## Composition\n\n")
 	fmt.Fprintf(&b, "| Bucket | Count | Share |\n|---|---|---|\n")
 	fmt.Fprintf(&b, "| identity | %d | %.1f%% |\n", c.identityResources, c.identityPercent())
@@ -539,6 +798,13 @@ func generatedMD(scale int, prefix string, teams, services, dnsRecords int, c co
 	fmt.Fprintf(&b, "| **total** | **%d** | |\n\n", c.totalResources())
 	fmt.Fprintf(&b, "Role/policy duplication (see composition's doc comment for the exact method): %d/%d blocks measured duplicate (%.1f%%).\n\n",
 		c.duplicateRolePolicyBlocks, c.totalRolePolicyBlocks, c.duplicationPercent())
+	b.WriteString("## Expansion (issue #574)\n\n")
+	b.WriteString("How many of the resource instances above come from a meta-argument-expanded\nblock rather than an individually-named one - the axis #566's migration\nmeasurement could not test until this generator produced it:\n\n")
+	fmt.Fprintf(&b, "| Shape | Instances | Share of total |\n|---|---|---|\n")
+	fmt.Fprintf(&b, "| `count` (root, aws_iam_role.count_team etc.) | %d | %.1f%% |\n", c.countExpandedInstances, 100*float64(c.countExpandedInstances)/float64(c.totalResources()))
+	fmt.Fprintf(&b, "| `for_each` over a map (root, aws_route53_record.record) | %d | %.1f%% |\n", c.forEachExpandedInstances, 100*float64(c.forEachExpandedInstances)/float64(c.totalResources()))
+	fmt.Fprintf(&b, "| module-nested `count` (module.team_pod[...].aws_iam_role.pod_role[...]) | %d | %.1f%% |\n", c.moduleNestedInstances, 100*float64(c.moduleNestedInstances)/float64(c.totalResources()))
+	fmt.Fprintf(&b, "| **expanded, total** | **%d** | **%.1f%%** |\n\n", c.countExpandedInstances+c.forEachExpandedInstances+c.moduleNestedInstances, c.expandedPercent())
 	b.WriteString("This is stock Terraform: no choudoufu-specific configuration block, ownership\nsidecar, or resource-tag marker appears anywhere in this output - see\nshape_test.go's TestNoChoudoufuConstructLeaks for the mechanical check.\n")
 	return b.String()
 }
