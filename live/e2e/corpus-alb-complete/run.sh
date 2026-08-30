@@ -626,7 +626,7 @@ PLAIN_EST="$PLAIN/alb/examples/complete-alb"
 apply_deltas "$PLAIN_EST"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, $INSTANCES real resources ==="
 
@@ -741,7 +741,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixe
 # under the flag; with it, greenfield matches flag-off's own result (80
 # resources, matching stock's cold deploy) exactly. See this unit's PR for
 # the reproduce and the full refusal list.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -777,7 +777,7 @@ GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACC
 if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
   gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-alb-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   SKIP_GREENFIELD_REST=1
 fi
@@ -807,7 +807,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
   NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
   gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   SKIP_GREENFIELD_REST=1
 fi
@@ -835,7 +835,7 @@ log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS 
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
 fi
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ── day2_rename ORACLE: stock, on a copy of cold_deploy's own state ────────
@@ -855,7 +855,7 @@ docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 # through choudoufu - a moved block for .this, and live-mv with no moved
 # block at all for .other - and compares its own zero-churn result against
 # this oracle's.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== day2_rename ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 ORACLE="$WORK/oracle"
 cp -R "$PLAIN" "$ORACLE"
@@ -897,7 +897,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # references the removed object too" shape a real operator would do. A
 # SEPARATE copy of cold_deploy's own state (this one is never touched by
 # either rename Part D also exercises).
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-REMOVE-ORACLE. stock: delete aws_instance.other's block (and its one target-group-attachment reference) on cold_deploy's own state ==="
 REMOVE_ORACLE="$WORK/remove-oracle"
 cp -R "$PLAIN" "$REMOVE_ORACLE"
@@ -916,7 +916,7 @@ grep -qE '^  # aws_instance\.other will be destroyed' <<< "$REMOVE_ORACLE_PLAN_O
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -15; fail "stock's remove plan does not propose exactly two destroys (the instance and its target-group attachment)"; }
 log "  stock: exactly 2 destroys (aws_instance.other and its target-group attachment), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A THIRD
@@ -937,7 +937,7 @@ CURRENT_STAGE=""
 # attachment too (its own target_id argument has no update API in ELBv2,
 # only Register/DeregisterTargets, so it is expected to replace as well -
 # confirmed below by the plan itself, not assumed).
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== day2_replace ORACLE. stock: force-replace aws_instance.this via its ForceNew ami argument, on cold_deploy's own state ==="
 REPLACE_ORACLE="$WORK/replace-oracle"
 cp -R "$PLAIN" "$REPLACE_ORACLE"
@@ -955,9 +955,9 @@ grep -qE '^  # aws_instance\.this must be replaced' <<< "$REPLACE_ORACLE_PLAN_OU
 REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
 [ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
 log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces aws_instance.this at the same declared address, on the state cold_deploy produced - plan only, not applied (same convention as the two oracles above: this copy shares floci's account with \$ADOPTED_EST, and actually applying here would destroy the real instance the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -1054,7 +1054,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "$STAMPED_WANT of $INSTANCES stamped, $RECORDED_WANT recorded, $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -1594,7 +1594,7 @@ fi
 
 if [ -n "${STAGE3_PASSED:-}" ]; then
   # ── 4. test apply: apply the empty plan, assert a genuine no-op ──────────
-  CURRENT_STAGE=test_apply
+  gauntlet_begin_stage test_apply
   log "=== 4. test apply: apply the empty plan, assert a genuine no-op ==="
   BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -1613,7 +1613,7 @@ if [ -n "${STAGE3_PASSED:-}" ]; then
   gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
 
   # ── 5. drift and reconverge: mutate the ALB's Example tag, replan, fix ───
-  CURRENT_STAGE=drift_reconverge
+  gauntlet_begin_stage drift_reconverge
   log "=== 5. drift and reconverge: mutate one object out of band ==="
   if [ "${BREAK:-}" = "1" ]; then
     # A second, unrelated object is mutated too - the assertion below must
@@ -1652,7 +1652,7 @@ if [ -n "${STAGE3_PASSED:-}" ]; then
 
   if [ "${BREAK:-}" != "1" ]; then
     # ── 6. day2_rename: moved block (aws_instance.this) + live-mv (aws_instance.other) ──
-    CURRENT_STAGE=day2_rename
+    gauntlet_begin_stage day2_rename
     log "=== 6. day2_rename: rename aws_instance.this via a moved block, aws_instance.other via live-mv ==="
     INST_THIS_ID="$(awsl ec2 describe-instances --filters '[{"Name":"tag:tofu-address","Values":["aws_instance.this"]}]' --query "Reservations[0].Instances[0].InstanceId" --output text)"
     [ -n "$INST_THIS_ID" ] && [ "$INST_THIS_ID" != "None" ] || fail "no live EC2 instance found by its tofu-address marker (aws_instance.this)"
@@ -1759,7 +1759,7 @@ EOF
     # BREAK=replace manufactures the coexistence a skipped destroy would
     # leave behind directly via the AWS CLI (day2_crash, stage 10, owns
     # testing a real interrupted apply).
-    CURRENT_STAGE=day2_replace
+    gauntlet_begin_stage day2_replace
     record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
     record_import_id() { jq -r '.identity.import_id' "$1"; }
     F_ADDR="aws_instance.this_renamed"
@@ -1848,7 +1848,7 @@ EOF
       INST_THIS_ID="$F_NEW_ID"
       gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old instance ($F_OLD_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
 
     # ════════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1861,7 +1861,7 @@ EOF
     # "remove what references the removed object too" shape a real
     # operator would do, and the same edit the D-REMOVE-ORACLE copy above
     # already proved destroys exactly two objects on stock.
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log "=== E0. capture the live instance this removal destroys ==="
     E_ADDR_BEFORE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INST_OTHER_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text 2>/dev/null || true)"
     [ "$E_ADDR_BEFORE" = "aws_instance.other_renamed" ] \
@@ -1917,7 +1917,7 @@ EOF
 
       gauntlet_stage day2_remove pass "choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects"
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
 else
   log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
@@ -1927,7 +1927,7 @@ else
   log "=== 6. day2_rename: NOT RUN - depends on stages 3-5 ==="
   gauntlet_stage day2_rename not_run "depends on stages 3-5"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

@@ -432,7 +432,7 @@ record_count() {
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain terraform apply, the estate as rust-lang wrote it) ==="
 ( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -484,7 +484,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES instances ($Z zones, $R records) fro
 # read through the awsl() helper's global $ENDPOINT, so this section
 # points $ENDPOINT at each fresh container in turn and restores it before
 # falling back into stage 2's own use of the main container.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -585,7 +585,7 @@ for domain in "${WANT_DOMAINS[@]}"; do
 done
 log "  all $ZONES zones match structurally (comment, and every non-NS/SOA record's name/type/ttl/value) between choudoufu's greenfield apply and stock's fresh apply in its own namespace"
 gauntlet_stage greenfield pass "$INSTANCES instances from nothing ($ZONES zones, $RECORDS records), all $ZONES markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all $ZONES zones ($RECORDS records)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -620,7 +620,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # kept maximally simple since live-mv moves one resource instance at a
 # time. The stock oracle plans the NET rename of BOTH on a copy of
 # cold_deploy's own state, before choudoufu or live-import touch either.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two module renames, through moved blocks, on cold_deploy's own state ==="
 ORACLE="$WORK/oracle"
 copy_estate "$ORACLE" ""
@@ -698,7 +698,7 @@ log "  stock: zero churn on cold_deploy's own state - both module moves (cratesi
 # fixable-here defect in this estate's own script, so it is left as a
 # finding rather than forced; a whole TAGGABLE zone is what this crossing's
 # day2_remove actually proves.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock terraform, delete module.cratesio_com's block on cold_deploy's own state ==="
 REMOVE_ORACLE="$WORK/remove-oracle"
 copy_estate "$REMOVE_ORACLE" ""
@@ -715,7 +715,7 @@ grep -qE '^  # module\.cratesio_com\.aws_route53_zone\.zone will be destroyed' <
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (module.cratesio_com's zone), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason day2_remove's own oracle sits before migrate (above): a
@@ -730,7 +730,7 @@ CURRENT_STAGE=""
 # (above) target module.rustaceans_org and module.cratesio_com, never it,
 # so this section has no ordering dependency on either. PLAN ONLY, never
 # applied: this copy shares floci's account with $ESTATE.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.areweasyncyet_rs's zone via its ForceNew domain argument, on cold_deploy's own state ==="
 REPLACE_ORACLE="$WORK/replace-oracle"
 copy_estate "$REPLACE_ORACLE" ""
@@ -750,7 +750,7 @@ grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_record\.a\["@"\] must be re
 grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own two-resource cascade (zone + its one A record, both replaced)"; }
 log "  stock: exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G-ORACLE: CHANGE COUNT, stock (day2_count, active - live/GAUNTLET.md
@@ -776,7 +776,7 @@ CURRENT_STAGE=""
 # a SEPARATE copy - a pure local state edit, no provider API call, so it
 # can never touch a live object (the same technique corpus-xancloud-iac's
 # own day2_count oracle uses).
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 COUNT_ZONE_MARKER='module.rustconf_com.aws_route53_zone.zone'
 COUNT_RECORD_NAME='2024.rustconf.com.'
 COUNT_RECORD_TYPE='CNAME'
@@ -845,9 +845,9 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.rustconf_com\.aws_route53_recor
 grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
 log "  stock (plan-only): exactly one create proposed ($COUNT_ADDR, state simulated with 'terraform state rm' - no live object ever touched), every sibling rustconf_com record untouched"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - live-import against the cold state
@@ -924,7 +924,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "$ZONES stamped, $ZONES distinct hosted zones, one per module call"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities by value
@@ -1049,7 +1049,7 @@ log ""
 log "STAGE 3 (test plan): PASS"
 log ""
 gauntlet_stage test_plan pass "no resource change proposed, nothing foreign; all $INSTANCES rendered identities name a live hosted zone or record set"
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -1084,7 +1084,7 @@ log ""
 log "STAGE 4 (test apply): PASS"
 log ""
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_Z zones / $BEFORE_R records unchanged, all $ZONES markers unmoved"
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one UNTAGGABLE record out of band
@@ -1199,7 +1199,7 @@ else
   # documented in this same unit (a valid record short-circuits the
   # duplicate-slot claimant matcher before it ever runs) - not
   # re-measured here.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.areweasyncyet_rs.aws_route53_zone.zone"
@@ -1266,7 +1266,7 @@ else
   log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
 
   gauntlet_stage day2_replace pass "choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone ($F_OLD_ZONE_ID) is confirmed gone and the new zone ($F_NEW_ZONE_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ════════════════════════════════════════════════════════════════════════
   # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
@@ -1277,7 +1277,7 @@ else
   # per-child sweep. The adopted estate (stages 2-5) is still marked and
   # still converged, which is exactly the state a rename needs to start
   # from.
-  CURRENT_STAGE=day2_rename
+  gauntlet_begin_stage day2_rename
   log ""
   log "=== D0. capture the live zones this rename must not disturb ==="
   RUSTACEANS_ZONE="$(zone_by_marker 'module.rustaceans_org.aws_route53_zone.zone')" \
@@ -1389,7 +1389,7 @@ EOF
     # on cold_deploy's own state. See E-ORACLE's own comment for why the
     # removal target is a whole TAGGABLE zone rather than an untaggable
     # child's own for_each entry.
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log ""
     log "=== E0. capture the zone's own marker one more time ==="
     E_ZONE_BEFORE="$(zone_by_marker 'module.cratesio_com_final.aws_route53_zone.zone')" \
@@ -1498,7 +1498,7 @@ EOF
       # destroyed - the Break text in tools/gauntlet/stages.go for
       # day2_count, verbatim: "Expect a different instance to be
       # destroyed; the assertion must fail."
-      CURRENT_STAGE=day2_count
+      gauntlet_begin_stage day2_count
       COUNT_ZONE_ID="$(zone_by_marker "$COUNT_ZONE_MARKER")" \
         || fail "no hosted zone carries tofu-address=$COUNT_ZONE_MARKER ahead of day2_count"
       log "=== G0. capture the live sibling record a for_each scale must not disturb ==="
@@ -1598,12 +1598,12 @@ EOF
 
         gauntlet_stage day2_count pass "choudoufu: dropping \"2024\" from module.rustconf_com's CNAME for_each map destroyed exactly $COUNT_ADDR (0 add, 0 change, 1 destroy), leaving sibling $COUNT_SIBLING_ADDR's TTL and $(( RECORDS - 1 )) remaining record sets untouched; adding it back created exactly the same key (0 add, 0 change -> 1 add, 0 change, 0 destroy), restoring its TTL/value and the $RECORDS record-set count, while the sibling and the parent zone's own marker stayed untouched throughout; the next plan is empty; a Route 53 record set carries no server-minted identifier of its own (verified directly against floci, no tofu in the loop: ListResourceRecordSets returns a byte-identical entry across a genuine delete/recreate, only ChangeResourceRecordSets' own per-call ChangeInfo.Id differs), so the destroy is proven by verified ABSENCE rather than an id-diff, unlike this stage's aws_iam_policy/PolicyId and EC2/VpcEndpointId precedents; the G-ORACLE stock oracle on the identical for_each change, plan-only on cold_deploy's own state, shows the identical shape: destroy the dropped key only, propose creating it back, every sibling key untouched both times"
       fi
-      CURRENT_STAGE=""
+      gauntlet_end_stage
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

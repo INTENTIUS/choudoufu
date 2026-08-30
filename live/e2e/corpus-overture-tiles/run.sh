@@ -467,7 +467,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -507,7 +507,7 @@ gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarke
 # (skip_requesting_account_id=false on the greenfield side, for the same
 # #345 reason the header documents), so both copies are, byte for byte,
 # the same real module this whole script already diffs against DELTA.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 FLOCI_GREEN_NAME="choudoufu-corpus-overture-tiles-green-$$"
 FLOCI_ORACLE_NAME="choudoufu-corpus-overture-tiles-green-oracle-$$"
 GREEN_ESTATE_NAME="overture-tiles-green" # kept <= ESTATE_NAME's own length: name_prefix's own 38-char cap (aws_iam_role.ecs_instance's "-ecs-instance-" suffix is the longest) already fits ESTATE_NAME exactly
@@ -643,7 +643,7 @@ ORACLE_BUCKET_COUNT="$(awso s3api list-buckets --query 'length(Buckets)' --outpu
 
 log "  Batch job queue state, CloudFront distribution comment and bucket count all match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
@@ -677,7 +677,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # BREAK=2 (not 1: this crossing already uses BREAK=1 for stage 2's own
 # marker assertion) exercises this stage's own break control instead of the
 # real checks: renaming module.overture_tiles WITHOUT a moved block.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE="$WORK/oracle"
 copy_module "$ORACLE"
@@ -720,7 +720,7 @@ log "  stock: zero churn on cold_deploy's own state - one module-level moved blo
 # the module reads either resource), and this estate is one module call
 # carrying all 26 resources - there is no small, standalone resource
 # block to remove the way reference-ec2-vpc and corpus-iam-policy each do.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== REMOVE-ORACLE. stock: create_cloudfront_distribution=false, on cold_deploy's own state ==="
 REMOVE_ORACLE="$WORK/remove-oracle"
 copy_module "$REMOVE_ORACLE"
@@ -749,7 +749,7 @@ grep -qE '^  # module\.overture_tiles\.aws_s3_bucket_policy\.tiles\[0\] will be 
 grep -qF 'Plan: 0 to add, 1 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { grep -E '^Plan:|^No changes' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "the day2_remove stock oracle plan is not exactly two destroys plus the bucket policy update"; }
 log "  stock oracle: exactly two destroys proposed (the CloudFront distribution and its OAC) plus one in-place bucket-policy update (the CloudFrontOAC statement drops) - computed now, before anything below writes a live tag"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F-ORACLE: REPLACE, stock (day2_replace, active - live/GAUNTLET.md #9)
@@ -777,7 +777,7 @@ CURRENT_STAGE=""
 # PART F below knows exactly what shape to expect. A FOURTH copy of
 # cold_deploy's own state (same convention as D-ORACLE/REMOVE-ORACLE
 # above), before the real script's own rename ever touches $ESTATE.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.overture_tiles's log group via its ForceNew name, on cold_deploy's own state ==="
 REPLACE_ORACLE="$WORK/replace-oracle"
 copy_module "$REPLACE_ORACLE"
@@ -797,9 +797,9 @@ grep -qE '~ +name +=.+forces replacement' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not mark the log group's name as forcing replacement - it may not be ForceNew after all"; }
 printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" > "$WORK/replace-oracle-plan.log"
 log "  stock: exactly one forced replace (the log group); the cascade into its two siblings (the execution role's inline log policy, the job definition) is recorded to $WORK/replace-oracle-plan.log for PART F below to compare against, not asserted rigidly here - plan only, never applied"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - partial: floci's own Batch-tagging bug blocks 3 of 26
@@ -934,7 +934,7 @@ gauntlet_stage migrate pass "16 of 26 stamped, 0 failed; the other 10 correctly 
 # scoring the symptom (a non-empty first plan) as "test_plan: FAIL" once
 # the very next plan is, and stays, genuinely empty.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2d: converge (one apply creates and binds the OAC; tofu-slot is already cemented, choudoufu #372) ==="
 
 # UPDATE, found by running this script fresh rather than assumed (the same
@@ -998,7 +998,7 @@ log "  post-convergence live-plan: No changes. - the estate has reached steady s
 log ""
 log "STAGE 2d (converge): done - tofu-slot cemented at migrate time (#372), OAC already bound at migrate time (#249 narrowed), steady state reached with no apply needed"
 log ""
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - #345 FIXED, and now genuinely EMPTY. STAGE 2d above
@@ -1007,7 +1007,7 @@ CURRENT_STAGE=""
 # live-plan completely fresh, never trusting the plan already seen in 2d, so
 # it is its own genuine, from-nothing check.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan (expect empty) ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -1042,7 +1042,7 @@ log "STAGE 3 (test plan): PASS - live-plan is genuinely empty; representative"
 log "  identities (S3 bucket, OAC) re-checked against the AWS CLI by value"
 log ""
 gauntlet_stage test_plan pass "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan; assert a genuine no-op both by
@@ -1070,7 +1070,7 @@ CURRENT_STAGE=""
 # double-count the log group instead of under-reporting it, which is
 # exactly the failure this pin bump surfaced (BEFORE_N=17, not 16).
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count and identities unchanged) ==="
 
 LOGGROUP_NAME="/aws/batch/${ESTATE_NAME}"
@@ -1138,7 +1138,7 @@ log ""
 log "STAGE 4 (test apply): PASS - genuine no-op; object count and identities unchanged"
 log ""
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE
@@ -1175,7 +1175,7 @@ CURRENT_STAGE=""
 # noise, not the out-of-band mutation under test, and exactly the "marker
 # tags normalised out of both plans" the stage's oracle text calls for.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge ==="
 
 VPC_NAME_TAG="${ESTATE_NAME}-vpc"
@@ -1455,7 +1455,7 @@ else
   # `name` once choudoufu's own apply has created it - unaffected by the
   # module's OWN address, same shape as an untaggable Route 53 record) need
   # none - confirmed empirically below.
-  CURRENT_STAGE=day2_rename
+  gauntlet_begin_stage day2_rename
   log ""
   log "=== D0. the estate's 16 taggable addresses this rename must not disturb ==="
   TAGGABLE_ADDRS=(
@@ -1760,7 +1760,7 @@ EOF
     # the same choice every other estate in this unit makes. BREAK=replace
     # below manufactures the coexistence a skipped destroy half would
     # leave.
-    CURRENT_STAGE=day2_replace
+    gauntlet_begin_stage day2_replace
     record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
     record_import_id() { jq -r '.identity.import_id' "$1"; }
     F_ADDR="module.overture_tiles_final.aws_cloudwatch_log_group.batch"
@@ -1854,7 +1854,7 @@ EOF
 
       gauntlet_stage day2_replace pass "choudoufu: supplying module.overture_tiles_final's name_overrides.cloudwatch_log_group proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the execution role's inline log policy, the job definition) and nothing else; applied cleanly; the old object ($F_OLD_LOGGROUP_NAME) is confirmed gone and the new object ($F_NEW_NAME) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address plus the same cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
 
     # ══════════════════════════════════════════════════════════════════
     # REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7, active)
@@ -1910,7 +1910,7 @@ EOF
     # entry reaches every type whose ARN carries that service/segment pair,
     # and the gate reaches every LocatedType-admitted type with a
     # persisted record.
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log "=== STAGE 7. day2_remove: create_cloudfront_distribution=false on module.overture_tiles_final ==="
     log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly two destroys (the distribution and its OAC)"
     perl -pi -e 's/create_cloudfront_distribution = true/create_cloudfront_distribution = false/' "$ESTATE/main.tf"
@@ -1945,10 +1945,10 @@ EOF
     log "  no resource action proposed. The distribution is gone and nothing else moved."
 
     gauntlet_stage day2_remove pass "choudoufu: create_cloudfront_distribution=false proposed exactly two destroys plus one in-place update (0 add, 1 change, 2 destroy: the distribution, its untaggable OAC, and the bucket policy's own CloudFrontOAC statement dropping), applied cleanly (0 added, 1 changed, 2 destroyed), the distribution is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys plus the same bucket-policy update"
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 gauntlet_end
 

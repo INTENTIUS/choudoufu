@@ -313,7 +313,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified modules) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -355,7 +355,7 @@ log ""
 # terraform cannot see this .tofu-only estate at all, see header) runs the
 # same two renames, through moved blocks only, on a copy of cold_deploy's
 # own state - before choudoufu or live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -397,7 +397,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # and aws_kms_alias (untaggable, client-named from its own `name` argument,
 # not parent-derived - see header) - so removing its block also has to
 # destroy the alias, in an order the cloud accepts.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock tofu, delete module.kafka_kms_key's block on cold_deploy's own state ==="
 PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
 cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
@@ -437,7 +437,7 @@ log "  stock: exactly two destroys (the KMS key and its alias), nothing else, on
 # `hm_resource_name` tag value update in place. PLAN ONLY, never applied -
 # same convention as the rename/remove oracles above.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock tofu, force-replace module.kafka_kms_key's alias via its ForceNew name (driven by aws_kms_key_name), on cold_deploy's own state ==="
 PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
@@ -457,7 +457,7 @@ grep -qE '^  # module\.kafka_kms_key\.aws_kms_key\.main will be updated in-place
 grep -qF 'Plan: 1 to add, 1 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add, one in-place change and one destroy"; }
 log "  stock: exactly one replace proposed (the alias only) at the same declared address, plus one in-place tag update on the key itself (same server-assigned id, untouched identity), on the state cold_deploy produced - plan only, not applied"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -506,7 +506,7 @@ write_root "$GREEN" '
   }'
 log "  greenfield estate written to $GREEN (same two unmodified leaf modules, a live block from the start)"
 
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the greenfield init failed"; }
@@ -585,7 +585,7 @@ log ""
 log "PART GREENFIELD (greenfield): PASS"
 gauntlet_stage greenfield pass "4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared"
 log ""
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
@@ -633,7 +633,7 @@ CURRENT_STAGE=""
 # third container. This oracle section MUST run before the
 # `docker rm -f "$FLOCI_GREEN_NAME"` line a few lines below, or the account
 # it needs is already gone.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 count_test_block() { # $1 = count
   local n="$1"
   cat <<COUNTEOF
@@ -729,14 +729,14 @@ ORACLE_CT1_NEW_CREATED="$(awslg s3api list-buckets --query "Buckets[?Name=='$ORA
 ORACLE_CT0_CREATED_AFTER_UP="$(awslg s3api list-buckets --query "Buckets[?Name=='$ORACLE_CT0_NAME'].CreationDate | [0]" --output text)"
 [ "$ORACLE_CT0_CREATED_AFTER_UP" = "$ORACLE_CT0_CREATED" ] || fail "stock's count_test[0] bucket changed CreationDate across the scale-up"
 log "  stock: exactly one create (count_test[1], same bucket name - deterministic - but a NEW CreationDate $ORACLE_CT1_NEW_CREATED, was $ORACLE_CT1_CREATED), count_test[0]=$ORACLE_CT0_NAME unchanged throughout"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
@@ -794,7 +794,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -835,7 +835,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -861,7 +861,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK:-}" = "1" ]; then
@@ -919,7 +919,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  bucket $PROD_BUCKET_NAME (module.hm_production_bucket), key $KMS_KEY_ID (module.kafka_kms_key)"
 
@@ -1073,7 +1073,7 @@ EOF
   # resources to add create_before_destroy would cross this corpus's own
   # DELTA discipline (see header), so this evidence pass exercises the
   # default destroy-then-create ordering instead.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.kafka_kms_key_renamed.aws_kms_alias.main"
@@ -1155,7 +1155,7 @@ EOF
   KMS_ALIAS_NAME="$F_NEW_ALIAS_NAME"
 
   gauntlet_stage day2_replace pass "choudoufu: changing module.kafka_kms_key_renamed's aws_kms_key_name argument proposed exactly one forced replace at the same declared address (the untaggable, client-named alias - 1 add, 1 change, 1 destroy overall) plus one in-place tag update on the taggable key itself, applied cleanly; the old alias ($F_OLD_IMPORT_ID) is confirmed gone and the new alias ($F_NEW_ALIAS_NAME) points at the SAME key ($KMS_KEY_ID, read via the AWS CLI) - the key was never replaced; the local record store's record at the alias's address now names the new alias, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID), while the key's own record at its own address is unchanged; the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace (the alias) plus one in-place key update. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_kms_alias is untaggable and resolved by its own name, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape."
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   log ""
 
 
@@ -1177,7 +1177,7 @@ EOF
   # DEFAULT-provider module and touches neither bucket module nor its
   # provider alias, so it does not exercise #403's own cross-provider
   # dedup path at all; left as-is rather than disturbed.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live ids one more time ==="
   E_KMS_ADDR_BEFORE="$(awsl kms list-resource-tags --key-id "$KMS_KEY_ID" --query "Tags[?TagKey=='tofu-address'].TagValue | [0]" --output text 2>/dev/null || true)"
   [ "$E_KMS_ADDR_BEFORE" = "module.kafka_kms_key_renamed.aws_kms_key.main" ] \
@@ -1271,7 +1271,7 @@ EOF
     # verbatim: "Expect a different instance to be destroyed; the assertion
     # must fail." Only reachable when BREAK is not "rename" and BREAK_REMOVE
     # is not 1, because PART G starts from PART E's real, completed removal.
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     log "=== G0. choudoufu: add aws_s3_bucket.count_test, count = 2 ==="
     count_test_block 2 > "$ESTATE/day2_count.tf"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -1398,11 +1398,11 @@ EOF
 
       gauntlet_stage day2_count pass "choudoufu: scaling aws_s3_bucket.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live CreationDate and tofu-address marker unchanged and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 created exactly count_test[1] under the SAME bucket name (deterministic) but a NEW CreationDate (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield real-leg account, shows the identical shape: destroy the higher index only, create the higher index back under the same bucket name but a new CreationDate, the lower index's CreationDate unchanged both times"
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS: all five stages, real, against hongbo-miao/hongbomiao.com's own ==="

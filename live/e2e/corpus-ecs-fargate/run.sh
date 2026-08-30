@@ -626,7 +626,7 @@ copy_tree "$PLAIN"
 PLAIN_EST="$PLAIN/ecs/examples/fargate"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, 62 real resources ==="
 
@@ -750,7 +750,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 # estate's own oracle is stock applying the SAME config fresh in a THIRD,
 # independent namespace, compared structurally via the AWS CLI on both
 # endpoints, never through tofu state, never through choudoufu's own report.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -897,7 +897,7 @@ fi
 log "  object-by-object match: cluster status/capacity-providers, service status/desired-count/launch-type/strategy, standalone task definition's active-revision-count/cpu/memory/architecture, the CloudMap HTTP namespace count, the ALB's type/scheme/listener-count/target-group-count, and the VPC's cidr - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
 
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES of $INSTANCES records in the local record store (#364 A2; the 2 aws_ecs_task_definition instances are excluded by a numeric-wire-identity-component gap in internal/live/identity/located.go's LocatedIdentityPlanFor, documented in this script and not fixed here - their markers and plans are unaffected), replan empty, stock oracle in its own namespace matches structurally on cluster/service/standalone-task-definition/CloudMap-namespace/ALB/VPC"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
@@ -925,7 +925,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # and creating the new one - the opposite of every other assertion in this
 # part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE_ROOT"
@@ -963,7 +963,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # as the rename oracle above - a SEPARATE copy of cold_deploy's own state,
 # unrenamed, so this removal has nothing to do with the rename this script
 # also exercises.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-ORACLE (day2_remove). stock: delete module.ecs_task_definition's block on cold_deploy's own state ==="
 PLAIN_ORACLE_REMOVE_ROOT="$WORK/plain-oracle-remove"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE_ROOT"
@@ -984,7 +984,7 @@ printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qE '^module\.ecs_task_defin
 printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS" | grep -qvE '^module\.ecs_task_definition\.' \
   && { printf '%s\n' "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "stock's day2_remove oracle destroys something outside module.ecs_task_definition"; }
 log "  stock: $REMOVE_ORACLE_N destroys under module.ecs_task_definition on cold_deploy's own state, nothing else"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A THIRD
@@ -1047,7 +1047,7 @@ CURRENT_STAGE=""
 # header comment ("no service" - create_service=false) nothing else in
 # this estate references it at all, so there is no cascade for finding
 # 2's shape to reach either.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.ecs_task_definition's task definition via its ForceNew family argument, on cold_deploy's own state ==="
 PLAIN_ORACLE_REPLACE_ROOT="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE_ROOT"
@@ -1064,9 +1064,9 @@ grep -qE '^  # module\.ecs_task_definition\.aws_ecs_task_definition\.this\[0\] m
 REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
 [ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
 log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces module.ecs_task_definition's task definition at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ADOPTED_EST, and actually applying here would destroy the real task definition the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -1186,7 +1186,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -1645,7 +1645,7 @@ gauntlet_stage test_plan pass "genuinely empty replan (\"No changes. Your infras
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== 4. test apply: apply the empty plan, assert a genuine no-op ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -1668,7 +1668,7 @@ gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed);
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== 5. drift and reconverge: mutate one object out of band ==="
 VPC_ID="$(awsl ec2 describe-vpcs \
   --query "Vpcs[?Tags[?Key=='tofu-estate' && Value=='$ESTATE']].VpcId | [0]" --output text 2>/dev/null)"
@@ -1712,7 +1712,7 @@ else
   gauntlet_stage drift_reconverge pass "one object tampered (VPC's Name tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Name tag reconverged"
 fi
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 NS_ARN_D="$(awsl servicediscovery list-namespaces --query "Namespaces[0].Arn" --output text)"
 [ -n "$NS_ARN_D" ] && [ "$NS_ARN_D" != "None" ] || fail "no live service-discovery namespace found"
@@ -1838,7 +1838,7 @@ EOF
   # This evidence pass exercises OpenTofu's DEFAULT replace ordering
   # instead. BREAK=replace manufactures the coexistence a skipped destroy
   # would leave behind directly via the AWS CLI.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   F_ADDR="module.ecs_task_definition.aws_ecs_task_definition.this[0]"
   F_OLD_FAMILY="ex-fargate-standalone"
   F_TD_ARN_D="$(awsl ecs list-task-definitions --family-prefix "$F_OLD_FAMILY" --query "taskDefinitionArns[0]" --output text)"
@@ -1928,7 +1928,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include \`revision\`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices each found a genuine, separate defect: aws_service_discovery_http_namespace.this_renamed's (mv.go's propagateModuleRename skipping MoveRecord for a same-module rename) is FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit, neither of which was re-run for #412; module.alb_renamed's (the non-converging cascade, F-ORACLE's own header comment, finding 2) remains a separate, open finding, not fixed here."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
@@ -1954,7 +1954,7 @@ EOF
   # Break text in tools/gauntlet/stages.go for day2_remove is literally
   # "keep the block; no destroy may be proposed".
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live standalone task definition's family before day2_remove ==="
   TD_FAMILY="ex-fargate-standalone"
   TD_ARN_BEFORE="$(awsl ecs list-task-definitions --family-prefix "$TD_FAMILY" --status ACTIVE --query 'taskDefinitionArns[0]' --output text)"
@@ -2060,11 +2060,11 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.ecs_task_definition's block proposed exactly $REMOVE_N destroys (0 add, 0 change, $REMOVE_N destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, $REMOVE_N destroyed); the standalone task definition family ($TD_FAMILY) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

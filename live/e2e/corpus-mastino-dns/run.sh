@@ -607,7 +607,7 @@ log "  DELTA 4  tfvars for the estate's 20 undefaulted variables  (onboarding)"
 # STAGE 1: COLD DEPLOY - plain terraform apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
 log ""
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (stock terraform, no choudoufu anywhere) ==="
 ( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -672,7 +672,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources from stock terraform; 4 li
 # per-attribute diff of all 59 untaggable records; the shared config
 # guarantees the SHAPE is identical, and the count is what a full sweep
 # would also converge on if it ever disagreed.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -817,9 +817,9 @@ done
 [ "$GREEN_REC_N" = "$ORACLE_REC_N" ] || fail "the greenfield estate holds $GREEN_REC_N record sets across all zones, the stock oracle holds $ORACLE_REC_N - they must match"
 log "  4 hosted zones and $GREEN_REC_N record sets (across all zones, including the auto-created NS/SOA at each apex) match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing (4 tagged zones + 59 untaggable records), the production zone's marker verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches on zone count (4) and total record-set count ($GREEN_REC_N)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two zone renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -879,7 +879,7 @@ log "  stock: zero churn on cold_deploy's own state - both zone moves report onl
 # estate's other 58 record instances. A fresh copy of cold_deploy's own
 # state (same as D-ORACLE above), before the real script's own zone
 # renames ever touch $EST.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace aws_route53_record.status via its ForceNew name argument, on cold_deploy's own state ==="
 REPLACE_PLAIN_ORACLE="$WORK/replace-plain-oracle"
 cp -r "$PLAIN" "$REPLACE_PLAIN_ORACLE"
@@ -923,7 +923,7 @@ log "  stock: exactly one replace at the same declared address (aws_route53_reco
 # up-plan's "index 9 does not exist yet" starting point is simulated with
 # `terraform state rm` on its own separate copy - a pure local state edit,
 # no provider API call, so it can never touch a live object.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 COUNT_PLAIN_ORACLE="$WORK/plain-count-oracle"
 cp -r "$PLAIN" "$COUNT_PLAIN_ORACLE"
 sed -i.bak 's/count           = 10/count           = 9/' "$COUNT_PLAIN_ORACLE/main.tf"
@@ -958,13 +958,13 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # aws_route53_record\.wp-prod-staging\[' 
 grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
 log "  stock (plan-only): exactly one create proposed (wp-prod-staging[9]), every other index untouched"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state
 # ══════════════════════════════════════════════════════════════════════════
 log ""
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the estate copy's init failed"; }
@@ -1071,7 +1071,7 @@ gauntlet_stage migrate pass "$TAGGABLE of $INSTANCES stamped, $UNTAGGABLE skippe
 # STAGE 3: TEST PLAN - state deleted, live-plan empty, identities by VALUE
 # ══════════════════════════════════════════════════════════════════════════
 log ""
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan, and the rendered identities ==="
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 [ ! -f "$EST/terraform.tfstate" ] || fail "the state file is still there"
@@ -1208,7 +1208,7 @@ gauntlet_stage test_plan pass "plan empty across 63 instances, no state file; $F
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
 log ""
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object counts unchanged) ==="
 
 record_count() {
@@ -1283,7 +1283,7 @@ gauntlet_stage test_apply pass "genuine no-op: $BEFORE_Z zones / $BEFORE_R recor
 #     real drift, and this plan would come back empty. It is the one failure
 #     mode a residue mechanism can introduce, and this is where it shows.
 log ""
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (one untaggable, residue-carrying record) ==="
 
 upsert_ttl() { # upsert_ttl <zone> <name> <ttl>
@@ -1382,7 +1382,7 @@ log "STAGE 5 (drift and reconverge): PASS"
 # must make choudoufu propose destroying the old address and creating the
 # new one - the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the two live zone ids a rename must not disturb ==="
 log "  $PROD_ZONE (aws_route53_zone.production), $INT_ZONE (aws_route53_zone.internal)"
 
@@ -1497,7 +1497,7 @@ EOF
   # ordering (destroy-then-create) rather than create_before_destroy, the
   # same choice every other estate in this unit makes. BREAK=replace below
   # manufactures the coexistence a skipped destroy half would leave.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   # aws_route53_record's own record file is "kind": "identity" - a
   # component-derived identity, not a marker-backed single import_id
@@ -1605,7 +1605,7 @@ json.dump(d, open(p, 'w'))
 
     gauntlet_stage day2_replace pass "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object ($F_NEW_IDENTITY) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8, #488)
@@ -1690,7 +1690,7 @@ json.dump(d, open(p, 'w'))
   # verbatim: "Expect a different instance to be destroyed; the assertion
   # must fail."
 
-  CURRENT_STAGE=day2_count
+  gauntlet_begin_stage day2_count
   find_record_file() { grep -rlF "\"$1\"" "$RECORD_DIR" 2>/dev/null | head -1; }
   # record_tombstoned <file>: a genuine destroy does not erase the local
   # record file for an untaggable, record-backed address - it converts the
@@ -1832,7 +1832,7 @@ json.dump(d, open(p, 'w'))
 
     gauntlet_stage day2_count pass "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI, and its local record file correctly tombstoned rather than left claiming a live identity - the #398-guard shape, confirmed by reading the file directly rather than assumed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -> 1 add, 0 change, 0 destroy), TTL=300 and record import_id=$G_HI_IMPORT_ID_AFTER_UP (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by the AWS CLI absence check and the tombstone, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1900,7 +1900,7 @@ json.dump(d, open(p, 'w'))
   # both blocks, and assert the plan proposes no destroy for either - the
   # Break text in tools/gauntlet/stages.go, verbatim.
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live zone id one more time ==="
   E_EU_ZONE="$(awsl route53 list-hosted-zones --query "HostedZones[?Name=='datacite.eu.'].Id | [0]" --output text | sed 's|/hostedzone/||')"
   [ -n "$E_EU_ZONE" ] && [ "$E_EU_ZONE" != "None" ] || fail "the eu zone is not live before day2_remove even starts"
@@ -1981,7 +1981,7 @@ PYEOF
         printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply failed for a reason other than the provider's own non-empty-zone refusal"; }
       log "  the provider refused to delete a non-empty zone (HostedZoneNotEmpty) - the honest shape per force_destroy semantics, matching what stock would also do; asserting the refusal rather than the destroy"
       gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu's block proposed its destroy (and, per the fix landed in gauntlet:parent-scoped-sweep, aws_route53_record.eu-ns's own destroy alongside it); apply correctly refused per the provider's own force_destroy semantics for a non-empty zone (HostedZoneNotEmpty), the same outcome stock's identical apply would produce - asserted by name, not routed around."
-      CURRENT_STAGE=""
+      gauntlet_end_stage
     else
       REMOVE_APPLY_SUMMARY="$(grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT")"
       grep -qE 'Resources: 0 added, 0 changed, [12] destroyed' <<< "$REMOVE_APPLY_OUT" \
@@ -2000,12 +2000,12 @@ PYEOF
       log "  No changes. The removal is complete and invisible to the next plan."
 
       gauntlet_stage day2_remove pass "choudoufu: deleting aws_route53_zone.eu and aws_route53_record.eu-ns's blocks - both destroys proposed (matching stock's own oracle exactly) and applied cleanly ($REMOVE_APPLY_SUMMARY), the zone genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report); the next plan is empty. The parent-scoped removal sweep gap this estate named (gauntlet:parent-scoped-sweep) is closed: recordOrphanReadSweep composes aws_route53_record's identity from its migrate-seeded record correctly (composeImportIDFromComponents's OmitIfAbsent fix) and carries a destroy-before-parent ordering hint (identity.Resolution.DestroyDependsOn) so the record's own destroy is never raced against its zone's force_destroy cascade."
-      CURRENT_STAGE=""
+      gauntlet_end_stage
     fi
   fi
 fi
-CURRENT_STAGE=""
-CURRENT_STAGE=""
+gauntlet_end_stage
+gauntlet_end_stage
 gauntlet_end
 
 log ""

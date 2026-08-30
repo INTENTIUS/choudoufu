@@ -262,7 +262,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy ($TF_COLD_BIN apply, the real unmodified example) ==="
 ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -301,7 +301,7 @@ gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 
 # choudoufu propose destroying the old address and creating the new one -
 # the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
 cp -r "$WORK/plain" "$PLAIN_ORACLE_ROOT"
@@ -345,7 +345,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # still worth keeping in this oracle's plan). The block is not renamed by
 # either mechanism Part D exercises, so its name is "default" on both the
 # stock copy here and, later, on the real $ADOPTED tree.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-REMOVE-ORACLE. stock: delete module.default's block on cold_deploy's own state ==="
 REMOVE_ORACLE_ROOT="$WORK/plain-remove-oracle"
 cp -r "$WORK/plain" "$REMOVE_ORACLE_ROOT"
@@ -362,7 +362,7 @@ ORACLE_REMOVE_N="$(grep -cE '^  # module\.default\..+ will be destroyed' <<< "$R
 grep -qF "Plan: 0 to add, 0 to change, $ORACLE_REMOVE_N to destroy." <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan touches something other than module.default's own $ORACLE_REMOVE_N resources"; }
 log "  stock: exactly $ORACLE_REMOVE_N destroys, all under module.default, nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A THIRD
@@ -426,7 +426,7 @@ CURRENT_STAGE=""
 # D1 above) - the same apply-refreshes-the-record shape alb-complete's
 # Part F already relies on - so this section exercises the stage
 # honestly without depending on the now-fixed gap above.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.asg_sg's security group via its ForceNew name_prefix argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/plain-replace-oracle"
 cp -r "$WORK/plain" "$REPLACE_ORACLE_ROOT"
@@ -451,14 +451,14 @@ grep -qE '^  # module\.asg_sg\.aws_security_group\.this_name_prefix\[0\] must be
 REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
 [ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
 log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces module.asg_sg's security group at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ADOPTED, and actually applying here would destroy the real security group the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the plain state file
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve) ==="
 ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted-copy init failed"; }
@@ -635,7 +635,7 @@ gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 a
 # Stages 4 and 5 are therefore still not reached and stay not_run in
 # live/corpus-crossing-manifest.json: running them against a non-empty plan
 # would prove nothing.
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (state deleted, live-plan empty) ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the state file is still there"
@@ -698,7 +698,7 @@ gauntlet_stage test_plan pass "empty plan; identity re-check unchanged: $LT_ADDR
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -720,7 +720,7 @@ gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 QUEUE_URL="$(awsl sqs get-queue-url --queue-name complete --query QueueUrl --output text 2>/dev/null)"
 [ -n "$QUEUE_URL" ] && [ "$QUEUE_URL" != "None" ] || fail "no live SQS queue found named 'complete'"
@@ -762,7 +762,7 @@ else
   gauntlet_stage drift_reconverge pass "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
 fi
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 SQS_URL="$(awsl sqs get-queue-url --queue-name "$(cd "$ADOPTED" && "$TOFU" output -raw 2>/dev/null || true)" 2>/dev/null || true)"
 # The exact escaped form of the marker (":0" vs no index at all) depends on
@@ -931,7 +931,7 @@ EOF
   # DEFAULT replace ordering instead. BREAK=replace manufactures the
   # coexistence a skipped destroy would leave behind directly via the AWS
   # CLI.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR='module.asg_sg_renamed.aws_security_group.this_name_prefix[0]'
@@ -1025,7 +1025,7 @@ EOF
     ASG_SG_ID="$F_NEW_ID"
     gauntlet_stage day2_replace pass "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1045,7 +1045,7 @@ EOF
   # migrate-adoption apply above should have written for it (#364 A2), not
   # from a tag; this is the reason this stage's own oracle comparison below
   # is by COUNT, not by asserting a specific untaggable child's own address.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. delete module.default's block ==="
   perl -0777pi -e 's/module "default" \{.*?\n\}\n\n/\n/s' "$ADOPTED/main.tf"
   grep -q 'module "default" {' "$ADOPTED/main.tf" && fail "removing module.default's block did not match - the config has moved"
@@ -1122,9 +1122,9 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.default's block proposed exactly $ORACLE_REMOVE_N destroys (0 add, 0 change, $ORACLE_REMOVE_N destroy), matching the stock oracle's own count and applied cleanly; the live ASG count dropped by exactly one and the tagged object count dropped too, both confirmed via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly $ORACLE_REMOVE_N destroys for the same module"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
@@ -1144,7 +1144,7 @@ CURRENT_STAGE=""
 # targets (the standalone SQS queue and the asg_sg security group's own
 # rules) - the same "representative set, not exhaustive" standard
 # live/GAUNTLET.md's own test_plan stage already uses for identity strings.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -1183,7 +1183,7 @@ GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_
 if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
   gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-autoscaling-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   SKIP_GREENFIELD_REST=1
 fi
@@ -1240,7 +1240,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
     EMULATOR_NOTE=" Confirmed floci emulator gap, fixed and pushed to origin, not yet repinned: lex00/floci#137 / PR lex00/floci#138 (CreateCapacityReservation drops inline tags sent as the plural TagSpecifications.N.*, which is what a real terraform-aws-provider apply sends for this one action)."
   fi
   gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.$EMULATOR_NOTE"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
   SKIP_GREENFIELD_REST=1
 fi
@@ -1342,11 +1342,11 @@ log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS 
 
 gauntlet_stage greenfield pass "$GREEN_N resources from nothing, matching stock's own cold-deploy count ($STOCK_N); the sqs queue's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 fi
 
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

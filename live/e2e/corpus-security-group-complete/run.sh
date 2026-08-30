@@ -540,7 +540,7 @@ copy_tree "$PLAIN"
 PLAIN_EST="$PLAIN/security-group/examples/complete"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, 67 real resources ==="
 
@@ -715,7 +715,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources (DELTA 2, lex00/floci#57)"
 # implied default local one (internal/live/projection/store.go's
 # defaultRecordDirName) - no explicit record_store block, same as the real
 # migrated estate (DELTA 3 above).
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log ""
 log "=== PART F: 0. one more floci container, a fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -832,7 +832,7 @@ log ""
 log "STAGE F (greenfield): PASS"
 log ""
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing, all markers verified via the AWS CLI, $INSTANCES records in the local record store (#364 A2), replan empty, $N_EXPECTED_SG_TOTAL tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches \$PLAIN_EST's own stage-1 apply object by object, tags stripped"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
@@ -848,7 +848,7 @@ CURRENT_STAGE=""
 # referenced_security_group_id, both updated by the same sed pass). The
 # stock oracle below plans both renames together on a copy of cold_deploy's
 # own state, before choudoufu or live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
 cp -r "$PLAIN" "$ORACLE_ROOT"
@@ -888,7 +888,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # module.postgresql's block (the original, pre-rename address) entirely.
 # module.postgresql is self-contained: nothing else in main.tf references
 # it (only outputs.tf does, via its own 5-output section, removed with it).
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-ORACLE (remove). stock: delete module.postgresql's block on cold_deploy's own state ==="
 ORACLE_REMOVE_ROOT="$WORK/oracle-remove"
 cp -r "$PLAIN" "$ORACLE_REMOVE_ROOT"
@@ -907,7 +907,7 @@ grep -qE '^  # module\.postgresql\.module\.security_group\.aws_security_group\.t
 grep -qF 'Plan: 0 to add, 0 to change, 5 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly 5 destroys (1 SG + 2 ingress + 1 egress + 1 rules_exclusive)"; }
 log "  stock: exactly 5 destroys (module.postgresql's SG, its 2 ingress rules, its 1 egress rule, its 1 rules_exclusive), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason day2_remove's own oracle sits before migrate (above): a
@@ -926,7 +926,7 @@ CURRENT_STAGE=""
 # applied: this copy shares floci's account with $EST, and applying here
 # would destroy the real live security group $EST's own later stages
 # still depend on.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.security_group's own SG via its ForceNew name argument, on cold_deploy's own state ==="
 ORACLE_REPLACE_ROOT="$WORK/oracle-replace"
 cp -r "$PLAIN" "$ORACLE_REPLACE_ROOT"
@@ -945,9 +945,9 @@ grep -qE '^  # module\.security_group\.aws_security_group\.this\[0\] must be rep
 grep -qF 'Plan: 10 to add, 0 to change, 10 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own ten-resource cascade (SG + 7 ingress + 1 egress + 1 rules_exclusive, all replaced)"; }
 log "  stock: exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -1046,7 +1046,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped, $IDENTITIES_RECORDED identities recorded (#364 unit A2)"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -1465,7 +1465,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log "VALUE against AWS."
   log ""
   gauntlet_stage test_plan pass "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
-  CURRENT_STAGE=test_apply
+  gauntlet_begin_stage test_apply
 
   # ── 4. test apply: apply the empty plan; it must be a genuine no-op ──────
   log "=== 4. test apply: applying the empty plan is a genuine no-op ==="
@@ -1488,7 +1488,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log "STAGE 4 (test_apply): PASS"
   log ""
   gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N objects, read through resourcegroupstaggingapi"
-  CURRENT_STAGE=drift_reconverge
+  gauntlet_begin_stage drift_reconverge
 
   # ── 5. drift and reconverge: mutate one live object, plan and fix it ────
   log "=== 5. drift and reconverge: one live object mutated out of band ==="
@@ -1524,7 +1524,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log "STAGE 5 (drift_reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
@@ -1579,7 +1579,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # real F1/F2 leg below (create, destroy, marker move, record move, empty
   # replan) is independently verified end-to-end via the AWS CLI and does
   # not depend on this control.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.security_group.aws_security_group.this[0]"
@@ -1658,7 +1658,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
 
   MAIN_SG_ID="$F_NEW_SG_ID"
   gauntlet_stage day2_replace pass "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG ($F_OLD_IMPORT_ID) is confirmed gone and the new SG ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment for the empirically-found regression in the fungible-slot duplicate check (ProblemDuplicateSlot), reproduced on corpus-ec2-instance-complete's own leg too, not fixed in this script-only unit. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
@@ -1675,7 +1675,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # checks: renaming aws_security_group.app WITHOUT a moved block, which
   # must make choudoufu propose destroying the old address and creating the
   # new one.
-  CURRENT_STAGE=day2_rename
+  gauntlet_begin_stage day2_rename
   log "=== D0. capture the live ids a rename must not disturb ==="
   SG_PG_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["module.postgresql.module.security_group.aws_security_group.this:0"]}]' --query "SecurityGroups[0].GroupId" --output text)"
   [ -n "$SG_PG_ID_D" ] && [ "$SG_PG_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (module.postgresql's own SG)"
@@ -1842,7 +1842,7 @@ EOF
     # Break text in tools/gauntlet/stages.go, verbatim. (Independent of the
     # real defect above: BREAK_REMOVE's own check never reaches the missing-
     # destroy code path, since nothing is removed under it.)
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log "=== E0. capture the live id one more time ==="
     PG_SG_ID_E="$SG_PG_ID_D"
     PG_SG_ADDR_E="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$PG_SG_ID_E" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
@@ -1901,7 +1901,7 @@ EOF
       gauntlet_stage day2_remove pass "choudoufu: deleting module.postgresql_renamed's block proposed exactly 5 destroys (0 add, 0 change, 5 destroy: SG + 2 ingress + 1 egress + 1 untaggable rules_exclusive), applied cleanly (0 added, 0 changed, 5 destroyed), the security group is genuinely gone from the live account (0 matches on describe-security-groups for the old id, read via the AWS CLI, not choudoufu's own report), and the next plan proposes nothing; stock oracle on cold_deploy's own state (D-ORACLE remove) also proposes exactly 5 destroys for the same 5 objects; classifyOrphans did not withhold the untaggable rules_exclusive destroy even though module.security_group's and module.consul's own rules_exclusive instances share its block key, because both surviving instances are bound, not unclaimed"
       log ""
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
 else
   log ""
@@ -1924,7 +1924,7 @@ else
   gauntlet_stage day2_rename not_run "depends on stages 3-5"
   log "=== E. remove: NOT RUN - depends on stages 3-6 ==="
   gauntlet_stage day2_remove not_run "depends on stages 3-6"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
 gauntlet_end
 
