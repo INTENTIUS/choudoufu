@@ -126,7 +126,7 @@ together.
 
 | Estate | Target | Region | Clear | Date | Ceiling |
 |---|---|---|---|---|---|
-| reference-ec2-vpc | aws | us-east-2 | no | 2026-08-29T20:56:06Z | $5.00 |
+| reference-ec2-vpc | aws | us-east-2 | yes | 2026-08-30T02:40:17Z | $5.00 |
 
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).

@@ -1713,16 +1713,18 @@
       "stages": {
         "cold_deploy": "pass",
         "migrate": "pass",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "commit": "9f6dda2a3e8269459d532f2b4895e995cd61d9c0",
-      "date": "2026-08-29T20:56:06Z",
-      "exit_code": 1,
+      "clear": true,
+      "commit": "7a7ff0ffb6f6aebd2170505418bcaf58c70717d6",
+      "date": "2026-08-30T02:40:17Z",
+      "exit_code": 0,
       "detail": {
-        "cold_deploy": "5 resources from stock terraform against aws, AMI ami-06475e8f54266e38e, tofu-cert-run=440-stage2-1788036305",
+        "cold_deploy": "5 resources from stock terraform against aws, AMI ami-06475e8f54266e38e, tofu-cert-run=440-stage2-verify-1788056842",
         "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
-        "test_plan": "the post-migrate plan exited 1"
+        "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
+        "test_plan": "post-migrate plan is empty; aws_instance.main's tofu-address/tofu-estate confirmed via the AWS CLI directly"
       }
     }
   ]
