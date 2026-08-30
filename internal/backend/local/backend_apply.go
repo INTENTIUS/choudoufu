@@ -162,6 +162,17 @@ func (b *Local) opApply(
 		mustConfirm := hasUI && !op.AutoApprove && !trivialPlan
 		op.View.Plan(plan, schemas)
 
+		// The guard is asked after the plan is rendered and before the
+		// approval prompt, so an operator refused here has seen the whole
+		// diff and is never asked to approve something that will then be
+		// refused. -auto-approve skips the prompt and not this.
+		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
+		diags = diags.Append(guardDiags)
+		if guardRefused {
+			op.ReportResult(runningOp, diags)
+			return
+		}
+
 		if testHookStopPlanApply != nil {
 			testHookStopPlanApply()
 		}
@@ -272,6 +283,16 @@ func (b *Local) opApply(
 			if change.Action != plans.NoOp {
 				op.View.PlannedChange(change)
 			}
+		}
+
+		// The saved-plan branch. A guard that only ran on the plan opApply
+		// makes itself would be bypassed by "plan -out=p && apply p", where
+		// the plan was made by an earlier process.
+		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
+		diags = diags.Append(guardDiags)
+		if guardRefused {
+			op.ReportResult(runningOp, diags)
+			return
 		}
 	}
 

@@ -289,6 +289,21 @@ type Operation struct {
 	// the operation's lifecycle.
 	Hooks []tofu.Hook
 
+	// PlanGuard, when non-nil, is asked about the completed plan after it has
+	// been rendered and before anything can be applied. Error diagnostics
+	// abort the operation; warnings are shown and the operation continues.
+	//
+	// This is a fork addition, and it exists for one refusal: GitHub issue
+	// #613, a state-backed plan that proposes stripping a migrated estate's
+	// ownership markers. That refusal needs the finished plan (the markers
+	// are only visible once the refresh has read them back) AND it needs to
+	// stop an apply that was given -auto-approve, and no seam that already
+	// existed offered both. See internal/command's statefulMarkerGuard.
+	//
+	// A guard, not a filter: it may not modify the plan, and a backend calls
+	// it exactly once per operation.
+	PlanGuard func(plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
+
 	// Plan is a plan that was passed as an argument. This is valid for
 	// plan and apply arguments but may not work for all backends.
 	PlanFile *planfile.WrappedPlanFile
