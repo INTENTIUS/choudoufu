@@ -748,7 +748,19 @@ fi
 PLAN_END=$(date +%s)
 PLAN_S=$((PLAN_END - PLAN_START))
 printf '%s\n' "$PLAN_OUT" > "$WORK/test_plan.out"
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "the post-migrate plan exited $PLAN_RC"; }
+if [ "$PLAN_RC" -ne 0 ]; then
+  printf '%s\n' "$PLAN_OUT" | tail -40
+  # Carry the plan's OWN diagnosis into the stage detail, not the exit code.
+  # "the post-migrate plan exited 1" is the exact shape this repository
+  # refuses everywhere else - an exit code standing in for a verdict - and
+  # it is what the recorded live_cert row is stuck with until the run that
+  # produced it is repeated. A row that names the rule and the first error
+  # is readable without the log; a row that names a number is not.
+  PLAN_ERR="$(grep -m1 -E '^Error: ' <<< "$PLAN_OUT" | tr -d '\r')"
+  PLAN_RULE="$(grep -m1 -oE 'Rule: [a-z0-9-]+' <<< "$PLAN_OUT")"
+  PLAN_ERR_N="$(grep -c -E '^Error: ' <<< "$PLAN_OUT" | tr -d ' ')"
+  fail "the post-migrate plan exited ${PLAN_RC} with ${PLAN_ERR_N} error(s)${PLAN_RULE:+, ${PLAN_RULE}}${PLAN_ERR:+ - first: ${PLAN_ERR}}"
+fi
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
   || { grep -E '^  #' <<< "$PLAN_OUT" | head -20; fail "the post-migrate plan is not empty - see $WORK/test_plan.out"; }
 log "  plan empty in ${PLAN_S}s"
