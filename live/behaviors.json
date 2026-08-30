@@ -1,0 +1,635 @@
+{
+  "_comment": [
+    "The tier-1 behavior matrix (issue #522's ruling, 2026-08-29). Catalogues",
+    "every live/e2e/ script that is NOT one of the 26 board estates in",
+    "live/gauntlet/estates.json - the '~30 purpose-built scripts' the ruling",
+    "names. Only category=shape, runner=true fixtures are the tier-1 matrix",
+    "`gauntlet behaviors` runs by default; category=adoption is issue #274's",
+    "cold-adoption campaign (out of the promise per HANDOFF.md, catalogued",
+    "not run), category=legacy-demo is live/e2e/run.sh, the pre-protocol,",
+    "pre-board demo (several minutes alone, on the wrong side of the",
+    "five-minute bar - catalogued, not run by default).",
+    "",
+    "Hand-curated like live/gauntlet/estates.json's manifest fields: nothing",
+    "generates 'seam', 'shapes', 'identity_kind' from source. Only last_run on",
+    "each fixture is machine-written, by RunBehaviors (tools/gauntlet/behaviors.go),",
+    "exactly like an estate row's own last_run.",
+    "",
+    "stage (empty on every fixture below) is deliberately unmapped: the #522",
+    "ruling's per-stage mandatory-shape assignment is the NEXT unit, not this",
+    "one. behaviors_proven (live/gauntlet.json) is 0 of 14 until that mapping",
+    "exists, honestly - a stage with no fixture mapped to it is not proven."
+  ],
+  "fixtures": [
+    {
+      "id": "counted-module",
+      "script": "live/e2e/counted-module/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "A module call expanded with count (module.one, count=1), a static call (module.plain), and a static call wrapping a count=1 call one level down (module.wrapped.module.inner). Proves each module INSTANCE's resource gets a keyed marker address (module.one:0.aws_vpc.main), not the unkeyed path a prior defect wrote once per module CALL - which would stamp N distinct live VPCs with one shared identity. Reads the tags back with the AWS CLI (never through choudoufu's own code), then deletes the state file and replans to prove the estate rebinds from the markers alone.",
+      "shapes": [
+        "count",
+        "module-nested"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 3,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4607,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 47
+      }
+    },
+    {
+      "id": "create-over",
+      "script": "live/e2e/create-over/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "Two ClassNeedsDiscovery resources differing in one property: aws_vpc.control (its List response carries tags, so discovery reads the marker) and aws_iam_role.subject (IAM's ListRoles returns no tags at all, so a naive per-type list-and-match sees an untagged object and proposes creating a SECOND one on top of the estate's own). Proves the estate-wide tagging sweep joins a listed object to its marker by ARN even when the list call itself dropped the tags, using the control to isolate the fix from a coincidence.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 2,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4602,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 75.5
+      }
+    },
+    {
+      "id": "dataread-projection",
+      "script": "live/e2e/dataread-projection/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "A data source argument reads a managed resource's OWN attribute that the resource's block itself sets (an SSM parameter's value). The value is overwritten out of band between phases, and phase 2 names a log group after the value read back from the cloud - so a run that resolved the value from configuration instead of a live read would name the group wrong and fail. Three phases (declare, live-read, refused) each get their own main.tf under the fixture directory.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "deterministic",
+      "resources": 2,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4599,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 49.2
+      }
+    },
+    {
+      "id": "deterministic-recreate",
+      "script": "live/e2e/deterministic-recreate/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "One aws_iam_policy, destroyed and recreated with the identical name and path. An IAM policy's identity is its ARN, assembled from the account, name and path - all known before the create call goes out - so it comes back byte-for-byte identical after a genuine destroy-and-recreate, while PolicyId (server-minted, fresh on every real create) does not. This is the identity kind PR #500 got backwards: its worker copied the reference estate's day2_replace 'new identity after recreate' assertion onto an instance whose identity does not change on replace, and the run failed, because that assertion only holds for a server-minted kind. The premise (ARN fixed, PolicyId fresh) is checked directly against the emulator, three create/delete cycles, before choudoufu is ever involved; the record's own identity.import_id is read as a file, never through choudoufu, both before and after the recreate; and a control points the record at a nonexistent ARN and requires the next cold replan to notice rather than converge quietly.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "deterministic",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4608,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 62.7
+      }
+    },
+    {
+      "id": "lambda-residue",
+      "script": "live/e2e/lambda-residue/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "A filename-deployed Lambda (.corpus/mastino/prod-eu-west/services/check-links, 4 instances) whose filename/source_code_hash/publish arguments are pure inputs AWS never echoes back. Phase 1 (no record_store block - the IMPLIED local store, HANDOFF.md's 'compatible out of the box') and phase 2 (the same store spelled out explicitly) both converge: the fix puts the live object to the provider twice with priors that differ only in the arguments under test and records only what the provider proves it does not manage. The two phases used to be defect-vs-fix; #541 found the implied default now gives phase 1 the fix too, so they now prove the implied and explicit stores are the one store internal/live/lint's implied_record_store_test.go already pins by value.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "deterministic",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4606,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 45.4
+      }
+    },
+    {
+      "id": "per-element",
+      "script": "live/e2e/per-element/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "aws_iam_group (for_each over a set) and aws_iam_user (for_each over a map) feed aws_iam_user_group_membership (for_each), which is untaggable: its identity is a set-valued tail that has to render as one segment per element in canonical sorted order and bind a live object with no state file, no tag, and nothing in configuration that could reconstruct it. Two of the three memberships declare their groups OUT OF ORDER on purpose, so a wrong-order render would still round-trip on the wire and only a check against the sorted string catches it. Converges twice, not once, because the escaped defect this pins produced a duplicate on every run alike.",
+      "shapes": [
+        "for_each"
+      ],
+      "identity_kind": "none",
+      "resources": 9,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4604,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 57.3
+      }
+    },
+    {
+      "id": "provisioner-taint",
+      "script": "live/e2e/provisioner-taint/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "aws_s3_bucket.shrinker (count=var.shrink_count) and .app (count=var.app_count) alongside two scalar buckets. A create-time provisioner that fails leaves a live, fully-tagged, half-built bucket - stamped BEFORE the create request even completes, so it looks healthy to every later run unless a record says otherwise. Proves the record's Provisioned bit survives a failed apply, a state-file-less replan reads it and proposes a replace, the provisioner's own side effect (a line appended to a file) confirms it really re-ran, a changed provisioner command does NOT retrigger a replace (no hash-and-diff), and a hand-deleted half-built object's record clears once the plan actually reads it as absent.",
+      "shapes": [
+        "count"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4742,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 98.6
+      }
+    },
+    {
+      "id": "record-located",
+      "script": "live/e2e/record-located/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "aws_cloudfront_public_key.signers (for_each over 2 keys) plus aws_ecr_registry_policy and aws_vpc.control: identity.ClassRecordLocated, a server-minted id with NO tag surface at all. Proves the id choudoufu records is the id the provider accepts back as an import identity against a real API, that the instance binds by that string alone with no state and no tag, and that a LOST record proposes a CREATE and destroys nothing - the announced-duplicate trade #270 states, never a silent deletion. The check is against the emulator's own answer (which public key id carries the name \"rl-e2e-alpha\"), not against the record itself, which would agree with a wrong record too; a deliberately wrong record must fail this check with the plan still empty.",
+      "shapes": [
+        "for_each"
+      ],
+      "identity_kind": "server-minted-untaggable",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4605,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 83.6
+      }
+    },
+    {
+      "id": "record-store",
+      "script": "live/e2e/record-store/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "Four RECORD_ADMITTED, cloud-free types - null_resource, terraform_data, time_static, random_pet - through the full create / clean-replan / trigger-a-replace / destroy lifecycle against a plain local directory. Needs no floci emulator at all: every provider is hashicorp/null, hashicorp/time, hashicorp/random or the builtin terraform provider, fetched from the registry. Proves the LOCAL record store variant end to end where the AWS-backed fixtures prove the estate-scoped one.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "none",
+      "resources": 4,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 24.5
+      }
+    },
+    {
+      "id": "repeated-module",
+      "script": "live/e2e/repeated-module/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "One local module (./impl) called seven times statically for seven domains (.corpus/simpleinfra/terraform/dns), each creating one aws_route53_zone whose id is server-assigned. Before the fix, hclparse.Parser's cache-by-filename meant seven calls of the same source reached ONE shared syntax tree, and stamping wrote its literal address into that one shared node - all seven zones came back carrying the same marker, and the run after the first apply was a hard 'two live resources claiming one address' error with seven real objects already stamped wrong. Reads the tags off the hosted zones with the AWS CLI, then proves the next run is plannable at all, which a unit test evaluating the rewritten body in isolation cannot stage.",
+      "shapes": [
+        "module-nested"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 7,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4606,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 101.1
+      }
+    },
+    {
+      "id": "tagging-sweep",
+      "script": "live/e2e/tagging-sweep/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "A full-estate live-plan's removal-candidate scan through the wiring a user actually runs (internal/command/live_plan.go), not a hand-built discovery.Request. Two runs: (A) the default, which must show the Resource Groups Tagging API sweep firing in the debug log and must propose destroying exactly the deleted block (an aws_iam_role, whose ListRoles response carries no tags at all - iam:ListRoles document says so - so the per-type fallback cannot see it as undeclared no matter what sweep logic exists); (B) TOFU_LIVE_CLOUDCONTROL=off, the control, which must show the sweep NOT firing and must NOT propose the removal, proving run A's line tracks the branch rather than printing unconditionally.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 3,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4601,
+      "last_run": {
+        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
+        "date": "2026-08-30T02:20:54Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 29.3
+      }
+    },
+    {
+      "id": "estate-block",
+      "script": "live/e2e/run.sh",
+      "category": "shape",
+      "runnable": false,
+      "runnable_note": "embedded as the \"plain-plan-works\" step inside live/e2e/run.sh (see BLOCK_SRC and the step's own comment starting near its 'terraform { live { estate = ... } }' note); has no run.sh of its own",
+      "runner": false,
+      "seam": "6 resources (compute.tf, logs.tf, network.tf, storage.tf) forming a second, independent estate (tofu-estate=stateless-e2e-block) stood up, drifted, tagged-checked, and torn down entirely through a bare `live { estate = \"...\" }` block with no live-import ever run against it - the 'plain plan/apply, no live-prefixed command in sight' claim - inside live/e2e/run.sh's plain-plan-works step, alongside but never touching the main estate fixture. Not independently runnable: it is one step of a much larger legacy script, not a script of its own, and extracting it would be re-authoring an existing script, which the #522 ruling's 'fold in AS-IS' forecloses for this foundation unit.",
+      "shapes": [
+        "scalar"
+      ],
+      "resources": 6,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ]
+    },
+    {
+      "id": "run",
+      "script": "live/e2e/run.sh",
+      "category": "legacy-demo",
+      "runnable": true,
+      "runner": false,
+      "seam": "The original, pre-protocol, pre-board 'stateless mode' demo (P0-P5): standup, adopt (delete the state file live), drift-reconverge (3 simultaneous drifts of different shapes), exact removal, count scale-down, rename, a plain plan/apply under a live block with the estate-block fixture (see the estate-block entry above), a receipts cycle, and teardown - almost the full stage list, in one script, against one estate (live/e2e/estate/). Superseded for headline purposes by reference-ec2-vpc (which speaks the stage protocol) and by the shape fixtures above (which isolate one seam each); live-markers.md's own verification-budget section records this script at 'several minutes' alone. Catalogued for completeness, not run by `gauntlet behaviors`'s default matrix: it alone would blow the five-minute bar.",
+      "shapes": [
+        "count",
+        "for_each",
+        "module-nested",
+        "scalar"
+      ],
+      "resources": 21,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4601
+    },
+    {
+      "id": "corpus-cloudfront",
+      "script": "live/e2e/corpus-cloudfront/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-infrastructure's own CloudFront deployment (16 instances, eu-west-1 default provider plus an aliased aws.global for CloudFront/WAF). Exercises unique-name discovery (aws_cloudfront_cache_policy, aws_cloudfront_origin_request_policy) and cross-provider-configuration discovery. Documented as NOT crossing in named ways the script pins rather than hides.",
+      "resources": 16,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4694
+    },
+    {
+      "id": "corpus-cloudwatch-splunk",
+      "script": "live/e2e/corpus-cloudwatch-splunk/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-aws's infra-cyber-cloudwatch-to-splunk (1 instance, aws_cloudwatch_log_subscription_filter). A `backend \"s3\" {}` block replaced with live{}, and an AWS provider constraint old enough to resolve to a release with no list resources at all.",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4698
+    },
+    {
+      "id": "corpus-cncf-k8s-infra-aws-capa-ami",
+      "script": "live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": "Kubernetes SIG cluster-lifecycle's own CAPA AMI-building IAM setup: one literal resource plus two terraform-aws-modules calls, 4 instances once the modules resolve, mixing client-named and server-assigned identity.",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4709
+    },
+    {
+      "id": "corpus-crossing",
+      "script": "live/e2e/corpus-crossing/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's global DNS (63 instances of aws_route53_zone and aws_route53_record). Two hosted zones share the literal name \"datacite.org\" - the zone id is server-assigned, so only the tofu-address marker tells them apart, and 59 records inherit that disambiguation.",
+      "resources": 63,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4605
+    },
+    {
+      "id": "corpus-crossref-agent",
+      "script": "live/e2e/corpus-crossref-agent/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's crossref-agent cron job (4 instances: event rule, event target, lambda function, lambda permission). First Lambda-based estate in the #274 campaign; needed #297's fix for aws_lambda_permission's existence check racing the function's own creation.",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4701
+    },
+    {
+      "id": "corpus-crossref-orcid-agent",
+      "script": "live/e2e/corpus-crossref-orcid-agent/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's crossref-orcid-agent (4 instances, structurally identical to crossref-agent, scheduled never to fire). Documented as blocked by floci itself, not by choudoufu, at a step named in the script.",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4703
+    },
+    {
+      "id": "corpus-crossref-related-agent",
+      "script": "live/e2e/corpus-crossref-related-agent/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's crossref-related-agent (4 instances, same shape as its two crossref siblings). Answers a named open question from #274's thread: it does NOT share crossref-orcid-agent's floci Lambda-handler bug, traced to a copy-paste-misnamed zip entry unique to that sibling.",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4711
+    },
+    {
+      "id": "corpus-datafiles-generator",
+      "script": "live/e2e/corpus-datafiles-generator/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's datafiles-generator (1 instance, aws_s3_bucket; the rest of the estate's main.tf is commented out upstream). A `cloud { organization = ... }` block replaced with live{}.",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4704
+    },
+    {
+      "id": "corpus-ecs-taskdef",
+      "script": "live/e2e/corpus-ecs-taskdef/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's analytics-worker aws_ecs_task_definition, isolated from a 12-data-source estate this floci build cannot stand up at all. Pins the fix for \"Listed resource with no identity\" on task definitions specifically - the one resource in that estate that failed for a marker reason.",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4694
+    },
+    {
+      "id": "corpus-govuk-oidc",
+      "script": "live/e2e/corpus-govuk-oidc/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-infrastructure's chat-evaluation-ci deployment (4 instances: an OIDC provider with a server-minted ARN, an IAM role, an IAM policy, and an untaggable role-policy attachment edge).",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4693
+    },
+    {
+      "id": "corpus-govuk-root-dns",
+      "script": "live/e2e/corpus-govuk-root-dns/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-infrastructure's root-dns deployment (3 aws_route53_zone, each server-assigned) - distinct from corpus-root-dns-zones, which crosses the older govuk-aws repository's version of the same idea.",
+      "resources": 3,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4710
+    },
+    {
+      "id": "corpus-message-queue",
+      "script": "live/e2e/corpus-message-queue/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's message-queue (28 aws_sqs_queue inside one module plus 1 root aws_iam_policy, 29 instances total), kept in a Terraform Cloud workspace upstream. Four onboarding deltas stand between the estate as authored and what applies here.",
+      "resources": 29,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4632
+    },
+    {
+      "id": "corpus-mobile-backend",
+      "script": "live/e2e/corpus-mobile-backend/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-infrastructure's mobile-backend (12 instances: IAM roles and role policies, a KMS key and alias, and an S3-bucket module call that itself expands to 7 instances behind one bucket).",
+      "resources": 12,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4706
+    },
+    {
+      "id": "corpus-oidc-provider",
+      "script": "live/e2e/corpus-oidc-provider/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/iam's iam-oidc-provider example (1 instance, aws_iam_openid_connect_provider - IAM mints its ARN at create time, no argument reconstructs it). Pins the fix for floci's Cloud Control lister returning an empty list for a type that had a live instance, which used to make a replan propose creating a SECOND provider on top of the estate's own.",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4692
+    },
+    {
+      "id": "corpus-raw-resolution-logs",
+      "script": "live/e2e/corpus-raw-resolution-logs/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's raw-resolution-logs bucket (1 instance, aws_s3_bucket, client-supplied identity - never calls discovery at all).",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4700
+    },
+    {
+      "id": "corpus-root-dns-zones",
+      "script": "live/e2e/corpus-root-dns-zones/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-aws's infra-root-dns-zones (2 aws_route53_zone). Terraform 0.12-era syntax: a `backend \"s3\" {}` plus a provider `version` argument rather than required_providers.",
+      "resources": 2,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4702
+    },
+    {
+      "id": "corpus-salesforce-api",
+      "script": "live/e2e/corpus-salesforce-api/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's salesforce-api (6 instances, 4 distinct types): TWO filename-deployed Lambdas, the same residue defect live/e2e/lambda-residue crosses for one instance, at twice the population, plus an event rule/target pair and two lambda permissions riding along.",
+      "resources": 6,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4697
+    },
+    {
+      "id": "corpus-service-linked-roles",
+      "script": "live/e2e/corpus-service-linked-roles/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/govuk-infrastructure's service-linked-roles (1 instance, aws_iam_service_linked_role - AWS, not the configuration, names the role by its own per-service convention). The smallest of the #274 campaign's estates: one resource block, no data sources, no modules.",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4707
+    },
+    {
+      "id": "corpus-sitemaps-generator",
+      "script": "live/e2e/corpus-sitemaps-generator/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's sitemaps-generator (3 instances: an S3 bucket, a CloudWatch log group, an ECS task definition, all named \"sitemaps-generator\").",
+      "resources": 3,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4705
+    },
+    {
+      "id": "corpus-store-crawler-results",
+      "script": "live/e2e/corpus-store-crawler-results/run.sh",
+      "category": "adoption",
+      "runnable": true,
+      "runner": false,
+      "seam": ".corpus/mastino's store-crawler-results cron job (4 instances, same shape as corpus-crossref-agent). A `cloud { organization = ... }` block with no hostname, which makes stock `init` a hard error rather than the usual cloud-block substitution.",
+      "resources": 4,
+      "needs": [
+        "docker",
+        "aws-cli",
+        "corpus"
+      ],
+      "default_port": 4708
+    }
+  ]
+}

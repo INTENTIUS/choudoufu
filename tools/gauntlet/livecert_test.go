@@ -50,7 +50,7 @@ func TestRebuildNeverTouchesLiveCert(t *testing.T) {
 	}
 
 	baseline := &Artifact{}
-	baseline.Rebuild(m, "sha256:baseline")
+	baseline.Rebuild(m, nil, "sha256:baseline")
 
 	withLiveCert := &Artifact{
 		LiveCert: []LiveCertResult{{
@@ -60,7 +60,7 @@ func TestRebuildNeverTouchesLiveCert(t *testing.T) {
 			Clear:  true, Date: "2026-08-29T00:00:00Z",
 		}},
 	}
-	withLiveCert.Rebuild(m, "sha256:baseline")
+	withLiveCert.Rebuild(m, nil, "sha256:baseline")
 
 	if len(withLiveCert.LiveCert) != 1 || withLiveCert.LiveCert[0].Estate != "reference-ec2-vpc" {
 		t.Fatalf("Rebuild must never modify a.LiveCert; got %+v", withLiveCert.LiveCert)
@@ -122,7 +122,7 @@ func TestRenderLiveCertSectionIsSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	without := &Artifact{}
-	without.Rebuild(m, "sha256:test")
+	without.Rebuild(m, nil, "sha256:test")
 	withoutPage := renderProgressIndex(without)
 	if strings.Contains(withoutPage, "Live-AWS certification") {
 		t.Fatal("renderLiveCertSection must render nothing when a.LiveCert is empty")
@@ -133,7 +133,7 @@ func TestRenderLiveCertSectionIsSeparate(t *testing.T) {
 		Region: "us-east-1", CeilingUSD: 5, Clear: true, Date: "2026-08-29T00:00:00Z",
 		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass},
 	}}}
-	with.Rebuild(m, "sha256:test")
+	with.Rebuild(m, nil, "sha256:test")
 	withPage := renderProgressIndex(with)
 
 	if !strings.Contains(withPage, "## Live-AWS certification") {

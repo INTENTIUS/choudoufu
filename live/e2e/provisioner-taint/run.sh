@@ -156,8 +156,39 @@ APP_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$APP_ADDR")"
 TOLERANT_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$TOLERANT_ADDR")"
 CONTROL_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$CONTROL_ADDR")"
 
+# is_tainted <recfile> - exit 0 iff the record exists and its "provisioned"
+# member says tainted:true. A record's mere existence stopped being that
+# signal once record-primary identity (rfc/20260823-foundation-order-ruling.md
+# item 1) started writing an identity+residue record for every instance a
+# create actually reached, tainted or not (issue #541 found this: the
+# control and tolerant buckets, whose provisioners never taint them, now
+# have record files of their own - identity and residue, no "provisioned"
+# member at all). The "provisioned" member, and its "tainted" field
+# specifically, is the only thing that still means what "taint record"
+# always meant in this script.
+is_tainted() {
+  [ -f "$1" ] || return 1
+  python3 -c '
+import json,sys
+try:
+    p = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+prov = p.get("provisioned")
+sys.exit(0 if isinstance(prov, dict) and prov.get("tainted") is True else 1)
+' "$1"
+}
+
+# count_taint_records counts records under $PROVISIONED whose "provisioned"
+# member says tainted:true - not every file in the tree, which now also
+# holds one identity+residue record per ordinary applied instance. See
+# is_tainted.
 count_taint_records() {
-  find "$PROVISIONED" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+  local n=0 f
+  while IFS= read -r f; do
+    is_tainted "$f" && n=$((n + 1))
+  done < <(find "$PROVISIONED" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null)
+  printf '%s' "$n"
 }
 
 run_log_lines() {
@@ -214,34 +245,59 @@ grep -q "\"$ESTATE\"" <<< "$APP_TAGS" || { printf '%s\n' "$APP_TAGS"; fail "pt-e
 grep -q '"aws_s3_bucket.app:0"' <<< "$APP_TAGS" || { printf '%s\n' "$APP_TAGS"; fail "pt-e2e-app carries no tofu-address marker"; }
 log "  pt-e2e-app carries both ownership markers: nothing about the live object says its provisioner failed"
 
-# ── 3. the record, and exactly the record ───────────────────────────────────
+# ── 3. the record: the taint bit, and now the identity and residue too ──────
 # GitHub issue #364 unit A1 folded the once-separate "tofu-provisioned"
 # namespace into the merged per-instance envelope
 # (internal/live/projection/record.go): the taint bit is now the
 # envelope's Provisioned member rather than the whole payload, and it is
 # the envelope's "kind" field - not a directory literal - that keeps this
 # key out of the listing which proposes destroying undeclared records.
-log "=== 3. the provisioner taint record, and exactly the taint bit ==="
+#
+# This used to assert identity, residue and object were ALL absent - "exactly
+# the taint bit and nothing else". Issue #541 found that stale: the create
+# request that only the PROVISIONER failed after did succeed, so the object
+# genuinely exists with a genuine identity and genuine residue arguments
+# (force_destroy, unset in main.tf so its default reads back), and
+# record-primary identity (rfc/20260823-foundation-order-ruling.md item 1 -
+# "every instance's identity in the record, written by live-import and by
+# EVERY apply") now records both unconditionally, on any apply that reaches
+# a successful create, whether or not a later provisioner step in the SAME
+# apply then fails. That is a strictly more complete record, not a wrong
+# one - the object field (RECORD_ADMITTED logical types only; aws_s3_bucket
+# is an ordinary taggable cloud type) is still absent, and the taint bit is
+# still exactly one bit with nothing describing the provisioner's content,
+# which is the part issue #353 actually rejected.
+log "=== 3. the provisioner taint record: taint bit, plus the identity and residue a real create leaves behind ==="
 [ -f "$APP_REC" ] || { find "$RECORDS" -type f | sort; fail "no taint record for $APP_ADDR at $APP_REC"; }
 python3 -c '
 import json,sys
 p=json.load(open(sys.argv[1]))
 assert p["address"]==sys.argv[2], "the record names %s, not %s" % (p["address"], sys.argv[2])
 assert p["kind"]=="identity", "the record kind is %r, not identity - a provisioner taint has become delete authority" % (p.get("kind"),)
-assert p.get("identity") is None and p.get("residue") is None and p.get("object") is None, "the record carries more than a provisioner taint: %r" % (p,)
+assert p.get("object") is None, "the record carries an object member - aws_s3_bucket is not a RECORD_ADMITTED logical type, so nothing may authorize deletion from this record alone: %r" % (p,)
+ident = p.get("identity")
+assert ident is not None, "the create succeeded (the bucket is live), so the record should carry its identity too: %r" % (p,)
+assert ident.get("import_id") == "pt-e2e-app", "the record identity is %r, not the bucket this apply actually created" % (ident,)
+res = p.get("residue")
+assert res is not None, "the create succeeded, so residue classification should have run and recorded force_destroy: %r" % (p,)
+attrs = res.get("attributes", {})
+assert "force_destroy" in attrs, "the residue does not carry force_destroy, the one argument this resource leaves unset: %r" % (res,)
 prov = p.get("provisioned")
 assert prov is not None, "the record carries no provisioned member: %r" % (p,)
 assert prov["tainted"] is True, "the record does not say tainted: %r" % (prov,)
 assert set(prov) == {"tainted"}, "the provisioned member carries unexpected fields %r - this member stores ONE BIT, and a memory of the provisioner CONTENT is the design issue #353 rejected" % (sorted(prov),)
 ' "$APP_REC" "$APP_ADDR" || fail "the taint record's content is wrong (see above)"
-log "  $APP_ADDR has a taint record, carrying the address and one taint bit and nothing else"
+log "  $APP_ADDR has a taint record: its real identity, its real residue (force_destroy), and one taint bit - nothing that names the provisioner's own content"
 
 # on_failure = continue means the failure was not an error at all, so stock
 # does not taint - and neither may this. A mechanism that taints on any
 # provisioner error would write a record here, and the tolerant bucket would
-# then be proposed for replacement on every plan forever.
-[ ! -f "$TOLERANT_REC" ] || fail "$TOLERANT_ADDR got a taint record despite on_failure = continue"
-[ ! -f "$CONTROL_REC" ] || fail "$CONTROL_ADDR got a taint record despite declaring no provisioner at all"
+# then be proposed for replacement on every plan forever. Both DO now have
+# record files - an ordinary identity+residue record, same as control's -
+# since their creates succeeded too; what must not exist is a "provisioned"
+# member saying tainted:true.
+! is_tainted "$TOLERANT_REC" || fail "$TOLERANT_ADDR got a taint record despite on_failure = continue"
+! is_tainted "$CONTROL_REC" || fail "$CONTROL_ADDR got a taint record despite declaring no provisioner at all"
 N="$(count_taint_records)"
 [ "$N" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record, found $N"; }
 log "  exactly one: not the on_failure=continue bucket, not the bucket with no provisioner"
@@ -331,13 +387,16 @@ set -e
 [ "$(run_log_lines)" = "3" ] || { cat "$RUNLOG"; fail "a plan executed a provisioner; plan time is a preview and must never run one"; }
 log "  no changes, and no provisioner ran: plan time is still a preview"
 
-# ── 9. the destroy-time half, which needs no record at all ──────────────────
+# ── 9. the destroy-time half, which needs no TAINT record at all ────────────
 # Stock only runs a destroy-time provisioner when it is also calling the
 # provider's delete, strictly before it. On failure the delete never
 # happens, so the object survives WITH ITS MARKER - and the marker's
 # continued existence already is the "still needs destroying" signal. This
 # step proves that claim rather than restating it: the destroy fails, the
-# bucket is still there, still marked, and NOTHING was written anywhere.
+# bucket is still there, still marked, and nothing about the "provisioned"
+# member of its (already-existing, ordinary) record changes - see
+# count_taint_records's own comment for why "record" and "taint record" are
+# no longer the same question in this script.
 log "=== 9. a FAILING destroy-time provisioner on a count shrink ==="
 touch "$MAIN/fail-destroy"
 set +e
@@ -355,8 +414,8 @@ SHRINK_TAGS="$(awsl s3api get-bucket-tagging --bucket pt-e2e-shrinker-1 --output
 grep -q "\"$ESTATE\"" <<< "$SHRINK_TAGS" \
   || { printf '%s\n' "$SHRINK_TAGS"; fail "pt-e2e-shrinker-1 lost its ownership marker; the marker IS the retry signal for this case, so losing it strands the object"; }
 N="$(count_taint_records)"
-[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "a failed DESTROY-time provisioner wrote $N record(s); it must write none - the surviving marker is the signal"; }
-log "  the bucket survives, still marked, and no record was written: the marker is the retry signal"
+[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "a failed DESTROY-time provisioner tainted $N record(s); it must taint none - the surviving marker is the signal"; }
+log "  the bucket survives, still marked, and no taint record was written: the marker is the retry signal"
 
 log "=== 10. the retry destroys it, re-running the provisioner ==="
 rm -f "$MAIN/fail-destroy"
@@ -396,10 +455,10 @@ APPLY6="$(tofu_apply -var app_command='exit 3' -var app_marker=run-3 -var shrink
 APPLY6_RC=$?
 set -e
 [ "$APPLY6_RC" != "0" ] || { tail -20 <<< "$APPLY6"; fail "the re-create apply succeeded; its provisioner runs 'exit 3'"; }
-[ -f "$APP_REC" ] || { find "$PROVISIONED" -type f | sort; fail "the second create-time failure wrote no taint record"; }
+is_tainted "$APP_REC" || { find "$PROVISIONED" -type f | sort; fail "the second create-time failure wrote no taint record"; }
 [ "$(count_taint_records)" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record after the second failure"; }
 [ "$(tail -n1 "$RUNLOG")" = "run-3" ] || { cat "$RUNLOG"; fail "the re-created instance's provisioner did not run"; }
-log "  destroyed clean (no record), re-created with a failure (one record)"
+log "  destroyed clean (no taint record), re-created with a failure (one taint record)"
 
 log "=== 12. destroy the tainted instance: its record goes with it ==="
 set +e
@@ -435,7 +494,7 @@ APPLY8="$(tofu_apply -var app_command='exit 3' -var app_marker=run-4 -var shrink
 APPLY8_RC=$?
 set -e
 [ "$APPLY8_RC" != "0" ] || { tail -20 <<< "$APPLY8"; fail "the re-create apply succeeded; its provisioner runs 'exit 3'"; }
-[ -f "$APP_REC" ] || { find "$PROVISIONED" -type f | sort; fail "the create-time failure wrote no taint record"; }
+is_tainted "$APP_REC" || { find "$PROVISIONED" -type f | sort; fail "the create-time failure wrote no taint record"; }
 [ "$(count_taint_records)" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record after the failure"; }
 log "  half-built bucket is live and marked, one taint record stands"
 

@@ -100,6 +100,14 @@ type Artifact struct {
 	Stages   []Stage               `json:"stages"`
 	Sets     map[string]SetSummary `json:"sets"`
 	Estates  []EstateResult        `json:"estates"`
+	// BehaviorsProven and BehaviorsTotal are #522's headline metric:
+	// "behaviors proven: N of 14". Computed in Rebuild from
+	// live/behaviors.json, the same way every other derived field here is -
+	// never stored by hand. See BehaviorsProven (behaviors.go) for exactly
+	// what "proven" means. BehaviorsTotal is always len(Stages()) (14
+	// today); it does not vary with the behavior index.
+	BehaviorsProven int `json:"behaviors_proven"`
+	BehaviorsTotal  int `json:"behaviors_total"`
 	// LiveCert carries real-AWS certification results (issue #440) - one
 	// entry per certified estate. It is a SEPARATE top-level slice, never a
 	// row in Estates, on purpose: Rebuild (below) never reads or writes it,
@@ -229,9 +237,16 @@ func loadArtifactFile(path string) (*Artifact, error) {
 
 // Rebuild recomputes everything derived in the artifact from the manifest
 // and the per-estate verdicts: the stage list, each estate's clear flag, the
-// set summaries. Verdicts for estates no longer in the manifest are dropped;
-// estates new to the manifest appear with every stage not_run. It is the one
-// place those rules live.
+// set summaries, and (from bi) the behaviors-proven headline metric.
+// Verdicts for estates no longer in the manifest are dropped; estates new to
+// the manifest appear with every stage not_run. It is the one place those
+// rules live.
+//
+// bi may be nil (a caller with no behavior index in hand - most existing
+// tests, and any command that only cares about the estate side): Rebuild
+// still sets BehaviorsTotal from Stages() and leaves BehaviorsProven at 0,
+// exactly what BehaviorsProven(nil) returns, so a nil bi never crashes and
+// never fabricates evidence.
 //
 // It deliberately never reads or writes a.LiveCert. That field answers a
 // different question (did ONE real-AWS run, on ONE date, verify what the
@@ -242,7 +257,7 @@ func loadArtifactFile(path string) (*Artifact, error) {
 // issue #440's brief calls out; the fix here is structural (a separate
 // slice this function's own loop never iterates), not a flag to remember to
 // check.
-func (a *Artifact) Rebuild(m *Manifest, emulator string) {
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
@@ -250,6 +265,7 @@ func (a *Artifact) Rebuild(m *Manifest, emulator string) {
 	a.Schema = 1
 	a.Emulator = emulator
 	a.Stages = Stages()
+	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 
 	var rows []EstateResult
 	for _, e := range m.Estates {

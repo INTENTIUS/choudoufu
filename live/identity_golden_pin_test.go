@@ -792,7 +792,21 @@ var identityGoldenPin = map[string]int{
 	// internal/live/discovery/collisionmatrix_test.go), confirmed by `git
 	// diff internal/live/check/testdata/identity-golden.txt` showing
 	// exactly those ten lines added and nothing else changed.
-	"NEEDS_DISCOVERY": 746,
+	//
+	// 747, up from 746 (issue #541's deterministic-identity fixture): one
+	// ADDED row, aws_iam_policy.subject in the new fixture
+	// live/e2e/deterministic-recreate. aws_iam_policy is ServerAssigned in
+	// internal/live/identity/table_generated.go (the provider mints the
+	// ARN and hands it back rather than this fork assembling it
+	// component-by-component), so the static sweep defers to a live read
+	// even though the e2e fixture's own run.sh proves that ARN is in fact
+	// deterministic from account+name+path across a real destroy-and-
+	// recreate - NEEDS_DISCOVERY here describes what the OFFLINE golden
+	// sweep can resolve without a cloud in the loop, not whether the
+	// identity is stable once one is. Confirmed by `git diff
+	// internal/live/check/testdata/identity-golden.txt` showing exactly
+	// that one line added and nothing else changed.
+	"NEEDS_DISCOVERY": 747,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1422,7 +1436,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "2883cf0bddd3543cc874a8c9220e3d1ca566a4b7617126d1bcd4f16bee3e15fd" // GitHub issue #415's collision-outcome matrix: ten ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/discovery/testdata/collision-matrix (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those ten lines added and nothing else changed - "0 identities changed, 10 added, 0 removed". Previously "c8a3aacc699c40cd9aeac65fd68018fbcc1292d19c6b2a81c806e0e8a32b46c7" // [gauntlet:reference-ec2-vpc/greenfield]: one ADDED NEEDS_DISCOVERY row, aws_instance.main in the new fixture internal/live/discovery/testdata/propagated-child-marker (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly that line added and nothing else changed - "0 identities changed, 1 added, 0 removed". Previously "026129693d81c6a714e48f6151535324a6e315cc0177a2a81f245126e87fe2c2" // merge union of gauntlet:destroy-order and [gauntlet:corpus-dynamodb-table-basic/day2_remove]: on top of the destroy-order rows, four ADDED rows (two NEEDS_DISCOVERY, two RECORD_BACKED) in the new fixtures internal/live/identity/testdata/parent-derived-parent-attr and .../parent-derived-parent-attr-unknown, golden regenerated over the merged fixture set and `git diff` against pre-merge main shows exactly those four lines added and nothing else changed. Previously "0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15" // gauntlet:destroy-order: two ADDED CONCRETE rows, aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the new fixture internal/live/moved/testdata/fork, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
+const identityGoldenPinBodyDigest = "6261686d429a9d106c29c32aa5aa64e2303f6afdadbbf399fed539596ce46ea5" // issue #541's deterministic-identity fixture: one ADDED NEEDS_DISCOVERY row, aws_iam_policy.subject in the new fixture live/e2e/deterministic-recreate (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly that one line added and nothing else changed - "0 identities changed, 1 added, 0 removed". Previously "2883cf0bddd3543cc874a8c9220e3d1ca566a4b7617126d1bcd4f16bee3e15fd" // GitHub issue #415's collision-outcome matrix: ten ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/discovery/testdata/collision-matrix (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those ten lines added and nothing else changed - "0 identities changed, 10 added, 0 removed". Previously "c8a3aacc699c40cd9aeac65fd68018fbcc1292d19c6b2a81c806e0e8a32b46c7" // [gauntlet:reference-ec2-vpc/greenfield]: one ADDED NEEDS_DISCOVERY row, aws_instance.main in the new fixture internal/live/discovery/testdata/propagated-child-marker (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly that line added and nothing else changed - "0 identities changed, 1 added, 0 removed". Previously "026129693d81c6a714e48f6151535324a6e315cc0177a2a81f245126e87fe2c2" // merge union of gauntlet:destroy-order and [gauntlet:corpus-dynamodb-table-basic/day2_remove]: on top of the destroy-order rows, four ADDED rows (two NEEDS_DISCOVERY, two RECORD_BACKED) in the new fixtures internal/live/identity/testdata/parent-derived-parent-attr and .../parent-derived-parent-attr-unknown, golden regenerated over the merged fixture set and `git diff` against pre-merge main shows exactly those four lines added and nothing else changed. Previously "0e65b7e0f15154f810ebbe3acdf13dc35c84ac90547f99464daa6973fe15ab15" // gauntlet:destroy-order: two ADDED CONCRETE rows, aws_s3_bucket.x and aws_s3_bucket.y resolving to "x" and "y", in the new fixture internal/live/moved/testdata/fork, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "a10f18d4ec775d05ca2624be7bb520308d6c2a8da01f31e18c843f434585a6e9" // gauntlet:sweep-moved-alias: two ADDED CONCRETE rows, both aws_iam_role_policy.inline resolving to "app:deploy", in the new fixtures internal/live/discovery/testdata/moved-record-located and .../moved-record-located-nomoved, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "98e51bd22be1809e306c1ed770706af480ca7f880505d7aea3c6fcabcd875be7" // the same unit's record-rung fix: two ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/record-fallback-sibling-apply, confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed. Previously "b94f96c1b800c943add2f5d9b39751e13c21c742007020731cea123bcf50ef26" // gauntlet issue #397's two remaining blockers: three ADDED NEEDS_DISCOVERY rows in the new fixture internal/live/identity/testdata/nested-for-scope-per-element (see identityGoldenPin's own "NEEDS_DISCOVERY" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those three lines added and nothing else changed. Previously "8739fca5b0eb799afe1d7a50355ced2bef9f403e6bc5dbd2c80b7e3ae56d4467" // issue #399's maintainer ruling: two ADDED CONCRETE rows in the new fixture internal/live/identity/testdata/target-group-attachment-lambda-port (aws_lb_target_group_attachment.lambda and .instance - see identityGoldenPin's own "CONCRETE" note), confirmed by `git diff internal/live/check/testdata/identity-golden.txt` showing exactly those two lines added and nothing else changed
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -2103,7 +2117,11 @@ const (
 	// internal/live/discovery/testdata/collision-matrix (see
 	// identityGoldenPin's own "NEEDS_DISCOVERY" note). "0 identities
 	// changed, 10 added, 0 removed".
-	identityGoldenPinInstances = 1738
+	// Then 1738 -> 1739, issue #541's deterministic-identity fixture: one
+	// new instance, aws_iam_policy.subject in the new fixture
+	// live/e2e/deterministic-recreate (see identityGoldenPin's own
+	// "NEEDS_DISCOVERY" note). "0 identities changed, 1 added, 0 removed".
+	identityGoldenPinInstances = 1739
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2452,7 +2470,10 @@ const (
 	// Then 627 -> 628, GitHub issue #415's collision-outcome matrix: one new
 	// fixture, internal/live/discovery/testdata/collision-matrix
 	// (identityGoldenPinInstances moves in step - see its own note).
-	identityGoldenPinDirs = 628
+	// Then 628 -> 629, issue #541's deterministic-identity fixture: one new
+	// fixture, live/e2e/deterministic-recreate (identityGoldenPinInstances
+	// moves in step - see its own note).
+	identityGoldenPinDirs = 629
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
