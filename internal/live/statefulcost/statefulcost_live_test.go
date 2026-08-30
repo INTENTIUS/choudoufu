@@ -160,6 +160,10 @@ func TestStatefulCostAgainstFloci(t *testing.T) {
 			t.Fatalf("cold apply: %v\n%s", err, tailOf(out, 40))
 		}
 
+		// The control for the round-trip probe below: stock's own plan on
+		// its own state, converged, BEFORE anything stamps a marker.
+		roundTrip(t, "before live-import", coldDir, env, terraformBin)
+
 		adoptedDir := filepath.Join(t.TempDir(), "adopted")
 		generate(t, root, adoptedDir, scale, prefix)
 		addLiveBlock(t, adoptedDir, estate)
@@ -172,13 +176,28 @@ func TestStatefulCostAgainstFloci(t *testing.T) {
 		}
 		t.Logf("live-import: %s", stampLine(importOut))
 
-		for _, form := range []struct {
+		// The round trip the "live is situational" claim rests on: after
+		// markers are stamped, does the SAME stock directory, with the SAME
+		// untouched state file, still plan clean? This is the one question a
+		// mixed workflow turns on, and it is measured rather than argued.
+		roundTrip(t, "after live-import -approve", coldDir, env, terraformBin)
+
+		// Both forms by default. They are the same pipeline - live-plan's
+		// configuration form and plain plan under a live block both go
+		// through statelessRunner.PriorState - and a run that has already
+		// established they agree can drop the first with
+		// STATEFUL_COST_FORMS=plan rather than pay for it again.
+		forms := []struct {
 			label string
 			args  []string
 		}{
 			{"choudoufu-live-plan", []string{"live-plan", "-no-color"}},
 			{"choudoufu-live-block-plan", []string{"plan", "-input=false", "-no-color"}},
-		} {
+		}
+		if os.Getenv("STATEFUL_COST_FORMS") == "plan" {
+			forms = forms[1:]
+		}
+		for _, form := range forms {
 			cols = append(cols, timePlans(t, &column{
 				Label: form.label, Bin: choudoufuBin, Dir: adoptedDir,
 				Endpoint: proxyLive.Endpoint(), Args: form.args,
@@ -187,6 +206,27 @@ func TestStatefulCostAgainstFloci(t *testing.T) {
 	}
 
 	report(t, scale, cols)
+}
+
+// roundTrip runs one stateful plan in dir and reports its verdict without
+// failing the test either way. It is not a timing column: it answers whether
+// a state-backed directory still reads clean at a given moment, which is the
+// evidence the "live is situational" product claim needs and which no
+// existing measurement here collects.
+func roundTrip(t *testing.T, when, dir string, env []string, bin string) {
+	t.Helper()
+	out, err := run(t, dir, env, bin, "plan", "-input=false", "-no-color")
+	switch {
+	case err != nil:
+		path := saveOutput(t, "roundtrip-"+strings.ReplaceAll(when, " ", "-"), 1, out)
+		t.Logf("ROUND TRIP %s: %s plan FAILED; full output at %s", when, bin, path)
+	case strings.Contains(out, "No changes."):
+		t.Logf("ROUND TRIP %s: %s plan is empty", when, bin)
+	default:
+		path := saveOutput(t, "roundtrip-"+strings.ReplaceAll(when, " ", "-"), 1, out)
+		t.Logf("ROUND TRIP %s: %s plan is NOT empty (%s); full output at %s\n%s",
+			when, bin, planSummary(out), path, changedResources(out))
+	}
 }
 
 // timePlans runs one column's plan `repeats` times, recording wall clock,
@@ -206,11 +246,12 @@ func timePlans(t *testing.T, c *column, proxy *flocitest.CountingProxy) *column 
 		case err != nil:
 			verdict = "ERROR"
 		case !strings.Contains(out, "No changes."):
-			verdict = "NOT-EMPTY"
+			verdict = planSummary(out)
 		}
 		if verdict != "empty" {
-			t.Errorf("%s run %d: verdict %s - its seconds are not comparable with the other columns'\n%s",
-				c.Label, i+1, verdict, tailOf(out, 40))
+			path := saveOutput(t, c.Label, i+1, out)
+			t.Errorf("%s run %d: verdict %s - its seconds are not comparable with the other columns'; full output at %s\n%s",
+				c.Label, i+1, verdict, path, changedResources(out))
 		}
 
 		c.Seconds = append(c.Seconds, elapsed.Seconds())
@@ -257,6 +298,50 @@ func generate(t *testing.T, root, dir string, scale int, prefix string) {
 		t.Fatalf("terralith-gen -scale %d -prefix %s: %v\n%s", scale, prefix, err, out)
 	}
 	t.Logf("terralith-gen(%s): %s", prefix, strings.TrimSpace(string(out)))
+	useFlociProviderBlock(t, dir)
+}
+
+// flociProviderBlock is the provider configuration
+// live/live-cert/terralith-scale.sh's provider_block emits for TARGET=floci,
+// reproduced here for the same reason that script gives: terralith-gen's own
+// block sets skip_requesting_account_id, which is right for a generator whose
+// output must stand alone and wrong for any run that resolves an ECS
+// identity, because an ECS ARN carries the account id (issue #572). With the
+// generator's block, the migrated column's plan proposes three spurious ECS
+// creates at scale 1 - measured, not assumed - and a column that proposes
+// work is not the same operation as the columns it is compared against.
+//
+// It is applied to EVERY column, stateful ones included, so the four columns
+// still differ only in the binary and in whether a live block is present.
+const flociProviderBlock = `provider "aws" {
+  region                      = "` + awsRegion + `"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  s3_use_path_style           = true
+}
+`
+
+// useFlociProviderBlock replaces the generated versions.tf's provider block
+// with flociProviderBlock, keeping terralith-gen's own terraform block and
+// version pin, exactly as the certification harness's generate_estate does.
+func useFlociProviderBlock(t *testing.T, dir string) {
+	t.Helper()
+	path := filepath.Join(dir, "versions.tf")
+	data, err := os.ReadFile(path) //nolint:gosec // a path this test just generated
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	const anchor = "provider \"aws\" {"
+	idx := strings.Index(string(data), anchor)
+	if idx < 0 {
+		t.Fatalf("%s has no %q block; terralith-gen's versions.tf template changed", path, anchor)
+	}
+	updated := string(data[:idx]) + flociProviderBlock
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
 }
 
 // addLiveBlock puts a live block inside the generated versions.tf's
@@ -301,6 +386,72 @@ func mustRun(t *testing.T, dir string, env []string, bin string, args ...string)
 	if err != nil {
 		t.Fatalf("%s %s in %s: %v\n%s", bin, strings.Join(args, " "), dir, err, tailOf(out, 40))
 	}
+}
+
+// outDir is where a non-empty plan's whole output is kept, so a verdict can
+// be diagnosed after the run instead of being read through a 40-line tail.
+// STATEFUL_COST_OUT names it; without one, a directory under the system
+// temp dir that outlives the test's own t.TempDir.
+func outDir(t *testing.T) string {
+	t.Helper()
+	if v := os.Getenv("STATEFUL_COST_OUT"); v != "" {
+		if err := os.MkdirAll(v, 0o755); err != nil {
+			t.Fatalf("creating %s: %v", v, err)
+		}
+		return v
+	}
+	dir, err := os.MkdirTemp("", "statefulcost-")
+	if err != nil {
+		t.Fatalf("creating an output directory: %v", err)
+	}
+	return dir
+}
+
+var savedOutputDir string
+
+func saveOutput(t *testing.T, label string, run int, out string) string {
+	t.Helper()
+	if savedOutputDir == "" {
+		savedOutputDir = outDir(t)
+	}
+	path := filepath.Join(savedOutputDir, fmt.Sprintf("%s_%d.out", label, run))
+	if err := os.WriteFile(path, []byte(out), 0o600); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+	return path
+}
+
+// planSummary reads the plan's own headline back out, so a non-empty
+// verdict says WHAT the plan proposed rather than only that it proposed
+// something.
+func planSummary(out string) string {
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(l, "Plan: ") {
+			return strings.ReplaceAll(l, " ", "_")
+		}
+	}
+	return "NOT-EMPTY-no-plan-line"
+}
+
+// changedResources lists the addresses a non-empty plan named, which is the
+// diagnosis a tail of the output cannot give: the estate sweep's warnings
+// crowd out the plan body.
+func changedResources(out string) string {
+	var found []string
+	for _, l := range strings.Split(out, "\n") {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "# ") {
+			found = append(found, "  "+t)
+		}
+	}
+	if len(found) == 0 {
+		return "  (no resource headers in the output)"
+	}
+	if len(found) > 25 {
+		found = append(found[:25], fmt.Sprintf("  ... and %d more", len(found)-25))
+	}
+	return strings.Join(found, "\n")
 }
 
 func tailOf(s string, n int) string {
