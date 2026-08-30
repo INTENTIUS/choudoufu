@@ -8,9 +8,17 @@ package arguments
 import (
 	"fmt"
 
-	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
+
+// defaultLiveImportParallelism is [liveimport.DefaultParallelism], restated
+// here rather than imported: this package cannot import internal/live/
+// liveimport at all, because liveimport reaches internal/live/discovery,
+// which reaches the root live package, whose own tests import this one - a
+// cycle the build refuses. The two are pinned equal by
+// TestLiveImportParallelismDefaultMatchesTheStampDefault in internal/command,
+// which can see both.
+const defaultLiveImportParallelism = 10
 
 // LiveImport represents the command-line arguments for the live-import
 // command.
@@ -60,7 +68,7 @@ func ParseLiveImport(args []string) (*LiveImport, tfdiags.Diagnostics) {
 	cmdFlags.StringVar(&li.Estate, "estate", "", "estate")
 	cmdFlags.BoolVar(&li.Approve, "approve", false, "approve")
 	cmdFlags.BoolVar(&input, "input", true, "input")
-	cmdFlags.IntVar(&li.Parallelism, "parallelism", liveimport.DefaultParallelism, "parallelism")
+	cmdFlags.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "parallelism")
 
 	if err := cmdFlags.Parse(args); err != nil {
 		return li, diags.Append(tfdiags.Sourceless(
