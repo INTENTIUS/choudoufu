@@ -35,6 +35,22 @@ var typeOverridesDevtools = map[string]typeOverride{
   })`))
 		},
 	},
+	"aws_codeartifact_domain_permissions_policy": {
+		Reasons: []string{
+			`"policy_document" is a required argument per the provider's own docs (its Example Usage sets it from a data.aws_iam_policy_document read), but the wire schema types it Optional - the generic required-only pass never visits it, and PutDomainPermissionsPolicy 400s without one - the same "schema says Optional, provider requires it in practice" shape as its aws_codeartifact_repository_permissions_policy sibling above, whose own override this mirrors`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_document", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "codeartifact:CreateRepository"
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
 	"aws_codebuild_fleet": {
 		Reasons: []string{
 			`base_capacity is Required and the provider validates it is at least 1 (validate: "expected base_capacity to be at least (1), got 0"), but the schema types it only as a number, so the generic pass's zero placeholder fails; compute_type and environment_type are both Required strings the schema does not constrain to an enum, but the provider validates each against a fixed set (validate: "expected ... to be one of [...]")`,

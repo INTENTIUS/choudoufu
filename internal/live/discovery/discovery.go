@@ -1701,6 +1701,27 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 		tags, taggable := markers.TagsOf(r.Resource)
 
+		// Issue #531: the provider can attach an error diagnostic to one
+		// specific listed object - ssm:ListTagsForResource returning
+		// InvalidResourceId for an AWS-managed default aws_ssm_patch_baseline
+		// this account does not own, confirmed against a real account - while
+		// still delivering the rest of the object (see
+		// [listclient.Result.Diagnostics]'s own doc comment: "A result can
+		// carry an error diagnostic and still be delivered"). [markers.TagsOf]
+		// reads a null or unknown tags attribute as "tagged with nothing",
+		// which is the right default for an object that genuinely carries no
+		// tags but the wrong one here: null because the read errored is not
+		// the same fact as null because there is nothing there, and treating
+		// them the same is exactly the "not ours" / "ours, unreadable"
+		// collapse live/MARKERS.md's identity rule and this project's safety
+		// rule forbid. Force the unreadable branch below instead of trusting
+		// whatever partial shape came back; the #266 join right after this
+		// still gets a chance to rescue a genuinely-owned object by
+		// identifier before anything is decided.
+		if r.Diagnostics.HasErrors() {
+			taggable = false
+		}
+
 		// Issue #266: the list call may have dropped this object's tags -
 		// iam:ListRoles returns none at all - and an object whose marker
 		// cannot be read is one a needs-discovery instance can never bind
@@ -1755,12 +1776,27 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// below, unchanged.
 				if !sweepUntaggedReported {
 					sweepUntaggedReported = true
+					detail := fmt.Sprintf(
+						"The estate-wide sweep listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read and it cannot be matched to this estate. This is a provider or emulator bug; the sweep continues over the rest of this type's objects and every other type.",
+						typeName)
+					if r.Diagnostics.HasErrors() {
+						// #531: distinct from the shape above - the provider
+						// did not merely omit tags, it reported an explicit
+						// error trying to read this object. The commonest
+						// real cause is an AWS-managed default resource this
+						// account does not own (a cross-account
+						// aws_ssm_patch_baseline, say): the estate never
+						// declared this type, so there is nothing here this
+						// run could ever have claimed, and it is named rather
+						// than guessed at.
+						detail = fmt.Sprintf(
+							"The estate-wide sweep listed a %s that the provider could not fully read (%s), so its ownership markers cannot be read and it cannot be matched to this estate. This is expected for a resource this estate does not own, such as an AWS-managed default; the sweep continues over the rest of this type's objects and every other type.",
+							typeName, r.Diagnostics.Err())
+					}
 					diags = diags.Append(sweepGapDiag(res, SweepGap{
 						TypeName: typeName,
 						Reason:   SweepGapObjectUntagged,
-						Detail: fmt.Sprintf(
-							"The estate-wide sweep listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read and it cannot be matched to this estate. This is a provider or emulator bug; the sweep continues over the rest of this type's objects and every other type.",
-							typeName),
+						Detail:   detail,
 					}))
 				}
 				continue
@@ -1792,13 +1828,25 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// bug worth aborting over, not this one.
 				continue
 			}
+			detail := fmt.Sprintf(
+				"The provider listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read. This is a provider bug or a type that should not be marker-discoverable.",
+				typeName)
+			if r.Diagnostics.HasErrors() {
+				// #531's declared-type twin: this address IS in the
+				// configuration, so an object that could not be read here
+				// might be its live counterpart, and guessing "not ours" from
+				// a read failure is exactly what live/MARKERS.md's identity
+				// rule and this project's safety rule forbid. This must stay
+				// an error.
+				detail = fmt.Sprintf(
+					"The provider listed a %s but could not fully read it (%s), so its ownership markers cannot be read.",
+					typeName, r.Diagnostics.Err())
+			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,
 				TypeName: typeName,
 				LiveIDs:  liveIDs(importID),
-				Detail: fmt.Sprintf(
-					"The provider listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read. This is a provider bug or a type that should not be marker-discoverable.",
-					typeName),
+				Detail:   detail,
 			}))
 			continue
 		}

@@ -359,6 +359,111 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	}
 }
 
+// TestStatelessMode_applyDestroy is GitHub issue #320's mechanism, ruled in
+// #425: "choudoufu apply -destroy" against a live block is a generalization
+// of the existing orphan sweep rather than a separate mechanism, so it is no
+// longer refused (live_mode.go's statelessRejections). liveBlockCloud starts
+// with both fixture resources already existing and marked - the "estate as
+// it looks once applied" shape TestStatelessMode_plainPlan also uses for its
+// empty-plan case - which is what lets a single "apply -destroy" here plan
+// against a real prior state rather than an empty one: DestroyMode still
+// needs PriorState to include what it is asked to tear down, exactly like
+// NormalMode does for the orphan sweep it generalizes.
+//
+// The two resources are deliberately the fixture's two identity kinds -
+// aws_s3_bucket.data is client-named (resolved from configuration alone),
+// aws_vpc.main is server-assigned (found only through the sweep's ownership
+// marker) - so this also checks that DestroyMode's projection is built the
+// same way NormalMode's is: both instances present regardless of how their
+// identity was resolved, not just the ones a naive "walk the config" pass
+// would find.
+func TestStatelessMode_applyDestroy(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := liveBlockCloud()
+
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+
+	code := c.Run([]string{"-no-color", "-destroy", "-auto-approve"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stdout := output.Stdout()
+	// Not "Destroy complete!" - that wording is reserved for the "choudoufu
+	// destroy" alias (ApplyCommand.Destroy true, apply.go), which sets a
+	// different view flag than "apply -destroy" does. Stock draws the same
+	// distinction (views/apply.go), and this is stock's own renderer.
+	if !strings.Contains(stdout, "Apply complete! Resources: 0 added, 0 changed, 2 destroyed.") {
+		t.Errorf("apply -destroy did not destroy both resources:\n%s", stdout)
+	}
+
+	// Every owned instance actually reached the provider's
+	// ApplyResourceChange as a destroy - not just proposed in the rendered
+	// plan - and nothing about which one is declared with a client-named
+	// identity versus found by its marker changed that. Order is
+	// deliberately NOT asserted: #425's ruling is that no new ordering
+	// logic is added here, so which of these two came first is stock's
+	// destroy-graph walker's call, not this fork's.
+	for _, addr := range []string{"aws_s3_bucket.data", "aws_vpc.main"} {
+		found := false
+		for _, d := range cloud.destroyed {
+			if d == addr {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s was never destroyed at the provider; destroyed: %v", addr, cloud.destroyed)
+		}
+	}
+	if len(cloud.destroyed) != 2 {
+		t.Errorf("%d instances reached ApplyResourceChange as a destroy, want exactly 2: %v", len(cloud.destroyed), cloud.destroyed)
+	}
+
+	assertNoStateArtifacts(t, td)
+}
+
+// TestStatelessMode_destroyAlias is TestStatelessMode_applyDestroy's twin
+// for "choudoufu destroy" itself: ApplyCommand{Destroy: true}, which
+// arguments.ParseApplyDestroy routes to plans.DestroyMode with no "-destroy"
+// flag ever typed (cmd/choudoufu/commands.go). The original refusal this
+// fork lifted (GitHub issue #320) special-cased its own wording on exactly
+// this distinction - "telling that user to rerun without -destroy names a
+// flag they never typed" - so this is the path that comment was about, not
+// covered by the "apply -destroy" case alone. It also renders differently:
+// "Destroy complete!", not "Apply complete!" (views/apply.go's ApplyHuman
+// keys off c.Destroy, a separate flag from the plan mode itself).
+func TestStatelessMode_destroyAlias(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := liveBlockCloud()
+
+	view, done := testView(t)
+	c := &ApplyCommand{Destroy: true, Meta: liveBlockMeta(view, cloud)}
+
+	code := c.Run([]string{"-no-color", "-auto-approve"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stdout := output.Stdout()
+	if !strings.Contains(stdout, "Destroy complete! Resources: 2 destroyed.") {
+		t.Errorf("\"choudoufu destroy\" did not destroy both resources:\n%s", stdout)
+	}
+	if len(cloud.destroyed) != 2 {
+		t.Errorf("%d instances reached ApplyResourceChange as a destroy, want exactly 2: %v", len(cloud.destroyed), cloud.destroyed)
+	}
+	assertNoStateArtifacts(t, td)
+}
+
 // TestStatelessBegin_nodeResolveDefaultOn is GitHub issue #388's stamp half
 // (nodestamp.go's AdjustConfigValue) getting the identical on-by-default
 // contract the resolver now has (default flip 2026-08-25, this comment
@@ -582,7 +687,12 @@ func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
 
 // TestStatelessMode_applyRejections: the two saved-plan halves and the
 // options stateless mode v0 removes the ground for, refused rather than
-// ignored.
+// ignored. "-destroy" is deliberately absent from this table since GitHub
+// issue #320 (ruled in #425): see TestStatelessMode_applyDestroy for the
+// positive case that mode now has. "refresh-only" stays here because it is
+// a genuinely different operation with no meaning under live markers - both
+// sides of its comparison are the live system - not a verification gap the
+// orphan-sweep generalization closes.
 func TestStatelessMode_applyRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -590,7 +700,7 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 		want string
 	}{
 		{"planfile", []string{"saved.tfplan"}, "Applying a saved plan file is not available under live resource markers"},
-		{"destroy", []string{"-destroy", "-auto-approve"}, "Only the normal planning mode is available under live resource markers"},
+		{"refresh-only", []string{"-refresh-only", "-auto-approve"}, "Only the normal planning mode is available under live resource markers"},
 		{"state-out", []string{"-auto-approve", "-state-out=other.tfstate"}, "State file options are not available under live resource markers"},
 		{"json", []string{"-auto-approve", "-json"}, "Machine-readable output is not available under live resource markers yet"},
 	} {

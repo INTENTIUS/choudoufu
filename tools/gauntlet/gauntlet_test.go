@@ -143,9 +143,7 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 				t.Errorf("%q: artifact carries unknown stage %q", e.Name, id)
 			}
 		}
-		switch r.Protocol {
-		case ProtocolGauntlet, ProtocolLegacy:
-		default:
+		if !IsValidEstateProtocol(r.Protocol) {
 			t.Errorf("%q: protocol %q unknown", e.Name, r.Protocol)
 		}
 	}
@@ -687,9 +685,9 @@ func TestRebuildIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	a.Rebuild(m, "img")
+	a.Rebuild(m, nil, "img", OracleVersions{})
 	b1, _ := a.Canonical()
-	a.Rebuild(m, "img")
+	a.Rebuild(m, nil, "img", OracleVersions{})
 	b2, _ := a.Canonical()
 	if !bytes.Equal(b1, b2) {
 		t.Error("rebuild is not deterministic")
@@ -789,4 +787,94 @@ func TestProtocolLibraryMatchesParser(t *testing.T) {
 	if _, err := runBash("source " + lib + "\ngauntlet_begin\ngauntlet_stage x maybe\n"); err == nil {
 		t.Error("library accepted verdict 'maybe'")
 	}
+}
+
+// TestGapFailureIsNotAttributedToThePreviousStage is issue #555's own
+// demonstration, at the library layer rather than a real crossing script: a
+// script's fail() has always reported against CURRENT_STAGE
+// (`if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail
+// "$*"; fi`, copied byte-for-byte into all 25 protocol-speaking crossing
+// scripts - see fail() below), but CURRENT_STAGE was only ever assigned by
+// hand, at the start of each stage's own section, and never cleared at the
+// end. The setup between two stages - a docker run, copy_leaf_modules,
+// write_root, an oracle's own plan - runs while CURRENT_STAGE still names
+// whichever stage happened to be assigned last, so a failure there was
+// blamed on a stage that had already finished (or, as here, never actually
+// entered its own real verdict-bearing section at all).
+//
+// corpus-hongbomiao-labelbox/run.sh is the concrete reproduction this test
+// mirrors: line 545 sets CURRENT_STAGE=day2_replace for that stage's own
+// stock-oracle comparison (STAGE F-ORACLE), which succeeds; lines 566-607
+// then build the GREENFIELD estate (copy_leaf_modules, write_root, a second
+// `docker run`) with CURRENT_STAGE never reassigned until line 608's own
+// CURRENT_STAGE=greenfield - so a docker failure in that window records
+// "day2_replace fail" for a stage whose own oracle already passed.
+//
+// "before" is that exact shape: CURRENT_STAGE assigned by hand and never
+// cleared, matching every crossing script as of this writing except the
+// ones this issue's own PR converts. "after" is the same shape through
+// gauntlet_begin_stage/gauntlet_end_stage (this file's new library
+// functions): the same failure, in the same window, is left unattributed
+// instead.
+func TestGapFailureIsNotAttributedToThePreviousStage(t *testing.T) {
+	root := testRoot(t)
+	lib := filepath.Join(root, "live", "e2e", "lib", "gauntlet.sh")
+
+	// Copied byte-for-byte from live/e2e/corpus-iam-policy/run.sh (and its
+	// 24 siblings): this is the real contract a crossing script's fail()
+	// speaks, not a stand-in for it.
+	const failFn = `
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+`
+
+	t.Run("before: hand-assigned CURRENT_STAGE leaks into the next stage's setup", func(t *testing.T) {
+		script := "source " + lib + failFn + `
+CURRENT_STAGE=""
+gauntlet_begin
+CURRENT_STAGE=day2_replace
+log() { :; }
+log "day2_replace's own oracle plan succeeds - no gauntlet_stage call yet, its real verdict comes much later in the script"
+false || fail "docker run for the greenfield container failed"
+`
+		out, err := runBash(script)
+		if err == nil {
+			t.Fatalf("expected the script to exit non-zero\n%s", out)
+		}
+		res, perr := ParseProtocol(bytes.NewReader(out))
+		if perr != nil {
+			t.Fatalf("parse: %v\n%s", perr, out)
+		}
+		if res.Stages["day2_replace"] != VerdictFail {
+			t.Fatalf("expected the unfixed shape to misattribute the greenfield setup failure to day2_replace (proving the bug is real, not hypothetical); got %+v\n%s", res.Stages, out)
+		}
+	})
+
+	t.Run("after: gauntlet_end_stage closes the window, the same failure is unattributed", func(t *testing.T) {
+		script := "source " + lib + failFn + `
+gauntlet_begin
+gauntlet_begin_stage day2_replace
+log() { :; }
+log "day2_replace's own oracle plan succeeds - no gauntlet_stage call yet, its real verdict comes much later in the script"
+gauntlet_end_stage
+false || fail "docker run for the greenfield container failed"
+`
+		out, err := runBash(script)
+		if err == nil {
+			t.Fatalf("expected the script to exit non-zero\n%s", out)
+		}
+		res, perr := ParseProtocol(bytes.NewReader(out))
+		if perr != nil {
+			t.Fatalf("parse: %v\n%s", perr, out)
+		}
+		if v, ok := res.Stages["day2_replace"]; ok {
+			t.Errorf("day2_replace must not carry a verdict from a window neither its own nor any stage's - got %q\n%s", v, out)
+		}
+		if len(res.Stages) != 0 {
+			t.Errorf("no stage should have been reported at all; the failure happened entirely outside any stage's own bracket, got %+v\n%s", res.Stages, out)
+		}
+	})
 }

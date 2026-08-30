@@ -129,6 +129,125 @@ var typeOverridesEcsEks = map[string]typeOverride{
 			body.SetAttributeRaw("role_arn", exprTokens(ref))
 		},
 	},
+	// Issue #554, found while regenerating this cohort to fix aws_ecs_service
+	// below (unrelated to that fix, but surfaced by the same regeneration -
+	// the #539 shape, caught here rather than shipped instead of joining
+	// it). live/e2e/estates/ecs-eks/supporting.tf carried this resource's
+	// full doc-example body - billing_mode, hash_key, range_key,
+	// read_capacity, write_capacity, three "attribute" blocks (UserId,
+	// GameTitle, TopScore), a ttl block and a global_secondary_index block -
+	// entirely from seedFromExample, with no override, until this
+	// regeneration silently dropped GameTitle and TopScore's own attribute
+	// blocks: seedFromExample only ever lands a repeated block's FIRST
+	// element (seed.go's own doc comment: "the generic pass renders exactly
+	// one instance, so element zero is the only answer to which element
+	// does this belong to"), so the doc example's second and third
+	// "attribute" elements were never reachable, even though the table's
+	// own range_key ("GameTitle") and global_secondary_index (hash_key
+	// "GameTitle", range_key "TopScore") both need a matching
+	// AttributeDefinition or CreateTable 400s ("... does not have a
+	// corresponding entry in AttributeDefinitions"). This is a real,
+	// pre-existing gap in seedFromExample's repeated-block handling, not
+	// something #554 introduced - confirmed by regenerating this cohort
+	// against unmodified main, before any of this issue's fixes, which
+	// drops the identical two blocks - and it is general to any type whose
+	// doc example repeats a block more than once, not specific to this
+	// type; fixing seedFromExample itself to create more than one instance
+	// of a repeated block is out of this issue's scope (a rule-level
+	// change touching every cohort, not a fixture fix) and belongs in its
+	// own issue.
+	//
+	// An override is the only lever available today to add the missing
+	// content without that deeper fix, but adding ANY override for a type
+	// suppresses seedFromExample for that type entirely (seed.go: "an
+	// override suppresses the seed for its whole type" - the
+	// aws_lambda_layer_version incident #136 fixed by making seeding an
+	// all-or-nothing choice per type). So this override does not merely
+	// append the two missing attribute blocks; it reconstructs the type's
+	// entire body, byte-for-byte what seedFromExample used to produce, so
+	// that adding it trades no other field away. "name" is left to the
+	// generic pass, unaffected either way: aws_dynamodb_table self-
+	// identifies by "name" in the identity table, so valueExpr's own
+	// identity-argument tier sets it before Apply ever runs, the same as
+	// every other override in this file that never sets "name" itself.
+	"aws_dynamodb_table": {
+		Reasons: []string{
+			`the doc's own example sets billing_mode, hash_key, range_key, read_capacity, write_capacity, three "attribute" blocks (UserId, GameTitle, TopScore), a ttl block and a global_secondary_index block - previously reached entirely through seedFromExample with no override at all, but seedFromExample only ever lands a repeated block's first element (seed.go: "the generic pass renders exactly one instance, so element zero is the only answer"), so GameTitle and TopScore's own "attribute" blocks - both referenced by this table's own range_key and global_secondary_index - were never reachable that way; CreateTable 400s without a matching AttributeDefinition for each ("... does not have a corresponding entry in AttributeDefinitions"). A pre-existing, general gap in seedFromExample's repeated-block handling (confirmed against unmodified main), not specific to this type; reconstructed here in full rather than as a two-block patch, because adding any override for a type suppresses seedFromExample for that whole type (seed.go's own doc comment) - a partial override would have traded the rest of this body away`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("billing_mode", exprTokens(`"PROVISIONED"`))
+			body.SetAttributeRaw("hash_key", exprTokens(`"UserId"`))
+			body.SetAttributeRaw("range_key", exprTokens(`"GameTitle"`))
+			body.SetAttributeRaw("read_capacity", exprTokens(`20`))
+			body.SetAttributeRaw("write_capacity", exprTokens(`20`))
+			for _, a := range []struct{ name, typ string }{
+				{"UserId", "S"},
+				{"GameTitle", "S"},
+				{"TopScore", "N"},
+			} {
+				blk := body.AppendNewBlock("attribute", nil)
+				blk.Body().SetAttributeRaw("name", exprTokens(fmt.Sprintf("%q", a.name)))
+				blk.Body().SetAttributeRaw("type", exprTokens(fmt.Sprintf("%q", a.typ)))
+			}
+			ttl := body.AppendNewBlock("ttl", nil)
+			ttl.Body().SetAttributeRaw("attribute_name", exprTokens(`"TimeToExist"`))
+			ttl.Body().SetAttributeRaw("enabled", exprTokens(`true`))
+			gsi := body.AppendNewBlock("global_secondary_index", nil)
+			gsi.Body().SetAttributeRaw("hash_key", exprTokens(`"GameTitle"`))
+			gsi.Body().SetAttributeRaw("name", exprTokens(`"GameTitleIndex"`))
+			gsi.Body().SetAttributeRaw("non_key_attributes", exprTokens(`["UserId"]`))
+			gsi.Body().SetAttributeRaw("projection_type", exprTokens(`"INCLUDE"`))
+			gsi.Body().SetAttributeRaw("range_key", exprTokens(`"TopScore"`))
+			gsi.Body().SetAttributeRaw("read_capacity", exprTokens(`10`))
+			gsi.Body().SetAttributeRaw("write_capacity", exprTokens(`10`))
+		},
+	},
+	// Issue #554: "container_definitions" is Required per the wire schema,
+	// but it is a plain string, not a validated JSON blob - the generic
+	// required-only pass fills it with the type-driven placeholder
+	// (genericExprText's "placeholder"), which is not valid JSON, the same
+	// "schema says a string, provider validates it is JSON" shape as
+	// aws_iam_role's own assume_role_policy override above.
+	"aws_ecs_task_definition": {
+		Reasons: []string{
+			`"container_definitions" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "container_definitions ... contains an invalid JSON"); the generic placeholder string is not, same shape as aws_iam_role's own assume_role_policy override above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("container_definitions", exprTokens(`jsonencode([
+    {
+      name      = "app"
+      image     = "nginx:latest"
+      cpu       = 256
+      memory    = 512
+      essential = true
+    }
+  ])`))
+		},
+	},
+	// Issue #554: "task_definition" is Optional in the wire schema (the
+	// doc's own prose: "Required unless using the EXTERNAL deployment
+	// controller"), so the generic required-only pass never visits it, and
+	// CreateService 400s with "Unable to describe task definition" against
+	// a service that declares none - not caught by "terraform validate"
+	// itself, only surfaced at apply. This cohort's own requested types
+	// include no aws_ecs_task_definition to reference (only the unrelated
+	// aws_ecs_daemon_task_definition, a distinct newer resource
+	// aws_ecs_daemon already wires on its own) - a supporting
+	// aws_ecs_task_definition is generated instead (NeedsSupporting), the
+	// same "supporting, not coverage" shape as aws_ecs_cluster_capacity_providers'
+	// own aws_ecs_cluster above.
+	"aws_ecs_service": {
+		Reasons: []string{
+			`"task_definition" is Optional in the schema ("Required unless using the EXTERNAL deployment controller" per the doc, not expressed as a schema constraint), so the generic required-only pass never visits it and CreateService 400s with "Unable to describe task definition" against a service that declares none; this cohort's own requested types include no aws_ecs_task_definition to reference (only the unrelated aws_ecs_daemon_task_definition) - a supporting aws_ecs_task_definition is generated instead (NeedsSupporting), the same "supporting, not coverage" shape as aws_ecs_cluster_capacity_providers' own aws_ecs_cluster above. "force_new_deployment" is set here too, not left to seedFromExample: an override suppresses the seed pass for its whole type (seed.go's own doc comment), so adding this override for task_definition would otherwise silently drop the doc-seeded force_new_deployment = true this type carried before.`,
+		},
+		NeedsSupporting: []string{"aws_ecs_task_definition"},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if td, ok := g.byType["aws_ecs_task_definition"]; ok {
+				body.SetAttributeRaw("task_definition", exprTokens(fmt.Sprintf("%s.arn", td)))
+			}
+			body.SetAttributeRaw("force_new_deployment", exprTokens(`true`))
+		},
+	},
 }
 
 func init() { registerCohortOverrides(typeOverridesEcsEks) }

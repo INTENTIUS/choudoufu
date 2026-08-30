@@ -38,7 +38,35 @@ const (
 	// crossing's verified output. The runner never overwrites a legacy entry
 	// unless the script now speaks the protocol.
 	ProtocolLegacy = "legacy"
+	// ProtocolLiveAWS: a real-AWS certification run (issue #440), never an
+	// EstateResult.Protocol value - see LiveCertResult in livecert.go for
+	// why. validEstateProtocols below deliberately does NOT list this
+	// constant among the values an EstateResult may carry: an EstateResult
+	// with Protocol == ProtocolLiveAWS is exactly the conflation #440's
+	// brief warns against (a real-AWS verdict folded into the
+	// emulator-driven a.Estates/a.Sets machinery), and
+	// TestArtifactAgreesWithManifest (via IsValidEstateProtocol) stays the
+	// guard that catches it if it ever happens by mistake.
+	ProtocolLiveAWS = "live-aws"
 )
+
+// validEstateProtocols is every Protocol value an EstateResult may
+// legitimately carry. ProtocolLiveAWS is deliberately absent. A single list
+// backs both TestArtifactAgreesWithManifest's check and
+// TestProtocolLiveAWSNeverValidOnEstateResult (livecert_test.go), so the
+// two cannot silently drift into disagreement.
+var validEstateProtocols = []string{ProtocolGauntlet, ProtocolLegacy}
+
+// IsValidEstateProtocol reports whether p is a protocol an EstateResult may
+// legitimately carry - see validEstateProtocols.
+func IsValidEstateProtocol(p string) bool {
+	for _, v := range validEstateProtocols {
+		if p == v {
+			return true
+		}
+	}
+	return false
+}
 
 // Artifact is live/gauntlet.json.
 //
@@ -67,11 +95,55 @@ const (
 // independently of the rows it summarizes, and it must render disagreement
 // honestly rather than pick one row's digest and assert it of the board.
 type Artifact struct {
-	Schema   int                   `json:"schema"`
-	Emulator string                `json:"emulator"`
-	Stages   []Stage               `json:"stages"`
-	Sets     map[string]SetSummary `json:"sets"`
-	Estates  []EstateResult        `json:"estates"`
+	Schema   int    `json:"schema"`
+	Emulator string `json:"emulator"`
+	// Oracle mirrors Emulator exactly, for the stock terraform/tofu releases
+	// hashicorp/setup-terraform and opentofu/setup-opentofu install instead
+	// of the floci digest (issue #544): CONFIGURATION, not evidence - a
+	// plain copy of live/oracle-versions.json on every Rebuild, the pin the
+	// NEXT `gauntlet run` will use. Unlike Emulator, a row's own
+	// last_run.oracle (LastRun.Oracle below) is never copied from this
+	// field even at the moment a run starts: nothing forces the terraform
+	// or tofu binary actually on PATH to match this pin the way FLOCI_IMAGE
+	// forces the emulator to (see run.go's probeOracle) - a local checkout
+	// can drift from it silently, which is the other half of #544's root
+	// cause. So last_run.oracle is measured, by actually invoking whatever
+	// is on PATH, never asserted from this field.
+	Oracle  OracleVersions        `json:"oracle"`
+	Stages  []Stage               `json:"stages"`
+	Sets    map[string]SetSummary `json:"sets"`
+	Estates []EstateResult        `json:"estates"`
+	// BehaviorsProven and BehaviorsTotal are #522's headline metric:
+	// "behaviors proven: N of 14". Computed in Rebuild from
+	// live/behaviors.json, the same way every other derived field here is -
+	// never stored by hand. See BehaviorsProven (behaviors.go) for exactly
+	// what "proven" means. BehaviorsTotal is always len(Stages()) (14
+	// today); it does not vary with the behavior index.
+	BehaviorsProven int `json:"behaviors_proven"`
+	BehaviorsTotal  int `json:"behaviors_total"`
+	// LiveCert carries real-AWS certification results (issue #440) - one
+	// entry per certified estate. It is a SEPARATE top-level slice, never a
+	// row in Estates, on purpose: Rebuild (below) never reads or writes it,
+	// so it can never be summed into Sets["core"]/Sets["all"] the way an
+	// emulator-protocol row is. See livecert.go for the type and why the
+	// separation is structural, not a convention a future change could
+	// accidentally erode.
+	LiveCert []LiveCertResult `json:"live_cert,omitempty"`
+}
+
+// OracleVersions is the stock terraform and tofu releases the gauntlet
+// compares choudoufu's plan against for one configuration (issue #544): the
+// same kind of fact the emulator digest already is, with the same power to
+// invalidate a comparison - a row measured against terraform 1.15.8 and one
+// measured against 1.16.0 are not directly comparable, and #498's root
+// cause was exactly that, unrecorded. Terraform is the "terraform_version"
+// field of `terraform version -json`; Tofu is the same field of
+// `tofu version -json` (OpenTofu kept the key name for compatibility). A
+// binary this tool never invoked, or could not find on PATH, leaves its
+// field empty - never guessed.
+type OracleVersions struct {
+	Terraform string `json:"terraform,omitempty"`
+	Tofu      string `json:"tofu,omitempty"`
 }
 
 // SetSummary is one headline bar.
@@ -119,9 +191,19 @@ type EstateResult struct {
 // match the current pin" - IsStale treats it as stale precisely because it
 // cannot be shown to match.
 type LastRun struct {
-	Commit   string            `json:"commit"`
-	Date     string            `json:"date"`
-	Emulator string            `json:"emulator,omitempty"`
+	Commit   string `json:"commit"`
+	Date     string `json:"date"`
+	Emulator string `json:"emulator,omitempty"`
+	// Oracle is the stock terraform and tofu releases this run actually
+	// found on PATH (issue #544) - measured, not configured: probeOracle
+	// (run.go) runs `terraform version -json` and `tofu version -json`
+	// itself, once per RunEstates call, the same way commit is a real
+	// `git rev-parse HEAD` rather than an assumption. A nil pointer means
+	// the same two things Emulator's empty string means: a row from before
+	// this field existed, or a legacy-protocol run that recorded no
+	// provenance. Never treat nil as "must match the current pin" for the
+	// same reason IsStale never treats an empty Emulator that way.
+	Oracle   *OracleVersions   `json:"oracle,omitempty"`
 	ExitCode int               `json:"exit_code"`
 	Detail   map[string]string `json:"detail,omitempty"`
 	// DurationS is the whole run's wall-clock seconds: measured in Go around
@@ -193,17 +275,41 @@ func loadArtifactFile(path string) (*Artifact, error) {
 
 // Rebuild recomputes everything derived in the artifact from the manifest
 // and the per-estate verdicts: the stage list, each estate's clear flag, the
-// set summaries. Verdicts for estates no longer in the manifest are dropped;
-// estates new to the manifest appear with every stage not_run. It is the one
-// place those rules live.
-func (a *Artifact) Rebuild(m *Manifest, emulator string) {
+// set summaries, and (from bi) the behaviors-proven headline metric.
+// Verdicts for estates no longer in the manifest are dropped; estates new to
+// the manifest appear with every stage not_run. It is the one place those
+// rules live.
+//
+// bi may be nil (a caller with no behavior index in hand - most existing
+// tests, and any command that only cares about the estate side): Rebuild
+// still sets BehaviorsTotal from Stages() and leaves BehaviorsProven at 0,
+// exactly what BehaviorsProven(nil) returns, so a nil bi never crashes and
+// never fabricates evidence.
+//
+// It deliberately never reads or writes a.LiveCert. That field answers a
+// different question (did ONE real-AWS run, on ONE date, verify what the
+// emulator already agreed to) than a.Estates/a.Sets answer (does choudoufu
+// match stock against the pinned emulator, re-measurable on demand) - see
+// HANDOFF.md "What a measurement is worth" and livecert.go. Folding
+// LiveCert into this function's loop below is exactly the conflation
+// issue #440's brief calls out; the fix here is structural (a separate
+// slice this function's own loop never iterates), not a flag to remember to
+// check.
+//
+// oracle is a.Oracle's fresh value, the same "configuration for the next
+// run" role emulator already has - see live/oracle-versions.json and
+// OracleVersions's own doc comment for why that is a different fact than
+// what a past run's last_run.oracle recorded.
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
 	}
 	a.Schema = 1
 	a.Emulator = emulator
+	a.Oracle = oracle
 	a.Stages = Stages()
+	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 
 	var rows []EstateResult
 	for _, e := range m.Estates {

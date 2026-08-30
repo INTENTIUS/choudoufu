@@ -765,7 +765,7 @@ EOF
 
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
 
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== A1. init and apply: 5 resources from nothing ==="
 ( cd "$GREEN" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "greenfield init failed"; }
@@ -821,6 +821,7 @@ else
     || { grep -E '^  #' <<< "$PLAN2_OUT"; fail "the third plan is not empty with no local record store - the objects are not being found by their tags alone"; }
   log "  No changes, with zero local memory of the run that created them"
 fi
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART B: COLD ADOPTION
@@ -852,7 +853,7 @@ EOF
 
 export AWS_ENDPOINT_URL="$ADOPT_ENDPOINT"
 
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== B1. plain terraform stands the estate up, no choudoufu involved ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 ( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "plain terraform init failed"
@@ -891,7 +892,7 @@ gauntlet_stage cold_deploy pass "5 resources from plain terraform, a real terraf
 # ingress/egress rules, the instance's AMI and type - never through tofu
 # state on either side, so the comparison cannot be fooled by choudoufu's
 # own bookkeeping agreeing with itself.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== B1.5. greenfield oracle: the greenfield estate (part A) against stock's cold deploy (B1), object by object ==="
 resource_shape() { # $1 = endpoint
   local ep="$1"
@@ -937,7 +938,7 @@ else
   log "  object-by-object match: vpc cidr, subnet cidr/az/public-ip, igw count, security-group ingress+egress rules, instance ami+type - identical between the greenfield estate and stock's cold deploy, marker tags normalised out (never compared)"
   gauntlet_stage greenfield pass "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_rename's stock oracle (live/GAUNTLET.md #6, tracked as issue #357):
 # "Stock with the same moved block plans zero churn." Run against a COPY of
@@ -948,7 +949,7 @@ CURRENT_STAGE=""
 # every resource would also show its ownership-marker tags being stripped
 # back out (stock's tags map only ever names "Name"), which is real but has
 # nothing to do with the rename this oracle exists to check.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== B1.5. day2_rename stock oracle: the same two-resource rename, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -1000,7 +1001,7 @@ log "  stock: zero churn, no attribute diff at all - both resources report only 
 # principle as B1.5 above: a SEPARATE copy of cold_deploy's own state, "main"
 # names throughout, so this destroy has nothing to do with the rename this
 # script also exercises.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== B1.6. day2_remove stock oracle: delete the internet-gateway block on cold_deploy's own state ==="
 PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
@@ -1041,7 +1042,7 @@ log "  stock: exactly one destroy (aws_internet_gateway.main), nothing else, on 
 # apply is safe. AWS_ENDPOINT_URL stays $ADOPT_ENDPOINT for the rest of the
 # script; only this block's own terraform invocations are pointed at
 # $ENDPOINT, via a per-command environment override.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 log "=== B1.7. day2_count stock oracle: create a 2-instance count block, scale it to 1 and back, in the (idle) greenfield account ==="
 PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
 mkdir -p "$PLAIN_ORACLE_COUNT"
@@ -1153,7 +1154,7 @@ ORACLE_SG0_AFTER_UP="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 des
   --group-ids "$ORACLE_SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
 [ "$ORACLE_SG0_AFTER_UP" = "$ORACLE_SG0_ID" ] || fail "stock's count_test[0] changed id across the scale-up"
 log "  stock: exactly one create (count_test[1], new id $ORACLE_SG1_NEW_ID, was $ORACLE_SG1_ID), count_test[0]=$ORACLE_SG0_ID unchanged throughout"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason B1.5/B1.6's own oracles sit before migrate (above): a
@@ -1176,7 +1177,7 @@ CURRENT_STAGE=""
 # unpatched: they run against $PLAIN_ORACLE/$PLAIN_ORACLE_REMOVE, copies
 # of cold_deploy's state from BEFORE this section's replace ever touches
 # anything, so ami-12345678 is still their own live truth.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== B1.8. day2_replace stock oracle: change aws_instance.main's ForceNew ami argument, on cold_deploy's own state ==="
 PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
@@ -1203,9 +1204,9 @@ grep -qE '^  # aws_instance\.main must be replaced' <<< "$REPLACE_ORACLE_PLAN_OU
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan is not exactly one isolated replace"; }
 log "  stock: exactly one instance replace at the same declared address, nothing else - 1 to add, 1 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 mkdir -p "$ADOPTED"
 {
@@ -1248,7 +1249,7 @@ grep -qF "5 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 5 resources cleanly"; }
 log "  5 stamped"
 gauntlet_stage migrate pass "5 of 5 verified, 5 stamped, 0 skipped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 log "=== B4. and the adopted config plans empty ==="
 ADOPT_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; ADOPT_PLAN_RC=$?
@@ -1257,7 +1258,7 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$ADOP
   || { grep -E '^  #' <<< "$ADOPT_PLAN_OUT"; fail "the post-adoption plan is not empty"; }
 log "  No changes. The infra terraform created, unmarked, is now under live markers with an empty plan."
 gauntlet_stage test_plan pass "post-adoption plan is empty; markers read back through the AWS CLI in part A"
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 log "=== B5. apply the empty plan: a genuine no-op ==="
 BEFORE_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
@@ -1275,7 +1276,7 @@ AFTER_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroup
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART C: DRIFT AND RECONVERGE
@@ -1339,7 +1340,7 @@ else
   log "  reconverged: $PLAIN_INSTANCE_ID's Name tag is back to \"ec2-reference-instance\", read via the AWS CLI"
   gauntlet_stage drift_reconverge pass "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART C2: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
@@ -1374,7 +1375,7 @@ CURRENT_STAGE=""
 # found and documented in this same unit (a valid record short-circuits
 # the duplicate-slot claimant matcher before it ever runs) - not
 # re-measured here.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
 record_import_id() { jq -r '.identity.import_id' "$1"; }
 F_ADDR="aws_instance.main"
@@ -1460,7 +1461,7 @@ log "  No changes. The replace is complete and invisible to the next plan - no m
 
 PLAIN_INSTANCE_ID="$F_NEW_ID"
 gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance ($F_OLD_IMPORT_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6, issue #357)
@@ -1480,7 +1481,7 @@ CURRENT_STAGE=""
 # choudoufu propose destroying the old address and creating the new one - the
 # opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the two live ids a rename must not disturb ==="
 SG_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-security-groups \
   --filters "Name=group-name,Values=ec2-reference-sg" \
@@ -1670,7 +1671,7 @@ EOF
   # the block, and assert the plan proposes no destroy for it at all - the
   # Break text in tools/gauntlet/stages.go, verbatim.
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live internet-gateway id one more time ==="
   IGW_ID_BEFORE_REMOVE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
     --internet-gateway-ids "$IGW_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>/dev/null || true)"
@@ -1780,7 +1781,7 @@ EOF
     # day2_count, verbatim: "Expect a different instance to be destroyed;
     # the assertion must fail."
 
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     log "=== F0. choudoufu: add aws_security_group.count_test, count = 2 ==="
     {
       cat <<EOF
@@ -2078,7 +2079,7 @@ EOF
       # hold - proving the real check above is load-bearing rather than a
       # grep that always matches.
 
-      CURRENT_STAGE=day2_crash
+      gauntlet_begin_stage day2_crash
       log "=== H0. capture the pre-crash instance; confirm create_before_destroy is a no-op on its own ==="
       G_PRE_ID="$PLAIN_INSTANCE_ID"
       G_PRE_LIVE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-instances --instance-ids "$G_PRE_ID" --query "Reservations[0].Instances[0].State.Name" --output text 2>/dev/null || true)"
@@ -2286,13 +2287,13 @@ EOF
 
         gauntlet_stage day2_crash pass "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt $G_ATTEMPT of $H1_ATTEMPT_MAX; deterministic by construction, not by timing luck - internal/command/apply_e2etesting_crash.go self-signals synchronously inside the single -parallelism=1 graph-walker goroutine the instant the create half's own write-back commits in memory, replacing #483's external tail/grep/kill race that produced issue #490's own retry-lottery evidence) strictly between the create committing (new object $G_NEW_ID, confirmed running via the AWS CLI) and the destroy of the deposed old object ($G_PRE_ID, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=$G_NEW_ID, deposed=$G_DEPOSED_ID). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
       fi
-      CURRENT_STAGE=""
+      gauntlet_end_stage
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ════════════════════════════════════════════════════════════════════════
 # G. strict (GitHub issue #363; tools/gauntlet/stages.go's "strict" stage,
@@ -2341,7 +2342,7 @@ CURRENT_STAGE=""
 # left out, but exercised and confirmed to change nothing for a config
 # they do not reach, which is the other half of "for nothing else".
 
-CURRENT_STAGE=strict
+gauntlet_begin_stage strict
 STRICT="$WORK/strict"
 mkdir -p "$STRICT"
 strict_block() { # $1 = the secrets setting under test ("refuse" or "store")
@@ -2412,7 +2413,7 @@ else
 
   gauntlet_stage strict pass "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build."
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 gauntlet_end
 

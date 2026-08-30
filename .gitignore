@@ -80,6 +80,7 @@ site/public/
 # an ~80MB tools/estate-gen build got committed by accident and had to be
 # stripped back out of a merge).
 /admission-pipeline
+/ci-gate
 /cloudcontrol-probe
 /corpus-fetch
 /corpus-gen
@@ -99,6 +100,7 @@ site/public/
 /loggraphdiff
 /mapping-gen
 /merge-guard
+/oracle-bump-report
 /protobuf-compile
 /provider-bump-report
 /ratification-queue-gen
@@ -109,6 +111,7 @@ site/public/
 /selected-go-version
 /survey-gen
 /tagverbs-gen
+/terralith-gen
 /toggles-gen
 /wo-sweep
 
@@ -142,8 +145,14 @@ site/public/
 /live/gauntlet/logs/
 
 # CI gate scratch files a worker leaves in its worktree; never tracked.
+# ci.meta is #519's run-identity sidecar (HEAD sha, start/end timestamps)
+# that scripts/ci-gate.sh writes beside ci.rc/ci.out so a reader can tell a
+# fresh gate from a stale one; ci.meta.tmp is its write-then-rename staging
+# file, briefly present mid-write.
 ci.out
 ci.rc
+ci.meta
+ci.meta.tmp
 
 # worker scratch repros and local record stores never belong in the repo
 .repro/

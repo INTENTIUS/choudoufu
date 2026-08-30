@@ -12,7 +12,13 @@
 // The result is recorded per cohort in live/cohort-acceptance.json - pass,
 // or the first phase that failed - and the committed artifact is a ratchet:
 // a cohort recorded as passing must keep passing, and a run that widens the
-// passing set is expected to commit the regenerated artifact. What this
+// passing set is expected to commit the regenerated artifact. A cohort's
+// resource count may not fall below what is committed either, pass or
+// fail: issue #539 found a fixture that lost its failing resources and
+// converted a red cohort to green with no other signal, and
+// ratchetViolations (acceptance_live_test.go) fails the run on that just as
+// hard as on a regression - see its doc comment for why a shrink is a hard
+// failure rather than a warning. What this
 // package deliberately does NOT report is admitted-type counts. #105
 // measured why: admitting six types moved unadmitted-type sites from 961 to
 // 845 and moved the number of configurations that actually work by zero.

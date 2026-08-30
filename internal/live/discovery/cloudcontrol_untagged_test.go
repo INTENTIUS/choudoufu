@@ -240,6 +240,73 @@ func TestCloudControlUnreadableObjectStillRefuses(t *testing.T) {
 	}
 }
 
+// TestCloudControlUnreadableObjectDuringASweepIsNotFatal is issue #531's
+// Cloud Control leg. TestCloudControlUnreadableObjectStillRefuses already
+// pins that a GENUINELY unreadable object (GetResource errors outright, and
+// the UnsupportedOperation re-list does not rescue it either) must still
+// raise ProblemNoTags for a DECLARED type's own scan. This is the same
+// fixture during a SWEEP of a type the configuration never declares - which,
+// before this fix, still raised ProblemNoTags unconditionally: [!taggable]'s
+// second branch in [scanTypeCloudControl] had no sweep gate at all, unlike
+// its native-list twin in [scanType]. An AWS-managed default resource (a
+// real cross-account aws_ssm_patch_baseline, confirmed against a live
+// account) is exactly this shape: undeclared, and its tags genuinely cannot
+// be read. The fix gates this leg on sweep the same way the native leg
+// already was.
+func TestCloudControlUnreadableObjectDuringASweepIsNotFatal(t *testing.T) {
+	const swept, cfnType = "aws_efs_file_system", "AWS::EFS::FileSystem"
+	srv := newCCServer(t)
+	srv.listResources[cfnType] = []ccResource{
+		{identifier: "fs-somebody-elses", properties: ccUntaggedProps("fs-somebody-elses")},
+	}
+	// Genuinely unreadable, not merely untagged: GetResource errors outright
+	// (AccessDeniedException, not UnsupportedOperation, which has its own
+	// list-and-match fallback), and the fallback's own re-list does not hand
+	// the tags back either.
+	srv.getResource[cfnType+" fs-somebody-elses"] = "AccessDeniedException"
+	srv.listResourcesAfterFirst[cfnType] = []ccResource{
+		{identifier: "fs-somebody-elses", properties: ccUntaggedProps("fs-somebody-elses")},
+	}
+	server := srv.start()
+	defer server.Close()
+
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-1", "aws_vpc.x")
+	req := Request{
+		Estate:       estateName,
+		Config:       ccConfig("aws_vpc"),
+		Resolutions:  []identity.Resolution{{Addr: mustAddr(t, "aws_vpc.x"), Class: identity.ClassNeedsDiscovery}},
+		Provider:     cloud,
+		CloudControl: cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL, MaxAttempts: 1}),
+		Roster: ccRoster(t,
+			map[string]string{swept: cfnType},
+			map[string]bool{cfnType: true},
+			map[string]bool{cfnType: true},
+		),
+		Sweep:      true,
+		SweepTypes: []string{swept},
+	}
+	res, diags := Discover(context.Background(), req)
+	if got := res.ProblemsOfKind(ProblemNoTags); len(got) != 0 {
+		t.Errorf("a genuinely unreadable object of an UNDECLARED type aborted the plan via Cloud Control:\n%s", renderProblems(got))
+	}
+	if diags.HasErrors() {
+		t.Errorf("the sweep reported errors over somebody else's unreadable resource:\n%s", diags.Err())
+	}
+	if _, ok := res.BindingFor(mustAddr(t, "aws_vpc.x")); !ok {
+		t.Errorf("the declared resource did not bind:\n%s", res)
+	}
+	var gaps []SweepGap
+	for _, g := range res.SweepGaps {
+		if g.TypeName == swept {
+			gaps = append(gaps, g)
+		}
+	}
+	if len(gaps) != 1 {
+		t.Errorf("want exactly one sweep gap for %s, got %d:\n%s", swept, len(gaps), res)
+	}
+}
+
 // TestCloudControlUntaggedObjectDuringASweepIsNotFatal covers the leg the
 // original refusal was widest on. The native list path has always had a sweep
 // branch for this (SweepGapObjectUntagged: "a hole in removal coverage, not a

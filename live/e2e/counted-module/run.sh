@@ -41,8 +41,8 @@ set -uo pipefail
 #   FLOCI_PORT   host port for the emulator (default 4607, clear of run.sh's
 #                4566, dataread-projection's 4599, tagging-sweep's 4601,
 #                create-over's 4602, per-element's 4604, record-located's
-#                4605 and repeated-module's 4606, so every harness can run at
-#                once).
+#                4608 and repeated-module's 4609 (#520), so every harness can
+#                run at once).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
 

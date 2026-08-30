@@ -42,7 +42,11 @@ set -euo pipefail
 # The join refuses rather than guesses: the tagged resource's own
 # tofu-address has to name the type being listed, it has to carry this
 # estate, and exactly one candidate may match. Step 7 pins what happens when
-# it cannot fire at all.
+# it cannot fire at all - which, since record-primary identity landed
+# (rfc/20260823-foundation-order-ruling.md item 1), also means removing the
+# record step 2's apply wrote: a plan reads the record before it ever needs
+# the join, so "it cannot fire" now has two preconditions, not one. See
+# step 7's own comment for the trace that found this.
 #
 #   bash live/e2e/create-over/run.sh
 #
@@ -265,7 +269,35 @@ log "  converged: nothing to create, nothing foreign"
 # nothing rather than guess - a wrong bind adopts somebody else's object and
 # is worse than the defect - so the run returns to proposing a create. What it
 # must NOT do is return to proposing it silently.
-log "=== 7. with the tag index off: degrade, and say so ==="
+#
+# TOFU_LIVE_CLOUDCONTROL=off alone stopped being enough to reach that path
+# once record-primary identity landed (rfc/20260823-foundation-order-ruling.md
+# item 1: "every instance's identity in the record, written by live-import
+# and by EVERY apply, and a plan reads it first"). Step 2's apply already
+# wrote a record for aws_iam_role.subject, and every plan since - including
+# this one - finds the identity there before it ever needs the tag index, so
+# turning the index off on its own now degrades to nothing: issue #541 traced
+# this with TF_LOG=debug and found "aws_iam_role.subject excluded from the
+# binding demand: identity already recorded" ahead of any tag-index attempt.
+# That is the SAME foundation item that turned repeated-module's mutation
+# control into a check that could not fail - a config or environment edit
+# that leaves an already-recorded instance's record untouched no longer
+# measures the fallback it looks like it is exercising.
+#
+# So this step now removes the record too, which is what actually makes the
+# join the only thing standing between this instance and a phantom create:
+# a first-ever migration under a degraded tag index, or a corrupted/lost
+# record, has no record to fall back on either. The record store's on-disk
+# layout is internal/live/projection/record.go's RecordKey (unpadded,
+# URL-safe base64 of the address, under
+# tofu-records/<estate>/<type>/<key>) - matched here by content rather than
+# by recomputing that encoding, so a change to the encoding does not
+# silently make this step find nothing.
+log "=== 7. with the tag index off and the record gone: degrade, and say so ==="
+SUBJECT_REC="$(grep -rlF '"address":"aws_iam_role.subject"' "$MAIN/.tofu-records" 2>/dev/null | head -1)"
+[ -n "$SUBJECT_REC" ] && [ -f "$SUBJECT_REC" ] \
+  || fail "no record found for aws_iam_role.subject under $MAIN/.tofu-records - the record layout has moved"
+rm -f "$SUBJECT_REC"
 rm -f "$MAIN/terraform.tfstate" "$MAIN/terraform.tfstate.backup"
 set +e
 PLAN4_OUT="$(cd "$MAIN" && TOFU_LIVE_CLOUDCONTROL=off "$TOFU" live-plan -input=false -no-color 2>&1)"

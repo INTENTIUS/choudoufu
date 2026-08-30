@@ -790,7 +790,7 @@ export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
 # ── 3. STAGE 1: cold deploy, real terraform, zero choudoufu awareness ──────
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== 3. STAGE 1 - cold deploy: real terraform apply, no live block ==="
 terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-init.log; fail "terraform init failed"; }
@@ -839,7 +839,7 @@ gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarke
 # which must make choudoufu propose destroying the old address and creating
 # the new one - the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 ORACLE_REL="oracle/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle/"
@@ -888,7 +888,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # oracle's own destroy set is not asserted ahead of time by name or count;
 # whatever stock proposes is read here and the real plan below is compared
 # against it address-for-address, which is robust to either shape.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-ORACLE (day2_remove). stock: delete aws_security_group.worker_group_mgmt_one's block on cold_deploy's own state ==="
 ORACLE_REMOVE_REL="oracle-remove/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-remove/"
@@ -912,7 +912,7 @@ grep -qF "aws_security_group.worker_group_mgmt_one will be destroyed" <<< "$REMO
   || { printf '%s\n' "$REMOVE_ORACLE_CHANGES"; fail "stock's day2_remove oracle does not destroy aws_security_group.worker_group_mgmt_one itself"; }
 log "  stock: $REMOVE_ORACLE_N resource action(s) removing aws_security_group.worker_group_mgmt_one's block:"
 printf '%s\n' "$REMOVE_ORACLE_CHANGES" | while read -r line; do log "    $line"; done
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." Same
@@ -960,7 +960,7 @@ CURRENT_STAGE=""
 # (MOVED_APPLY_OUT, above), which writes a fresh record under the current
 # address as ordinary apply WriteBack - the same shape alb-complete's own
 # Part F already relies on.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace aws_security_group.worker_group_mgmt_two via its ForceNew name_prefix argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_REL="oracle-replace/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-replace/"
@@ -985,10 +985,10 @@ grep -qE '^  # aws_security_group\.worker_group_mgmt_two must be replaced' <<< "
 REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
 [ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
 log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces aws_security_group.worker_group_mgmt_two at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ADOPTED, and actually applying here would destroy the real security group the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ── 4. STAGE 2: migrate ─────────────────────────────────────────────────────
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== 4. STAGE 2 - migrate: choudoufu live-import against the cold state ==="
 tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-tofu-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-tofu-init.log; fail "choudoufu init failed"; }
@@ -1101,7 +1101,7 @@ gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confi
 # below is unchanged and still accurate; stage 3's is superseded by this
 # note and by the assertions immediately following, not by the paragraph
 # beginning "3. TEST PLAN" further up this header.
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
@@ -1374,7 +1374,7 @@ fi
 #
 # See this script's own PASS/FAIL summary at the end of the file for the
 # full, current five-stage picture.
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 NOT_EMPTY_SITES="$LAUNCHCONFIG_DIFF_SITES"
 if grep -qE "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"; then
   grep -E "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"
@@ -1391,7 +1391,7 @@ gauntlet_stage test_plan pass "live-plan runs to completion with ZERO Error diag
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== 6. STAGE 4 - test apply: apply the empty plan, assert a genuine no-op ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -1412,7 +1412,7 @@ gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed);
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== 7. STAGE 5 - drift and reconverge: mutate one object out of band ==="
 VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=*" \
   --query "Vpcs[?Tags[?Key=='tofu-estate' && Value=='$ESTATE']].VpcId | [0]" --output text 2>/dev/null)"
@@ -1456,7 +1456,7 @@ else
   gauntlet_stage drift_reconverge pass "one object tampered (VPC's Name tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Name tag reconverged"
 fi
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 SG2_ID_D="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.worker_group_mgmt_two"]}]' --query "SecurityGroups[0].GroupId" --output text)"
 [ -n "$SG2_ID_D" ] && [ "$SG2_ID_D" != "None" ] || fail "no live security group found by its tofu-address marker (worker_group_mgmt_two)"
@@ -1581,7 +1581,7 @@ EOF
   # DEFAULT replace ordering instead. BREAK=replace manufactures the
   # coexistence a skipped destroy would leave behind directly via the AWS
   # CLI.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="aws_security_group.worker_group_mgmt_two_renamed"
@@ -1676,7 +1676,7 @@ EOF
     SG2_ID_D="$F_NEW_ID"
     gauntlet_stage day2_replace pass "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group ($F_NEW_ID) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 (propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard); see this section's own header comment for the fix and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit. This script was not re-run for #412, so this detail string still describes the pre-#412 run until this estate's next real run."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
@@ -1702,7 +1702,7 @@ EOF
   # Break text in tools/gauntlet/stages.go for day2_remove is literally
   # "keep the block; no destroy may be proposed".
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live security group's id before day2_remove ==="
   SG1_ID_E="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.worker_group_mgmt_one"]}]' --query "SecurityGroups[0].GroupId" --output text)"
   [ -n "$SG1_ID_E" ] && [ "$SG1_ID_E" != "None" ] || fail "no live security group found by its tofu-address marker (worker_group_mgmt_one) before day2_remove even starts"
@@ -1767,11 +1767,11 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=""
+gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13) - two MORE, fresh floci
 # containers on the same $NET (real EKS mode's k3s/EC2-simulation sibling
@@ -1783,7 +1783,7 @@ CURRENT_STAGE=""
 # compared structurally via the AWS CLI on both endpoints, never through
 # tofu state, never through choudoufu's own report.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
 docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -1998,7 +1998,7 @@ fi
 log "  object-by-object match: cluster status/version, autoscaling-group count and sorted desired capacities, and the cluster-owned security-group count - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
 
 gauntlet_stage greenfield pass "54 resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # The green/oracle floci containers, and whatever k3s/EC2-simulation sibling
 # containers they spawned, are deliberately left running rather than swept

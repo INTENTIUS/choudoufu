@@ -28,8 +28,14 @@ type RunOptions struct {
 	Env   []string // extra KEY=VALUE for every script
 	// Parallel is how many estates run concurrently, each against its own
 	// isolated floci emulator (#437). <=1 means serial: the exact code path
-	// this runner has always used, so a plain `gauntlet run` is unaffected
-	// byte-for-byte by parallel mode existing at all.
+	// this runner has always used - one estate at a time, in order - with
+	// one addition since #520: every run this package launches, serial
+	// included, is assigned an explicit FLOCI_PORT (flociPortEnv(0) for
+	// serial, the same allocator -parallel N>1 uses per slot), so a plain
+	// `gauntlet run` no longer leaves FLOCI_PORT unset for the script's own
+	// hard-coded default to catch. Nothing else about the serial path
+	// changed; #437's equivalence argument still holds for everything but
+	// the port itself.
 	Parallel int
 	Stdout   io.Writer
 }
@@ -45,10 +51,35 @@ type RunOptions struct {
 // FLOCI_PORT+20). 5000 leaves headroom above that without the base climbing
 // anywhere near a fixed script's own hard-coded default (4600-4800) or the
 // 65535 ceiling for any parallelism this runner is actually asked for.
+//
+// #520: every run this package launches - serial included - is assigned a
+// FLOCI_PORT from this same allocator (flociPortEnv below), not only
+// -parallel N>1 runs. Before #520, a serial run (the default: a plain
+// `gauntlet run <estate>`, or -parallel 1 explicitly) left FLOCI_PORT unset
+// and so fell back to whatever constant that estate's own run.sh hard-coded
+// - a fixed set of defaults allocated one apart while several scripts derive
+// green/oracle ports as base+1 and base+2, so they land on neighbours'
+// bases. Two estates only actually collide when they run at the same time
+// on the same host, which a purely serial runner invocation never does to
+// itself - but every worker in this repo's catch-up work invokes estates
+// directly, several at once, and every one of them fell back to the same
+// colliding defaults. Making the runner assign a port on every invocation,
+// not just concurrent ones, means a script's own default is a fallback for
+// hand-invocation only and never participates in a runner-launched run,
+// concurrent or not.
 const (
 	parallelPortBase   = 20000
 	parallelPortStride = 5000
 )
+
+// flociPortEnv returns the FLOCI_PORT=<port> environment entry for
+// concurrency slot n (0 for the serial path, which only ever has one slot
+// live at a time). It is the single source both runResults branches use, so
+// the serial path's port and slot 0 of a parallel run are computed exactly
+// the same way.
+func flociPortEnv(slot int) string {
+	return fmt.Sprintf("FLOCI_PORT=%d", parallelPortBase+slot*parallelPortStride)
+}
 
 // RunEstates executes each selected estate's script, parses the protocol,
 // and updates the artifact in memory. It returns the number of scripts that
@@ -64,7 +95,16 @@ const (
 // a.Emulator is what the NEXT run will use, which is a different fact than
 // what THIS run used, even though the two are equal at the instant this
 // function is called.
+//
+// Every row this call touches is also stamped with this call's own
+// probeOracle() result (oracle.go, issue #544) - the stock terraform/tofu
+// releases actually found on PATH, probed once here rather than threaded in
+// like emulator: unlike the emulator digest, nothing forces the binaries a
+// script finds on PATH to match live/oracle-versions.json's pin, so that
+// pin would be configuration asserted as evidence, not evidence. See
+// OracleVersions's doc comment (artifact.go).
 func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, emulator string) (int, error) {
+	oracle := probeOracle()
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -132,7 +172,8 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				prevSeconds[k] = v
 			}
 		}
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		rowOracle := oracle
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
 		if res.Spoken {
 			if r.Stages == nil {
 				r.Stages = map[string]string{}
@@ -167,12 +208,48 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				// TestNonzeroExitCodeImpliesAFailingStage
 				// (gauntlet_test.go) exists to catch, and did catch (#497).
 				// recordRunnerFailure writes a real fail into the earliest
-				// active stage so the guard passes honestly instead of
-				// being relaxed; every other stage's carried-forward
-				// verdict is left untouched, because this run genuinely
-				// says nothing new about them.
-				failedStage := recordRunnerFailure(&r, exit)
+				// unconfirmed active stage so the guard passes honestly
+				// instead of being relaxed; every other stage's
+				// carried-forward verdict is left untouched, because this
+				// run genuinely says nothing new about them.
+				failedStage := recordRunnerFailure(&r, exit, res.Stages)
 				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; recorded %s=%s as a runner/environment failure (not a product regression), every other stage carried forward untouched, exit code %d noted\n", e.Name, failedStage, VerdictFail, exit)
+			} else if exit != 0 {
+				// #555: a script can now speak SOME stage verdicts this run
+				// and still die in the unattributed gap between two
+				// stages - setup for the next stage, an oracle comparison
+				// that never itself calls gauntlet_stage - now that
+				// CURRENT_STAGE is cleared instead of silently inherited.
+				// That is the fix working correctly (no stage is blamed for
+				// a failure that was not its own), but it reproduces
+				// #497's own shape one level up: r.Stages can come out of
+				// the merge above with a nonzero exit code and nothing
+				// anywhere in the row reading fail, which is exactly what
+				// TestNonzeroExitCodeImpliesAFailingStage exists to catch.
+				// Before #555, this window instead recorded a real (if
+				// misattributed) fail on whatever stage CURRENT_STAGE
+				// still happened to name, which satisfied the guard by
+				// accident; #555 must not trade that wrong-but-present
+				// verdict for a right-but-absent one. So: if this run's own
+				// stage lines already contain a fail, nothing to do - the
+				// script correctly attributed its own failure. Otherwise,
+				// check the FULL merged row (this run's verdicts plus
+				// whatever survived carry-forward) for any fail at all;
+				// only if there is truly none anywhere does this record a
+				// runner failure, on the earliest active stage this run did
+				// not confirm - the honest "as far as we got" boundary,
+				// never a stage this run just reported pass for.
+				hasFail := false
+				for _, v := range r.Stages {
+					if v == VerdictFail {
+						hasFail = true
+						break
+					}
+				}
+				if !hasFail {
+					failedStage := recordRunnerFailure(&r, exit, res.Stages)
+					fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol and reported %d stage verdict(s) this run, but exited non-zero with no stage anywhere in the row reading fail - the failure happened in the gap between two stages, attributed to neither; recorded %s=%s as a runner/environment failure at the earliest stage this run never reached (not a product regression), every stage this run did confirm keeps its own verdict, exit code %d noted\n", e.Name, len(res.Stages), failedStage, VerdictFail, exit)
+				}
 			}
 			for _, u := range res.Unknown {
 				fmt.Fprintf(opts.Stdout, "%s: reported unknown stage %q; add it to tools/gauntlet/stages.go or fix the script\n", e.Name, u)
@@ -190,15 +267,27 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	return failures, nil
 }
 
-// recordRunnerFailure marks r as having failed the earliest active stage
-// (today: cold_deploy, the stage every script confirms before anything
-// else) with a detail line that names this as a runner/environment
-// failure rather than a product regression. It is called only from the
-// res.Spoken && len(res.Stages) == 0 branch above: the script spoke the
-// gauntlet protocol but died before its first GAUNTLET stage= line, so
-// r.Stages was left exactly as the prior run recorded it and would
-// otherwise carry a stale "pass" forward under a freshly stamped
-// commit/date/exit_code (#497).
+// recordRunnerFailure marks r as having failed the earliest ACTIVE stage
+// this run did not itself report a verdict for - not always cold_deploy,
+// though that is what it picks whenever spokenThisRun is empty (#497's
+// original shape: the script died before its first GAUNTLET stage= line, so
+// nothing was spoken and cold_deploy, first in ActiveStages(), is the
+// earliest unconfirmed one). #555 added the second caller: spokenThisRun
+// can be non-empty when a script reports several real verdicts and then
+// dies in the unattributed gap between two stages - the earliest active
+// stage NOT in spokenThisRun is the honest "as far as we got" boundary
+// there, and deliberately never a stage spokenThisRun already confirmed
+// pass (overwriting a verdict this run just earned would be its own false
+// fail, the same shape #413/#555 both exist to prevent, just pointed at a
+// different stage).
+//
+// Either way the detail text names this as a runner/environment failure
+// rather than a product regression, and every stage's carried-forward
+// verdict besides the one written here is left untouched - r.Stages was
+// left exactly as the prior run recorded it (the #497 shape) or exactly as
+// this run's own merge already produced it (the #555 shape), and this
+// function must not disturb either without disturbing the one entry it is
+// responsible for.
 //
 // It returns the stage id it wrote, for the caller's own log line.
 //
@@ -206,19 +295,43 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 // guarantees this before calling) and r.LastRun must already be set; both
 // are asserted implicitly by writing straight into them, matching every
 // other write in this file's merge loop.
-func recordRunnerFailure(r *EstateResult, exit int) string {
+func recordRunnerFailure(r *EstateResult, exit int, spokenThisRun map[string]string) string {
 	active := ActiveStages()
 	if len(active) == 0 {
 		// Stages() always declares cold_deploy active; this is defensive,
 		// not a reachable case today.
 		return ""
 	}
-	id := active[0].ID
+	id := ""
+	for _, s := range active {
+		if _, ok := spokenThisRun[s.ID]; !ok {
+			id = s.ID
+			break
+		}
+	}
+	if id == "" {
+		// Every active stage was confirmed by this run's own GAUNTLET
+		// lines, yet the process still exited non-zero with none of them
+		// reading fail - e.g. a cleanup trap ran after the last stage's own
+		// pass and itself failed. Not reachable by either caller today
+		// (the len(res.Stages)==0 branch never has anything in
+		// spokenThisRun; the #555 branch only runs when the merged row has
+		// no fail, and a script that genuinely confirmed every active
+		// stage pass this run without ever reporting fail is the one case
+		// that shape excludes), but defensive rather than a silent no-op:
+		// blame the last active stage, the closest thing to "where the run
+		// was standing" when it died.
+		id = active[len(active)-1].ID
+	}
 	r.Stages[id] = VerdictFail
 	if r.LastRun.Detail == nil {
 		r.LastRun.Detail = map[string]string{}
 	}
-	r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol but reported zero stage verdicts this run (exit code %d) - environment/setup failure before stage 1, not a product regression; every other stage below is carried forward from an earlier run, not reconfirmed this run", exit)
+	if len(spokenThisRun) == 0 {
+		r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol but reported zero stage verdicts this run (exit code %d) - environment/setup failure before stage 1, not a product regression; every other stage below is carried forward from an earlier run, not reconfirmed this run", exit)
+	} else {
+		r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol and reported %d stage verdict(s) this run, but exited non-zero (exit code %d) with no stage anywhere in the row reading fail - the failure happened in the gap after the last confirmed stage and before %s could begin, not a product regression against %s itself; every stage this run did confirm (including a pass) keeps that verdict untouched", len(spokenThisRun), exit, id, id)
+	}
 	return id
 }
 
@@ -238,7 +351,12 @@ type oneResult struct {
 // goroutine - textually the same loop this function replaced, so serial
 // mode's behaviour (including "stop dispatching more scripts after the
 // first hard runOne error", which the merge loop in RunEstates still relies
-// on) is unchanged.
+// on) is unchanged apart from the one thing #520 adds: each call now also
+// gets an explicit FLOCI_PORT (flociPortEnv(0), the same value slot 0 of a
+// parallel run would get), instead of leaving FLOCI_PORT unset the way
+// serial mode did before #520. Nothing else about the serial code path
+// moved - #437's equivalence argument (see RunOptions.Parallel) rests on
+// that.
 //
 // opts.Parallel >1 runs up to that many scripts at once. Each concurrent
 // slot (not each estate - a slot is handed back to the pool and reused the
@@ -263,7 +381,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 	}
 	if parallel <= 1 {
 		for i, e := range selected {
-			res, exit, elapsed, err := runOne(root, e, opts, nil)
+			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(0)})
 			results[i] = oneResult{res, exit, elapsed, err}
 			if err != nil {
 				// Matches the pre-#437 loop exactly: a hard runOne error
@@ -299,7 +417,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 		go func() {
 			defer wg.Done()
 			defer func() { slots <- slot }()
-			env := []string{fmt.Sprintf("FLOCI_PORT=%d", parallelPortBase+slot*parallelPortStride)}
+			env := []string{flociPortEnv(slot)}
 			res, exit, elapsed, err := runOne(root, e, runOpts, env)
 			results[i] = oneResult{res, exit, elapsed, err}
 		}()

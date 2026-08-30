@@ -25,6 +25,41 @@ func dataStoreResourceSchema() providers.Schema {
 				"output":           {Type: cty.DynamicPseudoType, Computed: true},
 				"triggers_replace": {Type: cty.DynamicPseudoType, Optional: true},
 				"id":               {Type: cty.String, Computed: true},
+				// "store" is a HashiCorp Terraform >= 1.16.0 addition to
+				// terraform_data (not currently produced or consumed by
+				// choudoufu's own plan/apply path for this resource - it
+				// stays null on every state choudoufu itself writes). It
+				// exists here only so [states.ResourceInstanceObjectSrc.Decode]
+				// can decode a state file terraform_data instance that a
+				// newer stock terraform wrote, which live-import's migrate
+				// path does for every RECORD_BACKED instance (see
+				// ratify.go's ratifyRecordBacked). Before this field
+				// existed, decoding such a state failed with "unsupported
+				// attribute \"store\"", demoting the instance from RECORDED
+				// to SKIPPED and changing live-import -approve's summary -
+				// see GitHub issue #498, reproduced locally by forcing
+				// terraform 1.16.0 onto PATH for the cold-deploy stage.
+				// Field shape (including the WriteOnly/Sensitive flags on
+				// its own nested attributes) matches the real schema, read
+				// directly via `terraform providers schema -json` against
+				// terraform 1.16.0's own terraform.io/builtin/terraform
+				// provider - this is a decode-compatibility fix, not an
+				// implementation of the write-only/ephemeral store feature
+				// itself.
+				"store": {
+					NestedType: &configschema.Object{
+						Attributes: map[string]*configschema.Attribute{
+							"input":            {Type: cty.DynamicPseudoType, Optional: true, WriteOnly: true},
+							"output":           {Type: cty.DynamicPseudoType, Computed: true},
+							"replace":          {Type: cty.Bool, Optional: true},
+							"sensitive":        {Type: cty.Bool, Optional: true},
+							"sensitive_output": {Type: cty.DynamicPseudoType, Computed: true, Sensitive: true},
+							"version":          {Type: cty.DynamicPseudoType, Optional: true},
+						},
+						Nesting: configschema.NestingSingle,
+					},
+					Optional: true,
+				},
 			},
 		},
 	}

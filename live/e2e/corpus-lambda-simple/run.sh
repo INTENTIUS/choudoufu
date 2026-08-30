@@ -553,7 +553,7 @@ rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 log "  module + example + fixtures copied out of .corpus into $WORK"
 
 # ── 1. the one delta - emulator flags, no live block yet ───────────────────
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== 1. cold deploy: plain terraform, no live block, no choudoufu ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)(.*?\n)(\}\n)/$1  access_key                  = "test"\n  secret_key                  = "test"\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n$2$3/s' "$EST/main.tf"
@@ -734,7 +734,7 @@ gauntlet_stage cold_deploy pass "8 resources, genuinely cold, genuinely unmarked
 # stocklambda is already DELTA 1 + DELTA 2 with no live block and no state -
 # exactly the base both fresh copies below need - taken above right after
 # the cold apply.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -842,7 +842,7 @@ ORACLE_LOGGROUP_SHAPE="$(loggroup_shape "$ORACLE_ENDPOINT" "/aws/lambda/${ORACLE
 [ "$GREEN_LOGGROUP_SHAPE" = "$ORACLE_LOGGROUP_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_LOGGROUP_SHAPE" "$ORACLE_LOGGROUP_SHAPE"; fail "the greenfield log group's retention differs from the stock oracle"; }
 log "  runtime, handler, memory, timeout and log-group retention match structurally between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "8 resources from nothing (3 taggable + 5 record-backed/config-derived), all three module-nested markers verified via the AWS CLI, 8 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (runtime, handler, memory, timeout, log-group retention)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
@@ -865,7 +865,7 @@ CURRENT_STAGE=""
 # another). The stock oracle below plans the NET rename (original name
 # straight to the final name) on a copy of cold_deploy's own state, before
 # choudoufu or live-import ever touch it.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
 cp -r "$WORK/lambda" "$ORACLE_ROOT"
@@ -962,7 +962,7 @@ log "  stock: zero churn on cold_deploy's own state beyond the pre-existing null
 # cold_deploy's own state (cp -r, same as D-ORACLE above, preserving the
 # module's relative source path), so this oracle runs on the ORIGINAL
 # module name before the real script's own rename ever touches $EST.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.lambda_function's log group via its ForceNew logging_log_group-derived name, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
 cp -r "$WORK/lambda" "$REPLACE_ORACLE_ROOT"
@@ -987,7 +987,7 @@ REPLACE_ORACLE_OTHER="$(grep -E '^  # .+ (will be (destroyed|created)|must be re
   || { printf '%s\n' "$REPLACE_ORACLE_OTHER"; fail "stock proposes a destroy, create or replace beyond the log group's own forced replace and the known null_resource.archive[0] baseline noise"; }
 log "  stock: exactly one replace (the log group) plus its expected in-place cascade (function, inline log policy), beyond the known null_resource.archive[0] baseline noise; plan only, never applied"
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ── STAGE 2: MIGRATE ─────────────────────────────────────────────────────
 log "=== 4. add the live block (record_store, for the estate's random_pet/"
@@ -1132,7 +1132,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "3 stamped, 4 recorded, 0 failed, 1 skipped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ── STAGE 3: TEST PLAN ──────────────────────────────────────────────────────
 log "=== 8. delete the state file, choudoufu live-plan ==="
@@ -1189,7 +1189,7 @@ if [ "$PLAN_RC" -ne 0 ]; then
   gauntlet_stage test_plan fail "BLOCKED for real, at $BLOCKERS diagnostics"
   gauntlet_stage test_apply not_run "STAGE 4 NOT REACHED"
   gauntlet_stage drift_reconverge not_run "STAGE 5 NOT REACHED"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   exit 1
 fi
 
@@ -1284,7 +1284,7 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN
   gauntlet_stage test_plan fail "live-plan raises no diagnostics and proposes zero resource changes, but the plan is not empty"
   gauntlet_stage test_apply not_run "STAGE 4 NOT REACHED"
   gauntlet_stage drift_reconverge not_run "STAGE 5 NOT REACHED"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   fail "live-plan is not empty"
 }
 
@@ -1297,7 +1297,7 @@ log ""
 log "STAGE 3 (test plan): PASS"
 log ""
 gauntlet_stage test_plan pass "no resource change proposed"
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 # ── STAGE 4: TEST APPLY ──────────────────────────────────────────────────────
 log "=== 9. test apply: apply the empty plan; tagged object count and markers unchanged ==="
@@ -1365,7 +1365,7 @@ log ""
 log "STAGE 4 (test apply): PASS"
 log ""
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N; markers and record store intact"
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # ── STAGE 5: DRIFT AND RECONVERGE ───────────────────────────────────────────
 #
@@ -1506,7 +1506,7 @@ fi
 # lambda_function WITHOUT a moved block, which must make choudoufu propose
 # destroying the old address's function and creating the new one - the
 # opposite of every other assertion in this part.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live objects this rename must not disturb ==="
 log "  $LAMBDA_ARN (aws_lambda_function), role $FN_NAME (aws_iam_role), $LOGGROUP_ARN (aws_cloudwatch_log_group)"
 
@@ -1707,7 +1707,7 @@ EOF
   # text cares about are identical either way; BREAK=replace below
   # manufactures the coexistence a skipped destroy half would leave, the
   # same way corpus-sqs-basic's own BREAK=replace does.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.lambda_function_final.aws_cloudwatch_log_group.lambda[0]"
@@ -1802,7 +1802,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.lambda_function_final's ForceNew logging_log_group-derived name proposed exactly one replace at the same declared address (the log group; -/+ destroy and then create) cascading into two expected in-place updates (the function's logging_config, the inline log policy's document) and nothing else beyond the module's own pre-existing null_resource.archive[0] package-timestamp noise; applied cleanly; the old object ($LOGGROUP_ARN) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action beyond the same known noise; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace plus the same in-place cascade (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1853,7 +1853,7 @@ EOF
   # team checks in") - forcing the full, unguided sweep this stage needs to
   # mean anything.
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live objects one more time ==="
   E_LAMBDA_ADDR="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text 2>/dev/null || true)"
   [ "$E_LAMBDA_ADDR" = "module.lambda_function_final.aws_lambda_function.this:0" ] \
@@ -1982,7 +1982,7 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.lambda_function_final's block proposed $WANT_DESTROY_COUNT destroys (the function, the role, its inline aws_iam_role_policy.logs[0] CloudWatch Logs policy, and all three record-located children always; the log group's only when floci's GetResources happens to index it - a documented emulator gap, confirmed by reading logs:list-tags-for-resource directly against the same live object), applied cleanly, the function, the role and the inline log policy genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no further resource action; classifyOrphans did not withhold any destroy as a possible rename. WANT_DESTROY_COUNT moved from 5/6 to 6/7 in this same commit: the inline log policy was previously missing from this stage's own checklist entirely - a genuine leak (an untaggable IAM permission left behind on every destroy of this estate), not a stale assertion, fixed as part of the day2_replace unit that re-measured this stage"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end

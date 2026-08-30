@@ -383,6 +383,38 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("`last_run.commit` refuses (#509's class); a nonzero exit with no failing")
 	w("stage refuses (#413's class); product code differing between base and a")
 	w("side refuses and names the file.")
+	w("")
+	w("## The regression ratchet")
+	w("")
+	w("Every guard above is about internal consistency and provenance - the")
+	w("artifact agrees with itself and with the manifest. None of them is about")
+	w("regression: a stage that was recorded `pass` and comes back anything else")
+	w("this run, with nothing outside the script to contradict the new verdict")
+	w("(#553). `gauntlet run` closes the visible half of that gap: it reads the")
+	w("committed artifact fresh, before this run's own results can overwrite it")
+	w("in memory, and `RatchetViolations` (`tools/gauntlet/ratchet.go`) compares")
+	w("the two. Any estate/stage that regressed off a committed `pass` fails the")
+	w("run - printed to stderr and a nonzero exit - unless it is named in")
+	w("`live/gauntlet/regressions.json`, a small hand-authored ledger, never")
+	w("generated, that a human edits in the same change that earns the")
+	w("regression: the same convention #552 uses for a cohort's resource-count")
+	w("shrink, adapted because `live/gauntlet.json` itself may never be hand-")
+	w("edited. The artifact is still written and rendered either way - ground")
+	w("truth is never withheld to avoid a bad headline - only the run's own exit")
+	w("status carries the refusal.")
+	w("")
+	w("This does not close the invisible half: a script that stops asserting")
+	w("what it used to and still reports `pass` has no independent witness the")
+	w("way a cohort's `resources` count gives #552's shrink guard one. #553's")
+	w("own investigation into the strongest candidate - each stage's `BREAK=1`-")
+	w("style negative control, whose whole job is proving an assertion is load-")
+	w("bearing - found real coverage (every estate in the manifest carries at")
+	w("least one) but no cheap way to re-run it: exercising every control found")
+	w("across the manifest once costs on the order of the full board's own")
+	w("measured wall-clock, not a fraction of it, and nothing today runs them on")
+	w("any cadence at all. That investigation, and why it stops short of")
+	w("building an automated sweep, is recorded in #553 rather than repeated")
+	w("here.")
 	return b.String()
 }
 
@@ -586,15 +618,28 @@ func renderProgressIndex(a *Artifact) string {
 	b.WriteString(frontMatter("How close AWS is", 30, "bookCollapseSection: true"))
 	w("%s", generatedBanner)
 	w("")
-	w("Two numbers, both read from the same artifact the test suite writes. An")
-	w("estate is a real OpenTofu or Terraform configuration, pinned by commit, run")
-	w("through every active stage below side by side with stock OpenTofu against the")
-	w("pinned emulator. It is clear when every headline stage passes - an active")
-	w("stage not marked \"no\" in the Headline column below.")
+	w("**Core estates clear** and **all estates clear**, read from artifacts the")
+	w("test suite writes, are the headline: the answer to whether choudoufu works")
+	w("across real-world configurations, which is the question a customer is")
+	w("asking. An estate is a real OpenTofu or Terraform configuration, pinned by")
+	w("commit, run through every active stage below side by side with stock")
+	w("OpenTofu against the pinned emulator. It is clear when every headline stage")
+	w("passes - an active stage not marked \"no\" in the Headline column below.")
 	w("")
 	w("{{< gauntlet-bars >}}")
 	w("")
 	w("%s", boardBanner(a))
+	w("")
+	w("**Behaviors proven** (%d of %d) is a secondary, development-loop number, not", a.BehaviorsProven, a.BehaviorsTotal)
+	w("a coverage claim: it counts how many of the 14 stages below have a FAST")
+	w("tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script that")
+	w("runs in minutes rather than an estate's own hours - whose representative")
+	w("set (a real `count` block, a real `for_each` map, a module-nested case, and,")
+	w("for a stage touching identity resolution, one fixture per identity kind)")
+	w("all pass. **A stage with no tier-1 fixture is not unproven** - it is proven")
+	w("by the estates above, just slowly; this number says only how many stages")
+	w("have a fast signal for contributors, and it neither substitutes for the")
+	w("bars above nor gates anything on this page.")
 	w("")
 	w("## The stages")
 	w("")
@@ -645,7 +690,53 @@ func renderProgressIndex(a *Artifact) string {
 		w("| [%s]({{< relref \"%s\" >}}) | %s | %s |", r.Name, r.Name, runtimeTotalCell(r), mdCell(runtimeStageCells(r, a)))
 	}
 	w("")
+	if section := renderLiveCertSection(a); section != "" {
+		w("%s", section)
+	}
 	w("To add an estate, see [Add an estate]({{< relref \"add-an-estate\" >}}).")
+	return b.String()
+}
+
+// renderLiveCertSection is the live-AWS certification section (issue #440):
+// deliberately its own section, after Run time and before the closing "add
+// an estate" line, never folded into "## The estates" above or into
+// {{< gauntlet-bars >}}. Every LiveCertResult in a.LiveCert is real-AWS (or,
+// for a Stage-1 proving record that somehow reached the artifact - it
+// should not, per RunLiveCert's own doc comment - target=floci) evidence
+// that Artifact.Rebuild never sums into Sets["core"]/Sets["all"]; this
+// section's own banner line says so explicitly, in words, on the page
+// itself - the same "the rendered claim must say what the rows underneath
+// actually support" discipline boardBanner already holds the emulator/date
+// claims above to (see boardBanner's own doc comment), applied here to keep
+// this evidence from reading as more of the same thing.
+func renderLiveCertSection(a *Artifact) string {
+	if len(a.LiveCert) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...); b.WriteString("\n") }
+	w("## Live-AWS certification")
+	w("")
+	w("Separate from the two bars above, and never counted toward either of")
+	w("them: a real-AWS run for the named estate, at the date and account")
+	w("below, is evidence about ONE run against a real account, not a")
+	w("repeatable comparison against stock the way an emulator row is. See")
+	w("[HANDOFF.md](https://github.com/INTENTIUS/choudoufu/blob/main/HANDOFF.md)")
+	w("\"What a measurement is worth\" for why the two are never averaged")
+	w("together.")
+	w("")
+	w("| Estate | Target | Region | Clear | Date | Ceiling |")
+	w("|---|---|---|---|---|---|")
+	rows := append([]LiveCertResult(nil), a.LiveCert...)
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Estate < rows[j].Estate })
+	for _, r := range rows {
+		clear := "no"
+		if r.Clear {
+			clear = "yes"
+		}
+		w("| %s | %s | %s | %s | %s | $%.2f |", r.Estate, r.Target, r.Region, clear, r.Date, r.CeilingUSD)
+	}
+	w("")
 	return b.String()
 }
 
@@ -834,6 +925,18 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 	default:
 		w("Verdicts were recorded from this estate's crossing script by hand before the")
 		w("script spoke the gauntlet protocol; the next run that does will replace them.")
+	}
+	// Oracle provenance (issue #544), beside the emulator note above: only
+	// present once a real run has probed it (RunEstates, run.go). Silent for
+	// every row that predates this field - never claiming evidence a run
+	// never actually recorded.
+	if r.LastRun != nil && r.LastRun.Oracle != nil {
+		switch {
+		case *r.LastRun.Oracle == a.Oracle:
+			w("Oracle: stock terraform `%s`, stock tofu `%s` (matches the current pin).", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu)
+		default:
+			w("Oracle: stock terraform `%s`, stock tofu `%s`. **Stale**: the current pin is terraform `%s`, tofu `%s`.", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu, a.Oracle.Terraform, a.Oracle.Tofu)
+		}
 	}
 	if r.Notes != "" {
 		w("")

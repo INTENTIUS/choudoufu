@@ -7,6 +7,7 @@ package acceptance
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +51,10 @@ const (
 // written to live/cohort-acceptance.json. And the committed artifact is a
 // ratchet: a cohort it records as passing FAILS this test if it stops
 // passing, while a cohort recorded as failing is reported without failing
-// the run, because its fixture is the known debt criterion 1 works off.
+// the run, because its fixture is the known debt criterion 1 works off. A
+// third check (#539) fails this test regardless of status if any cohort's
+// resource count fell below what was committed - see enforceRatchet's doc
+// comment for why that has to be just as hard a failure as the first one.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/acceptance -run TestCohortAcceptance -v -timeout 6h
 func TestCohortAcceptance(t *testing.T) {
@@ -177,10 +181,8 @@ func runCohort(t *testing.T, src, tofuBin string) CohortResult {
 	return res
 }
 
-// enforceRatchet fails the test for any cohort the committed artifact
-// records as passing that did not pass this run. complete says every cohort
-// produced a verdict; only then is a recorded-pass cohort with no verdict
-// an error, since under a -run filter absence just means filtered out.
+// enforceRatchet fails the test for every violation ratchetViolations finds
+// against the committed artifact.
 func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult, complete bool) {
 	t.Helper()
 
@@ -192,15 +194,60 @@ func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult, c
 		t.Logf("no committed %s yet; every verdict is new", artifactRel)
 		return
 	}
+	for _, v := range ratchetViolations(committed, results, complete) {
+		t.Error(v)
+	}
+}
+
+// ratchetViolations compares this run's results against the committed
+// artifact and returns every way this run may not overwrite it. It is a
+// pure function - no *testing.T - on purpose: TestEnforceRatchetCatchesFixtureShrink
+// has to demonstrate a real violation firing (issue #539's "prove it red
+// first"), and a helper that calls t.Errorf directly can only be proven
+// red by leaving an actually-failing subtest in the suite, which is not a
+// demonstration this repository can commit - see
+// tools/row-gen/retraction_test.go's retractionRefusal for the same shape:
+// the gate is a pure function returning what it found, and only the
+// production call site turns that into a t.Errorf.
+//
+// Two checks, for two different moves. The first catches a cohort that
+// used to round-trip and now does not - it walks the COMMITTED passing set,
+// not the current results, because a recorded-pass cohort whose fixture was
+// deleted or renamed produces no current result at all, and walking results
+// instead said nothing about the easiest way for a pass to stop happening.
+// complete says every cohort produced a verdict; only then is a
+// recorded-pass cohort with no verdict a violation, since under a -run
+// filter absence just means filtered out.
+//
+// The second catches the cheaper move #539 found in the wild: iam-ecr went
+// status=fail/resources=9 to status=pass/resources=6 not because floci or
+// the fixture's coverage improved, but because three resources - including
+// the one PutRegistryScanningConfiguration failed on - were removed from
+// the fixture. That transition is invisible to the first check, because the
+// committed row was never "pass" to begin with; a fixture that loses its
+// failing resources converts a red cohort to green with no signal anywhere
+// else in this artifact. It walks every committed cohort regardless of
+// status, because a resource-count drop matters whether or not the status
+// moved.
+//
+// Both are hard failures, not log lines: internal/live/harness's
+// denominator-floor breach is the sibling convention for "a roster shrank"
+// (a roster below its floor is "not checked... a different measurement" -
+// Breach, no override baked in), and a warn-only shrink guard here is
+// exactly the shape people learn to route around. A fixture legitimately
+// shrinks sometimes - an estate-gen change, a type leaving the admitted set
+// - and the acknowledgment for that is the same one
+// internal/live/harness.Entry.Bound uses: a human lowers the committed
+// count by hand, in the same change that earns it, where a reviewer sees
+// the edit in the PR diff. The gated test is never the one that gets to
+// shrink a count in the committed artifact.
+func ratchetViolations(committed Artifact, results []CohortResult, complete bool) []error {
 	current := map[string]CohortResult{}
 	for _, r := range results {
 		current[r.Name] = r
 	}
-	// Iterate the COMMITTED passing set, not the current results: a
-	// recorded-pass cohort whose fixture was deleted or renamed produces no
-	// current result at all, and the first version of this loop - which
-	// walked results - would have said nothing about the easiest way for a
-	// pass to stop happening.
+
+	var errs []error
 	for _, c := range committed.Cohorts {
 		if c.Status != "pass" {
 			continue
@@ -208,13 +255,28 @@ func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult, c
 		r, ok := current[c.Name]
 		switch {
 		case !ok && complete:
-			t.Errorf("%s: recorded as passing in %s and produced no verdict this run - fixture deleted or renamed", c.Name, artifactRel)
+			errs = append(errs, fmt.Errorf("%s: recorded as passing in %s and produced no verdict this run - fixture deleted or renamed", c.Name, artifactRel))
 		case !ok:
 			// A -run filter left it out; nothing to say.
 		case r.Status != "pass":
-			t.Errorf("%s: recorded as passing in %s and now fails at phase %s: %s", c.Name, artifactRel, r.Phase, r.Detail)
+			errs = append(errs, fmt.Errorf("%s: recorded as passing in %s and now fails at phase %s: %s", c.Name, artifactRel, r.Phase, r.Detail))
 		}
 	}
+	// Every committed cohort, pass or fail: a resource-count drop is the
+	// signal regardless of which direction the status moved, or whether it
+	// moved at all. Missing from this run (-run filter, or a deleted
+	// fixture) has nothing to compare and is left to the loop above.
+	for _, c := range committed.Cohorts {
+		r, ok := current[c.Name]
+		if !ok || r.Resources >= c.Resources {
+			continue
+		}
+		errs = append(errs, fmt.Errorf("%s: resource count fell from %d (committed, status=%s) to %d (this run, status=%s) - "+
+			"a shrunken fixture is not the same evidence as the one it replaced, and a pass on it is not a "+
+			"coverage gain. If this shrink is deliberate, edit the committed count in %s by hand in the same "+
+			"change; do not let this test regenerate over it", c.Name, c.Resources, c.Status, r.Resources, r.Status, artifactRel))
+	}
+	return errs
 }
 
 // runInit runs an init under the shared plugin cache's cross-process lock,

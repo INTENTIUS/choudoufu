@@ -134,7 +134,18 @@ set -uo pipefail
 #                stage 3's assertion, and to tamper a second, unrelated
 #                object's tag ahead of stage 5's drift assertion - proving
 #                both are load-bearing rather than a grep/count that always
-#                matches.
+#                matches. Set to 6 to exercise day2_rename's own break
+#                control (rename module.dynamodb_table WITHOUT a moved
+#                block).
+#   BREAK_REMOVE  set to 1 to exercise day2_remove's own break control:
+#                keep module.dynamodb_table_final's block and assert no
+#                destroy is proposed.
+#   BREAK_COUNT  set to 1 to exercise day2_count's own break control (PART
+#                G, far below): after the real scale-down plan, assert the
+#                WRONG instance (count_test[0] rather than count_test[1])
+#                was destroyed - the assertion must fail. Only reachable
+#                when BREAK is not 6 and BREAK_REMOVE is not 1, because
+#                PART G starts from PART E's real, completed removal.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -165,12 +176,25 @@ GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 GREEN_ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_ORACLE_PORT}"
 GREEN_ESTATE="dynamodb-table-basic-greenfield"
 
+# PART G-ORACLE (day2_count's stock oracle, far below) gets its OWN
+# dedicated, always-idle container rather than sharing $ENDPOINT (the real
+# leg's own account, still mid-crossing when G-ORACLE runs) or either
+# greenfield container above (not created until PART GREENFIELD, much
+# later in this script) - by construction this sidesteps PR #502's own
+# finding that a stock oracle sharing an endpoint with the real leg can
+# poison the real leg's own lookup. +1200 keeps it clear of the +400/+800
+# offsets above under the same run-twice-1-apart concurrency the comment
+# above describes.
+FLOCI_COUNT_ORACLE_PORT="${FLOCI_COUNT_ORACLE_PORT:-$((FLOCI_PORT + 1200))}"
+FLOCI_COUNT_ORACLE_NAME="choudoufu-corpus-dynamodb-table-basic-count-oracle-$$"
+COUNT_ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_COUNT_ORACLE_PORT}"
+
 ESTATE="dynamodb-table-basic-crossing"
 REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 # 2026-08-21 fix: the header documents DEBUG_KEEP but the trap never
@@ -251,7 +275,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
 ( cd "$EX" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EX" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -311,7 +335,7 @@ log ""
 # stock oracle below plans the NET rename (original name straight to the
 # final name) on a copy of cold_deploy's own state, before choudoufu or
 # live-import ever touch it.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
 cp -r "$EST" "$ORACLE_ROOT"
@@ -346,7 +370,7 @@ log "  stock: zero churn on cold_deploy's own state - the module move reports on
 # module.dynamodb_table's own outputs, so removing its block leaves nothing
 # for outputs.tf to reference - emptied outright rather than edited output
 # by output.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-REMOVE-ORACLE. stock: delete module.dynamodb_table's block on cold_deploy's own state ==="
 REMOVE_ORACLE_ROOT="$WORK/oracle-remove"
 cp -r "$EST" "$REMOVE_ORACLE_ROOT"
@@ -366,7 +390,7 @@ grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] w
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys"; }
 log "  stock: exactly two destroys (the table and its resource policy), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A THIRD
@@ -386,7 +410,7 @@ CURRENT_STAGE=""
 # changing (a brand-new table, not a renamed one) is expected to cascade
 # into a forced replace of the resource policy too - confirmed below by
 # the plan itself, not assumed.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.dynamodb_table's table via its ForceNew name argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/oracle-replace"
 cp -r "$EST" "$REPLACE_ORACLE_ROOT"
@@ -405,15 +429,182 @@ grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] must be rep
 REPLACE_ORACLE_POLICY_REPLACES=0
 grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" && REPLACE_ORACLE_POLICY_REPLACES=1
 log "  stock: replaces module.dynamodb_table's table at the same declared address (resource_arn-dependent resource_policy also replaces: $REPLACE_ORACLE_POLICY_REPLACES) on the state cold_deploy produced - plan only, not applied (same convention as D-ORACLE/D-REMOVE-ORACLE: this copy shares floci's account with \$EST, and actually applying here would destroy the real table the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, active -
+# live/GAUNTLET.md #8, issue #359/#488)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# THE COUNTABLE-KNOB SEARCH (issue #488's own fallback clause; see
+# live/e2e/corpus-xancloud-iac/run.sh's own Part F for the preferred,
+# real-knob shape). This estate's real module
+# (terraform-aws-modules/terraform-aws-dynamodb-table v5.5.1) has NO honest
+# resource-level count/for_each knob a caller can vary: every `count` on
+# aws_dynamodb_table.this / this_ignore_changes_gsi / this_with_autoscaling
+# is boolean-shaped (`var.create_table && ... ? 1 : 0`, confirmed by
+# reading main.tf directly - never a numeric value a caller varies), and
+# its one list-shaped input, var.replica_regions, drives a
+# `dynamic "replica" { for_each = var.replica_regions ... }` block NESTED
+# INSIDE the table resource itself, not a separate resource with its own
+# instances - scaling it would change one resource's attributes in place,
+# never destroy or create a resource instance the way this stage's Proves
+# text needs. var.global_secondary_indexes is the same shape (a `dynamic`
+# block inside the same resource). So this estate follows
+# live/e2e/corpus-iam-read-only-policy/run.sh's PART G/PART G-ORACLE
+# precedent instead (PR #500, issue #488's own fallback clause): a
+# synthetic aws_dynamodb_table.count_test resource, added and removed
+# entirely within this oracle and PART G (its real-leg counterpart, far
+# below) - nothing else in this estate ever names it.
+#
+# A DEDICATED, ALWAYS-IDLE container (FLOCI_COUNT_ORACLE_PORT, declared
+# above next to the other floci ports), never shared with $ENDPOINT (the
+# real leg's own account, still mid-crossing at this point in the script)
+# or either greenfield container (not created until PART GREENFIELD, much
+# later) - by construction this sidesteps PR #502's own finding that a
+# stock oracle sharing an endpoint with the real leg can poison the real
+# leg's own lookup, the same trap live/HANDOFF.md's dispatch notes name.
+#
+# THE IDENTITY DISCRIMINATOR (identity semantics vary by type - never
+# copied from another estate's assertion). Established directly against
+# this floci pin with no tofu in the loop before writing anything below:
+# create-table, describe (capture TableArn + TableId), delete-table,
+# recreate under the IDENTICAL name, describe again. TableArn was BYTE
+# IDENTICAL both times (arn:aws:dynamodb:<region>:<account>:table/<name> -
+# deterministic from region+account+name, the same shape
+# corpus-iam-read-only-policy's own aws_iam_policy ARN finding), while
+# TableId was a DIFFERENT server-minted UUID each time
+# (c4928135-4bdb-465c-947f-aaf4c566418e, then
+# d8abfba6-dfc7-4df8-9a8d-4d6881844fe2, same table name both times). So
+# TableId, not TableArn, is this type's "genuinely a new object"
+# discriminator - the exact same shape PolicyId was for aws_iam_policy in
+# PR #500, just a different field name.
+gauntlet_begin_stage day2_count
+count_test_block() { # $1 = count
+  local n="$1"
+  cat <<COUNTEOF
+resource "aws_dynamodb_table" "count_test" {
+  count        = $n
+  name         = "dynamodb-count-test-\${count.index}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  tags = {
+    Example = "day2_count evidence (issue #359/#488)"
+  }
+}
+COUNTEOF
+}
+oracle_count_provider() {
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  s3_use_path_style           = true
+}
+
+EOF
+}
+
+log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in a dedicated always-idle account ==="
+docker run -d --rm -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
+COUNT_ORACLE_HEALTH=""
+for _ in $(seq 1 45); do
+  COUNT_ORACLE_HEALTH="$(curl -fs "${COUNT_ORACLE_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"dynamodb"' <<< "${COUNT_ORACLE_HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"dynamodb"' <<< "${COUNT_ORACLE_HEALTH:-}" || fail "the day2_count oracle floci did not come up healthy (dynamodb) at $COUNT_ORACLE_ENDPOINT"
+log "  healthy: $COUNT_ORACLE_ENDPOINT"
+
+PLAIN_ORACLE_COUNT="$WORK/oracle-count"
+mkdir -p "$PLAIN_ORACLE_COUNT"
+{ oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
+[ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 2 count-test tables for the day2_count oracle"; }
+
+awso() { aws --endpoint-url "$COUNT_ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+ORACLE_CT0_ARN="$(awso dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableArn' --output text)"
+ORACLE_CT1_ARN="$(awso dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableArn' --output text)"
+[ -n "$ORACLE_CT0_ARN" ] && [ "$ORACLE_CT0_ARN" != "None" ] || fail "no oracle count_test[0] table found by name"
+[ -n "$ORACLE_CT1_ARN" ] && [ "$ORACLE_CT1_ARN" != "None" ] || fail "no oracle count_test[1] table found by name"
+ORACLE_CT0_ID="$(awso dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text)"
+ORACLE_CT1_ID="$(awso dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableId' --output text)"
+[ -n "$ORACLE_CT0_ID" ] && [ "$ORACLE_CT0_ID" != "None" ] || fail "oracle count_test[0] has no TableId"
+[ -n "$ORACLE_CT1_ID" ] && [ "$ORACLE_CT1_ID" != "None" ] || fail "oracle count_test[1] has no TableId"
+log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) count_test[1]=$ORACLE_CT1_ARN (id=$ORACLE_CT1_ID)"
+
+{ oracle_count_provider; count_test_block 1; } > "$PLAIN_ORACLE_COUNT/main.tf"
+ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+[ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+grep -qE '^  # aws_dynamodb_table\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_dynamodb_table\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+ORACLE_DOWN_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_DOWN_APPLY_RC=$?
+[ "$ORACLE_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+ORACLE_CT0_ID_AFTER_DOWN="$(awso dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text)"
+[ "$ORACLE_CT0_ID_AFTER_DOWN" = "$ORACLE_CT0_ID" ] || fail "stock's surviving count_test[0] changed TableId across the scale-down ($ORACLE_CT0_ID -> $ORACLE_CT0_ID_AFTER_DOWN)"
+if ORACLE_CT1_STILL="$(awso dynamodb describe-table --table-name dynamodb-count-test-1 2>&1)"; then
+  echo "$ORACLE_CT1_STILL"; fail "stock's count_test[1] still exists after the scale-down destroy"
+fi
+log "  stock: exactly one destroy (count_test[1]=$ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged"
+
+{ oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
+ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+[ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+grep -qE '^  # aws_dynamodb_table\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_dynamodb_table\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+ORACLE_UP_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_UP_APPLY_RC=$?
+[ "$ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+ORACLE_CT1_NEW_ARN="$(awso dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableArn' --output text)"
+[ -n "$ORACLE_CT1_NEW_ARN" ] && [ "$ORACLE_CT1_NEW_ARN" != "None" ] || fail "no oracle count_test[1] table found after the scale-up"
+[ "$ORACLE_CT1_NEW_ARN" = "$ORACLE_CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($ORACLE_CT1_NEW_ARN) differs from its pre-destroy ARN ($ORACLE_CT1_ARN) - unexpected: aws_dynamodb_table's ARN is region/account/name-derived and should be identical both times"
+ORACLE_CT1_NEW_ID="$(awso dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableId' --output text)"
+[ "$ORACLE_CT1_NEW_ID" != "$ORACLE_CT1_ID" ] || fail "stock's recreated count_test[1] came back with the SAME TableId it had before being destroyed - the destroy was not real"
+ORACLE_CT0_ID_AFTER_UP="$(awso dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text)"
+[ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed TableId across the scale-up"
+log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from region+account+name - but a NEW TableId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
+
+docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_end_stage
+
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 # 2026-08-21 fix: the original regex assumed required_providers held ONLY
 # the aws entry (immediately followed by required_providers's own closing
@@ -490,7 +681,7 @@ log ""
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identity re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (live-plan empty, identity re-checked) ==="
 [ ! -f "$EX/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -523,7 +714,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -549,7 +740,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 if [ "${BREAK:-}" = "1" ]; then
   awsl dynamodb tag-resource --resource-arn "$TABLE_ARN" --tags Key=Environment,Value=tampered-by-BREAK
@@ -611,7 +802,7 @@ else
   # renaming module.dynamodb_table WITHOUT a moved block, which must make
   # choudoufu propose destroying the old address's table and creating the
   # new one - the opposite of every other assertion in this part.
-  CURRENT_STAGE=day2_rename
+  gauntlet_begin_stage day2_rename
   log "=== D0. capture the live table this rename must not disturb ==="
   log "  $TABLE_ARN (module.dynamodb_table.aws_dynamodb_table.this[0])"
 
@@ -753,7 +944,7 @@ EOF
     # confirmed below by the plan's own "-/+ destroy and then create
     # replacement" legend). BREAK=replace manufactures the coexistence a
     # skipped destroy would leave behind directly via the AWS CLI.
-    CURRENT_STAGE=day2_replace
+    gauntlet_begin_stage day2_replace
     record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
     record_import_id() { jq -r '.identity.import_id' "$1"; }
     F_ADDR="module.dynamodb_table_final.aws_dynamodb_table.this[0]"
@@ -849,7 +1040,7 @@ EOF
       TABLE_ARN="$F_NEW_ARN"
       gauntlet_stage day2_replace pass "choudoufu: changing module.dynamodb_table_final's ForceNew name argument proposed exactly one table replace at the same declared address, cascading into the untaggable resource policy (its resource_arn argument follows the table's ARN and is not independently updatable, so it also replaces - F-ORACLE's own finding); applied cleanly; the old table is confirmed gone via the AWS CLI (ResourceNotFoundException) and the new table carries the marker; the local record store's record at the same address now names the new table's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the table at the same address (plan only, not applied - it shares floci's account with \$EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones."
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
 
     # ══════════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -869,7 +1060,7 @@ EOF
     # the table's ARN, so it is destroyed first); outputs.tf references only
     # this module's own outputs, so it is emptied rather than edited output
     # by output, the same as the D-REMOVE-ORACLE copy above.
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log "=== E0. capture the live table this removal destroys ==="
     E_ARN_BEFORE="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
     [ "$E_ARN_BEFORE" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
@@ -946,11 +1137,175 @@ EOF
         log "  No changes. The removal is complete and invisible to the next plan."
 
         gauntlet_stage day2_remove pass "choudoufu: deleting module.dynamodb_table_final's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the table and its untaggable resource policy), applied cleanly (0 added, 0 changed, 2 destroyed), the table is genuinely gone from the live account (dynamodb describe-table on the old name now returns ResourceNotFoundException, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly two destroys for the same two objects; classifyOrphans did not withhold either destroy because module.disabled_dynamodb_table declares zero instances of the same block key (create_table=false), so nothing is ever pending against it"
+
+        # ════════════════════════════════════════════════════════════════════
+        # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8,
+        # issue #359/#488)
+        # ════════════════════════════════════════════════════════════════════
+        #
+        # Starts from Part E's real, completed state: module.dynamodb_table_
+        # final and its resource policy are gone (Part E just destroyed this
+        # estate's only real objects). A NEW, entirely synthetic resource
+        # (aws_dynamodb_table.count_test, count_test_block() defined above
+        # G-ORACLE, far above STAGE 2) is added here, in its own file, so
+        # day2_count's own history is self-contained and never revisits an
+        # address any other stage already used - the same discipline
+        # live/e2e/reference-ec2-vpc/run.sh's own Part F and
+        # live/e2e/corpus-iam-read-only-policy/run.sh's own PART G use.
+        # G-ORACLE above is the stock oracle for the identical shape,
+        # applied for real in a dedicated, always-idle account never shared
+        # with this one (the trap PR #502 found: a stock oracle sharing an
+        # endpoint with the real leg can poison the real leg's own lookup).
+        #
+        # tofu-address's TAG VALUE is colon-escaped for a count instance
+        # (live/MARKERS.md): aws_dynamodb_table.count_test:0, never the
+        # bracket form the plan's own CLI text uses.
+        #
+        # THE RECORD FILE ON A DESTROY: TOMBSTONED, NOT REMOVED (the
+        # #398-guard shape; corpus-mastino-dns's own day2_count unit
+        # measured this same trap first, commit 0ad667f847). A destroyed
+        # count instance's local record is not erased - its top-level
+        # "identity" block is replaced with a "tombstone" entry (the
+        # destroyed identity's own attrs plus a timestamp), so nothing
+        # later can misread a leftover file as still naming a live object.
+        # record_tombstoned() below asserts that shape directly
+        # (has("tombstone") and not has("identity")) rather than assuming
+        # the file for the destroyed higher index is simply gone.
+        #
+        # BREAK_COUNT=1 exercises this stage's own Break control instead of
+        # the real checks: after the real scale-down plan, assert the WRONG
+        # instance (count_test[0] rather than count_test[1]) was the one
+        # destroyed - the Break text in tools/gauntlet/stages.go for
+        # day2_count, verbatim: "Expect a different instance to be
+        # destroyed; the assertion must fail." Only reachable when BREAK is
+        # not 6 and BREAK_REMOVE is not 1, because PART G starts from
+        # PART E's real, completed removal.
+        gauntlet_begin_stage day2_count
+        record_tombstoned() { jq -e 'has("tombstone") and (has("identity") | not)' "$1" >/dev/null 2>&1; }
+
+        log "=== G0. choudoufu: add aws_dynamodb_table.count_test, count = 2 ==="
+        count_test_block 2 > "$EX/day2_count.tf"
+        ( cd "$EX" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+          ( cd "$EX" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the count-block-add reinit failed"; }
+        COUNT_ADD_PLAN_OUT="$(plan_into 2>&1)"; COUNT_ADD_PLAN_RC=$?
+        [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -30; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+        grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+          || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -10; fail "adding the count block did not plan exactly 2 creates"; }
+        COUNT_ADD_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+        [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -30; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+        grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+          || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+        G_CT0_ARN="$(awsl dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableArn' --output text)"
+        G_CT1_ARN="$(awsl dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableArn' --output text)"
+        [ -n "$G_CT0_ARN" ] && [ "$G_CT0_ARN" != "None" ] || fail "no live count_test[0] table found by name"
+        [ -n "$G_CT1_ARN" ] && [ "$G_CT1_ARN" != "None" ] || fail "no live count_test[1] table found by name"
+        G_CT0_ADDR_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$G_CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+        G_CT1_ADDR_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$G_CT1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+        [ "$G_CT0_ADDR_TAG" = 'aws_dynamodb_table.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $G_CT0_ADDR_TAG, not aws_dynamodb_table.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+        [ "$G_CT1_ADDR_TAG" = 'aws_dynamodb_table.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $G_CT1_ADDR_TAG, not aws_dynamodb_table.count_test:1"
+        G_CT0_ID="$(awsl dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text)"
+        G_CT1_ID="$(awsl dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableId' --output text)"
+        [ -n "$G_CT0_ID" ] && [ "$G_CT0_ID" != "None" ] || fail "live count_test[0] has no TableId"
+        [ -n "$G_CT1_ID" ] && [ "$G_CT1_ID" != "None" ] || fail "live count_test[1] has no TableId"
+        log "  2 instances created: index 0 = $G_CT0_ARN (tofu-address=$G_CT0_ADDR_TAG, id=$G_CT0_ID), index 1 = $G_CT1_ARN (tofu-address=$G_CT1_ADDR_TAG, id=$G_CT1_ID) - read via the AWS CLI"
+
+        COUNT_NOOP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+        [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+        grep -qE '^  # .+ will be' <<< "$COUNT_NOOP_PLAN_OUT" \
+          && { grep -E '^  # .+ will be' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+        log "  no resource change proposed - both new instances plan empty immediately after creation"
+
+        G_ADDR1="aws_dynamodb_table.count_test[1]"
+        G_RECORD1="$EX/.tofu-records/tofu-records/$ESTATE/aws_dynamodb_table/$(record_key "$G_ADDR1")"
+        [ -f "$G_RECORD1" ] || fail "no local record file found for $G_ADDR1 ahead of the scale-down"
+
+        log "=== G1. scale count down: 2 -> 1 ==="
+        count_test_block 1 > "$EX/day2_count.tf"
+        COUNT_DOWN_PLAN_OUT="$(plan_into 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+        [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -30; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+        if [ "${BREAK_COUNT:-}" = "1" ]; then
+          log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1]"
+          if grep -qE '^  # aws_dynamodb_table\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
+            fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
+          fi
+          log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+        else
+          grep -qE '^  # aws_dynamodb_table\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+            || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+          grep -qE '^  # aws_dynamodb_table\.count_test\[0\] will be' <<< "$COUNT_DOWN_PLAN_OUT" \
+            && { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which should be untouched"; }
+          grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+            || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+          log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched"
+
+          COUNT_DOWN_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+          [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -30; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+          grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+            || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+          G_CT0_ID_AFTER_DOWN="$(awsl dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text 2>/dev/null || true)"
+          [ "$G_CT0_ID_AFTER_DOWN" = "$G_CT0_ID" ] || fail "count_test[0]'s TableId changed across the scale-down ($G_CT0_ID -> $G_CT0_ID_AFTER_DOWN) - it was destroyed and recreated, not left alone"
+          if G_CT1_STILL="$(awsl dynamodb describe-table --table-name dynamodb-count-test-1 2>&1)"; then
+            echo "$G_CT1_STILL"; fail "count_test[1] still exists in the live account after the scale-down destroy - it was orphaned, not destroyed"
+          fi
+          G_CT0_ADDR_AFTER_DOWN="$(awsl dynamodb list-tags-of-resource --resource-arn "$G_CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+          [ "$G_CT0_ADDR_AFTER_DOWN" = 'aws_dynamodb_table.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $G_CT0_ADDR_AFTER_DOWN"
+          log "  $G_CT1_ARN (count_test[1]) no longer exists (ResourceNotFoundException); $G_CT0_ARN (count_test[0]) unchanged TableId ($G_CT0_ID) and marker - all read via the AWS CLI"
+
+          record_tombstoned "$G_RECORD1" \
+            || { cat "$G_RECORD1" >&2; fail "the record for $G_ADDR1 after the scale-down destroy is not a proper tombstone (#398-guard shape: still carries a live identity block, or carries neither)"; }
+          log "  the local record for $G_ADDR1 is correctly tombstoned (has(\"tombstone\") and not has(\"identity\")), not simply removed - read directly off the local record store, not through choudoufu's own report"
+
+          log "=== G2. scale count back up: 1 -> 2 ==="
+          count_test_block 2 > "$EX/day2_count.tf"
+          COUNT_UP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_UP_PLAN_RC=$?
+          [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -30; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+          grep -qE '^  # aws_dynamodb_table\.count_test\[1\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+            || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+          grep -qE '^  # aws_dynamodb_table\.count_test\[0\] will be' <<< "$COUNT_UP_PLAN_OUT" \
+            && { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+          grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+            || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+          log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+          COUNT_UP_APPLY_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+          [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -30; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+          grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+            || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+          G_CT1_NEW_ARN="$(awsl dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableArn' --output text)"
+          [ -n "$G_CT1_NEW_ARN" ] && [ "$G_CT1_NEW_ARN" != "None" ] || fail "no live count_test[1] table found after the scale-up"
+          [ "$G_CT1_NEW_ARN" = "$G_CT1_ARN" ] || fail "the recreated count_test[1]'s ARN ($G_CT1_NEW_ARN) differs from its pre-destroy ARN ($G_CT1_ARN) - unexpected: aws_dynamodb_table's ARN is region/account/name-derived and should be identical both times"
+          G_CT1_NEW_ID="$(awsl dynamodb describe-table --table-name dynamodb-count-test-1 --query 'Table.TableId' --output text)"
+          [ "$G_CT1_NEW_ID" != "$G_CT1_ID" ] || fail "count_test[1] came back with the SAME TableId ($G_CT1_ID) it had before being destroyed - the destroy in G1 was not real"
+          G_CT1_NEW_ADDR_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$G_CT1_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+          [ "$G_CT1_NEW_ADDR_TAG" = 'aws_dynamodb_table.count_test:1' ] || fail "the recreated count_test[1] ($G_CT1_NEW_ARN) carries tofu-address=$G_CT1_NEW_ADDR_TAG, not aws_dynamodb_table.count_test:1"
+          G_CT0_ID_AFTER_UP="$(awsl dynamodb describe-table --table-name dynamodb-count-test-0 --query 'Table.TableId' --output text)"
+          [ "$G_CT0_ID_AFTER_UP" = "$G_CT0_ID" ] || fail "count_test[0]'s TableId changed across the scale-up"
+          log "  count_test[1] recreated under the same ARN ($G_CT1_NEW_ARN, deterministic from region+account+name) but a NEW TableId ($G_CT1_NEW_ID, was $G_CT1_ID), tofu-address=$G_CT1_NEW_ADDR_TAG; count_test[0] ($G_CT0_ARN, id=$G_CT0_ID) untouched throughout the down-then-up cycle - all read via the AWS CLI"
+
+          G_RECORD1_ID="$(record_import_id "$G_RECORD1")"
+          [ "$G_RECORD1_ID" = "dynamodb-count-test-1" ] || fail "the record for $G_ADDR1 after the scale-up names import_id=$G_RECORD1_ID, not dynamodb-count-test-1 - the tombstone was not cleared back to a live identity"
+          log "  the local record for $G_ADDR1 is a live identity again (import_id=$G_RECORD1_ID), not still a tombstone - read directly off the local record store"
+
+          log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+          COUNT_FINAL_PLAN_OUT="$(plan_into 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+          [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -30; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+          grep -qE '^  # .+ will be' <<< "$COUNT_FINAL_PLAN_OUT" \
+            && { grep -E '^  # .+ will be' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+          log "  no resource change proposed. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+          gauntlet_stage day2_count pass "choudoufu: scaling the synthetic aws_dynamodb_table.count_test from 2 to 1 (issue #359/#488's own fallback clause - this estate's real module has no honest resource-level count/for_each knob: create_table is boolean-shaped and replica_regions/global_secondary_indexes drive dynamic blocks nested inside the SAME table resource, not a separate resource instance, confirmed by reading main.tf directly) destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), confirmed gone via the AWS CLI, its local record correctly tombstoned rather than left claiming a live identity (#398-guard shape, has(tombstone) and not has(identity)), and left count_test[0]'s live TableId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] again under the SAME ARN (deterministic from region+account+name - established directly against floci with no tofu in the loop before writing this assertion) but a NEW TableId (0 add -> 1 add, 0 change, 0 destroy), and its local record returned to a live identity, while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 2-instance count block, applied for real in a dedicated always-idle account never shared with this one, shows the identical shape: destroy the higher index only, create it back under the same ARN but a new TableId, the lower index's TableId unchanged both times. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
+        fi
+        rm -f "$EX/day2_count.tf"
+        gauntlet_end_stage
       fi
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
@@ -971,7 +1326,7 @@ EOF
 # table's `name` argument is evaluated - the wall #314 names is specific to
 # live-import resolving an identity argument through a state-derived record,
 # a path a from-nothing apply never takes.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -1034,7 +1389,7 @@ if [ $? -ne 0 ]; then
     # script-only pass (it sits with #388's plan-node seam, HANDOFF's "The
     # order" item 3).
     gauntlet_stage greenfield fail "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)"
-    CURRENT_STAGE=""
+    gauntlet_end_stage
     docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
     SKIP_GREENFIELD_REST=1
   else
@@ -1120,13 +1475,13 @@ else
   log "  resource policy matches too (Sid/Effect/Principal/Action), the templated Resource field normalised out on both sides"
   gauntlet_stage greenfield pass "3 resources from nothing (random_pet + table + resource policy), the table's markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on key schema/attributes/table class/deletion protection/on-demand billing/GSI/resource policy"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
 fi
 
 
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   gauntlet_end
 
   log "=== PASS ==="

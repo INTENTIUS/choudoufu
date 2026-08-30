@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=628 instances=1738
-# shape: class CONCRETE=830
-# shape: class NEEDS_DISCOVERY=746
-# shape: class PARENT_DERIVED=135
+# shape: dirs=629 instances=1740
+# shape: class CONCRETE=828
+# shape: class NEEDS_DISCOVERY=748
+# shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=2883cf0bddd3543cc874a8c9220e3d1ca566a4b7617126d1bcd4f16bee3e15fd
+# shape: body-sha256=59ac1908b594ba25a7ceac72c868970c6425190c3ebd4f5d9541b3484437debe
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -928,6 +928,7 @@ live/e2e/create-over	aws_vpc.control	NEEDS_DISCOVERY
 live/e2e/dataread-projection/phase1	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed
 live/e2e/dataread-projection/phase2	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed
 live/e2e/dataread-projection/refused	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed
+live/e2e/deterministic-recreate	aws_iam_policy.subject	NEEDS_DISCOVERY		
 live/e2e/estate	aws_acm_certificate.app	NEEDS_DISCOVERY		
 live/e2e/estate	aws_cloudwatch_log_group.app	CONCRETE	/stateless-e2e/app	name=/stateless-e2e/app
 live/e2e/estate	aws_cloudwatch_log_group.optional[0]	CONCRETE	/stateless-e2e/optional	name=/stateless-e2e/optional
@@ -1296,6 +1297,7 @@ live/e2e/estates/ecs-eks	aws_ecs_cluster_capacity_providers.app	CONCRETE	tofu-ec
 live/e2e/estates/ecs-eks	aws_ecs_daemon.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_ecs_daemon_task_definition.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_ecs_service.app	CONCRETE	tofu-ecs-eks-cohort-ecs-cluster/tofu-ecs-eks-cohort-ecs-service	cluster=tofu-ecs-eks-cohort-ecs-cluster,name=tofu-ecs-eks-cohort-ecs-service
+live/e2e/estates/ecs-eks	aws_ecs_task_definition.ecs-eks	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_eks_access_entry.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_eks_addon.app	CONCRETE	tofu-ecs-eks-cohort-eks-cluster:tofu-ecs-eks-cohort-eks-addon	addon_name=tofu-ecs-eks-cohort-eks-addon,cluster_name=tofu-ecs-eks-cohort-eks-cluster
 live/e2e/estates/ecs-eks	aws_eks_capability.app	CONCRETE	tofu-ecs-eks-cohort-eks-cluster,tofu-ecs-eks-cohort-eks-capability	capability_name=tofu-ecs-eks-cohort-eks-capability,cluster_name=tofu-ecs-eks-cohort-eks-cluster
@@ -1337,8 +1339,8 @@ live/e2e/estates/iam-ecr	aws_iam_role.iam-ecr	CONCRETE	tofu-iam-ecr-cohort-iam-r
 live/e2e/estates/iam-ecr	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
 live/e2e/estates/iam-ecr	aws_iam_user.app	CONCRETE	tofu-iam-ecr-cohort-iam-user	name=tofu-iam-ecr-cohort-iam-user
 live/e2e/estates/identity	aws_cognito_identity_pool.app	NEEDS_DISCOVERY		
-live/e2e/estates/identity	aws_cognito_identity_pool_provider_principal_tag.app	CONCRETE	us-east-1:00000000-0000-0000-0000-000000000000:tofu-identity-cohort-cognito-identity-pool-provider-principal-tag	identity_pool_id=us-east-1:00000000-0000-0000-0000-000000000000,identity_provider_name=tofu-identity-cohort-cognito-identity-pool-provider-principal-tag
-live/e2e/estates/identity	aws_cognito_identity_pool_roles_attachment.app	CONCRETE	us-east-1:00000000-0000-0000-0000-000000000000	identity_pool_id=us-east-1:00000000-0000-0000-0000-000000000000
+live/e2e/estates/identity	aws_cognito_identity_pool_provider_principal_tag.app	PARENT_DERIVED	${aws_cognito_identity_pool.app.id}:tofu-identity-cohort-cognito-identity-pool-provider-principal-tag	identity_pool_id=${aws_cognito_identity_pool.app.id},identity_provider_name=tofu-identity-cohort-cognito-identity-pool-provider-principal-tag
+live/e2e/estates/identity	aws_cognito_identity_pool_roles_attachment.app	PARENT_DERIVED	${aws_cognito_identity_pool.app.id}	identity_pool_id=${aws_cognito_identity_pool.app.id}
 live/e2e/estates/identity	aws_cognito_identity_provider.app	PARENT_DERIVED	${aws_cognito_user_pool.app.id}:tofu-identity-idp	provider_name=tofu-identity-idp,user_pool_id=${aws_cognito_user_pool.app.id}
 live/e2e/estates/identity	aws_cognito_resource_server.app	PARENT_DERIVED	${aws_cognito_user_pool.app.id}|placeholder	identifier=placeholder,user_pool_id=${aws_cognito_user_pool.app.id}
 live/e2e/estates/identity	aws_cognito_user.app	PARENT_DERIVED	${aws_cognito_user_pool.app.id}/placeholder	user_pool_id=${aws_cognito_user_pool.app.id},username=placeholder

@@ -111,6 +111,11 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		return diags
 	}
 
+	// sweepUntaggedReported is [scanType]'s own "once per type" guard,
+	// mirrored here: an object this leg genuinely could not read is a gap in
+	// removal coverage for the type, not one gap per malformed object.
+	sweepUntaggedReported := false
+
 	for _, desc := range descs {
 		tags, read, refined := cloudControlTags(ctx, req, cfnType, desc)
 		taggable := read == ccTagsPresent
@@ -216,6 +221,32 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			// TestCloudControlNoRegistryRowNeverReachesThisLeg pins that. It
 			// stays because "the artifact said nothing" must never be turned
 			// into a claim about the resource if the two facts ever decouple.
+			//
+			// Issue #531: this used to raise [ProblemNoTags] - an ERROR that
+			// aborts the whole plan, see [Severity] - unconditionally, even
+			// during a sweep of a type the configuration never declares. This
+			// leg had no sweep gate here at all, unlike its native-list twin
+			// in [scanType], which has always routed an unreadable object to
+			// a graceful [SweepGapObjectUntagged] during a sweep and only
+			// hard-fails for a DECLARED type's own scan. An AWS-managed
+			// default resource this estate does not own, whose GetResource
+			// genuinely errors, is not evidence about anything this estate
+			// owns, and the same "declared type's own scan still hard-fails,
+			// unchanged" split [scanType] already draws applies here
+			// identically.
+			if sweep {
+				if !sweepUntaggedReported {
+					sweepUntaggedReported = true
+					diags = diags.Append(sweepGapDiag(res, SweepGap{
+						TypeName: typeName,
+						Reason:   SweepGapObjectUntagged,
+						Detail: fmt.Sprintf(
+							"The estate-wide sweep listed a %s (via Cloud Control, %s) that could not be read at all, so its ownership markers cannot be read and it cannot be matched to this estate. This is expected for a resource this estate does not own, such as an AWS-managed default; the sweep continues over the rest of this type's objects and every other type.",
+							typeName, cfnType),
+					}))
+				}
+				continue
+			}
 			why := "and refining it with GetResource found none either, so its ownership markers cannot be read"
 			if read == ccTagsAbsent {
 				why = fmt.Sprintf("and live/registry.json has no row for %s, so nothing says whether that absence is a fact about this object or about the type - see internal/live/registry's TaggableKnown", cfnType)

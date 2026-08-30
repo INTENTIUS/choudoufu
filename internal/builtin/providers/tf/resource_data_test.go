@@ -52,6 +52,7 @@ func TestManagedDataValidate(t *testing.T) {
 func TestManagedDataUpgradeState(t *testing.T) {
 	schema := dataStoreResourceSchema()
 	ty := schema.Block.ImpliedType()
+	storeTy := ty.AttributeType("store")
 
 	state := cty.ObjectVal(map[string]cty.Value{
 		"input":  cty.StringVal("input"),
@@ -59,7 +60,8 @@ func TestManagedDataUpgradeState(t *testing.T) {
 		"triggers_replace": cty.ListVal([]cty.Value{
 			cty.StringVal("a"), cty.StringVal("b"),
 		}),
-		"id": cty.StringVal("not-quite-unique"),
+		"id":    cty.StringVal("not-quite-unique"),
+		"store": cty.NullVal(storeTy),
 	})
 
 	jsState, err := ctyjson.Marshal(state, ty)
@@ -80,6 +82,38 @@ func TestManagedDataUpgradeState(t *testing.T) {
 
 	if !resp.UpgradedState.RawEquals(state) {
 		t.Errorf("prior state was:\n%#v\nupgraded state is:\n%#v\n", state, resp.UpgradedState)
+	}
+}
+
+// TestManagedDataUpgradeStateMissingStore is issue #498's exact repro shape,
+// asserted at this decode boundary directly rather than only end to end: raw
+// state JSON that predates the "store" field (an older choudoufu build wrote
+// it, or - the issue's real trigger - a HashiCorp Terraform release before
+// 1.16.0 never wrote one at all) must still upgrade cleanly, with "store"
+// simply absent -> null. ctyjson.Unmarshal already treats a type key missing
+// from the raw JSON as null (verified directly against go-cty before relying
+// on it here); this test pins that behavior at the boundary migrate depends
+// on, so a future cty upgrade that tightens this would fail loudly here
+// first.
+func TestManagedDataUpgradeStateMissingStore(t *testing.T) {
+	rawWithoutStore := []byte(`{"id":"not-quite-unique","input":{"value":"input","type":"string"},"output":{"value":"input","type":"string"},"triggers_replace":null}`)
+
+	req := providers.UpgradeResourceStateRequest{
+		TypeName:     "terraform_data",
+		RawStateJSON: rawWithoutStore,
+	}
+
+	resp := upgradeDataStoreResourceState(req)
+	if resp.Diagnostics.HasErrors() {
+		t.Fatal("upgrade state error:", resp.Diagnostics.ErrWithWarnings())
+	}
+
+	storeTy := dataStoreResourceSchema().Block.ImpliedType().AttributeType("store")
+	if got := resp.UpgradedState.GetAttr("store"); !got.RawEquals(cty.NullVal(storeTy)) {
+		t.Errorf("store = %#v, want NullVal(%#v)", got, storeTy)
+	}
+	if got := resp.UpgradedState.GetAttr("id"); !got.RawEquals(cty.StringVal("not-quite-unique")) {
+		t.Errorf("id = %#v, want %#v", got, cty.StringVal("not-quite-unique"))
 	}
 }
 
@@ -117,6 +151,7 @@ func TestManagedDataMovedState(t *testing.T) {
 
 	resp = moveDataStoreResourceState(req)
 
+	storeTy := dataStoreResourceSchema().Block.ImpliedType().AttributeType("store")
 	expectedState := cty.ObjectVal(map[string]cty.Value{
 		"triggers_replace": cty.ObjectVal(map[string]cty.Value{
 			"examplekey": cty.StringVal("value"),
@@ -124,6 +159,7 @@ func TestManagedDataMovedState(t *testing.T) {
 		"id":     cty.StringVal("not-quite-unique"),
 		"input":  cty.NullVal(cty.DynamicPseudoType),
 		"output": cty.NullVal(cty.DynamicPseudoType),
+		"store":  cty.NullVal(storeTy),
 	})
 	if !resp.TargetState.RawEquals(expectedState) {
 		t.Errorf("prior state was:\n%#v\nmoved state is:\n%#v\n", expectedState, resp.TargetState)
