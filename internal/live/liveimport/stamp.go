@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -195,6 +196,43 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 // [identity.DefaultTable]'s 1040 rows. Such an entry keeps
 // [OutcomeSkipped], because what was skipped is the marker write and that is
 // what this axis reports; no count this command prints moves as a result.
+// GitHub issue #583: Approve runs [Ratification.entryWork] over at most this
+// many entries at once when nothing else settles it.
+//
+// Ten, because that is the number stock uses. An OpenTofu apply of the very
+// same estate walks its graph at -parallelism 10 by default
+// (internal/tofu/context.go), and each of those slots is the same kind of
+// work a stamp is: one PlanResourceChange plus one ApplyResourceChange on one
+// instance, through the same provider process, against the same account. An
+// operator who can apply this configuration has already been running ten of
+// these concurrently at every apply, so a migration that does the same asks
+// the account for nothing it has not already been asked for - which is the
+// whole argument, and it is why the default is not tuned higher on the
+// strength of an emulator run. floci does not throttle (issue #567 says so in
+// its opening paragraph), so no measurement taken against it can justify a
+// number above the one real AWS has already been shown to tolerate.
+//
+// Set it per run with live-import's own -parallelism, exactly as stock's
+// apply takes it.
+const DefaultParallelism = 10
+
+// entryResult is one entry's whole contribution to a [StampReport], kept
+// together so [Ratification.Approve] can collect it BY INDEX rather than
+// appending it as it arrives. That is the ordering guarantee StampReport's
+// doc comment makes ("one outcome per Entry the Ratification carried"), and
+// under concurrency it is the only thing keeping it: goroutines finish in
+// whatever order the provider answers them.
+type entryResult struct {
+	outcome StampOutcome
+	diags   tfdiags.Diagnostics
+
+	// identities is what this entry added to [StampReport.IdentitiesRecorded]
+	// - 0 or 1 - summed in index order for the same reason the outcomes are
+	// collected in index order, though a sum is order-insensitive: the
+	// counter has no business being written from several goroutines at once.
+	identities int
+}
+
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -205,97 +243,53 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 	// where the three cases it declines to compute are written down.
 	slotFor := r.migrationSlots()
 
-	rep := &StampReport{Estate: r.Estate}
-	for _, entry := range r.Entries {
-		if rec, ok := r.recordable[entry.Addr.String()]; ok {
-			// Issue #340. A record-backed instance is never also eligible
-			// (see [recordable]), so this branch and the ones below are
-			// alternatives, not a sequence. Its whole record is kind=object -
-			// the record IS the instance - so it never adds to
-			// rep.IdentitiesRecorded, which counts kind=identity records
-			// only.
-			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, entry.Addr, rec))
-			continue
-		}
-		if loc, ok := r.located[entry.Addr.String()]; ok {
-			// Issue #365 slice 2's migrate-time half: this instance is
-			// [Config]'s selection's, so its identity goes into the
-			// estate's record store's located namespace and no tag is
-			// written. Residue is still recorded exactly as it is for an
-			// ordinary eligible instance - see [located]'s doc comment.
-			locOut := locateOne(ctx, r.recordStore, entry.Addr, loc)
-			rep.Outcomes = append(rep.Outcomes, locOut)
-			if locOut.Outcome == OutcomeRecorded || locOut.Outcome == OutcomeAlreadyRecorded {
-				rep.IdentitiesRecorded++
-			}
-			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &loc.residuable))
-			continue
-		}
-		elig, ok := r.eligible[entry.Addr.String()]
-		if !ok {
-			rep.Outcomes = append(rep.Outcomes, StampOutcome{
-				Addr:     entry.Addr,
-				TypeName: entry.TypeName,
-				Outcome:  OutcomeSkipped,
-				Detail:   "Not stamped: " + entry.Detail,
-			})
-			// GitHub issue #341. Not stamped is not the same as nothing to
-			// do. An admitted, untaggable resource is a real cloud object
-			// with real arguments, and a migration is the only moment
-			// anything can classify the ones its provider never reads back.
-			// The outcome stays SKIPPED on purpose - the marker write is what
-			// was skipped, and that is what this axis reports - so no count
-			// this run prints moves.
-			res := r.residuable[entry.Addr.String()]
-			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, res))
-			// GitHub issue #364 unit A2: an untaggable instance's identity -
-			// composite where the provider's own identity schema says so,
-			// else the import ID [identity.LocatedIdentityPlanFor] names -
-			// goes into the record store the same way a markers=record
-			// selected instance's does, from the same object issue #341's
-			// residue classifier above already reads (res.applied, decoded
-			// against the provider's current schema). res is nil for an
-			// instance ratifyOne never built a carrier for at all -
-			// UNADMITTED_TYPE, MISSING, or a record-backed secret this
-			// configuration's strict { secrets } refused to seed - and
-			// there is nothing to derive an identity from for any of those.
-			if res != nil {
-				if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, res.providerAddr, res.typeName, res.schema, res.applied); err != nil {
-					diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
-						"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
-						entry.Addr, err,
-					)))
-				} else if recorded {
-					rep.IdentitiesRecorded++
-				}
-			}
-			continue
-		}
-		stampOut := approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()])
-		rep.Outcomes = append(rep.Outcomes, stampOut)
-		diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
-		// GitHub issue #364 unit A2: a stamped instance's marker answers
-		// "may I delete this"; it is not an identity a later plan can read
-		// the record store for, which is why every taggable instance was
-		// off the record entirely before this. Only once ownership of the
-		// live object is actually confirmed for THIS estate - the write
-		// landed (STAMPED) or the object already carried this estate's own
-		// markers (ALREADY_STAMPED) - is it safe to also write its identity
-		// here: any other outcome (owned by another estate, a corrupt or
-		// mismatched tofu-address, a plan that would replace it) means this
-		// run never established that the object is this instance's, and
-		// recording an identity for it would be exactly the wrong-marker
-		// failure HANDOFF.md's safety rule forbids.
-		if stampOut.Outcome == OutcomeStamped || stampOut.Outcome == OutcomeAlreadyStamped {
-			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied); err != nil {
-				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
-					"The identity read for %s was not recorded alongside its marker: %s.",
-					entry.Addr, err,
-				)))
-			} else if recorded {
-				rep.IdentitiesRecorded++
-			}
-		}
+	// GitHub issue #583. Each entry's work is independent of every other's -
+	// its own carrier, its own provider round trip, its own record key - so
+	// the loop runs up to r.parallelism of them at once. Three properties are
+	// deliberately unchanged by that:
+	//
+	//  1. [notATagsOnlyPlan] still gates every resource individually, inside
+	//     [approveOne], from that resource's own plan response. Nothing about
+	//     it is hoisted, shared or evaluated per batch; concurrency changes
+	//     which goroutine calls it and nothing else.
+	//  2. Every entry still gets its own attempt and its own outcome, and a
+	//     failure never stops the rest. There is no errgroup and no
+	//     cancellation here on purpose: an errgroup's first error would
+	//     abandon the entries still queued, which is precisely the
+	//     partial-failure behaviour this loop has always refused to have.
+	//  3. Results are collected by index and only assembled once every
+	//     goroutine has finished, so the report reads in ratification order
+	//     no matter what order the writes landed in.
+	results := make([]entryResult, len(r.Entries))
+	par := r.parallelism
+	if par < 1 {
+		par = DefaultParallelism
+	}
+	if par > len(r.Entries) {
+		par = len(r.Entries)
+	}
+	if par < 1 {
+		// No entries at all: nothing to size a semaphore for.
+		par = 1
+	}
+	sem := make(chan struct{}, par)
+	var wg sync.WaitGroup
+	for i, entry := range r.Entries {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(i int, entry Entry) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = r.entryWork(ctx, entry, slotFor[entry.Addr.String()])
+		}(i, entry)
+	}
+	wg.Wait()
+
+	rep := &StampReport{Estate: r.Estate, Outcomes: make([]StampOutcome, 0, len(results))}
+	for _, res := range results {
+		rep.Outcomes = append(rep.Outcomes, res.outcome)
+		rep.IdentitiesRecorded += res.identities
+		diags = diags.Append(res.diags)
 	}
 
 	// GitHub issue #349: carry the state file's root output values across
@@ -308,6 +302,110 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 	projection.WriteRootOutputValues(ctx, r.rootOutputStore, r.rootOutputs)
 
 	return rep, diags
+}
+
+// entryWork is what [Ratification.Approve] does about one entry: the whole of
+// its former loop body, lifted out unchanged so it can run on its own
+// goroutine. It reads only this ratification's immutable lookup maps and the
+// carrier they hold for this one address, and every write it makes is to a
+// record key derived from that same address - so two entryWork calls share
+// nothing but the provider connection, which the provider protocol already
+// serves concurrently (stock's own graph walk calls it from ten goroutines at
+// a time).
+//
+// It returns its contribution instead of appending it, which is issue #583's
+// ordering guarantee in one signature.
+func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) entryResult {
+	var res entryResult
+
+	if rec, ok := r.recordable[entry.Addr.String()]; ok {
+		// Issue #340. A record-backed instance is never also eligible
+		// (see [recordable]), so this branch and the ones below are
+		// alternatives, not a sequence. Its whole record is kind=object -
+		// the record IS the instance - so it never adds to
+		// rep.IdentitiesRecorded, which counts kind=identity records
+		// only.
+		res.outcome = recordOne(ctx, r.recordStore, entry.Addr, rec)
+		return res
+	}
+	if loc, ok := r.located[entry.Addr.String()]; ok {
+		// Issue #365 slice 2's migrate-time half: this instance is
+		// [Config]'s selection's, so its identity goes into the
+		// estate's record store's located namespace and no tag is
+		// written. Residue is still recorded exactly as it is for an
+		// ordinary eligible instance - see [located]'s doc comment.
+		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc)
+		if res.outcome.Outcome == OutcomeRecorded || res.outcome.Outcome == OutcomeAlreadyRecorded {
+			res.identities++
+		}
+		res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &loc.residuable))
+		return res
+	}
+	elig, ok := r.eligible[entry.Addr.String()]
+	if !ok {
+		res.outcome = StampOutcome{
+			Addr:     entry.Addr,
+			TypeName: entry.TypeName,
+			Outcome:  OutcomeSkipped,
+			Detail:   "Not stamped: " + entry.Detail,
+		}
+		// GitHub issue #341. Not stamped is not the same as nothing to
+		// do. An admitted, untaggable resource is a real cloud object
+		// with real arguments, and a migration is the only moment
+		// anything can classify the ones its provider never reads back.
+		// The outcome stays SKIPPED on purpose - the marker write is what
+		// was skipped, and that is what this axis reports - so no count
+		// this run prints moves.
+		untaggable := r.residuable[entry.Addr.String()]
+		res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, untaggable))
+		// GitHub issue #364 unit A2: an untaggable instance's identity -
+		// composite where the provider's own identity schema says so,
+		// else the import ID [identity.LocatedIdentityPlanFor] names -
+		// goes into the record store the same way a markers=record
+		// selected instance's does, from the same object issue #341's
+		// residue classifier above already reads (res.applied, decoded
+		// against the provider's current schema). It is nil for an
+		// instance ratifyOne never built a carrier for at all -
+		// UNADMITTED_TYPE, MISSING, or a record-backed secret this
+		// configuration's strict { secrets } refused to seed - and
+		// there is nothing to derive an identity from for any of those.
+		if untaggable != nil {
+			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied); err != nil {
+				res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
+					"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
+					entry.Addr, err,
+				)))
+			} else if recorded {
+				res.identities++
+			}
+		}
+		return res
+	}
+	res.outcome = approveOne(ctx, r.Estate, entry.Addr, elig, slot)
+	res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
+	// GitHub issue #364 unit A2: a stamped instance's marker answers
+	// "may I delete this"; it is not an identity a later plan can read
+	// the record store for, which is why every taggable instance was
+	// off the record entirely before this. Only once ownership of the
+	// live object is actually confirmed for THIS estate - the write
+	// landed (STAMPED) or the object already carried this estate's own
+	// markers (ALREADY_STAMPED) - is it safe to also write its identity
+	// here: any other outcome (owned by another estate, a corrupt or
+	// mismatched tofu-address, a plan that would replace it) means this
+	// run never established that the object is this instance's, and
+	// recording an identity for it would be exactly the wrong-marker
+	// failure HANDOFF.md's safety rule forbids.
+	if res.outcome.Outcome == OutcomeStamped || res.outcome.Outcome == OutcomeAlreadyStamped {
+		if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied); err != nil {
+			res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
+				"The identity read for %s was not recorded alongside its marker: %s.",
+				entry.Addr, err,
+			)))
+		} else if recorded {
+			res.identities++
+		}
+	}
+	return res
 }
 
 // seedIdentityFor derives and writes one instance's kind=identity record

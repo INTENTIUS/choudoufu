@@ -214,6 +214,9 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		Secrets:         identity.SecretsFor(config),
 		RecordStore:     recordStore,
 		RootOutputStore: rootOutputStore,
+		// GitHub issue #583: -parallelism, spelled and defaulted as stock's
+		// apply spells it. Ratify ignores it; Approve is what spends it.
+		Parallelism: args.Parallelism,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags
@@ -298,6 +301,13 @@ Options:
   -approve                Stamp every VERIFIED or DRIFTED resource from the
                           ratification report. Without it, the report prints
                           and nothing is written.
+
+  -parallelism=n          Limit the number of resources stamped at once.
+                          Defaults to 10, the same default an apply of this
+                          configuration already runs at, over the same kind
+                          of work: one provider plan+apply round trip per
+                          resource. Lower it if the account's tagging APIs
+                          push back. No effect without -approve.
 
   -no-color               If specified, output won't contain any color.
 
