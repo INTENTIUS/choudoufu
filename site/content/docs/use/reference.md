@@ -97,9 +97,14 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 One label picks the backend, `"local"`, `"ssm"`, or `"s3"`. It stores the
 values of logical resources such as `null_resource`, `terraform_data`, `time_*`
-and non-secret `random_*`. Declaring it is what admits those types. Writes are
-conditional rather than locked. [Storage]({{< relref "/docs/use/storage" >}}) has the per-backend
-trade-offs.
+and `random_*`. Declaring the block is not what admits those types: every
+estate has a store, and one that names no `record_store` gets an implied local
+one, so a logical resource is admitted with no `record_store` block present.
+Declare it to choose where the records go. Writes are conditional rather than
+locked. [Storage]({{< relref "/docs/use/storage" >}}) has the per-backend
+trade-offs, and
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
+backend needs to exist first.
 
 | Argument | Applies to | Meaning |
 |---|---|---|

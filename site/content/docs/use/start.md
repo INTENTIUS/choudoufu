@@ -135,6 +135,9 @@ against a local emulator instead: [Tutorial: see markers work]({{< relref "/docs
 
 ## Next
 
+- [What you set up by hand]({{< relref "/docs/use/setup" >}}) for what has to
+  exist before the first plan, per record store backend, and the failure mode
+  each missing piece produces.
 - [Day-2 operations]({{< relref "/docs/use/day2" >}}) for renames, removals and working with other
   people.
 - [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) for the constructs this mode
