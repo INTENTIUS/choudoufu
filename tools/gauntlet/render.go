@@ -586,23 +586,28 @@ func renderProgressIndex(a *Artifact) string {
 	b.WriteString(frontMatter("How close AWS is", 30, "bookCollapseSection: true"))
 	w("%s", generatedBanner)
 	w("")
-	w("Three numbers, all read from artifacts the test suite writes. **Behaviors")
-	w("proven** (%d of %d) is the headline and the gate (issue #522): a stage below is", a.BehaviorsProven, a.BehaviorsTotal)
-	w("proven once its representative-set fixtures - a real `count` block, a real")
-	w("`for_each` map, a module-nested case, and, for a stage touching identity")
-	w("resolution, one fixture per identity kind - all pass against the tier-1")
-	w("behavior matrix (`live/behaviors.json`), a set of small, purpose-built")
-	w("fixtures that run in minutes rather than an estate's own hours. **Core")
-	w("estates clear** and **all estates clear** keep their exact prior meaning and")
-	w("computation: breadth reporting over real-world configurations, not the gate.")
-	w("An estate is a real OpenTofu or Terraform configuration, pinned by commit,")
-	w("run through every active stage below side by side with stock OpenTofu against")
-	w("the pinned emulator. It is clear when every headline stage passes - an active")
-	w("stage not marked \"no\" in the Headline column below.")
+	w("**Core estates clear** and **all estates clear**, read from artifacts the")
+	w("test suite writes, are the headline: the answer to whether choudoufu works")
+	w("across real-world configurations, which is the question a customer is")
+	w("asking. An estate is a real OpenTofu or Terraform configuration, pinned by")
+	w("commit, run through every active stage below side by side with stock")
+	w("OpenTofu against the pinned emulator. It is clear when every headline stage")
+	w("passes - an active stage not marked \"no\" in the Headline column below.")
 	w("")
 	w("{{< gauntlet-bars >}}")
 	w("")
 	w("%s", boardBanner(a))
+	w("")
+	w("**Behaviors proven** (%d of %d) is a secondary, development-loop number, not", a.BehaviorsProven, a.BehaviorsTotal)
+	w("a coverage claim: it counts how many of the 14 stages below have a FAST")
+	w("tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script that")
+	w("runs in minutes rather than an estate's own hours - whose representative")
+	w("set (a real `count` block, a real `for_each` map, a module-nested case, and,")
+	w("for a stage touching identity resolution, one fixture per identity kind)")
+	w("all pass. **A stage with no tier-1 fixture is not unproven** - it is proven")
+	w("by the estates above, just slowly; this number says only how many stages")
+	w("have a fast signal for contributors, and it neither substitutes for the")
+	w("bars above nor gates anything on this page.")
 	w("")
 	w("## The stages")
 	w("")
@@ -888,6 +893,18 @@ func renderEstatePage(r EstateResult, a *Artifact) string {
 	default:
 		w("Verdicts were recorded from this estate's crossing script by hand before the")
 		w("script spoke the gauntlet protocol; the next run that does will replace them.")
+	}
+	// Oracle provenance (issue #544), beside the emulator note above: only
+	// present once a real run has probed it (RunEstates, run.go). Silent for
+	// every row that predates this field - never claiming evidence a run
+	// never actually recorded.
+	if r.LastRun != nil && r.LastRun.Oracle != nil {
+		switch {
+		case *r.LastRun.Oracle == a.Oracle:
+			w("Oracle: stock terraform `%s`, stock tofu `%s` (matches the current pin).", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu)
+		default:
+			w("Oracle: stock terraform `%s`, stock tofu `%s`. **Stale**: the current pin is terraform `%s`, tofu `%s`.", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu, a.Oracle.Terraform, a.Oracle.Tofu)
+		}
 	}
 	if r.Notes != "" {
 		w("")

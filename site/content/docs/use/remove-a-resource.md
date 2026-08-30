@@ -46,6 +46,15 @@ cannot list or tag are reported by count, since that holds every run. Pass
 `-verbose` to itemise them. A list call that actually failed is itemised every
 time.
 
+## Tear down the whole estate
+
+`apply -destroy` (and `choudoufu destroy`) remove every object this estate
+owns in one command - the same mechanism as deleting every resource block and
+running `apply`, generalized to the whole estate at once, rather than a
+separate path. [#320](https://github.com/INTENTIUS/choudoufu/issues/320)
+covers it. `-refresh-only` stays refused: it compares a stored record against
+the live system, and here both sides of that comparison are the live system.
+
 ## The sweep can be a run behind
 
 Finding resources you own but no longer declare may go through AWS's Resource

@@ -36,10 +36,16 @@ func TestBehaviorsProvenRequiresAMappedFixture(t *testing.T) {
 // of the check above - if BehaviorsProven silently treated a single mapped,
 // passing fixture as sufficient regardless of a SECOND fixture mapped to the
 // same stage, it would pass this. Both must pass for the stage to count.
+//
+// Both fixtures carry the mandatory shapes (Stages()[0] is cold_deploy,
+// which identityTouchingStages does not name, so no identity_kind is
+// needed) purely so this test isolates the pass/fail property - the shape-
+// and identity-kind-coverage gate itself is
+// TestBehaviorsProvenRequiresMandatoryShapeCoverage's job.
 func TestBehaviorsProvenPassRequiresEveryMappedFixtureToPass(t *testing.T) {
 	stageID := Stages()[0].ID
 	bi := &BehaviorIndex{Fixtures: []BehaviorFixture{
-		{ID: "a", Stage: stageID, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
+		{ID: "a", Stage: stageID, Shapes: mandatoryShapes, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
 		{ID: "b", Stage: stageID, LastRun: &BehaviorLastRun{Verdict: VerdictFail}},
 	}}
 	proven, _ := BehaviorsProven(bi)
@@ -76,6 +82,85 @@ func TestBehaviorsProvenNoRunIsNotProven(t *testing.T) {
 	}
 }
 
+// TestBehaviorsProvenRequiresMandatoryShapeCoverage: the #522 ruling's
+// first coverage clause - "a real count block, a real for_each map, a
+// module-nested resource" - required of EVERY proven stage, not only
+// identity-touching ones. A stage whose mapped fixtures all pass but are
+// all "scalar" shape (exactly day2_remove's real, committed state today:
+// tagging-sweep and record-store are both scalar-only) must NOT read as
+// proven - a passing, scalar-only set is real evidence the mechanism
+// works, but not the representative set the ruling asks for. Found by
+// review: BehaviorsProven originally counted a stage proven from an
+// all-passing set with no shape check at all, which is exactly how
+// day2_remove was misread as proven.
+func TestBehaviorsProvenRequiresMandatoryShapeCoverage(t *testing.T) {
+	stageID := Stages()[0].ID // cold_deploy - not in identityTouchingStages, so this isolates the shape gate alone
+	bi := &BehaviorIndex{Fixtures: []BehaviorFixture{
+		{ID: "a", Stage: stageID, Shapes: []string{"scalar"}, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
+		{ID: "b", Stage: stageID, Shapes: []string{"scalar"}, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
+	}}
+	proven, _ := BehaviorsProven(bi)
+	if proven != 0 {
+		t.Fatalf("proven = %d, want 0: both mapped fixtures pass but neither covers count/for_each/module-nested - a scalar-only set must not read as proven", proven)
+	}
+
+	// Fill in the three mandatory shapes one at a time and confirm the
+	// count stays 0 until coverage is genuinely complete, not merely
+	// "some shape got added" - the same "prove it is load-bearing" rule
+	// HANDOFF.md asks of every check.
+	bi.Fixtures[0].Shapes = append(bi.Fixtures[0].Shapes, "count")
+	if proven, _ := BehaviorsProven(bi); proven != 0 {
+		t.Fatalf("proven = %d, want 0: count added but for_each and module-nested are still missing", proven)
+	}
+	bi.Fixtures[0].Shapes = append(bi.Fixtures[0].Shapes, "for_each")
+	if proven, _ := BehaviorsProven(bi); proven != 0 {
+		t.Fatalf("proven = %d, want 0: module-nested is still missing", proven)
+	}
+	bi.Fixtures[0].Shapes = append(bi.Fixtures[0].Shapes, "module-nested")
+	proven, total := BehaviorsProven(bi)
+	if proven != 1 {
+		t.Fatalf("proven = %d, want 1: all three mandatory shapes are now covered (by fixture a alone) and both fixtures pass", proven)
+	}
+	if total != len(Stages()) {
+		t.Fatalf("total = %d, want %d", total, len(Stages()))
+	}
+}
+
+// TestBehaviorsProvenRequiresIdentityKindCoverageForIdentityTouchingStages:
+// the ruling's SECOND coverage clause, for a stage identityTouchingStages
+// names. Full shape coverage must not be enough on its own for such a
+// stage; all three identity kinds (server-minted, deterministic, none)
+// must be represented too.
+func TestBehaviorsProvenRequiresIdentityKindCoverageForIdentityTouchingStages(t *testing.T) {
+	stageID := "test_plan"
+	if !identityTouchingStages[stageID] {
+		t.Fatalf("test premise broken: %q is no longer classified identity-touching", stageID)
+	}
+	bi := &BehaviorIndex{Fixtures: []BehaviorFixture{
+		// Full shape coverage lives on this one fixture so only the
+		// identity-kind gate is under test below.
+		{ID: "a", Stage: stageID, Shapes: mandatoryShapes, IdentityKind: "server-minted", LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
+	}}
+	proven, _ := BehaviorsProven(bi)
+	if proven != 0 {
+		t.Fatalf("proven = %d, want 0: full shape coverage but only one of three identity kinds (server-minted)", proven)
+	}
+
+	bi.Fixtures = append(bi.Fixtures, BehaviorFixture{ID: "b", Stage: stageID, IdentityKind: "deterministic", LastRun: &BehaviorLastRun{Verdict: VerdictPass}})
+	if proven, _ := BehaviorsProven(bi); proven != 0 {
+		t.Fatalf("proven = %d, want 0: still missing the \"none\" identity kind", proven)
+	}
+
+	bi.Fixtures = append(bi.Fixtures, BehaviorFixture{ID: "c", Stage: stageID, IdentityKind: "none", LastRun: &BehaviorLastRun{Verdict: VerdictPass}})
+	proven, total := BehaviorsProven(bi)
+	if proven != 1 {
+		t.Fatalf("proven = %d, want 1: all three identity kinds now covered, all mapped fixtures pass, shapes covered by fixture a", proven)
+	}
+	if total != len(Stages()) {
+		t.Fatalf("total = %d, want %d", total, len(Stages()))
+	}
+}
+
 // TestBehaviorsProvenNilIndex: Rebuild is called with bi == nil by every
 // existing test and by any command that has not loaded live/behaviors.json;
 // it must never panic and must report the honest zero, not a fabricated
@@ -93,11 +178,11 @@ func TestBehaviorsProvenNilIndex(t *testing.T) {
 func TestRebuildSetsBehaviorsFields(t *testing.T) {
 	stageID := Stages()[0].ID
 	bi := &BehaviorIndex{Fixtures: []BehaviorFixture{
-		{ID: "a", Stage: stageID, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
+		{ID: "a", Stage: stageID, Shapes: mandatoryShapes, LastRun: &BehaviorLastRun{Verdict: VerdictPass}},
 	}}
 	a := &Artifact{}
 	m := &Manifest{}
-	a.Rebuild(m, bi, "img")
+	a.Rebuild(m, bi, "img", OracleVersions{})
 	if a.BehaviorsProven != 1 {
 		t.Fatalf("a.BehaviorsProven = %d, want 1", a.BehaviorsProven)
 	}
@@ -107,7 +192,7 @@ func TestRebuildSetsBehaviorsFields(t *testing.T) {
 	// A stale value left over from a previous Rebuild must not survive: call
 	// again with an index that proves nothing and confirm it drops back to 0
 	// rather than a max-so-far ratchet leaking in from somewhere.
-	a.Rebuild(m, &BehaviorIndex{}, "img")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{})
 	if a.BehaviorsProven != 0 {
 		t.Fatalf("a.BehaviorsProven = %d after an empty index, want 0 (must not carry the previous run's count forward)", a.BehaviorsProven)
 	}
@@ -238,14 +323,45 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 	}
 }
 
-// TestCommittedBehaviorIndexHasNoStageMapped pins the #522 foundation
-// unit's own honest state: live/behaviors.json ships with every fixture's
-// Stage empty. If this ever fails because a fixture gained a Stage, that is
-// good news (the next unit's cell-mapping work has started) and this test
-// should be updated to check the SPECIFIC mapping is sound, not deleted
-// silently - see BehaviorsProven's own doc comment for why an unmapped
-// stage must never be read as vacuously proven.
-func TestCommittedBehaviorIndexHasNoStageMapped(t *testing.T) {
+// TestCommittedBehaviorIndexStageMappingIsSound replaces
+// TestCommittedBehaviorIndexHasNoStageMapped now that the #522 ruling's
+// per-stage cell-mapping unit has landed - that test's own doc comment
+// asked for exactly this update rather than a silent deletion, "check the
+// SPECIFIC mapping is sound".
+//
+// It pins the committed live/behaviors.json's fixture -> stage mapping BY
+// VALUE, so a future edit that reassigns, adds, or drops a mapping is
+// caught here rather than discovered only by behaviors_proven's number
+// quietly moving. Every mapping was decided by reading the fixture's own
+// run.sh end to end against the target stage's Proves/Oracle text in
+// tools/gauntlet/stages.go (see the #522 stage-mapping unit's PR body for
+// the per-fixture reasoning) - none is a guess from the "seam" summary
+// alone.
+//
+// Two tier-1 shape fixtures are DELIBERATELY left unmapped, pinned as a
+// negative case rather than left to be "discovered" as an oversight:
+//
+//   - dataread-projection proves a data source's projected live read, which
+//     no gauntlet stage's Proves text names at all.
+//   - provisioner-taint proves the fork's own create-time-provisioner taint
+//     tracking (record-primary identity's Provisioned bit surviving a
+//     failed apply). That is a different mechanism from every stage above,
+//     including the planned day2_crash: day2_crash is about an interrupted
+//     CREATE-BEFORE-DESTROY replace's deposed key, not a provisioner
+//     failure, and nothing in this fixture uses create_before_destroy.
+//
+// Both are catalogued, well-tested fixtures; they are simply not evidence
+// for any of the 14 stages as those stages are worded today.
+//
+// Being MAPPED to a stage is not the same as making that stage PROVEN:
+// BehaviorsProven (behaviors.go) additionally requires the mapped,
+// passing fixtures to collectively cover the ruling's three mandatory
+// shapes, plus all three named identity kinds for a stage that touches
+// identity resolution. day2_remove is mapped with genuine, passing
+// evidence (see the day2RemoveFixtures block below) but does not meet
+// that bar - only test_plan does - so BehaviorsProven(committed
+// live/behaviors.json) is 1, not 2.
+func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 	root := repoRootForTest(t)
 	bi, err := LoadBehaviorIndex(root)
 	if err != nil {
@@ -254,10 +370,120 @@ func TestCommittedBehaviorIndexHasNoStageMapped(t *testing.T) {
 	if len(bi.Fixtures) == 0 {
 		t.Fatal("live/behaviors.json has no fixtures; the #522 foundation index is missing")
 	}
+
+	// The exact, hand-decided mapping. Exhaustive over every fixture that
+	// carries a non-empty Stage - not a subset - so an unlisted mapped
+	// fixture fails this test rather than passing silently.
+	want := map[string]string{
+		"counted-module":         "test_plan",
+		"create-over":            "test_plan",
+		"deterministic-recreate": "test_plan",
+		"lambda-residue":         "test_plan",
+		"per-element":            "test_plan",
+		"record-located":         "test_plan",
+		"repeated-module":        "test_plan",
+		"tagging-sweep":          "day2_remove",
+		"record-store":           "day2_remove",
+	}
+	unmapped := []string{"dataread-projection", "provisioner-taint"}
+
+	validStage := map[string]bool{}
+	for _, s := range Stages() {
+		validStage[s.ID] = true
+	}
+
+	got := map[string]string{}
 	for _, f := range bi.Fixtures {
-		if f.Stage != "" {
-			t.Fatalf("fixture %q carries stage %q; if cell-mapping has started, this test's purpose has changed - see its doc comment", f.ID, f.Stage)
+		if f.Stage == "" {
+			continue
 		}
+		if !validStage[f.Stage] {
+			t.Errorf("fixture %q maps to %q, which is not a stage id in Stages()", f.ID, f.Stage)
+		}
+		got[f.ID] = f.Stage
+	}
+	if len(got) != len(want) {
+		t.Fatalf("mapped fixtures = %v, want exactly %v", got, want)
+	}
+	for id, stage := range want {
+		if got[id] != stage {
+			t.Errorf("fixture %q maps to %q, want %q", id, got[id], stage)
+		}
+	}
+	for _, id := range unmapped {
+		f, ok := bi.ByID(id)
+		if !ok {
+			t.Fatalf("fixture %q not found", id)
+		}
+		if f.Stage != "" {
+			t.Errorf("fixture %q now carries stage %q; if this is a deliberate new mapping, update this test's own reasoning in its doc comment rather than just relaxing the check", id, f.Stage)
+		}
+	}
+
+	// test_plan is the one stage tier-1 maps with full coverage of the
+	// #522 ruling's mandatory shapes (count, for_each, module-nested) and
+	// all three named identity kinds (server-minted, deterministic, none) -
+	// pinned so that claim stays true rather than merely plausible at
+	// review time.
+	shapes := map[string]bool{}
+	kinds := map[string]bool{}
+	for _, f := range bi.Fixtures {
+		if f.Stage != "test_plan" {
+			continue
+		}
+		for _, s := range f.Shapes {
+			shapes[s] = true
+		}
+		kinds[f.IdentityKind] = true
+	}
+	for _, s := range []string{"count", "for_each", "module-nested"} {
+		if !shapes[s] {
+			t.Errorf("test_plan's mapped fixtures do not cover mandatory shape %q", s)
+		}
+	}
+	for _, k := range []string{"server-minted", "deterministic", "none"} {
+		if !kinds[k] {
+			t.Errorf("test_plan's mapped fixtures do not cover identity_kind %q", k)
+		}
+	}
+
+	// day2_remove, by contrast, is mapped and its two fixtures genuinely
+	// exercise the stage (tagging-sweep, record-store both pass) - but it
+	// covers only the "scalar" shape (neither fixture is count, for_each,
+	// or module-nested) and only two of the three named identity kinds
+	// (server-minted via tagging-sweep, none via record-store; no
+	// deterministic-identity fixture removes a block today). Both gaps
+	// are real and named for the next unit, not papered over here: mapped
+	// evidence that a mechanism works is not the same as the
+	// representative set the ruling requires to call the stage PROVEN.
+	// Asserted directly, not just inferred from the aggregate count below,
+	// so a future change that accidentally makes day2_remove "proven"
+	// without actually closing either gap (e.g. a shapes/identity_kind
+	// typo) is caught here by name.
+	var day2RemoveFixtures []BehaviorFixture
+	for _, f := range bi.Fixtures {
+		if f.Stage == "day2_remove" {
+			day2RemoveFixtures = append(day2RemoveFixtures, f)
+		}
+	}
+	if len(day2RemoveFixtures) == 0 {
+		t.Fatal("day2_remove has no mapped fixtures; the mapping above is stale")
+	}
+	for _, f := range day2RemoveFixtures {
+		if f.LastRun == nil || f.LastRun.Verdict != VerdictPass {
+			t.Fatalf("day2_remove's fixture %q is not passing; the mapping above no longer describes genuine, passing evidence", f.ID)
+		}
+	}
+	if meetsShapeAndIdentityCoverage("day2_remove", day2RemoveFixtures) {
+		t.Fatal("day2_remove's mapped fixtures now meet the ruling's shape+identity-kind coverage bar - that is good news (the gap closed), but this test's own commentary above is now stale and must be rewritten, not left claiming a gap that no longer exists")
+	}
+
+	proven, total := BehaviorsProven(bi)
+	if total != len(Stages()) {
+		t.Fatalf("BehaviorsProven total = %d, want %d", total, len(Stages()))
+	}
+	if proven != 1 {
+		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 1 (test_plan only - day2_remove is mapped with genuine, passing evidence but does not meet the ruling's shape+identity-kind coverage bar) - if a fixture's last_run now fails, or the mapping or coverage changed, update this pin deliberately rather than silencing it", proven)
 	}
 }
 

@@ -1756,6 +1756,15 @@ type statelessTestCloud struct {
 	// reached the cloud rather than only the rendered plan.
 	applied map[string]map[string]string
 
+	// destroyed records, in the order ApplyResourceChange actually saw
+	// them, the tofu-address of every instance destroyed - GitHub issue
+	// #320's DestroyMode test reads this to check that a whole-estate
+	// "apply -destroy" reached the cloud for every owned instance, not just
+	// that the rendered plan proposed it. Keyed off PriorState, the only
+	// side of the request a destroy still carries any tags on: PlannedState
+	// is null for a destroy, exactly like the real provider protocol.
+	destroyed []string
+
 	// allowedRegions is what the mock provider's ConfigureProviderFn insists
 	// a provider block's region argument be, one of. Every test but the
 	// multi-provider ones only ever configures one provider - see
@@ -2105,7 +2114,13 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	p.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) (resp providers.ApplyResourceChangeResponse) {
 		resp.NewState = req.PlannedState
 		if req.PlannedState.IsNull() {
-			// A destroy.
+			// A destroy. PlannedState carries nothing to key off, so the
+			// address comes from what was there before.
+			key := statelessTestTagsOf(req.PriorState)["tofu-address"]
+			if key == "" {
+				key = req.TypeName
+			}
+			c.destroyed = append(c.destroyed, key)
 			return resp
 		}
 		tags := statelessTestTagsOf(req.PlannedState)

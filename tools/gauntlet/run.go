@@ -95,7 +95,16 @@ func flociPortEnv(slot int) string {
 // a.Emulator is what the NEXT run will use, which is a different fact than
 // what THIS run used, even though the two are equal at the instant this
 // function is called.
+//
+// Every row this call touches is also stamped with this call's own
+// probeOracle() result (oracle.go, issue #544) - the stock terraform/tofu
+// releases actually found on PATH, probed once here rather than threaded in
+// like emulator: unlike the emulator digest, nothing forces the binaries a
+// script finds on PATH to match live/oracle-versions.json's pin, so that
+// pin would be configuration asserted as evidence, not evidence. See
+// OracleVersions's doc comment (artifact.go).
 func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, emulator string) (int, error) {
+	oracle := probeOracle()
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -163,7 +172,8 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				prevSeconds[k] = v
 			}
 		}
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		rowOracle := oracle
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
 		if res.Spoken {
 			if r.Stages == nil {
 				r.Stages = map[string]string{}
