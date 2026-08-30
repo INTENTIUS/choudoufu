@@ -40,11 +40,11 @@
       ],
       "default_port": 4607,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:00:15Z",
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 25.6
+        "duration_s": 53.7
       }
     },
     {
@@ -65,11 +65,11 @@
       ],
       "default_port": 4602,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:00:40Z",
-        "exit_code": 1,
-        "verdict": "fail",
-        "duration_s": 24.9
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 72.7
       }
     },
     {
@@ -82,6 +82,7 @@
       "shapes": [
         "scalar"
       ],
+      "identity_kind": "deterministic",
       "resources": 2,
       "needs": [
         "docker",
@@ -89,11 +90,36 @@
       ],
       "default_port": 4599,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:01:05Z",
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 24.9
+        "duration_s": 62.5
+      }
+    },
+    {
+      "id": "deterministic-recreate",
+      "script": "live/e2e/deterministic-recreate/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "One aws_iam_policy, destroyed and recreated with the identical name and path. An IAM policy's identity is its ARN, assembled from the account, name and path - all known before the create call goes out - so it comes back byte-for-byte identical after a genuine destroy-and-recreate, while PolicyId (server-minted, fresh on every real create) does not. This is the identity kind PR #500 got backwards: its worker copied the reference estate's day2_replace 'new identity after recreate' assertion onto an instance whose identity does not change on replace, and the run failed, because that assertion only holds for a server-minted kind. The premise (ARN fixed, PolicyId fresh) is checked directly against the emulator, three create/delete cycles, before choudoufu is ever involved; the record's own identity.import_id is read as a file, never through choudoufu, both before and after the recreate; and a control points the record at a nonexistent ARN and requires the next cold replan to notice rather than converge quietly.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "deterministic",
+      "resources": 1,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4608,
+      "last_run": {
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 35.9
       }
     },
     {
@@ -102,10 +128,11 @@
       "category": "shape",
       "runnable": true,
       "runner": true,
-      "seam": "A filename-deployed Lambda (.corpus/mastino/prod-eu-west/services/check-links, 4 instances) whose filename/source_code_hash/publish arguments are pure inputs AWS never echoes back. Phase 1 (bare live block) reproduces the defect: those arguments propose an update on every cold replan, forever, because nothing recovers them once the state file is gone. Phase 2 turns on record_store and the same estate converges: the fix puts the live object to the provider twice with priors that differ only in the arguments under test and records only what the provider proves it does not manage.",
+      "seam": "A filename-deployed Lambda (.corpus/mastino/prod-eu-west/services/check-links, 4 instances) whose filename/source_code_hash/publish arguments are pure inputs AWS never echoes back. Phase 1 (no record_store block - the IMPLIED local store, HANDOFF.md's 'compatible out of the box') and phase 2 (the same store spelled out explicitly) both converge: the fix puts the live object to the provider twice with priors that differ only in the arguments under test and records only what the provider proves it does not manage. The two phases used to be defect-vs-fix; #541 found the implied default now gives phase 1 the fix too, so they now prove the implied and explicit stores are the one store internal/live/lint's implied_record_store_test.go already pins by value.",
       "shapes": [
         "scalar"
       ],
+      "identity_kind": "deterministic",
       "resources": 4,
       "needs": [
         "docker",
@@ -114,11 +141,11 @@
       ],
       "default_port": 4606,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:01:28Z",
-        "exit_code": 1,
-        "verdict": "fail",
-        "duration_s": 23.2
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 55
       }
     },
     {
@@ -139,11 +166,11 @@
       ],
       "default_port": 4604,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:01:54Z",
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 26.3
+        "duration_s": 70.2
       }
     },
     {
@@ -164,11 +191,11 @@
       ],
       "default_port": 4742,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:02:11Z",
-        "exit_code": 1,
-        "verdict": "fail",
-        "duration_s": 16.4
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 73.3
       }
     },
     {
@@ -189,11 +216,11 @@
       ],
       "default_port": 4605,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:02:45Z",
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 34.6
+        "duration_s": 70.7
       }
     },
     {
@@ -209,11 +236,11 @@
       "identity_kind": "none",
       "resources": 4,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:02:49Z",
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 3.7
+        "duration_s": 24.3
       }
     },
     {
@@ -235,11 +262,11 @@
       ],
       "default_port": 4606,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:04:18Z",
-        "exit_code": 1,
-        "verdict": "fail",
-        "duration_s": 88.6
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 95.6
       }
     },
     {
@@ -260,11 +287,11 @@
       ],
       "default_port": 4601,
       "last_run": {
-        "commit": "499f9f5e8088b50bc417cfb5e4a8dce4c7dd85fd",
-        "date": "2026-08-29T23:04:45Z",
-        "exit_code": 1,
-        "verdict": "fail",
-        "duration_s": 27.1
+        "commit": "ddf94aa2e0ad96e015615f43ecd5504e3efdbbdf",
+        "date": "2026-08-30T00:24:28Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 24.6
       }
     },
     {
