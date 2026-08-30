@@ -14,17 +14,21 @@ import (
 // buildEstate's doc comment states, so a change to the per-team or
 // per-service resource count is a deliberate edit to this test rather than
 // a silent drift. teams = 6*scale, services = 1*scale, dnsRecords =
-// 10*scale; identity = 6*teams + 2*services; container = 1 (cluster) +
-// 2*services; dns = 1 (zone) + dnsRecords; supporting = 3 (vpc, subnet,
+// 10*scale, countTeams = countTeamsPerScale*scale (2*scale), podTeams =
+// len(modulePodKeys)*podSizePerScale*scale (2*scale); identity = 6*teams +
+// 2*services + 6*countTeams + 6*podTeams = 36*scale + 2*scale + 12*scale +
+// 12*scale = 62*scale (issue #574 added the last two terms); container = 1
+// (cluster) + 2*services; dns = 1 (zone) + dnsRecords (now one for_each
+// block, not dnsRecords named blocks - #574); supporting = 3 (vpc, subnet,
 // security group), fixed regardless of scale.
 func TestCompositionCountsAreExact(t *testing.T) {
 	for _, tc := range []struct {
 		scale                                          int
 		wantIdentity, wantContainer, wantDNS, wantSupp int
 	}{
-		{1, 38, 3, 11, 3},
-		{4, 152, 9, 41, 3},
-		{10, 380, 21, 101, 3},
+		{1, 62, 3, 11, 3},
+		{4, 248, 9, 41, 3},
+		{10, 620, 21, 101, 3},
 	} {
 		t.Run(fmt.Sprintf("scale=%d", tc.scale), func(t *testing.T) {
 			c := buildEstate(tc.scale, "tl").composition
@@ -44,18 +48,57 @@ func TestCompositionCountsAreExact(t *testing.T) {
 	}
 }
 
+// TestExpansionCountsAreExact is issue #574's own regression guard: the
+// defect #574 fixed was that terralith-gen emitted zero count and zero
+// for_each anywhere (grep -rn 'for_each\|count =' tools/terralith-gen/*.go,
+// excluding tests: no matches, per #566's report). This pins the exact
+// instance counts each expansion shape now produces, so a future change
+// that silently drops one of the three buckets back to zero fails here
+// rather than only being noticed by re-reading a generated estate by eye.
+// countExpanded = 6 * countTeamsPerScale * scale (one block set, `count =`);
+// forEachExpanded = dnsRecordsPerScale * scale (one block, `for_each` over
+// a map); moduleNested = 6 * len(modulePodKeys) * podSizePerScale * scale
+// (module call with more than one instance, whose body ALSO carries
+// `count` - the shape internal/live/markers/modulemarker.go's
+// marker_module_prefix exists to serve, issue #378).
+func TestExpansionCountsAreExact(t *testing.T) {
+	for _, tc := range []struct {
+		scale                                                    int
+		wantCountExpanded, wantForEachExpanded, wantModuleNested int
+	}{
+		{1, 12, 10, 12},
+		{4, 48, 40, 48},
+		{10, 120, 100, 120},
+	} {
+		t.Run(fmt.Sprintf("scale=%d", tc.scale), func(t *testing.T) {
+			c := buildEstate(tc.scale, "tl").composition
+			if c.countExpandedInstances != tc.wantCountExpanded {
+				t.Errorf("countExpandedInstances = %d, want %d", c.countExpandedInstances, tc.wantCountExpanded)
+			}
+			if c.forEachExpandedInstances != tc.wantForEachExpanded {
+				t.Errorf("forEachExpandedInstances = %d, want %d", c.forEachExpandedInstances, tc.wantForEachExpanded)
+			}
+			if c.moduleNestedInstances != tc.wantModuleNested {
+				t.Errorf("moduleNestedInstances = %d, want %d", c.moduleNestedInstances, tc.wantModuleNested)
+			}
+			if c.countExpandedInstances == 0 || c.forEachExpandedInstances == 0 || c.moduleNestedInstances == 0 {
+				t.Fatalf("scale=%d: at least one expansion bucket is zero - exactly the #574 defect this test exists to catch", tc.scale)
+			}
+		})
+	}
+}
+
 // TestIdentityShareApproximatesTarget is #564's "scale is a parameter; the
 // composition proportions hold as it grows" acceptance bullet, checked
 // against the actual computed share rather than assumed. The epic (#546)
-// describes "~70%" as the target; this asserts a band around it (60-80%)
-// at both a small and a larger scale, which is what "holds as it grows"
-// means operationally - not that the two numbers are identical, since the
-// fixed 3-resource network layer means the small-scale share starts a
-// little under the large-scale asymptote (measured: 69.1% at scale=1,
-// converging to ~75% by scale=10 - see gen.go's doc comment for the
-// derivation).
+// describes "~70%" as the target; this asserts a band around it at both a
+// small and a larger scale, which is what "holds as it grows" means
+// operationally - not that the two numbers are identical. Issue #574's
+// count/for_each/module-nested identity buckets pushed the share up from
+// this test's original 60-80% band: measured 78.5% at scale=1, converging
+// to ~83.6% by scale=40 - see gen.go's doc comment for the derivation.
 func TestIdentityShareApproximatesTarget(t *testing.T) {
-	const lowBand, highBand = 60.0, 80.0
+	const lowBand, highBand = 70.0, 90.0
 	for _, scale := range []int{1, 4, 10, 40} {
 		c := buildEstate(scale, "tl").composition
 		pct := c.identityPercent()

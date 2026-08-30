@@ -82,8 +82,17 @@ THROTTLE_LOG="${THROTTLE_LOG:-1}"
 COLD_DIR="$WORK/cold"
 ADOPTED_DIR="$WORK/adopted"
 
-EXPECTED=$((50 * SCALE + 5))    # total resources - matches live/e2e/terralith-scale/run.sh's own formula
-VERIFIED=$((21 * SCALE + 5))    # taggable (VERIFIED/DRIFTED-eligible) resources - derived from the composition's fixed+scaling taggable counts, confirmed against MIGRATION.md's measured 26/55 (scale 1) and 89/205 (scale 4)
+# Both formulas track tools/terralith-gen's composition and MUST be updated
+# with it. They were 50*SCALE+5 / 21*SCALE+5 when this script was written
+# against the pre-#574 generator; issue #574 then added the count-expanded
+# (6 resources * countTeamsPerScale=2 per scale = 12*SCALE, of which 3 per
+# team-equivalent are taggable = 6*SCALE) and module-nested (6 resources *
+# len(modulePodKeys)=2 * podSizePerScale=1 per scale = 12*SCALE, likewise
+# 6*SCALE taggable) identity buckets, so both went up by 24 and 12 per
+# scale respectively. EXPECTED matches live/e2e/terralith-scale/run.sh's
+# own post-#574 formula (74*SCALE+5) by construction; keep them equal.
+EXPECTED=$((74 * SCALE + 5))    # total resources
+VERIFIED=$((33 * SCALE + 5))    # taggable (VERIFIED/DRIFTED-eligible) resources - 18 named-team + 1 service-exec-role + 6 count-expanded + 6 module-nested + 2 container per scale, plus a fixed 5 (zone, VPC, subnet, SG, cluster)
 
 log() { printf '%s\n' "$*"; }
 
@@ -296,7 +305,7 @@ generate_estate() {
   # never validates this and accepted every synthetic id). This is a
   # real-AWS-specific validation rule, not a malformed-output bug the way
   # the TXT record double-quoting fix (tools/terralith-gen/gen.go,
-  # writeRecord) was, so it is corrected HERE - the same "self-owned,
+  # writeRecords) was, so it is corrected HERE - the same "self-owned,
   # live-cert-specific" line this file already draws for the AZ and
   # skip_requesting_account_id fixes above - rather than in terralith-gen
   # itself: every synthetic id is replaced with the CALLER's own real

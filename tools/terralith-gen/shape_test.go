@@ -40,11 +40,13 @@ var liveBlockPattern = regexp.MustCompile(`(?m)^\s*live\s*\{`)
 
 // TestNoChoudoufuConstructLeaks is #564's third acceptance bullet, checked
 // mechanically rather than by eye: build a terralith at a couple of
-// scales, then scan every file terralith-gen wrote for the choudoufu-only
-// sidecar filename, the two marker tag keys, the record_store block
-// keyword, and a top-level live block. None of them may appear anywhere -
-// this generator's whole point is a stranger's stock Terraform, the
-// population #546's migration measurement needs to start from.
+// scales, then scan every file terralith-gen wrote - recursively, since
+// issue #574 added modules/team_pod/*.tf beneath the output root - for the
+// choudoufu-only sidecar filename, the two marker tag keys, the
+// record_store block keyword, and a top-level live block. None of them may
+// appear anywhere - this generator's whole point is a stranger's stock
+// Terraform, the population #546's migration measurement needs to start
+// from.
 func TestNoChoudoufuConstructLeaks(t *testing.T) {
 	for _, scale := range []int{1, 3} {
 		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
@@ -54,29 +56,39 @@ func TestNoChoudoufuConstructLeaks(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			entries, err := os.ReadDir(out)
-			if err != nil {
+			var files []string
+			if err := filepath.WalkDir(out, func(path string, d os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if !d.IsDir() {
+					files = append(files, path)
+				}
+				return nil
+			}); err != nil {
 				t.Fatal(err)
 			}
-			if len(entries) == 0 {
+			if len(files) == 0 {
 				t.Fatal("generated no files at all - the scan below would vacuously pass")
 			}
-			for _, ent := range entries {
-				if ent.Name() == configs.LiveSidecarFilename {
-					t.Errorf("generated output contains %s, the choudoufu live-sidecar filename - #564 forbids it", ent.Name())
+			for _, path := range files {
+				name := filepath.Base(path)
+				if name == configs.LiveSidecarFilename {
+					t.Errorf("generated output contains %s, the choudoufu live-sidecar filename - #564 forbids it", name)
 				}
-				data, err := os.ReadFile(filepath.Join(out, ent.Name())) //nolint:gosec // fixed test-generated path
+				data, err := os.ReadFile(path) //nolint:gosec // fixed test-generated path
 				if err != nil {
 					t.Fatal(err)
 				}
 				content := string(data)
+				rel, _ := filepath.Rel(out, path)
 				for _, s := range forbiddenSubstrings {
 					if strings.Contains(content, s) {
-						t.Errorf("%s contains forbidden substring %q", ent.Name(), s)
+						t.Errorf("%s contains forbidden substring %q", rel, s)
 					}
 				}
 				if liveBlockPattern.MatchString(content) {
-					t.Errorf("%s contains a top-level \"live\" block", ent.Name())
+					t.Errorf("%s contains a top-level \"live\" block", rel)
 				}
 			}
 		})
@@ -111,6 +123,159 @@ func TestNoChoudoufuConstructLeaksHasTeeth(t *testing.T) {
 				t.Fatalf("test fixture %q does not actually trip any check - fix the fixture", tc.name)
 			}
 		})
+	}
+}
+
+// countForEachModulePattern matches a `count =` or `for_each =` (as an
+// argument, not an identifier substring - regex.go anchors so
+// "for_each_ish" or "discount = " cannot false-positive) or a `module "..."`
+// block header, anchored to a line start the same way liveBlockPattern is.
+// This mirrors #574's own diagnostic method verbatim - the issue's report
+// found the defect with `grep -rn 'for_each\|count =' tools/terralith-gen/*.go`
+// and found nothing; this is that same grep run the other direction, against
+// the generator's OUTPUT rather than its source, so a future regression that
+// silently stops emitting one of the three shapes is caught mechanically
+// rather than only by re-reading a generated estate by eye.
+var (
+	countArgPattern    = regexp.MustCompile(`(?m)^\s*count\s*=`)
+	forEachArgPattern  = regexp.MustCompile(`(?m)^\s*for_each\s*=`)
+	moduleBlockPattern = regexp.MustCompile(`(?m)^\s*module\s+"`)
+)
+
+// TestExpansionIsPresent is issue #574's own acceptance bullet, checked
+// mechanically: "generated output contains count and for_each at both root
+// and module-nested level." Before #574, none of these three patterns
+// matched anywhere in generated output - see TestNoChoudoufuConstructLeaks's
+// sibling check above for the equivalent "must never appear" direction; this
+// is "must appear, and at both root and module-nested level."
+func TestExpansionIsPresent(t *testing.T) {
+	for _, scale := range []int{1, 4} {
+		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "terralith")
+			e := buildEstate(scale, "tl")
+			if err := e.write(out); err != nil {
+				t.Fatal(err)
+			}
+
+			rootFiles := []string{"iam.tf", "dns.tf", "pods.tf"}
+			var rootContent strings.Builder
+			for _, f := range rootFiles {
+				data, err := os.ReadFile(filepath.Join(out, f)) //nolint:gosec // fixed test-generated path
+				if err != nil {
+					t.Fatal(err)
+				}
+				rootContent.Write(data)
+			}
+			root := rootContent.String()
+			if !countArgPattern.MatchString(root) {
+				t.Error("no root-level `count =` argument found anywhere in iam.tf/dns.tf/pods.tf - the identity layer's count-expanded share is missing")
+			}
+			if !forEachArgPattern.MatchString(root) {
+				t.Error("no root-level `for_each =` argument found anywhere in iam.tf/dns.tf/pods.tf - the DNS for_each share is missing")
+			}
+			if !moduleBlockPattern.MatchString(root) {
+				t.Error(`no root-level module "..." block found in pods.tf - the module-nested share is missing`)
+			}
+
+			modData, err := os.ReadFile(filepath.Join(out, "modules", "team_pod", "main.tf")) //nolint:gosec // fixed test-generated path
+			if err != nil {
+				t.Fatalf("modules/team_pod/main.tf: %v", err)
+			}
+			if !countArgPattern.MatchString(string(modData)) {
+				t.Error("no `count =` argument found inside modules/team_pod/main.tf - #574's \"module-nested count instance\", the hardest shape, is missing")
+			}
+		})
+	}
+}
+
+// dnsEntryPattern matches one rendered entry of dns.tf's dns_records map -
+// the key, the record type, and the whole bracketed list its `records`
+// argument is fed. Written against the rendered TEXT rather than against
+// writeRecords' own variables, so it still catches a regression that
+// changes how the value is built.
+var dnsEntryPattern = regexp.MustCompile(`(?m)^\s*"([^"]+)"\s*=\s*\{\s*type\s*=\s*"([^"]+)",\s*value\s*=\s*\[(.*)\]\s*\}\s*$`)
+
+// preQuotedRecordValues returns, for the rendered dns.tf given, every entry
+// whose value carries a quote character of its OWN inside the HCL string
+// literal (rendered as \" by %q).
+//
+// Route53 requires each TXT value to be enclosed in quotation marks, and
+// the AWS provider (hashicorp/aws, 6.59.0) adds that pair itself, so a
+// value that already carries one is quoted twice and real AWS rejects it:
+// InvalidCharacterString (Value should be enclosed in quotation marks)
+// encountered with '""v=textNNNN""'. That is issue #567, found against a
+// real account on 2026-08-30 and invisible to floci, which accepts the
+// malformed value silently. The rule is not TXT-specific - no record type
+// this generator emits has any reason to carry an inner quote - so the
+// check reads every entry rather than switching on the type.
+func preQuotedRecordValues(dnsTF string) []string {
+	var bad []string
+	for _, m := range dnsEntryPattern.FindAllStringSubmatch(dnsTF, -1) {
+		if strings.Contains(m[3], `\"`) {
+			bad = append(bad, fmt.Sprintf("%s (%s): value = [%s]", m[1], m[2], m[3]))
+		}
+	}
+	return bad
+}
+
+// TestRecordValuesAreNotPreQuoted is issue #567's fix held to the tree. It
+// landed once against the pre-#574 scalar `records = ["..."]` form and had
+// to be re-applied when #574's for_each/list-valued expansion carried the
+// original defect forward through a parallel branch (PR #577's conflict
+// resolution) - which is exactly the recurrence a guard exists to stop.
+func TestRecordValuesAreNotPreQuoted(t *testing.T) {
+	for _, scale := range []int{1, 4} {
+		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "terralith")
+			e := buildEstate(scale, "tl")
+			if err := e.write(out); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(out, "dns.tf")) //nolint:gosec // fixed test-generated path
+			if err != nil {
+				t.Fatal(err)
+			}
+			dnsTF := string(data)
+
+			// The map must actually have been read, and all three record
+			// types must be in it - otherwise the scan below passes
+			// vacuously the moment the rendered shape changes.
+			seen := map[string]int{}
+			for _, m := range dnsEntryPattern.FindAllStringSubmatch(dnsTF, -1) {
+				seen[m[2]]++
+			}
+			for _, typ := range []string{"A", "CNAME", "TXT"} {
+				if seen[typ] == 0 {
+					t.Fatalf("no %s entry matched in the rendered dns_records map - the scan would pass vacuously; rendered dns.tf:\n%s", typ, dnsTF)
+				}
+			}
+
+			for _, b := range preQuotedRecordValues(dnsTF) {
+				t.Errorf("record value carries a quote pair of its own: %s\n"+
+					"The AWS provider adds Route53's required quote pair itself, so this one is quoted twice and real AWS rejects it (issue #567).", b)
+			}
+		})
+	}
+}
+
+// TestRecordValuesAreNotPreQuotedHasTeeth feeds the check the exact text
+// the generator emitted before the fix - main's own rendering at
+// 4493af5438, the #574 expansion - and requires it to fail on it. Without
+// this control the scan above is a check that has never been made to fail.
+func TestRecordValuesAreNotPreQuotedHasTeeth(t *testing.T) {
+	broken := `locals {
+  dns_records = {
+    "host-0000" = { type = "A", value = ["10.60.0.0"] }
+    "host-0002" = { type = "TXT", value = ["\"v=text0002\""] }
+  }
+}
+`
+	bad := preQuotedRecordValues(broken)
+	if len(bad) != 1 {
+		t.Fatalf("preQuotedRecordValues on the known-broken pre-#567 rendering returned %d findings, want exactly 1 (the TXT entry): %v", len(bad), bad)
+	}
+	if !strings.Contains(bad[0], "host-0002") {
+		t.Errorf("finding names %q, want the TXT entry host-0002", bad[0])
 	}
 }
 
