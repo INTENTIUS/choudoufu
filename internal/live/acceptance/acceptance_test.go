@@ -8,6 +8,7 @@ package acceptance
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -129,5 +130,116 @@ func TestStillInFlightSummarizesATimedOutApply(t *testing.T) {
 	// An output with a real Error: line keeps the existing behavior.
 	if got := firstErrorLine("x: Still creating... [01m00s elapsed]\n│ Error: boom\n", nil); got != "Error: boom" {
 		t.Errorf("firstErrorLine with an Error line = %q", got)
+	}
+}
+
+// TestRatchetViolationsCatchesFixtureShrink is #539's red demonstration,
+// reproducing the real iam-ecr transition verbatim: pre-#499 the committed
+// artifact recorded status=fail, resources=9 (PutRegistryScanningConfiguration
+// broken); post-#499 the fixture had lost three resources - including the
+// one that failed - and measured status=pass, resources=6. Nothing about
+// that transition touches the pass -> fail ratchet, because the committed
+// row was never "pass" to begin with, and lex00/floci#168 (the operation
+// that actually failed) is still open. ratchetViolations must name the
+// cohort and both counts, not report a quiet improvement - and it must do
+// so as data a passing test can assert on, not as a live t.Errorf that
+// would leave a permanently-red subtest in this suite (see
+// ratchetViolations's doc comment for why the check is split out this way).
+func TestRatchetViolationsCatchesFixtureShrink(t *testing.T) {
+	committed := buildArtifact("img@sha256:1362e856", providerPin, "1362e856", "2026-08-20T00:00:00Z", []CohortResult{
+		{
+			Name:      "iam-ecr",
+			Status:    "fail",
+			Phase:     PhaseApply,
+			Resources: 9,
+			Detail:    "putting ECR Registry Scanning Configuration: operation error ECR: PutRegistryScanningConfiguration",
+		},
+	})
+
+	current := []CohortResult{
+		{Name: "iam-ecr", Status: "pass", Phase: PhasePass, Resources: 6},
+	}
+
+	violations := ratchetViolations(committed, current, true)
+	if len(violations) != 1 {
+		t.Fatalf("ratchetViolations = %v, want exactly 1 violation naming iam-ecr's shrink", violations)
+	}
+	got := violations[0].Error()
+	for _, want := range []string{"iam-ecr", "9", "status=fail", "6", "status=pass"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("violation message %q does not mention %q", got, want)
+		}
+	}
+	t.Logf("guard fired: %s", got)
+}
+
+// TestRatchetViolationsAllowsFlatOrGrowingResourceCount is the negative
+// case: the shrink guard must not fire when a cohort's resource count holds
+// steady, and must not fire when it grows even while status improves from
+// fail to pass - that is the legitimate shape (floci actually got fixed)
+// the guard exists to keep visible, not to block. On its own this is worth
+// little (it would also pass if the guard could never fire), which is what
+// TestRatchetViolationsCatchesFixtureShrink is for.
+func TestRatchetViolationsAllowsFlatOrGrowingResourceCount(t *testing.T) {
+	committed := buildArtifact("img@sha256:old", providerPin, "oldsha", "2026-08-20T00:00:00Z", []CohortResult{
+		{Name: "flat", Status: "pass", Phase: PhasePass, Resources: 6},
+		{Name: "grows", Status: "fail", Phase: PhaseApply, Resources: 6, Detail: "some real fix landed"},
+	})
+
+	current := []CohortResult{
+		{Name: "flat", Status: "pass", Phase: PhasePass, Resources: 6},
+		{Name: "grows", Status: "pass", Phase: PhasePass, Resources: 9},
+	}
+
+	if violations := ratchetViolations(committed, current, true); len(violations) > 0 {
+		t.Errorf("ratchetViolations fired on a flat and a growing resource count; neither is a shrink: %v", violations)
+	}
+}
+
+// TestRatchetViolationsCatchesPassToFail is the pass -> fail ratchet's own
+// red demonstration - the property enforceRatchet has enforced since #108,
+// but which had no unit test of its own before #539 split ratchetViolations
+// out as a pure function: the only way to see it fire was the docker-gated
+// live tier. "A guard never demonstrated failing is not a guard."
+func TestRatchetViolationsCatchesPassToFail(t *testing.T) {
+	committed := buildArtifact("img@sha256:old", providerPin, "oldsha", "2026-08-20T00:00:00Z", []CohortResult{
+		{Name: "s3", Status: "pass", Phase: PhasePass, Resources: 6},
+	})
+
+	current := []CohortResult{
+		{Name: "s3", Status: "fail", Phase: PhaseApply, Resources: 6, Detail: "operation error S3: PutBucketPolicy"},
+	}
+
+	violations := ratchetViolations(committed, current, true)
+	if len(violations) != 1 {
+		t.Fatalf("ratchetViolations = %v, want exactly 1 violation for s3's regression", violations)
+	}
+	got := violations[0].Error()
+	for _, want := range []string{"s3", "recorded as passing", "now fails", "apply", "PutBucketPolicy"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("violation message %q does not mention %q", got, want)
+		}
+	}
+}
+
+// TestRatchetViolationsCatchesMissingVerdict is the third recorded-pass
+// failure mode: a fixture deleted or renamed outright produces no verdict
+// at all. It must fire when complete=true (a full run that simply has
+// nothing to say about a cohort that used to exist) and must stay silent
+// when complete=false, since a -run filter leaving a cohort out is not
+// evidence of anything.
+func TestRatchetViolationsCatchesMissingVerdict(t *testing.T) {
+	committed := buildArtifact("img@sha256:old", providerPin, "oldsha", "2026-08-20T00:00:00Z", []CohortResult{
+		{Name: "s3", Status: "pass", Phase: PhasePass, Resources: 6},
+	})
+
+	if violations := ratchetViolations(committed, nil, true); len(violations) != 1 {
+		t.Fatalf("complete run with no verdict for s3: ratchetViolations = %v, want exactly 1 violation", violations)
+	} else if !strings.Contains(violations[0].Error(), "deleted or renamed") {
+		t.Errorf("violation message %q does not explain the missing verdict", violations[0].Error())
+	}
+
+	if violations := ratchetViolations(committed, nil, false); len(violations) != 0 {
+		t.Errorf("a -run filter (complete=false) leaving s3 out must not be a violation: %v", violations)
 	}
 }
