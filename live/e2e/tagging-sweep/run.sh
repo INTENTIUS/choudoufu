@@ -21,14 +21,35 @@ set -euo pipefail
 # pin moved; the gate stayed. This script is the coverage the gate's removal
 # is worth.
 #
+# The ONE Tagging API call moved since this script was first written. Issue
+# #266 pulled it out of [sweepViaTagging] (a late, separate pass over every
+# admitted type) and into [markerIndex] (internal/live/discovery/bindtags.go),
+# fetched at most once per plan and shared by BOTH the config-driven per-type
+# scan's own tag join AND the estate-wide sweep for types with no list route
+# at all. aws_iam_role has a list route (iam:ListRoles) and is walked by the
+# per-type scan regardless of whether it is declared, so it is the JOIN that
+# resolves it now - "... came back from the list call with no ownership
+# marker; joined one from the estate's tag index" - not sweepViaTagging's own
+# "sweeping aws_iam_role via the Tagging API" line, which this script
+# originally checked for and which no longer fires for this type (confirmed
+# against the current build: issue #541 traced the full TF_LOG=debug output
+# and found aws_iam_role absent from every "sweeping ... via the Tagging
+# API" line, present instead in exactly one "joined one from the estate's
+# tag index" line, per role). Both draw from the identical GetResources call
+# markerIndex.fetch makes once, gated by the identical
+# TOFU_LIVE_CLOUDCONTROL=off switch (leaves Request.Tagging nil, so the join
+# and the sweep both find nothing) - so the claim under test did not change,
+# only the specific debug string that proves it for a type with a list
+# route.
+#
 # Two runs, deliberately:
 #
-#   A. the default. The debug log must show the sweep going through the
-#      Tagging API, and the plan must propose destroying exactly the block
-#      that was deleted.
-#   B. TOFU_LIVE_CLOUDCONTROL=off, which skips the whole Cloud Control /
-#      tagging block in live_plan.go and returns the run to the per-type
-#      sweep. The Tagging API line must be absent.
+#   A. the default. The debug log must show this instance's ownership marker
+#      joined from the shared tag index, and the plan must propose
+#      destroying exactly the block that was deleted.
+#   B. TOFU_LIVE_CLOUDCONTROL=off, which leaves the shared tag index unbuilt
+#      and returns the run to the bare per-type scan. The join line must be
+#      absent.
 #
 # B is what keeps A honest. An assertion that a log line is present proves
 # nothing on its own if the line is printed unconditionally; B is the control
@@ -44,7 +65,7 @@ set -euo pipefail
 # returns no tags, on floci and on real AWS alike ("this operation does not
 # return tags ... to view all of the information for a role, see GetRole").
 # So a listed role carries an empty tag map, no ownership marker can be read
-# off it, and the estate-wide tagging sweep is the ONLY path that detects an
+# off it, and the shared tag index join is the ONLY path that detects an
 # undeclared aws_iam_role. The gate this script exists to retire was
 # therefore not costing the emulator tier its speed. It was costing it the
 # removal.
@@ -80,10 +101,15 @@ ESTATE="tagging-sweep-e2e"
 DEMO_ROLE="tagging-sweep-e2e-demo"
 KEEPER_ROLE="tagging-sweep-e2e-keeper"
 
-# The exact line internal/live/discovery/tagging.go logs once per swept type.
-# Matched as a substring, so a change to the count or the CFN type in it does
-# not break this; a change to the branch does.
-TAGGING_LOG="sweeping aws_iam_role via the Tagging API"
+# The exact line internal/live/discovery/discovery.go:1717 logs when a
+# listed object with no tags of its own gets its ownership marker joined
+# from the shared tag index (issue #266) - the path aws_iam_role actually
+# takes, since it has a list route and is walked by the per-type scan
+# regardless of whether it is declared. Matched as a substring naming this
+# specific role, so a change to which OTHER role or type also joins does not
+# break this; a change to whether THIS one still does breaks it, which is
+# the point.
+TAGGING_LOG="aws_iam_role \"$DEMO_ROLE\" came back from the list call with no ownership marker; joined one from the estate's tag index"
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -202,8 +228,8 @@ set -e
 assert_removal_plan "run A" "$A_RC" "$A_OUT"
 grep -q "$TAGGING_LOG" <<< "$A_OUT" \
   || { printf '%s\n' "$A_OUT" | tail -60
-       fail "run A: the debug log never says \"$TAGGING_LOG\". The command wiring did not enable the estate-wide tagging sweep, so internal/live/discovery's sweepViaTagging leg is still uncovered end to end - which is the entire point of this script (issue #255)."; }
-log "  destroy proposed for aws_iam_role.demo, keeper untouched, sweep went through the Tagging API; $((A_T1 - A_T0))s"
+       fail "run A: the debug log never says \"$TAGGING_LOG\". The command wiring did not join $DEMO_ROLE's ownership marker from the shared tag index, so internal/live/discovery's issue-#266 join is still uncovered end to end for this type - which is the entire point of this script (issue #255)."; }
+log "  destroy proposed for aws_iam_role.demo, keeper untouched, its marker joined from the shared tag index; $((A_T1 - A_T0))s"
 
 # ── 5. run B: the control ───────────────────────────────────────────────────
 # TOFU_LIVE_CLOUDCONTROL=off skips the Cloud Control / tagging block in
