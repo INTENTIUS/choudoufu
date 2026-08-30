@@ -80,7 +80,7 @@ import (
 //     about hand-rewriting hclsyntax nodes, not about the estate's ability
 //     to carry a marker: the node path never appends to source text at
 //     all, it merges an already-evaluated cty.Value
-//     ([projection.NodeResolver.stampedTags]), so any tags argument that
+//     (projection.NodeResolver's unexported stampedTags), so any tags argument that
 //     evaluates cleanly - literal object, merge() call, local, variable,
 //     anything - is written the same way, without needing to distinguish
 //     the write mechanism from the schema mechanism the way stamp.go's
@@ -97,8 +97,9 @@ import (
 // either way - none of the 259 entries declares a live block, so none
 // hand-writes a tofu-estate/tofu-address tag for anything to conflict
 // with - and is instead verified by nodestamp_conflict_test.go, a direct
-// fixture pinning the mechanism this file reuses ([markerConflictDiag] via
-// AdjustConfigValue) against a hand-written conflicting marker.
+// fixture pinning the mechanism this file reuses (projection's unexported
+// markerConflictDiag, via AdjustConfigValue) against a hand-written
+// conflicting marker.
 
 // nodeStampDiagnostics is [Analyze]'s LayerStamp section, computed from the
 // node-resolve path's own primitives instead of [stamp.Stamp]. See this
@@ -253,7 +254,8 @@ func lookupResourceBlock(cfg *configs.Config, addr addrs.ConfigResource) (*confi
 // It walks every resolved instance (not only NeedsDiscovery ones, since a
 // hand-written conflicting marker is a mistake a config-identified
 // resource can make too), statically evaluates its tags argument with no
-// repetition data - the same limitation [stamp.staticValue] always had, so
+// repetition data - the same limitation stamp.staticValue (unexported)
+// always had, so
 // a tags value that varies by count.index or each.key is skipped here
 // exactly as it was skipped there, silently, because there is nothing
 // wrong with it that this pass can prove - and hands the result to
