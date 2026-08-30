@@ -1910,6 +1910,19 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 
 	switch status {
 	case statusAbsent:
+		// GitHub issue #596, before the omission below is allowed to stand:
+		// "no such object" and "this resource has not been created yet" are
+		// the same provider answer to two different questions, and the
+		// second is an inference. Where this run has POSITIVELY identified
+		// a live object as this instance's - the provider's own list call
+		// returned it, carrying this estate's marker - the inference is
+		// contradicted by evidence already in hand, and proposing a create
+		// would duplicate live infrastructure. See
+		// [builder.refuseListedButAbsent], which also states why a tagging-
+		// API sighting deliberately does NOT reach it.
+		if b.refuseListedButAbsent(addr, typeName, importID, w, rc != nil && !w.undeclared) {
+			return true
+		}
 		b.omit(addr, ReasonAbsent,
 			fmt.Sprintf(
 				"The provider reports no %s exists with identity %q, so this resource has not been created yet. The plan will propose creating it.",
