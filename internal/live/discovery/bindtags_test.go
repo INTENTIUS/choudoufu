@@ -575,3 +575,47 @@ func renderProblems(ps []Problem) string {
 	}
 	return b.String()
 }
+
+// TestTagJoinRefusesAnotherEstatesResource is [markerIndex.join]'s second
+// gate - the object's own tofu-estate has to be this estate's - and until
+// #586 audited the three gates by mutation it was the one with no test at
+// all: deleting the check left the whole package green.
+//
+// The gate's own doc comment calls it "belt and braces" because GetResources
+// is called with a TagFilter naming this estate, so a well-behaved Tagging
+// API cannot return anybody else's resource. That is an argument about the
+// service, not about this package, and it is exactly the shape this
+// repository has been burned by before: a guard whose only justification is
+// that its input is already clean. The failure it prevents is the worst one
+// the marker path has - binding a declared instance to a resource another
+// estate owns and marked - so it is worth a test that fails when it is gone.
+//
+// The fixture's tagging server deliberately ignores the TagFilter, which is
+// what makes it a test of this gate rather than of the request builder.
+func TestTagJoinRefusesAnotherEstatesResource(t *testing.T) {
+	cloud := newFakeCloud()
+	ownAllDiscovered(cloud)
+	stripTags(t, cloud, "aws_vpc", "vpc-1")
+
+	srv := &taggingServer{}
+	// The right type, the right identifier and a well-formed marker for the
+	// very address being discovered - every gate but the estate one is
+	// satisfied. It belongs to somebody else.
+	taggedARN(srv, "arn:aws:ec2:us-east-1:000000000000:vpc/vpc-1", map[string]string{
+		TagEstate:  "someone-elses-estate",
+		TagAddress: `aws_vpc.main`,
+	})
+
+	res, diags := discoverFixture(t, cloud, taggingRequest(t, srv))
+
+	if diags.HasErrors() {
+		t.Fatalf("a refused join produced errors:\n%s", renderDiags(diags))
+	}
+	if _, bound := res.BindingFor(mustAddr(t, `aws_vpc.main`)); bound {
+		t.Fatalf("aws_vpc.main bound to a resource carrying another estate's tofu-estate tag:\n%s", res)
+	}
+	scan, _ := res.ScanFor("aws_vpc")
+	if scan.Joined != 0 {
+		t.Errorf("aws_vpc scan Joined=%d, want 0: another estate's tags were read onto this estate's object", scan.Joined)
+	}
+}
