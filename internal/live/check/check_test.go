@@ -130,7 +130,13 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"providerversion": true,
 		"registry":        true,
 		"slots":           true,
-		"staterecord":     true,
+		// GitHub issue #588's measurement: does a plan with NO live block
+		// cost what stock costs? It runs binaries against the emulator and
+		// counts API calls. It is an instrument, not a stage - nothing in
+		// it can refuse anything, because nothing in it is on the live
+		// path at all.
+		"statefulcost": true,
+		"staterecord":  true,
 		// GitHub issue #365's strict-profile vocabulary: a setting type,
 		// the valid set, the default, and which settings a build
 		// implements. It refuses nothing itself - internal/live/lint does,

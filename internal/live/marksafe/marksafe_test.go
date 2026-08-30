@@ -67,6 +67,11 @@ var guardedPackages = []string{
 	"registry",
 	"slots",
 	"stamp",
+	// One floci measurement (#588): it generates an estate, shells out to
+	// terraform/tofu/choudoufu, and counts API calls through a proxy. It
+	// touches no cty.Value at all, so like "onboard" and "docrefs" above it
+	// is held to zero rather than deferred - it has nothing to defer.
+	"statefulcost",
 	"staterecord",
 	"strict",
 	"uniquename",
