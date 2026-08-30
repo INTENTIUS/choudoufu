@@ -301,14 +301,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	"tools/estate-gen/overrides_cohort_data.go":                 {Reason: estateGenCohortReason, Data: 9, Code: 3},
 	"tools/estate-gen/overrides_cohort_data_movement.go":        {Reason: estateGenCohortReason, Data: 22, Code: 8},
 	"tools/estate-gen/overrides_cohort_databases.go":            {Reason: estateGenCohortReason, Data: 18, Code: 6},
-	"tools/estate-gen/overrides_cohort_devtools.go":             {Reason: estateGenCohortReason, Data: 12, Code: 2},
+	"tools/estate-gen/overrides_cohort_devtools.go":             {Reason: estateGenCohortReason, Data: 13, Code: 2},
 	"tools/estate-gen/overrides_cohort_dynamodb_elasticache.go": {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_ec2_core.go":             {Reason: estateGenCohortReason, Data: 7, Code: 1},
 	"tools/estate-gen/overrides_cohort_ec2_networking.go":       {Reason: estateGenCohortReason, Data: 12, Code: 0},
-	"tools/estate-gen/overrides_cohort_ecs_eks.go":              {Reason: estateGenCohortReason, Data: 11, Code: 1},
+	"tools/estate-gen/overrides_cohort_ecs_eks.go":              {Reason: estateGenCohortReason, Data: 15, Code: 2},
 	"tools/estate-gen/overrides_cohort_governance.go":           {Reason: estateGenCohortReason, Data: 13, Code: 1},
 	"tools/estate-gen/overrides_cohort_iam_ecr.go":              {Reason: estateGenCohortReason, Data: 4, Code: 1},
-	"tools/estate-gen/overrides_cohort_identity.go":             {Reason: estateGenCohortReason, Data: 19, Code: 2},
+	"tools/estate-gen/overrides_cohort_identity.go":             {Reason: estateGenCohortReason, Data: 19, Code: 3},
 	"tools/estate-gen/overrides_cohort_iot.go":                  {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_lambda.go":               {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_media.go":                {Reason: estateGenCohortReason, Data: 2, Code: 0},
@@ -469,8 +469,36 @@ const (
 	// The same live-schema-fact-classify-cannot-derive shape as this file's own
 	// harness.SanctionedCredentialExclusions entry. Three Data literals added,
 	// no Code, nothing moved.
-	typeLiteralDataTotal = 447
-	typeLiteralCodeTotal = 127
+	// 447 -> 452 data, 127 -> 129 code, 2026-08-30 (issue #554): three
+	// fixture bugs found triaging estate-gen's own output against
+	// terraform validate + a real floci apply. overrides_cohort_devtools.go
+	// gains one entry - aws_codeartifact_domain_permissions_policy, whose
+	// policy_document the schema leaves Optional even though the provider
+	// requires it - one Data literal (the map key), no Code.
+	// overrides_cohort_ecs_eks.go gains three entries: aws_dynamodb_table
+	// (found regenerating this cohort, unrelated to the ecs_eks fix itself:
+	// a pre-existing seedFromExample gap drops a repeated block's second
+	// and third elements, so this table's own doc-example
+	// GameTitle/TopScore attribute blocks - both referenced by its
+	// range_key and global_secondary_index - never landed; reconstructed
+	// in full since an override suppresses seedFromExample for its whole
+	// type - one Data literal, the map key, no Code), aws_ecs_task_definition
+	// (a NeedsSupporting resource for aws_ecs_service's own missing
+	// task_definition - one Data literal, the map key, no Code), and
+	// aws_ecs_service (wired to the new supporting resource via a
+	// g.byType["aws_ecs_task_definition"] lookup inside its own Apply -
+	// two Data literals, the map key and the NeedsSupporting entry naming
+	// aws_ecs_task_definition, one Code literal for the lookup).
+	// overrides_cohort_identity.go gains no new entry, but
+	// aws_cognito_identity_pool_roles_attachment's existing Apply gains one
+	// g.byType["aws_cognito_identity_pool"] sibling lookup, replacing a
+	// hardcoded fake identity_pool_id the generic pass's own siblingRef
+	// would have resolved correctly if the override had not been shadowing
+	// it - one Code literal, no Data. Five Data literals added (1 devtools +
+	// 4 ecs-eks), two Code literals added (1 ecs-eks + 1 identity), nothing
+	// moved or removed.
+	typeLiteralDataTotal = 452
+	typeLiteralCodeTotal = 129
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and
