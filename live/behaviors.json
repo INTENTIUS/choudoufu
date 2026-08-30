@@ -47,11 +47,11 @@
       "default_port": 4607,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 47
+        "duration_s": 55.5
       }
     },
     {
@@ -73,11 +73,11 @@
       "default_port": 4602,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 75.5
+        "duration_s": 59.6
       }
     },
     {
@@ -98,11 +98,11 @@
       ],
       "default_port": 4599,
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 49.2
+        "duration_s": 63.5
       }
     },
     {
@@ -124,11 +124,11 @@
       "default_port": 4608,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 62.7
+        "duration_s": 40.9
       }
     },
     {
@@ -151,11 +151,11 @@
       "default_port": 4606,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 45.4
+        "duration_s": 57
       }
     },
     {
@@ -177,11 +177,11 @@
       "default_port": 4604,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 57.3
+        "duration_s": 45.7
       }
     },
     {
@@ -202,11 +202,11 @@
       ],
       "default_port": 4742,
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 98.6
+        "duration_s": 95.2
       }
     },
     {
@@ -228,11 +228,11 @@
       "default_port": 4605,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 83.6
+        "duration_s": 83.5
       }
     },
     {
@@ -249,11 +249,11 @@
       "resources": 4,
       "stage": "day2_remove",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 24.5
+        "duration_s": 30
       }
     },
     {
@@ -276,11 +276,11 @@
       "default_port": 4606,
       "stage": "test_plan",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 101.1
+        "duration_s": 99.8
       }
     },
     {
@@ -302,11 +302,11 @@
       "default_port": 4601,
       "stage": "day2_remove",
       "last_run": {
-        "commit": "12e5cc2958c3c2231c0cf198216ba4711666edcd",
-        "date": "2026-08-30T02:20:54Z",
+        "commit": "283b99d3c57dfe6dc268a4a1e8b8a8084284a80c",
+        "date": "2026-08-30T02:52:32Z",
         "exit_code": 0,
         "verdict": "pass",
-        "duration_s": 29.3
+        "duration_s": 22
       }
     },
     {
