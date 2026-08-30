@@ -117,7 +117,10 @@ type BehaviorFixture struct {
 	// - for an adoption estate - the count its own header comment states).
 	Resources int `json:"resources,omitempty"`
 	// Needs lists external dependencies beyond `go build`: "docker",
-	// "aws-cli", "corpus" (a populated .corpus/ checkout).
+	// "aws-cli", "corpus" (a populated .corpus/ checkout), or "terraform" (a
+	// real, unmodified terraform binary on PATH - only a fixture that
+	// crosses against stock as its own oracle, rather than trusting
+	// choudoufu to grade itself, needs this one).
 	Needs []string `json:"needs,omitempty"`
 	// DefaultPort is the FLOCI_PORT the script falls back to when the
 	// runner does not override it (measured from the script's own source,
@@ -452,15 +455,117 @@ func RunBehaviors(root string, bi *BehaviorIndex, opts BehaviorsRunOptions, comm
 	return failures, nil
 }
 
+// mandatoryShapes are the #522 ruling's default representative-set shapes,
+// required of EVERY proven stage regardless of whether that stage touches
+// identity resolution ("Mandatory shapes per stage: start at three... a
+// real count block, a real for_each map, a module-nested resource" - the
+// ruling's own wording). A stage whose mapped fixtures never exercise one
+// of these three shapes is not proven, no matter how many fixtures are
+// mapped or how consistently they pass: a pile of scalar-only fixtures is
+// not the representative set the ruling asks for.
+var mandatoryShapes = []string{"count", "for_each", "module-nested"}
+
+// mandatoryIdentityKinds are the #522 ruling's three named identity kinds,
+// required ADDITIONALLY of a stage that touches identity resolution: "one
+// fixture per identity kind, because today proved these three behave
+// differently and a test written for one is wrong for the others" -
+// server-minted id, deterministic id, no server id at all.
+var mandatoryIdentityKinds = []string{"server-minted", "deterministic", "none"}
+
+// identityTouchingStages is the #522 ruling's second mandatory-coverage
+// clause, applied to specific stages: which of the 14 gauntlet stages
+// (stages.go) touch identity resolution as part of what their OWN Proves
+// text commits to. This is an editorial classification of the STAGE's own
+// definition - re-derived from stages.go, not from which fixtures happen
+// to be mapped to it today. A mapped fixture that forgot to set
+// IdentityKind must not silently exempt an identity-touching stage from
+// the requirement; that would make the exemption a property of sloppy
+// curation rather than of the stage, which is exactly the "vacuous
+// agreement is not evidence" failure this whole metric exists to refuse.
+var identityTouchingStages = map[string]bool{
+	// "each state entry becomes a marker on the resource, a record, or an
+	// identity derived from the declaration"
+	"migrate": true,
+	// "a representative set of rendered identities equals what the AWS
+	// CLI reports for the same objects"
+	"test_plan": true,
+	// "the next plan proposes fixing exactly that object" - has to
+	// identify WHICH live object drifted
+	"drift_reconverge": true,
+	// "the marker rewritten in place"
+	"day2_rename": true,
+	// has to bind each already-live object, declared and undeclared, to
+	// know what to destroy - "including blocks for untaggable children
+	// whose parents stay"
+	"day2_remove": true,
+	// "every surviving instance keeps its identity"
+	"day2_count": true,
+	// "the next plan is empty with no marker collision"
+	"day2_replace": true,
+	// "the old object is destroyed, the new one is bound"
+	"day2_crash": true,
+	// "leaves nothing marked"
+	"day2_teardown": true,
+	// "produces the same objects stock's cold deploy produced, plus
+	// markers"
+	"greenfield": true,
+	// Deliberately NOT identity-touching, per their own Proves text:
+	//   cold_deploy    - stock only, no choudoufu identity involved at all.
+	//   test_apply     - an object count; the stage asserts no identity.
+	//   plan_approval  - refusal on drift, not identity resolution.
+	//   strict         - toggle refusals (secrets, marker repair), not identity.
+}
+
+// meetsShapeAndIdentityCoverage reports whether fixtures - all already
+// known to be mapped to stage and passing - collectively cover the #522
+// ruling's mandatory shapes, and, if stage touches identity resolution,
+// the mandatory identity kinds too.
+func meetsShapeAndIdentityCoverage(stage string, fixtures []BehaviorFixture) bool {
+	shapes := map[string]bool{}
+	kinds := map[string]bool{}
+	for _, f := range fixtures {
+		for _, s := range f.Shapes {
+			shapes[s] = true
+		}
+		if f.IdentityKind != "" {
+			kinds[f.IdentityKind] = true
+		}
+	}
+	for _, want := range mandatoryShapes {
+		if !shapes[want] {
+			return false
+		}
+	}
+	if identityTouchingStages[stage] {
+		for _, want := range mandatoryIdentityKinds {
+			if !kinds[want] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // BehaviorsProven is the #522 headline metric: for every one of the 14
-// gauntlet stages (tools/gauntlet/stages.go), a stage counts as proven when
-// at least one fixture in bi is mapped to it (BehaviorFixture.Stage) and
-// every fixture mapped to it last ran with verdict "pass". A stage with no
-// fixture mapped to it is not proven - vacuous agreement is not evidence,
-// the same rule HANDOFF.md's safety section applies to an identity check
-// that "measures agreement with itself". It returns (proven, total); total
-// is always len(Stages()) regardless of bi, so the denominator never lies
-// even when the index is missing or empty.
+// gauntlet stages (tools/gauntlet/stages.go), a stage counts as proven
+// when at least one fixture in bi is mapped to it (BehaviorFixture.Stage),
+// every fixture mapped to it last ran with verdict "pass", AND the mapped
+// fixtures collectively meet the ruling's coverage bar
+// (meetsShapeAndIdentityCoverage above): the three mandatory shapes always,
+// plus all three named identity kinds for a stage that touches identity
+// resolution. A stage with no fixture mapped to it, a mapped fixture that
+// is failing or has never run, or a mapped set that is all-passing but
+// covers only a subset of shapes/kinds, is NOT proven - vacuous agreement
+// is not evidence, the same rule HANDOFF.md's safety section applies to an
+// identity check that "measures agreement with itself", and a metric that
+// can be satisfied by a narrower set than the rule it implements would
+// drift upward as fixtures get mapped loosely with nobody noticing (found
+// in review: day2_remove's two mapped fixtures, tagging-sweep and
+// record-store, are both "scalar" shape only - genuinely passing evidence
+// that the stage's block-removal mechanism works, but not the
+// representative set the ruling requires to call it PROVEN). It returns
+// (proven, total); total is always len(Stages()) regardless of bi, so the
+// denominator never lies even when the index is missing or empty.
 func BehaviorsProven(bi *BehaviorIndex) (proven, total int) {
 	stages := Stages()
 	total = len(stages)
@@ -486,7 +591,7 @@ func BehaviorsProven(bi *BehaviorIndex) (proven, total int) {
 				break
 			}
 		}
-		if allPass {
+		if allPass && meetsShapeAndIdentityCoverage(s.ID, fixtures) {
 			proven++
 		}
 	}

@@ -682,6 +682,21 @@ demo-corpus-sqs-basic:
 demo-counted-module:
     bash live/e2e/counted-module/run.sh
 
+# GitHub issue #320's mechanism, ruled in #425: "choudoufu apply -destroy"
+# under a live block generalizes the existing orphan sweep rather than being
+# a separate mechanism, and the refusal on plans.DestroyMode is gone
+# (internal/command/live_mode.go). Five objects across all three #522-
+# mandatory shapes (a count block, a for_each map, a module-nested resource),
+# including a real destroy-order dependency (a subnet inside a VPC), are
+# stood up and torn down twice on the same emulator - once with plain
+# terraform as the oracle, once with choudoufu under a live block and no
+# state - and both empty-account claims are checked by enumerating the live
+# objects rather than trusting a count. A control leaves one resource behind
+# and proves that check goes red. Needs Docker, the AWS CLI, and a real
+# terraform on PATH; runs on its own port (4743).
+demo-destroy-teardown:
+    bash live/e2e/destroy-teardown/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
@@ -1323,8 +1338,20 @@ live-check dir=".":
 # stock, records each stage's verdict into live/gauntlet.json, and regenerates
 # the spec and the site's progress pages. `just gauntlet` is what CI runs
 # nightly; `just gauntlet-run <name>` is one estate.
+#
+# The stock terraform/tofu on PATH is the ORACLE - live/oracle-versions.json
+# pins which release, and CI's setup-terraform/setup-opentofu steps install
+# exactly that (issue #544). Locally, nothing installs it for you: check
+# `terraform version` / `tofu version` against that file before trusting a
+# local verdict against a CI one, especially a failure that looks like a
+# schema disagreement rather than a real regression - #498 was exactly a
+# local terraform silently a release behind CI's. Every run - local or CI -
+# records what it actually found on PATH into last_run.oracle regardless,
+# so a rendered estate page (or live/gauntlet.json directly) says which
+# oracle produced its verdict rather than assuming the pin was honoured.
 
-# Run the core set (Docker, the AWS CLI and a stock terraform on PATH).
+# Run the core set (Docker, the AWS CLI and a stock terraform on PATH - see
+# live/oracle-versions.json for which release CI pins).
 gauntlet:
     env -u PWD go run ./tools/gauntlet run -set core
 
@@ -1349,6 +1376,33 @@ gauntlet-snapshot version:
 # release body. Example: just gauntlet-notes live/history/v0.3.0.json live/history/v0.4.0.json
 gauntlet-notes old new:
     env -u PWD go run ./tools/gauntlet notes {{old}} {{new}}
+
+# Issue #544: the stock terraform/tofu binaries every stage compares
+# choudoufu's plan against are the ORACLE - an unpinned oracle silently
+# changes what "matches stock" means (#498's root cause). Both are pinned at
+# live/oracle-versions.json, the single place .github/workflows/gauntlet.yml
+# and .github/workflows/contribute.yml both read.
+#
+# Bumping the pin is a reviewed event, the same shape #441 built for a
+# provider bump (re-measure, emit a movement report, land the report with
+# the change): hand-edit live/oracle-versions.json to the new version(s)
+# first, then run this recipe, which re-runs the gauntlet against the new
+# pin and prints what moved - the pin itself, each set's clear/estate
+# counts, which estates' stage verdicts or clear flag changed, and which
+# rows' last_run.oracle actually reflects the new pin versus which this
+# run's -set did not touch. This is a report, not an event: nothing here
+# commits anything; review the printed report (paste it into the PR body,
+# the same way a provider-bump PR does), then commit
+# live/oracle-versions.json together with the regenerated live/gauntlet.json.
+#
+# A dry run with live/oracle-versions.json unchanged - `just oracle-bump`
+# against the pin already in place - exercises the whole pipeline for real
+# (a real gauntlet run) and has to report zero movement, since nothing
+# changed: the self-test that the plumbing itself works, the same way
+# `just provider-bump <version already pinned>` does for a provider bump.
+oracle-bump set="all":
+    env -u PWD go run ./tools/gauntlet run -set {{set}}
+    env -u PWD go run ./tools/oracle-bump-report
 
 # One gauntlet worker run under your own key: picks the next unit, makes a
 # worktree, runs Claude Code headless under .claude/agents/gauntlet-worker.md,

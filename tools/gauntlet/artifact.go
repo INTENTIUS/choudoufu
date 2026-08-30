@@ -95,11 +95,24 @@ func IsValidEstateProtocol(p string) bool {
 // independently of the rows it summarizes, and it must render disagreement
 // honestly rather than pick one row's digest and assert it of the board.
 type Artifact struct {
-	Schema   int                   `json:"schema"`
-	Emulator string                `json:"emulator"`
-	Stages   []Stage               `json:"stages"`
-	Sets     map[string]SetSummary `json:"sets"`
-	Estates  []EstateResult        `json:"estates"`
+	Schema   int    `json:"schema"`
+	Emulator string `json:"emulator"`
+	// Oracle mirrors Emulator exactly, for the stock terraform/tofu releases
+	// hashicorp/setup-terraform and opentofu/setup-opentofu install instead
+	// of the floci digest (issue #544): CONFIGURATION, not evidence - a
+	// plain copy of live/oracle-versions.json on every Rebuild, the pin the
+	// NEXT `gauntlet run` will use. Unlike Emulator, a row's own
+	// last_run.oracle (LastRun.Oracle below) is never copied from this
+	// field even at the moment a run starts: nothing forces the terraform
+	// or tofu binary actually on PATH to match this pin the way FLOCI_IMAGE
+	// forces the emulator to (see run.go's probeOracle) - a local checkout
+	// can drift from it silently, which is the other half of #544's root
+	// cause. So last_run.oracle is measured, by actually invoking whatever
+	// is on PATH, never asserted from this field.
+	Oracle  OracleVersions        `json:"oracle"`
+	Stages  []Stage               `json:"stages"`
+	Sets    map[string]SetSummary `json:"sets"`
+	Estates []EstateResult        `json:"estates"`
 	// BehaviorsProven and BehaviorsTotal are #522's headline metric:
 	// "behaviors proven: N of 14". Computed in Rebuild from
 	// live/behaviors.json, the same way every other derived field here is -
@@ -116,6 +129,21 @@ type Artifact struct {
 	// separation is structural, not a convention a future change could
 	// accidentally erode.
 	LiveCert []LiveCertResult `json:"live_cert,omitempty"`
+}
+
+// OracleVersions is the stock terraform and tofu releases the gauntlet
+// compares choudoufu's plan against for one configuration (issue #544): the
+// same kind of fact the emulator digest already is, with the same power to
+// invalidate a comparison - a row measured against terraform 1.15.8 and one
+// measured against 1.16.0 are not directly comparable, and #498's root
+// cause was exactly that, unrecorded. Terraform is the "terraform_version"
+// field of `terraform version -json`; Tofu is the same field of
+// `tofu version -json` (OpenTofu kept the key name for compatibility). A
+// binary this tool never invoked, or could not find on PATH, leaves its
+// field empty - never guessed.
+type OracleVersions struct {
+	Terraform string `json:"terraform,omitempty"`
+	Tofu      string `json:"tofu,omitempty"`
 }
 
 // SetSummary is one headline bar.
@@ -163,9 +191,19 @@ type EstateResult struct {
 // match the current pin" - IsStale treats it as stale precisely because it
 // cannot be shown to match.
 type LastRun struct {
-	Commit   string            `json:"commit"`
-	Date     string            `json:"date"`
-	Emulator string            `json:"emulator,omitempty"`
+	Commit   string `json:"commit"`
+	Date     string `json:"date"`
+	Emulator string `json:"emulator,omitempty"`
+	// Oracle is the stock terraform and tofu releases this run actually
+	// found on PATH (issue #544) - measured, not configured: probeOracle
+	// (run.go) runs `terraform version -json` and `tofu version -json`
+	// itself, once per RunEstates call, the same way commit is a real
+	// `git rev-parse HEAD` rather than an assumption. A nil pointer means
+	// the same two things Emulator's empty string means: a row from before
+	// this field existed, or a legacy-protocol run that recorded no
+	// provenance. Never treat nil as "must match the current pin" for the
+	// same reason IsStale never treats an empty Emulator that way.
+	Oracle   *OracleVersions   `json:"oracle,omitempty"`
 	ExitCode int               `json:"exit_code"`
 	Detail   map[string]string `json:"detail,omitempty"`
 	// DurationS is the whole run's wall-clock seconds: measured in Go around
@@ -257,13 +295,19 @@ func loadArtifactFile(path string) (*Artifact, error) {
 // issue #440's brief calls out; the fix here is structural (a separate
 // slice this function's own loop never iterates), not a flag to remember to
 // check.
-func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string) {
+//
+// oracle is a.Oracle's fresh value, the same "configuration for the next
+// run" role emulator already has - see live/oracle-versions.json and
+// OracleVersions's own doc comment for why that is a different fact than
+// what a past run's last_run.oracle recorded.
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
 	}
 	a.Schema = 1
 	a.Emulator = emulator
+	a.Oracle = oracle
 	a.Stages = Stages()
 	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 

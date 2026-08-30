@@ -100,6 +100,7 @@ site/public/
 /loggraphdiff
 /mapping-gen
 /merge-guard
+/oracle-bump-report
 /protobuf-compile
 /provider-bump-report
 /ratification-queue-gen
