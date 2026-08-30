@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -211,6 +212,141 @@ func TestNonzeroExitCodeImpliesAFailingStage(t *testing.T) {
 			t.Errorf("%q: last_run.exit_code=%d but no stage reads %q anywhere in its row; this run's failure left no trace in the stage table, which is the stale-carry-forward shape (a script that spoke the protocol, produced zero stage verdicts, and died) - see run.go's res.Spoken/len(res.Stages)==0 branch", r.Name, r.LastRun.ExitCode, VerdictFail)
 		}
 	}
+}
+
+// checkLastRunCommitAncestry is the shared logic behind
+// TestEveryLastRunCommitIsAnAncestorOfHEAD, factored out so the guard's
+// exact failure text can be demonstrated against a synthetic fixture
+// (TestEveryLastRunCommitIsAnAncestorOfHEADCatchesADanglingCommit) without
+// requiring an actually-red test to stay committed to the suite - "prove it
+// red" without leaving a permanently failing test behind. It reuses
+// isAncestor (mergeartifact.go), the same primitive
+// checkProvenanceAncestry's #509 case is built on, so both guards agree on
+// what "ancestor" means and on how an unresolvable commit is reported (a
+// hard failure, no allowlist - see the TestEveryLastRunCommitIsAnAncestorOfHEAD
+// doc comment).
+func checkLastRunCommitAncestry(root string, a *Artifact, head string) []string {
+	var problems []string
+	for _, r := range a.Estates {
+		if r.LastRun == nil || r.LastRun.Commit == "" {
+			continue
+		}
+		ok, err := isAncestor(root, r.LastRun.Commit, head)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("%q: last_run.commit %s: git merge-base --is-ancestor failed: %v (issue #509's class - an unresolvable provenance pointer)", r.Name, r.LastRun.Commit, err))
+			continue
+		}
+		if !ok {
+			problems = append(problems, fmt.Sprintf("%q: last_run.commit %s is not an ancestor of HEAD (%s); a dangling or rebased-away provenance pointer (issue #509's class) - re-run this estate rather than carrying the stamp forward", r.Name, r.LastRun.Commit, head))
+		}
+	}
+	return problems
+}
+
+// TestEveryLastRunCommitIsAnAncestorOfHEAD guards issue #511, the #509
+// class: every estate row's last_run.commit must be a real ancestor of
+// HEAD, never a rebased-away or otherwise dangling object.
+//
+// #509: PR #500's branch was rebased onto a moved main. `git rebase`
+// replays each commit's *diff* onto its new parent; it never re-runs `go
+// run ./tools/gauntlet run`, so live/gauntlet.json's embedded "as of this
+// commit" pointer kept naming the pre-rebase commit even though that
+// commit's own hash changed underneath it on replay. The rebase hit no
+// textual conflict, so nothing about it looked wrong - the provenance
+// pointer went stale silently anyway, reached main, and was rendered onto
+// the public progress page. This is the counterintuitive part worth
+// remembering: a clean, conflict-free rebase invalidates a measured row's
+// commit pointer just as surely as a hand edit would, because rebase
+// replays diffs, not the procedure that produced them.
+//
+// Checked relation: ancestor of process HEAD, not ancestor of main. On a
+// feature branch mid-work, a freshly measured row legitimately names a
+// commit on that branch, not on main - HEAD there is the branch's own tip,
+// which the row's commit must (and normally does) precede, since the run
+// happens before the commit that records it. This is not a divergence from
+// mergeartifact.go's checkProvenanceAncestry, which checks each row against
+// "the revision that produced it" (base/ours/theirs) rather than a single
+// fixed HEAD: that function runs pre-merge, when up to three candidate
+// revisions exist and none is yet a descendant of the others. This test
+// runs post-checkout against a single tree with exactly one true HEAD, so
+// "ancestor of HEAD" is that same rule specialized to the one-candidate
+// case - once a real merge lands, HEAD is a descendant of every row's
+// source, so this test passing on main is exactly what
+// checkProvenanceAncestry already guaranteed would hold.
+//
+// Shallow clones cannot answer this question at all (isShallowRepo,
+// main.go): a shallow checkout has no history to check ancestry against,
+// and silently skipping here would mean the guard reports green in CI
+// without ever having checked anything - exactly the failure mode #511
+// warns against, since actions/checkout defaults to a depth-1 (shallow)
+// checkout when a workflow does not set fetch-depth: 0. So this FAILS
+// loudly instead of skipping quietly: .github/workflows/ci.yml's "fast"
+// job (the one that runs this test) now sets fetch-depth: 0, matching
+// contribute.yml's existing choice for the same reason, so this should
+// never actually fire from CI - if it does, the checkout config regressed
+// and needs fixing, not a bypass here.
+//
+// An unresolvable or dangling last_run.commit is a hard failure with no
+// allowlist, matching mergeartifact.go's checkProvenanceAncestry (#509's
+// sibling guard, #516): that function refuses unconditionally rather than
+// exempting any row by name, and this test follows the same convention
+// rather than inventing a third one.
+func TestEveryLastRunCommitIsAnAncestorOfHEAD(t *testing.T) {
+	root := testRoot(t)
+	shallow, err := isShallowRepo(root)
+	if err != nil {
+		t.Fatalf("git rev-parse --is-shallow-repository: %v", err)
+	}
+	if shallow {
+		t.Fatal("this checkout is shallow (git rev-parse --is-shallow-repository = true); last_run.commit ancestry cannot be verified without full history - fetch full history (git fetch --unshallow, or a checkout with fetch-depth: 0) rather than let this guard skip")
+	}
+	head := headCommit(root)
+	if head == "" {
+		t.Fatal("could not resolve HEAD via git rev-parse")
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, msg := range checkLastRunCommitAncestry(root, a, head) {
+		t.Error(msg)
+	}
+}
+
+// TestEveryLastRunCommitIsAnAncestorOfHEADCatchesADanglingCommit is the red
+// demonstration #511 requires: a guard never shown failing is not a guard.
+// It builds a synthetic repo where a fixture row's last_run.commit names a
+// commit that is real but never an ancestor of head - a sibling, not a
+// parent, exactly #509's shape (the rebased-away pre-rebase commit still
+// exists locally as a dangling object; it is just no longer reachable from
+// HEAD) - and calls checkLastRunCommitAncestry directly, the same function
+// TestEveryLastRunCommitIsAnAncestorOfHEAD calls against the real artifact,
+// so this demonstrates the guard's actual code path failing rather than a
+// re-implementation of it.
+func TestEveryLastRunCommitIsAnAncestorOfHEADCatchesADanglingCommit(t *testing.T) {
+	root := initTestRepo(t)
+	baseSHA := commitTestFile(t, root, "base.txt", "base\n", "base")
+
+	gitCheckout(t, root, baseSHA)
+	rogueSHA := commitTestFile(t, root, "rogue.txt", "rogue\n", "an unrelated, disconnected commit - #509's dangling pre-rebase shape")
+
+	gitCheckout(t, root, baseSHA)
+	headSHA := commitTestFile(t, root, "head.txt", "head\n", "head, a sibling of rogue, not its descendant")
+
+	a := &Artifact{Estates: []EstateResult{{
+		Name:    "bogus-provenance",
+		LastRun: &LastRun{Commit: rogueSHA, Date: "2026-08-29T00:00:00Z"},
+	}}}
+
+	problems := checkLastRunCommitAncestry(root, a, headSHA)
+	if len(problems) != 1 {
+		t.Fatalf("got %d problems, want 1: %v", len(problems), problems)
+	}
+	got := problems[0]
+	if !strings.Contains(got, "bogus-provenance") || !strings.Contains(got, rogueSHA) || !strings.Contains(got, "#509") {
+		t.Errorf("diagnostic missing expected content (estate name, dangling commit, issue reference): %q", got)
+	}
+	t.Logf("red demonstration - the guard's real failure text: %s", got)
 }
 
 // TestBoardBannerMatchesEstateRows guards #414's fix in the spirit of

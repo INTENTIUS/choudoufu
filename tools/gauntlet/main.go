@@ -171,6 +171,24 @@ func headCommit(root string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// isShallowRepo reports whether root is a shallow git checkout - one with a
+// truncated commit history, which is what actions/checkout produces by
+// default when a workflow's checkout step does not set fetch-depth: 0
+// (issue #511). A shallow checkout cannot answer "is X an ancestor of HEAD"
+// correctly: `git merge-base --is-ancestor` only sees the truncated
+// history, so a commit that really is an ancestor in the full history can
+// read as "not an ancestor" purely because its object was never fetched -
+// a false positive for the #509 defect class, not a true one.
+func isShallowRepo(root string) (bool, error) {
+	cmd := exec.Command("git", "rev-parse", "--is-shallow-repository")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) == "true", nil
+}
+
 func emulatorPin(root string) string {
 	b, err := os.ReadFile(filepath.Join(root, "live", "floci-image"))
 	if err != nil {
