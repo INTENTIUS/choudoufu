@@ -225,6 +225,20 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
+	// committed is a completely independent read of live/gauntlet.json as
+	// it stood on disk before this run - never a or a.Estates, and never
+	// taken by copying a's slice/map values, which would alias the very
+	// maps RunEstates is about to mutate in place (EstateResult.Stages is
+	// a map, and RunEstates's merge loop writes into an existing row's map
+	// rather than allocating a new one - see RunEstates's doc comment). A
+	// fresh JSON unmarshal owns brand new maps no other code holds a
+	// reference to, the same way acceptance's readArtifact(artifactPath)
+	// does for the cohort ratchet (#539/#552). This is the "committed"
+	// half of the regression check below.
+	committed, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
 	commit := headCommit(root)
 	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout}, commit, emulatorPin(root))
 	if err != nil {
@@ -235,12 +249,30 @@ func cmdRun(root string, args []string) error {
 		return err
 	}
 	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+
+	// The regression ratchet (issue #553): a stage this run reports as
+	// anything other than pass, for an estate/stage the committed artifact
+	// recorded as passing, fails the run - not merely a lower number on
+	// the board - unless a human has acknowledged it in RegressionsPath in
+	// this same change. The artifact is still written below regardless:
+	// ground truth is never withheld to avoid a bad headline, exactly the
+	// same choice cohorts' enforceRatchet makes (t.Error, not t.Fatal,
+	// around its own artifact write).
+	acks, err := LoadRegressions(root)
+	if err != nil {
+		return err
+	}
+	violations := UnacknowledgedViolations(RatchetViolations(committed.Estates, a.Estates), acks)
+
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
 	fmt.Printf("core %d of %d clear, all %d of %d clear, %d script(s) exited non-zero\n", core.Clear, core.Estates, all.Clear, all.Estates, failures)
-	if failures > 0 {
+	for _, v := range violations {
+		fmt.Fprintln(os.Stderr, "REGRESSION: "+v.Error())
+	}
+	if failures > 0 || len(violations) > 0 {
 		os.Exit(1)
 	}
 	return nil
