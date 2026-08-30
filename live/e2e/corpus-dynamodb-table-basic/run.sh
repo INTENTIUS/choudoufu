@@ -275,7 +275,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
 ( cd "$EX" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EX" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -335,7 +335,7 @@ log ""
 # stock oracle below plans the NET rename (original name straight to the
 # final name) on a copy of cold_deploy's own state, before choudoufu or
 # live-import ever touch it.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
 cp -r "$EST" "$ORACLE_ROOT"
@@ -370,7 +370,7 @@ log "  stock: zero churn on cold_deploy's own state - the module move reports on
 # module.dynamodb_table's own outputs, so removing its block leaves nothing
 # for outputs.tf to reference - emptied outright rather than edited output
 # by output.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-REMOVE-ORACLE. stock: delete module.dynamodb_table's block on cold_deploy's own state ==="
 REMOVE_ORACLE_ROOT="$WORK/oracle-remove"
 cp -r "$EST" "$REMOVE_ORACLE_ROOT"
@@ -390,7 +390,7 @@ grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] w
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly two destroys"; }
 log "  stock: exactly two destroys (the table and its resource policy), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A THIRD
@@ -410,7 +410,7 @@ CURRENT_STAGE=""
 # changing (a brand-new table, not a renamed one) is expected to cascade
 # into a forced replace of the resource policy too - confirmed below by
 # the plan itself, not assumed.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.dynamodb_table's table via its ForceNew name argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/oracle-replace"
 cp -r "$EST" "$REPLACE_ORACLE_ROOT"
@@ -429,7 +429,7 @@ grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] must be rep
 REPLACE_ORACLE_POLICY_REPLACES=0
 grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_resource_policy\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" && REPLACE_ORACLE_POLICY_REPLACES=1
 log "  stock: replaces module.dynamodb_table's table at the same declared address (resource_arn-dependent resource_policy also replaces: $REPLACE_ORACLE_POLICY_REPLACES) on the state cold_deploy produced - plan only, not applied (same convention as D-ORACLE/D-REMOVE-ORACLE: this copy shares floci's account with \$EST, and actually applying here would destroy the real table the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, active -
@@ -479,7 +479,7 @@ CURRENT_STAGE=""
 # TableId, not TableArn, is this type's "genuinely a new object"
 # discriminator - the exact same shape PolicyId was for aws_iam_policy in
 # PR #500, just a different field name.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 count_test_block() { # $1 = count
   local n="$1"
   cat <<COUNTEOF
@@ -596,15 +596,15 @@ ORACLE_CT0_ID_AFTER_UP="$(awso dynamodb describe-table --table-name dynamodb-cou
 log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from region+account+name - but a NEW TableId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
 
 docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 # 2026-08-21 fix: the original regex assumed required_providers held ONLY
 # the aws entry (immediately followed by required_providers's own closing
@@ -681,7 +681,7 @@ log ""
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identity re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (live-plan empty, identity re-checked) ==="
 [ ! -f "$EX/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -714,7 +714,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -740,7 +740,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 if [ "${BREAK:-}" = "1" ]; then
   awsl dynamodb tag-resource --resource-arn "$TABLE_ARN" --tags Key=Environment,Value=tampered-by-BREAK
@@ -802,7 +802,7 @@ else
   # renaming module.dynamodb_table WITHOUT a moved block, which must make
   # choudoufu propose destroying the old address's table and creating the
   # new one - the opposite of every other assertion in this part.
-  CURRENT_STAGE=day2_rename
+  gauntlet_begin_stage day2_rename
   log "=== D0. capture the live table this rename must not disturb ==="
   log "  $TABLE_ARN (module.dynamodb_table.aws_dynamodb_table.this[0])"
 
@@ -944,7 +944,7 @@ EOF
     # confirmed below by the plan's own "-/+ destroy and then create
     # replacement" legend). BREAK=replace manufactures the coexistence a
     # skipped destroy would leave behind directly via the AWS CLI.
-    CURRENT_STAGE=day2_replace
+    gauntlet_begin_stage day2_replace
     record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
     record_import_id() { jq -r '.identity.import_id' "$1"; }
     F_ADDR="module.dynamodb_table_final.aws_dynamodb_table.this[0]"
@@ -1040,7 +1040,7 @@ EOF
       TABLE_ARN="$F_NEW_ARN"
       gauntlet_stage day2_replace pass "choudoufu: changing module.dynamodb_table_final's ForceNew name argument proposed exactly one table replace at the same declared address, cascading into the untaggable resource policy (its resource_arn argument follows the table's ARN and is not independently updatable, so it also replaces - F-ORACLE's own finding); applied cleanly; the old table is confirmed gone via the AWS CLI (ResourceNotFoundException) and the new table carries the marker; the local record store's record at the same address now names the new table's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the table at the same address (plan only, not applied - it shares floci's account with \$EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones."
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
 
     # ══════════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1060,7 +1060,7 @@ EOF
     # the table's ARN, so it is destroyed first); outputs.tf references only
     # this module's own outputs, so it is emptied rather than edited output
     # by output, the same as the D-REMOVE-ORACLE copy above.
-    CURRENT_STAGE=day2_remove
+    gauntlet_begin_stage day2_remove
     log "=== E0. capture the live table this removal destroys ==="
     E_ARN_BEFORE="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
     [ "$E_ARN_BEFORE" = "module.dynamodb_table_final.aws_dynamodb_table.this:0" ] \
@@ -1180,7 +1180,7 @@ EOF
         # destroyed; the assertion must fail." Only reachable when BREAK is
         # not 6 and BREAK_REMOVE is not 1, because PART G starts from
         # PART E's real, completed removal.
-        CURRENT_STAGE=day2_count
+        gauntlet_begin_stage day2_count
         record_tombstoned() { jq -e 'has("tombstone") and (has("identity") | not)' "$1" >/dev/null 2>&1; }
 
         log "=== G0. choudoufu: add aws_dynamodb_table.count_test, count = 2 ==="
@@ -1300,12 +1300,12 @@ EOF
           gauntlet_stage day2_count pass "choudoufu: scaling the synthetic aws_dynamodb_table.count_test from 2 to 1 (issue #359/#488's own fallback clause - this estate's real module has no honest resource-level count/for_each knob: create_table is boolean-shaped and replica_regions/global_secondary_indexes drive dynamic blocks nested inside the SAME table resource, not a separate resource instance, confirmed by reading main.tf directly) destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), confirmed gone via the AWS CLI, its local record correctly tombstoned rather than left claiming a live identity (#398-guard shape, has(tombstone) and not has(identity)), and left count_test[0]'s live TableId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] again under the SAME ARN (deterministic from region+account+name - established directly against floci with no tofu in the loop before writing this assertion) but a NEW TableId (0 add -> 1 add, 0 change, 0 destroy), and its local record returned to a live identity, while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 2-instance count block, applied for real in a dedicated always-idle account never shared with this one, shows the identical shape: destroy the higher index only, create it back under the same ARN but a new TableId, the lower index's TableId unchanged both times. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
         fi
         rm -f "$EX/day2_count.tf"
-        CURRENT_STAGE=""
+        gauntlet_end_stage
       fi
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
@@ -1326,7 +1326,7 @@ EOF
 # table's `name` argument is evaluated - the wall #314 names is specific to
 # live-import resolving an identity argument through a state-derived record,
 # a path a from-nothing apply never takes.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -1389,7 +1389,7 @@ if [ $? -ne 0 ]; then
     # script-only pass (it sits with #388's plan-node seam, HANDOFF's "The
     # order" item 3).
     gauntlet_stage greenfield fail "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)"
-    CURRENT_STAGE=""
+    gauntlet_end_stage
     docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
     SKIP_GREENFIELD_REST=1
   else
@@ -1475,13 +1475,13 @@ else
   log "  resource policy matches too (Sid/Effect/Principal/Action), the templated Resource field normalised out on both sides"
   gauntlet_stage greenfield pass "3 resources from nothing (random_pet + table + resource policy), the table's markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on key schema/attributes/table class/deletion protection/on-demand billing/GSI/resource policy"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
 fi
 
 
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   gauntlet_end
 
   log "=== PASS ==="

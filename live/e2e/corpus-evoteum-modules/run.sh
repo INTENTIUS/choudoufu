@@ -497,7 +497,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real modules) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -547,7 +547,7 @@ log ""
 # independent namespace, compared structurally via the AWS CLI on both
 # endpoints, never through tofu state.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -647,7 +647,7 @@ fi
 log "  object-by-object match: vpc cidr, subnet cidrs, igw count, route-table-with-association count, and the dynamodb table's billing mode/attribute count/GSI count/pk type - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
 
 gauntlet_stage greenfield pass "10 resources from nothing (1 vpc, 3 subnets, 1 igw, 1 route table, 3 untaggable associations, 1 dynamodb table), VPC marker verified via the AWS CLI, 10 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on vpc/subnets/igw/route-table/dynamodb-table"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
@@ -668,7 +668,7 @@ CURRENT_STAGE=""
 # this .tofu-only estate at all) runs the same two renames, through moved
 # blocks only, on a copy of cold_deploy's own state - before choudoufu or
 # live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -702,7 +702,7 @@ log "  stock: zero churn on cold_deploy's own state (moved-block relocation of a
 # unrenamed, so this removal has nothing to do with the rename this script
 # also exercises. module.sessions_table is the whole target: one resource,
 # no other module references it.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-ORACLE (day2_remove): stock tofu, delete module.sessions_table's block on cold_deploy's own state ==="
 PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
@@ -716,7 +716,7 @@ grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this will be destroye
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (module.sessions_table.aws_dynamodb_table.this), nothing else, on cold_deploy's own state"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
@@ -733,7 +733,7 @@ CURRENT_STAGE=""
 # would destroy the real table the estate's own later stages still depend
 # on.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock tofu, force-replace module.sessions_table's table via its ForceNew table_name argument, on cold_deploy's own state ==="
 PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
@@ -751,7 +751,7 @@ grep -qE '^  # module\.sessions_table\.aws_dynamodb_table\.this must be replaced
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
 log "  stock: exactly one replace proposed (destroy the old sessions table, create the sessions-v2 table) at the same declared address, on the state cold_deploy produced - plan only, not applied"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
@@ -788,7 +788,7 @@ CURRENT_STAGE=""
 # rm` on a SEPARATE copy - a pure local state edit, no provider API call, so
 # it can never touch a live object - the same technique corpus-xancloud-iac's
 # own F-ORACLE and corpus-iam-read-only-policy's own G-ORACLE use.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 DROPPED_CIDR="${SUBNET_CIDRS[2]}"
 log "=== G-ORACLE: stock tofu, dropping then restoring the last public_subnets CIDR ($DROPPED_CIDR), on cold_deploy's own state (plan-only - see header) ==="
 PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
@@ -825,12 +825,12 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.networking\.(aws_subnet\.public
 grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly two creates"; }
 log "  stock (plan-only): exactly two creates proposed (subnet + association for $DROPPED_CIDR, state simulated with 'tofu state rm' - no live object ever touched), every other subnet/association untouched"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
@@ -927,7 +927,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -972,7 +972,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -998,7 +998,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK_STAGE5:-}" = "1" ]; then
@@ -1049,7 +1049,7 @@ gauntlet_stage drift_reconverge pass "VPC Name tag tampered out of band, exactly
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  vpc $VPC_ID (module.networking), table $TABLE_NAME (module.sessions_table)"
 
@@ -1204,7 +1204,7 @@ EOF
   # either object. Both are loud, named reports of the same underlying
   # collision; which one a given resource shape takes depends on whether it
   # is a member of a fungible (count/for_each) set.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.sessions_table_renamed.aws_dynamodb_table.this"
@@ -1322,7 +1322,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.sessions_table_renamed's ForceNew table_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old table ($F_OLD_TABLE_ARN) is confirmed gone and the new table ($F_NEW_TABLE_NAME) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new table's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with \$ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
@@ -1339,7 +1339,7 @@ EOF
   # Break text in tools/gauntlet/stages.go for day2_remove is literally
   # "keep the block; no destroy may be proposed".
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live table's ARN one more time ==="
   E_TABLE_ARN="$(awsl dynamodb describe-table --table-name "$TABLE_NAME" --query 'Table.TableArn' --output text)"
   [ -n "$E_TABLE_ARN" ] && [ "$E_TABLE_ARN" != "None" ] || fail "no live table found by name ($TABLE_NAME) before day2_remove even starts"
@@ -1418,7 +1418,7 @@ EOF
     # instance to be destroyed; the assertion must fail." Only reachable
     # when BREAK is not "rename" and BREAK_REMOVE is not 1, because PART G
     # starts from PART E's real, completed removal.
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     SURVIVOR_CIDR_0="${SUBNET_CIDRS[0]}"
     SURVIVOR_CIDR_1="${SUBNET_CIDRS[1]}"
     G_SUBNET_ADDR="module.networking_renamed.aws_subnet.public[\"$DROPPED_CIDR\"]"
@@ -1546,9 +1546,9 @@ EOF
       gauntlet_stage day2_count pass "choudoufu: dropping the last public_subnets CIDR ($DROPPED_CIDR) destroyed exactly its subnet and route-table-association instances (0 add, 0 change, 2 destroy), leaving both survivor subnets' live ids and tofu-address markers unchanged; the destroyed subnet's local record is tombstoned, not deleted (#398-guard shape, asserted by value); restoring the CIDR created exactly the same two instances under NEW live ids (subnet id and association id both server-minted, verified directly against floci with no tofu in the loop before writing this assertion) while both survivors stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical public_subnets edit, applied plan-only on cold_deploy's own state, shows the identical shape: destroy the dropped CIDR's subnet and association only, create them back under new ids, every other subnet/association's id unchanged both times"
     fi
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 log ""
 

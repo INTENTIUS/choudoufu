@@ -208,12 +208,48 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				// TestNonzeroExitCodeImpliesAFailingStage
 				// (gauntlet_test.go) exists to catch, and did catch (#497).
 				// recordRunnerFailure writes a real fail into the earliest
-				// active stage so the guard passes honestly instead of
-				// being relaxed; every other stage's carried-forward
-				// verdict is left untouched, because this run genuinely
-				// says nothing new about them.
-				failedStage := recordRunnerFailure(&r, exit)
+				// unconfirmed active stage so the guard passes honestly
+				// instead of being relaxed; every other stage's
+				// carried-forward verdict is left untouched, because this
+				// run genuinely says nothing new about them.
+				failedStage := recordRunnerFailure(&r, exit, res.Stages)
 				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; recorded %s=%s as a runner/environment failure (not a product regression), every other stage carried forward untouched, exit code %d noted\n", e.Name, failedStage, VerdictFail, exit)
+			} else if exit != 0 {
+				// #555: a script can now speak SOME stage verdicts this run
+				// and still die in the unattributed gap between two
+				// stages - setup for the next stage, an oracle comparison
+				// that never itself calls gauntlet_stage - now that
+				// CURRENT_STAGE is cleared instead of silently inherited.
+				// That is the fix working correctly (no stage is blamed for
+				// a failure that was not its own), but it reproduces
+				// #497's own shape one level up: r.Stages can come out of
+				// the merge above with a nonzero exit code and nothing
+				// anywhere in the row reading fail, which is exactly what
+				// TestNonzeroExitCodeImpliesAFailingStage exists to catch.
+				// Before #555, this window instead recorded a real (if
+				// misattributed) fail on whatever stage CURRENT_STAGE
+				// still happened to name, which satisfied the guard by
+				// accident; #555 must not trade that wrong-but-present
+				// verdict for a right-but-absent one. So: if this run's own
+				// stage lines already contain a fail, nothing to do - the
+				// script correctly attributed its own failure. Otherwise,
+				// check the FULL merged row (this run's verdicts plus
+				// whatever survived carry-forward) for any fail at all;
+				// only if there is truly none anywhere does this record a
+				// runner failure, on the earliest active stage this run did
+				// not confirm - the honest "as far as we got" boundary,
+				// never a stage this run just reported pass for.
+				hasFail := false
+				for _, v := range r.Stages {
+					if v == VerdictFail {
+						hasFail = true
+						break
+					}
+				}
+				if !hasFail {
+					failedStage := recordRunnerFailure(&r, exit, res.Stages)
+					fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol and reported %d stage verdict(s) this run, but exited non-zero with no stage anywhere in the row reading fail - the failure happened in the gap between two stages, attributed to neither; recorded %s=%s as a runner/environment failure at the earliest stage this run never reached (not a product regression), every stage this run did confirm keeps its own verdict, exit code %d noted\n", e.Name, len(res.Stages), failedStage, VerdictFail, exit)
+				}
 			}
 			for _, u := range res.Unknown {
 				fmt.Fprintf(opts.Stdout, "%s: reported unknown stage %q; add it to tools/gauntlet/stages.go or fix the script\n", e.Name, u)
@@ -231,15 +267,27 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	return failures, nil
 }
 
-// recordRunnerFailure marks r as having failed the earliest active stage
-// (today: cold_deploy, the stage every script confirms before anything
-// else) with a detail line that names this as a runner/environment
-// failure rather than a product regression. It is called only from the
-// res.Spoken && len(res.Stages) == 0 branch above: the script spoke the
-// gauntlet protocol but died before its first GAUNTLET stage= line, so
-// r.Stages was left exactly as the prior run recorded it and would
-// otherwise carry a stale "pass" forward under a freshly stamped
-// commit/date/exit_code (#497).
+// recordRunnerFailure marks r as having failed the earliest ACTIVE stage
+// this run did not itself report a verdict for - not always cold_deploy,
+// though that is what it picks whenever spokenThisRun is empty (#497's
+// original shape: the script died before its first GAUNTLET stage= line, so
+// nothing was spoken and cold_deploy, first in ActiveStages(), is the
+// earliest unconfirmed one). #555 added the second caller: spokenThisRun
+// can be non-empty when a script reports several real verdicts and then
+// dies in the unattributed gap between two stages - the earliest active
+// stage NOT in spokenThisRun is the honest "as far as we got" boundary
+// there, and deliberately never a stage spokenThisRun already confirmed
+// pass (overwriting a verdict this run just earned would be its own false
+// fail, the same shape #413/#555 both exist to prevent, just pointed at a
+// different stage).
+//
+// Either way the detail text names this as a runner/environment failure
+// rather than a product regression, and every stage's carried-forward
+// verdict besides the one written here is left untouched - r.Stages was
+// left exactly as the prior run recorded it (the #497 shape) or exactly as
+// this run's own merge already produced it (the #555 shape), and this
+// function must not disturb either without disturbing the one entry it is
+// responsible for.
 //
 // It returns the stage id it wrote, for the caller's own log line.
 //
@@ -247,19 +295,43 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 // guarantees this before calling) and r.LastRun must already be set; both
 // are asserted implicitly by writing straight into them, matching every
 // other write in this file's merge loop.
-func recordRunnerFailure(r *EstateResult, exit int) string {
+func recordRunnerFailure(r *EstateResult, exit int, spokenThisRun map[string]string) string {
 	active := ActiveStages()
 	if len(active) == 0 {
 		// Stages() always declares cold_deploy active; this is defensive,
 		// not a reachable case today.
 		return ""
 	}
-	id := active[0].ID
+	id := ""
+	for _, s := range active {
+		if _, ok := spokenThisRun[s.ID]; !ok {
+			id = s.ID
+			break
+		}
+	}
+	if id == "" {
+		// Every active stage was confirmed by this run's own GAUNTLET
+		// lines, yet the process still exited non-zero with none of them
+		// reading fail - e.g. a cleanup trap ran after the last stage's own
+		// pass and itself failed. Not reachable by either caller today
+		// (the len(res.Stages)==0 branch never has anything in
+		// spokenThisRun; the #555 branch only runs when the merged row has
+		// no fail, and a script that genuinely confirmed every active
+		// stage pass this run without ever reporting fail is the one case
+		// that shape excludes), but defensive rather than a silent no-op:
+		// blame the last active stage, the closest thing to "where the run
+		// was standing" when it died.
+		id = active[len(active)-1].ID
+	}
 	r.Stages[id] = VerdictFail
 	if r.LastRun.Detail == nil {
 		r.LastRun.Detail = map[string]string{}
 	}
-	r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol but reported zero stage verdicts this run (exit code %d) - environment/setup failure before stage 1, not a product regression; every other stage below is carried forward from an earlier run, not reconfirmed this run", exit)
+	if len(spokenThisRun) == 0 {
+		r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol but reported zero stage verdicts this run (exit code %d) - environment/setup failure before stage 1, not a product regression; every other stage below is carried forward from an earlier run, not reconfirmed this run", exit)
+	} else {
+		r.LastRun.Detail[id] = fmt.Sprintf("RUNNER: script spoke the gauntlet protocol and reported %d stage verdict(s) this run, but exited non-zero (exit code %d) with no stage anywhere in the row reading fail - the failure happened in the gap after the last confirmed stage and before %s could begin, not a product regression against %s itself; every stage this run did confirm (including a pass) keeps that verdict untouched", len(spokenThisRun), exit, id, id)
+	}
 	return id
 }
 

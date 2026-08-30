@@ -209,7 +209,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -260,7 +260,7 @@ log ""
 # oracle is stock applying the SAME config fresh in a THIRD, independent
 # namespace, compared structurally via the AWS CLI on both endpoints, never
 # through tofu state.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -362,7 +362,7 @@ ORACLE_SHAPE="$(policy_shape "$ORACLE_ENDPOINT" "$ORACLE_POLICY_ARN")"
 [ "$GREEN_SHAPE" = "$ORACLE_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_SHAPE" "$ORACLE_SHAPE"; fail "the greenfield policy differs structurally from the stock oracle"; }
 log "  path, description and policy document match structurally between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock (day2_rename, active - live/GAUNTLET.md #6)
@@ -393,7 +393,7 @@ CURRENT_STAGE=""
 # rename, not corpus-eks-basic's - the old, no-longer-declared address is
 # never visited and never proposed for destroying; only a create for the
 # renamed address is proposed. See D1 below for the verified detail.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the net module rename, through one moved block, on cold_deploy's own state ==="
 ORACLE_ROOT="$WORK/oracle"
 mkdir -p "$ORACLE_ROOT/iam/examples" "$ORACLE_ROOT/iam/modules"
@@ -452,7 +452,7 @@ log "  stock: zero churn on cold_deploy's own state - the move reports only its 
 # annotation, not assumed. A FRESH copy of cold_deploy's own state, same as
 # D-ORACLE above, so this oracle runs on the ORIGINAL module name before the
 # real script's own rename ever touches $EST.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.read_only_iam_policy's policy via its ForceNew description argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
 mkdir -p "$REPLACE_ORACLE_ROOT/iam/examples" "$REPLACE_ORACLE_ROOT/iam/modules"
@@ -505,7 +505,7 @@ log "  stock: exactly one replace at the same declared address (module.read_only
 # "ex-$(basename $EST)-" prefix, a completely different name) - the same
 # reasoning reference-ec2-vpc's B1.7 gives for reusing its own idle
 # greenfield account rather than spinning up a fourth container.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 count_test_block() { # $1 = count
   local n="$1"
   cat <<COUNTEOF
@@ -621,14 +621,14 @@ ORACLE_CT1_NEW_ID="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ia
 ORACLE_CT0_ID_AFTER_UP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" iam get-policy --policy-arn "$ORACLE_CT0_ARN" --query 'Policy.PolicyId' --output text 2>/dev/null || true)"
 [ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed PolicyId across the scale-up"
 log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from name+path - but a NEW PolicyId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, the slot
 # it now writes read back by value, then one ordinary apply that must be a
 # no-op (choudoufu #372)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve; the following apply must be a no-op) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
@@ -687,7 +687,7 @@ log ""
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identity re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (live-plan empty, identity re-checked) ==="
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -722,7 +722,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -750,7 +750,7 @@ log ""
 # fix is proposed against the right address (see the header comment on why
 # this differs from corpus-iam-policy's two-object BREAK control)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate the one object out of band) ==="
 awsl iam tag-policy --policy-arn "$POLICY_ARN" --tags Key=Example,Value=tampered-out-of-band
 DRIFTED_VALUE="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
@@ -800,7 +800,7 @@ log ""
 # See the D-ORACLE comment above stage 2 for why both mechanisms run on the
 # SAME module. The adopted estate (stages 2-5) is still marked and still
 # converged, which is exactly the state a rename needs to start from.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live object this rename must not disturb ==="
 log "  $POLICY_ARN (module.read_only_iam_policy.aws_iam_policy.policy[0])"
 
@@ -920,7 +920,7 @@ EOF
   # text cares about are identical either way; BREAK=replace below
   # manufactures the coexistence a skipped destroy half would leave, the
   # same way corpus-sqs-basic's own BREAK=replace does.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.read_only_iam_policy_final.aws_iam_policy.policy[0]"
@@ -1015,7 +1015,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object ($F_OLD_IMPORT_ID) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1040,7 +1040,7 @@ EOF
   # the block, and assert the plan proposes no destroy for it at all - the
   # Break text in tools/gauntlet/stages.go, verbatim.
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live ARN one more time ==="
   E_ADDR_BEFORE="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
   [ "$E_ADDR_BEFORE" = "module.read_only_iam_policy_final.aws_iam_policy.policy:0" ] \
@@ -1127,7 +1127,7 @@ EOF
     # BREAK_REMOVE is not 1, because PART G starts from PART E's real,
     # completed removal.
 
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     log "=== G0. choudoufu: add aws_iam_policy.count_test, count = 2 ==="
     count_test_block 2 > "$EST/day2_count.tf"
     ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -1237,12 +1237,12 @@ EOF
 
       gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times"
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
 
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS ==="

@@ -398,7 +398,7 @@ log "  healthy"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no live block, no choudoufu at all
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain terraform, unmodified estate) ==="
 provider_patch "$PLAIN"
 version_pin "$PLAIN" ""
@@ -473,7 +473,7 @@ gauntlet_stage cold_deploy pass "30 resources added by plain terraform, 4 bucket
 # migrate path: a count expression must be statically evaluable, a
 # genuinely fixed parity property of this fork's config-language subset,
 # not a defect either side's oracle comparison should be sensitive to.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 FLOCI_GREEN_NAME="choudoufu-corpus-s3-bucket-complete-green-$$"
 FLOCI_ORACLE_NAME="choudoufu-corpus-s3-bucket-complete-green-oracle-$$"
 GREEN_ESTATE_NAME="s3-bucket-complete-greenfield"
@@ -632,7 +632,7 @@ for b in "${GREEN_BUCKETS[@]}"; do
 done
 log "  all 4 buckets match structurally (versioning, default encryption, policy presence) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
@@ -647,7 +647,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # the removal itself. STAGE 7 (below, after rename) reuses the destroy
 # target this establishes rather than re-running the oracle plan against a
 # live-mutated world.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== STAGE 1.5: day2_remove stock oracle: delete module.simple_bucket's block on cold_deploy's own state ==="
 ORACLE_REMOVE="$WORK/oracle-remove"
 cp -R "$PLAIN" "$ORACLE_REMOVE"
@@ -671,7 +671,7 @@ grep -qE '^  # module\.simple_bucket\.aws_s3_bucket_public_access_block\.this\[0
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { grep -E '^Plan:|^No changes' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "the day2_remove stock oracle plan is not exactly two destroys"; }
 log "  stock oracle: exactly two destroys proposed for module.simple_bucket's own bucket and its public_access_block (computed now, before anything below writes a live tag)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason day2_remove's own oracle sits before migrate (above): a
@@ -694,7 +694,7 @@ CURRENT_STAGE=""
 # stages still depend on (corpus-ec2-instance-complete's and corpus-sqs-
 # basic's own day2_replace oracles found this out the hard way - see
 # their headers).
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== STAGE 1.6: day2_replace stock oracle: change module.log_bucket's ForceNew bucket argument on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/oracle-replace"
 cp -R "$PLAIN" "$REPLACE_ORACLE_ROOT"
@@ -719,12 +719,12 @@ grep -qE '^  # module\.s3_bucket\.aws_s3_bucket_logging\.this\[0\] will be updat
 grep -qF 'Plan: 4 to add, 1 to change, 4 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own five-resource cascade (log_bucket's bucket + 3 children replaced, s3_bucket's logging target updated in place)"; }
 log "  stock: exactly one bucket replace at the same declared address, cascading into its ownership_controls/policy/public_access_block (all replaced) and module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 provider_patch "$ESTATE"
 
@@ -889,7 +889,7 @@ gauntlet_stage migrate pass "6 of 30 stamped, 1 recorded (random_pet, issue #340
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - no state file, live-plan, empty, and the identities
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 plan_into "$WORK/plan1.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan1.log" | tail -40; fail "live-plan exited non-zero"; }
 [ ! -f "$ESTATE/examples/complete/terraform.tfstate" ] || fail "live-plan wrote a state file"
@@ -980,7 +980,7 @@ gauntlet_stage test_plan pass "no resource action proposed; $RAW_N_IDS rendered 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - the empty plan applies as a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: apply the empty plan ==="
 BEFORE="$(awsl s3api list-buckets --query 'length(Buckets)' --output text)"
 rm -f "$ESTATE/examples/complete/terraform.tfstate" "$ESTATE/examples/complete/terraform.tfstate.backup"
@@ -996,7 +996,7 @@ gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); b
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift one object out of band, replan, reconverge ==="
 # The configuration declares acceleration_status = "Suspended" for
 # s3-bucket-$PET (aws_s3_bucket_accelerate_configuration, admitted by this
@@ -1070,7 +1070,7 @@ gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exac
 # create ordering instead. BREAK=replace manufactures the create-before-
 # destroy collision shape directly via the AWS CLI, the same way corpus-
 # ec2-instance-complete's and corpus-sqs-basic's own BREAK=replace legs do.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
 record_import_id() { jq -r '.identity.import_id' "$1"; }
 F_ADDR="module.log_bucket.aws_s3_bucket.this[0]"
@@ -1189,7 +1189,7 @@ else
 
   gauntlet_stage day2_replace pass "choudoufu: changing module.log_bucket's ForceNew bucket argument proposed exactly one bucket replace at the same declared address, cascading into its ownership_controls, policy and public_access_block (all replaced) plus module.s3_bucket's own logging target_bucket (updated in-place) - 4 to add, 1 to change, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old bucket ($F_OLD_IMPORT_ID) is confirmed gone and the new bucket ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new bucket, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Live resource displaced from the address it is marked for\", naming the manufactured bucket, proposing nothing for it) rather than silently proposed as nothing - the name-derived-identity shape of this diagnostic, distinct from EC2/SQS's fungible-set \"Two live resources claiming one slot\" because aws_s3_bucket's identity resolves straight from the config's own computed name rather than only through a marker sweep. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-ec2-instance-complete's/corpus-sqs-basic's matching ones."
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 6: RENAME (day2_rename, active - live/GAUNTLET.md #6)
@@ -1267,7 +1267,7 @@ CURRENT_STAGE=""
 # stays live, invisibly orphaned under an address the configuration no
 # longer names.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== STAGE 6: day2_rename - one bucket module renamed via a moved block, another via live-mv ==="
 ESTATE_DIR="$ESTATE/examples/complete"
 
@@ -1399,7 +1399,7 @@ EOF
   # any such dependent - it has no aws_s3_bucket_policy, no grant, no
   # external reference to its own module output. module.log_bucket (the
   # one #404 names) and module.s3_bucket are both left untouched.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== STAGE 7. day2_remove: delete module.simple_bucket_renamed's block outright ==="
   log "  stock oracle already computed at STAGE 1.5 (above, before migrate ever wrote a live tag): exactly one destroy for module.simple_bucket.aws_s3_bucket.this[0]"
 
@@ -1473,9 +1473,9 @@ open(p, 'w').write(s[:start] + s[end:])
   log "  no resource action proposed. simple-$PET is gone and nothing else moved."
 
   gauntlet_stage day2_remove pass "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-$PET now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

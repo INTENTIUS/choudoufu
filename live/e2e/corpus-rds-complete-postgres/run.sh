@@ -461,7 +461,7 @@ copy_tree "$PLAIN"
 PLAIN_EST="$PLAIN/rds/examples/complete-postgres"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, 39 real resources ==="
 
@@ -543,7 +543,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 # apply to the stock oracle too, for the same reason they apply to every
 # other copy in this script: they are what makes the estate buildable
 # against floci at all, not a choudoufu-only workaround.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 FLOCI_GREEN_NAME="choudoufu-corpus-rds-complete-postgres-green-$$"
 FLOCI_ORACLE_NAME="choudoufu-corpus-rds-complete-postgres-green-oracle-$$"
 GREEN_ESTATE_NAME="rds-postgres-green"
@@ -693,7 +693,7 @@ ORACLE_SG_RULES="$(awso ec2 describe-security-groups --query "length(SecurityGro
 
 log "  primary DB instance (engine, engine version, instance class, allocated storage, port) and security group ingress rule count match between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
@@ -721,7 +721,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # must make choudoufu propose destroying the old address and creating the
 # new one - the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE_ROOT"
@@ -787,7 +787,7 @@ log "  stock: zero churn from the rename itself on cold_deploy's own state - bot
 # same shape corpus-s3-bucket-complete's day2_remove used successfully for
 # its own bucket (issue #410 is about the sibling THAT estate's target had;
 # this target has none).
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== REMOVE-ORACLE. stock: module.db_default_renamed's block removed, on the same renamed oracle tree above ==="
 REMOVE_ORACLE_ROOT="$WORK/remove-oracle"
 cp -r "$PLAIN_ORACLE_ROOT" "$REMOVE_ORACLE_ROOT"
@@ -828,7 +828,7 @@ grep -qE '^  # module\.db_default_renamed\.module\.db_instance\.random_id\.snaps
 DESTROY_N="$(grep -cE '^  # .+ will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT")"
 [ "$DESTROY_N" = "2" ] || { grep -E '^  # .+ will be' <<< "$REMOVE_ORACLE_PLAN_OUT"; fail "stock's own oracle proposes $DESTROY_N destroys, not exactly 2 - a hidden dependent turned up"; }
 log "  stock oracle: exactly two destroys proposed - the db instance and its own local random_id.snapshot_identifier (no cloud representation) - (module.db's own known apply_method-echo parameter-group noise aside, see D-ORACLE above - computed now, before anything below writes a live tag)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason day2_remove's own oracle sits before migrate (above): a
@@ -853,7 +853,7 @@ CURRENT_STAGE=""
 # and module.db_default, never module.db, so this section has no ordering
 # dependency on either. PLAN ONLY, never applied: this copy shares
 # floci's account with $ADOPTED_EST.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.db's own instance via its ForceNew db_name argument (plus identifier, for an observable identity change), on cold_deploy's own state ==="
 ORACLE_REPLACE_ROOT="$WORK/oracle-replace"
 cp -r "$PLAIN" "$ORACLE_REPLACE_ROOT"
@@ -888,9 +888,9 @@ grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.t
 grep -qF 'Plan: 4 to add, 0 to change, 4 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan does not match the header's own four-resource cascade (instance + 2 cloudwatch log groups + parameter group, all replaced)"; }
 log "  stock: exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and its db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -972,7 +972,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -1452,7 +1452,7 @@ log "Endpoint.Port (5432, the declared port, not a reassigned collision"
 log "port). INTENTIUS/choudoufu#393 remains fixed."
 log ""
 gauntlet_stage test_plan pass "genuinely empty replan (No changes. Your infrastructure matches the configuration.) with no local state file. lex00/floci#120's round-trip gap, this estate's last recorded wall, is CONFIRMED FIXED: round 8 (PR #128/ff815779, ghcr.io/lex00/floci:main-20260824d sha256:25fc9687, #124's RDS colliding-port isolation) closed the last of its eight fields for this estate - module.db_default's own port (module.db and module.db_default both declare port=5432, a genuine collision; module.db_default is the second-created instance and gets its own distinct loopback bind address with the declared port honored). The other seven fields (backup_window, monitoring_interval, monitoring_role_arn, performance_insights_retention_period, engine_lifecycle_support, enabled_cloudwatch_logs_exports, max_allocated_storage) and the parameter block's apply_method were already fixed by earlier rounds (round 5 and round 6's own #120 passes) that this estate had not been re-crossed since - the artifact's recorded '3 in-place updates' detail was stale before this round's own fix even landed. Confirmed three independent ways, not merely inferred from the empty plan: a direct describe-db-parameters --source user probe of the live parameter group (autovacuum=1, client_encoding=utf8, matching config exactly, no tofu in the loop), a direct describe-db-instances probe of the second instance's own Endpoint.Port (5432, the declared port), and all eight attribute names individually confirmed absent from choudoufu's plan. INTENTIUS/choudoufu#393 (skip_final_snapshot's phantom true->false update) remains fixed, confirmed absent. Stock's own replan against its own never-deleted state file still shows tag noise plus the two parameter blocks; ruled out as a live discrepancy by the same direct API probe (informational only, not this stage's oracle - HANDOFF row 3, a property of that one state file's own apply-time fidelity)."
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -1487,7 +1487,7 @@ log ""
 log "STAGE 4 (test apply): PASS"
 log ""
 gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file, primary DB instance marker unmoved"
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
@@ -1578,7 +1578,7 @@ fi
 # passing leg too - plausibly a side effect of the record-primary plan
 # ordering ruled 2026-08-23. Not fixed here: a discovery-layer change,
 # out of scope for this script-only unit.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
 record_import_id() { jq -r '.identity.import_id' "$1"; }
 F_ADDR="module.db.module.db_instance.aws_db_instance.this[0]"
@@ -1668,9 +1668,9 @@ log "  no resource action proposed. The replace is complete and invisible to the
 
 DB_ARN="$F_NEW_ARN"
 gauntlet_stage day2_replace pass "choudoufu: changing module.db's ForceNew db_name argument (plus identifier, for an observable identity change) proposed exactly one instance replace at the same declared address, cascading into its 2 cloudwatch log groups and db parameter group (all replaced, all named from identifier) - 4 to add, 4 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance ($F_OLD_ARN) is confirmed gone and the new instance ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new identifier, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 # The exact escaped form of each marker (":0" vs no index at all) depends on
 # how the external security-group module's own count resolves and is not
@@ -1838,7 +1838,7 @@ EOF
   # the instance is actually gone, confirmed via the AWS CLI below), but the
   # PLAN differs from stock's, so this is left genuinely failing here rather
   # than asserting less than the oracle asserts.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== STAGE E. day2_remove: delete module.db_default_renamed's block outright ==="
   log "  stock oracle already computed above (REMOVE-ORACLE, before migrate ever wrote a live tag): exactly one destroy"
   python3 -c "
@@ -1893,11 +1893,11 @@ open(p, 'w').write(''.join(kept))
   log "  No changes. The db instance is gone and nothing else moved."
 
   gauntlet_stage day2_remove pass "choudoufu: deleting module.db_default_renamed's block proposed exactly two destroys (the db instance and its own local random_id.snapshot_identifier, no cloud representation - issue #340), applied cleanly, the db instance is genuinely gone from the live account (read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on the same renamed oracle tree also proposes exactly the same two destroys; the target was chosen (see header) because its own nested module.db_instance call has no untaggable AWS-side sibling under this estate's create_db_option_group=false/create_db_parameter_group=false, unlike the shapes that surfaced issue #410 for corpus-s3-bucket-complete and corpus-overture-tiles"
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log ""

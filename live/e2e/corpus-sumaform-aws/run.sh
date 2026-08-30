@@ -705,7 +705,7 @@ log "  key pair $KEY_NAME imported (never actually used for SSH - provision=fals
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu/terraform, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain $TF_COLD, two-phase - see header) ==="
 ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color >/dev/null 2>&1 ) \
   || { ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color 2>&1 | tail -30 ); fail "plain init failed"; }
@@ -897,7 +897,7 @@ gauntlet_stage cold_deploy pass "11 managed resource instances, genuinely cold, 
 # gauntlet_stage line it already printed on the way out is what the
 # artifact records.
 (
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -1062,13 +1062,13 @@ OINST="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-i
   || fail "module.server's instance ami/type differs: greenfield=($GINST) oracle=($OINST)"
 log "  vpc cidr, security-group rule counts, and the instance's ami+type match between the greenfield estate and the stock oracle in its own namespace"
 gauntlet_stage greenfield pass "11 resources from nothing (7 tag-stamped, 2 recorded via markers = record, 2 untaggable/derived - route_table_association and volume_attachment), replan empty, stock oracle in its own namespace matches on vpc cidr, security-group rule counts and the instance's ami+type"
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 ) || log "  PART GREENFIELD did not clear (see the FAIL line and the greenfield stage=fail line above) - continuing to stage 2 onward, which does not depend on it"
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -1116,7 +1116,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # module.server depends ON module.base's output and nothing depends on
 # module.server, so removing it cleanly destroys 3 objects and nothing
 # else is left to reason about.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock terraform, delete module.server's whole block on cold_deploy's own state ==="
 REMOVE_ORACLE="$WORK/remove-oracle"
 cp -r "$PLAIN" "$REMOVE_ORACLE"
@@ -1154,7 +1154,7 @@ log "  stock: exactly three destroys (module.server's instance, EBS volume, volu
 # day2_replace section found out the hard way that applying an oracle
 # here collaterally destroys the object $EST's later stages still
 # depend on.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock: force-replace module.server's instance via its image input, on cold_deploy's own state ==="
 REPLACE_ORACLE="$WORK/replace-oracle"
 cp -r "$PLAIN" "$REPLACE_ORACLE"
@@ -1173,7 +1173,7 @@ grep -qE '^  # module\.server\.module\.server\.module\.host\.aws_volume_attachme
 grep -qF 'Plan: 2 to add, 0 to change, 2 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan does not propose exactly 2 to add, 0 to change, 2 to destroy"; }
 log "  stock: exactly 2 to add, 0 to change, 2 to destroy - module.server's instance and its volume attachment, nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -1293,7 +1293,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "7 stamped, 2 recorded (markers = record honoured at migrate time, GitHub issue #365 slice 2), 0 failed, 2 skipped"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - the static-count wall is gone; a live-import gap is
@@ -1440,7 +1440,7 @@ log "for list- and set-nested blocks) and 6 (lex00/floci#103) are all fixed - co
 log "store, at the exact attribute, and now by an empty plan itself."
 log ""
 gauntlet_stage test_plan pass "Items 4, 5 and 6 (this script's header) are all FIXED and the plan is genuinely empty (\"No changes. Your infrastructure matches the configuration.\"): live-import honours markers = record (located records for aws_instance.instance[0] and aws_ebs_volume.data_disk[0], confirmed at the store and by value against the AWS CLI both right after migrate and again after this empty replan), residue now covers NestingList/NestingSet/NestingMap blocks (internal/live/projection's residueEligibleBlock, widened from the block's SHAPE - whether carriesNoInformation can tell its absence from a real empty answer - never from a type name), and lex00/floci#103 (published in ghcr.io/lex00/floci@sha256:e16d9007a03093b6a6edd22273dee9d8253131f18581b0fa20ae6d34178a3079) now honours RunInstances' BlockDeviceMapping.Ebs.VolumeSize for the root device, closing the one line (root_block_device.volume_size = 8 -> 200) that was this crossing's own last wall. Plan moved 3 to add/0/0 (the original ABSENT gap) -> 2 to add/0/2 to destroy (item 4 fixed, item 5's replacement exposed) -> 0 to add/1 to change/0 to destroy (item 5 fixed) -> empty (item 6 fixed by the emulator)."
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -1496,7 +1496,7 @@ GOT_INSTANCE_IMPORT_ID_NOOP="$(located_import_id "$INSTANCE_ADDR_FULL")"
 log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after, no state file either time,"
 log "  and module.server's instance still holds its own located identity unchanged."
 gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after, no state file either time; module.server's record-based instance and volume identities unchanged"
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one tag-governed object, replan,
@@ -1587,7 +1587,7 @@ fi
 # destroy-then-create ordering instead, exactly like the other two
 # day2_replace sections. BREAK=replace manufactures the create-before-
 # destroy collision shape directly via the AWS CLI, the same way theirs do.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 F_ADDR="module.server.module.server.module.host.aws_instance.instance[0]"
 
 log "=== F0. capture the live instance and its record ahead of the forced replace ==="
@@ -1732,7 +1732,7 @@ gauntlet_stage day2_replace pass "choudoufu: changing module.server's image inpu
 # which must make choudoufu propose destroying the old address and creating
 # the new one - the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the two live ids a rename must not disturb ==="
 EIP_ALLOC_ID="$(awsl ec2 describe-tags --filters "Name=resource-type,Values=elastic-ip" "Name=key,Values=tofu-address" "Name=value,Values=aws_eip.crossing_nat" --query "Tags[0].ResourceId" --output text)"
 [ -n "$EIP_ALLOC_ID" ] && [ "$EIP_ALLOC_ID" != "None" ] || fail "no live eip found by its tofu-address marker"
@@ -1831,7 +1831,7 @@ EOF
   # network resources, is this crossing's day2_remove target. E-ORACLE
   # already proved stock destroys all three of module.server's resources
   # cleanly on cold_deploy's own state.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log ""
   log "=== E0. capture module.server's own record-based identities one more time ==="
   E_INSTANCE_ID="$(located_import_id "$INSTANCE_ADDR_FULL")" \
@@ -1923,9 +1923,9 @@ EOF
     gauntlet_stage day2_remove pass "choudoufu: deleting module.server's block proposed exactly three destroys (0 add, 0 change, 3 destroy: the record-based instance and EBS volume, plus the untaggable/derived volume attachment), applied cleanly (0 added, 0 changed, 3 destroyed), the instance and volume are genuinely gone from the live account (instance State=$INST_STATE, volume absent, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes the same three destroys"
     log ""
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 log ""
 log "=== ESTATE CLEAR: cold_deploy, migrate, test_plan, test_apply, drift_reconverge and day2_rename all pass ==="
