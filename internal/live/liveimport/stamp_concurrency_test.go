@@ -29,7 +29,9 @@ import (
 //     The fixture below makes the COMPLETION order the exact reverse of the
 //     ratification order, so an implementation that appended results as they
 //     arrived would produce a report reversed end to end - not a subtly
-//     shuffled one that a weak assertion could miss.
+//     shuffled one that a weak assertion could miss. [reverseGate] is what
+//     makes that reversal a property of the fixture rather than a bet on the
+//     scheduler; issue #597 is the CI run where the bet lost.
 //  2. [notATagsOnlyPlan] gating every resource individually. A plan that
 //     would replace one resource must refuse that one resource and write
 //     nothing for it, while its neighbours - planned and applied on other
@@ -55,9 +57,16 @@ import (
 type stampProvider struct {
 	providers.Interface
 
-	// delay is how long one resource's plan takes, by its id. This is what
-	// makes completion order differ from ratification order.
+	// delay is how long one resource's plan takes, by its id. It is what
+	// keeps several stamps inside the provider at once for the tests that
+	// need a queue to form; it is NOT how the ordering test reverses
+	// completion order (see gate, and issue #597 for why it stopped being
+	// allowed to be).
 	delay func(id string) time.Duration
+
+	// gate, when set, orders the calls this provider receives by
+	// construction rather than by timing. See [reverseGate].
+	gate *reverseGate
 
 	// replace names the ids whose plan comes back RequiresReplace, which is
 	// what [notATagsOnlyPlan] must refuse.
@@ -104,6 +113,9 @@ func idOf(v cty.Value) string {
 func (p *stampProvider) PlanResourceChange(_ context.Context, r providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
 	id := idOf(r.PriorState)
 	p.enter()
+	if p.gate != nil {
+		p.gate.plan(id)
+	}
 	if p.delay != nil {
 		time.Sleep(p.delay(id))
 	}
@@ -123,6 +135,14 @@ func (p *stampProvider) PlanResourceChange(_ context.Context, r providers.PlanRe
 
 func (p *stampProvider) ApplyResourceChange(_ context.Context, r providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
 	id := idOf(r.PlannedState)
+	if p.gate != nil {
+		// Deferred, not called here: closing this entry's channel is what
+		// releases the entry in front of it, and that release must happen
+		// after this apply has genuinely finished - otherwise the entry it
+		// releases could record its own apply first and the reversal would
+		// be a race again.
+		defer p.gate.applied(id)
+	}
 	p.mu.Lock()
 	p.applied = append(p.applied, id)
 	fails := p.applyFails[id]
@@ -134,6 +154,17 @@ func (p *stampProvider) ApplyResourceChange(_ context.Context, r providers.Apply
 		return providers.ApplyResourceChangeResponse{Diagnostics: diags}
 	}
 	return providers.ApplyResourceChangeResponse{NewState: r.PlannedState}
+}
+
+// completions is the order the provider FINISHED each call in: the planned
+// slice is one id per PlanResourceChange that returned, the applied slice one
+// per ApplyResourceChange. Both are read after Approve has returned, so the
+// lock is for tidiness rather than for a race - wg.Wait already orders every
+// write here before the read.
+func (p *stampProvider) completions() (planned, applied []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.planned...), append([]string(nil), p.applied...)
 }
 
 func (p *stampProvider) appliedSet() map[string]bool {
@@ -150,6 +181,179 @@ func (p *stampProvider) appliedSet() map[string]bool {
 // r000, r001, ... so that ratification order, index order and lexical order
 // all agree and a reversal is unmistakable.
 func stampID(i int) string { return fmt.Sprintf("r%03d", i) }
+
+// stampIndex is the inverse of [stampID].
+func stampIndex(id string) (int, bool) {
+	var i int
+	if _, err := fmt.Sscanf(id, "r%03d", &i); err != nil {
+		return 0, false
+	}
+	return i, true
+}
+
+// reversedIDs is the completion order [reverseGate] produces, written out so
+// a failure prints both sequences in full rather than one element of one.
+func reversedIDs(n int) []string {
+	out := make([]string, 0, n)
+	for i := n - 1; i >= 0; i-- {
+		out = append(out, stampID(i))
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// The reversal, by construction
+// ---------------------------------------------------------------------------
+
+// gateStuckAfter is a hang-breaker, not a timing device, and it is worth
+// being precise about the difference because issue #597 is what happens when
+// a fixture's correctness rests on a duration.
+//
+// Nothing in [reverseGate] SUCCEEDS because of this constant. Every wait it
+// guards is satisfied by a channel close, and the goroutine doing the closing
+// is already running and already past the barrier when the wait begins, so on
+// any Approve that runs its entries concurrently the wait costs microseconds
+// at any load and at any GOMAXPROCS. It exists for the one case where the
+// chain cannot drain at all - an Approve that stops running entries
+// concurrently, which would otherwise deadlock the whole chain - so that the
+// test fails in half a minute with [reverseGate.stuckAt]'s diagnosis instead
+// of hanging until the package's test timeout. A wait that reaches it always
+// FAILS the test; it can never become a pass.
+const gateStuckAfter = 30 * time.Second
+
+// reverseGate makes the ordering fixture's completion order the exact reverse
+// of its ratification order by construction: on every run, at every load, at
+// every GOMAXPROCS, with no clock in the success path.
+//
+// It replaces the per-entry sleeps this fixture used to lean on, which is
+// GitHub issue #597. Sleeping (n-i) milliseconds only reverses completion
+// order if every goroutine also STARTS within a few milliseconds of the
+// others; on a contended CI runner one did not, entry 0 finished first, and
+// the vacuity guard correctly refused to assert against a fixture that had
+// not set anything up. The guard was right. The fixture was the bet.
+//
+// Two happens-before edges per entry replace it, and no duration:
+//
+//  1. Nobody's plan returns until all n entries are inside the provider at
+//     once - the arrival barrier. That is also this fixture's overlap
+//     evidence, and it upgrades it: peak concurrency is exactly n, not "at
+//     least 2 if the scheduler was kind".
+//  2. Entry i's plan then does not return until entry i+1's APPLY has
+//     already returned. Entry n-1 waits for nobody, so it is the only entry
+//     that can move first; its apply releases n-2, whose apply releases
+//     n-3, and so on down to 0.
+//
+// So planned and applied both read r011, r010, ... r000, in that order, in
+// every run - and each entry still has its own whole ApplyResourceChange
+// left to do after the entry behind it finished, which is the gap an "append
+// as they arrive" collector would have to invert to escape the assertion.
+//
+// It cannot deadlock a correct Approve: Approve pushes its semaphore token
+// and spawns each goroutine before pushing the next, so with parallelism = n
+// all n goroutines exist before any of them must finish, and a goroutine
+// blocked on a channel receive is one the runtime is free to deschedule in
+// favour of the one it is waiting for. It CAN deadlock an Approve that stops
+// running entries concurrently - see [gateStuckAfter], which turns that into
+// a failure rather than a hang.
+type reverseGate struct {
+	n int
+
+	// arrived is closed once every entry is inside PlanResourceChange.
+	arrived chan struct{}
+
+	// done[i] is closed when entry i's ApplyResourceChange returned, and
+	// releasing it is what lets entry i-1's plan return.
+	done []chan struct{}
+
+	mu      sync.Mutex
+	count   int
+	closed  []bool
+	abandon chan struct{}
+	stuck   string
+}
+
+func newReverseGate(n int) *reverseGate {
+	g := &reverseGate{
+		n:       n,
+		arrived: make(chan struct{}),
+		done:    make([]chan struct{}, n),
+		closed:  make([]bool, n),
+		abandon: make(chan struct{}),
+	}
+	for i := range g.done {
+		g.done[i] = make(chan struct{})
+	}
+	return g
+}
+
+// plan is called from PlanResourceChange before that call records anything,
+// and returns only when it is this entry's turn to be the next to finish.
+func (g *reverseGate) plan(id string) {
+	i, ok := stampIndex(id)
+	if !ok {
+		return
+	}
+	g.mu.Lock()
+	g.count++
+	if g.count == g.n {
+		close(g.arrived)
+	}
+	g.mu.Unlock()
+
+	g.wait(g.arrived, id)
+	if i+1 < g.n {
+		g.wait(g.done[i+1], id)
+	}
+}
+
+// applied is called when ApplyResourceChange returns and releases the entry
+// in front of this one.
+func (g *reverseGate) applied(id string) {
+	i, ok := stampIndex(id)
+	if !ok {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.closed[i] {
+		g.closed[i] = true
+		close(g.done[i])
+	}
+}
+
+func (g *reverseGate) wait(ch <-chan struct{}, id string) {
+	timer := time.NewTimer(gateStuckAfter)
+	defer timer.Stop()
+	select {
+	case <-ch:
+	case <-g.abandon:
+		g.giveUp(id)
+	case <-timer.C:
+		g.giveUp(id)
+	}
+}
+
+// giveUp records the first entry that could not be released and frees every
+// other waiter, so a stuck chain costs one gateStuckAfter for the whole run
+// rather than one per entry.
+func (g *reverseGate) giveUp(id string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.stuck == "" {
+		g.stuck = id
+		close(g.abandon)
+	}
+}
+
+// stuckAt names the first entry whose wait was abandoned, or "" when the
+// chain drained as designed. Anything else means Approve did not have every
+// entry in flight at once - a change in Approve, not a slow runner - and the
+// test reports that instead of an ordering result the fixture never set up.
+func (g *reverseGate) stuckAt() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.stuck
+}
 
 // concurrentRatification builds n eligible aws_vpc instances, all backed by
 // the one provider p - which is how a real run looks, since Ratify hands
@@ -205,20 +409,11 @@ func renderReport(rep *StampReport) string {
 // stamped concurrently, must produce a byte-identical StampReport.
 //
 // The concurrent run's completion order is deliberately the exact reverse of
-// its ratification order - entry 0 sleeps longest - so "collect by index"
-// and "append as they arrive" cannot produce the same answer here.
+// its ratification order - [reverseGate] chains entry i's plan behind entry
+// i+1's apply, so entry 0 finishes last on every run - and so "collect by
+// index" and "append as they arrive" cannot produce the same answer here.
 func TestApproveReportOrderIsRatificationOrderNotCompletionOrder(t *testing.T) {
 	const n = 12
-	// Entry i waits (n-i) units, so the last entry finishes first and the
-	// first finishes last. With parallelism >= n every entry is in flight at
-	// once, so completion order really is the reverse of ratification order.
-	reversing := func(id string) time.Duration {
-		var i int
-		if _, err := fmt.Sscanf(id, "r%03d", &i); err != nil {
-			return 0
-		}
-		return time.Duration(n-i) * 2 * time.Millisecond
-	}
 
 	seqProv := newStampProvider()
 	seqRat := concurrentRatification(t, n, seqProv)
@@ -232,7 +427,7 @@ func TestApproveReportOrderIsRatificationOrderNotCompletionOrder(t *testing.T) {
 	}
 
 	concProv := newStampProvider()
-	concProv.delay = reversing
+	concProv.gate = newReverseGate(n)
 	concRat := concurrentRatification(t, n, concProv)
 	concRat.parallelism = n
 	concRep, concDiags := concRat.Approve(context.Background())
@@ -241,12 +436,22 @@ func TestApproveReportOrderIsRatificationOrderNotCompletionOrder(t *testing.T) {
 	}
 
 	// Evidence the fixture did what it claims: everything overlapped, and
-	// the provider finished them in reverse.
-	if concProv.peak < 2 {
-		t.Fatalf("peak concurrency was %d - nothing overlapped, so this test proves nothing about ordering under concurrency", concProv.peak)
+	// the provider finished them in reverse. All three of these are
+	// properties of [reverseGate]'s chain, so a failure here is a report
+	// about Approve or about the fixture - never about the runner.
+	if id := concProv.gate.stuckAt(); id != "" {
+		t.Fatalf("the reverse gate gave up waiting at %s: Approve did not have all %d entries inside the provider at once, so the fixture could not reverse completion order and the ordering assertion below would be vacuous", id, n)
 	}
-	if got, want := concProv.planned[0], stampID(n-1); got != want {
-		t.Fatalf("first plan to COMPLETE was %s, want %s - the fixture is not reversing completion order, so the ordering assertion below is vacuous", got, want)
+	if concProv.peak != n {
+		t.Fatalf("peak concurrency was %d, want exactly %d - every entry should be inside the provider at the barrier, so this test proves nothing about ordering under concurrency", concProv.peak, n)
+	}
+	planned, applied := concProv.completions()
+	wantOrder := strings.Join(reversedIDs(n), " ")
+	if got := strings.Join(planned, " "); got != wantOrder {
+		t.Fatalf("plans COMPLETED in the order %s, want %s - the fixture is not reversing completion order, so the ordering assertion below is vacuous", got, wantOrder)
+	}
+	if got := strings.Join(applied, " "); got != wantOrder {
+		t.Fatalf("applies COMPLETED in the order %s, want %s - the fixture is not reversing completion order, so the ordering assertion below is vacuous", got, wantOrder)
 	}
 
 	if got, want := renderReport(concRep), renderReport(seqRep); got != want {
