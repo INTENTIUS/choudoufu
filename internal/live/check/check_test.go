@@ -102,9 +102,18 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"liveimport":   true, // the bulk migration command's engine
 		"markerkey":    true,
 		"markers":      true, // the marker vocabulary itself
-		"marksafe":     true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
-		"mdspan":       true, // rewrites generated regions of a markdown doc
-		"mv":           true, // the rename command's engine
+		// GitHub issue #613's detection: does a plan built from a STATE
+		// FILE propose removing an estate's ownership markers? It is the
+		// only package here that runs on the state-backed path and never
+		// on the live one - a configuration with a live block does not
+		// install it at all - so it can produce no live-path refusal for
+		// this instrument to be blind to. Its one refusal is worded in
+		// internal/command, beside the other command guards, and is
+		// unregistered for the same reason those are.
+		"markerstrip": true,
+		"marksafe":    true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
+		"mdspan":      true, // rewrites generated regions of a markdown doc
+		"mv":          true, // the rename command's engine
 		// A no-classic-Importer provider response classified, and a stub
 		// synthesized from a resolved identity in its place - shared by
 		// internal/live/projection's pre-walk import and #388's plan-node
