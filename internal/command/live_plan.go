@@ -942,6 +942,20 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
+	// GitHub issue #612's knob, resolved once here and passed down. Here,
+	// because this function is the single funnel every entry point that
+	// sweeps goes through - live-plan's "-estate" form above, and the
+	// live-block path plain "choudoufu plan" and "choudoufu apply" run
+	// (live_mode.go's own call). Once, because statelessDiscoverOne runs a
+	// pass per provider configuration, and resolving it there would report a
+	// bad setting once per pass. See [sweepParallelismSetting] for the
+	// setting, the refusal and the default decision.
+	sweepPar, sweepParDiags := sweepParallelismSetting()
+	diags = diags.Append(sweepParDiags)
+	if sweepParDiags.HasErrors() {
+		return nil, noProvider, nil, diags
+	}
+
 	needs := resolutions.NeedsDiscovery()
 
 	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
@@ -992,7 +1006,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, sweepPar)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			diags = diags.Append(warn)
 			return nil, noProvider, nil, diags
@@ -1019,7 +1033,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, sweepPar)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			// Sweep-only provider, unusable for the same reason stock never
 			// asks this question in one shot either: its own configuration
@@ -1173,7 +1187,10 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 	return projection.RecordStoreKeyPrefix(config.Module.Live.RecordStore, estate)
 }
 
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord) (*discovery.Result, tfdiags.Diagnostics) {
+// sweepPar is [discovery.Request.SweepParallelism] for this pass, already
+// resolved and validated by [statelessDiscover] - see
+// [sweepParallelismSetting].
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, sweepPar int) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -1206,9 +1223,15 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Region:            provs.region(providerAddr),
 		CollectUnclaimed:  true,
 		Sweep:             true,
-		Policy:            pol,
-		ScopeProvider:     scopeProvider,
-		Progress:          statelessProgress(statelessView),
+		// GitHub issue #612. The estate-wide sweep's list calls run
+		// concurrently (issue #605), and this is the only place in the
+		// command layer that says how many at once: without this line the
+		// engine's default is the only reachable setting, which is the
+		// defect #612 reports. [sweepParallelismSetting] resolved it.
+		SweepParallelism: sweepPar,
+		Policy:           pol,
+		ScopeProvider:    scopeProvider,
+		Progress:         statelessProgress(statelessView),
 		// Independent of the Guided cost decision below: HintStore also
 		// backs discovery's per-instance located-record fallback for a type
 		// with no tags argument and no list route at all
@@ -3468,14 +3491,30 @@ Options:
                           by name, rather than the default one-line count.
                           See "Not swept for removal" above the plan.
 
-  -parallelism=n          Limit the number of concurrent operations. Defaults
-                          to 10.
+  -parallelism=n          Limit the number of concurrent operations as the
+                          plan graph is walked, exactly as it does for a
+                          stock plan. Defaults to 10. It does not bound the
+                          marker sweep, which runs before there is a graph;
+                          that is TOFU_LIVE_SWEEP_PARALLELISM below.
 
   The following stock plan options are rejected rather than ignored, because
   live resource markers remove what they operate on or have not built them yet:
   -out, -state, -state-out, -backup, -destroy, -refresh-only,
   -generate-config-out, -json and -json-into. -refresh is accepted and has no
   effect: the projection is already fresh, so the plan never refreshes.
+
+Environment variables:
+
+  TOFU_LIVE_SWEEP_PARALLELISM=n
+                          How many of the estate-wide marker sweep's list
+                          calls run at once. Defaults to 10. Turn it down if
+                          a real account throttles the sweep: 1 makes it
+                          sequential, one list call at a time. A value below
+                          1 is refused rather than read as "no limit". It is
+                          a variable rather than a flag because the same
+                          pipeline runs under plain "choudoufu plan" and
+                          "choudoufu apply" whenever the configuration has a
+                          live block, and one name has to reach all three.
 `
 	return strings.TrimSpace(helpText)
 }
