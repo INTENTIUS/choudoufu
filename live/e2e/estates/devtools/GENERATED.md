@@ -16,7 +16,7 @@ go run ./tools/estate-gen -cohort devtools -types aws_codeartifact_domain,aws_co
 | Resource | Kind | Overrides |
 |---|---|---|
 | `aws_codeartifact_domain.app` | coverage | none |
-| `aws_codeartifact_domain_permissions_policy.app` | coverage | none |
+| `aws_codeartifact_domain_permissions_policy.app` | coverage | "policy_document" is a required argument per the provider's own docs (its Example Usage sets it from a data.aws_iam_policy_document read), but the wire schema types it Optional - the generic required-only pass never visits it, and PutDomainPermissionsPolicy 400s without one - the same "schema says Optional, provider requires it in practice" shape as its aws_codeartifact_repository_permissions_policy sibling above, whose own override this mirrors |
 | `aws_codeartifact_repository.app` | coverage | none |
 | `aws_codeartifact_repository_permissions_policy.app` | coverage | "policy_document" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"policy_document\" contains an invalid JSON"); the generic placeholder string is not |
 | `aws_codebuild_fleet.app` | coverage | base_capacity is Required and the provider validates it is at least 1 (validate: "expected base_capacity to be at least (1), got 0"), but the schema types it only as a number, so the generic pass's zero placeholder fails; compute_type and environment_type are both Required strings the schema does not constrain to an enum, but the provider validates each against a fixed set (validate: "expected ... to be one of [...]") |
