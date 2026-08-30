@@ -94,6 +94,26 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 		}
 	}
 
+	// terralith-scale: see terralith.go for why this estate's configuration
+	// has to be generated before it can be read at all.
+	if spec.Name == "terralith-scale" {
+		dir, cleanup, err := prepareTerralith(ctx, root)
+		if err != nil {
+			loadErrs = append(loadErrs, fmt.Sprintf("generating the terralith estate: %v", err))
+		} else {
+			defer cleanup()
+			label := "tools/terralith-gen -scale " + terralithScaleGenScale + " (generated)"
+			used, unres, note := loadDirTypes(ctx, dir, label, types)
+			unresolved += unres
+			if used {
+				configDirsUsed = append(configDirsUsed, label)
+			}
+			if note != "" {
+				loadErrs = append(loadErrs, note)
+			}
+		}
+	}
+
 	if len(configDirsUsed) > 0 {
 		sources = append(sources, "config")
 	}

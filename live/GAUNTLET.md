@@ -259,6 +259,7 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-vpc-complete` | terraform-popular | v6.6.1 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-xancloud-iac` | opentofu-native | v0.2.0 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `reference-ec2-vpc` | reference |  | the plainest hand-written reference shape, kept in this repository |
+| `terralith-scale` | reference |  | the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim |
 
 ## Estate admission
 

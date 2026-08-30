@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,6 +167,36 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	var out strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+
+	// Keep the script's own output, streamed to a file as it is produced
+	// (issue #578).
+	//
+	// It used to go nowhere but this strings.Builder, which ParseProtocol
+	// reads for GAUNTLET lines and which is then dropped on the floor. That
+	// discards almost everything a live-AWS run learns: the per-stage timing
+	// the script logs, the throttle summary, the account inventory
+	// verify_empty enumerates, the sweep's own account of what it deleted -
+	// all of it survives only as whatever fits in a stage's one-line detail
+	// string. For a run that spends real money, once, and cannot be cheaply
+	// repeated, that is the wrong thing to throw away; and with no file to
+	// tail, there is no way to watch a 45-minute run's progress either.
+	//
+	// Best-effort: a log that cannot be opened must not stop a certification
+	// that is otherwise ready to go. RunEstates writes its per-estate logs
+	// to the same gitignored directory (run.go's LogDir), under a
+	// live-cert- prefix here so a certification's log can never be mistaken
+	// for, or overwrite, the emulator row's log for the same estate.
+	// root == "" is the in-process test caller (LIVECERT_SCRIPT_OVERRIDE with
+	// no checkout); it must not create live/gauntlet/logs/ relative to
+	// whatever the test's working directory happens to be.
+	if root != "" && os.MkdirAll(filepath.Join(root, LogDir), 0o755) == nil {
+		logPath := filepath.Join(root, LogDir, "live-cert-"+estate+".log")
+		if logf, err := os.Create(logPath); err == nil { //nolint:gosec // a gitignored path under the checkout, built from the estate name
+			defer func() { _ = logf.Close() }()
+			cmd.Stdout = io.MultiWriter(&out, logf)
+			cmd.Stderr = cmd.Stdout
+		}
+	}
 
 	// cmd.Cancel/cmd.WaitDelay: exec.CommandContext's DEFAULT behavior on
 	// context expiry is cmd.Process.Kill() - a bare SIGKILL, immediately,

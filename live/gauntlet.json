@@ -150,155 +150,155 @@
   "sets": {
     "all": {
       "label": "All estates",
-      "estates": 26,
+      "estates": 27,
       "clear": 12,
       "stages": {
         "cold_deploy": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
           "not_run": 0
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 14
+          "not_run": 15
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 25
+          "not_run": 26
         },
         "day2_remove": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 26
+          "not_run": 27
         },
         "drift_reconverge": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "plan_approval": {
           "pass": 0,
           "fail": 0,
-          "not_run": 26
+          "not_run": 27
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 25
+          "not_run": 26
         },
         "test_apply": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
     "core": {
       "label": "Core estates",
-      "estates": 25,
+      "estates": 26,
       "clear": 11,
       "stages": {
         "cold_deploy": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
           "not_run": 0
         },
         "day2_count": {
           "pass": 11,
           "fail": 0,
-          "not_run": 14
+          "not_run": 15
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 24
+          "not_run": 25
         },
         "day2_remove": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 26
         },
         "drift_reconverge": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "plan_approval": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 26
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 24
+          "not_run": 25
         },
         "test_apply": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     }
@@ -1707,6 +1707,69 @@
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
+    },
+    {
+      "name": "terralith-scale",
+      "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
+      "lane": "reference",
+      "set": "core",
+      "reason": "the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim",
+      "script": "live/e2e/terralith-scale/run.sh",
+      "stages": {
+        "cold_deploy": "pass",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "20faceacaade0afe656e3060c667cbdba58db64f",
+        "date": "2026-08-30T17:10:39Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output (no live block, no choudoufu binary in this script at all), 34 objects enumerated live across IAM/Route53/ECS/EC2 with a BREAK control proving the enumeration has teeth, then stock destroy removed all 79 and left the prefix's account enumerated empty",
+          "day2_count": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "day2_remove": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "day2_rename": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "day2_replace": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "drift_reconverge": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "greenfield": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "migrate": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "strict": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "test_apply": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke",
+          "test_plan": "this crossing script is deliberately choudoufu-free (issue #564): it proves the generator emits valid stock Terraform that applies and destroys, and every stage past cold_deploy needs the choudoufu binary this script does not invoke"
+        },
+        "duration_s": 80.9,
+        "stage_seconds": {
+          "cold_deploy": 81,
+          "day2_count": 0,
+          "day2_remove": 0,
+          "day2_rename": 0,
+          "day2_replace": 0,
+          "drift_reconverge": 0,
+          "greenfield": 0,
+          "migrate": 0,
+          "strict": 0,
+          "test_apply": 0,
+          "test_plan": 0
+        }
+      }
     }
   ],
   "behaviors_proven": 1,

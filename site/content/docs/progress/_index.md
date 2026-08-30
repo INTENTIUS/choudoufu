@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 15 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin), 11 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844` (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-30T04:10:37Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 16 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` (current pin), 11 against `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844` (last_run.date ranges from 2026-08-25T23:41:30Z to 2026-08-30T17:10:39Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 **Behaviors proven** (1 of 14) is a secondary, development-loop number, not
 a coverage claim: it counts how many of the 14 stages below have a FAST
@@ -84,11 +84,12 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass not run pass pass not run |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass |
+| [terralith-scale]({{< relref "terralith-scale" >}}) | core | reference | no | pass not run not run not run not run not run not run not run not run not run not run |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass pass not run |
 
 ## Run time
 
-15 of 26 estates have a recorded run duration, totaling 1h0m30.7s, but not from one sweep: 9m57.6s across 1 estate(s) at commit `15797c3282`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 2m9.5s across 1 estate(s) at commit `499f9f5e80`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 2m35.8s across 1 estate(s) at commit `638d7a4b64`; 2m9.4s across 1 estate(s) at commit `8d19323d12`; 7m7.6s across 2 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 3m9.9s across 1 estate(s) at commit `98d31cc69b`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 3m59.1s across 1 estate(s) at commit `a1605b4688`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`. This total spans different commits, not a single board run, and excludes 11 estate(s) with no recorded duration yet.
+16 of 27 estates have a recorded run duration, totaling 1h1m51.6s, but not from one sweep: 9m57.6s across 1 estate(s) at commit `15797c3282`; 1m50.1s across 1 estate(s) at commit `1b139d665e`; 1m20.9s across 1 estate(s) at commit `20faceacaa`; 2m9.5s across 1 estate(s) at commit `499f9f5e80`; 5m41.9s across 1 estate(s) at commit `5621afcab8`; 3m16.2s across 1 estate(s) at commit `5a591a776f`; 2m35.8s across 1 estate(s) at commit `638d7a4b64`; 2m9.4s across 1 estate(s) at commit `8d19323d12`; 7m7.6s across 2 estate(s) at commit `8ef3d258a7`; 3m5.5s across 1 estate(s) at commit `9530eee028`; 3m9.9s across 1 estate(s) at commit `98d31cc69b`; 7m46.5s across 1 estate(s) at commit `9db5c30829`; 3m59.1s across 1 estate(s) at commit `a1605b4688`; 2m53.2s across 1 estate(s) at commit `b16763a4db`; 4m48.4s across 1 estate(s) at commit `bfa832dbc9`. This total spans different commits, not a single board run, and excludes 11 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -117,6 +118,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | - | none recorded yet |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m16.2s | cold_deploy 39s, migrate 44s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 9s, day2_remove 17s, day2_count 28s, day2_replace 7s, greenfield 38s |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m48.4s | cold_deploy 1m46s, migrate 54s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 8s, day2_count 25s, day2_replace 29s, greenfield 4s, strict 2s |
+| [terralith-scale]({{< relref "terralith-scale" >}}) | 1m20.9s | cold_deploy 1m21s, migrate -, test_plan -, test_apply -, drift_reconverge -, day2_rename -, day2_remove -, day2_count -, day2_replace -, greenfield -, strict - |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 9m57.6s | cold_deploy 1m55s, migrate 43s, test_plan 6s, test_apply 9s, drift_reconverge 28s, day2_rename 19s, day2_remove 33s, day2_count 1m2s, day2_replace 47s, greenfield 3m55s |
 
 ## Live-AWS certification
