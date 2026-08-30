@@ -487,7 +487,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module, targeted - see header) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -523,7 +523,7 @@ gauntlet_stage cold_deploy pass "3 resources added (2 alarms + dashboard), 0 obj
 # compared structurally via the AWS CLI on both endpoints, never through
 # tofu state. aws_budgets_budget is targeted out here too, the same as
 # every other apply in this script - see the header's scoping decision.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -619,7 +619,7 @@ ORACLE_CF_SHAPE="$(alarm_shape "$ORACLE_ENDPOINT" "$CF_ALARM_NAME")"
 [ "$GREEN_CF_SHAPE" = "$ORACLE_CF_SHAPE" ] || { printf 'greenfield: %s\noracle:     %s\n' "$GREEN_CF_SHAPE" "$ORACLE_CF_SHAPE"; fail "the greenfield CloudFront-requests alarm differs structurally from the stock oracle"; }
 log "  both alarms match structurally (metric, namespace, statistic, period, evaluation periods, threshold, comparison operator) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "3 resources from nothing (2 tagged alarms + the untaggable dashboard), both alarm markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on both alarms"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
@@ -638,7 +638,7 @@ CURRENT_STAGE=""
 # break control instead (see the real leg below): renaming
 # cf_requests_spike WITHOUT a moved block, which must make choudoufu
 # propose destroying the old address and creating the new one.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -688,7 +688,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # with the same -target exclusion of aws_budgets_budget every command in
 # this script uses (see header - a real, confirmed floci gap, not this
 # script's to route around).
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock tofu, force-replace s3_requests_spike via its ForceNew alarm_name argument, on cold_deploy's own state ==="
 REPLACE_PLAIN_ORACLE="$WORK/replace-plain-oracle"
 cp -r "$PLAIN" "$REPLACE_PLAIN_ORACLE"
@@ -733,7 +733,7 @@ log "  stock: exactly one replace at the same declared address (module.monitorin
 # $ENDPOINT, which the real leg still depends on - is deliberate: PR #502's
 # oracle leftovers on a SHARED endpoint once poisoned the real leg's own
 # lookup.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 count_test_block() { # $1 = count
   local n="$1"
   cat <<COUNTEOF
@@ -828,12 +828,12 @@ ORACLE_CT1_AFTER_UP="$(awso cloudwatch describe-alarms --alarm-names leynos-moni
 ORACLE_CT0_AFTER_UP="$(awso cloudwatch describe-alarms --alarm-names leynos-monitoring-count-test-0 --query 'length(MetricAlarms)' --output text 2>/dev/null || echo 0)"
 [ "$ORACLE_CT0_AFTER_UP" = "1" ] || fail "stock's count_test[0] no longer exists after the scale-up"
 log "  stock: exactly one create (count_test[1], recreated - confirmed via describe-alarms), count_test[0] unchanged throughout"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 if [ -f "$PLAIN/.terraform.lock.hcl" ]; then
   cp "$PLAIN/.terraform.lock.hcl" "$ESTATE/.terraform.lock.hcl" \
@@ -892,7 +892,7 @@ gauntlet_stage migrate pass "2 of 3 stamped (1 skipped, untaggable dashboard), 0
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -933,7 +933,7 @@ gauntlet_stage test_plan pass "no resource change proposed; both alarms' tofu-ad
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -961,7 +961,7 @@ gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); o
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one alarm's alarm_description out of band) ==="
 
 # alarm_description is a real, config-declared ARGUMENT of the alarm
@@ -1073,7 +1073,7 @@ gauntlet_stage drift_reconverge pass "S3 alarm's alarm_description tampered, exa
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  $S3_ALARM_ARN (aws_cloudwatch_metric_alarm.s3_requests_spike), $CF_ALARM_ARN (aws_cloudwatch_metric_alarm.cf_requests_spike)"
 
@@ -1217,7 +1217,7 @@ PYEOF
   # (destroy-then-create) rather than create_before_destroy, the same
   # choice every other estate in this unit makes. BREAK=replace below
   # manufactures the coexistence a skipped destroy half would leave.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike_renamed"
@@ -1317,7 +1317,7 @@ PYEOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing s3_requests_spike_renamed's ForceNew alarm_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (S3GetRequestsSpike) is confirmed gone and the new object ($F_NEW_ARN) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)
@@ -1345,7 +1345,7 @@ PYEOF
   # the block, and assert the plan proposes no destroy for it at all - the
   # Break text in tools/gauntlet/stages.go, verbatim.
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live id one more time ==="
   E_CF_ADDR_BEFORE="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CF_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
   [ "$E_CF_ADDR_BEFORE" = "module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike_renamed" ] \
@@ -1437,7 +1437,7 @@ PYEOF
     # the assertion must fail." Only reachable when BREAK is not 1 and
     # BREAK_REMOVE is not 1, because PART G starts from PART E's real,
     # completed removal.
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     COUNT_TAG0='aws_cloudwatch_metric_alarm.count_test:0'
     COUNT_TAG1='aws_cloudwatch_metric_alarm.count_test:1'
     COUNT_RECORD1="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_cloudwatch_metric_alarm/$(record_key 'aws_cloudwatch_metric_alarm.count_test[1]')"
@@ -1567,11 +1567,11 @@ PYEOF
 
       gauntlet_stage day2_count pass "choudoufu: scaling aws_cloudwatch_metric_alarm.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), confirmed genuinely gone via describe-alarms (no server-minted id on this type - see header), leaving count_test[0] and its tofu-address marker unchanged; the local record store's record for count_test[1] read tombstoned (has(\"tombstone\"), no current \"identity\") at that same key, the #398-guard shape; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (name/region/account-derived) with a fresh \"identity\" record entry (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only (confirmed absent via describe-alarms), create it back (confirmed present again), the lower index untouched both times"
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS: all five stages, real, against leynos/df12-www's own unmodified ==="

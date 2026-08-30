@@ -314,7 +314,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified modules) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -353,7 +353,7 @@ log ""
 # estate at all, see header) runs the same two renames, through moved
 # blocks only, on a copy of cold_deploy's own state - before choudoufu or
 # live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -397,7 +397,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # parents stay" concern: the untaggable inline policy has to be destroyed
 # ahead of its own parent user in an order IAM accepts (a user cannot be
 # deleted while an inline policy is still attached).
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock tofu, delete module.harbor_iam_user's block on cold_deploy's own state ==="
 PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
 cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
@@ -437,7 +437,7 @@ log "  stock: exactly two destroys (the IAM user and its inline policy), nothing
 # user itself completely untouched. PLAN ONLY, never applied - same
 # convention as the rename/remove oracles above.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock tofu, on cold_deploy's own state - confirm aws_iam_user_name is NOT ForceNew, then force-replace the inline policy instead ==="
 PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
@@ -472,7 +472,7 @@ grep -qE '^  # module\.harbor_iam_user\.aws_iam_user\.hm_harbor_iam_user will be
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "stock's replace plan proposes something other than exactly one add and one destroy at the same address"; }
 log "  stock: exactly one replace proposed (the inline policy only, user untouched) at the same declared address, on the state cold_deploy produced - plan only, not applied"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART GREENFIELD (greenfield, live/GAUNTLET.md #13, active stage)
@@ -518,7 +518,7 @@ write_root "$GREEN" '
   }'
 log "  greenfield estate written to $GREEN (same two unmodified leaf modules, a live block from the start)"
 
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the greenfield init failed"; }
@@ -591,7 +591,7 @@ log ""
 log "PART GREENFIELD (greenfield): PASS"
 gauntlet_stage greenfield pass "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
 log ""
-CURRENT_STAGE=""
+gauntlet_end_stage
 # $FLOCI_GREEN_NAME/$GREEN_ENDPOINT is deliberately kept alive past this
 # point, unlike every other estate's own greenfield container: day2_count,
 # far below, reuses it as its stock oracle's idle account, the same
@@ -604,7 +604,7 @@ CURRENT_STAGE=""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
@@ -656,7 +656,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -695,7 +695,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -721,7 +721,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK:-}" = "1" ]; then
@@ -779,7 +779,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  bucket $BUCKET_NAME (module.s3_bucket_hm_harbor), user $USER_NAME (module.harbor_iam_user)"
 
@@ -952,7 +952,7 @@ EOF
   # resources to add create_before_destroy would cross this corpus's own
   # DELTA discipline (see header), so this evidence pass exercises the
   # default destroy-then-create ordering instead.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.harbor_iam_user_renamed.aws_iam_user_policy.hm_aws_iam_user_policy"
@@ -1022,7 +1022,7 @@ EOF
   log "  No changes. The replace is complete and invisible to the next plan."
 
   gauntlet_stage day2_replace pass "choudoufu: changing the s3_bucket_name argument feeding module.harbor_iam_user_renamed's inline policy proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly, with the user itself completely untouched; the old inline policy ($F_OLD_POLICY_NAME) is confirmed gone from $USER_NAME and the new one ($F_NEW_POLICY_NAME) exists in its place, both via the AWS CLI; the local record store's record at the same address now names the new composite identity, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) confirms both that aws_iam_user's own name argument is NOT ForceNew (updated in-place, not replaced - the reason this section targets the inline policy instead of the user) and that the inline policy itself IS force-replaced the same way. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_iam_user_policy is untaggable and resolved structurally, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape."
-  CURRENT_STAGE=""
+  gauntlet_end_stage
   log ""
   log ""
 
@@ -1045,7 +1045,7 @@ EOF
   # still attached, so the destroy order the cloud accepts here is the
   # policy first, then the user - exactly what Terraform's own dependency
   # graph (policy -> user via `user = aws_iam_user....name`) produces.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live ids one more time ==="
   E_USER_ADDR_BEFORE="$(awsl iam list-user-tags --user-name "$USER_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null || true)"
   [ "$E_USER_ADDR_BEFORE" = "module.harbor_iam_user_renamed.aws_iam_user.hm_harbor_iam_user" ] \
@@ -1161,7 +1161,7 @@ EOF
     # day2_count, verbatim: "Expect a different instance to be destroyed;
     # the assertion must fail."
 
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     count_test_block() { # $1 = count
       local n="$1"
       cat <<COUNTEOF
@@ -1264,9 +1264,9 @@ EOF
     ORACLE_CT0_ID_AFTER_UP="$(awslo iam get-user --user-name hm-harbor-count-test-0 --query 'User.UserId' --output text 2>/dev/null || true)"
     [ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed UserId across the scale-up"
     log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from name+path - but a NEW UserId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
-    CURRENT_STAGE=""
+    gauntlet_end_stage
 
-    CURRENT_STAGE=day2_count
+    gauntlet_begin_stage day2_count
     log "=== G0. choudoufu: add aws_iam_user.count_test, count = 2 ==="
     count_test_block 2 > "$ESTATE/day2_count.tf"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -1376,11 +1376,11 @@ EOF
 
       gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_user.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live UserId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW UserId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new UserId, the lower index's UserId unchanged both times"
     fi
-    CURRENT_STAGE=""
+    gauntlet_end_stage
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS: all five stages, real, against hongbo-miao/hongbomiao.com's own ==="

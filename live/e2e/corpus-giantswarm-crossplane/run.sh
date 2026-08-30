@@ -359,7 +359,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -399,7 +399,7 @@ log ""
 # third, independent namespace, compared structurally via the AWS CLI on
 # both endpoints, never through tofu state.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -504,7 +504,7 @@ fi
 log "  object-by-object match: role description, attached-policy count, sorted inline-policy names, and the managed policy's description - identical between the greenfield estate and stock's cold deploy in its own namespace, marker tags never part of the comparison"
 
 gauntlet_stage greenfield pass "6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
@@ -529,7 +529,7 @@ CURRENT_STAGE=""
 # all, see header) runs the same two renames, chained through moved blocks
 # only, on a copy of cold_deploy's own state - before choudoufu or
 # live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same chained module rename through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -567,7 +567,7 @@ log "  stock: zero churn on cold_deploy's own state - the chained move reports o
 # arguments ones (aws_iam_role_policy, aws_iam_role_policies_exclusive,
 # aws_iam_role_policy_attachments_exclusive, aws_iam_role_policy_attachment)
 # all destroyed together.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== D-ORACLE (day2_remove): stock tofu, delete module.crossplane's block on cold_deploy's own state ==="
 PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
@@ -583,7 +583,7 @@ grep -qF "module.crossplane.aws_iam_role.giantswarm_crossplane_role will be dest
   || { printf '%s\n' "$REMOVE_ORACLE_CHANGES"; fail "stock's day2_remove oracle does not destroy the role itself"; }
 log "  stock: $REMOVE_ORACLE_N resource action(s) removing module.crossplane's block:"
 printf '%s\n' "$REMOVE_ORACLE_CHANGES" | while read -r line; do log "    $line"; done
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
@@ -602,7 +602,7 @@ CURRENT_STAGE=""
 # changed). PLAN ONLY, never applied - same convention as the rename/
 # remove oracles above: this copy shares floci's account with $ESTATE.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock tofu, force-replace module.crossplane's role+policy via installation_name, on cold_deploy's own state ==="
 PLAIN_ORACLE_REPLACE="$WORK/plain-oracle-replace"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
@@ -624,12 +624,12 @@ REPLACE_ORACLE_DESTROY="$(grep -oE '[0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PL
 [ -n "$REPLACE_ORACLE_ADD" ] && [ "$REPLACE_ORACLE_ADD" = "$REPLACE_ORACLE_DESTROY" ] && [ "$REPLACE_ORACLE_ADD" -ge 2 ] \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "stock's replace plan does not show an equal, at-least-2 add/destroy cascade (role+policy at minimum)"; }
 log "  stock: $REPLACE_ORACLE_ADD to add / $REPLACE_ORACLE_DESTROY to destroy, role and policy both replaced at their same declared addresses, on the state cold_deploy produced - plan only, not applied"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 
 # #339's fix: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, exported near
@@ -721,7 +721,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, EMPTY + identities by value
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -787,7 +787,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -826,7 +826,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK_STAGE5:-}" = "1" ]; then
@@ -875,7 +875,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  role $ROLE_NAME, policy $POLICY_ARN (both module.crossplane)"
 
@@ -1097,7 +1097,7 @@ EOF
   # a named "Live resource displaced from the address it is marked for"
   # warning at rc=0, not corpus-sqs-basic's fungible-set "Two live
   # resources claiming one slot" hard refusal.
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ROLE_ADDR="module.crossplane_final.aws_iam_role.giantswarm_crossplane_role"
@@ -1199,7 +1199,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a $F_ADD add / $F_CHANGE change / $F_DESTROY destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role ($F_OLD_ROLE_IMPORT_ID) is confirmed gone and the new role ($F_NEW_ROLE_NAME) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one ($F_OLD_ROLE_IMPORT_ID -> $F_NEW_ROLE_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with \$ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, active stage - live/GAUNTLET.md #7)
@@ -1215,7 +1215,7 @@ EOF
   # Break text in tools/gauntlet/stages.go for day2_remove is literally
   # "keep the block; no destroy may be proposed".
 
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live ids one more time ==="
   log "  role $ROLE_NAME, policy $POLICY_ARN (both module.crossplane_final)"
 
@@ -1314,9 +1314,9 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.crossplane_final's block proposed $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS: all five stages, real, against giantswarm/giantswarm-aws-account- ==="

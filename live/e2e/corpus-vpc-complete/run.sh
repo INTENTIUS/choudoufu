@@ -375,7 +375,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy ($TF_COLD_BIN apply, the real unmodified example) ==="
 ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -407,7 +407,7 @@ gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 
 # day2_remove both operate on the separately-adopted $ADOPTED and have
 # nothing to do with this stage.
 (
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -490,13 +490,13 @@ OEP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-vpc
   || fail "the s3 endpoint count differs: greenfield=$GEP oracle=$OEP"
 log "  vpc cidr, subnet count ($GSUBNETS), and the s3 endpoint's presence match between the greenfield estate and the stock oracle in its own namespace"
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing ($TAGGABLE tag-stamped, $UNTAGGABLE untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count ($GSUBNETS) and the s3 endpoint's presence"
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 ) || log "  PART GREENFIELD did not clear (see the FAIL line and the greenfield stage=fail line above) - continuing to stage 2 onward, which does not depend on it"
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE. stock: the same two renames, through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE_ROOT="$WORK/plain-oracle"
 cp -r "$WORK/plain" "$PLAIN_ORACLE_ROOT"
@@ -538,7 +538,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # endpoint itself, not a separate association resource AWS models), the
 # smallest real removal target this estate has (the task's own "a single
 # endpoint or route" guidance).
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock terraform, delete the \"dynamodb\" endpoint entry on cold_deploy's own state ==="
 REMOVE_ORACLE_ROOT="$WORK/remove-oracle"
 cp -r "$WORK/plain" "$REMOVE_ORACLE_ROOT"
@@ -555,7 +555,7 @@ grep -qF '  # module.vpc_endpoints.aws_vpc_endpoint.this["dynamodb"] will be des
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (the dynamodb endpoint), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9), computed here for the
 # same reason day2_remove's own oracle sits before migrate (above): a
@@ -572,7 +572,7 @@ CURRENT_STAGE=""
 # remove (above) target module.vpc_endpoints and aws_security_group.rds,
 # never it, so this section has no ordering dependency on either. PLAN
 # ONLY, never applied: this copy shares floci's account with $ADOPTED.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE. stock: force-replace module.vpc's customer_gateways[\"IP1\"] via its ForceNew ip_address argument, on cold_deploy's own state ==="
 REPLACE_ORACLE_ROOT="$WORK/replace-oracle"
 cp -r "$WORK/plain" "$REPLACE_ORACLE_ROOT"
@@ -590,12 +590,12 @@ grep -qF '  # module.vpc.aws_customer_gateway.this["IP1"] must be replaced' <<< 
 grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -10; fail "the day2_replace stock oracle plan is not exactly one isolated replace"; }
 log "  stock: exactly one customer gateway replace at the same declared for_each key, nothing else - 1 to add, 1 to destroy, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the plain state file
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve) ==="
 ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted-copy init failed"; }
@@ -699,7 +699,7 @@ gauntlet_stage migrate pass "$TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded,
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (state deleted, live-plan empty) ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the state file is still there"
@@ -747,7 +747,7 @@ gauntlet_stage test_plan pass "empty plan; identity re-check unchanged: $VPC_ADD
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -769,7 +769,7 @@ gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 DRIFT_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=Private Subnet One" --query "Subnets[0].SubnetId" --output text)"
 [ -n "$DRIFT_SUBNET_ID" ] && [ "$DRIFT_SUBNET_ID" != "None" ] || fail "no live subnet found by its Name tag (Private Subnet One)"
@@ -853,7 +853,7 @@ fi
 # found and documented in this same unit (a valid record short-circuits
 # the duplicate-slot claimant matcher before it ever runs) - not
 # re-measured here.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
 record_import_id() { jq -r '.identity.import_id' "$1"; }
 F_ADDR='module.vpc.aws_customer_gateway.this["IP1"]'
@@ -929,7 +929,7 @@ fi
 log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
 
 gauntlet_stage day2_replace pass "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway ($F_OLD_CGW_ID) is confirmed gone/deleted and the new gateway ($F_NEW_CGW_ID) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -952,7 +952,7 @@ CURRENT_STAGE=""
 # make choudoufu propose destroying the old address and creating the new
 # one - the opposite of every other assertion in this part.
 
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  $S3_EP_ID (module.vpc_endpoints, s3 endpoint), $RDS_SG_ID (aws_security_group.rds)"
 
@@ -1046,7 +1046,7 @@ EOF
   # here - see E-ORACLE's own comment above for why this single Gateway
   # endpoint is the target. E-ORACLE already proved stock destroys it
   # cleanly on cold_deploy's own state.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log ""
   log "=== E0. capture the dynamodb endpoint's own marker one more time ==="
   DYNAMODB_EP_ID="$(awsl ec2 describe-tags --filters "Name=resource-type,Values=vpc-endpoint" "Name=key,Values=tofu-address" "Name=value,Values=module.vpc_endpoints_renamed.aws_vpc_endpoint.this:dynamodb" --query "Tags[0].ResourceId" --output text)"
@@ -1103,10 +1103,10 @@ EOF
     gauntlet_stage day2_remove pass "choudoufu: deleting the dynamodb endpoint's map entry (module.vpc_endpoints_renamed.aws_vpc_endpoint.this[\"dynamodb\"]) proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the endpoint is genuinely gone from the live account (State=$EP_STATE, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object"
     log ""
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
-CURRENT_STAGE=""
+gauntlet_end_stage
+gauntlet_end_stage
 gauntlet_end
 
 log ""

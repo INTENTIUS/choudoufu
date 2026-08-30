@@ -336,7 +336,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real reduced example + delta) ==="
 # The shared plugin cache, the same way corpus-lambda-simple's and
 # corpus-alb-complete's crossings use it. Without it every run re-downloads
@@ -442,7 +442,7 @@ log ""
 # oracle is stock applying the SAME config fresh in a THIRD, independent
 # namespace, compared structurally via the AWS CLI on both endpoints, never
 # through tofu state.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -553,7 +553,7 @@ for pair in $EXPECTED_QUEUES; do
 done
 log "  all $N_EXPECTED queues match structurally (fifo flag, sse, kms, redrive max-receive-count, redrive-allow presence) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
@@ -569,7 +569,7 @@ docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 # same binary stage 1 used) runs the same two renames, through moved
 # blocks only, on a copy of $EST right after cold_deploy's own state -
 # before choudoufu or live-import ever touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock terraform, the same two renames through moved blocks, on cold_deploy's own state ==="
 # $EST's module calls use `source = "../../"`, which resolves relative to
 # $EST's own path ($WORK/sqs/examples/complete, two levels under $WORK/sqs,
@@ -626,7 +626,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # would fail re-init with an undefined-module reference, not a clean
 # destroy plan.
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 log "=== E-ORACLE: stock terraform, delete module.unencrypted_sqs's block on cold_deploy's own state ==="
 cp -R "$WORK/sqs" "$WORK/sqs-remove-oracle"
 rm -rf "$WORK/sqs-remove-oracle/examples/complete/.terraform"
@@ -646,7 +646,7 @@ grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be destroy
 grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$REMOVE_ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -10; fail "stock's remove plan proposes something other than exactly one destroy"; }
 log "  stock: exactly one destroy (module.unencrypted_sqs's queue), nothing else, on the state cold_deploy produced"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F-ORACLE: REPLACE, stock oracle (day2_replace, live/GAUNTLET.md #9):
@@ -661,7 +661,7 @@ CURRENT_STAGE=""
 # destroy-and-create pair at two different addresses (that shape is
 # day2_rename's own BREAK=rename finding, a genuinely different thing).
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== F-ORACLE: stock terraform, force-replace module.default_sqs's queue via its ForceNew name argument, on cold_deploy's own state ==="
 cp -R "$WORK/sqs" "$WORK/sqs-replace-oracle"
 rm -rf "$WORK/sqs-replace-oracle/examples/complete/.terraform"
@@ -692,13 +692,13 @@ grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$REPLACE_ORACLE_PLAN_
 # replacement" legend and its "must be replaced"/"forces replacement"
 # lines are the oracle's proof; no apply is needed to make it load-bearing.
 log "  stock: exactly one replace proposed (destroy the old ex-complete-default, create ex-complete-default-v2) at the same declared address, on the state cold_deploy produced - plan only, not applied (see above)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot (see the header's TOFU-SLOT note)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
@@ -818,7 +818,7 @@ log ""
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 log "=== STAGE 3: test plan (live-plan empty, identities re-checked) ==="
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -853,7 +853,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -879,7 +879,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 if [ "$BREAK_AT" = "drift" ]; then
   awsl sqs tag-queue --queue-url "$UNENCRYPTED_QUEUE_URL" --tags Example=tampered-by-BREAK
@@ -921,7 +921,7 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D0. capture the live ids a rename must not disturb ==="
 log "  $DEFAULT_QUEUE_URL (module.default_sqs), $UNENCRYPTED_QUEUE_URL (module.unencrypted_sqs)"
 
@@ -1061,7 +1061,7 @@ EOF
   # manufactures exactly that coexistence directly via the AWS CLI rather
   # than through an interrupted apply (day2_crash, stage 10, owns testing
   # a real interruption).
-  CURRENT_STAGE=day2_replace
+  gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
   F_ADDR="module.default_sqs_renamed.aws_sqs_queue.this[0]"
@@ -1164,7 +1164,7 @@ EOF
 
     gauntlet_stage day2_replace pass "choudoufu: changing module.default_sqs_renamed's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object ($DEFAULT_QUEUE_URL) is confirmed gone and the new object ($F_NEW_URL) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with \$EST); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 
   # ════════════════════════════════════════════════════════════════════
   # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
@@ -1186,7 +1186,7 @@ EOF
   # BREAK=remove exercises this stage's own Break control instead: keep
   # the block (and its outputs), and assert the plan proposes no destroy
   # for it at all - the Break text in tools/gauntlet/stages.go, verbatim.
-  CURRENT_STAGE=day2_remove
+  gauntlet_begin_stage day2_remove
   log "=== E0. capture the live tofu-address one more time ==="
   E_ADDR_BEFORE="$(awsl sqs list-queue-tags --queue-url "$UNENCRYPTED_QUEUE_URL" --query "Tags.\"tofu-address\"" --output text 2>/dev/null || true)"
   [ "$E_ADDR_BEFORE" = "module.unencrypted_sqs_renamed.aws_sqs_queue.this:0" ] \
@@ -1250,9 +1250,9 @@ EOF
     gauntlet_stage day2_remove pass "choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it)"
     log ""
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
 
 log "=== PASS ==="

@@ -567,7 +567,7 @@ export TF_VAR_iam_baseline_enable_imdsv2_default=false
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=cold_deploy
+gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified blueprint) ==="
 ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -40 ); fail "stage 1 init failed"; }
@@ -600,7 +600,7 @@ gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarke
 # SEPARATE, genuinely empty account (FLOCI_GREEN_PORT) is where choudoufu
 # applies the identical reduced blueprint directly, live block from the
 # start, no migration, no state file ever existing.
-CURRENT_STAGE=greenfield
+gauntlet_begin_stage greenfield
 log "=== PART F: 0. a second floci, a genuinely empty namespace ==="
 docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
@@ -697,7 +697,7 @@ PLAIN_ALIAS="$(awsl iam list-account-aliases --query 'AccountAliases[0]' --outpu
 
 log "  matches stock's cold deploy: CIDR, $GREEN_SUBNET_N subnets, $GREEN_NAT_N NAT gateway, $GREEN_VPCE_N VPC endpoints, account alias $GREEN_ALIAS - read via the AWS CLI on both endpoints, tags normalised out"
 gauntlet_stage greenfield pass "28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on \$ENDPOINT matches on tagged-object count ($GREEN_TAGGED_N), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias"
-CURRENT_STAGE=""
+gauntlet_end_stage
 docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -723,7 +723,7 @@ docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
 # tofu, plain .tf) runs the same two renames, through moved blocks only, on
 # a copy of cold_deploy's own state - before choudoufu or live-import ever
 # touch these objects.
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 log "=== D-ORACLE: stock tofu, the same two renames through moved blocks, on cold_deploy's own state ==="
 PLAIN_ORACLE="$WORK/plain-oracle"
 cp -r "$PLAIN" "$PLAIN_ORACLE"
@@ -769,7 +769,7 @@ log "  stock: zero churn on cold_deploy's own state - both moves report only the
 # confirm. The real removal (Part E, after day2_rename) runs choudoufu's
 # own live-plan/apply against $ESTATE; this only has to show stock proposes
 # the same single destroy for the same object, on cold_deploy's own state.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
 cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
 remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
@@ -824,7 +824,7 @@ log "  stock: exactly one destroy (module.vpc.aws_vpc_endpoint.s3[\"main\"]) on 
 # provider API call, so it can never touch a live object. TF_VAR_vpcs is
 # overridden per-command here, never exported, so the global value every
 # stage below this one relies on is undisturbed.
-CURRENT_STAGE=day2_count
+gauntlet_begin_stage day2_count
 PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
 log "=== F-ORACLE: stock tofu, dropping then restoring \"logs\" from var.vpcs.main.vpc_endpoints, on cold_deploy's own state (plan-only - see header) ==="
@@ -856,7 +856,7 @@ ORACLE_OTHER_TOUCHED_UP="$(grep -E '^  # module\.vpc\.aws_vpc_endpoint\.interfac
 grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_COUNT_UP_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
 log "  stock (plan-only): exactly one create proposed (main-logs, state simulated with 'tofu state rm' - no live object ever touched), every other interface endpoint untouched"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # day2_replace's stock oracle (live/GAUNTLET.md #9, active): "Stock's
 # replace of the same resource leaves the same single object." A
@@ -872,7 +872,7 @@ CURRENT_STAGE=""
 # aws_iam_role_policy.flow_logs is keyed by the role's name at creation
 # time - so both are expected to cascade into their own replaces too,
 # read dynamically below rather than asserted by fixed count.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 log "=== REPLACE-ORACLE. stock: force-replace aws_iam_role.flow_logs via its ForceNew name argument, on cold_deploy's own state ==="
 PLAIN_REPLACE_ORACLE="$WORK/plain-replace-oracle"
 cp -r "$PLAIN" "$PLAIN_REPLACE_ORACLE"
@@ -890,9 +890,9 @@ grep -qE '^  # module\.vpc\.aws_iam_role\.flow_logs\["main"\] must be replaced' 
 REPLACE_ORACLE_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$REPLACE_ORACLE_PLAN_OUT")"
 [ -n "$REPLACE_ORACLE_PLAN_LINE" ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -15; fail "the day2_replace stock oracle plan has no summary line"; }
 log "  stock: $REPLACE_ORACLE_PLAN_LINE - replaces aws_iam_role.flow_logs at the same declared address, on the state cold_deploy produced - plan only, not applied (this copy shares floci's account with \$ESTATE, and actually applying here would destroy the real role the estate's later stages still depend on)"
-CURRENT_STAGE=""
+gauntlet_end_stage
 
-CURRENT_STAGE=migrate
+gauntlet_begin_stage migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -918,7 +918,7 @@ log ""
 log "STAGE 2 (migrate): PASS"
 log ""
 gauntlet_stage migrate pass "live-import -approve completed cleanly against the cold state"
-CURRENT_STAGE=test_plan
+gauntlet_begin_stage test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - now genuinely empty. Both real gaps that used to
@@ -970,7 +970,7 @@ log ""
 log "STAGE 3 (test plan): PASS"
 log ""
 gauntlet_stage test_plan pass "no resource change proposed"
-CURRENT_STAGE=test_apply
+gauntlet_begin_stage test_apply
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op. The
@@ -1018,7 +1018,7 @@ gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed);
 # untouched since - zero choudoufu involvement, same live objects - which is
 # this stage's stock oracle.
 log "=== STAGE 5: drift and reconverge ==="
-CURRENT_STAGE=drift_reconverge
+gauntlet_begin_stage drift_reconverge
 
 # changed_addrs_excluding_markers: reads a `plan -no-color` transcript on
 # stdin, prints one changed resource address per line, EXCLUDING any
@@ -1235,7 +1235,7 @@ fi
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=day2_rename
+gauntlet_begin_stage day2_rename
 EST_VPC_MAIN="$ESTATE/modules/networking/vpc/main.tf"
 log "=== D0. capture the live ids a rename must not disturb ==="
 ROLE_ARN_D="$(awsl iam get-role --role-name "${NAME_PREFIX}-main-flow-logs-role" --query 'Role.Arn' --output text)"
@@ -1348,7 +1348,7 @@ EOF
 
   gauntlet_stage day2_rename pass "moved block: aws_iam_role.flow_logs renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_eip.nat renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
@@ -1377,7 +1377,7 @@ CURRENT_STAGE=""
 # evidence pass exercises OpenTofu's DEFAULT replace ordering instead.
 # BREAK=replace manufactures the coexistence a skipped destroy would
 # leave behind directly via the AWS CLI.
-CURRENT_STAGE=day2_replace
+gauntlet_begin_stage day2_replace
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
 record_import_id() { jq -r '.identity.import_id' "$1"; }
 F_ADDR='module.vpc.aws_iam_role.flow_logs_renamed["main"]'
@@ -1476,7 +1476,7 @@ else
   ROLE_ARN_D="$F_NEW_ARN"
   gauntlet_stage day2_replace pass "choudoufu: changing module.vpc.aws_iam_role.flow_logs_renamed's ForceNew name argument proposed a forced replace at the same declared address ($F_PLAN_LINE, cascading into the flow log's iam_role_arn and the inline role policy, both keyed to the role at creation time with no update path), applied cleanly; the old role is confirmed gone via the AWS CLI (NoSuchEntity) and the new role ($F_NEW_ROLE_NAME) carries the marker; the local record store's record at the same address now names the new object's name, not the destroyed one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (REPLACE-ORACLE) also proposes replacing the role at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART E: REMOVE A BLOCK (day2_remove, live/GAUNTLET.md #7)
@@ -1495,7 +1495,7 @@ CURRENT_STAGE=""
 # BREAK_DAY2_REMOVE=1 exercises this stage's own Break control instead:
 # keep the block, and assert the plan proposes no destroy for it at all -
 # the Break text in tools/gauntlet/stages.go, verbatim.
-CURRENT_STAGE=day2_remove
+gauntlet_begin_stage day2_remove
 VPCE_NAME_E="${NAME_PREFIX}-main-vpce-s3"
 log "=== E0. capture the live S3 gateway endpoint one more time ==="
 VPCE_ID_E="$(awsl ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=$VPCE_NAME_E" "Name=vpc-endpoint-state,Values=available" --query 'VpcEndpoints[0].VpcEndpointId' --output text 2>/dev/null || true)"
@@ -1577,7 +1577,7 @@ else
   # tools/gauntlet/stages.go for day2_count, verbatim: "Expect a
   # different instance to be destroyed; the assertion must fail."
 
-  CURRENT_STAGE=day2_count
+  gauntlet_begin_stage day2_count
   log "=== F0. capture the live interface endpoints a for_each scale must partly disturb ==="
   VPCE_LOGS_NAME="${NAME_PREFIX}-main-vpce-logs"
   VPCE_SSM_NAME="${NAME_PREFIX}-main-vpce-ssm"
@@ -1657,7 +1657,7 @@ else
 
     gauntlet_stage day2_count pass "choudoufu: dropping \"logs\" from var.vpcs.main.vpc_endpoints destroyed exactly module.vpc.aws_vpc_endpoint.interface[\"main-logs\"] (0 add, 0 change, 1 destroy), leaving every sibling for_each member (main-ssm's live id and tofu-address marker checked directly) untouched; adding it back created exactly the same key under a NEW live id (0 add -> 1 add, 0 change, 0 destroy) while main-ssm stayed untouched throughout; the next plan is empty; the F-ORACLE stock oracle on the identical for_each set, applied on cold_deploy's own state, shows the identical shape: destroy the dropped key only, create it back under a new id, every sibling key's id unchanged both times"
   fi
-  CURRENT_STAGE=""
+  gauntlet_end_stage
 fi
-CURRENT_STAGE=""
+gauntlet_end_stage
 gauntlet_end
