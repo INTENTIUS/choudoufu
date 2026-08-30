@@ -77,9 +77,19 @@ value regenerates, and anything reading it plans as a change. It cannot cost
 you a resource, because identity arguments must be statically evaluable, so a
 record-backed value can never name one.
 
-**Secrets never go here.** `random_password`, `random_bytes` and every `tls_*`
-are refused rather than recorded. Their output is key material, and a record
-holding a secret would be exactly the thing this design exists to avoid.
+**Secrets go here unless you say otherwise.** The default,
+`strict { secrets = "store" }`, keeps what a stock state file would keep, so
+`random_password`, `random_bytes` and the `tls_*` types are admitted and their
+generated values are recorded in clear. On `ssm` that is a `Type: String`
+parameter with no KMS key, readable with a plain `ssm:GetParameter` by anyone
+holding that permission on the path. On `local` it is a file under
+`.tofu-records`, which nothing gitignores for you.
+
+`strict { secrets = "refuse" }` is the other setting, and it is the principle
+this design exists for: those types are refused rather than recorded, so
+nothing the run keeps holds key material. The
+[`strict` block]({{< relref "/docs/use/reference" >}}) covers both settings and
+the environment pin that stops a configuration relaxing this on its own.
 
 ## Receipts
 
@@ -131,4 +141,8 @@ since Parameter Store already exists in the account.
 
 `s3` to keep records in a bucket you already operate, with your own versioning
 and lifecycle rules. You create and configure the bucket. choudoufu only reads
-and writes keys in it.
+and writes keys in it. It has to exist before the first plan, not the first
+apply, and it cannot be a bucket the same estate declares.
+
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has the failure
+mode for each backend, and what a `destroy` leaves behind in the store.
