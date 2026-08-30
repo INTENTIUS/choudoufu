@@ -19,7 +19,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -157,33 +156,28 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		report.Identities = result.All()
 	}
 
-	// Issue #224's stamp pass: internal/live/stamp needs no live provider
-	// handle - see catalog.go's LayerStamp doc comment - so this offline
-	// instrument runs it directly, right after the identity resolution that
-	// supplies req.NeedsDiscovery.
+	// Issue #224's stamp pass, GitHub issue #454's port: this offline
+	// instrument runs LayerStamp from the node-resolve path's own
+	// primitives ([nodeStampDiagnostics], nodestamp.go) rather than
+	// [stamp.Stamp] - the maintainer's ruling on #454 requires this port,
+	// demonstrated to report the same thing, before #452 may delete
+	// stamp.Stamp's HCL rewrite. See nodestamp.go's own doc comment for
+	// what is and is not reproduced, and why. This runs right after the
+	// identity resolution that supplies NeedsDiscovery, same as before.
 	//
-	// Always run when identity resolved at all, rather than gated on
-	// "any schema present anywhere" (that gate was issue #230: schemas are
+	// Always run when identity resolved at all, rather than gated on "any
+	// schema present anywhere" (that gate was issue #230: schemas are
 	// merged across every provider the configuration uses, so it went true
 	// the moment ANY provider's schema loaded - random_id's, say - even
-	// while the AWS schema this run actually needed had failed to acquire.
-	// [stamp.Stamp] then read every AWS needs-discovery resource as
-	// SkipNoSchema, but req.NeedsDiscovery still said "must be stamped" for
-	// each one, so SkipNoSchema escalated into a fabricated hard error
-	// instead of the warning it is now). Nothing here has to gate anything:
-	// [stamp.SkipReason.Unknown] holds the invariant inside stamp.Stamp,
-	// where every caller gets it, so a type with no schema of its own -
-	// whether because this whole configuration was analyzed without schemas
-	// or because one provider of several failed - reports "taggability
-	// unknown" as a warning and never as a refusal.
+	// while the AWS schema this run actually needed had failed to acquire,
+	// which fabricated a hard error instead of the warning it is now).
+	// Nothing here has to gate anything: [nodeStampUnmarkedApply] carries
+	// the same invariant stamp.SkipReason.Unknown did, so a type with no
+	// schema of its own - whether because this whole configuration was
+	// analyzed without schemas or because one provider of several failed -
+	// reports "taggability unknown" as a warning and never as a refusal.
 	if result != nil {
-		stampReq := stamp.Request{
-			Estate:         estateForStamp(ctx, cfg),
-			Config:         cfg,
-			Schemas:        flatSchemas(actx.Schemas),
-			NeedsDiscovery: stampNeedsDiscovery(result),
-		}
-		_, stampDiags := stamp.Stamp(ctx, stampReq)
+		stampDiags := nodeStampDiagnostics(ctx, cfg, result, flatSchemas(actx.Schemas), estateForStamp(ctx, cfg))
 		for _, diag := range stampDiags {
 			desc := diag.Description()
 			site := Site{Detail: desc.Detail}
