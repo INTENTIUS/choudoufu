@@ -1701,7 +1701,7 @@
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
     }
   ],
-  "behaviors_proven": 2,
+  "behaviors_proven": 1,
   "behaviors_total": 14,
   "live_cert": [
     {
