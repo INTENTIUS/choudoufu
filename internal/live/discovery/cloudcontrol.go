@@ -71,7 +71,16 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 	}
 
-	descs, err := req.CloudControl.ListResources(ctx, cfnType)
+	// GitHub issue #605's Cloud Control half: during a sweep this listing has
+	// usually already been fetched, concurrently with the types before it
+	// (sweepconcurrency.go). Everything after it is the sequential body
+	// unchanged. takeCloudControl answers false whenever no prefetch is
+	// running or it fetched a different CFN type, and then the call is made
+	// here exactly as before.
+	descs, err, prefetched := req.sweepFetch.takeCloudControl(typeName, cfnType)
+	if !prefetched {
+		descs, err = req.CloudControl.ListResources(ctx, cfnType)
+	}
 	if err != nil {
 		res.Scans = append(res.Scans, scan)
 		if sweep {

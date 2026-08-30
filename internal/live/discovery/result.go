@@ -162,6 +162,25 @@ type Result struct {
 	// matched: those cases still raise [ProblemCollision] exactly as
 	// before this existed - see bind()'s own collision-breaking code.
 	DeposedBindings []projection.DeposedBinding
+
+	// sweepPrefetchWasted and sweepPrefetchMismatched are GitHub issue #605's
+	// own self-check, and both are always zero.
+	//
+	// The sweep's list calls are issued concurrently, ahead of the loop that
+	// consumes them, by a planner that mirrors the sweep=true branches
+	// through [scanType]'s and [scanTypeCloudControl]'s heads. A mirror can
+	// drift, and the two ways it can drift are the two fields here: a call
+	// planned that the scan never asks for (wasted - the sweep spent a list
+	// call the sequential loop would not have spent, breaking issue #605's
+	// "call counts must be identical" acceptance), and an answer fetched with
+	// a list configuration the scan then disagreed with (mismatched - refused
+	// and re-listed rather than used, because a listing of the wrong scope is
+	// the one divergence a call count cannot see).
+	//
+	// Unexported: this is evidence for the package's own tests, not a fact
+	// about the estate. See TestSweepPrefetchPlansExactlyTheCallsTheScanMakes.
+	sweepPrefetchWasted     []string
+	sweepPrefetchMismatched int
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
