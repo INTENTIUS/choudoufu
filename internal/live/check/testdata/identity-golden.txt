@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=641 instances=1789
-# shape: class CONCRETE=877
+# shape: dirs=642 instances=1795
+# shape: class CONCRETE=883
 # shape: class NEEDS_DISCOVERY=748
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=f0e570718b8068c5ce3b63ccb62e011c12f199e4702cd3129d765964fdb0de7e
+# shape: body-sha256=4863ca491fb1d200caad4f18f232a7b300a48011bc98b6776434ccdb03901a3f
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -951,6 +951,12 @@ internal/live/projection/testdata/named	aws_cloudwatch_log_group.app	CONCRETE	/o
 internal/live/projection/testdata/named	aws_s3_bucket_policy.data	CONCRETE	ownership-unit-data	bucket=ownership-unit-data
 internal/live/projection/testdata/named-moved	aws_cloudwatch_log_group.app	CONCRETE	/ours/logs	name=/ours/logs
 internal/live/projection/testdata/plan-acm-validation	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g0	CONCRETE	read-parallel-0	name=read-parallel-0
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g1	CONCRETE	read-parallel-1	name=read-parallel-1
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g2	CONCRETE	read-parallel-2	name=read-parallel-2
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g3	CONCRETE	read-parallel-3	name=read-parallel-3
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g4	CONCRETE	read-parallel-4	name=read-parallel-4
+internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g5	CONCRETE	read-parallel-5	name=read-parallel-5
 internal/live/projection/testdata/record-parent-derived	aws_cloudwatch_log_group.app	CONCRETE	placeholder	name=placeholder
 internal/live/projection/testdata/record-parent-derived	null_resource.suffix	RECORD_BACKED		
 internal/live/providerscope/testdata/aliased-parent	module.east.aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
