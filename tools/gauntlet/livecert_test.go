@@ -6,6 +6,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -106,6 +108,65 @@ func TestLiveCertClearScopedToFourStages(t *testing.T) {
 	outside := map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass, "day2_rename": VerdictFail}
 	if !liveCertClear(outside) {
 		t.Fatal("a failing day2_rename must not affect a live cert's Clear - it is outside LiveCertScopeStages()")
+	}
+}
+
+// TestRunLiveCertSendsSIGTERMOnCeiling proves the exact defect found running
+// issue #567 against real AWS (2026-08-30) is fixed: calling `gauntlet
+// live-cert -target aws` directly (not through live/live-cert/run.sh's own
+// `timeout --signal=TERM --kill-after=30` wrapper) at an estate whose
+// pipeline outran the Go-side ceilingSeconds got its process SIGKILLed -
+// exec.CommandContext's default behavior on context expiry - which cannot be
+// trapped, so the script's own `trap teardown EXIT INT TERM` never ran and
+// every real-AWS resource it had created up to that point was abandoned,
+// live and billing, found only by this issue's own independent post-run AWS
+// CLI check. Written from what RunLiveCert PROMISES (the script gets a
+// SIGTERM, the same signal its own trap already handles, not an unblockable
+// kill), not from the implementation: a script here that ignores SIGTERM
+// entirely would time out this test via *testing.T's own deadline, not pass
+// it by other means.
+func TestRunLiveCertSendsSIGTERMOnCeiling(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "sigterm-received")
+	script := filepath.Join(dir, "estate.sh")
+	// Traps SIGTERM and writes the marker file before exiting - if
+	// RunLiveCert's ceiling instead sent SIGKILL (the pre-fix behavior),
+	// this trap would never run and the marker would never appear, and
+	// this test would time out waiting on RunLiveCert to return (a plain
+	// SIGKILL is instantaneous, so a hang here specifically implicates a
+	// SIGTERM that never arrived, not a slow trap). The backgrounded sleep
+	// redirects its own stdin/stdout/stderr away from what it would
+	// otherwise inherit from this script - a first draft left them
+	// inherited, and cmd.Run() then blocked for the FULL 10s regardless of
+	// how fast the trap fired: Go's os/exec waits for the output pipe to
+	// see EOF, and an orphaned grandchild that still holds the pipe's
+	// write end open (because it inherited it) keeps that EOF from ever
+	// arriving even after this script's own process has already exited -
+	// a well-known os/exec gotcha, not a signal-handling problem, but easy
+	// to mistake for one here since it silently made the test's timing
+	// meaningless (the marker appeared "in time" only because the assertion
+	// runs after cmd.Run() returns, whenever that ends up being).
+	body := "#!/usr/bin/env bash\n" +
+		"trap 'touch \"" + marker + "\"; exit 0' TERM\n" +
+		"sleep 10 </dev/null >/dev/null 2>&1 &\n" +
+		"wait $!\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil { //nolint:gosec // test fixture script, not a secret
+		t.Fatal(err)
+	}
+
+	t.Setenv("LIVECERT_SCRIPT_OVERRIDE", script)
+	// target=floci (never requires -confirm) and a 1-second ceiling: the
+	// script sleeps for 10s, so RunLiveCert's ceiling fires almost
+	// immediately, well before the sleep would exit on its own - any
+	// marker file the assertion below finds was written BECAUSE of the
+	// ceiling's own signal, not because the script merely finished.
+	if _, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 1, ""); err != nil {
+		t.Fatalf("RunLiveCert returned an error: %v", err)
+	} else if exit != -1 {
+		t.Errorf("exit = %d, want -1 (killed by the ceiling, per RunLiveCert's own doc comment)", exit)
+	}
+	if _, statErr := os.Stat(marker); statErr != nil {
+		t.Fatalf("marker file was never written - the script's SIGTERM trap never ran, meaning RunLiveCert did not send SIGTERM on ceiling expiry (stat error: %v)", statErr)
 	}
 }
 

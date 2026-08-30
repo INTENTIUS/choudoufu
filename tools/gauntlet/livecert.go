@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -165,6 +166,45 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	var out strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+
+	// cmd.Cancel/cmd.WaitDelay: exec.CommandContext's DEFAULT behavior on
+	// context expiry is cmd.Process.Kill() - a bare SIGKILL, immediately,
+	// with no grace period. That is a real safety gap for a live-AWS
+	// script specifically: every estate script's teardown (the destroy +
+	// independent listing + raw-CLI sweep this package's own doc comments
+	// describe as the thing that makes a live-AWS run safe) runs from a
+	// `trap teardown EXIT INT TERM` inside the script - and SIGKILL cannot
+	// be trapped, at all, by design. A run that hits THIS ceiling with the
+	// default behavior leaves whatever the script had created up to that
+	// moment running and billing in the real account with nobody notified,
+	// which is a strictly worse failure than a slow run: it fails silently
+	// where live/live-cert/run.sh's own `timeout --signal=TERM
+	// --kill-after=30` wrapper (this function's OWN doc comment above
+	// calls it "a second, independent enforcement alongside run.sh's own
+	// timeout wrapper", implying the two are equivalent - they are not)
+	// fails loudly, with the script's own trap given a chance to tear down
+	// first. Confirmed the hard way running `gauntlet live-cert -target
+	// aws` directly against the terralith-scale estate (issue #567,
+	// 2026-08-30) at a scale whose four stages alone take longer than this
+	// function's 900s default: the process was SIGKILLed mid-stage, the
+	// script's teardown never ran, and every resource it had created (28
+	// IAM roles, 24 policies, 24 instance profiles, an ECS cluster and its
+	// services, a Route53 zone, a VPC/subnet/security group) was left live
+	// in the account, found and manually swept only because the
+	// independent post-run AWS CLI verification this issue's own brief
+	// requires caught it - the account-level Budgets alarm exists as the
+	// backstop for exactly this case, but reaching it is a near-miss, not
+	// a success. cmd.Cancel below overrides the kill with a SIGTERM (the
+	// SAME signal the script's own trap handles), and cmd.WaitDelay gives
+	// it the SAME 30s grace period run.sh's wrapper does before Go itself
+	// falls back to SIGKILL - the two independent ceilings now agree on
+	// HOW they stop the process, not only decide the process, matching
+	// this file's own claim that they are independent enforcement of the
+	// SAME safety property.
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
+	cmd.WaitDelay = 30 * time.Second
 
 	start := time.Now()
 	runErr := cmd.Run()
