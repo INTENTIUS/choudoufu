@@ -227,7 +227,14 @@ func countIndexScopeForType(resourceType string, lt LogicalType, isLogical bool)
 // so the count expression itself, and the depends_on/provider/
 // lifecycle/connection/provisioner positions, are always out of scope,
 // regardless of what they contain.
-func checkCountIndex(ctx context.Context, mod *configs.Module, resource *configs.Resource, addr string, path addrs.Module, scope countIndexScope, issues *[]Issue) {
+//
+// cfg, rather than the *configs.Module alone, is what the count.index
+// domain needs to answer a resource written inside a module that is CALLED
+// with for_each or count: the var.* values such a resource reads depend on
+// which instance of that call it belongs to, and only the tree node knows
+// its own path back to the root. See [countIndexDomainFor] and GitHub
+// issue #580.
+func checkCountIndex(ctx context.Context, cfg *configs.Config, resource *configs.Resource, addr string, path addrs.Module, scope countIndexScope, issues *[]Issue) {
 	if scope.skip {
 		return
 	}
@@ -242,7 +249,7 @@ func checkCountIndex(ctx context.Context, mod *configs.Module, resource *configs
 		return
 	}
 
-	domain := countIndexDomainFor(ctx, mod, resource, addr)
+	domain := countIndexDomainFor(ctx, cfg, resource, addr)
 
 	for _, hit := range countIndexCandidates(body, true, scope, domain) {
 		traversal := hit.traversal
