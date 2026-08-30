@@ -2199,6 +2199,7 @@ func (v *progressRecordingView) Foreign(views.StatelessForeign)        {}
 func (v *progressRecordingView) Policy(views.StatelessPolicyReport)    {}
 func (v *progressRecordingView) GuidedFallback(string)                 {}
 func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike) {}
+func (v *progressRecordingView) Adoption(views.StatelessAdoption)      {}
 
 // TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
 // statelessProgress's whole job: discovery reports every type it scans,

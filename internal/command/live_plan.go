@@ -223,7 +223,16 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	diags = diags.Append(c.liveStateFileNote())
 	diags = diags.Append(c.checkAWSProviderVersionSkew())
 
-	statelessView := views.NewStatelessPlan(c.View)
+	// GitHub issue #587. This is the "-estate" form, which by definition has
+	// no live block (a configuration that has one was delegated to
+	// PlanCommand above), so the flag is honoured here rather than refused:
+	// this pipeline IS a live-markers run. Both halves of the mode are
+	// picked here - the ledger renderer, and the wrapper that drops the
+	// resource diff.
+	statelessView := statelessPlanView(c.View, args.AdoptionOnly)
+	if args.AdoptionOnly {
+		view = views.NewAdoptionOnlyPlan(view, c.View)
+	}
 
 	code, nextStep, moreDiags := c.livePlan(ctx, args.Plan, estateFlag, view, statelessView)
 	diags = diags.Append(moreDiags)
@@ -637,6 +646,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		statelessView.Foreign(statelessForeignReport(classified))
 		statelessView.GuidedFallback(disco.GuidedFallback)
 	}
+
+	// GitHub issue #587's adoption ledger, built from the three values just
+	// rendered above rather than from anything of its own. Called on every
+	// run; only the adoption-only view renders it.
+	statelessView.Adoption(statelessAdoptionReport(
+		projResult,
+		statelessForeignReport(classified),
+		statelessUnownedReport(projResult, estate),
+		resourceSchemas,
+		estate,
+		disco != nil,
+	))
 
 	rawVariables, varDiags := c.collectVariableValues()
 	diags = diags.Append(varDiags)
@@ -3373,7 +3394,27 @@ Usage: choudoufu [global options] live-plan [options]
   marker instead. Nothing is renamed for you - a pairing this run cannot make
   one-to-one is reported as ambiguous, with no command.
 
+  During a migration the only question is which live resources this estate
+  can claim, and the sections above answer it in pieces inside a report that
+  is mostly about other things. Pass -adoption-only for that question alone:
+  one ledger splitting every declared instance into the half whose identity
+  comes from an ownership marker and the half whose identity comes from its
+  own declaration, then a section per thing you can act on. On a real estate
+  the declaration half is usually the larger of the two, and it needs nothing
+  done to it.
+
 Options:
+
+  -adoption-only          Print only the adoption ledger: what can be
+                          adopted, what cannot, and why. The resource diff
+                          and the sections above are suppressed, and each
+                          warning is compacted to one line naming it, with a
+                          pointer to this same command without the flag.
+                          Errors are never touched. The run itself is
+                          unchanged - the same live reads, the same sweep,
+                          the same plan - so this costs no less time than an
+                          ordinary plan and every verdict in it is the one
+                          that run would have printed anyway.
 
   -estate=name            The estate whose ownership markers this run looks
                           for, matching the tofu-estate tag grammar in

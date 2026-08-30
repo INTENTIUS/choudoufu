@@ -49,6 +49,48 @@ commands follow.
 | `choudoufu live-mv <old> <new>` | Rewrites the `tofu-address` tag. The replacement for `moved` blocks. |
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
 | `choudoufu live-plan` | The live plan, invoked directly. |
+| `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
+
+### `-adoption-only`
+
+During a migration the question is which live resources this estate can
+claim. A plan answers it, but in pieces, spread across three sections that
+are each about something else and surrounded by a report whose size is set by
+the provider's type count rather than by the estate. Measured on a generated
+55-resource terralith, the sections carrying an adoption path were 5.6% of
+2,885 lines; at 205 resources, 5.5% of 7,649.
+
+`choudoufu plan -adoption-only` (or `choudoufu live-plan -adoption-only`)
+prints that question and nothing else. Every declared instance lands in one
+of two halves:
+
+- **Identity by declaration.** The provider's schema for the type has no tags
+  argument, so the resource carries no ownership marker and never will: its
+  identity is composed from its own declaration and from parents that do
+  carry markers. Nothing is adopted here, and nothing is written here. On a
+  real estate this is routinely the larger half - on the generated terralith
+  it is 41 of 79 instances at scale 1, all of them
+  `aws_iam_role_policy_attachment`, `aws_route53_record` and
+  `aws_iam_role_policy`.
+- **Identity by marker.** Split into what this estate already owns, what a
+  tag write would claim (with the values, and a command where the type has
+  one), what needs a marker but has no live resource to offer, and what
+  another estate holds.
+
+Warnings are compacted rather than dropped: each is printed as one line, its
+summary with a count when the same summary recurs, under a heading saying how
+many there were and that the same command without `-adoption-only` shows them
+in full. Errors are never touched. This is most of what the mode removes -
+against `live/e2e/estate-block` plus an IAM role and its inline policy on the
+pinned emulator, a plain plan is 926 lines, of which 470 are the bodies of 36
+"Incomplete sweep for undeclared resources" warnings, one per provider type
+the emulator cannot list. The adoption-only run of the same estate is 53
+lines.
+
+The mode changes what is printed, not what is done: the same live reads, the
+same discovery sweep, the same plan. It therefore costs the same time as an
+ordinary plan, and every verdict in the ledger is the one that run would have
+printed anyway. It needs a `live` block; a state-backed plan refuses it.
 
 Identity resolution and marker stamping run through the plan-node seam
 (GitHub issue #388) by default: the record, then the marker index, then the

@@ -93,6 +93,24 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	// GitHub issue #587: -adoption-only is a live-markers concept, so a
+	// state-backed plan refuses it rather than ignoring it. Checked here
+	// because statelessSettings, immediately above, is what says whether
+	// this run is a live one, and before the view is wrapped below.
+	if moreDiags := planRejectAdoptionOnly(args.AdoptionOnly, statelessCfg != nil); moreDiags.HasErrors() {
+		diags = diags.Append(moreDiags)
+		view.Diagnostics(diags)
+		return 1
+	}
+	// The resource diff is dropped for the whole run, from here on, by
+	// wrapping the view before anything is handed it - the backend, the
+	// operation request and the hooks all get the wrapper. See
+	// [views.AdoptionOnlyPlan] for what it drops and what it deliberately
+	// does not.
+	if args.AdoptionOnly {
+		view = views.NewAdoptionOnlyPlan(view, c.View)
+	}
+
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(ctx, args.State, view, enc)
 	diags = diags.Append(beDiags)
@@ -110,7 +128,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	if statelessCfg != nil {
-		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View,
+		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly,
 			statelessRejections(args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
@@ -314,6 +332,18 @@ Other Options:
                                default. Under live resource markers, prints
                                every type the removal sweep could not cover
                                by name instead of a one-line count.
+
+  -adoption-only               Under live resource markers only, print the
+                               adoption ledger and nothing else: what this
+                               estate can adopt, what it cannot, and why. The
+                               resource diff and the other live-markers
+                               sections are suppressed, and each warning is
+                               compacted to one line naming it - errors are
+                               never touched. The run is otherwise unchanged,
+                               so every verdict in the ledger is the one this
+                               run would have printed anyway. Refused on a
+                               state-backed plan, which has no adoption
+                               question.
 
   -out=path                    Write a plan file to the given path. This can be
                                used as input to the "apply" command.

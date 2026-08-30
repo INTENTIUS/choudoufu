@@ -48,6 +48,24 @@ type Plan struct {
 	// (arguments.Apply.Verbose), where -estate has no equivalent need
 	// (arguments.Apply has none either).
 	Verbose bool
+
+	// AdoptionOnly asks for GitHub issue #587's adoption-only view: the plan
+	// runs exactly as it would otherwise, and what it PRINTS is the adoption
+	// ledger alone - what can be adopted, what cannot, and why - with the
+	// resource diff and the other live-markers sections suppressed.
+	//
+	// It sits on Plan for -verbose's reason and not for -estate's. It has to
+	// reach plain "choudoufu plan", because under a live block that is the
+	// live-markers pipeline (LivePlanCommand.Run delegates to PlanCommand),
+	// and only [ParsePlan] parses that command's flags; -estate needs the
+	// opposite, since a live block naming the estate is precisely when -estate
+	// must be refused. Unlike -verbose it does name a stateless-only concept,
+	// so a stock, state-backed plan refuses it outright rather than ignoring
+	// it - see planRejectAdoptionOnly in the command package. Registering it
+	// here and refusing it there is what makes "choudoufu plan
+	// -adoption-only" against a state file say so, instead of "flag provided
+	// but not defined".
+	AdoptionOnly bool
 }
 
 // ParsePlan processes CLI arguments, returning a Plan value, a closer function, and errors.
@@ -80,6 +98,7 @@ func parsePlan(args []string, extraFlags func(*flag.FlagSet)) (*Plan, func(), tf
 	cmdFlags.StringVar(&plan.GenerateConfigPath, "generate-config-out", "", "generate-config-out")
 	cmdFlags.BoolVar(&plan.ShowSensitive, "show-sensitive", false, "displays sensitive values")
 	cmdFlags.BoolVar(&plan.Verbose, "verbose", false, "verbose")
+	cmdFlags.BoolVar(&plan.AdoptionOnly, "adoption-only", false, "adoption-only")
 
 	plan.ViewOptions.AddFlags(cmdFlags, true)
 

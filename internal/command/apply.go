@@ -137,7 +137,11 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	diags = diags.Append(opDiags)
 
 	if statelessCfg != nil && !diags.HasErrors() {
-		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View,
+		// Never adoption-only: GitHub issue #587's flag is a way of READING
+		// a plan, and there is no such thing as applying only the adoption
+		// question. arguments.Apply does not carry it and this passes false
+		// rather than plumbing one.
+		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
 			statelessRejections(args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 	}
