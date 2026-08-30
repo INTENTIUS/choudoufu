@@ -584,3 +584,131 @@ func TestCIGofmtCoversTheSameRootsAsTheTestStep(t *testing.T) {
 			"add it to one of them so the test step's coverage is decided too", extra)
 	}
 }
+
+// ── Issue #578: a test with no runner is a test nobody has ──────────────
+
+// This section is #164's shape one layer up. #164 was "a fork-owned package
+// the workflow's glob never named"; this is "a test the glob DOES name,
+// inside a package CI runs, that skips itself every time".
+//
+// tools/terralith-gen's TestValidateGeneratedTerralith - the only automated
+// check that `terraform validate` accepts the synthetic estate the whole
+// migration story is told against - was gated on TF_ACC/TF_FLOCI_TEST.
+// Neither is set by ci.yml's fast tier, nor by the justfile's `ci` recipe;
+// the single place CI sets TF_FLOCI_TEST is gauntlet.yml, on one step
+// running one test in a different package. So the glob ran the package, the
+// package reported ok, and the test inside it had never once executed.
+//
+// Its gate is now the terraform binary's presence, and ci.yml grew a
+// validate-generated-terralith job to supply the binary. The two checks
+// below are what stop that job from quietly going away or going quiet: one
+// asserts the job exists, is wired to this test by name, and fails on a
+// SKIP rather than accepting a zero exit; the other asserts the workflow
+// still runs on ordinary pushes and pull requests, because a job moved
+// behind workflow_dispatch is the same hole with a different lid.
+
+// validateJobName is the ci.yml job that owns the generator's validate
+// coverage.
+const validateJobName = "validate-generated-terralith"
+
+// workflowJob returns the body of a named job in a GitHub Actions workflow:
+// the lines indented under `  <name>:` up to the next line at that same
+// two-space indent. Deliberately textual, like justRecipe above - these
+// guards are about what a human reading the file would see, and a YAML
+// round-trip would let a semantically-equal rewrite pass while the comments
+// explaining the job were deleted.
+func workflowJob(doc, name string) (string, bool) {
+	lines := strings.Split(doc, "\n")
+	for i, line := range lines {
+		if strings.TrimRight(line, " \t") != "  "+name+":" {
+			continue
+		}
+		var body []string
+		for _, l := range lines[i+1:] {
+			if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "   ") {
+				break
+			}
+			body = append(body, l)
+		}
+		return strings.Join(body, "\n"), true
+	}
+	return "", false
+}
+
+// TestCIRunsTheGeneratedTerralithValidation is issue #578's defect-3 guard.
+func TestCIRunsTheGeneratedTerralithValidation(t *testing.T) {
+	data, err := os.ReadFile(ciWorkflowRel)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
+	}
+	job, ok := workflowJob(string(data), validateJobName)
+	if !ok {
+		t.Fatalf("%s has no `%s:` job.\n"+
+			"tools/terralith-gen's TestValidateGeneratedTerralith skips itself unless terraform is on PATH, "+
+			"and this job is the only thing in CI that puts it there. Without the job the test is invisible "+
+			"in every automated run, which is exactly the state issue #578 found it in.",
+			ciWorkflowRel, validateJobName)
+	}
+
+	for _, want := range []struct {
+		substr string
+		why    string
+	}{
+		{"hashicorp/setup-terraform", "without a terraform binary the test skips, and a skip exits zero"},
+		{"TestValidateGeneratedTerralith", "the job must run the validate test by name, not a glob that may stop matching it"},
+		{"-v", "the pass line the job greps for is only printed under -v"},
+		{"--- PASS: TestValidateGeneratedTerralith", "the job must fail on a SKIP; a zero exit does not distinguish the two, and that is the whole defect"},
+		{"terralith-gen -scale 4", "the canonical-formatting check must cover scale 4, not only the smallest tier"},
+		{`-fmt-bin ""`, "asserting canonical output with the generator's own formatting pass turned off is the strong form of the claim (#578 defect 1)"},
+		{"fmt -check -recursive", "-recursive is the defect; -check because -diff writes the files it reports on"},
+	} {
+		if !strings.Contains(job, want.substr) {
+			t.Errorf("the %s job in %s does not contain %q: %s", validateJobName, ciWorkflowRel, want.substr, want.why)
+		}
+	}
+
+	// Commands only. The comments in that job talk ABOUT `fmt -diff` in
+	// order to explain why it must not be used, and a substring scan over
+	// the whole block would flag the explanation.
+	for _, line := range strings.Split(job, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		if strings.Contains(line, "fmt -diff") {
+			t.Errorf("the %s job runs `fmt -diff`, which REWRITES the files it reports on. "+
+				"A -check run after it passes unconditionally and proves nothing.\n  %s",
+				validateJobName, strings.TrimSpace(line))
+		}
+	}
+}
+
+// TestCIValidationRunsOnOrdinaryEvents keeps the job above on the ordinary
+// path. A check that only a human can trigger is the same as no check; #578's
+// acceptance says it in as many words - "it must execute on an ordinary CI
+// run with no special environment".
+func TestCIValidationRunsOnOrdinaryEvents(t *testing.T) {
+	data, err := os.ReadFile(ciWorkflowRel)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
+	}
+	doc := string(data)
+	if _, ok := workflowJob(doc, validateJobName); !ok {
+		t.Skipf("no %s job; TestCIRunsTheGeneratedTerralithValidation reports that", validateJobName)
+	}
+
+	// The trigger block is everything before the first job.
+	triggers := doc
+	if i := strings.Index(doc, "\njobs:"); i > 0 {
+		triggers = doc[:i]
+	}
+	for _, event := range []string{"push:", "pull_request:"} {
+		if !strings.Contains(triggers, event) {
+			t.Errorf("%s no longer runs on %s, so %s does not run on an ordinary change",
+				ciWorkflowRel, strings.TrimSuffix(event, ":"), validateJobName)
+		}
+	}
+	if strings.Contains(triggers, "workflow_dispatch") && !strings.Contains(triggers, "pull_request") {
+		t.Errorf("%s is dispatch-only; %s would then run only when a human asks, which is the state #578 found",
+			ciWorkflowRel, validateJobName)
+	}
+}

@@ -281,13 +281,33 @@ func TestRecordValuesAreNotPreQuotedHasTeeth(t *testing.T) {
 
 // TestValidateGeneratedTerralith is the syntactic half of #564's first
 // acceptance bullet: `terraform validate` passes against the real pinned
-// provider release, at a couple of scales. Gated behind flocitest.Gate
-// (TF_ACC or TF_FLOCI_TEST) because it downloads a real provider; it does
-// NOT touch floci or Docker - see live/e2e/terralith-scale/run.sh for the
-// live-apply-and-destroy half of the proof, which does.
+// provider release, at a couple of scales. It does NOT touch floci or
+// Docker - see live/e2e/terralith-scale/run.sh for the live-apply-and
+// -destroy half of the proof, which does.
+//
+// It used to sit behind flocitest.Gate (TF_ACC or TF_FLOCI_TEST), and that
+// is issue #578's defect 3: traced through every caller, NOTHING set either
+// variable anywhere this package runs. ci.yml's fast tier runs ./tools/...
+// with neither; the justfile's `ci` recipe does the same; the only place CI
+// sets TF_FLOCI_TEST is gauntlet.yml, scoped to one step running a single
+// test in internal/live/acceptance. So the one test that would
+// `terraform validate` this generator's output had never executed in an
+// automated run, in its whole life. A test nothing runs is not a test.
+//
+// The gate is now the binary's presence, which is the actual prerequisite:
+// this test needs terraform and the registry, not Docker and not an
+// emulator, and pretending otherwise is what hid it. That leaves a skip
+// when terraform is absent, so the skip is closed from the other end -
+// .github/workflows/ci.yml's validate-generated-terralith job installs
+// terraform, runs this test with -v, and FAILS if the log does not show it
+// reaching a pass. TestCIRunsTheGeneratedTerralithValidation in
+// live/ci_coverage_test.go holds that job to this test by name.
 func TestValidateGeneratedTerralith(t *testing.T) {
-	flocitest.Gate(t, "terralith-gen terraform validate")
-	flocitest.RequireBinary(t, "terraform")
+	flocitest.SkipWithoutBinary(t, "terraform")
+	// Share one provider download between the two scales. Without this each
+	// subtest inits into its own empty directory and pulls hashicorp/aws
+	// 6.59.0 again, which is most of this test's runtime on a cold CI runner.
+	flocitest.PluginCacheDir(t)
 
 	for _, scale := range []int{1, 4} {
 		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {

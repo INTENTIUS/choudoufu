@@ -86,3 +86,60 @@ jobs:
         run: |
           cp live/iam-reference.json site/data/iamref.json
           (cd site && hugo --minify --quiet)
+
+  # The generated-terralith estate's own coverage, issue #578's defect 3.
+  #
+  # tools/terralith-gen writes the synthetic stock-Terraform estate the
+  # migration story is told against, and TestValidateGeneratedTerralith is
+  # the test that runs `terraform validate` over what it writes. That test
+  # sat behind TF_ACC/TF_FLOCI_TEST, which nothing on any ordinary path
+  # sets, so it had never executed in an automated run - not once, in its
+  # whole life. Its gate is now the terraform binary's presence, and this
+  # job is what supplies the binary. Whatever else changes, this must keep
+  # running on an ordinary push and pull_request with no special
+  # environment; TestCIRunsTheGeneratedTerralithValidation in ./live is the
+  # guard that says so.
+  #
+  # A separate job rather than steps in `fast`, deliberately. It is the one
+  # thing in this workflow that talks to the public provider registry, so a
+  # registry outage should name itself instead of reddening the fast tier;
+  # and running beside `fast` rather than inside it costs a pull request no
+  # wall clock.
+  validate-generated-terralith:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # terraform_wrapper: false, because the wrapper this action installs by
+      # default is a shell script around the real binary, and the tests below
+      # read its exit code and its stderr.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      # Issue #578's defects 1 and 2. -fmt-bin "" turns OFF the generator's
+      # own formatting pass, so this asserts the strong claim: the generator
+      # emits canonical HCL by itself, with no formatter binary helping it,
+      # at both scales. -check and only -check - `terraform fmt -diff`
+      # rewrites the files it reports on, and running it here would make this
+      # step pass unconditionally.
+      - name: Generated estate is canonical without a formatter binary
+        run: |
+          set -o pipefail
+          go run ./tools/terralith-gen -scale 1 -out "$RUNNER_TEMP/tl1" -fmt-bin ""
+          go run ./tools/terralith-gen -scale 4 -out "$RUNNER_TEMP/tl4" -fmt-bin ""
+          (cd "$RUNNER_TEMP/tl1" && terraform fmt -check -recursive -no-color .)
+          (cd "$RUNNER_TEMP/tl4" && terraform fmt -check -recursive -no-color .)
+      - name: terraform validate over the generated estate
+        run: |
+          set -o pipefail
+          go test ./tools/terralith-gen/ -run TestValidateGeneratedTerralith -v 2>&1 | tee "$RUNNER_TEMP/validate.log"
+          # A zero exit is not the evidence wanted here: a skipped test also
+          # exits zero, and a silent skip is the entire defect this job
+          # exists to prevent. Require the pass line by name.
+          grep -q -- '--- PASS: TestValidateGeneratedTerralith' "$RUNNER_TEMP/validate.log" || {
+            echo "TestValidateGeneratedTerralith did not run to a pass in this job."
+            echo "A SKIP here means the terraform binary is missing and the test is invisible again (issue #578, defect 3)."
+            exit 1
+          }

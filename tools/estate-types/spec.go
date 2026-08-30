@@ -216,6 +216,12 @@ var estateSpecs = []estateSpec{
 		Note:       `run.sh SRC="$ROOT/.corpus/xancloud-iac"; the estate is blueprints/landing-zone-basic (cd target for init/apply). The script's own heredocs write only providers.tf and versions.tf (provider/version wiring, no resources) on top of that directory's real files.`,
 	},
 	{
+		Name:       "terralith-scale",
+		ConfigDirs: nil,
+		ScanScript: false,
+		Note:       `The one GENERATED estate: its configuration exists nowhere on disk until tools/terralith-gen makes it, so neither ConfigDirs (no directory to name) nor ScanScript (run.sh declares no resource block; it shells out to the generator, whose resource blocks live in Go string templates) can see a single type. scanEstate generates it instead - see terralith.go - at the same scale run.sh crosses at, and check.Load reads the output, module call included (modules/team_pod, issue #574). Scale changes instance counts only, never the type set.`,
+	},
+	{
 		Name:       "reference-ec2-vpc",
 		ConfigDirs: nil,
 		ScanScript: true,
