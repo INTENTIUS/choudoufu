@@ -71,6 +71,9 @@ func TestSweepSplitAgainstFloci(t *testing.T) {
 	for _, line := range report.PerType {
 		t.Logf("  %s", line)
 	}
+	for _, line := range report.sweepLegLines() {
+		t.Logf("  %s", line)
+	}
 	for _, line := range report.byAPILines() {
 		t.Logf("  %s", line)
 	}
@@ -123,6 +126,25 @@ type sweepSplitReport struct {
 	// a bare "48% taggable" is exactly the shape of number this repository
 	// has had to re-derive before.
 	PerType []string
+
+	// SweepScansBySource is how many types the SWEEP itself scanned through
+	// each enumeration source, counted off [Result.Scans] rather than
+	// inferred from the proxy's API names (#586). It is the attribution the
+	// by-API breakdown cannot give: "CloudApiService.ListResources=435" says
+	// which wire call was made, not which leg of [partitionSweepTypes] made
+	// it, and the config-driven scan uses the same transport as the sweep.
+	SweepScansBySource map[EnumerationSource]int
+
+	// SweepGapsByReason is the same attribution for the types the sweep
+	// visited and could not enumerate at all - a type reported here cost no
+	// list call, so it is the difference between the native leg's 992 types
+	// and the far smaller number of calls it actually issues.
+	SweepGapsByReason map[SweepGapReason]int
+
+	// TaggingLegTypes and NativeLegTypes are [partitionSweepTypes]' own two
+	// answers for this run, so the routing is reported next to its cost.
+	TaggingLegTypes int
+	NativeLegTypes  int
 }
 
 func (r sweepSplitReport) String() string {
@@ -141,6 +163,32 @@ func (r sweepSplitReport) String() string {
 		r.DiscoverPages, r.BuildPages, r.DiscoverElapsed, r.BuildElapsed,
 		r.Materialized, r.Bound, r.Unclaimed,
 	)
+}
+
+// sweepLegLines reports which leg of [partitionSweepTypes] paid for the
+// discovery calls above, counted off [Result.Scans] and [Result.SweepGaps]
+// rather than read off the wire.
+func (r sweepSplitReport) sweepLegLines() []string {
+	lines := []string{fmt.Sprintf("partition: tagging_leg=%d native_leg=%d", r.TaggingLegTypes, r.NativeLegTypes)}
+
+	sources := make([]string, 0, len(r.SweepScansBySource))
+	for s := range r.SweepScansBySource {
+		sources = append(sources, string(s))
+	}
+	sort.Strings(sources)
+	for _, s := range sources {
+		lines = append(lines, fmt.Sprintf("sweep scans via %-14s %d types", s, r.SweepScansBySource[EnumerationSource(s)]))
+	}
+
+	reasons := make([]string, 0, len(r.SweepGapsByReason))
+	for g := range r.SweepGapsByReason {
+		reasons = append(reasons, string(g))
+	}
+	sort.Strings(reasons)
+	for _, g := range reasons {
+		lines = append(lines, fmt.Sprintf("sweep gap    %-22s %d types (no list call issued)", g, r.SweepGapsByReason[SweepGapReason(g)]))
+	}
+	return lines
 }
 
 func (r sweepSplitReport) byAPILines() []string {
@@ -276,8 +324,7 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 	}
 	ccCfg := cloudcontrol.Config{Endpoint: proxy.Endpoint(), Region: awsRegion}
 
-	discoverStart := time.Now()
-	res, diags := Discover(context.Background(), Request{
+	req := Request{
 		Estate:           sweepSplitEstate,
 		Config:           cfg,
 		Resolutions:      resolutions,
@@ -289,7 +336,10 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 		CloudControl:     cloudcontrol.New(ccCfg),
 		Tagging:          cloudcontrol.NewTagging(ccCfg),
 		TaggingSweep:     true,
-	})
+	}
+
+	discoverStart := time.Now()
+	res, diags := Discover(context.Background(), req)
 	discoverElapsed := time.Since(discoverStart)
 	if diags.HasErrors() {
 		t.Logf("Discover diagnostics (%d), not fatal to this benchmark:\n%s", len(diags), renderDiags(diags))
@@ -322,6 +372,26 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 		}
 	}
 
+	// #586's attribution. partitionSweepTypes is re-run against the same
+	// Request so the routing is reported next to the cost it produced;
+	// Discover's own call is pure over (req, decl), so this reproduces it
+	// rather than re-deciding it.
+	scansBySource := map[EnumerationSource]int{}
+	for _, s := range res.Scans {
+		if s.Sweep {
+			scansBySource[s.Source]++
+		}
+	}
+	gapsByReason := map[SweepGapReason]int{}
+	for _, g := range res.SweepGaps {
+		gapsByReason[g.Reason]++
+	}
+	taggingLeg, nativeLeg := 0, 0
+	if decl, declDiags := declaredInstances(context.Background(), req); !declDiags.HasErrors() {
+		tagging, native := partitionSweepTypes(req, decl)
+		taggingLeg, nativeLeg = len(tagging), len(native)
+	}
+
 	return sweepSplitReport{
 		Scale:               scale,
 		Instances:           len(resolutions),
@@ -341,6 +411,10 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 		Bound:               len(res.Bindings),
 		Unclaimed:           len(res.Unclaimed),
 		PerType:             perType,
+		SweepScansBySource:  scansBySource,
+		SweepGapsByReason:   gapsByReason,
+		TaggingLegTypes:     taggingLeg,
+		NativeLegTypes:      nativeLeg,
 	}
 }
 
@@ -387,5 +461,103 @@ func TestSweepUniversePartitionIsMostlyNative(t *testing.T) {
 	}
 	if len(native) == 0 {
 		t.Error("the native leg is empty, which would mean the one GetResources call covers the whole admitted universe. That would be excellent news and it contradicts arnJoinTable being hand-curated - check arnJoinReaches before believing it.")
+	}
+}
+
+// TestNativeSweepLegRoutingIsExhaustive states the routing rule #586 asked
+// for, in executable form, and separates the part of it that is a
+// correctness requirement from the part that is a property of a
+// hand-curated table.
+//
+// [partitionSweepTypes] sends a type to the native per-type leg for exactly
+// three reasons, and this asserts that those three account for every type
+// that lands there - so a fourth clause cannot appear without saying so.
+// The interesting fact is the SIZE of each: measured at 5dbe452a1e against
+// live/registry.json's embedded roster, of 992 native types only 6 are
+// issue #394's carve-out ([typeNeedsResourceObjectToRecompose], the
+// companion pairs that genuinely need a native list call's own resource
+// object) and the other 986 are there solely because [arnJoinTable] has no
+// row to place their ARNs through.
+//
+// # Why that does not make the 986 removable
+//
+// #586's premise is that [markerTFType] reads the TF type off the marker,
+// so the join table is not needed to place a tagged object. That premise is
+// TRUE, and it is not what routes these types. [arnJoinReaches] is a proxy
+// for a different question - "can the one estate-wide GetResources answer
+// FIND this type's objects" - and the marker answers placement, not
+// enumeration. Moving a type off the native leg swaps a second, independent
+// enumeration (Cloud Control ListResources, or the provider's own list
+// resource) for the Resource Groups Tagging API alone, whose index both
+// lags writes and covers a different, partial set of services. #394's own
+// doc comment records what that costs: before the !arnJoinReaches clause
+// existed, a deleted block's live object was "silently never destroyed and
+// never even diagnosed".
+//
+// The second assertion is the one that would catch a regression widening
+// the native leg by accident: a type the ARN join CAN reach, and which is
+// not a #394 companion, must be in the tagging leg.
+func TestNativeSweepLegRoutingIsExhaustive(t *testing.T) {
+	roster, err := registry.Embedded()
+	if err != nil {
+		t.Fatalf("loading the embedded roster: %v", err)
+	}
+	req := Request{Roster: roster, TaggingSweep: true}
+	decl, diags := declaredInstances(context.Background(), req)
+	if diags.HasErrors() {
+		t.Fatalf("building an empty declared set: %s", renderDiags(diags))
+	}
+
+	tagging, native := partitionSweepTypes(req, decl)
+
+	var carveOut, noARNJoin, both, unexplained int
+	for _, typeName := range native {
+		needsObject := typeNeedsResourceObjectToRecompose(typeName)
+		noJoin := !arnJoinReaches(req, typeName)
+		switch {
+		case needsObject && noJoin:
+			both++
+		case needsObject:
+			carveOut++
+		case noJoin:
+			noARNJoin++
+		default:
+			unexplained++
+			t.Errorf("%s is in the native sweep leg but is neither a #394 companion pair nor outside arnJoinTable's coverage; partitionSweepTypes has grown a clause this test does not know about", typeName)
+		}
+	}
+	t.Logf("native leg=%d: needs_resource_object_only=%d no_arn_join_only=%d both=%d unexplained=%d",
+		len(native), carveOut, noARNJoin, both, unexplained)
+
+	// What the native leg actually COSTS is not its type count: a type the
+	// provider cannot list and Cloud Control cannot enumerate reports a
+	// sweep gap without issuing a call at all. This is the population that
+	// converts to wire calls, and it is the number #586 is really about.
+	var enumerableTaggable int
+	for _, typeName := range native {
+		cfnType, mapped := roster.CloudControlType(typeName)
+		if !mapped {
+			continue
+		}
+		if _, ok := roster.EnumerationSource(typeName); !ok {
+			continue
+		}
+		if taggable, _ := roster.TaggableKnown(cfnType); taggable {
+			enumerableTaggable++
+		}
+	}
+	t.Logf("native leg types Cloud Control can enumerate AND the registry calls taggable: %d (the ones that cost a ListResources)", enumerableTaggable)
+
+	inTagging := make(map[string]bool, len(tagging))
+	for _, typeName := range tagging {
+		inTagging[typeName] = true
+	}
+	for _, typeName := range sweepTypes(req, decl) {
+		if typeNeedsResourceObjectToRecompose(typeName) || !arnJoinReaches(req, typeName) {
+			continue
+		}
+		if !inTagging[typeName] {
+			t.Errorf("%s can be placed by the ARN join and is not a #394 companion pair, so the one estate-wide GetResources call covers it - but partitionSweepTypes routed it to the native per-type leg, which costs a list call for nothing", typeName)
+		}
 	}
 }
