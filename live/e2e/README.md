@@ -23,6 +23,11 @@ run at once.
 All but `per-element`, `repeated-module` and `provisioner-taint` are
 documented at the bottom of this file.
 
+Everything here that needs Docker runs against floci. Before writing a
+fixture, read `live/FLOCI.md`: four classes of question the emulator cannot
+answer at any scale, so that a fixture is not built to measure one of them.
+Value semantics is the one that has actually shipped a defect to main, twice.
+
 ## Quickstart
 
 You need four things.
