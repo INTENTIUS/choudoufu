@@ -124,6 +124,7 @@ func statelessBegin(
 	opReq *backend.Operation,
 	settings *configs.Live,
 	view *views.View,
+	adoptionOnly bool,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
 	diags := rejections
@@ -175,7 +176,11 @@ func statelessBegin(
 		settings: settings,
 		lib:      local.ContextOpts.Plugins,
 		mgr:      mgr,
-		view:     views.NewStatelessPlan(view),
+		// GitHub issue #587: the one place the adoption-only mode picks a
+		// different renderer. Both implement the same interface and the
+		// pipeline calls the same methods either way, so nothing below
+		// this line knows which mode it is in.
+		view: statelessPlanView(view, adoptionOnly),
 		// GitHub issue #352. The operation carries the run's -target and
 		// -exclude addresses; PriorState is where they turn into a scope,
 		// because that is where the core context that can answer what the
@@ -895,6 +900,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.view.Foreign(statelessForeignReport(classified))
 		r.view.GuidedFallback(disco.GuidedFallback)
 	}
+
+	// GitHub issue #587's adoption ledger, built from the three values just
+	// rendered above rather than from anything of its own. Called on every
+	// run; only the adoption-only view renders it.
+	r.view.Adoption(statelessAdoptionReport(
+		projResult,
+		statelessForeignReport(classified),
+		statelessUnownedReport(projResult, estate),
+		resourceSchemas,
+		estate,
+		disco != nil,
+	))
 
 	// The schemas are read before the plan rather than after it because
 	// stamping needs them: which resource types can carry an ownership marker

@@ -447,6 +447,13 @@ type StatelessPlan interface {
 	// above the plan itself, so the warning sits right next to the create it
 	// is about.
 	Lookalikes(items []StatelessLookalike)
+
+	// Adoption reports the whole adoption question - what can be adopted,
+	// what cannot, and why - for GitHub issue #587's "-adoption-only" mode.
+	// The pipeline calls it on every stateless run; only
+	// [StatelessAdoptionHuman] renders it, and that view renders nothing
+	// else. See live_adoption.go.
+	Adoption(rep StatelessAdoption)
 }
 
 // NewStatelessPlan returns the human-readable implementation. There is no
@@ -984,6 +991,14 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 
 	v.view.outputHorizRule()
 }
+
+// Adoption renders nothing on the ordinary plan view. The adoption ledger
+// is a whole-run summary of what the sections above already say instance by
+// instance, so printing it here as well would restate the same verdicts a
+// second time in a report GitHub issue #587 exists because it is already too
+// long. [StatelessAdoptionHuman] is the view that renders it, and it renders
+// nothing else.
+func (v *StatelessPlanHuman) Adoption(StatelessAdoption) {}
 
 func noun(n int, one, many string) string {
 	if n == 1 {
