@@ -404,3 +404,35 @@ a same-estate conflict refuses and names the estate; a dangling
 `last_run.commit` refuses (#509's class); a nonzero exit with no failing
 stage refuses (#413's class); product code differing between base and a
 side refuses and names the file.
+
+## The regression ratchet
+
+Every guard above is about internal consistency and provenance - the
+artifact agrees with itself and with the manifest. None of them is about
+regression: a stage that was recorded `pass` and comes back anything else
+this run, with nothing outside the script to contradict the new verdict
+(#553). `gauntlet run` closes the visible half of that gap: it reads the
+committed artifact fresh, before this run's own results can overwrite it
+in memory, and `RatchetViolations` (`tools/gauntlet/ratchet.go`) compares
+the two. Any estate/stage that regressed off a committed `pass` fails the
+run - printed to stderr and a nonzero exit - unless it is named in
+`live/gauntlet/regressions.json`, a small hand-authored ledger, never
+generated, that a human edits in the same change that earns the
+regression: the same convention #552 uses for a cohort's resource-count
+shrink, adapted because `live/gauntlet.json` itself may never be hand-
+edited. The artifact is still written and rendered either way - ground
+truth is never withheld to avoid a bad headline - only the run's own exit
+status carries the refusal.
+
+This does not close the invisible half: a script that stops asserting
+what it used to and still reports `pass` has no independent witness the
+way a cohort's `resources` count gives #552's shrink guard one. #553's
+own investigation into the strongest candidate - each stage's `BREAK=1`-
+style negative control, whose whole job is proving an assertion is load-
+bearing - found real coverage (every estate in the manifest carries at
+least one) but no cheap way to re-run it: exercising every control found
+across the manifest once costs on the order of the full board's own
+measured wall-clock, not a fraction of it, and nothing today runs them on
+any cadence at all. That investigation, and why it stops short of
+building an automated sweep, is recorded in #553 rather than repeated
+here.
