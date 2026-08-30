@@ -318,12 +318,34 @@ type Request struct {
 	// its own.
 	Progress ProgressFunc
 
+	// SweepParallelism is how many of the estate-wide sweep's list calls run
+	// at once (GitHub issue #605). Zero, the default, means
+	// [DefaultSweepParallelism]; one reproduces the sequential loop exactly,
+	// which is the control that proves the concurrency added no per-type
+	// cost.
+	//
+	// It bounds the sweep's per-type listing only. The config-driven scan,
+	// the tagging sweep's single GetResources call, and the parent, fold and
+	// record-orphan read legs are all unaffected.
+	SweepParallelism int
+
 	// markers is the estate-filtered Tagging API answer, fetched at most
 	// once per pass and shared between the config-driven scan's tag join
 	// (issue #266) and the estate-wide sweep, which used to make the call
 	// itself. It is unexported because [Discover] installs it from Tagging
 	// and Estate; a caller neither sets nor sees it.
 	markers *markerIndex
+
+	// sweepFetch is the in-flight list calls for the sweep loop currently
+	// running (GitHub issue #605), installed by [Discover] around each sweep
+	// leg and nil everywhere else - including for the config-driven scan,
+	// which is not prefetched. It is unexported for the same reason markers
+	// is: a caller neither sets nor sees it.
+	//
+	// Every method on it tolerates a nil receiver and answers "not
+	// prefetched", so the scan bodies below read the same whether or not a
+	// prefetch is running.
+	sweepFetch *sweepPrefetch
 }
 
 // ProgressFunc is a discovery progress callback. See Request.Progress.
@@ -444,6 +466,16 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// nothing to report between, only before and after.
 			taggingUniverse, nativeUniverse := partitionSweepTypes(req, decl)
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
+			// GitHub issue #605: the list calls this loop is about to make
+			// go out concurrently, up to [Request.SweepParallelism] at a
+			// time, and the loop below is unchanged - it consumes each
+			// type's answer in this same order, from the same scanType
+			// body, so every diagnostic, scan row, claim and gap is produced
+			// by exactly the code that produced it sequentially. See
+			// sweepconcurrency.go.
+			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, nativeUniverse, func(typeName string) bool {
+				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
+			})
 			// Issue #394: a companion pair whose identities diverge
 			// ([typeNeedsResourceObjectToRecompose]) can only ever bind
 			// through a native list call's own resource object, which the
@@ -467,6 +499,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
 				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
+			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
+			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
+			req.sweepFetch = nil
 		} else {
 			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
 			// decl) unmodified (and an empty fallback reason) whenever
@@ -477,6 +512,10 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			res.Guided = req.Guided && fallback == ""
 			res.GuidedFallback = fallback
 			res.GuidedSweepSkipped = skipped
+			// Issue #605's other leg, the same shape as the one above.
+			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, universe, func(typeName string) bool {
+				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
+			})
 			for _, typeName := range universe {
 				// Same reasoning as the TaggingSweep leg just above: a type
 				// present here only because every one of its declared
@@ -485,6 +524,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
 				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
+			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
+			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
+			req.sweepFetch = nil
 		}
 	}
 
@@ -1650,7 +1692,18 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 	// The full object is always requested: the markers are resource tags,
 	// and a list identity carries only the identity attributes.
-	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
+	//
+	// GitHub issue #605: during a sweep this call has usually already been
+	// made, concurrently with the types before it (sweepconcurrency.go). The
+	// answer is the same answer - same configuration, same provider, same
+	// [listclient.List] - and everything after this line is the sequential
+	// body it always was. takeNative answers false whenever no prefetch is
+	// running, or whenever it fetched with a configuration this scan does not
+	// agree with, and then the call is made right here exactly as before.
+	results, listDiags, prefetched := req.sweepFetch.takeNative(typeName, config)
+	if !prefetched {
+		results, listDiags = listclient.List(ctx, req.Provider, typeName, config, true)
+	}
 	if listDiags.HasErrors() {
 		res.Scans = append(res.Scans, scan)
 		if sweep {

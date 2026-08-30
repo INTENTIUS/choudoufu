@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -141,6 +142,15 @@ type ccServer struct {
 	listResourcesAfterFirst map[string][]ccResource
 	listCallCount           map[string]int
 
+	// mu serializes the whole handler. GitHub issue #605 makes the sweep
+	// issue its Cloud Control listings concurrently, so this httptest server
+	// now sees overlapping requests where it used to see one at a time; both
+	// the call log and the per-type call counter are written from the
+	// handler. Serializing the handler keeps every existing fixture's
+	// semantics - notably listResourcesAfterFirst, which is about the FIRST
+	// call for one CFN type and stays well-defined because only one leg ever
+	// enumerates a given type.
+	mu    sync.Mutex
 	calls []string
 }
 
@@ -161,6 +171,8 @@ func (s *ccServer) start() *httptest.Server {
 }
 
 func (s *ccServer) handle(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	target := r.Header.Get("X-Amz-Target")
 	var body map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

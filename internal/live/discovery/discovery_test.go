@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/go-version"
@@ -1012,6 +1013,8 @@ type fakeCloud struct {
 	extraAttr map[string]map[string]bool
 	accountID string
 
+	// mu guards requests only. See ListResourceStream.
+	mu       sync.Mutex
 	requests []providers.ListResourceRequest
 }
 
@@ -1243,7 +1246,17 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 
 func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+	// GitHub issue #605: the sweep issues its list calls concurrently, so
+	// several of these run at once. Everything else this method reads
+	// (objects, untagged, extraAttr) is fixture state fixed before Discover
+	// starts; recording the request is the one write, and it is the one thing
+	// that needs a lock. Nothing reads c.requests until Discover has
+	// returned, and the two readers - len() and requestFor, which finds the
+	// first request for a given type - are both order-insensitive across
+	// types, which is the only ordering concurrency can disturb here.
+	c.mu.Lock()
 	c.requests = append(c.requests, req)
+	c.mu.Unlock()
 
 	for _, o := range c.objects[req.TypeName] {
 		if !c.matchesFilter(req.Config, o) {
