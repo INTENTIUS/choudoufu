@@ -84,7 +84,47 @@ var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd", "site"}
 // Measured, the whole package is 5-6s of test time (~12s wall including
 // build), so it runs unshallowed like the fork-owned roots rather than
 // one-level-deep like internal/command.
+//
+// #591 is the fourth instance of the same shape, and it was this file's own
+// fix for the third that left the door open. The one-level-deep walk was
+// justified above as "internal/command has 20-odd pure-upstream subpackages
+// the fork has never touched". That was not true when it was written:
+// internal/command/arguments and internal/command/views already held
+// fork-added files, from 2026-08-12 and 2026-08-13, three days before the
+// #171 pass on 2026-08-15. So a fork-owned subpackage of a mixed root was
+// invisible to the walk and to CI both, and #583 shipped -parallelism into
+// internal/command/arguments/live_import.go with that package's 42 test
+// files having never executed.
+//
+// The fix is to stop asserting which subpackages the fork has touched and
+// recompute it: forkAuthoredMixedRootDirs diffs the tree against the
+// upstream commit this fork starts from, so a subpackage is fork-owned when
+// it actually holds a fork-added file, and the next one to appear is
+// required by the guard on the run it lands in.
 var forkOwnedMixedRoots = []string{"internal/command", "internal/engine/applying", "internal/tofu"}
+
+// upstreamBaseCommit is the last upstream OpenTofu commit before this fork's
+// first (5acc1ee12f, "choudoufu: OpenTofu with stateless mode"). Everything
+// under a mixed root that is not in this commit's tree was added by this
+// fork, which is what makes "does the fork own this subpackage" a
+// measurement rather than a claim in a comment.
+//
+// It is the same upstream commit tools/forkdiff-gen calls the fork point -
+// "RFC: Speed up tofu show <planfile> by embedding schemas into the planfile
+// (#4239)" - but deliberately not the same SHA. forkdiff-gen names
+// 03743ce6e8, the pre-rewrite hash, which the 2026-08-14 history purge and
+// re-root left off HEAD's ancestry entirely; it is in this checkout only
+// because the `upstream` remote is configured here, and that tool documents
+// `git fetch upstream` as its prerequisite. 46ee2e77a3 is the re-rooted copy
+// of that same commit - identical tree 262f6fdf23 - and it is an ancestor of
+// HEAD, so the workflow's existing fetch-depth: 0 is enough and CI needs no
+// upstream remote. A guard that has to reach the network for its ground
+// truth is a guard that skips when the network is down.
+//
+// checkUpstreamBase below asserts the ancestry rather than trusting this
+// comment, so a repin to a commit only a local clone can see fails here
+// instead of only in CI.
+const upstreamBaseCommit = "46ee2e77a318e5b71f349a925fd43a7673201eec"
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a
@@ -276,33 +316,23 @@ func forkOwnedTestPackages(t *testing.T) []string {
 	t.Helper()
 	seen := make(map[string]bool)
 
-	// A mixed root is walked one level deep, because what the fork owns
-	// there is the package itself and not its subtree. internal/command has
-	// 20-odd pure-upstream subpackages - cliconfig, jsonformat, views and
-	// the rest - that the fork has never touched, and recursing would drag
-	// them into the fast tier under the banner of "fork-owned".
-	shallow := make(map[string]bool, len(forkOwnedMixedRoots))
+	// A mixed root is walked in full, but only the directories that actually
+	// hold a fork-added file count. The whole subtree is upstream's until
+	// this fork puts a file in it, and running the parts it has not touched
+	// is running upstream's suite, which is a different job with a different
+	// runtime budget. Which directories those are is recomputed against the
+	// upstream base rather than listed here - see forkAuthoredMixedRootDirs
+	// and #591 for why a list was the bug.
+	forkAuthored := forkAuthoredMixedRootDirs(t)
+	mixed := make(map[string]bool, len(forkOwnedMixedRoots))
 	for _, root := range forkOwnedMixedRoots {
-		shallow[root] = true
+		mixed[root] = true
 	}
 
 	for _, root := range append(append([]string{}, forkOwnedRoots...), forkOwnedMixedRoots...) {
 		abs := filepath.Join("..", root)
 		if _, err := os.Stat(abs); os.IsNotExist(err) {
 			t.Fatalf("fork-owned root %s does not exist; the list is stale", root)
-		}
-		if shallow[root] {
-			entries, err := os.ReadDir(abs)
-			if err != nil {
-				t.Fatalf("reading %s: %v", root, err)
-			}
-			for _, e := range entries {
-				if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.go") {
-					seen["./"+filepath.ToSlash(root)] = true
-					break
-				}
-			}
-			continue
 		}
 		err := filepath.WalkDir(abs, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
@@ -321,7 +351,11 @@ func forkOwnedTestPackages(t *testing.T) []string {
 			if relErr != nil {
 				return relErr
 			}
-			seen["./"+filepath.ToSlash(rel)] = true
+			dir := filepath.ToSlash(rel)
+			if mixed[root] && !forkAuthored[dir] {
+				return nil // upstream's subtree; the fork has added nothing here
+			}
+			seen["./"+dir] = true
 			return nil
 		})
 		if err != nil {
@@ -333,6 +367,119 @@ func forkOwnedTestPackages(t *testing.T) []string {
 		out = append(out, pkg)
 	}
 	return out
+}
+
+// checkUpstreamBase fails if upstreamBaseCommit is not an ancestor of HEAD.
+//
+// That is what makes the pin CI-reachable: `actions/checkout` fetches this
+// repository, so a commit on HEAD's ancestry is guaranteed present under the
+// workflow's fetch-depth: 0 and a commit off it is not. forkdiff-gen's
+// 03743ce6e8 is the second kind - resolvable here only because a developer
+// clone carries an `upstream` remote - and repinning to something like it
+// would pass every local run and fail every CI one.
+func checkUpstreamBase(t *testing.T) {
+	t.Helper()
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", upstreamBaseCommit, "HEAD")
+	cmd.Dir = ".."
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("upstreamBaseCommit %s is not an ancestor of HEAD (%v).\n"+
+			"This guard classifies mixed-root subpackages against that commit's tree, and CI reaches "+
+			"it only through this repository's own history. Pin it to the last upstream commit that is "+
+			"on HEAD's ancestry - the re-rooted copy, not tools/forkdiff-gen's pre-rewrite 03743ce6e8 - "+
+			"or, if the checkout is shallow, deepen it.",
+			upstreamBaseCommit, err)
+	}
+}
+
+// forkAuthoredMixedRootDirs returns the directories under forkOwnedMixedRoots
+// that hold at least one .go file this fork added, keyed by repo-relative
+// slash path ("internal/command/arguments").
+//
+// "Added" is measured against upstreamBaseCommit's tree: a path the fork
+// created is not in it. Files the fork only edited do not count, and that is
+// a deliberate line rather than an oversight. The module rename alone touched
+// 537 files under internal/command, so "edited" would classify nearly the
+// whole subtree as fork-owned and mean ./internal/command/... - measured at
+// +18s wall and +100s CPU on the fast tier, most of it internal/command/e2etest
+// at 44s, whose fork-relevant assertions ("choudoufu apply \"tfplan\"") skip
+// without TF_ACC anyway. The residue this leaves is a package the fork edits
+// but never adds a file to; internal/command/e2etest, jsonformat and
+// jsonprovider are the three today, and their whole fork diff is the binary's
+// name in expected strings plus one gofmt alignment.
+//
+// It fails rather than skips when git cannot answer. A guard that goes quiet
+// on a shallow checkout is the shape this repo has shipped four times; the
+// workflow already checks out with fetch-depth: 0 for the gauntlet ancestry
+// guard, so the history is there.
+func forkAuthoredMixedRootDirs(t *testing.T) map[string]bool {
+	t.Helper()
+	checkUpstreamBase(t)
+
+	args := []string{"ls-tree", "-r", "--name-only", upstreamBaseCommit, "--"}
+	args = append(args, forkOwnedMixedRoots...)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = ".."
+	out, err := cmd.Output()
+	if err != nil {
+		var stderr string
+		if ee, ok := err.(*exec.ExitError); ok {
+			stderr = strings.TrimSpace(string(ee.Stderr))
+		}
+		t.Fatalf("git ls-tree %s failed: %v %s\n"+
+			"This guard classifies a mixed root's subpackages by diffing the tree against the "+
+			"upstream commit this fork starts from, so it needs that commit's history present. "+
+			"If the checkout is shallow, deepen it; if the SHA no longer exists, repin "+
+			"upstreamBaseCommit in this file to the commit before the fork's first.",
+			upstreamBaseCommit, err, stderr)
+	}
+
+	upstream := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			upstream[line] = true
+		}
+	}
+	if len(upstream) == 0 {
+		t.Fatalf("upstream base %s has no files under %s; the pin is wrong, "+
+			"and left alone it would silently classify every upstream package as fork-owned",
+			upstreamBaseCommit, strings.Join(forkOwnedMixedRoots, " "))
+	}
+
+	dirs := make(map[string]bool)
+	for _, root := range forkOwnedMixedRoots {
+		err := filepath.WalkDir(filepath.Join("..", root), func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if d.Name() == "testdata" || d.Name() == "vendor" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".go") {
+				return nil
+			}
+			rel, relErr := filepath.Rel("..", path)
+			if relErr != nil {
+				return relErr
+			}
+			if slash := filepath.ToSlash(rel); !upstream[slash] {
+				dirs[filepath.ToSlash(filepath.Dir(rel))] = true
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walking %s: %v", root, err)
+		}
+		if !dirs[root] {
+			t.Errorf("no file under %s is fork-added, yet forkOwnedMixedRoots names it as a package "+
+				"upstream owns and this fork has added to. Either the fork's files there were removed - "+
+				"drop the root from forkOwnedMixedRoots and from CI's gofmt and test steps - or "+
+				"upstreamBaseCommit is pinned past them.", root)
+		}
+	}
+	return dirs
 }
 
 // matchedByAny reports whether a package is covered by one of CI's patterns.
