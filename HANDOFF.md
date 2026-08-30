@@ -251,7 +251,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 1738 rendered identities across 628 configuration directories, pinned by value; if your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 1739 rendered identities across 629 configuration directories, pinned by value; if your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
@@ -281,6 +281,18 @@ Rules are tests. The ones that hold this document to the tree:
   tracker for gauntlet work), so a report built from the tracker alone can
   call itself finished while the board does not agree: read the board before
   writing the report, not the other way round.
+- The primary checkout is guarded, not just documented: a `PreToolUse` hook
+  in `~/.claude/settings.json` (user scope, deliberately not committed here
+  — see #517) denies `Edit`/`Write`/`NotebookEdit` calls whose target
+  resolves to the primary checkout's git toplevel, so a worker or subagent
+  that lands there by mistake is hard-blocked rather than merely warned.
+  `ask` was tried first and rejected: a live pipe-test showed spawned
+  subagent sessions run under `permission_mode: "bypassPermissions"`, which
+  silently auto-approves an `ask` decision with no prompt — `deny` is the
+  only decision that actually holds under that mode. The maintainer's own
+  direct edit still works: set `CHOUDOUFU_ALLOW_PRIMARY_EDIT=1` in the shell,
+  or in a personal, uncommitted local settings file's `env` block, before
+  editing.
 
 ## Retired
 

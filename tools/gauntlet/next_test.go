@@ -28,7 +28,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 		{Name: "c-done", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, "e", OracleVersions{})
+	a.Rebuild(m, nil, "e", OracleVersions{})
 	set := func(name string, verdicts map[string]string) {
 		r, _ := a.Result(name)
 		for k, v := range verdicts {
@@ -50,7 +50,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	set("c-close", close)
 	set("g-close", close)
 	// c-far: nothing passes.
-	a.Rebuild(m, "e", OracleVersions{})
+	a.Rebuild(m, nil, "e", OracleVersions{})
 
 	units := NextUnits(a, "all")
 	got := []string{}
@@ -101,7 +101,7 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 		{Name: "g-broken", Source: "s", URL: "u", Pin: "p", Lane: "published-deployment", Set: SetGrowing},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, "new-pin", OracleVersions{})
+	a.Rebuild(m, nil, "new-pin", OracleVersions{})
 
 	allPass := map[string]string{}
 	for _, s := range active {
@@ -125,7 +125,7 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 	}
 	setLastRun("c-fresh", "new-pin")
 	setLastRun("c-stale", "old-pin")
-	a.Rebuild(m, "new-pin", OracleVersions{})
+	a.Rebuild(m, nil, "new-pin", OracleVersions{})
 
 	units := NextUnits(a, "all")
 	var ids []string

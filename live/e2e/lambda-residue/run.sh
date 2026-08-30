@@ -6,8 +6,8 @@ set -uo pipefail
 #
 # .corpus/mastino/prod-eu-west/services/check-links is four instances, one of
 # them an aws_lambda_function deployed from a local zip. It passes live-check
-# with zero refused sites, applies cleanly, and then - before this ran -
-# proposed the identical update on every cold replan, forever:
+# with zero refused sites, applies cleanly, and then - before issue #275's fix
+# - proposed the identical update on every cold replan, forever:
 #
 #     ~ resource "aws_lambda_function" "check-links" {
 #         + filename          = "check_links.py.zip"
@@ -16,22 +16,44 @@ set -uo pipefail
 #       }
 #     Plan: 0 to add, 1 to change
 #
-# Applying it does not settle it. Those three arguments are pure inputs: AWS
+# Applying it did not settle it. Those three arguments are pure inputs: AWS
 # never knew the local path a zip came from, so no read recovers them, and
 # issue #73 deletes the state file that stock OpenTofu remembers them in.
 #
-# The script runs the estate TWICE against the same live objects, and the
-# difference between the two runs is one block:
+# The fix classifies each argument by putting the object to the provider
+# twice, with priors that differ in exactly the arguments under test, and
+# records only what the provider proves it does not manage. Both priors are
+# legitimate - the applied object, and the applied object with some optional
+# attributes null - so no bogus value is ever handed to a provider. See
+# internal/live/projection/residue.go.
 #
-#   PHASE 1  live { estate = ... }                  the defect, reproduced
-#   PHASE 2  live { estate = ...; record_store {} } the fix, measured
+# The script runs the estate TWICE against the same live objects. It used to
+# be one live block with no record_store (reproducing the defect) followed by
+# one that added `record_store {}` (measuring the fix) - two genuinely
+# different configurations. They are not anymore: HANDOFF.md's "compatible
+# out of the box" principle, and internal/configs/live.go's
+# impliedRecordStore, mean a live block declaring no record_store gets the
+# local backend anyway - "the same store, holding the same records under the
+# same keys in the same directory" as one spelled out by hand
+# (internal/live/lint's implied_record_store_test.go pins that by value).
+# Issue #541 found this the hard way: PHASE 1 below used to reproduce the
+# perpetual-churn plan above and no longer does - the cold replan comes back
+# "No changes" - because the fix it was written to prove absent is now on by
+# default. That is the fixture being stale against an improved product, not
+# a regression: residue tracking moved from "declare a store or refuse" to
+# "on unless you go out of your way", which is a strictly stronger claim than
+# the one this script originally pinned.
 #
-# Phase 2's apply classifies each argument by putting the object to the
-# provider twice, with priors that differ in exactly the arguments under
-# test, and records only what the provider proves it does not manage. Both
-# priors are legitimate - the applied object, and the applied object with
-# some optional attributes null - so no bogus value is ever handed to a
-# provider. See internal/live/projection/residue.go.
+#   PHASE 1  live { estate = ... }                   no block written: the
+#                                                     IMPLIED local store
+#   PHASE 2  live { estate = ...; record_store {} }  the same store, spelled
+#                                                     out - proves the two
+#                                                     configurations really
+#                                                     are the one store this
+#                                                     fixture's own estate
+#                                                     depends on, not merely
+#                                                     what a unit test says
+#                                                     about a smaller case
 #
 #   bash live/e2e/lambda-residue/run.sh
 #
@@ -191,8 +213,8 @@ start_urls_key = "start-urls"
 EOF
 log "  DELTA 5  tfvars + the lambda IAM role            (onboarding)"
 
-# ── 3. PHASE 1: the defect, reproduced ──────────────────────────────────────
-log "=== 3. PHASE 1 (no record_store): apply, then replan cold ==="
+# ── 3. PHASE 1: the implied default, measured ───────────────────────────────
+log "=== 3. PHASE 1 (no record_store block: the implied local store): apply, then replan cold twice ==="
 ( cd "$EST" && "$TOFU" init -upgrade -input=false -no-color >/dev/null 2>&1 ) || fail "init -upgrade failed"
 APPLY1="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY1" | grep -E '^Error|^│' | head -20
@@ -207,6 +229,20 @@ TAG="$(awsl lambda list-tags --resource "$(awsl lambda get-function --function-n
   || fail "the Lambda carries tofu-address=$TAG, expected aws_lambda_function.check-links"
 log "  the Lambda carries its marker: tofu-address=$TAG"
 
+# residue_at finds the record carrying the residue for the Lambda, by
+# content rather than by recomputing internal/live/projection/record.go's
+# RecordKey encoding - the same reason repeated-module's and create-over's
+# controls look records up this way (issue #541). Fails loudly if the
+# implied store did not write one, which is what "the fix is on by default"
+# actually has to mean: not merely an empty plan, which a lucky read could
+# also produce.
+residue_at() {
+  local reskey
+  reskey="$(find "$RECORDS" -type f -path '*tofu-records*' -exec grep -l '"residue":{' {} \; 2>/dev/null | head -1)"
+  [ -n "$reskey" ] || { find "$RECORDS" -type f 2>/dev/null | head -20; fail "no record carrying a residue member was written under $RECORDS"; }
+  printf '%s\n' "$reskey"
+}
+
 plan_into() {
   rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
   ( cd "$EST" && "$TOFU" plan -input=false -no-color ) > "$1" 2>&1
@@ -218,33 +254,36 @@ plan_into() {
   return $rc
 }
 
-plan_into "$WORK/plan-1a.log" || { tail -25 "$WORK/plan-1a.log"; fail "the phase 1 cold replan exited non-zero"; }
-grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy' "$WORK/plan-1a.log" \
-  || { grep -E '^Plan:|^No changes' "$WORK/plan-1a.log"
-       fail "expected exactly the one Lambda to show an in-place update on a cold replan. If this is now 0, the defect issue #275 describes has been fixed somewhere else and this phase should be re-read."; }
-for arg in filename publish source_code_hash; do
-  grep -qE "^ +\+ +$arg" "$WORK/plan-1a.log" \
-    || { grep -E '^ +[+~-] ' "$WORK/plan-1a.log" | head -20; fail "the cold replan does not propose $arg; the shape has changed"; }
+RESKEY1="$(residue_at)"
+log "  residue recorded at ${RESKEY1#$RECORDS/} - the implied store wrote one with no record_store block in sight"
+for arg in filename source_code_hash publish; do
+  grep -q "\"$arg\"" "$RESKEY1" || { cat "$RESKEY1"; fail "the residue record does not carry $arg"; }
 done
-log "  cold replan: 0 to add, 1 to change - filename, publish, source_code_hash"
+grep -q '"description"' "$RESKEY1" \
+  && { cat "$RESKEY1"; fail "the residue record carries description, which the provider DOES return. A record that duplicates a value the cloud answers is a second opinion, and the plan would go empty over real drift."; }
 
-# And applying it does not settle it, which is what makes it never converge
-# rather than merely cost one extra apply.
-APPLY1B="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$APPLY1B" | grep -E '^Error|^│' | head -20; fail "the settling apply failed"; }
+plan_into "$WORK/plan-1a.log" || { tail -25 "$WORK/plan-1a.log"; fail "the phase 1 cold replan exited non-zero"; }
+grep -qE '^No changes\.' "$WORK/plan-1a.log" \
+  || { grep -E '^Plan:|^No changes' "$WORK/plan-1a.log"
+       grep -E '^ +[+~-] ' "$WORK/plan-1a.log" | head -20
+       fail "the phase 1 cold replan is not empty. Issue #275's defect (filename/publish/source_code_hash proposed forever) is back, and the implied local record store (internal/configs/live.go's impliedRecordStore) is not classifying them - read internal/live/projection/residue.go."; }
+log "  No changes. The estate applied with no record_store block, lost its state file, and replanned empty - the implied store did the work."
+
 plan_into "$WORK/plan-1b.log" || { tail -25 "$WORK/plan-1b.log"; fail "the second phase 1 cold replan exited non-zero"; }
-grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy' "$WORK/plan-1b.log" \
+grep -qE '^No changes\.' "$WORK/plan-1b.log" \
   || { grep -E '^Plan:|^No changes' "$WORK/plan-1b.log"
-       fail "the phase 1 diff SETTLED after an apply. That is a better world than the one this script was written in - re-read it."; }
-log "  applying it does not settle it: the identical plan comes back"
+       fail "the SECOND phase 1 cold replan is not empty. One empty plan can come from a read that happened to be fresh; two says the implied store's record is doing the work."; }
+log "  No changes. Still - twice is the record, not a lucky read."
 
-# ── 4. PHASE 2: the record_store, and one apply ─────────────────────────────
-# The ONE edit between the two phases. The store is a directory beside the
-# state file, not the state file: step 5 deletes terraform.tfstate by name
-# and step 4's own assertion reads the record back off disk afterwards, so
-# there is no question of the two being the same thing. A record_store path
-# has to stay inside the module directory - internal/configs refuses an
-# absolute one - which is why it is not somewhere more obviously separate.
+# ── 4. PHASE 2: the same store, spelled out ─────────────────────────────────
+# The ONE edit between the two phases: a record_store block naming exactly
+# the path the implied store already resolves to (impliedRecordStore, "the
+# 'local' backend with no path, which
+# [internal/live/projection.NewRecordStore] resolves to a '.tofu-records'
+# directory beside the module"). If phase 1 and phase 2 ever disagree, either
+# that resolution changed or this fixture's premise that they are the same
+# store did - the whole reason phase 1 above is not just "delete this phase"
+# now that it converges on its own.
 log "=== 4. PHASE 2 (record_store declared): one apply, then replan cold twice ==="
 write_terraform_tf "
     record_store \"local\" {
@@ -273,8 +312,7 @@ log "  $(grep -E 'Apply complete' <<< "$APPLY2" | head -1)"
 # envelope's own "kind" field, not which literal a key starts with, that
 # now keeps a residue-carrying key out of the listing which proposes
 # destroying undeclared records - see record.go's recordKindIdentity.
-RESKEY="$(find "$RECORDS" -type f -path '*tofu-records*' -exec grep -l '"residue":{' {} \; | head -1)"
-[ -n "$RESKEY" ] || { find "$RECORDS" -type f | head -20; fail "no record carrying a residue member was written under tofu-records/"; }
+RESKEY="$(residue_at)"
 log "  residue recorded at ${RESKEY#$RECORDS/}"
 for arg in filename source_code_hash publish; do
   grep -q "\"$arg\"" "$RESKEY" || { cat "$RESKEY"; fail "the residue record does not carry $arg"; }
@@ -305,5 +343,5 @@ log "  No changes. Still."
 
 log ""
 log "PASS: $INSTANCES instances, one filename-deployed Lambda."
-log "  phase 1, no record_store:  1 to change, and applying it does not settle it"
-log "  phase 2, record_store:     one apply, then empty and empty again"
+log "  phase 1, no record_store block (implied local store): residue recorded, empty and empty again"
+log "  phase 2, record_store spelled out explicitly:         the same store, the same result"

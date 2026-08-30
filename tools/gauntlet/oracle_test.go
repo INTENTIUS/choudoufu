@@ -159,11 +159,11 @@ func TestRunEstatesRecordsOracle(t *testing.T) {
 func TestRebuildSetsArtifactOracle(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, "img", OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"})
+	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"})
 	if a.Oracle != (OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}) {
 		t.Errorf("a.Oracle = %+v after Rebuild, want the passed-in value", a.Oracle)
 	}
-	a.Rebuild(m, "img", OracleVersions{Terraform: "1.16.1"})
+	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.1"})
 	if a.Oracle != (OracleVersions{Terraform: "1.16.1"}) {
 		t.Errorf("a.Oracle = %+v after a second Rebuild, want the refreshed value (not carried forward from the first)", a.Oracle)
 	}

@@ -314,26 +314,63 @@ ZIDS="$(grep -E '^Z' "$WORK/ids" | grep -vc '_')"
 log "  $ZONES of them are distinct hosted-zone IDs, one per module call"
 
 # ── 5c. the control ─────────────────────────────────────────────────────────
-# Spell the CNAME names RELATIVE to their zone instead of absolutely. Route
-# 53 treats "2016" in zone rustconf.com as the same object as
-# "2016.rustconf.com.", so every one of the 13 CNAMEs still materialises,
-# still binds the record it already owns, and the plan is still empty. The
-# only thing that changes is the string the run rendered.
-#
-# That is the point of the control. A break the COUNT catches proves nothing
-# about the strings: it just means the instance did not resolve. This one
-# resolves. It has to be caught by the identity, or step 5b is decoration.
+# One instance, module.rustconf_com.aws_route53_record.cname["2016"], loses
+# its persisted record and has its `name` argument rewritten to the bare,
+# un-normalised form ("2016" instead of "2016.rustconf.com."). Every other
+# instance - every other CNAME included - is untouched. With no record to
+# fall back on, the identity for this one instance has to be derived fresh
+# from the (now wrong) configuration, and that derivation does not append
+# the zone's domain: it renders literally "2016", which names nothing in
+# Route 53's own answer. The plan itself stays quiet regardless - nothing
+# about a locally-derived identity string changes what the provider proposes
+# for an object it already believes is unmodified - so this is exactly the
+# case stage 3's own Proves line warns about: "An empty plan alone is not
+# enough: a wrong identity can converge." A break the COUNT catches proves
+# nothing about the strings: it just means an instance did not resolve at
+# all. This one resolves, to the wrong thing. It has to be caught by the
+# identity, or step 5b is decoration.
 #
 # (An earlier version of this control put a second trailing dot on the name.
 # It was caught by the count - 22 identities instead of 35 - because the
 # record then resolves to nothing at all. That is a weaker control and it is
 # recorded here so it is not tried again.)
-log "=== 5c. control: one identity deliberately broken ==="
+#
+# (A second earlier version rewrote the WHOLE for_each's `name` expression to
+# the relative form, for all 13 CNAMEs at once, on the theory that Route 53
+# treats "2016" in zone rustconf.com as the same live object as
+# "2016.rustconf.com." - so every CNAME would still materialise and the plan
+# would stay empty, with only the rendered STRING changing. Checked against
+# stock terraform against the same emulator (issue #541), that theory is
+# false: `name` is ForceNew, and Route 53's own diff logic does not treat a
+# relative and an absolute spelling of the same name as equal - stock
+# proposes "-/+ ... must be replaced" for exactly this edit, and so did
+# choudoufu. Once every CNAME becomes a destroy-then-create pair,
+# "from import identity" only ever appears for the side being DESTROYED -
+# the surviving, still-correctly-bound OLD object, read from its own record
+# - so the count and membership checks below saw all 35 legitimate
+# identities and passed, regardless of what the never-rendered NEW side
+# would have been. That is a control that cannot fail, and it is why this
+# one instead removes a record rather than editing every CNAME's name: with
+# every neighbour's record and configuration untouched, nothing forces a
+# replace, and the one instance under test is exactly where a genuinely
+# lost record leaves it. A pure case change ("2016.RUSTCONF.COM." for
+# "2016.rustconf.com.") was also tried and also rejected: Route 53 names are
+# case-insensitive, both stock and choudoufu treat it as no change at all,
+# and choudoufu's own no-op path keeps the prior, correctly-cased identity -
+# so it cannot be used to force a wrong render either.)
+log "=== 5c. control: one record lost, one identity deliberately wrong ==="
+CONTROL_ADDR='module.rustconf_com.aws_route53_record.cname["2016"]'
+CONTROL_REC="$(grep -rlF "\"address\":\"module.rustconf_com.aws_route53_record.cname[\\\"2016\\\"]\"" "$EST/.tofu-records" 2>/dev/null | head -1)"
+[ -n "$CONTROL_REC" ] && [ -f "$CONTROL_REC" ] \
+  || fail "no record found for $CONTROL_ADDR under $EST/.tofu-records - the record layout or the corpus pin has moved"
+cp "$CONTROL_REC" "$WORK/control-record.bak"
+
 cp "$EST/impl/main.tf" "$WORK/impl.main.tf.orig"
-perl -0pi -e 's/(resource "aws_route53_record" "cname" \{.*?name    = each\.key == "\@" \? "\$\{var\.domain\}\." : )"\$\{each\.key\}\.\$\{var\.domain\}\."/$1each.key # CONTROL/s' "$EST/impl/main.tf"
+perl -0pi -e 's/(resource "aws_route53_record" "cname" \{.*?name    = each\.key == "\@" \? "\$\{var\.domain\}\." : )"\$\{each\.key\}\.\$\{var\.domain\}\."/$1(each.key == "2016" ? each.key : "\${each.key}.\${var.domain}.") # CONTROL/s' "$EST/impl/main.tf"
 grep -q '# CONTROL' "$EST/impl/main.tf" \
   || { grep -n 'name    =' "$EST/impl/main.tf"; fail "the control edit did not match"; }
 
+rm -f "$CONTROL_REC"
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 ( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color ) > "$WORK/plan-break.log" 2>&1
 if assert_identities "$WORK/plan-break.log" "$INSTANCES" > "$WORK/break.out" 2>&1; then
@@ -344,8 +381,16 @@ grep -q 'names no live record set' "$WORK/break.out" \
 log "  the assertion fires, and names the strings:"
 grep 'names no live record set' "$WORK/break.out" | head -3 | sed 's/^/  /'
 
+# The whole point of this control is that the failure above is invisible to
+# anything that only reads the plan's own add/destroy counts - so prove the
+# plan really did stay quiet, rather than assume it.
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan-break.log" \
+  || { grep -E '^  # ' "$WORK/plan-break.log" | head -10; fail "the control's plan is not empty - it is no longer isolated to the one broken identity, and the assertion above may be firing on a replace instead of a wrong string"; }
+log "  and the plan itself proposed nothing: the wrong identity was invisible to it"
+
 cp "$WORK/impl.main.tf.orig" "$EST/impl/main.tf"
 grep -q '# CONTROL' "$EST/impl/main.tf" && fail "the control was not reverted"
+cp "$WORK/control-record.bak" "$CONTROL_REC"
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 
 # ── 6. and it converges ─────────────────────────────────────────────────────

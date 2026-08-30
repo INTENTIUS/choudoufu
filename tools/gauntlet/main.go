@@ -10,6 +10,7 @@
 //	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
 //	go run ./tools/gauntlet next [-n N] [-json]    # the next unit(s) of work, deterministically
 //	go run ./tools/gauntlet run [-set core] [-parallel N] [name] # run crossing scripts, record verdicts, render
+//	go run ./tools/gauntlet behaviors [-all] [-port N] [-parallel N] [id...] # run the tier-1 behavior matrix (#522), record verdicts, render
 //	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
@@ -27,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -43,6 +45,8 @@ func main() {
 		fatalIf(cmdRender(root))
 	case "run":
 		fatalIf(cmdRun(root, os.Args[2:]))
+	case "behaviors":
+		fatalIf(cmdBehaviors(root, os.Args[2:]))
 	case "live-cert":
 		fatalIf(cmdLiveCert(root, os.Args[2:]))
 	case "add":
@@ -75,7 +79,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -175,7 +179,9 @@ func emulatorPin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// loadAll loads manifest and artifact and rebuilds the derived parts.
+// loadAll loads manifest and artifact and rebuilds the derived parts,
+// including the #522 behaviors-proven metric from live/behaviors.json (a
+// missing file loads as an empty index, same rule as LoadArtifact).
 func loadAll(root string) (*Manifest, *Artifact, error) {
 	m, err := LoadManifest(root)
 	if err != nil {
@@ -185,7 +191,11 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
 	return m, a, nil
 }
 
@@ -220,7 +230,11 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -230,6 +244,93 @@ func cmdRun(root string, args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// cmdBehaviors is `gauntlet behaviors` (#522): the tier-1 behavior-matrix
+// runner. By default it runs every fixture in live/behaviors.json whose
+// Runner field is true (the purpose-built "shape" fixtures the ruling
+// formalizes as tier 1), then records pass/fail and wall-clock per
+// fixture, recomputes behaviors_proven, and re-renders.
+//
+// -parallel defaults to defaultBehaviorsParallel (issue #541): the matrix's
+// own sequential sum passed the five-minute bar by four seconds on a loaded
+// machine, which is a coin flip, not a margin - #522's whole argument for
+// tier 1 is that it is a development loop, and a squeaker stops being one.
+// Every default fixture already starts and tears down its own floci
+// container named from its own process id, so nothing about running them
+// concurrently is new work; #525's per-slot port allocator (run.go) is the
+// proven pattern this reuses. -parallel 1 restores the old fully-serial,
+// one-shared-port behavior for debugging a single fixture's timing in
+// isolation.
+//
+// -all runs every independently Runnable fixture regardless of Runner
+// (including the adoption and legacy-demo scripts catalogued but excluded
+// from the default matrix) - useful for auditing the full catalogue's
+// timing, never for the five-minute bar itself, which is about the default
+// set only.
+func cmdBehaviors(root string, args []string) error {
+	fs := flag.NewFlagSet("behaviors", flag.ContinueOnError)
+	all := fs.Bool("all", false, "run every independently runnable fixture, not just the default tier-1 set (Runner=true)")
+	port := fs.Int("port", 0, "FLOCI_PORT for a serial (-parallel 1) run; 0 means DefaultBehaviorsPort")
+	parallel := fs.Int("parallel", defaultBehaviorsParallel, "run this many fixtures concurrently, each against its own isolated floci emulator (#541); 1 is fully serial, byte-for-byte the runner's original behaviour")
+	var envs multiFlag
+	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	commit := headCommit(root)
+	start := time.Now()
+	failures, err := RunBehaviors(root, bi, BehaviorsRunOptions{Names: fs.Args(), All: *all, Port: *port, Parallel: *parallel, Env: envs, Stdout: os.Stdout}, commit)
+	elapsed := time.Since(start)
+	if err != nil {
+		return err
+	}
+	if err := SaveBehaviorIndex(root, bi); err != nil {
+		return err
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	if _, err := Render(root, m, a); err != nil {
+		return err
+	}
+	selected := len(fs.Args())
+	if selected == 0 {
+		selected = countRunner(bi, *all)
+	}
+	fmt.Printf("behaviors: %d fixture(s) run in %s, %d failed; behaviors_proven %d of %d\n", selected, elapsed.Round(time.Millisecond), failures, a.BehaviorsProven, a.BehaviorsTotal)
+	if failures > 0 {
+		os.Exit(1)
+	}
+	return nil
+}
+
+// countRunner reports how many fixtures a Names-less RunBehaviors call
+// selects, purely for cmdBehaviors's own summary line.
+func countRunner(bi *BehaviorIndex, all bool) int {
+	n := 0
+	for _, f := range bi.Fixtures {
+		if all {
+			if f.Runnable {
+				n++
+			}
+			continue
+		}
+		if f.Runner {
+			n++
+		}
+	}
+	return n
 }
 
 // cmdLiveCert is `gauntlet live-cert <estate>` (issue #440): a real-AWS (or,
@@ -412,7 +513,11 @@ func cmdImportLegacy(root string) error {
 			imported++
 		}
 	}
-	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -449,9 +554,13 @@ func StaleFiles(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	bi, err := LoadBehaviorIndex(root)
+	if err != nil {
+		return nil, err
+	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
 		return nil, err
