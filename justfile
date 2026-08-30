@@ -682,6 +682,21 @@ demo-corpus-sqs-basic:
 demo-counted-module:
     bash live/e2e/counted-module/run.sh
 
+# GitHub issue #320's mechanism, ruled in #425: "choudoufu apply -destroy"
+# under a live block generalizes the existing orphan sweep rather than being
+# a separate mechanism, and the refusal on plans.DestroyMode is gone
+# (internal/command/live_mode.go). Five objects across all three #522-
+# mandatory shapes (a count block, a for_each map, a module-nested resource),
+# including a real destroy-order dependency (a subnet inside a VPC), are
+# stood up and torn down twice on the same emulator - once with plain
+# terraform as the oracle, once with choudoufu under a live block and no
+# state - and both empty-account claims are checked by enumerating the live
+# objects rather than trusting a count. A control leaves one resource behind
+# and proves that check goes red. Needs Docker, the AWS CLI, and a real
+# terraform on PATH; runs on its own port (4743).
+demo-destroy-teardown:
+    bash live/e2e/destroy-teardown/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the

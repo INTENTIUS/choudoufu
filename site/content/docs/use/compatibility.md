@@ -198,8 +198,14 @@ An acceptable configuration can still be refused by how it is invoked.
   [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC settles the
   design for tying a reviewed plan to its apply. Not implemented yet.
 - `-json` and `-json-into`.
-- `-destroy` and `-refresh-only`.
+- `-refresh-only`. Both sides of that comparison are the live system here, so
+  there is nothing for it to do.
 - `-state`, `-state-out`, `-backup`, `-generate-config-out`.
+
+`apply -destroy` (and `choudoufu destroy`) work: they remove every object
+this estate owns, in one apply, the same way `apply` after deleting every
+resource block already did - see
+[#320](https://github.com/INTENTIUS/choudoufu/issues/320).
 
 ## Constructs refused outright
 

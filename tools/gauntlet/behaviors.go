@@ -117,7 +117,10 @@ type BehaviorFixture struct {
 	// - for an adoption estate - the count its own header comment states).
 	Resources int `json:"resources,omitempty"`
 	// Needs lists external dependencies beyond `go build`: "docker",
-	// "aws-cli", "corpus" (a populated .corpus/ checkout).
+	// "aws-cli", "corpus" (a populated .corpus/ checkout), or "terraform" (a
+	// real, unmodified terraform binary on PATH - only a fixture that
+	// crosses against stock as its own oracle, rather than trusting
+	// choudoufu to grade itself, needs this one).
 	Needs []string `json:"needs,omitempty"`
 	// DefaultPort is the FLOCI_PORT the script falls back to when the
 	// runner does not override it (measured from the script's own source,
