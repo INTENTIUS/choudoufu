@@ -15,6 +15,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+          # Full history, not the default depth-1 shallow checkout: the fast
+          # test tier below includes TestEveryLastRunCommitIsAnAncestorOfHEAD
+          # (tools/gauntlet, issue #511), which needs real ancestry to check
+          # every gauntlet row's last_run.commit against HEAD. That guard
+          # fails loudly rather than skipping on a shallow checkout - see its
+          # doc comment - so this fetch-depth is what keeps it from doing
+          # that on every normal CI run. contribute.yml already made this
+          # same choice for the same reason.
+          fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod

@@ -77,6 +77,23 @@ stale=[e['name'] for e in g['estates'] if e.get('last_run') and e['last_run'].ge
 if stale:
     shown=', '.join(stale[:8]) + ('...' if len(stale) > 8 else '')
     print(f"stale evidence: {len(stale)} estate(s) last verified against a different (or unrecorded) emulator pin: {shown}")
+# Issue #509/#511: last_run.commit is an "as of this commit" provenance
+# pointer baked into the artifact at run time. A rebase - or, as #523 found,
+# a squash merge - can orphan it with NO textual conflict and no test
+# anywhere noticing, because nothing dereferences the hash string against
+# real git history except this check and tools/gauntlet's own guard
+# (TestEveryLastRunCommitIsAnAncestorOfHEAD). Surfaced here too so a
+# dangling pointer is visible in the one place every session already looks,
+# not only at CI time.
+import subprocess
+def _is_ancestor(sha):
+    return subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'],
+                           capture_output=True).returncode == 0
+dangling=[(e['name'], e['last_run']['commit']) for e in g['estates']
+          if e.get('last_run') and e['last_run'].get('commit') and not _is_ancestor(e['last_run']['commit'])]
+if dangling:
+    shown=', '.join(f"{n} ({c[:10]})" for n, c in dangling[:8]) + ('...' if len(dangling) > 8 else '')
+    print(f"DANGLING PROVENANCE: {len(dangling)} estate(s) last_run.commit is not an ancestor of HEAD (issue #509's class - a rebase or squash merge silently orphaned it): {shown}")
 EOF
 fi
 if have go; then
