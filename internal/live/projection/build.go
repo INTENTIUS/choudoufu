@@ -182,6 +182,14 @@ type Options struct {
 	// Nil (every caller before this field existed) folds nothing in,
 	// leaving BuildWith's output byte-identical to before.
 	DeposedBindings []DeposedBinding
+
+	// ReadParallelism is how many of the read pass's per-instance provider
+	// round trips - one ImportResourceState plus one ReadResource each -
+	// this projection has in flight at once. Zero, the zero value, means
+	// [DefaultReadParallelism]; one reproduces the sequential loop exactly.
+	// See readconcurrency.go (GitHub issue #585) for what is and is not
+	// overlapped, and why the default is what it is.
+	ReadParallelism int
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -388,6 +396,25 @@ type builder struct {
 	// [builder.ambientContext].
 	ambientByProvider map[string]map[string]cty.Value
 
+	// readPrefetch is the concrete phase's in-flight reads, GitHub issue
+	// #585, and is non-nil only for the duration of [builder.run]'s own
+	// concrete loop. [builder.readFor] consults it; every other phase - the
+	// record-first intercept that runs before it, the derived, located and
+	// undeclared loops that run after - finds it nil and reads inline,
+	// exactly as every phase did before it existed.
+	readPrefetch *readPrefetch
+
+	// readWasted and readMismatched are [readPrefetch.finish]'s and
+	// [readPrefetch.mismatches]' answers for the concrete phase: instances
+	// whose read was prefetched and never consumed, and answers a consumer
+	// declined because the plan named a different resolution. Both are always
+	// zero - a non-zero either way is a provider round trip the sequential
+	// pass would not have made, which is the property issue #585 accepts on -
+	// and they are recorded rather than asserted here so a real run degrades
+	// into one extra read rather than a panic.
+	readWasted     []string
+	readMismatched int
+
 	diags tfdiags.Diagnostics
 }
 
@@ -481,8 +508,20 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 		b.omit(r.Addr, ReasonCycle, detail, "its identity formula is part of a cycle and can never be rendered.")
 	}
 
+	// GitHub issue #585: the concrete phase is the read pass's bulk - every
+	// instance whose identity this run already holds, which after discovery
+	// has bound the marker-carrying ones is nearly all of them - and each
+	// instance's ImportResourceState/ReadResource pair is independent of every
+	// other's. The list is built first so that the plan and the loop are
+	// driven from the SAME values rather than from two constructions of them,
+	// and so the two can never disagree about what is being read.
+	//
+	// The loop below is unchanged. [builder.startReadPrefetch] moves the
+	// waiting and nothing else: the same calls, with the same arguments, in
+	// the same order, consumed by the same body one instance at a time.
+	concreteWanted := make([]wanted, 0, len(concrete))
 	for _, r := range concrete {
-		b.materialize(ctx, wanted{
+		concreteWanted = append(concreteWanted, wanted{
 			addr:       r.Addr,
 			importID:   r.ImportID,
 			identity:   r.Identity,
@@ -490,6 +529,14 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 			undeclared: r.Undeclared,
 		})
 	}
+	b.readPrefetch = b.startReadPrefetch(ctx, concreteWanted)
+	for _, w := range concreteWanted {
+		b.materialize(ctx, w)
+	}
+	b.readWasted = b.readPrefetch.finish()
+	b.readMismatched = b.readPrefetch.mismatches()
+	b.readPrefetch = nil
+
 	for _, r := range derived {
 		id, values, ok := b.renderFormula(r)
 		if !ok {
@@ -1769,9 +1816,27 @@ func providerUnavailableSeverity(err error) tfdiags.Severity {
 	return tfdiags.Error
 }
 
-func (b *builder) materialize(ctx context.Context, w wanted) bool {
+// prepareRead is everything [builder.materialize] settles before it reads:
+// which resource block and provider configuration the instance belongs to,
+// the schema to read it against, the import target, and the prior-state seed
+// to read it with. It is the whole of materialize's former head, lifted out
+// unchanged for GitHub issue #585 so that [builder.readPrefetch] can settle
+// it once, in loop order, on this goroutine, and then hand the resulting
+// provider call to a worker.
+//
+// The one change of shape is that a head that decides the instance cannot be
+// read returns that decision as a [readTerminal] rather than appending its
+// own diagnostics and omission on the spot. Nothing else may: a prepared read
+// is computed BEFORE the instances ahead of it in the loop have finished
+// materializing, so anything this function wrote into the builder would land
+// out of order. What it reads is deliberately confined to state no
+// materialize tail ever writes - the configuration, [Options], the provider
+// cache (idempotent and sticky, so asking earlier gives the same answer), and
+// the record store, which nothing writes until write-back long after this
+// pass. [builder.materialize] applies the terminal, and everything else it
+// appends, at its own point in the sequence exactly as it always did.
+func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	addr := w.addr
-	importID := w.importID
 	typeName := addr.Resource.Resource.Type
 
 	modPath := addr.Module.Module()
@@ -1786,9 +1851,12 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 			"Identity resolution produced %s, but that resource block is not in the configuration the projection was given. The configuration and the resolutions do not match.",
 			addr,
 		)
-		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Resolved instance missing from the configuration", detail))
-		b.omitFailed(addr, detail)
-		return true
+		return readPrep{terminal: &readTerminal{
+			diags:  tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(tfdiags.Error, "Resolved instance missing from the configuration", detail)),
+			reason: ReasonFailed,
+			detail: detail,
+			cause:  omitFailedCause,
+		}}
 	}
 
 	providerAddr, providerOK := b.providerFor(rc, modPath, typeName, addr)
@@ -1797,25 +1865,34 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 			"%s is a resource this estate owns whose resource block is no longer in the configuration, and nothing in the configuration says which provider to read a %s through: it declares no provider that could serve the type and the run supplied none. The resource is left alone rather than read.",
 			addr, typeName,
 		)
-		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, "No provider for an undeclared resource", detail))
-		b.omit(addr, ReasonFailed, detail, "no provider could be found to read it through.")
-		return true
+		return readPrep{terminal: &readTerminal{
+			diags:  tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(tfdiags.Warning, "No provider for an undeclared resource", detail)),
+			reason: ReasonFailed,
+			detail: detail,
+			cause:  "no provider could be found to read it through.",
+		}}
 	}
 	entry, err := b.providers.get(ctx, providerAddr)
 	if err != nil {
 		detail := err.Error()
-		b.diags = b.diags.Append(tfdiags.Sourceless(providerUnavailableSeverity(err), "Provider unavailable", fmt.Sprintf(
-			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
-		)))
-		b.omitFailed(addr, detail)
-		return true
+		return readPrep{terminal: &readTerminal{
+			diags: tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(providerUnavailableSeverity(err), "Provider unavailable", fmt.Sprintf(
+				"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
+			))),
+			reason: ReasonFailed,
+			detail: detail,
+			cause:  omitFailedCause,
+		}}
 	}
 
 	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
 	if schemaDiags.HasErrors() {
-		b.diags = b.diags.Append(schemaDiags)
-		b.omitFailed(addr, schemaDiags[0].Description().Detail)
-		return true
+		return readPrep{terminal: &readTerminal{
+			diags:  schemaDiags,
+			reason: ReasonFailed,
+			detail: schemaDiags[0].Description().Detail,
+			cause:  omitFailedCause,
+		}}
 	}
 
 	// GitHub issue #287 item 8 (and #395, #376): seed BEFORE the read, not
@@ -1872,7 +1949,42 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		attrsSeed[name] = val
 	}
 
-	obj, importStub, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, w.values, attrsSeed, attrsSeedMarks)
+	return readPrep{
+		rc:             rc,
+		modPath:        modPath,
+		providerAddr:   providerAddr,
+		entry:          entry,
+		schema:         schema,
+		target:         importTarget(w, schema),
+		attrsSeed:      attrsSeed,
+		attrsSeedMarks: attrsSeedMarks,
+	}
+}
+
+func (b *builder) materialize(ctx context.Context, w wanted) bool {
+	addr := w.addr
+	importID := w.importID
+	typeName := addr.Resource.Resource.Type
+
+	// GitHub issue #585: the plan for this read, and the answer to it, come
+	// from [builder.readPrefetch] when the concrete phase started one for
+	// this instance, and are computed here and now when it did not. Either
+	// way the plan was built by [builder.prepareRead] from the same inputs
+	// and the call was made by [importAndRead] with the same arguments; all
+	// that moves is which goroutine waited for the network.
+	f := b.readFor(ctx, w)
+	if t := f.prep.terminal; t != nil {
+		b.diags = b.diags.Append(t.diags)
+		b.omit(addr, t.reason, t.detail, t.cause)
+		return true
+	}
+	rc := f.prep.rc
+	modPath := f.prep.modPath
+	providerAddr := f.prep.providerAddr
+	entry := f.prep.entry
+	schema := f.prep.schema
+	attrsSeed := f.prep.attrsSeed
+	obj, importStub, status, matDiags := f.obj, f.importStub, f.status, f.diags
 
 	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
 		// The record's binding did not pan out - the provider found
@@ -3728,11 +3840,17 @@ func (b *builder) omit(addr addrs.AbsResourceInstance, reason Reason, detail, ca
 	b.causes[key] = cause
 }
 
+// omitFailedCause is [builder.omitFailed]'s cause clause, named so that
+// [readTerminal] - which records what a prepared read decided so that
+// [builder.materialize] can apply it in loop order rather than at plan time -
+// can spell the identical omission without a second copy of the sentence.
+const omitFailedCause = "reading it from the provider failed."
+
 // omitFailed is the common case: an omission that also produced an error
 // diagnostic, so the detail is already written and the cause is the same
 // for all of them.
 func (b *builder) omitFailed(addr addrs.AbsResourceInstance, detail string) {
-	b.omit(addr, ReasonFailed, detail, "reading it from the provider failed.")
+	b.omit(addr, ReasonFailed, detail, omitFailedCause)
 }
 
 func needsDiscoveryDetail(r identity.Resolution) string {
