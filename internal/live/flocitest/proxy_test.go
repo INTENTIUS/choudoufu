@@ -135,6 +135,33 @@ func TestIsContinuationRequestJSONBody(t *testing.T) {
 		t.Fatalf("a JSON body carrying a non-empty nextToken must read as a continuation")
 	}
 
+	// The Resource Groups Tagging API's own cursor (issue #584). This is
+	// the sweep's tagging leg, so a blind spot here reports the one call
+	// choudoufu's marker discovery depends on as unpaginated at every
+	// scale - which is exactly what happened until #584 measured
+	// GetResources rising 1 -> 2 -> 4 while PaginationTotal stayed 0.
+	tagFirst, err := http.NewRequest(http.MethodPost, "http://example/", strings.NewReader(`{"TagFilters":[{"Key":"tofu-estate"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isContinuationRequest(tagFirst) {
+		t.Fatalf("a GetResources body with no PaginationToken must not read as a continuation")
+	}
+	tagCont, err := http.NewRequest(http.MethodPost, "http://example/", strings.NewReader(`{"TagFilters":[{"Key":"tofu-estate"}],"PaginationToken":"100"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isContinuationRequest(tagCont) {
+		t.Fatalf("a GetResources body carrying a non-empty PaginationToken must read as a continuation")
+	}
+	tagEmpty, err := http.NewRequest(http.MethodPost, "http://example/", strings.NewReader(`{"TagFilters":[{"Key":"tofu-estate"}],"PaginationToken":""}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isContinuationRequest(tagEmpty) {
+		t.Fatalf("an EMPTY PaginationToken is what the API echoes on the last page; it must not read as a continuation")
+	}
+
 	// Route53's REST query-parameter style (ListResourceRecordSets paging).
 	restCont, err := http.NewRequest(http.MethodGet, "http://example/2013-04-01/hostedzone/Z1/rrset?name=foo.&type=A&StartRecordName=bar.", http.NoBody)
 	if err != nil {

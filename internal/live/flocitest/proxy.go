@@ -220,13 +220,27 @@ func actionOf(r *http.Request) string {
 // services use to carry a "give me the page after this one" cursor, across
 // every wire shape [actionOf] already distinguishes: IAM/EC2/STS's
 // query-protocol Marker/NextToken form fields, ECS/Cloud Control's JSON RPC
-// nextToken/NextToken body field, and Route53's REST-XML
+// nextToken/NextToken body field, Route53's REST-XML
 // StartRecordName/StartRecordType/StartRecordIdentifier query parameters
-// (ListResourceRecordSets) plus its ListHostedZones marker. A name appears
-// in whichever casing that service actually sends; matching is
+// (ListResourceRecordSets) plus its ListHostedZones marker, and the
+// Resource Groups Tagging API's PaginationToken. A name appears in
+// whichever casing that service actually sends; matching is
 // case-insensitive so one list covers both.
+//
+// PaginationToken was missing until issue #584 and its absence mattered
+// more than any other entry would have, because the one call the estate-wide
+// sweep's tagging leg makes is a GetResources against exactly that API. With
+// it missing, every measurement this harness has produced reported
+// pagination_total = 0 while the tagging leg was in fact fetching a page per
+// 100 tagged resources - floci's ResourceGroupsTaggingService defaults
+// resourcesPerPage to 100 and returns a nextPaginationToken whenever more
+// remain. The measured GetResources counts (1, 2 and 4 calls at 38, 137 and
+// 335 tagged resources) are ceil(n/100) exactly. So "floci returns a single
+// page unconditionally" (lex00/floci#185) does not hold for this service,
+// and a document repeating it about GetResources specifically is wrong.
 var continuationParams = []string{
 	"marker", "nexttoken", "next-token", "continuationtoken",
+	"paginationtoken",
 	"startrecordname", "startrecordtype", "startrecordidentifier",
 }
 
