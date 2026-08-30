@@ -1,7 +1,10 @@
 ## Working on choudoufu specifically
 
-This page is OpenTofu's and applies here. Two fork-specific pages sit
-alongside it:
+This page is OpenTofu's, and its guidance on writing Go, testing, and
+copyright applies here unchanged. Where it names a process, a label or a
+repository, it means upstream OpenTofu's: pull requests, issues and design
+records for this fork go to this repository, and choudoufu files nothing with
+any other project. Two fork-specific pages sit alongside it:
 
 - [`.claude/agents/live-markers.md`](../.claude/agents/live-markers.md) is
   the operational brief: how to run the tests, which claims about this

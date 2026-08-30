@@ -115,9 +115,17 @@ sits and who already holds a key to that place.
 
 `local` puts the values in a working copy that is yours to protect, and the
 protection is a `.gitignore` line. `ssm` and `s3` put them in a live AWS
-account, under that account's access controls rather than yours, and
-[`choudoufu destroy` leaves records behind]({{< relref "/docs/use/setup#nothing-cleans-the-record-store-up" >}}),
-so the residue outlives the estate that wrote it.
+account, under that account's access controls rather than yours, and the
+residue outlives the estate that wrote it, which is the next section.
+
+### Nothing cleans the store up
+
+`choudoufu destroy` destroys the resources and leaves records behind. A
+two-resource estate destroyed down to nothing left its guided hint and one
+resource's record still in the store.
+
+On `local` that is a directory to delete. On `ssm` and `s3` it is residue in a
+live account, and removing it is yours to do.
 
 `strict { secrets = "refuse" }` is the other setting, and it is the principle
 this design exists for: those types are refused rather than recorded, so
@@ -187,5 +195,6 @@ That default is deliberate and the reasoning is written down, along with what
 `SecureString` would buy and cost, in
 [the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-ssm-record-parameter-type-ruling.md).
 
-[What you set up by hand]({{< relref "/docs/use/setup" >}}) has the failure
-mode for each backend, and what a `destroy` leaves behind in the store.
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
+backend needs to exist before the first plan, and the failure mode when it
+does not.

@@ -54,8 +54,13 @@ them together is what turns persistence into a permission boundary, a secret,
 and a thing to lock.
 
 Identity is the only one that must be authoritative, and it is the one AWS can
-already answer. Because ownership rides on the resources, a projection of it is
-allowed to go stale. Rebuilding one costs a read.
+already answer. Because ownership rides on the resources, anything derived
+from it is allowed to go stale: a projection, a cache, a state file. Losing
+one costs a read, not an estate. That is the property this fork's charter
+rests on, and
+[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md)
+states it and its one hard limit, which is that a marker's absence proves
+nothing, so an unconfirmable entry is re-read rather than assumed.
 
 Values and effects stay small. Most estates declare no record store at all.
 
