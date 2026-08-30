@@ -45,7 +45,7 @@ gap in the generator, not something this run resolves.
 | `choudoufu plan`, pre-migration (establishes the ratio) | 7.5s | 2.6s |
 | `choudoufu live-import` (ratify, read-only) | **1.475s** | **1.479s** |
 | `choudoufu live-import -approve` (stamp) | **33.1s** | **127.6s** |
-| `choudoufu plan`, post-migration | 273.6s (4:33.6) | 680.5s (11:20.5) |
+| `choudoufu plan`, post-migration — **not plan cost**, see the correction below: 267s of this is #572 | 273.6s (4:33.6) | 680.5s (11:20.5) |
 | Final plan empty? | **No — 3/55 unresolved** | **No — 9/205 unresolved** |
 
 Ratify and stamp are genuinely different costs, as the issue predicted: ratify
@@ -66,6 +66,49 @@ against floci — not CPU-bound. This is a day-2 planning cost, not a migration
 cost, but it showed up inside the acceptance criterion ("plan again, require
 empty") and is too large to leave unreported. It was not this issue's job to
 diagnose further; #565/#546E own the emulator-cost question.
+
+> **Correction (2026-08-30, the #588 audit unit).** The paragraph above is
+> wrong about its own cause, and the two figures in its table row are not
+> plan cost. **267 of the 273.6 seconds are issue #572.** The last two
+> sentences are the correct part: further diagnosis was needed.
+>
+> `versions.tf`'s `skip_requesting_account_id = true` makes ECS identity
+> resolution build an account-ID-less cluster ARN
+> (`arn:aws:ecs:us-east-1::cluster/<name>`), and the AWS provider's
+> `aws_ecs_service` read then retries `ECS/DescribeServices` against it about
+> every 10 seconds until it gives up. Reproduced four consecutive times, at
+> this document's own base commit and pre-#574 estate as well as at current
+> `main` and the post-#574 one: **273.95s / 273.56s / 273.48s / 274s wall,
+> against 3.1s user CPU and 0.7s sys**, with 36 `unretryable error ...
+> ClusterNotFoundException: Cluster not found:
+> arn:aws:ecs:us-east-1::cluster/<name>` attempts 10.0s apart in a
+> `TF_LOG=DEBUG` capture. Then the single-variable control: two adopted
+> directories byte-identical except that one has that provider line deleted,
+> same container, same markers, same records — **274s and not empty, versus
+> 7s and `No changes.`**
+>
+> So this is a fixed stall from one configuration line on one resource type,
+> not a per-resource read cost. "Each of the now-tagged resources gets read
+> and diffed individually" describes one resource, not each. And the idle
+> floci container cited as evidence for network-boundedness is evidence
+> against it: `docker stats` measures the emulator, and an emulator at 2% CPU
+> for 680 seconds means the caller is blocked, not that the network is slow.
+>
+> `live/live-cert/terralith-scale.sh` omits `skip_requesting_account_id`
+> deliberately, citing #572, which is why its `test_plan` stage — the same
+> full post-migration `choudoufu plan`, same generated estate, same pin —
+> reads 2s rather than 273.6s. The two figures never disagreed about plan
+> cost; one carries #572 and the other does not. Neither should be quoted as
+> what a plan costs: `live/plan-budget.json` and
+> `site/content/docs/model/plan-cost.md` report call counts for that reason.
+> #584 hit the same 273-274s stall independently across nine runs and
+> attributed it to floci; the control above shows the trigger is the provider
+> block, and that the same estate plans empty against floci once the line is
+> gone.
+>
+> Not re-measured: the scale-4 row. 680.5s is 2.5x the scale-1 figure rather
+> than the 4x four ECS services stalling serially would give, so the stall is
+> presumably partly concurrent there — recorded as unverified, not explained.
 
 ## The automatic-vs-hand-written ratio
 

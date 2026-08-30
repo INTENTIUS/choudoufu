@@ -3,9 +3,11 @@
 Almost every measurement in this repository is taken against floci, the AWS
 emulator `live/floci-image` pins. That is deliberate: it is fast, free, and
 it starts empty, so a fixture's own resources are the only ones in the
-account. This file is the other half of that bargain. Four things floci
-cannot show, each because of how the emulator is built rather than because
-the fixture was too small, and each with a real incident behind it.
+account. This file is the other half of that bargain. Four things a
+floci-backed measurement will not tell you, each because of how the emulator
+or the harness around it is built rather than because the fixture was too
+small, and each with a real incident behind it. Section 2 is the one where
+the harness, not the emulator, turned out to be the blind half.
 
 Read this before writing a fixture, and before quoting a number that came
 out of one. The per-type question ("does floci implement `aws_foo`?") is a
@@ -49,35 +51,57 @@ not, and no amount of green floci runs converts one into the other.
 
 ## 2. Pagination
 
-floci returns every list in a single page, at any size these fixtures reach
-(lex00/floci#185).
+floci returns the native list APIs these fixtures reach in a single page
+(lex00/floci#185). It does **not** do that for `GetResources`, and an earlier
+version of this section said it did.
 
-`internal/live/discovery/terralith_ceiling_bench_test.go` reads
-`pagination_total = 0` at every tier it measures, including a scale=80 run
-carrying 480 `aws_iam_policy` instances — 4.8x real AWS's documented 100-item
-default page size for `ListPolicies` — and 80 `aws_ecs_task_definition`
-instances returned by one `ListTaskDefinitions` call. Confirmed outside
-choudoufu entirely, with the plain `aws` CLI against a fresh container and
-`--max-items`/`--max-results` given explicitly: 150 IAM policies and 120 ECS
+The native half still holds, and it holds because it was checked outside
+choudoufu entirely: with the plain `aws` CLI against a fresh container and
+`--max-items`/`--max-results` given explicitly, 150 IAM policies and 120 ECS
 task definitions each come back in one response, `IsTruncated`/`nextToken`
-unset.
+unset. `internal/live/discovery/terralith_ceiling_bench_test.go`'s scale=80
+tier agrees from the inside: 480 `aws_iam_policy` instances — 4.8x real AWS's
+documented 100-item default page size for `ListPolicies` — in lists that
+never continue.
 
-So **`GetResources = 1` in a floci measurement is a property of the
-emulator**, not a finding about the sweep. `cloudcontrol.Client.GetResources`
-paginates `PaginationToken` to exhaustion and sets no `ResourcesPerPage`; the
-real page count is a property of the Resource Groups Tagging API that no
-floci-backed run reports. This is not a "the estate needs to be bigger"
-limit. No floci-backed N will ever produce a nonzero answer here.
+### The Resource Groups Tagging API does paginate, and the instrument could not see it
 
-Real AWS does paginate, and the one run that looked found something worth
-keeping. #567's `test_plan` stage counted **9 pagination-continuation lines
-at scale 1 and the same 9 at scale 4**, traced to SageMaker's `ListHubs`
-returning a `NextToken` for an AWS-managed hub the estate never declares:
-flat across a 4x resource increase, from a type the configuration does not
-contain, which is the O(types) shape observed rather than argued. Those are
-debug-log continuations across the whole sweep, not `GetResources` pages.
-**The real `GetResources` page count is still unmeasured**, and nothing that
-runs against floci will change that.
+#584 read `ResourceGroupsTaggingService.java:165` and then measured it: floci
+sets `resourcesPerPage` to 100 and returns a `nextPaginationToken` whenever
+more remain. The tagging leg took **1, 2 and 4 `GetResources` calls for 38,
+137 and 335 tagged resources** — `ceil(n/100)` exactly, at every point.
+
+Every prior run in this repository nevertheless reported
+`pagination_total = 0`, including the ones this section used to cite. The
+reason was not the emulator. `flocitest.CountingProxy` recognises a
+continuation by the request's token field name, and its list of names did not
+include `PaginationToken` — so the one API that was actually paging was the
+one API the counter could not count. `internal/live/flocitest/proxy.go` now
+carries that name and a note saying why ("PaginationToken was missing until
+issue #584 and its absence mattered"), and #584 proved the guard red before
+trusting it green.
+
+**This is the most instructive entry in this file**, because it is not floci
+being unlike AWS. It is a confident claim — "no floci-backed N will ever
+produce a nonzero answer here" — derived from an instrument that was blind to
+the field it was reporting on. A zero from a counter is only as good as the
+counter's own coverage, and nothing about a zero announces which of the two
+it is. Before quoting any `pagination_total`, check whether the run predates
+`811df3add9`: if it does, its zero means nothing about `GetResources`.
+
+What is still unmeasured is the **real** page size. floci's 100 is floci's
+constant; `cloudcontrol.Client.GetResources` paginates `PaginationToken` to
+exhaustion and sets no `ResourcesPerPage`, so what the Resource Groups
+Tagging API itself does still needs a real-AWS run.
+
+Real AWS's native lists do paginate, and the one run that looked found
+something worth keeping. #567's `test_plan` stage counted **9
+pagination-continuation lines at scale 1 and the same 9 at scale 4**, traced
+to SageMaker's `ListHubs` returning a `NextToken` for an AWS-managed hub the
+estate never declares: flat across a 4x resource increase, from a type the
+configuration does not contain, which is the O(types) shape observed rather
+than argued. Those are debug-log continuations across the whole sweep, not
+`GetResources` pages.
 
 ## 3. Wall clock
 
@@ -98,14 +122,77 @@ be one.
 
 Real-AWS wall clock is a different quantity again, dominated by network
 latency rather than by the estate: #567's `test_plan` stage took 199s at
-scale 1 and 223-226s at scale 4, near flat across a 4x resource increase. A
-floci wall clock and a real-AWS wall clock for the same stage are not two
-measurements of one thing and should never be subtracted or divided.
+scale 1 and 223-226s at scale 4, near flat across a 4x resource increase.
+
+### The 273-second stall, and what it says about comparing wall clocks
+
+An earlier version of this section said a floci wall clock and a real-AWS
+wall clock for the same stage "should never be subtracted or divided." That
+was a holding position taken because two figures for what looked like the
+same operation sat 100x apart with no explanation. There is one now, and it
+is more useful than the rule it replaces.
+
+The two figures were:
+
+- **~2-3s**, `live/live-cert/terralith-scale.sh`'s `test_plan` stage against
+  floci — a full post-migration `choudoufu plan`, asserted empty.
+- **273.6s** (scale 1) and **680.5s** (scale 4),
+  `live/e2e/terralith-scale/MIGRATION.md`'s `choudoufu plan, post-migration`
+  row against floci.
+
+They are the same operation on the same generated estate against the same
+pin, and the gap is **one defect, not a cost**. `tools/terralith-gen` emits
+`skip_requesting_account_id = true`; with it set, ECS identity resolution
+builds an account-ID-less ARN (`arn:aws:ecs:us-east-1::cluster/<name>` —
+issue #572), and the AWS provider's `aws_ecs_service` read then retries
+`ECS/DescribeServices` against that ARN roughly every 10 seconds until it
+gives up. `live/live-cert/terralith-scale.sh` omits that setting on purpose,
+citing #572, which is the whole of why its `test_plan` is seconds.
+
+Measured on this branch, four consecutive plans on one directory: **273.95s,
+273.56s, 273.48s, 274s wall — against 3.1s of user CPU and 0.7s of sys.**
+choudoufu is not computing and floci is not serving; the process is asleep in
+a backoff. The debug log carries 36 `unretryable error ...
+ClusterNotFoundException: Cluster not found:
+arn:aws:ecs:us-east-1::cluster/<name>` attempts spaced 10.0s apart, spanning
+essentially the whole run.
+
+Then the single-variable control. Two adopted directories, byte-identical
+except that one has `skip_requesting_account_id = true` deleted, same floci
+container, same markers, same records:
+
+```
+A  wall=274s  plan is NOT empty
+B  wall=7s    plan is EMPTY ("No changes. Your infrastructure matches ...")
+```
+
+So the ~267s is a fixed stall from one configuration line, on one resource
+type, independent of estate size — not plan cost, and not floci latency.
+`live/e2e/terralith-scale/MIGRATION.md`'s own diagnosis ("network/API-latency
+bound — each of the now-tagged resources gets read and diffed individually")
+is the wrong reading of its own evidence: it is one resource, not each, and
+the idle floci container it cited as proof of network-boundedness was
+evidence against that conclusion rather than for it. `docker stats` measures
+the emulator, and an idle emulator during a 680-second plan means the caller
+is blocked, not that the network is slow.
+
+**The rule this replaces the holding position with.** Two wall clocks for the
+same stage in different environments are comparable when the stage is the
+same stage — `live/live-cert/terralith-scale.sh` run with `TARGET=floci`
+versus `TARGET=aws` is one script, one estate, one code path, and its ~2-3s
+against ~200-226s is a fair statement about per-call latency over a ~525-type
+sweep. What is never comparable is a wall clock carrying a stall against one
+that does not. Before dividing two of them, account for the whole of the
+larger one: 267 of MIGRATION.md's 273.6 seconds are #572, and a ratio built
+on that number is measuring a bug.
 
 **What to do.** Count calls. If a wall clock has to be reported, report it
 beside the machine and the pin, and never assert on it. `live/e2e/`'s
 tagging-sweep harness prints both wall clocks and asserts neither, for
-exactly this reason.
+exactly this reason. And when one wall clock is far larger than another,
+find out where the time went before naming the difference — CPU-versus-wall
+(`/usr/bin/time -l`) separates "computing" from "waiting" in one run, and a
+timestamped `TF_LOG=DEBUG` capture names what it waited on.
 
 ## 4. Throttling
 
@@ -117,6 +204,15 @@ The only `throttleSettings`/`rateLimit` strings in
 fields in a resource's own schema, not emulator behaviour. The ceiling
 benchmark reads `throttle_total = 0` at every tier including its 4817-call
 scale=80 run.
+
+That zero survives section 2's lesson, but check the reasoning rather than
+taking it: `isThrottleResponse` keys on HTTP 429 and on an error body naming
+`Throttling`/`TooManyRequests`/`SlowDown`/`RequestLimitExceeded`, none of
+which is a per-API field name, so the `PaginationToken` blindness has no
+analogue here. It is still an enumerated list with a safe default, which is
+the shape that produced the pagination error — the difference is that this
+claim does not rest on the counter alone. floci implements no rate limiting
+in the first place, so there is nothing for a counter to miss.
 
 Real AWS throttles, escalates non-linearly, and absorbs it. From #567's
 live-AWS run against a real account (`us-east-2`, IAM
