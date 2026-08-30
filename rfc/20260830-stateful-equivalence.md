@@ -52,6 +52,9 @@ one of them is a reason not to install the binary.
    `live/live-cert/terralith-scale.sh` uses for floci, the same plan on the
    same estate at the same commit takes 2.73s and is **empty**. The
    difference is 35 retried `ecs:DescribeServices` calls, which is issue #572.
+   `rfc/20260830-slicing-under-choudoufu.md` saw both symptoms and concluded
+   they were a floci defect; they are a property of the fixture's provider
+   block, and they reproduce and disappear on the same emulator.
 
 6. **#580's fix holds end to end at scale 4, which the fixing unit said it had
    not verified.** The migrated terralith at `-scale 4` plans **empty**:
@@ -298,19 +301,39 @@ cause `live/live-cert/terralith-scale.sh`'s own doc comment already names —
 "`skip_requesting_account_id` (root cause of #572, the ECS
 identity-resolution defect)". An ECS ARN carries the account id.
 
-Two consequences, stated with their limits:
+Three consequences, stated with their limits.
 
-- **`rfc/20260830-slicing-under-choudoufu.md`'s "744" for a scale-1 migrated
-  projection is inflated by 34 calls**, and its "148" for stock by 2 (this
-  measurement reads 710 and 150 with the corrected block). The 4.6% does not
-  disturb that document's conclusions, all of which are ratios between
-  configurations that share the fixture.
-- **#582's "its post-migration plan ran *slower* than real AWS (273.6s vs
-  209s at scale 1)" is numerically identical to what the defective provider
-  block produces here.** I did not run #582's measurement and cannot say its
-  273.6s has this cause; I can say that a run with the generator's own block
-  reproduces it to three significant figures and that fixing the block moves
-  it to 2.73s. That figure should be re-derived before it is quoted again.
+**`rfc/20260830-slicing-under-choudoufu.md` saw this and attributed it to the
+emulator.** Its "What this does not cover" section reports "the 273-second
+`DescribeServices` retry loop" as one of two ways "the emulator's own behaviour
+around them is visibly broken", and concludes of the three ECS creates:
+"Worth a floci issue; not a choudoufu one." **On this evidence it is neither.**
+Both symptoms — the three creates and the 273 seconds — are gone on the same
+emulator, at the same pin, when the provider block loses
+`skip_requesting_account_id`. They are a property of the fixture's provider
+configuration, not of floci and not of the fork. That also removes the puzzle
+that section was reasoning about: "the same three resources plan empty against
+AWS and non-empty against floci" is explained without any AWS/floci fidelity
+gap, because `live/live-cert/terralith-scale.sh`'s `provider_block` omits
+`skip_requesting_account_id` for **both** targets, which is why its `test_plan`
+stage can assert "No changes" on either.
+
+**Its CLI-plan call counts move; its in-process split does not.** That
+document's 744 for a scale-1 migrated CLI plan reads 710 here with the
+corrected block, and its 148 for a stock CLI plan reads 150. Its
+sweep/read-pass table (558 + 148 = 706 at scale 1, 592 + 556 = 1148 at scale 4)
+comes from `slicing_bench_test.go` in process, not from a CLI plan, and is
+independently corroborated by this measurement to within 4 calls at both
+scales — the 4 being the corrected block's own `GetCallerIdentity` and
+`GetUser` pairs. Every conclusion in that document is a ratio between
+configurations that share the fixture, so none of them moves.
+
+**#582's "its post-migration plan ran *slower* than real AWS (273.6s vs 209s
+at scale 1)" is numerically identical to what the generator's provider block
+produces here.** I did not run #582's measurement and cannot say its 273.6s has
+this cause; I can say that a run with the generator's own block reproduces it
+to three significant figures, that fixing the block moves it to 2.73s, and that
+that figure should be re-derived before it is quoted again.
 
 **Direction of the correction.** This change moved the result strongly in
 choudoufu's favour, which is the direction a measurement should be most
@@ -375,3 +398,8 @@ call ratio (not 60x) is what the stateless path actually costs in work.
   captured to show the retry loop directly.
 - **`estate.chdf.hcl` in a stateful directory** (unconditional item 2) was
   read from the parser, not exercised.
+- **The independent corroboration runs one way only.** This measurement's
+  migrated totals (710, 1152) agree with `plan-cost.md`'s (706, 1148) to
+  within four calls, but both come from the same generator, the same
+  emulator pin and the same machine; agreement here is not independence of
+  the fixture.
