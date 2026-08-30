@@ -107,7 +107,8 @@ why the sidecar is the leading one.
 ### Deleting the state file is not enforced
 
 [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) tells you to
-delete the state file when you add the sidecar. Nothing checks that you did.
+keep the state file until the migration is done, and makes deleting it an
+optional last step. Nothing checks that you did either one.
 
 A leftover `terraform.tfstate` is not read, not refused, and not mentioned. A
 plan run beside one proposes creating every resource the file names, exactly
@@ -115,11 +116,11 @@ as if the file were not there, because prior state now comes from markers and
 the markers are not on those resources yet. The file's presence is not the
 hazard. Believing it still counts for something is.
 
-There is one ordering consequence, and it is easy to get wrong: **`choudoufu
-live-import` reads that state file.** If your estate uses `count` or
-`for_each`, the bulk path below is the one you want, and deleting the state
-file first throws away its only input. Run `live-import` before the deletion,
-not after.
+That harmlessness is why the ordering is safe to get right: **`choudoufu
+live-import` reads that state file**, and it is the command's only input. If
+your estate uses `count` or `for_each`, the bulk path below is the one you
+want, and deleting the state file first throws that input away. Run
+`live-import` before the deletion, not after.
 
 ## The record store
 
@@ -302,9 +303,9 @@ The first run writes nothing and prints a ratification report. The second
 stamps. On the five-resource estate above it stamped every `count` index and
 every `for_each` key correctly, including the `tofu-slot` tag `count`
 instances carry, and the following plan reported no changes. The command
-announces itself as EXPERIMENTAL in its own help text, which
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) does not
-mention.
+announces itself as EXPERIMENTAL in its own help text;
+[Migrate an existing estate]({{< relref "/docs/use/migrate#moving-a-large-estate-in-one-go" >}})
+says what that label covers and what it does not.
 
 **By hand, per instance.** The address goes on the tag escaped, per
 `live/MARKERS.md`: `[` becomes `:`, and `]` and `"` are deleted. So
