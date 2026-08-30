@@ -719,6 +719,86 @@ func TestDiscoverNoTags(t *testing.T) {
 	}
 }
 
+// TestDiscoverUnownedUnreadableDuringSweepDoesNotAbortPlan is issue #531: an
+// AWS-managed default resource the estate never declared and never created -
+// measured against a real account, a cross-account aws_ssm_patch_baseline
+// whose tags genuinely cannot be read (ssm:ListTagsForResource returns
+// InvalidResourceId for one that belongs to another account) - must not
+// abort the whole plan. The type is undeclared, so this is the sweep leg
+// ([scanType]'s sweep==true branch), and "not ours" is the correct verdict
+// regardless of why the tags could not be read: the estate's own config
+// never mentioned this type, so nothing here could ever have been a
+// resource this run needed to bind.
+func TestDiscoverUnownedUnreadableDuringSweepDoesNotAbortPlan(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.listable("aws_ssm_patch_baseline") // undeclared by the fixture - the sweep leg, not the declared-type leg
+	// The real aws_ssm_patch_baseline list config schema carries no filter
+	// block at all (measured against provider 6.59.0: the only argument is
+	// "region"), so - like the fake's own aws_kms_key/aws_route53_zone/etc -
+	// it must be marked unfiltered here too. Left server-side-filterable, the
+	// fake's own estate-tag filter would silently drop the untagged fixture
+	// object below before it ever reached the code under test.
+	cloud.noFilter("aws_ssm_patch_baseline")
+	cloud.objResultError("aws_ssm_patch_baseline", "pb-0aws-owned-default")
+
+	res, diags := discoverFixture(t, cloud, Request{
+		Sweep:      true,
+		SweepTypes: []string{"aws_ssm_patch_baseline"},
+	})
+	if diags.HasErrors() {
+		t.Fatalf("an unowned, unreadable object of an undeclared type aborted the plan:\n%s\n%s", diags.Err(), res)
+	}
+	if got := res.ProblemsOfKind(ProblemNoTags); len(got) != 0 {
+		t.Errorf("ProblemNoTags fired for an object this estate never declared:\n%s", renderProblems(got))
+	}
+	var gaps []SweepGap
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_ssm_patch_baseline" {
+			gaps = append(gaps, g)
+		}
+	}
+	if len(gaps) != 1 {
+		t.Fatalf("want exactly one sweep gap for aws_ssm_patch_baseline, got %d:\n%s", len(gaps), res)
+	}
+	if gaps[0].Reason != SweepGapObjectUntagged {
+		t.Errorf("sweep gap reason = %v, want SweepGapObjectUntagged: %s", gaps[0].Reason, gaps[0])
+	}
+	if len(res.Unclaimed) != 0 {
+		t.Errorf("an unreadable object was classified as unclaimed rather than left unreadable:\n%s", res)
+	}
+}
+
+// TestDiscoverOwnedUnreadableDuringOwnScanStillErrors is #531's other half
+// and the reason the fix above cannot simply ignore every read failure: a
+// per-result error on one of the estate's OWN declared resources (the type
+// IS in the configuration, so sweep is false and this is the declared type's
+// own scan) must still be reported as an error. Trusting whatever partial
+// tag data came back with the error - here, the object still carries
+// perfectly good ownership tags underneath, which is deliberate: the point
+// is that carrying an error diagnostic must override that regardless of
+// what the rest of the object looks like - would silently read an owned,
+// unreadable resource as untagged and let the plan propose creating a
+// duplicate. That is exactly the "ours, unreadable" case live/MARKERS.md and
+// this project's safety rule require to stay an error.
+func TestDiscoverOwnedUnreadableDuringOwnScanStillErrors(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.ownResultError("aws_vpc", "vpc-1", `aws_vpc.main`)
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if !diags.HasErrors() {
+		t.Fatalf("a declared resource's own unreadable list result produced no error:\n%s", res)
+	}
+	if len(res.ProblemsOfKind(ProblemNoTags)) != 1 {
+		t.Fatalf("want one no-tags problem for the declared, unreadable aws_vpc.main:\n%s", res)
+	}
+	if _, ok := res.BindingFor(mustAddr(t, `aws_vpc.main`)); ok {
+		t.Error("an unreadable declared resource was bound as if its tags had been read cleanly")
+	}
+	if len(res.Unclaimed) != 0 {
+		t.Errorf("an unreadable resource was classified as unclaimed:\n%s", res)
+	}
+}
+
 // TestDiscoverNoTagsIsGracefulForAnUntaggableType is issue #322: a listed
 // object of a type whose OWN SCHEMA carries no tags attribute at all (real
 // examples: aws_iam_role_policy, aws_s3_bucket_policy) is not a provider
@@ -906,6 +986,15 @@ type fakeObject struct {
 	extra      map[string]string
 	noIdentity bool
 	noObject   bool
+	// resultError makes the emitted list event carry a per-result error
+	// diagnostic (issue #531): the real shape of an AWS-managed default
+	// resource this account does not own, whose tags the provider genuinely
+	// could not read (measured against a real account: ssm:ListTagsForResource
+	// returns InvalidResourceId for a cross-account default
+	// aws_ssm_patch_baseline). The object is still delivered - see
+	// [providers.ListResourceEvent.Diagnostics]'s own doc comment - which is
+	// what tells this apart from noObject (the provider sent nothing at all).
+	resultError bool
 }
 
 // fakeCloud is a listclient.Lister backed by canned objects. It serves the
@@ -1058,6 +1147,26 @@ func (c *fakeCloud) ownNoIdentity(typeName, id, address string) {
 	objs[len(objs)-1].noIdentity = true
 }
 
+// objResultError adds an untagged, unowned object whose list event carries a
+// per-result error diagnostic - issue #531's "not ours" shape: an AWS-managed
+// default resource (a cross-account aws_ssm_patch_baseline, say) this estate
+// never declared and never created.
+func (c *fakeCloud) objResultError(typeName, id string) {
+	c.obj(typeName, id, nil)
+	objs := c.objects[typeName]
+	objs[len(objs)-1].resultError = true
+}
+
+// ownResultError adds a marked (owned) resource whose list event ALSO carries
+// a per-result error diagnostic - issue #531's "ours, unreadable" shape: this
+// is one of the estate's own declared resources, and the read failure must
+// still be reported as an error rather than silently read as "untagged".
+func (c *fakeCloud) ownResultError(typeName, id, address string) {
+	c.own(typeName, id, address)
+	objs := c.objects[typeName]
+	objs[len(objs)-1].resultError = true
+}
+
 // drop removes one object from the fake cloud, which is how a test says "this
 // live resource is gone" without rebuilding the whole estate.
 func (c *fakeCloud) drop(typeName, id string) {
@@ -1141,6 +1250,13 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 			continue
 		}
 		ev := providers.ListResourceEvent{DisplayName: o.displayName}
+		if o.resultError {
+			ev.Diagnostics = ev.Diagnostics.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Simulated per-result read failure",
+				fmt.Sprintf("fakeCloud: %s %q could not be fully read (issue #531 fixture).", req.TypeName, o.id),
+			))
+		}
 		if !o.noIdentity {
 			ev.Identity = cty.ObjectVal(map[string]cty.Value{
 				"id":         cty.StringVal(o.id),

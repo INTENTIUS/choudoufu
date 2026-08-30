@@ -38,10 +38,16 @@ set -uo pipefail
 #                Point it at a binary built BEFORE the fix and this script
 #                fails at step 4 with the seven collapsed addresses printed,
 #                which is how it was checked to be measuring anything.
-#   FLOCI_PORT   host port for the emulator (default 4606, clear of run.sh's
+#   FLOCI_PORT   host port for the emulator (default 4609, clear of run.sh's
 #                4566, dataread-projection's 4599, tagging-sweep's 4601,
 #                create-over's 4602, per-element's 4604 and
-#                record-located's 4605, so every harness can run at once).
+#                record-located's 4608 - moved off 4606 itself in #520,
+#                which had been shared with lambda-residue and so could
+#                never run alongside it - so every harness can run at
+#                once). Note this default only matters for a hand-invoked
+#                run: `go run ./tools/gauntlet run` always assigns
+#                FLOCI_PORT itself (#520) and never falls back to this
+#                value.
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
 #
@@ -52,7 +58,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC="$ROOT/.corpus/simpleinfra/terraform/dns"
 WORK="$(mktemp -d)"
 EST="$WORK/estate"
-FLOCI_PORT="${FLOCI_PORT:-4606}"
+FLOCI_PORT="${FLOCI_PORT:-4609}"
 FLOCI_NAME="choudoufu-repeated-module-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"

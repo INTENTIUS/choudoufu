@@ -653,7 +653,53 @@ func renderProgressIndex(a *Artifact) string {
 		w("| [%s]({{< relref \"%s\" >}}) | %s | %s |", r.Name, r.Name, runtimeTotalCell(r), mdCell(runtimeStageCells(r, a)))
 	}
 	w("")
+	if section := renderLiveCertSection(a); section != "" {
+		w("%s", section)
+	}
 	w("To add an estate, see [Add an estate]({{< relref \"add-an-estate\" >}}).")
+	return b.String()
+}
+
+// renderLiveCertSection is the live-AWS certification section (issue #440):
+// deliberately its own section, after Run time and before the closing "add
+// an estate" line, never folded into "## The estates" above or into
+// {{< gauntlet-bars >}}. Every LiveCertResult in a.LiveCert is real-AWS (or,
+// for a Stage-1 proving record that somehow reached the artifact - it
+// should not, per RunLiveCert's own doc comment - target=floci) evidence
+// that Artifact.Rebuild never sums into Sets["core"]/Sets["all"]; this
+// section's own banner line says so explicitly, in words, on the page
+// itself - the same "the rendered claim must say what the rows underneath
+// actually support" discipline boardBanner already holds the emulator/date
+// claims above to (see boardBanner's own doc comment), applied here to keep
+// this evidence from reading as more of the same thing.
+func renderLiveCertSection(a *Artifact) string {
+	if len(a.LiveCert) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...); b.WriteString("\n") }
+	w("## Live-AWS certification")
+	w("")
+	w("Separate from the two bars above, and never counted toward either of")
+	w("them: a real-AWS run for the named estate, at the date and account")
+	w("below, is evidence about ONE run against a real account, not a")
+	w("repeatable comparison against stock the way an emulator row is. See")
+	w("[HANDOFF.md](https://github.com/INTENTIUS/choudoufu/blob/main/HANDOFF.md)")
+	w("\"What a measurement is worth\" for why the two are never averaged")
+	w("together.")
+	w("")
+	w("| Estate | Target | Region | Clear | Date | Ceiling |")
+	w("|---|---|---|---|---|---|")
+	rows := append([]LiveCertResult(nil), a.LiveCert...)
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Estate < rows[j].Estate })
+	for _, r := range rows {
+		clear := "no"
+		if r.Clear {
+			clear = "yes"
+		}
+		w("| %s | %s | %s | %s | %s | $%.2f |", r.Estate, r.Target, r.Region, clear, r.Date, r.CeilingUSD)
+	}
+	w("")
 	return b.String()
 }
 

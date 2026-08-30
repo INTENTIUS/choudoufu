@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -557,4 +559,106 @@ func TestRunEstatesParallelOverlapsInWallClock(t *testing.T) {
 	if parallelElapsed >= serialElapsed/2 {
 		t.Errorf("parallel(%d) took %v, serial took %v - parallel run did not overlap (expected well under half the serial time for %d estates each sleeping %ss)", n, parallelElapsed, serialElapsed, n, sleep)
 	}
+}
+
+// TestAllocatedPortRangesNeverOverlap is #520's guard. #520's own history is
+// why it is written this way: the pre-#520 hazard was never that anyone
+// picked a bad number on purpose - it was 78 script defaults spaced one
+// apart with no margin once several scripts started deriving green/oracle
+// ports as an offset from their own base. A test that just re-asserted
+// "these hand-picked defaults happen not to collide today" would rot the
+// moment the next script picked the next free number by hand, which is
+// exactly how #520's collisions accumulated in the first place (maintainer
+// steer on #520: the assertion has to be a property of the allocator, not
+// a proof about today's hand-picked constants).
+//
+// So this proves that no two concurrency slots this package can ever hand
+// out (flociPortEnv - the one function both the serial and the
+// -parallel>1 path in runResults call) have overlapping port ranges, where
+// a slot's range is [its assigned FLOCI_PORT, that port + the largest
+// offset any live/e2e/*/run.sh script derives from FLOCI_PORT today]. That
+// largest offset is read from the real scripts (largestFlociPortOffset
+// below), not hand-typed, so a future script deriving a bigger offset than
+// parallelPortStride clears fails this test instead of silently
+// reintroducing #520's hazard the day someone adds it.
+//
+// No emulator, no Docker, no estate script is ever executed here -
+// flociPortEnv is the only allocator code under test, called directly.
+func TestAllocatedPortRangesNeverOverlap(t *testing.T) {
+	root := testRoot(t)
+	maxOffset := largestFlociPortOffset(t, root)
+	if maxOffset <= 0 {
+		t.Fatal("scanned live/e2e/*/run.sh for a FLOCI_PORT+<N> derivation and found none - the scan itself is broken, not a passing result")
+	}
+	if parallelPortStride <= maxOffset {
+		t.Fatalf("parallelPortStride (%d) does not clear the largest FLOCI_PORT offset any live/e2e/*/run.sh script derives today (%d): two concurrency slots' assigned ranges could overlap", parallelPortStride, maxOffset)
+	}
+
+	// Far more concurrency than -parallel is ever actually run at; if the
+	// property holds this wide it holds for any N a human would pass.
+	const slots = 200
+	type portRange struct{ slot, lo, hi int }
+	ranges := make([]portRange, slots)
+	for slot := 0; slot < slots; slot++ {
+		port := parseFlociPort(t, flociPortEnv(slot))
+		ranges[slot] = portRange{slot: slot, lo: port, hi: port + maxOffset}
+	}
+	for i := 0; i < slots; i++ {
+		for j := i + 1; j < slots; j++ {
+			a, b := ranges[i], ranges[j]
+			if a.lo <= b.hi && b.lo <= a.hi {
+				t.Fatalf("slot %d's assigned FLOCI_PORT range [%d,%d] overlaps slot %d's [%d,%d] (maxOffset=%d derived from the real live/e2e/*/run.sh scripts) - the runner could launch two estates against the same emulator port", a.slot, a.lo, a.hi, b.slot, b.lo, b.hi, maxOffset)
+			}
+		}
+	}
+}
+
+// largestFlociPortOffset scans every live/e2e/*/run.sh for a
+// `FLOCI_PORT + N` derivation (however a script spells the whitespace) and
+// returns the largest N found - the real number today's scripts derive,
+// not a constant copied into this test from a comment that can drift out
+// of date the moment a script changes.
+func largestFlociPortOffset(t *testing.T, root string) int {
+	t.Helper()
+	scripts, err := filepath.Glob(filepath.Join(root, "live", "e2e", "*", "run.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scripts) == 0 {
+		t.Fatal("no live/e2e/*/run.sh scripts found - the glob itself is broken")
+	}
+	re := regexp.MustCompile(`FLOCI_PORT\s*\+\s*([0-9]+)`)
+	max := 0
+	for _, s := range scripts {
+		b, err := os.ReadFile(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+			n, err := strconv.Atoi(m[1])
+			if err != nil {
+				continue
+			}
+			if n > max {
+				max = n
+			}
+		}
+	}
+	return max
+}
+
+// parseFlociPort extracts the numeric port from a "FLOCI_PORT=<port>"
+// environment entry, the exact string shape flociPortEnv produces and
+// runOne (via setEnv) passes straight into a script's environment.
+func parseFlociPort(t *testing.T, env string) int {
+	t.Helper()
+	const prefix = "FLOCI_PORT="
+	if !strings.HasPrefix(env, prefix) {
+		t.Fatalf("env entry %q does not start with %q", env, prefix)
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(env, prefix))
+	if err != nil {
+		t.Fatalf("env entry %q: %v", env, err)
+	}
+	return n
 }

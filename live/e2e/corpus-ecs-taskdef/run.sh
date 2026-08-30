@@ -40,7 +40,12 @@ set -uo pipefail
 #
 # Env overrides:
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
-#   FLOCI_PORT   host port for the emulator (default 4694).
+#   FLOCI_PORT   host port for the emulator (default 4610 - moved off 4694
+#                itself in #520, which had been shared with
+#                corpus-cloudfront and so could never run alongside it).
+#                Note this default only matters for a hand-invoked run:
+#                `go run ./tools/gauntlet run` always assigns FLOCI_PORT
+#                itself (#520) and never falls back to this value.
 #   FLOCI_IMAGE  the emulator image; defaults to live/floci-image.
 #
 # .corpus is shared across every worktree and is NEVER written to.
@@ -50,7 +55,7 @@ CORPUS_DIR="${CORPUS_DIR:-$ROOT/.corpus}"
 SRC="$CORPUS_DIR/mastino/prod-eu-west/services/analytics-worker"
 WORK="$(mktemp -d)"
 EST="$WORK/estate"
-FLOCI_PORT="${FLOCI_PORT:-4694}"
+FLOCI_PORT="${FLOCI_PORT:-4610}"
 FLOCI_NAME="choudoufu-corpus-ecs-taskdef-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"

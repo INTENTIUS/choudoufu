@@ -47,6 +47,8 @@ func main() {
 		fatalIf(cmdRun(root, os.Args[2:]))
 	case "behaviors":
 		fatalIf(cmdBehaviors(root, os.Args[2:]))
+	case "live-cert":
+		fatalIf(cmdLiveCert(root, os.Args[2:]))
 	case "add":
 		fatalIf(cmdAdd(root, os.Args[2:]))
 	case "import-legacy":
@@ -77,7 +79,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -213,7 +215,7 @@ func cmdRender(root string) error {
 func cmdRun(root string, args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
-	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, byte-for-byte the runner's old behaviour")
+	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -329,6 +331,59 @@ func countRunner(bi *BehaviorIndex, all bool) int {
 		}
 	}
 	return n
+}
+
+// cmdLiveCert is `gauntlet live-cert <estate>` (issue #440): a real-AWS (or,
+// for Stage 1 proving, floci) certification run. Its result is recorded
+// into a.LiveCert - NEVER a.Estates - and TARGET=floci is never written to
+// the committed artifact at all (RunLiveCert's own doc comment): this
+// subcommand exists to run the harness and, for a real target=aws run,
+// persist evidence distinct from every emulator row, not to fold a
+// proving run into the board.
+func cmdLiveCert(root string, args []string) error {
+	fs := flag.NewFlagSet("live-cert", flag.ContinueOnError)
+	target := fs.String("target", "floci", "floci (Stage 1 proving; never recorded to the artifact) or aws (Stage 2; recorded)")
+	region := fs.String("region", "us-east-1", "AWS region")
+	ceilingUSD := fs.Float64("ceiling-usd", 5, "cost ceiling this run is certifying under (#440 ruling: $5 for reference-ec2-vpc); informational here, enforced by the account's own AWS Budgets alarm and by -timeout-seconds/live/live-cert/run.sh's process timeout")
+	timeoutSeconds := fs.Int("timeout-seconds", 900, "Go-side process ceiling, independent of live/live-cert/run.sh's own `timeout` wrapper")
+	confirm := fs.String("confirm", "", "must be exactly \"yes\" for -target aws; refused otherwise before anything is started")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
+	}
+	estate := fs.Arg(0)
+
+	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds, *confirm)
+	if err != nil {
+		return err
+	}
+	if res != nil {
+		for id, v := range res.Stages {
+			fmt.Printf("live-cert %s: stage=%s verdict=%s\n", estate, id, v)
+		}
+	}
+	fmt.Printf("live-cert %s: target=%s exit=%d clear=%v\n", estate, *target, exit, r.Clear)
+
+	if *target != "aws" {
+		fmt.Println("target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)")
+		return nil
+	}
+
+	m, a, err := loadAll(root)
+	if err != nil {
+		return err
+	}
+	a.SetLiveCertResult(*r)
+	if err := SaveArtifact(root, a); err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a); err != nil {
+		return err
+	}
+	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
+	return nil
 }
 
 // cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`

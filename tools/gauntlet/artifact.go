@@ -38,7 +38,35 @@ const (
 	// crossing's verified output. The runner never overwrites a legacy entry
 	// unless the script now speaks the protocol.
 	ProtocolLegacy = "legacy"
+	// ProtocolLiveAWS: a real-AWS certification run (issue #440), never an
+	// EstateResult.Protocol value - see LiveCertResult in livecert.go for
+	// why. validEstateProtocols below deliberately does NOT list this
+	// constant among the values an EstateResult may carry: an EstateResult
+	// with Protocol == ProtocolLiveAWS is exactly the conflation #440's
+	// brief warns against (a real-AWS verdict folded into the
+	// emulator-driven a.Estates/a.Sets machinery), and
+	// TestArtifactAgreesWithManifest (via IsValidEstateProtocol) stays the
+	// guard that catches it if it ever happens by mistake.
+	ProtocolLiveAWS = "live-aws"
 )
+
+// validEstateProtocols is every Protocol value an EstateResult may
+// legitimately carry. ProtocolLiveAWS is deliberately absent. A single list
+// backs both TestArtifactAgreesWithManifest's check and
+// TestProtocolLiveAWSNeverValidOnEstateResult (livecert_test.go), so the
+// two cannot silently drift into disagreement.
+var validEstateProtocols = []string{ProtocolGauntlet, ProtocolLegacy}
+
+// IsValidEstateProtocol reports whether p is a protocol an EstateResult may
+// legitimately carry - see validEstateProtocols.
+func IsValidEstateProtocol(p string) bool {
+	for _, v := range validEstateProtocols {
+		if p == v {
+			return true
+		}
+	}
+	return false
+}
 
 // Artifact is live/gauntlet.json.
 //
@@ -80,6 +108,14 @@ type Artifact struct {
 	// today); it does not vary with the behavior index.
 	BehaviorsProven int `json:"behaviors_proven"`
 	BehaviorsTotal  int `json:"behaviors_total"`
+	// LiveCert carries real-AWS certification results (issue #440) - one
+	// entry per certified estate. It is a SEPARATE top-level slice, never a
+	// row in Estates, on purpose: Rebuild (below) never reads or writes it,
+	// so it can never be summed into Sets["core"]/Sets["all"] the way an
+	// emulator-protocol row is. See livecert.go for the type and why the
+	// separation is structural, not a convention a future change could
+	// accidentally erode.
+	LiveCert []LiveCertResult `json:"live_cert,omitempty"`
 }
 
 // SetSummary is one headline bar.
@@ -211,6 +247,16 @@ func loadArtifactFile(path string) (*Artifact, error) {
 // still sets BehaviorsTotal from Stages() and leaves BehaviorsProven at 0,
 // exactly what BehaviorsProven(nil) returns, so a nil bi never crashes and
 // never fabricates evidence.
+//
+// It deliberately never reads or writes a.LiveCert. That field answers a
+// different question (did ONE real-AWS run, on ONE date, verify what the
+// emulator already agreed to) than a.Estates/a.Sets answer (does choudoufu
+// match stock against the pinned emulator, re-measurable on demand) - see
+// HANDOFF.md "What a measurement is worth" and livecert.go. Folding
+// LiveCert into this function's loop below is exactly the conflation
+// issue #440's brief calls out; the fix here is structural (a separate
+// slice this function's own loop never iterates), not a flag to remember to
+// check.
 func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
