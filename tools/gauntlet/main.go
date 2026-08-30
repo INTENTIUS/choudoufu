@@ -185,7 +185,7 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, emulatorPin(root))
+	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
 	return m, a, nil
 }
 
@@ -220,7 +220,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, emulatorPin(root))
+	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -412,7 +412,7 @@ func cmdImportLegacy(root string) error {
 			imported++
 		}
 	}
-	a.Rebuild(m, emulatorPin(root))
+	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
 	if _, err := Render(root, m, a); err != nil {
 		return err
 	}
@@ -451,7 +451,7 @@ func StaleFiles(root string) ([]string, error) {
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, emulatorPin(root))
+	a.Rebuild(m, emulatorPin(root), oracleVersions(root))
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
 		return nil, err
