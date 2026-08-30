@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=629 instances=1740
-# shape: class CONCRETE=828
+# shape: dirs=641 instances=1789
+# shape: class CONCRETE=877
 # shape: class NEEDS_DISCOVERY=748
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=59ac1908b594ba25a7ceac72c868970c6425190c3ebd4f5d9541b3484437debe
+# shape: body-sha256=f0e570718b8068c5ce3b63ccb62e011c12f199e4702cd3129d765964fdb0de7e
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -681,6 +681,55 @@ internal/live/lint/testdata/count-index	aws_route53_record.heterogeneous_tuple[1
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[0]	CONCRETE	Z0123456789ABCDEFGHI_record-100.example.com_A	name=record-100.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[1]	CONCRETE	Z0123456789ABCDEFGHI_record-200.example.com_A	name=record-200.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[2]	CONCRETE	Z0123456789ABCDEFGHI_record-100.example.com_A	name=record-100.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-a-team-0000-role	name=tl-pod-a-team-0000-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-a-team-0001-role	name=tl-pod-a-team-0001-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-a-team-0002-role	name=tl-pod-a-team-0002-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-a-team-0003-role	name=tl-pod-a-team-0003-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-b-team-0000-role	name=tl-pod-b-team-0000-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-b-team-0001-role	name=tl-pod-b-team-0001-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-b-team-0002-role	name=tl-pod-b-team-0002-role
+internal/live/lint/testdata/count-index-module-foreach	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-b-team-0003-role	name=tl-pod-b-team-0003-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-a-blue-role	name=tl-pod-a-blue-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-a-green-role	name=tl-pod-a-green-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-a-blue-role	name=tl-pod-a-blue-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-a-green-role	name=tl-pod-a-green-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-b-blue-role	name=tl-pod-b-blue-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-b-green-role	name=tl-pod-b-green-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-b-blue-role	name=tl-pod-b-blue-role
+internal/live/lint/testdata/count-index-module-foreach-collides	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-b-green-role	name=tl-pod-b-green-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-a-blue-role	name=tl-pod-a-blue-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-a-green-role	name=tl-pod-a-green-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-a-amber-role	name=tl-pod-a-amber-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-a-violet-role	name=tl-pod-a-violet-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-b-blue-role	name=tl-pod-b-blue-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-b-green-role	name=tl-pod-b-green-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-b-amber-role	name=tl-pod-b-amber-role
+internal/live/lint/testdata/count-index-module-foreach-distinct	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	tl-pod-b-violet-role	name=tl-pod-b-violet-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl--team-0000-role	name=tl--team-0000-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl--team-0001-role	name=tl--team-0001-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl--team-0002-role	name=tl--team-0002-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	tl--team-0003-role	name=tl--team-0003-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	tl--team-0000-role	name=tl--team-0000-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	tl--team-0001-role	name=tl--team-0001-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	tl--team-0002-role	name=tl--team-0002-role
+internal/live/lint/testdata/count-index-module-foreach-flattened	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	tl--team-0003-role	name=tl--team-0003-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl-team-0000-role	name=tl-team-0000-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl-team-0001-role	name=tl-team-0001-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl-team-0002-role	name=tl-team-0002-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	tl-team-0003-role	name=tl-team-0003-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	tl-team-0000-role	name=tl-team-0000-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	tl-team-0001-role	name=tl-team-0001-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	tl-team-0002-role	name=tl-team-0002-role
+internal/live/lint/testdata/count-index-module-foreach-shared	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	tl-team-0003-role	name=tl-team-0003-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	aws_iam_role.seed	CONCRETE	seed-role	name=seed-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	seed-role-pod-a-blue-role	name=seed-role-pod-a-blue-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	seed-role-pod-a-green-role	name=seed-role-pod-a-green-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	seed-role-pod-a-amber-role	name=seed-role-pod-a-amber-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-a"].aws_iam_role.pod_role[3]	CONCRETE	seed-role-pod-a-violet-role	name=seed-role-pod-a-violet-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-b"].aws_iam_role.pod_role[0]	CONCRETE	seed-role-pod-b-blue-role	name=seed-role-pod-b-blue-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-b"].aws_iam_role.pod_role[1]	CONCRETE	seed-role-pod-b-green-role	name=seed-role-pod-b-green-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-b"].aws_iam_role.pod_role[2]	CONCRETE	seed-role-pod-b-amber-role	name=seed-role-pod-b-amber-role
+internal/live/lint/testdata/count-index-module-foreach-unprovable	module.m["pod-b"].aws_iam_role.pod_role[3]	CONCRETE	seed-role-pod-b-violet-role	name=seed-role-pod-b-violet-role
 internal/live/lint/testdata/count-index-nonlinear	aws_network_acl_rule.both_operands_reference_index[0]	CONCRETE	acl-0123456789abcdef0:100:tcp:false	egress=false,network_acl_id=acl-0123456789abcdef0,protocol=tcp,rule_number=100
 internal/live/lint/testdata/count-index-nonlinear	aws_network_acl_rule.both_operands_reference_index[1]	CONCRETE	acl-0123456789abcdef0:100:tcp:false	egress=false,network_acl_id=acl-0123456789abcdef0,protocol=tcp,rule_number=100
 internal/live/lint/testdata/count-index-nonlinear	aws_network_acl_rule.both_operands_reference_index[2]	CONCRETE	acl-0123456789abcdef0:100:tcp:false	egress=false,network_acl_id=acl-0123456789abcdef0,protocol=tcp,rule_number=100

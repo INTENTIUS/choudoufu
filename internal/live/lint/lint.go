@@ -231,7 +231,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkLiveStrict(mod, path, issues)
-	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, secrets, markersRecord, issues)
+	checkManagedResources(ctx, cfg, path, schemas, signal, recordStoreConfigured, secrets, markersRecord, issues)
 	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReservedSymbols(mod, path, issues)
@@ -428,7 +428,8 @@ func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Modul
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, issues *[]Issue) {
+func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, issues *[]Issue) {
+	mod := cfg.Module
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -470,7 +471,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 		lt, isLogical := ClassifyLogicalType(resource.Type)
 
 		checkProvisioners(resource, addr, path, isLogical, recordStoreConfigured, issues)
-		checkCountIndex(ctx, mod, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
+		checkCountIndex(ctx, cfg, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
 		checkIgnoreChanges(resource, addr, path, schemas, markersRecord, issues)
 
 		if isLogical {

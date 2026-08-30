@@ -961,6 +961,52 @@ refusal rather than an assumption:
 - The `count` exceeds 256 (`countIndexDomainMax`). A cost bound, not a
   correctness one.
 
+**Inside a module the caller expands.** The values are rendered once per
+module *instance*, not once for the module. A module called with `for_each`
+or `count` gets a different set of `var.*` answers per instance - that is
+what `each.key` in a call argument means - and the module tree's own
+variables closure cannot supply them: `internal/configs` freezes one closure
+per call at load time, before any instance of anything exists, so it answers
+every `var.*` with no repetition data at all. Reading `each.key` in a call
+argument therefore used to make every expression downstream of it
+unprovable, and this rule refused a shape stock OpenTofu plans without a
+word (GitHub issue #580):
+
+```hcl
+module "pod" {
+  source   = "./pod"
+  for_each = toset(["pod-a", "pod-b"])
+  prefix   = "${local.name_prefix}-${each.key}"
+}
+
+# ./pod
+resource "aws_iam_role" "team" {
+  count = var.pod_size
+  name  = "${var.prefix}-team-${format("%04d", count.index)}-role"
+}
+```
+
+`internal/live/lint/module_instance_eval.go` rebuilds the closure per
+instance, the way `internal/live/identity` already did one layer down, so
+the eight names above are rendered and compared as
+`tl-pod-a-team-0000-role` through `tl-pod-b-team-0003-role`. Two things
+this does *not* change:
+
+- The comparison is still within one module instance. Two *different*
+  module instances rendering one identity - a call that passes every
+  instance the same prefix - is a collision between two whole identities
+  rather than between two indices of one `count`, and
+  `internal/live/identity`'s own collision check is what refuses it. Both
+  passes see the same estate; only the message differs.
+- A module instance whose values cannot be rendered refuses the whole
+  resource, rather than generalising from the instances that could. The
+  frozen closure is the fallback wherever the per-instance evaluators
+  cannot be built at all - a static call chain, a key set this pass cannot
+  enumerate, more than 64 module instances (`lintModuleInstanceMax`), or a
+  combined index range over 1024 (`lintModuleRenderMax`) - so the worst
+  case of every bound here is the verdict this rule gave before per-instance
+  evaluation existed, never a new one.
+
 Scale-down stability comes free here for the same reason it does above:
 OpenTofu retires the highest index first, and every value is rendered from
 the index alone against a configuration that is otherwise fixed, so a
@@ -1040,9 +1086,11 @@ specified job rather than leaking into an identity-bearing property.
 `tofu-slot` is deliberately not among the exempted keys.
 
 **Enforcement.** `RuleCountIndex`, `internal/live/lint/count_index.go`
-(`checkCountIndex`, `countIndexScopeForType`, `analyzeCountIndexSafety`) and
+(`checkCountIndex`, `countIndexScopeForType`, `analyzeCountIndexSafety`),
 `internal/live/lint/count_index_domain.go`
-(`countIndexDomainFor`, `countIndexDomain.verdict`). Within an
+(`countIndexDomainFor`, `countIndexDomain.verdict`) and
+`internal/live/lint/module_instance_eval.go`
+(`moduleInstanceEvaluators`). Within an
 argument in scope for the resource's type, `analyzeCountIndexSafety`
 recurses over the whole expression and refuses anything it cannot prove
 injective, a node type with no case in that function included; what it
@@ -1055,7 +1103,12 @@ the count.index rule"). Fixture at `live/e2e/limits/count-index-in-tag/`;
 integer-division, min/max, unprovable-multiplier, both-operands,
 truncating-function and bare-comparison shapes, and
 `internal/live/lint/testdata/count-index-pure-scalar` pins their admitted
-mirrors. `TestCountIndexAdmittedShapesRenderDistinctIdentities` is the test
+mirrors. `internal/live/lint/testdata/count-index-module-foreach*` pins the
+module-boundary cases of GitHub issue #580: the admitted one, the two that
+still refuse (a within-instance collision, and a prefix built from a managed
+resource's attribute), the control that differs from each of those by
+exactly the obstacle it is named for, and the two whose collision is between
+module instances and is refused by `internal/live/identity` instead. `TestCountIndexAdmittedShapesRenderDistinctIdentities` is the test
 that makes this safe to widen: it resolves every fixture through
 `internal/live/identity` and asserts that everything the rule admits has
 pairwise-distinct import IDs and everything it refuses actually collides -
