@@ -626,7 +626,15 @@ if [ "$THROTTLE_LOG" = "1" ]; then
   MIGRATE_APPROVE_ENV=(TF_LOG=DEBUG "TF_LOG_PATH=$WORK/migrate_approve.debug.log")
 fi
 MIGRATE_START=$(date +%s)
-APPROVE_OUT="$(cd "$ADOPTED_DIR" && env "${MIGRATE_APPROVE_ENV[@]}" "$TOFU" live-import -state="$COLD_DIR/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)" || {
+# ${arr[@]+"${arr[@]}"} rather than a bare "${arr[@]}": under `set -u`,
+# bash 3.2 - which is what /bin/bash still is on macOS, where this script
+# is developed - treats expanding an EMPTY array as an unbound variable and
+# aborts. That is only reachable with THROTTLE_LOG=0, which is why every
+# run behind this issue (all at the default THROTTLE_LOG=1, so the array
+# always held two entries) passed straight over it, and why it surfaced
+# only when PR #577's merge verification ran the harness with the debug log
+# turned off.
+APPROVE_OUT="$(cd "$ADOPTED_DIR" && env ${MIGRATE_APPROVE_ENV[@]+"${MIGRATE_APPROVE_ENV[@]}"} "$TOFU" live-import -state="$COLD_DIR/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -60; fail "live-import -approve failed"; }
 MIGRATE_END=$(date +%s)
 printf '%s\n' "$APPROVE_OUT" > "$WORK/migrate_approve.out"
