@@ -46,6 +46,13 @@ artifact's own per-type rows rather than copied from its `counts` block,
 which carries only each axis's marginal. Run `go run ./tools/readiness-gen
 -render` after `live/readiness.json` changes.
 
+The record-carried row is not `internal/live/identity.MarkerlessTypes` and
+is several times larger, because `tools/readiness-gen`'s `destinedTier` also
+lands an untaggable type with no admission row there by elimination. The two
+have been conflated in issue bodies more than once. The site's resource-tier
+page states the split with both counts; the prose here quotes neither, by the
+rule above.
+
 <!-- readiness-gen:begin readiness-tiers -->
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|

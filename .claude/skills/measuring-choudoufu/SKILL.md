@@ -55,6 +55,16 @@ and reported them under a summary line indistinguishable from a full run.
 A number quoted from a partial corpus is about a different population than
 every other number in this project.
 
+**If the number came off the emulator, check it is a question floci can
+answer.** `live/FLOCI.md` names four that it cannot, at any scale: value
+semantics (floci accepts values real AWS rejects, with a 200), pagination
+(every list comes back in one page, so `GetResources = 1` is an emulator
+property and never a finding), wall clock (grades the machine, which is why
+`live/plan-budget.json` ratchets calls and not seconds), and throttling
+(absent by construction; `live/live-cert/` is the only source). A floci run
+that measured one of those measured nothing, and it reports the same shape of
+answer either way.
+
 **Check which instrument answers your question.** `tools/refusal-probe`
 default mode is schema-less and runs in ~20s. `-schemas` takes ~2.5min warm
 and sees things the default cannot. They are not the same measurement and

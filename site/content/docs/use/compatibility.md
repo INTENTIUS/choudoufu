@@ -46,6 +46,12 @@ context, and [Resource tier lookup]({{< relref "/docs/use/resource-tiers"
 >}}) carries it broken out per type, in customer language, with a reason for
 anything short of in-contract.
 
+One reading trap before the table. The record-carried row counts two
+populations: the types the record-located mechanism actually covers, and a
+larger set of untaggable types with no admission row yet that the classifier
+lands there by elimination. They differ threefold, and [Resource tier
+lookup]({{< relref "/docs/use/resource-tiers" >}}) separates them.
+
 <!-- readiness-gen:begin readiness-tiers -->
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|

@@ -328,6 +328,16 @@ type Request struct {
 	// Like the record store it is used by Approve and not by Ratify:
 	// writing is what Approve is for.
 	RootOutputStore *projection.RootOutputStore
+
+	// Parallelism is how many resources [Ratification.Approve] may stamp at
+	// once - GitHub issue #583, where stamping was measured as the largest
+	// single cost in a terralith migration (~1.3-1.4s per resource, entirely
+	// sequential, 127.6s for 89 resources at #566's scale-4 tier).
+	//
+	// Zero, the zero value, means [DefaultParallelism], which is stock's own
+	// apply default and is argued for there. Ratify itself ignores this: a
+	// ratification reads, and this is a budget for writing.
+	Parallelism int
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -379,6 +389,11 @@ type Ratification struct {
 	rootOutputStore *projection.RootOutputStore
 	rootOutputs     *states.State
 
+	// parallelism is [Request.Parallelism], carried through because Approve
+	// is the only thing that writes and therefore the only thing with a
+	// write budget to spend. Zero means [DefaultParallelism].
+	parallelism int
+
 	// resolved is [Request.Config] resolved through [identity.ResolveWith],
 	// when Config was given; nil otherwise, which [migrationSlots] already
 	// treats as "nothing more is known than the type table says". See
@@ -426,6 +441,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		recordStore:     req.RecordStore,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
+		parallelism:     req.Parallelism,
 	}
 
 	if req.Config != nil {

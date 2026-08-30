@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -336,6 +337,38 @@ func TestEveryStampOutcomeIsRenderedWithAHeadline(t *testing.T) {
 		}
 		if strings.TrimSuffix(strings.TrimSpace(rest), ":") == "" {
 			t.Errorf("%s's group heading carries no explanation, so it prints as a bare code", outcome)
+		}
+	}
+}
+
+// TestLiveImportParallelismDefaultMatchesTheStampDefault pins the one thing
+// GitHub issue #583's flag had to duplicate.
+//
+// internal/command/arguments cannot import internal/live/liveimport: the
+// import runs arguments -> liveimport -> internal/live/discovery -> the root
+// live package, whose own test files import arguments back, and the build
+// refuses the cycle. So the flag's default is a literal in that package and
+// [liveimport.DefaultParallelism] is the real one, and the two can drift
+// silently - a run would then stamp at a bound nobody documented.
+//
+// This test is the only place in the tree that can see both, which is why it
+// lives here rather than beside either of them.
+func TestLiveImportParallelismDefaultMatchesTheStampDefault(t *testing.T) {
+	args, diags := arguments.ParseLiveImport([]string{"-state=x.tfstate", "-estate=e"})
+	if diags.HasErrors() {
+		t.Fatalf("ParseLiveImport: %s", diags.Err())
+	}
+	if args.Parallelism != liveimport.DefaultParallelism {
+		t.Errorf("live-import's -parallelism default is %d, but liveimport.DefaultParallelism is %d. They must be the same number: arguments cannot import liveimport (an import cycle through internal/live/discovery and the root live package), so the flag restates it and this test is what keeps them equal.",
+			args.Parallelism, liveimport.DefaultParallelism)
+	}
+
+	// And the refusal stock makes, made here too: a non-positive bound is an
+	// error, never silently read as "no limit".
+	for _, bad := range []string{"-parallelism=0", "-parallelism=-1"} {
+		_, badDiags := arguments.ParseLiveImport([]string{"-state=x.tfstate", "-estate=e", bad})
+		if !badDiags.HasErrors() {
+			t.Errorf("%s was accepted; want the same refusal stock's own -parallelism makes", bad)
 		}
 	}
 }

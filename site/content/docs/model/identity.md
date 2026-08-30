@@ -75,6 +75,45 @@ position, so no future work closes this. Rewrite as a keyed `for_each` over
 stable names, move the resources to the root module, or give the module its
 own estate.
 
+## Untaggable is not unidentifiable
+
+About half the AWS provider's resource types carry no `tags` argument at all:
+**852 of 1699** at provider 6.59.0, counted from `live/readiness.json`'s
+`facts.taggable` at commit `cfd0dc58d4`. None of them can hold a marker. This
+gets read as a coverage hole, and it is not one.
+
+An untaggable resource's address is composed rather than looked up.
+`aws_iam_role_policy` is a role name and a policy name.
+`aws_iam_role_policy_attachment` is the two things it attaches.
+`aws_route53_record` is a zone, a name and a type. Every part comes from your
+configuration or from a parent that does carry a marker, so the address
+resolves identically on every run with nothing stored anywhere. That is what
+the [declaration-carried tier]({{< relref "/docs/use/resource-tiers" >}})
+names.
+
+They are not a rounding error. On a generated estate shaped like one that had
+grown organically, the untaggable share of *instances* was 41 of 79, 164 of
+301 and 410 of 745 at three sizes: 52%, 54% and 55%, all three of them made
+up entirely of the types named above. A realistic estate is roughly half
+resources that hold a marker and half resources that derive their identity
+from one.
+
+What untaggability does bound is governance, not identity. An
+`aws:ResourceTag` condition has nothing to match on a resource with no tags,
+so a grant covering those types is wider than its condition says.
+[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}})
+has that limit, and
+[`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
+has the per-service breakdown. Being identifiable without a tag and being
+governable by one are different properties, and only the second one is
+missing here.
+
+One thing does follow on the identity side, and it is worth stating so this
+section is not read as "nothing changes": a marker proves the resource
+carrying it exists. It says nothing about a child derived from it. Existence
+of an untaggable resource is settled by reading it, never by reading its
+parent's tag.
+
 ## Renaming
 
 Rename the block, then rewrite the tag.

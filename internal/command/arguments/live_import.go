@@ -11,6 +11,15 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+// defaultLiveImportParallelism is [liveimport.DefaultParallelism], restated
+// here rather than imported: this package cannot import internal/live/
+// liveimport at all, because liveimport reaches internal/live/discovery,
+// which reaches the root live package, whose own tests import this one - a
+// cycle the build refuses. The two are pinned equal by
+// TestLiveImportParallelismDefaultMatchesTheStampDefault in internal/command,
+// which can see both.
+const defaultLiveImportParallelism = 10
+
 // LiveImport represents the command-line arguments for the live-import
 // command.
 type LiveImport struct {
@@ -30,6 +39,17 @@ type LiveImport struct {
 	// stamps: without it, the report prints and nothing is written; with it,
 	// every VERIFIED or DRIFTED resource from that same report is stamped.
 	Approve bool
+
+	// Parallelism is how many resources -approve may stamp at once, spelled
+	// and defaulted exactly as stock's apply spells and defaults it, because
+	// it is the same budget over the same kind of work: one provider
+	// plan+apply round trip per instance. It has no effect without -approve,
+	// since a ratification only reads.
+	//
+	// GitHub issue #583. Stamping was sequential, and #566 measured it as the
+	// dominant cost of migrating a terralith: 33.1s for 26 resources, 127.6s
+	// for 89.
+	Parallelism int
 }
 
 // ParseLiveImport processes CLI arguments, returning a LiveImport value and
@@ -48,6 +68,7 @@ func ParseLiveImport(args []string) (*LiveImport, tfdiags.Diagnostics) {
 	cmdFlags.StringVar(&li.Estate, "estate", "", "estate")
 	cmdFlags.BoolVar(&li.Approve, "approve", false, "approve")
 	cmdFlags.BoolVar(&input, "input", true, "input")
+	cmdFlags.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "parallelism")
 
 	if err := cmdFlags.Parse(args); err != nil {
 		return li, diags.Append(tfdiags.Sourceless(
@@ -77,6 +98,17 @@ func ParseLiveImport(args []string) (*LiveImport, tfdiags.Diagnostics) {
 			tfdiags.Error,
 			"No estate named",
 			"live-import has no configuration to derive an estate name from - the state file it reads may belong to a configuration that has never used markers. Pass -estate=<name>.",
+		))
+	}
+	// The same refusal stock's own -parallelism makes, in the same words:
+	// internal/tofu/context.go rejects a non-positive value rather than
+	// reading it as "no limit", and a migration that silently stamped an
+	// estate with no bound at all would be exactly the wrong reading.
+	if li.Parallelism < 1 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Invalid parallelism value",
+			fmt.Sprintf("The parallelism must be a positive value. Not %d.", li.Parallelism),
 		))
 	}
 
