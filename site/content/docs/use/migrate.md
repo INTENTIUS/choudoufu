@@ -22,6 +22,34 @@ Run `choudoufu plan` and read the `Adoptable` and `Unowned` sections before
 applying anything.
 {{% /hint %}}
 
+## Keep the state file until the migration is done
+
+If this estate still has a `terraform.tfstate`, do not delete it yet. It is the
+only input `choudoufu live-import` has, and there is no flag that supplies the
+addresses another way. Run it against a file that is gone and the command stops
+before it reaches the live system at all:
+
+```
+Error: Cannot read the state file
+
+Error loading statefile: open terraform.tfstate: no such file or directory
+```
+
+A parsed state file is a precondition of ratification itself, not just of
+opening the file: `liveimport.Ratify` refuses a nil state with `No state to
+ratify`
+([`internal/live/liveimport/ratify.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/liveimport/ratify.go)).
+So deleting the file takes [the bulk path](#moving-a-large-estate-in-one-go)
+with it, leaving the plan-based loop and its `count`/`for_each` blind spot as
+the only way through.
+
+Keeping it costs nothing while you decide. Marker mode does not read a state
+file, refuse one, or mention one, so a `terraform.tfstate` sitting beside a
+live configuration changes no behaviour at all:
+[What you set up by hand]({{< relref "/docs/use/setup#deleting-the-state-file-is-not-enforced" >}})
+covers why its presence is harmless and believing it still counts for something
+is not.
+
 ## What binds on its own, and what does not
 
 Three groups. Which one a resource falls into decides the work.
@@ -66,13 +94,85 @@ and hand-write nothing.
 Hand-write markers before the first apply only if you are working the loop
 below and a specific instance must survive.
 
+## Moving a large estate in one go
+
+Try this before the loop. `choudoufu live-import` reads an existing state file
+once, verifies each entry against the live system, and stamps markers on what
+verifies, leaving you in the "already marked" group above with nothing to
+hand-write.
+
+{{% hint info %}}
+`choudoufu live-import -help` opens with the word `EXPERIMENTAL.`, and the
+command list carries `(experimental)` beside the one-line synopsis. Read that
+as a statement about the command's surface. It says nothing about what gets
+written: the markers it stamps are the same `tofu-estate` and `tofu-address`
+pair every other adoption path writes, and the state file is opened once,
+read-only, and never modified.
+{{% /hint %}}
+
+Two runs, the same two flags:
+
+```
+$ choudoufu live-import -state=terraform.tfstate -estate=my-estate
+$ choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
+```
+
+The first writes nothing and prints a ratification report. The second stamps
+every entry the report showed as `VERIFIED` or `DRIFTED`. `MISSING`,
+`UNTAGGABLE` and `UNADMITTED_TYPE` are never stamped, and the report says why
+for each one. `-estate` is required here, unlike `live-plan` and `live-mv`,
+because there is no configuration to derive the name from.
+
+Run it in a directory `choudoufu init` has already prepared, beside the same
+provider configuration the state was last applied with. Identity comes out of
+the state file rather than out of a resource block, but reaching the live
+system still needs a configured provider.
+
+Because the file is only ever read, there is no rollback step to plan for. A
+marker write is additive, and the state file is exactly as usable by stock
+OpenTofu after a stamp as it was before.
+
+It is also the path that answers the `count`/`for_each` limit above, and the
+one to reach for on an estate that has grown expanded. A generated 79-resource
+estate with `count`, `for_each` and module-nested expansion present, applied by
+stock `terraform` against a local emulator and then migrated (measured in
+[#575](https://github.com/INTENTIUS/choudoufu/pull/575), answering
+[#574](https://github.com/INTENTIUS/choudoufu/issues/574)):
+
+| | Count |
+|---|---|
+| Verified or drifted, so stamped from state | 38 of 79 |
+| Untaggable, so no marker to write; identity composes from a stamped parent | 41 of 79 |
+| **Needed a hand-typed marker** | **0** |
+
+Every `count` instance, every `for_each`'d record, and every module-nested
+`count` instance took its own correctly interpolated marker, down to
+`module.team_pod["pod-a"].aws_iam_role.pod_role[0]`. The plan-based loop's
+blind spot never fires, because nothing on this path matches content.
+
+Two bounds on that measurement, both worth knowing before you rely on it. The
+ratio was taken at one scale, against a generated estate rather than somebody's
+real one. And stamping is one tag-write round trip per resource, so it is
+linear: roughly 1.3 to 1.4 seconds per stamped resource against a local
+emulator (issue #566). Reading the state file and reporting what would be
+stamped is separate, read-only, and near flat at about 1.5 seconds either way.
+
 ## The loop
+
+For an estate with no state file left, or one small enough that a few tag
+writes are less trouble than a bulk run. Its limitation is the one above: an
+address carrying a `count` index or a `for_each` key is never offered, so if
+your estate is expanded and its state file still exists, use `live-import`
+instead.
 
 1. **Add the sidecar.** Create `estate.chdf.hcl` beside the configuration with
    `estate = "..."` as its body, or put `live { estate = "..." }` in
-   `terraform`. Either form, not both. Remove any `backend` or `cloud` block
-   and delete the state file. Both blocks are refused alongside a live
-   configuration.
+   `terraform`. Either form, not both. Remove any `backend` or `cloud` block:
+   both are refused alongside a live configuration, and `init` says so at the
+   offending block's own line.
+
+   Leave `terraform.tfstate` alone. It is inert here and it is `live-import`'s
+   only input, so deleting it now forecloses the bulk path and buys nothing.
 2. **Plan.** `choudoufu plan` runs discovery and prints an `Adoptable` section
    above the ordinary plan, one entry per live resource matching a declared
    block on everything discovery can compare but carrying no marker yet.
@@ -100,6 +200,9 @@ below and a specific instance must survive.
    has its own tagging call. Write the same two tags with that call.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
+6. **Delete the state file, if you want it gone.** Not before here, and not
+   required at all. Nothing reads it, nothing refuses it, and nothing checks
+   that you removed it, so this is housekeeping rather than a migration step.
 
 There is no `choudoufu adopt` command and no need for one. Two tags is the
 whole contract (`live/MARKERS.md`), so any tool that writes two tags can adopt
@@ -142,37 +245,6 @@ adopted.
 A type outside the admission table has no adoption path at all. Hand-stamping
 markers does not help, because nothing sweeps for a type this configuration
 cannot declare. [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) covers finding yours.
-
-## Moving a large estate in one go
-
-`choudoufu live-import` reads an existing state file once, verifies each entry
-against the live system, and stamps markers on what verifies. The bulk path,
-leaving you in the "already marked" group above.
-
-It is also the path that answers the `count`/`for_each` limit above, and the
-one to reach for on an estate that has grown expanded. A generated 79-resource
-estate with `count`, `for_each` and module-nested expansion present, applied by
-stock `terraform` against a local emulator and then migrated (measured in
-[#575](https://github.com/INTENTIUS/choudoufu/pull/575), answering
-[#574](https://github.com/INTENTIUS/choudoufu/issues/574)):
-
-| | Count |
-|---|---|
-| Verified or drifted, so stamped from state | 38 of 79 |
-| Untaggable, so no marker to write; identity composes from a stamped parent | 41 of 79 |
-| **Needed a hand-typed marker** | **0** |
-
-Every `count` instance, every `for_each`'d record, and every module-nested
-`count` instance took its own correctly interpolated marker, down to
-`module.team_pod["pod-a"].aws_iam_role.pod_role[0]`. The plan-based loop's
-blind spot never fires, because nothing on this path matches content.
-
-Two bounds on that measurement, both worth knowing before you rely on it. The
-ratio was taken at one scale, against a generated estate rather than somebody's
-real one. And stamping is one tag-write round trip per resource, so it is
-linear: roughly 1.3 to 1.4 seconds per stamped resource against a local
-emulator (issue #566). Reading the state file and reporting what would be
-stamped is separate, read-only, and near flat at about 1.5 seconds either way.
 
 ## If you are used to import, moved and removed
 

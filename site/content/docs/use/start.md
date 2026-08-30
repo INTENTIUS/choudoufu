@@ -54,6 +54,13 @@ file. Effects the cloud cannot report back - a `null_resource`, a
 a `.tofu-records` directory beside the module. Add a `record_store` here only
 to put those records on SSM or S3 where a team can share them.
 
+Add `.tofu-records/` to your `.gitignore` before the first apply. Nothing
+writes that line for you, and the directory holds whatever the state file
+would have held, generated secrets included, unless you set
+`strict { secrets = "refuse" }`.
+[Where things are stored]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
+has the per-backend version of that.
+
 The same content can live as a `live` block inside `terraform`.
 
 ```hcl
