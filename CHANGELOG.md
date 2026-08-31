@@ -4,9 +4,46 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.5.0 (Unreleased)
+## choudoufu v0.6.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.5.0 (2026-08-31)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.5.0.json`](live/history/v0.5.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.4.0.json live/history/v0.5.0.json`):
+
+- Core estates: 25/25 clear -> 26/26 clear (+1)
+- All estates: 26/26 clear -> 27/27 clear (+1)
+- Newly cleared: none. Both sets were already whole at v0.4.0; the +1 is `terralith-scale`, a new core estate that clears on entry.
+- Regressed: none
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:1c6450b8fe3618fca892ba5c2847f65e8d5ac29fe07f6eb497487b708ca85844` to `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`
+
+PERFORMANCE:
+
+A steady-state `choudoufu plan` on an adopted estate now costs what a stock plan costs, to within a handful of API calls, and issues them with the same concurrency. Measured on real AWS at 745 resources: 1399 calls against stock's 1392. Five changes, each measured with call counts held constant so the gain is overlap rather than doing less work:
+
+- The estate-wide sweep no longer enumerates the whole admission table on an ordinary plan. It narrows to types the estate has evidence of, and takes the full universe when there is no record store, when the store will not list, or when its listing is empty - so a fresh or mid-migration estate still pays in full. `-adoption-only` and `TOFU_LIVE_COLLECT_UNCLAIMED` turn it back on.
+- The read pass, the sweep's list calls, and `live-import`'s stamping all run concurrently, bounded by `TOFU_LIVE_READ_PARALLELISM`, `TOFU_LIVE_SWEEP_PARALLELISM` and `live-import -parallelism`, each defaulting to stock's 10.
+- The record store is read once per run instead of per instance. A scale-1 plan made 377 round trips; it now makes one.
+- A migrated estate's reads were still serialised after all of the above, because the record-first path intercepted them before the concurrent phase began. Provider requests now overlap ten-wide where they previously went one at a time.
+
+BUG FIXES:
+
+- A stateful plan on a migrated estate proposed removing every marker, and applying it silently un-migrated the estate. That plan is now refused, with `CHOUDOUFU_UNMIGRATE=<estate>` for a deliberate revert.
+- A failed import proposed creating a duplicate of a live resource the run had listed alive seconds earlier. It now refuses when the provider's own enumeration saw the object, and still proposes the rebuild when only the tag index did.
+- A `count.index` identity inside a module expanded with `for_each` was refused although stock plans it and the rendered names are distinct.
+- A declared address refused after a replace because the destroyed object's tags stayed readable; the fix for that then pruned the deposed object a crash recovery needed.
+- `aws_customer_gateway` was misclassified as not listable, so scaling a count down proposed no destroy at all.
+- `live-plan` and `plan` under a live block had two separate refusal lists that had already drifted apart on `-destroy`, and the help text described neither.
+
+DOCUMENTATION:
+
+- Twenty-one claims on the compatibility reference were checked against source and twenty were stale, every one understating what the tool accepts - `for_each` keys containing `.` or `:`, identity arguments reading data sources, module outputs or functions, `count` on a module call, provisioners, `random_*` and `tls_*`, `local_file`, provider aliasing, and `live-import`'s module traversal. Two tests now hold that page to the constants and the linter.
+- The record store's contents are stated plainly: it may hold any value the state file would have held, including secrets, unless `strict { secrets = "refuse" }` is set. `values.md` and its diagram said the opposite.
+- The marker specification called a count-expanded module address "spec-only" while this fork writes it. A pin now holds that claim across all four pages that make it.
+- Design records moved to `rulings/`, and the inherited upstream RFC directory and its process documents are gone.
 
 ## choudoufu v0.4.0 (2026-08-26)
 
