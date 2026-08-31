@@ -73,24 +73,44 @@ config block owns this resource". The entire binding mechanism for the
 marker admission path (path 2) rests on this value matching an address that
 exists in configuration.
 
-**Grammar vs. current builds.** The `module.` segment below is already
-implemented: identity resolution, projection, discovery, stamping
-and the rename all traverse `cfg.Children`, and a `tofu-address` value
-carries the full module-qualified address for a resource inside a static
-module tree or a `for_each`-keyed module call with statically-evaluable
-keys, at any nesting depth (issue #59, phases 1-2 / "59b"/"59c"). The one
-segment this grammar allows but no build ever produces is a `count`
-instance key on a `module.` segment: a module block expanded with `count`
-is refused outright before anything reads the live system, permanently,
-because the position-based renumbering it causes is exactly the ambiguity
-a `tofu-address` marker exists to remove (`RuleChildModule` in
-`internal/live/lint/child_module.go`, and `live/LIMITATIONS.md`'s
-"child-module" entry). A resource inside a `for_each`-keyed module's
-instances is not auto-written even though its address is supported: stamping
-cannot inject a marker into a shared configuration body, so that address is
-built by hand instead. `live/LIMITATIONS.md` records this as the "keyed
-module" behavioral limit, and the concept page's "Modules" section has the
-idiom.
+**Grammar vs. current builds.** Every segment this grammar allows is a
+segment current builds produce. Identity resolution, projection, discovery,
+stamping and the rename all traverse `cfg.Children`, so a `tofu-address`
+value carries the full module-qualified address at any nesting depth (issue
+#59, phases 1-2 / "59b"/"59c"). A `for_each`-keyed module call with
+statically-evaluable keys contributes a quoted key to that path; a module
+call expanded with a statically-evaluable `count` contributes an integer one
+(issue #195). `module.counted[0].aws_vpc.main` is a value written onto a
+real VPC, not an illustration - it is the marker
+`live/e2e/limits/child-module/counted` carries.
+
+Both keyed forms are stamped automatically, since issue #378. A module
+call's several instances share exactly one `*hclsyntax.Body` for the
+resource's `tags` argument, so no literal is the right `tofu-address` for
+all of them; stamping writes a template over `tofu.marker_module_prefix`
+instead, which evaluates to the module INSTANCE's own escaped path, and
+each instance renders its own address out of the one shared body
+(`internal/live/markers`, `ModulePrefixAttr`). That symbol is a stamping
+mechanism and not part of this format: the tag value AWS ends up holding is
+an ordinary escaped address either way, which is the whole point of it. A
+resource that writes `tofu-address` by hand inside a keyed module call
+keeps its own value, untouched and unverified - `live/LIMITATIONS.md`
+records that under "keyed module", and the concept page's "Modules" section
+has the idiom.
+
+What is refused is narrower than any form of this grammar, and it is about
+the expression rather than the segment. A module call whose `count` or
+`for_each` cannot be evaluated from `var`, `local`, `path`, `terraform` and
+`tofu` alone is refused, because its instance keys become part of every
+address inside the module and have to be known before anything is read from
+the cloud. So is a call whose own arguments use `count.index` in any shape
+this fork cannot prove gives each instance a distinct value - indexing a
+list by it, or arithmetic like `count.index % 3`, which renders indices 0
+and 3 identically. That is the same test `count.index` faces wherever it can
+reach identity, and it is a test about the shape rather than about the
+keyword: `"n-${count.index}"` passes it. (`RuleChildModule` in
+`internal/live/lint/child_module.go`, `analyzeCountIndexSafety` in
+`count_index.go`, and `live/LIMITATIONS.md`'s "child-module" entry.)
 
 The unescaped grammar, in informal EBNF matching OpenTofu's address
 syntax.
@@ -102,15 +122,16 @@ index      = "[" ( digits | quoted-key ) "]" ;
 quoted-key = '"' key-chars '"' ;
 ```
 
-Some examples of unescaped addresses follow. The last one is spec-only,
-see above: a `count` key on a `module.` segment, refused permanently.
+Some examples of unescaped addresses follow. Every one of them is an
+address a tool reading these tags will meet, the last included: a `count`
+key on a `module.` segment is written by this fork today, and a tool that
+cannot parse one will fail on an estate that uses a counted module call.
 
 - `aws_vpc.this`
 - `aws_subnet.this["a"]`
 - `aws_eip.this[2]`
 - `module.subnets["a"].aws_subnet.this`
-- `module.subnets[2].aws_subnet.this` (spec-only: a count-expanded module
-  is refused permanently, see above)
+- `module.subnets[2].aws_subnet.this`
 
 ### Escaping rule
 
@@ -138,6 +159,7 @@ steps 2-4 run.
 | `aws_subnet.this["a"]` | `aws_subnet.this:a` |
 | `aws_eip.this[2]` | `aws_eip.this:2` |
 | `module.subnets["a"].aws_subnet.this` | `module.subnets:a.aws_subnet.this` |
+| `module.subnets[2].aws_subnet.this` | `module.subnets:2.aws_subnet.this` |
 | `aws_subnet.this["alice.smith"]` | `aws_subnet.this:alice@dsmith` |
 | `aws_subnet.this["at@sign"]` | `aws_subnet.this:at@@sign` |
 

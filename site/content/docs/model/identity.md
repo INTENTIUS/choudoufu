@@ -66,12 +66,21 @@ over a data source, a `count.index` in a resource name, an identity argument
 read from another resource's attribute. Each is a different way of asking an
 address to resolve before a plan knows what it is naming.
 
-The same rule is why **`count` on a module call is refused permanently**,
-where a keyed `for_each` is not. `count` renumbers every address inside the
-module on any insertion or removal above the changed index: removing element
-zero turns `module.app[1]` into `module.app[0]`, silently pointing every
-marker beneath at the wrong live resource. A marker records an address, not a
-position, so no future work closes this. Rewrite as a keyed `for_each` over
+**`count` on a module call** is held to the same rule and passes it. The
+count expression has to be evaluable from configuration alone, and the module
+call's own arguments must not use `count.index` in a shape that could give two
+instances the same value - indexing a list by it, or `count.index % 3`. Meet
+both and every resource inside is addressed by the call's instance key, so a
+marker reads `module.app[0].aws_vpc.this` and the fork writes it for you.
+
+`module.app[i]` is exactly as stable an address as `aws_subnet.this[i]`, which
+is why it is admitted at all. Shrinking a count from N to N-1 retires the
+highest index and renumbers no survivor. What is not stable is a *position*
+reaching a value the live system has to be found by, which is what the
+`count.index` in a resource name listed above is refused for too.
+
+A count this fork cannot evaluate before a provider runs is refused, like
+every other unevaluable expansion above. Rewrite it as a keyed `for_each` over
 stable names, move the resources to the root module, or give the module its
 own estate.
 
