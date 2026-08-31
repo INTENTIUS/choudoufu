@@ -226,8 +226,8 @@ This is the mistake most worth avoiding, and it has already been made once in
 an issue.
 
 `live/plan-budget.json` ratchets an `aws_s3_bucket` estate at **22 calls per
-instance**, fitting `calls_total = 22*N + 13` exactly at N=20, 200 and 1000
-(453, 4413, 22013). That number is not a property of choudoufu. `aws_s3_bucket`
+instance**, fitting `calls_total = 22*N + 8` exactly at N=20, 200 and 1000
+(448, 4408, 22008). That number is not a property of choudoufu. `aws_s3_bucket`
 is an unusually chatty Read: a dozen subresource GETs for ACL, CORS,
 encryption, lifecycle, logging, object lock, policy, replication, request
 payment, versioning, website and acceleration, plus the parent-read children
@@ -243,11 +243,15 @@ If you want a number for your estate, measure your estate. Extrapolating from
 somebody else's resource type will be wrong by whatever the ratio between the
 two providers' Read implementations happens to be.
 
-The `+ 13` in that fit is worth one line of its own: three of those calls are
-account- and service-level probes that fire once regardless of N. They are
-2.9% of the total at N=20 and 0.06% at N=1000. A fixed term looks expensive
-on a small estate and disappears on a large one, which is the opposite of how
-the sweep behaves and a good reason to fit a line rather than divide once.
+The `+ 8` in that fit is worth one line of its own, because an earlier version
+of this page described the fixed term wrongly and the correction is the more
+useful fact. These are not account-level probes. Six of the eight are
+`ListBuckets`: five issued by the parent-read sweep, one by the provider's own
+account and region resolution. The remaining two are `GetCallerIdentity` and
+`GetUser`. They are 1.8% of the total at N=20 and 0.04% at N=1000. A fixed
+term looks expensive on a small estate and disappears on a large one, which is
+the opposite of how the sweep behaves and a good reason to fit a line rather
+than divide once.
 
 ## Emulator wall clock is not on this page
 

@@ -390,18 +390,48 @@ type planBudget struct {
 	CallsTotal      int            `json:"calls_total"`
 	CallsByAPI      map[string]int `json:"calls_by_api"`
 	Tolerance       float64        `json:"tolerance"`
+	FloorTolerance  float64        `json:"floor_tolerance"`
 	WallClockBucket string         `json:"wall_clock_bucket"`
 	Note            string         `json:"note"`
 }
 
-// checkAgainstBudget is the ratchet: report.CallsTotal (measured at
-// benchmarkEstateSize) must not exceed the committed budget's CallsTotal by
-// more than the committed Tolerance. Wall-clock is deliberately not gated -
-// the artifact's WallClockBucket and report.PlanElapsed are both
-// informational only, exactly as this package's doc comment promises;
-// floci's own performance on the machine running the test, not this
-// package's code, is what a wall-clock assertion would actually be
-// grading.
+// checkAgainstBudget is the ratchet, and it is two-sided (issue #630):
+// report.CallsTotal (measured at benchmarkEstateSize) must sit inside the
+// band the committed artifact declares - not above CallsTotal by more than
+// Tolerance, and not below it by more than FloorTolerance.
+//
+// The two bounds guard different things, which is why they are two fields
+// and not one symmetric tolerance. The ceiling is a cost gate: it protects
+// the user from a plan that got more expensive. The floor is an instrument
+// gate: it protects the MEASUREMENT from going blind, because a
+// one-directional ratchet cannot tell "we got faster" from "we stopped
+// measuring something", and this repository has twice shipped green on the
+// second - a cohort that passed because its failing resources vanished from
+// the fixture (#556), and a board row that read pass from a run that
+// measured nothing (#413/#414).
+//
+// What sizes the floor is the smallest leg this benchmark pays for. At
+// N=200 the run's 4408 calls are two legs: projection's per-instance read
+// (3400, 17/instance) and the parent-read sweep (1005 - five unscoped
+// bucket-child lists, each one ListBuckets plus one subresource GET per
+// bucket), plus three fixed calls. The parent-read leg is 22.8% of the
+// total, so a floor at 20% is the loosest one that still fails when a whole
+// leg silently stops running. Measured, not reasoned: disabling
+// parentReadSweep drops the run to 3403, under the 3526 floor.
+//
+// What the floor deliberately does NOT catch is small drift - the artifact
+// carrying 4413 while the code had moved to 4408 is 0.11%, and no
+// practical band catches that. Only re-measuring does. The guard against
+// THAT is live/flociimage_test.go's TestFlociMeasurementsMatchThePinOrSay
+// WhyNot, which forces a re-measurement whenever the emulator pin moves,
+// plus the ordinary discipline of re-measuring in the PR that moves the
+// number. The floor is the collapse detector, not the staleness detector.
+//
+// Wall-clock is deliberately not gated in either direction - the artifact's
+// WallClockBucket and report.PlanElapsed are both informational only,
+// exactly as this package's doc comment promises; floci's own performance on
+// the machine running the test, not this package's code, is what a
+// wall-clock assertion would actually be grading.
 func checkAgainstBudget(t *testing.T, report scaleReport) {
 	t.Helper()
 
@@ -417,11 +447,24 @@ func checkAgainstBudget(t *testing.T, report scaleReport) {
 	if budget.N != report.N {
 		t.Fatalf("%s was measured at N=%d, but this run measured N=%d; regenerate the artifact at matching N before trusting this ratchet", path, budget.N, report.N)
 	}
+	if budget.FloorTolerance <= 0 {
+		// Not a warning. An absent or zero floor_tolerance is how the
+		// under-run bound would come back off without anyone deciding to
+		// remove it, which is the shape of every silently-disabled check
+		// this repository has had to find the hard way.
+		t.Fatalf("%s declares floor_tolerance=%v; the ratchet's under-run bound is what tells \"we got faster\" apart from \"we stopped measuring something\", and it needs a positive width. Set it rather than dropping it.", path, budget.FloorTolerance)
+	}
 
 	ceiling := float64(budget.CallsTotal) * (1 + budget.Tolerance)
-	t.Logf("call-count budget: committed=%d tolerance=%.0f%% ceiling=%.0f measured=%d", budget.CallsTotal, budget.Tolerance*100, ceiling, report.CallsTotal)
+	floor := float64(budget.CallsTotal) * (1 - budget.FloorTolerance)
+	t.Logf("call-count budget: committed=%d band=[-%.0f%%,+%.0f%%] floor=%.0f ceiling=%.0f measured=%d",
+		budget.CallsTotal, budget.FloorTolerance*100, budget.Tolerance*100, floor, ceiling, report.CallsTotal)
 	if float64(report.CallsTotal) > ceiling {
 		t.Errorf("plan issued %d API calls against a committed budget of %d (+%.0f%% tolerance = %.0f); either a real regression, or %s needs regenerating with today's measurement",
 			report.CallsTotal, budget.CallsTotal, budget.Tolerance*100, ceiling, path)
+	}
+	if float64(report.CallsTotal) < floor {
+		t.Errorf("plan issued %d API calls, under a committed budget of %d by more than the -%.0f%% floor (= %.0f). A drop this size is either a real improvement worth recording - re-measure and commit %s in the same change - or a leg of the measurement that stopped running. Check calls_by_api against the committed breakdown to tell which: an improvement moves the calls it set out to move, a blind instrument loses a whole key.",
+			report.CallsTotal, budget.CallsTotal, budget.FloorTolerance*100, floor, path)
 	}
 }
