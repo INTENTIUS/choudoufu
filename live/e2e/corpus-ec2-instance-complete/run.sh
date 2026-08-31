@@ -1575,6 +1575,17 @@ COUNTEOF
       # now", and which the replace's own apply already rewrote to the new
       # instance's id. The declared count-instance path has no equivalent.
       if grep -qF 'Indistinguishable instances without per-instance markers' <<< "$F_FINAL_PLAN_OUT"; then
+        # Every live claimant of the replaced address, with the state and
+        # the two markers the refusal turns on, read through the AWS CLI.
+        # Without this the log says only "2 live aws_instance resources
+        # claim ..." and a reader cannot tell whether the terminated ghost
+        # kept a distinct tofu-slot (so the disambiguation exists and was
+        # not used) or shares the survivor's (so it does not).
+        log "  the live claimants of module.ec2_complete.aws_instance.this[0], via the AWS CLI:"
+        awsl ec2 describe-instances \
+          --filters "Name=tag:tofu-address,Values=module.ec2_complete.aws_instance.this:0" \
+          --query "Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key=='tofu-slot']|[0].Value,Tags[?Key=='tofu-estate']|[0].Value]" \
+          --output text 2>&1 | sed 's/^/    id state slot estate: /'
         fail "choudoufu refuses where stock proceeds (HANDOFF's first row): after the replace applied cleanly, the post-replace plan refuses with \"Indistinguishable instances without per-instance markers\" because the TERMINATED old instance still carries this estate's tofu-estate/tofu-address/tofu-slot tags and the estate-wide tag sweep counts it as a second live claimant of module.ec2_complete.aws_instance.this[0]. Stock's own post-replace plan is empty: its state names one instance id and it never asks the account what else claims the address. The lingering tags are real AWS behaviour, confirmed against the pinned emulator with no tofu in the loop (run-instances, terminate-instances, then describe-instances/describe-tags/resourcegroupstaggingapi all still return the terminated id and its markers), so this is not an emulator gap to fix in floci. The fix belongs in the declared count-instance binding path, which needs the discipline discovery.go's classifyOrphans already applies to an UNDECLARED address: recordCurrentClaimant disambiguates from the estate's own identity record (authoritative per rulings/20260823-foundation-order-ruling.md item 1, and rewritten to the new id by the replace's own apply) and returns a survivor only when EXACTLY one candidate matches. Not fixed in this script-only pass"
       fi
       fail "the post-replace plan exited $F_FINAL_PLAN_RC"
