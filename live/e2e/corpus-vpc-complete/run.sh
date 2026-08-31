@@ -80,6 +80,12 @@ set -uo pipefail
 #                 drift assertion, proving both are load-bearing; also
 #                 day2_rename's own break control (PART D) once the
 #                 estate is clear.
+#   BREAK_COUNT   set to 1 to run day2_count's own break control (PART G)
+#                 instead of the real assertions: expect the WRONG instance
+#                 (count_test[0] rather than count_test[1]) to be the one the
+#                 scale-down destroys. The Break text in
+#                 tools/gauntlet/stages.go for day2_count, verbatim, and it
+#                 makes the stage report fail - which is the point.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control (PART E)
 #                 instead of the real removal: keep the "dynamodb" vpc
 #                 endpoint map entry in the config; the plan must propose
@@ -273,6 +279,15 @@ FLOCI_ORACLE_NAME="choudoufu-corpus-vpc-complete-green-oracle-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
 
+# And one more for day2_count's stock oracle (PART G, live/GAUNTLET.md #8).
+# It gets its own port rather than reusing the greenfield oracle's, which is
+# free by the time PART G runs, so that PART G does not depend on PART
+# GREENFIELD having run at all - that section is deliberately in a subshell
+# whose failure the rest of the script survives.
+FLOCI_COUNT_ORACLE_PORT=$((FLOCI_PORT + 3))
+FLOCI_COUNT_ORACLE_NAME="choudoufu-corpus-vpc-complete-count-oracle-$$"
+COUNT_ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_COUNT_ORACLE_PORT}"
+
 ESTATE="vpc-complete-crossing"
 GREEN_ESTATE="${ESTATE}-greenfield"
 
@@ -286,7 +301,7 @@ REGION="eu-west-1"
 TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -1107,6 +1122,349 @@ EOF
 fi
 gauntlet_end_stage
 gauntlet_end_stage
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Placed LAST on purpose. fail() exits the whole script, so a stage that
+# cannot pass takes every verdict after it down with it; putting the newest
+# section at the end means a failure here can never hide day2_replace,
+# day2_rename or day2_remove's own verdicts from the runner. It starts from
+# PART E's real, completed state: the adopted estate is converged (E2
+# asserted an empty plan one line above) with the endpoints module renamed
+# and its dynamodb entry gone. None of that touches what this section adds.
+#
+# THE COUNT BLOCK IS SYNTHETIC, and this estate is the one where that choice
+# needs its reasons written down, because it has more real count knobs than
+# any other in the manifest. Neither family of them is measurable here:
+#
+#   - Every real `count` knob is a subnet list (private/public/database/
+#     elasticache/redshift/intra, plus the NAT gateway and EIP counts), and
+#     every one of them drives a SECOND count block in lockstep:
+#     aws_route_table_association.<group>, which is untaggable and carries no
+#     marker at all (it is one of this estate's own 22 UNTAGGABLE instances,
+#     asserted by value at stage 2). Scaling intra_subnets from 3 to 2 asks
+#     what choudoufu does about an orphaned derived child whose declaration
+#     just disappeared - a genuine question, and NOT the one day2_count's
+#     oracle is about ("which instance of a count set is destroyed, and does
+#     the survivor keep its identity"). It belongs to whatever unit takes on
+#     untaggable orphan sweeping; measuring it here would report a verdict
+#     about a different mechanism under this stage's name.
+#   - The one real knob with zero cascade, module.vpc's `customer_gateways`,
+#     is `for_each` over a string-keyed map, so there are no index slots to
+#     bind and nothing for internal/live/discovery/count.go to get wrong -
+#     removing a map key is the shape day2_remove already measures. It is
+#     also day2_replace's own target (PART F), so reusing it would couple
+#     two stages that are deliberately independent here.
+#
+# So the block below is aws_security_group.count_test's shape from
+# live/e2e/reference-ec2-vpc/run.sh Part F, over a type THIS estate actually
+# exercises: aws_customer_gateway, of which module.vpc creates three. It is
+# taggable (so it carries a real tofu-address marker to assert by value),
+# server-assigned (EC2 mints the cgw- id, so a recreated instance is provably
+# a new object), and depends on nothing at all - no VPC, no subnet - which is
+# what lets G-ORACLE stand the identical block up under the stock binary in
+# its own account without also standing up a VPC to hang it from. Nothing
+# else in this configuration names aws_customer_gateway.count_test, so
+# day2_count's history is self-contained.
+#
+# WHAT THIS SECTION FOUND, and it was a real defect rather than a gap in the
+# estate: the first run of it proposed NO destroy at all on the way down -
+# "No changes. Your infrastructure matches the configuration." - where stock
+# destroys count_test[1]. The removal sweep had classified aws_customer_gateway
+# TYPE_NOT_LISTABLE ("the provider cannot list these types at all"), which
+# live/registry.json flatly contradicts: AWS::EC2::CustomerGateway carries
+# handlers.list true with no required input and tagging.taggable true. Root
+# cause, read off the artifacts with no tofu in the loop: live/mapping.json
+# gives aws_customer_gateway via "former2", and registry.Roster.
+# CloudControlType accepts only name/alias/service-alias - a filter that
+# exists so Cloud Control never ENUMERATES a type on a mapping row it does
+# not trust, being read to answer the different question "which TF type is
+# this ARN". Fixed in this branch's first commit; see it for the generic rule
+# and the measurement (47 former2 rows, 38 of them admitted, every one
+# unambiguous; the routing change moves exactly one type today).
+#
+# BREAK_COUNT=1 exercises this stage's own Break control instead of the real
+# checks: it expects the WRONG instance (count_test[0] rather than
+# count_test[1]) to be the one destroyed - tools/gauntlet/stages.go's Break
+# text for day2_count, verbatim: "Expect a different instance to be
+# destroyed; the assertion must fail." Unlike BREAK/BREAK_REMOVE, it does not
+# leave the estate un-reconverged for anything downstream, because nothing is
+# downstream of this section.
+if [ "${BREAK:-}" = "1" ] || [ "${BREAK_REMOVE:-}" = "1" ]; then
+  log ""
+  log "  (PART G/day2_count skipped: BREAK/BREAK_REMOVE deliberately leave the estate un-reconverged, which is not the state a count change can be measured from. BREAK_COUNT=1 is this stage's own control.)"
+else
+gauntlet_begin_stage day2_count
+
+# The same plain `plan` PART D and PART E use on this working directory,
+# named here so PART G's five plan calls cannot drift apart from each other.
+count_plan() { ( cd "$ADOPTED" && "$TOFU" plan -input=false -no-color ); }
+
+# count_test_block($1 = count) is day2_count's own resource, shared by the
+# G-ORACLE stock leg and the real leg below so the two cannot drift into
+# measuring different shapes. Unquoted heredoc so $1 interpolates;
+# ${count.index} is escaped so bash never tries to expand it.
+count_test_block() {
+  cat <<COUNTEOF
+
+resource "aws_customer_gateway" "count_test" {
+  count = $1
+
+  bgp_asn    = 65200
+  ip_address = "203.0.113.1\${count.index}"
+  type       = "ipsec.1"
+
+  tags = {
+    Name = "ex-complete-count-test-\${count.index}"
+  }
+}
+COUNTEOF
+}
+
+log ""
+log "=== G-ORACLE. day2_count stock oracle: the identical count block, stood up by $TF_COLD_BIN in its own account, scaled 2 -> 1 -> 2 for real ==="
+# A fresh container rather than a reused one. cold_deploy's own state cannot
+# serve as this oracle the way it does for day2_remove (E-ORACLE) and
+# day2_replace (F-ORACLE): stock never had a count_test block, so there is
+# nothing in that state to scale. The greenfield ports are free by now (PART
+# GREENFIELD removes both of its containers), but this takes its own port and
+# its own name so the stage does not depend on that section having run, let
+# alone having passed.
+docker run -d --rm -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
+COH=""
+for _ in $(seq 1 45); do
+  COH="$(curl -fs "${COUNT_ORACLE_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"ec2"' <<< "${COH:-}" && break
+  sleep 2
+done
+grep -q '"ec2"' <<< "${COH:-}" || fail "floci did not come up healthy (ec2) at $COUNT_ORACLE_ENDPOINT for the day2_count oracle"
+log "  healthy: count oracle at $COUNT_ORACLE_ENDPOINT"
+
+COUNT_ORACLE_DIR="$WORK/count-oracle"
+mkdir -p "$COUNT_ORACLE_DIR"
+awso() { aws --endpoint-url "$COUNT_ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+oracle_count_config() { # oracle_count_config <n>: the whole oracle working directory's main.tf
+  {
+    cat <<'EOF'
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "eu-west-1"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
+}
+EOF
+    count_test_block "$1"
+  } > "$COUNT_ORACLE_DIR/main.tf"
+}
+
+oracle_count_config 2
+( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_count oracle's init failed"; }
+G_ORACLE_BASE_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; G_ORACLE_BASE_RC=$?
+[ "$G_ORACLE_BASE_RC" -eq 0 ] || { printf '%s\n' "$G_ORACLE_BASE_OUT" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added, 0 changed, 0 destroyed' <<< "$G_ORACLE_BASE_OUT" \
+  || { printf '%s\n' "$G_ORACLE_BASE_OUT" | tail -20; fail "stock did not create exactly 2 count-test customer gateways for the day2_count oracle"; }
+G_ORACLE_CGW0="$(awso ec2 describe-customer-gateways --filters "Name=tag:Name,Values=ex-complete-count-test-0" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+G_ORACLE_CGW1="$(awso ec2 describe-customer-gateways --filters "Name=tag:Name,Values=ex-complete-count-test-1" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$G_ORACLE_CGW0" ] && [ "$G_ORACLE_CGW0" != "None" ] || fail "no oracle count_test[0] customer gateway found by its Name tag"
+[ -n "$G_ORACLE_CGW1" ] && [ "$G_ORACLE_CGW1" != "None" ] || fail "no oracle count_test[1] customer gateway found by its Name tag"
+log "  stock: 2 instances created, count_test[0]=$G_ORACLE_CGW0 count_test[1]=$G_ORACLE_CGW1"
+
+oracle_count_config 1
+G_ORACLE_DOWN_PLAN="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; G_ORACLE_DOWN_RC=$?
+[ "$G_ORACLE_DOWN_RC" -eq 0 ] || { printf '%s\n' "$G_ORACLE_DOWN_PLAN" | tail -30; fail "the day2_count oracle's scale-down plan exited $G_ORACLE_DOWN_RC"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[1\] will be destroyed' <<< "$G_ORACLE_DOWN_PLAN" \
+  || { printf '%s\n' "$G_ORACLE_DOWN_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[0\] ' <<< "$G_ORACLE_DOWN_PLAN" \
+  && { printf '%s\n' "$G_ORACLE_DOWN_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "stock's scale-down plan touches count_test[0], which must be untouched"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$G_ORACLE_DOWN_PLAN" \
+  || { printf '%s\n' "$G_ORACLE_DOWN_PLAN" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+G_ORACLE_DOWN_APPLY="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; G_ORACLE_DOWN_APPLY_RC=$?
+[ "$G_ORACLE_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_ORACLE_DOWN_APPLY" | tail -30; fail "the day2_count oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$G_ORACLE_DOWN_APPLY" \
+  || { grep -E 'Apply complete' <<< "$G_ORACLE_DOWN_APPLY"; fail "the day2_count oracle's scale-down apply was not exactly one destroy"; }
+# Same NotFound shape PART F already documents for this type: floci (matching
+# real AWS) drops a deleted customer gateway from DescribeCustomerGateways
+# entirely rather than leaving it queryable in state "deleted".
+G_ORACLE_CGW1_GONE="$(awso ec2 describe-customer-gateways --customer-gateway-ids "$G_ORACLE_CGW1" --query 'CustomerGateways[0].State' --output text 2>&1)"
+[ "$G_ORACLE_CGW1_GONE" = "deleted" ] || grep -qF 'InvalidCustomerGatewayID.NotFound' <<< "$G_ORACLE_CGW1_GONE" \
+  || fail "stock's count_test[1] ($G_ORACLE_CGW1) is not gone after its scale-down (state=$G_ORACLE_CGW1_GONE)"
+G_ORACLE_CGW0_AFTER_DOWN="$(awso ec2 describe-customer-gateways --customer-gateway-ids "$G_ORACLE_CGW0" --query "CustomerGateways[0].CustomerGatewayId" --output text 2>/dev/null || true)"
+[ "$G_ORACLE_CGW0_AFTER_DOWN" = "$G_ORACLE_CGW0" ] || fail "stock's surviving count_test[0] changed id across the scale-down ($G_ORACLE_CGW0 -> $G_ORACLE_CGW0_AFTER_DOWN)"
+log "  stock: exactly one destroy (count_test[1]=$G_ORACLE_CGW1, confirmed gone via the AWS CLI), count_test[0]=$G_ORACLE_CGW0 unchanged"
+
+oracle_count_config 2
+G_ORACLE_UP_PLAN="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; G_ORACLE_UP_RC=$?
+[ "$G_ORACLE_UP_RC" -eq 0 ] || { printf '%s\n' "$G_ORACLE_UP_PLAN" | tail -30; fail "the day2_count oracle's scale-up plan exited $G_ORACLE_UP_RC"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[1\] will be created' <<< "$G_ORACLE_UP_PLAN" \
+  || { printf '%s\n' "$G_ORACLE_UP_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[0\] ' <<< "$G_ORACLE_UP_PLAN" \
+  && { printf '%s\n' "$G_ORACLE_UP_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "stock's scale-up plan touches count_test[0], which must be untouched"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$G_ORACLE_UP_PLAN" \
+  || { printf '%s\n' "$G_ORACLE_UP_PLAN" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+G_ORACLE_UP_APPLY="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; G_ORACLE_UP_APPLY_RC=$?
+[ "$G_ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_ORACLE_UP_APPLY" | tail -30; fail "the day2_count oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$G_ORACLE_UP_APPLY" \
+  || { grep -E 'Apply complete' <<< "$G_ORACLE_UP_APPLY"; fail "the day2_count oracle's scale-up apply was not exactly one create"; }
+G_ORACLE_CGW1_NEW="$(awso ec2 describe-customer-gateways --filters "Name=tag:Name,Values=ex-complete-count-test-1" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$G_ORACLE_CGW1_NEW" ] && [ "$G_ORACLE_CGW1_NEW" != "None" ] || fail "no oracle count_test[1] customer gateway found after the scale-up"
+[ "$G_ORACLE_CGW1_NEW" != "$G_ORACLE_CGW1" ] || fail "stock's recreated count_test[1] came back with the SAME id it had before being destroyed"
+G_ORACLE_CGW0_AFTER_UP="$(awso ec2 describe-customer-gateways --customer-gateway-ids "$G_ORACLE_CGW0" --query "CustomerGateways[0].CustomerGatewayId" --output text 2>/dev/null || true)"
+[ "$G_ORACLE_CGW0_AFTER_UP" = "$G_ORACLE_CGW0" ] || fail "stock's count_test[0] changed id across the scale-up ($G_ORACLE_CGW0 -> $G_ORACLE_CGW0_AFTER_UP)"
+log "  stock: exactly one create (count_test[1], new id $G_ORACLE_CGW1_NEW, was $G_ORACLE_CGW1), count_test[0]=$G_ORACLE_CGW0 unchanged throughout"
+docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+
+log ""
+log "=== G0. choudoufu: add aws_customer_gateway.count_test, count = 2 ==="
+# The whole file is rewritten from a pristine copy taken here, so every step
+# below differs from the one before it in exactly the count and nothing else -
+# PART D and PART E have already sed'ed this main.tf several times, and
+# re-running those edits is not what this stage measures.
+COUNT_BASE_TF="$WORK/count-base-main.tf"
+cp "$ADOPTED/main.tf" "$COUNT_BASE_TF"
+set_count_test() { # set_count_test <n>: the estate's own main.tf plus a count_test block of <n>
+  cat "$COUNT_BASE_TF" > "$ADOPTED/main.tf"
+  count_test_block "$1" >> "$ADOPTED/main.tf"
+}
+
+set_count_test 2
+( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_count reinit failed"; }
+G_ADD_PLAN="$(count_plan 2>&1)"; G_ADD_PLAN_RC=$?
+[ "$G_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_ADD_PLAN" | tail -40; fail "the count-block-add plan exited $G_ADD_PLAN_RC"; }
+grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$G_ADD_PLAN" \
+  || { printf '%s\n' "$G_ADD_PLAN" | tail -10; fail "adding the count block did not plan exactly 2 creates and nothing else"; }
+G_ADD_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_ADD_APPLY_RC=$?
+[ "$G_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_ADD_APPLY" | tail -40; fail "the count-block-add apply exited $G_ADD_APPLY_RC"; }
+grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$G_ADD_APPLY" \
+  || { grep -E 'Apply complete' <<< "$G_ADD_APPLY"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+# Both instances, found by their own marker rather than by the Name tag the
+# oracle uses - this is the estate that has markers, so the marker is the
+# thing worth reading. live/MARKERS.md: an instance key reaches a tag in its
+# ESCAPED form, so count_test[0]'s tag value is aws_customer_gateway.count_test:0.
+G_CGW0="$(awsl ec2 describe-customer-gateways --filters "Name=tag:tofu-address,Values=aws_customer_gateway.count_test:0" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+G_CGW1="$(awsl ec2 describe-customer-gateways --filters "Name=tag:tofu-address,Values=aws_customer_gateway.count_test:1" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$G_CGW0" ] && [ "$G_CGW0" != "None" ] || fail "no live count_test[0] customer gateway carries tofu-address=aws_customer_gateway.count_test:0"
+[ -n "$G_CGW1" ] && [ "$G_CGW1" != "None" ] || fail "no live count_test[1] customer gateway carries tofu-address=aws_customer_gateway.count_test:1"
+[ "$G_CGW0" != "$G_CGW1" ] || fail "count_test[0] and count_test[1] resolved to the same live object ($G_CGW0) - the two markers are not distinguishing the instances"
+G_CGW0_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_CGW0" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+G_CGW1_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_CGW1" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+[ "$G_CGW0_SLOT" = "0" ] || fail "count_test[0] ($G_CGW0) carries tofu-slot=$G_CGW0_SLOT, not 0"
+[ "$G_CGW1_SLOT" = "1" ] || fail "count_test[1] ($G_CGW1) carries tofu-slot=$G_CGW1_SLOT, not 1"
+log "  2 instances created: [0]=$G_CGW0 (tofu-slot=$G_CGW0_SLOT), [1]=$G_CGW1 (tofu-slot=$G_CGW1_SLOT) - both found BY their tofu-address marker through the AWS CLI"
+
+G_NOOP_PLAN="$(count_plan 2>&1)"; G_NOOP_RC=$?
+[ "$G_NOOP_RC" -eq 0 ] || { printf '%s\n' "$G_NOOP_PLAN" | tail -40; fail "the post-add plan exited $G_NOOP_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_NOOP_PLAN" \
+  || { grep -E '^  #' <<< "$G_NOOP_PLAN"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+log "  No changes - both new instances plan empty immediately after creation"
+
+log "=== G1. scale the count down: 2 -> 1 ==="
+set_count_test 1
+G_DOWN_PLAN="$(count_plan 2>&1)"; G_DOWN_RC=$?
+[ "$G_DOWN_RC" -eq 0 ] || { printf '%s\n' "$G_DOWN_PLAN" | tail -40; fail "the scale-down plan exited $G_DOWN_RC"; }
+
+if [ "${BREAK_COUNT:-}" = "1" ]; then
+  # The Break text in tools/gauntlet/stages.go for day2_count, verbatim:
+  # "Expect a different instance to be destroyed; the assertion must fail."
+  # Only the two indices swap; every assertion below runs exactly as it does
+  # in a real run, so what fails is the check itself and not a different
+  # code path written for the control.
+  G_DOOMED=0; G_SURVIVOR=1
+  log "  BREAK_COUNT=1: expecting count_test[0] - the WRONG instance - to be the one destroyed. This assertion must fail."
+else
+  G_DOOMED=1; G_SURVIVOR=0
+fi
+G_DOOMED_ID="$G_CGW1"; G_SURVIVOR_ID="$G_CGW0"
+if [ "$G_DOOMED" = "0" ]; then G_DOOMED_ID="$G_CGW0"; G_SURVIVOR_ID="$G_CGW1"; fi
+
+grep -qE "^  # aws_customer_gateway\.count_test\[$G_DOOMED\] will be destroyed" <<< "$G_DOWN_PLAN" \
+  || { printf '%s\n' "$G_DOWN_PLAN" | grep -E '^  # .+ (will be|must be)'
+       fail "choudoufu's scale-down plan does not destroy count_test[$G_DOOMED]. Stock's own plan for the identical block (G-ORACLE above) destroys count_test[1] and nothing else."; }
+grep -qE "^  # aws_customer_gateway\.count_test\[$G_SURVIVOR\] " <<< "$G_DOWN_PLAN" \
+  && { printf '%s\n' "$G_DOWN_PLAN" | grep -E '^  # .+ (will be|must be)'
+       fail "choudoufu's scale-down plan touches count_test[$G_SURVIVOR], which must be untouched"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$G_DOWN_PLAN" \
+  || { printf '%s\n' "$G_DOWN_PLAN" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+log "  choudoufu: exactly one destroy (count_test[$G_DOOMED]), count_test[$G_SURVIVOR] untouched - the same shape G-ORACLE showed for stock"
+
+G_DOWN_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_DOWN_APPLY_RC=$?
+[ "$G_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_DOWN_APPLY" | tail -40; fail "the scale-down apply exited $G_DOWN_APPLY_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$G_DOWN_APPLY" \
+  || { grep -E 'Apply complete' <<< "$G_DOWN_APPLY"; fail "the scale-down apply was not exactly one destroy"; }
+
+# Every fact below is read off EC2 directly, never out of choudoufu's own
+# report: the destroyed instance is gone, the survivor's server-minted id is
+# the same one it had before, and its marker still names the same address.
+G_DOOMED_STATE="$(awsl ec2 describe-customer-gateways --customer-gateway-ids "$G_DOOMED_ID" --query 'CustomerGateways[0].State' --output text 2>&1)"
+[ "$G_DOOMED_STATE" = "deleted" ] || grep -qF 'InvalidCustomerGatewayID.NotFound' <<< "$G_DOOMED_STATE" \
+  || fail "count_test[$G_DOOMED] ($G_DOOMED_ID) is not gone after the scale-down (state=$G_DOOMED_STATE) - it was orphaned, not destroyed"
+G_SURVIVOR_AFTER_DOWN="$(awsl ec2 describe-customer-gateways --customer-gateway-ids "$G_SURVIVOR_ID" --query "CustomerGateways[0].CustomerGatewayId" --output text 2>/dev/null || true)"
+[ "$G_SURVIVOR_AFTER_DOWN" = "$G_SURVIVOR_ID" ] || fail "count_test[$G_SURVIVOR]'s live id changed across the scale-down ($G_SURVIVOR_ID -> $G_SURVIVOR_AFTER_DOWN) - it was destroyed and recreated, not left alone"
+G_SURVIVOR_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_SURVIVOR_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$G_SURVIVOR_ADDR" = "aws_customer_gateway.count_test:$G_SURVIVOR" ] \
+  || fail "count_test[$G_SURVIVOR] ($G_SURVIVOR_ID) carries tofu-address=$G_SURVIVOR_ADDR after the scale-down, not aws_customer_gateway.count_test:$G_SURVIVOR"
+G_SURVIVOR_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_SURVIVOR_ID" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+[ "$G_SURVIVOR_SLOT" = "$G_SURVIVOR" ] || fail "count_test[$G_SURVIVOR]'s tofu-slot is $G_SURVIVOR_SLOT after the scale-down, not $G_SURVIVOR"
+log "  $G_DOOMED_ID (count_test[$G_DOOMED]) is gone; $G_SURVIVOR_ID (count_test[$G_SURVIVOR]) keeps its id, its tofu-address ($G_SURVIVOR_ADDR) and its tofu-slot ($G_SURVIVOR_SLOT) - all read via the AWS CLI"
+
+log "=== G2. scale the count back up: 1 -> 2 ==="
+set_count_test 2
+G_UP_PLAN="$(count_plan 2>&1)"; G_UP_RC=$?
+[ "$G_UP_RC" -eq 0 ] || { printf '%s\n' "$G_UP_PLAN" | tail -40; fail "the scale-up plan exited $G_UP_RC"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[1\] will be created' <<< "$G_UP_PLAN" \
+  || { printf '%s\n' "$G_UP_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_customer_gateway\.count_test\[0\] ' <<< "$G_UP_PLAN" \
+  && { printf '%s\n' "$G_UP_PLAN" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu's scale-up plan touches count_test[0], which must be untouched"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$G_UP_PLAN" \
+  || { printf '%s\n' "$G_UP_PLAN" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched - the same shape G-ORACLE showed for stock"
+
+G_UP_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_UP_APPLY_RC=$?
+[ "$G_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_UP_APPLY" | tail -40; fail "the scale-up apply exited $G_UP_APPLY_RC"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$G_UP_APPLY" \
+  || { grep -E 'Apply complete' <<< "$G_UP_APPLY"; fail "the scale-up apply was not exactly one create"; }
+
+G_CGW1_NEW="$(awsl ec2 describe-customer-gateways --filters "Name=tag:tofu-address,Values=aws_customer_gateway.count_test:1" "Name=state,Values=available" --query "CustomerGateways[0].CustomerGatewayId" --output text)"
+[ -n "$G_CGW1_NEW" ] && [ "$G_CGW1_NEW" != "None" ] || fail "no live count_test[1] customer gateway carries tofu-address=aws_customer_gateway.count_test:1 after the scale-up"
+[ "$G_CGW1_NEW" != "$G_CGW1" ] \
+  || fail "count_test[1] came back with the SAME server-minted id ($G_CGW1) it had before being destroyed - the destroy in G1 was not real, or the marker was moved onto a surviving object"
+G_CGW1_NEW_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_CGW1_NEW" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+[ "$G_CGW1_NEW_SLOT" = "1" ] || fail "the recreated count_test[1] ($G_CGW1_NEW) carries tofu-slot=$G_CGW1_NEW_SLOT, not 1"
+G_CGW0_AFTER_UP="$(awsl ec2 describe-customer-gateways --customer-gateway-ids "$G_CGW0" --query "CustomerGateways[0].CustomerGatewayId" --output text 2>/dev/null || true)"
+[ "$G_CGW0_AFTER_UP" = "$G_CGW0" ] || fail "count_test[0]'s live id changed across the scale-up ($G_CGW0 -> $G_CGW0_AFTER_UP)"
+G_CGW0_ADDR_AFTER_UP="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$G_CGW0" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$G_CGW0_ADDR_AFTER_UP" = "aws_customer_gateway.count_test:0" ] \
+  || fail "count_test[0] ($G_CGW0) carries tofu-address=$G_CGW0_ADDR_AFTER_UP after the whole cycle, not aws_customer_gateway.count_test:0"
+log "  count_test[1] recreated as a NEW object ($G_CGW1_NEW, was $G_CGW1), tofu-slot=$G_CGW1_NEW_SLOT; count_test[0] ($G_CGW0) untouched throughout the down-then-up cycle, still tofu-address=$G_CGW0_ADDR_AFTER_UP - all read via the AWS CLI"
+
+log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+G_FINAL_PLAN="$(count_plan 2>&1)"; G_FINAL_RC=$?
+[ "$G_FINAL_RC" -eq 0 ] || { printf '%s\n' "$G_FINAL_PLAN" | tail -40; fail "the post-scale-up plan exited $G_FINAL_RC"; }
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$G_FINAL_PLAN" \
+  || { grep -E '^  #' <<< "$G_FINAL_PLAN"; fail "the post-scale-up plan is not empty"; }
+log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+gauntlet_stage day2_count pass "choudoufu: scaling aws_customer_gateway.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and $G_CGW1 is confirmed gone from the live account while count_test[0] ($G_CGW0) kept its server-minted id, its tofu-address marker and its tofu-slot; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a genuinely NEW object ($G_CGW1_NEW, not the destroyed $G_CGW1), with count_test[0] untouched throughout; the next plan is empty. Every identity above was read off EC2 through the AWS CLI, by the tofu-address marker, never from choudoufu's own report. Stock oracle (G-ORACLE): the identical count block stood up by $TF_COLD_BIN in its own floci account and scaled 2->1->2 for real shows the identical shape - destroy count_test[1] only, recreate it under a new id, count_test[0]'s id unchanged both times. THE BLOCK IS SYNTHETIC, deliberately: every real count knob in this estate is a subnet list that drives an untaggable aws_route_table_association count block in lockstep (a question about orphaned derived children, not about count-slot binding), and the one real zero-cascade knob, module.vpc's customer_gateways, is a for_each map with no index slots and is already day2_replace's target - so the block uses aws_customer_gateway, a type this estate really does exercise three of. Building it found and fixed a real defect (five-row row 2): the scale-down proposed NO destroy at all, because the removal sweep read live/mapping.json's via=\"former2\" provenance - a Cloud Control ENUMERABILITY filter - to answer the identity question \"which TF type is this ARN\", and classified aws_customer_gateway TYPE_NOT_LISTABLE against live/registry.json's own handlers.list=true."
+gauntlet_end_stage
+fi
+
 gauntlet_end
 
 log ""
