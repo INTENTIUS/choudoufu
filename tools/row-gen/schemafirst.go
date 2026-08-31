@@ -12,7 +12,7 @@ import (
 )
 
 // This file is issue #387's measurement, ruling 2 of
-// rfc/20260823-foundation-order-ruling.md: for every config-identified
+// rulings/20260823-foundation-order-ruling.md: for every config-identified
 // ratified row the provider also serves an identity schema for, does the
 // schema say the same thing the row does?
 //

@@ -3,16 +3,16 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "394bb435253decf7bc5c5f9abfd6661891b40cf9",
+  "measured_at_head": "5dc10cc781f3a5e62aa8e34557e69d8a52e0b91f",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
-    "internal/live/": 1193,
-    "live/": 427,
-    "other": 370,
-    "rfc/": 6,
-    "site/": 81,
-    "tools/": 371
+    "internal/live/": 1243,
+    "live/": 443,
+    "other": 453,
+    "rulings/": 12,
+    "site/": 88,
+    "tools/": 406
   },
   "files": {
     ".github/": [
@@ -224,6 +224,14 @@
       },
       {
         "path": "internal/live/check/manifest_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/nodestamp.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/nodestamp_conflict_test.go",
         "status": "A"
       },
       {
@@ -783,6 +791,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/collisionmatrix_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/contentmatch.go",
         "status": "A"
       },
@@ -887,6 +899,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/identityprovenance_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/locatedfallback.go",
         "status": "A"
       },
@@ -912,6 +928,14 @@
       },
       {
         "path": "internal/live/discovery/multiprovider_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/nativesweep.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/nativesweep_test.go",
         "status": "A"
       },
       {
@@ -991,7 +1015,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/slicing_bench_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/summaries.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweep_parallelism_bench_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweep_split_bench_test.go",
         "status": "A"
       },
       {
@@ -1000,6 +1036,14 @@
       },
       {
         "path": "internal/live/discovery/sweepbindtype_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweepconcurrency.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweepconcurrency_test.go",
         "status": "A"
       },
       {
@@ -1016,6 +1060,10 @@
       },
       {
         "path": "internal/live/discovery/tagging_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/terralith_ceiling_bench_test.go",
         "status": "A"
       },
       {
@@ -1040,6 +1088,10 @@
       },
       {
         "path": "internal/live/discovery/testdata/cloudcontrol-e2e/versions.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/collision-matrix/main.tf",
         "status": "A"
       },
       {
@@ -1188,6 +1240,10 @@
       },
       {
         "path": "internal/live/flocitest/proxy.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/proxy_test.go",
         "status": "A"
       },
       {
@@ -3087,6 +3143,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/count_index_module_instance_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/count_index_scope_test.go",
         "status": "A"
       },
@@ -3148,6 +3208,10 @@
       },
       {
         "path": "internal/live/lint/markerless_type_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/module_instance_eval.go",
         "status": "A"
       },
       {
@@ -3292,6 +3356,54 @@
       },
       {
         "path": "internal/live/lint/testdata/connection/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-collides/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-collides/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-distinct/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-distinct/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-flattened/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-flattened/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-shared/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-shared/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-unprovable/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach-unprovable/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach/m/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-foreach/main.tf",
         "status": "A"
       },
       {
@@ -3663,6 +3775,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/liveimport/stamp_concurrency_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/liveimport/stamp_test.go",
         "status": "A"
       },
@@ -3736,6 +3852,18 @@
       },
       {
         "path": "internal/live/markers/modulemarker.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markerstrip/markerstrip.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markerstrip/markerstrip_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markerstrip/markerstrip_test.go",
         "status": "A"
       },
       {
@@ -4091,6 +4219,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/nodestamp_ignorechanges.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/nodestamp_test.go",
         "status": "A"
       },
@@ -4179,6 +4311,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/readconcurrency.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/readconcurrency_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/record.go",
         "status": "A"
       },
@@ -4196,6 +4336,10 @@
       },
       {
         "path": "internal/live/projection/recordfirst_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/recordfresh_test.go",
         "status": "A"
       },
       {
@@ -4268,6 +4412,14 @@
       },
       {
         "path": "internal/live/projection/sensitivepaths_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/sighted.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/sighted_test.go",
         "status": "A"
       },
       {
@@ -4371,6 +4523,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/testdata/read-parallel/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/testdata/record-parent-derived/main.tf",
         "status": "A"
       },
@@ -4388,6 +4544,14 @@
       },
       {
         "path": "internal/live/projection/tombstoneseed.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/triplog.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/triplog_test.go",
         "status": "A"
       },
       {
@@ -4492,6 +4656,14 @@
       },
       {
         "path": "internal/live/providerversion/check_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/recordtrips/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/recordtrips/recordtrips_live_test.go",
         "status": "A"
       },
       {
@@ -4799,7 +4971,27 @@
         "status": "A"
       },
       {
+        "path": "internal/live/statefulcost/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/statefulcost/statefulcost_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bulk.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/conformance_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/counting.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/counting_test.go",
         "status": "A"
       },
       {
@@ -4812,6 +5004,14 @@
       },
       {
         "path": "internal/live/staterecord/local_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/runcache.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/runcache_test.go",
         "status": "A"
       },
       {
@@ -4905,6 +5105,10 @@
         "status": "A"
       },
       {
+        "path": "live/FLOCI.md",
+        "status": "A"
+      },
+      {
         "path": "live/GAUNTLET.md",
         "status": "A"
       },
@@ -4934,6 +5138,14 @@
       },
       {
         "path": "live/admission_coverage_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/adoption_doc_pin_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/behaviors.json",
         "status": "A"
       },
       {
@@ -5194,6 +5406,18 @@
       },
       {
         "path": "live/e2e/dataread-projection/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/destroy-teardown/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/deterministic-recreate/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/deterministic-recreate/run.sh",
         "status": "A"
       },
       {
@@ -6449,6 +6673,14 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/terralith-scale/MIGRATION.md",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/terralith-scale/run.sh",
+        "status": "A"
+      },
+      {
         "path": "live/estate-types.json",
         "status": "A"
       },
@@ -6489,6 +6721,10 @@
         "status": "A"
       },
       {
+        "path": "live/gauntlet/regressions.json",
+        "status": "A"
+      },
+      {
         "path": "live/handoff_test.go",
         "status": "A"
       },
@@ -6517,6 +6753,26 @@
         "status": "A"
       },
       {
+        "path": "live/live-cert/lib/live-cert.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/reference-ec2-vpc.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-kill.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/terralith-scale.sh",
+        "status": "A"
+      },
+      {
         "path": "live/logical-schemas.json",
         "status": "A"
       },
@@ -6526,6 +6782,10 @@
       },
       {
         "path": "live/marker_identity_split_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/oracle-versions.json",
         "status": "A"
       },
       {
@@ -6546,6 +6806,10 @@
       },
       {
         "path": "live/readiness.json",
+        "status": "A"
+      },
+      {
+        "path": "live/readiness_docs_pin_test.go",
         "status": "A"
       },
       {
@@ -6655,12 +6919,20 @@
         "status": "M"
       },
       {
+        "path": "BUG_REPORTS.md",
+        "status": "M"
+      },
+      {
         "path": "CHANGELOG.md",
         "status": "M"
       },
       {
         "path": "CHARTER.md",
         "status": "M"
+      },
+      {
+        "path": "CLAUDE.md",
+        "status": "A"
       },
       {
         "path": "CODEOWNERS",
@@ -6927,6 +7199,10 @@
         "status": "M"
       },
       {
+        "path": "internal/backend/backend.go",
+        "status": "M"
+      },
+      {
         "path": "internal/backend/local/backend.go",
         "status": "M"
       },
@@ -6939,7 +7215,15 @@
         "status": "M"
       },
       {
+        "path": "internal/backend/local/backend_plan.go",
+        "status": "M"
+      },
+      {
         "path": "internal/backend/local/live.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/backend/local/plan_guard.go",
         "status": "A"
       },
       {
@@ -6968,6 +7252,14 @@
       },
       {
         "path": "internal/builtin/providers/tf/provider.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/builtin/providers/tf/resource_data.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/builtin/providers/tf/resource_data_test.go",
         "status": "M"
       },
       {
@@ -7001,6 +7293,14 @@
       {
         "path": "internal/command/apply.go",
         "status": "M"
+      },
+      {
+        "path": "internal/command/apply_e2etesting.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/command/apply_e2etesting_crash.go",
+        "status": "A"
       },
       {
         "path": "internal/command/arguments/apply.go",
@@ -7111,7 +7411,23 @@
         "status": "M"
       },
       {
+        "path": "internal/command/live_adoption.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_adoption_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_check.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_collect_unclaimed.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_collect_unclaimed_test.go",
         "status": "A"
       },
       {
@@ -7187,7 +7503,19 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_read_parallelism.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_read_parallelism_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_recordbacked_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_rejections_test.go",
         "status": "A"
       },
       {
@@ -7196,6 +7524,22 @@
       },
       {
         "path": "internal/command/live_state_guard.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_sweep_parallelism.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_sweep_parallelism_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_unmigrate_guard.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_unmigrate_guard_test.go",
         "status": "A"
       },
       {
@@ -7431,6 +7775,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-plan-read-parallelism/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-plan-residue-attr/main.tf",
         "status": "A"
       },
@@ -7471,6 +7819,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/plan-marker-strip/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/unlock.go",
         "status": "M"
       },
@@ -7507,6 +7859,18 @@
         "status": "M"
       },
       {
+        "path": "internal/command/views/live_adoption.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_adoption_plan.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_adoption_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_check.go",
         "status": "A"
       },
@@ -7524,6 +7888,10 @@
       },
       {
         "path": "internal/command/views/live_plan.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_plan_nativesweep_test.go",
         "status": "A"
       },
       {
@@ -7564,6 +7932,10 @@
       },
       {
         "path": "internal/command/views/view_test.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/command/views/view_ui.go",
         "status": "M"
       },
       {
@@ -7649,6 +8021,10 @@
       {
         "path": "internal/configs/parser_live_sidecar.go",
         "status": "A"
+      },
+      {
+        "path": "internal/configs/provider_validation.go",
+        "status": "M"
       },
       {
         "path": "internal/configs/repetition_test.go",
@@ -7875,6 +8251,10 @@
         "status": "A"
       },
       {
+        "path": "internal/getproviders/package_authentication.go",
+        "status": "M"
+      },
+      {
         "path": "internal/lang/eval.go",
         "status": "M"
       },
@@ -8059,8 +8439,220 @@
         "status": "A"
       },
       {
+        "path": "package-lock.json",
+        "status": "A"
+      },
+      {
+        "path": "package.json",
+        "status": "A"
+      },
+      {
+        "path": "prose-lint.mjs",
+        "status": "A"
+      },
+      {
+        "path": "rfc/20230905-provider-gpgkey-missing.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231017-homebrew-like-registry-design.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231106-registry-repository-folder-structure.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231107-registry-gpg-key-verification.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231108-registry-automatic-version-bumping.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231109-registry-response-generation.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231114-client-side-state-encryption.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20231123-registry-submission-via-github-issues.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240513-static-evaluation-providers.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240513-static-evaluation.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240513-static-evaluation/module-expansion.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240524-OpenTofu-RFC-Process.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240529-OpenTofu-Specific-Code-Override.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240725-exclude-resources.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20240824-provider-cache-locking.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241023-rfc-tracking-issues.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241113-pragmatic-complexity-linting.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241118-module-vars-and-outputs-deprecation.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/1-oci-primer.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/10-module-implementation-details.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/2-survey-results.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/3-design-considerations.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/4-providers.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/5-modules.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/6-authentication.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/7-open-questions.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/8-auth-implementation-details.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20241206-oci-registries/9-provider-implementation-details.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/2025-07-22-conditional-enable.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250108-naming-convention-for-context-vars.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250127-PostgreSQL-Locking.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250129-Tracing-For-Extra-Context.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250211-s3-locking-with-conditional-writes.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250303-linter-policy.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250314-security-patch-policy.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250317-ephemeral-resources.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250327-providerinst-auth-hashes.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250728-execution-architecture.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20250730-module-misc-settings.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20251001-eval-plan-apply-architecture.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20251027-provider-registry-hashes.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20251105-refactor-tofu-cli.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20251105-use-cobra-instead-of-mitchellh.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20251211-contribution-docs.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20260406-linting.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20260605-speed-up-tofu-show-planfile.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/README.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/yyyymmdd-template.md",
+        "status": "D"
+      },
+      {
         "path": "scripts/build.sh",
         "status": "M"
+      },
+      {
+        "path": "scripts/ci-gate.sh",
+        "status": "A"
       },
       {
         "path": "scripts/contribute.sh",
@@ -8087,33 +8679,61 @@
         "status": "M"
       },
       {
+        "path": "website/README.md",
+        "status": "M"
+      },
+      {
         "path": "website/package-lock.json",
         "status": "M"
       }
     ],
-    "rfc/": [
+    "rulings/": [
       {
-        "path": "rfc/20260814-micro-state-store-ruling.md",
+        "path": "rulings/20260814-micro-state-store-ruling.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-plan-approval.md",
+        "path": "rulings/20260814-plan-approval.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-projection-nativeness-audit.md",
+        "path": "rulings/20260814-projection-nativeness-audit.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-upstream-sync.md",
+        "path": "rulings/20260814-upstream-sync.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260823-foundation-order-ruling.md",
+        "path": "rulings/20260823-foundation-order-ruling.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260828-readiness-tiers.md",
+        "path": "rulings/20260828-readiness-tiers.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/20260830-marker-verified-fast-projection.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/20260830-slicing-under-choudoufu.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/20260830-ssm-record-parameter-type-ruling.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/20260830-stale-state-charter.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/20260830-stateful-equivalence.md",
+        "status": "A"
+      },
+      {
+        "path": "rulings/README.md",
         "status": "A"
       }
     ],
@@ -8163,6 +8783,14 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/decisions/_index.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/decisions/what-drives-development.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/governance/_index.md",
         "status": "A"
       },
@@ -8200,6 +8828,10 @@
       },
       {
         "path": "site/content/docs/model/identity.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/model/plan-cost.md",
         "status": "A"
       },
       {
@@ -8327,6 +8959,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/progress/terralith-scale.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/tutorial.md",
         "status": "A"
       },
@@ -8367,6 +9003,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/provider-bump.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/record-an-effect.md",
         "status": "A"
       },
@@ -8387,11 +9027,19 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/setup.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/start.md",
         "status": "A"
       },
       {
         "path": "site/content/docs/use/storage.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/what-you-pay.md",
         "status": "A"
       },
       {
@@ -8502,6 +9150,10 @@
       },
       {
         "path": "tools/admission-pipeline/verify.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/ci-gate/ci_gate_test.go",
         "status": "A"
       },
       {
@@ -8697,6 +9349,10 @@
         "status": "A"
       },
       {
+        "path": "tools/estate-gen/overrides_reference_shadow_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/estate-gen/ownership_test.go",
         "status": "A"
       },
@@ -8758,6 +9414,10 @@
       },
       {
         "path": "tools/estate-types/sumaform.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/terralith.go",
         "status": "A"
       },
       {
@@ -8829,6 +9489,14 @@
         "status": "A"
       },
       {
+        "path": "tools/forkdiff-gen/render.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/forkdiff-gen/render_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/add.go",
         "status": "A"
       },
@@ -8841,7 +9509,23 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/behaviors.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/behaviors_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/gauntlet_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/livecert.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/livecert_test.go",
         "status": "A"
       },
       {
@@ -8850,6 +9534,14 @@
       },
       {
         "path": "tools/gauntlet/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/mergeartifact.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/mergeartifact_test.go",
         "status": "A"
       },
       {
@@ -8869,7 +9561,23 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/oracle.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/oracle_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/protocol.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/ratchet.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/ratchet_test.go",
         "status": "A"
       },
       {
@@ -8878,6 +9586,10 @@
       },
       {
         "path": "tools/gauntlet/run.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/run_docker_test.go",
         "status": "A"
       },
       {
@@ -9325,6 +10037,30 @@
         "status": "A"
       },
       {
+        "path": "tools/oracle-bump-report/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/oracle-bump-report/report.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/oracle-bump-report/report_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/provider-bump-report/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/provider-bump-report/report.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/provider-bump-report/report_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/ratification-queue-gen/build.go",
         "status": "A"
       },
@@ -9606,6 +10342,26 @@
       },
       {
         "path": "tools/row-gen/emit_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/evidence-schema-gap.json",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/evidencegap.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/evidencegap_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/evidenceschema.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/evidenceschema_test.go",
         "status": "A"
       },
       {
@@ -9913,6 +10669,38 @@
         "status": "A"
       },
       {
+        "path": "tools/terralith-gen/format_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/gen.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/gen_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/prefix_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/provider_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/shape_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/terralith-gen/templates.go",
+        "status": "A"
+      },
+      {
         "path": "tools/toggles-gen/docspan.go",
         "status": "A"
       },
@@ -9931,7 +10719,7 @@
     ]
   },
   "mechanical_module_rename": {
-    "excluded_count": 1145,
+    "excluded_count": 1137,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   },

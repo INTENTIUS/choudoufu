@@ -14,7 +14,7 @@ import (
 )
 
 // TestDiscover_recordBackedAddrsSkipTheWholeDemand is edge 3 of the
-// plan-node seam (rfc/20260823-foundation-order-ruling.md, ruling 3;
+// plan-node seam (rulings/20260823-foundation-order-ruling.md, ruling 3;
 // GitHub issue #388): when the only needs-discovery resolution in a
 // configuration is listed in Request.RecordBackedAddrs, the sweep's
 // per-instance binding demand ends up empty and, with no Sweep requested

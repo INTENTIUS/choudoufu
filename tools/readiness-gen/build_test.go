@@ -77,7 +77,7 @@ func TestPartitionGuard(t *testing.T) {
 	}
 	for _, r := range art.Types {
 		if !validTiers[r.Tier] {
-			t.Errorf("%s: tier %q is not one of the RFC's four tier names", r.Type, r.Tier)
+			t.Errorf("%s: tier %q is not one of the ruling's four tier names", r.Type, r.Tier)
 		}
 		if !validStatuses[r.Status] {
 			t.Errorf("%s: status %q is not one of the six recognized statuses", r.Type, r.Status)

@@ -31,5 +31,5 @@ detects that the world moved between review and apply.
 The design closing that gap is settled.
 [#74](https://github.com/INTENTIUS/choudoufu/issues/74) chose a plan
 fingerprint, a digest printed at plan time that apply checks against its own
-fresh plan, refusing on mismatch. `rfc/20260814-plan-approval.md` holds the
+fresh plan, refusing on mismatch. `rulings/20260814-plan-approval.md` holds the
 design. Not implemented yet.

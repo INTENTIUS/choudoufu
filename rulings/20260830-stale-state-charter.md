@@ -5,7 +5,7 @@ Issue: https://github.com/INTENTIUS/choudoufu/issues/604
 Supersedes part of issue #73's "no state ops" charter and the ruling issue
 #109 left in `internal/configs/live.go`. This is a decision for this fork,
 recorded here because it changes a charter that a prior ruling settled. See
-[`rfc/README.md`](./README.md) for what this directory holds.
+[`rulings/README.md`](./README.md) for what this directory holds.
 
 ## The ruling
 
@@ -108,7 +108,7 @@ next reader can re-derive them again.
 
 ### The cost gap versus stock is one hook, and it is the estate-wide sweep
 
-From `rfc/20260830-slicing-under-choudoufu.md`, migrated terralith at three
+From `rulings/20260830-slicing-under-choudoufu.md`, migrated terralith at three
 scales, floci pin `sha256:c55d74e1`, commit `cfd0dc58d4`:
 
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total |
@@ -134,7 +134,7 @@ a configuration declares fewer types.
 this same binary on a configuration with no `live` block, issued **exactly the
 same number of API calls as stock**, 150 at 79 instances and 558 at 301, across
 three runs each of Terraform, OpenTofu and choudoufu, with no variance
-(`rfc/20260830-stateful-equivalence.md`). Fitting the two points:
+(`rulings/20260830-stateful-equivalence.md`). Fitting the two points:
 
 ```
 stock                = 1.84N + 5      (150 at N=79, 558 at N=301)

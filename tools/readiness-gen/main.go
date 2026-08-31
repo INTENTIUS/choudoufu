@@ -5,7 +5,7 @@
 
 // Command readiness-gen writes live/readiness.json, issue #418's partition:
 // every provider resource type this fork's roster knows about, assigned
-// exactly one of rfc/20260828-readiness-tiers.md's four tiers and exactly
+// exactly one of rulings/20260828-readiness-tiers.md's four tiers and exactly
 // one of six statuses, plus the input facts that decided it.
 //
 //	go run ./tools/readiness-gen
