@@ -60,20 +60,25 @@ Markers are written before anything is created, and a marker names which
 configuration address a live resource belongs to. If the set of instances is
 unknowable until a provider has been called, there is no marker to write.
 
-This is the rule behind most of what [Compatibility
-reference]({{< relref "/docs/use/compatibility" >}}) refuses: a `for_each`
-over a data source, a `count.index` in a resource name, an identity argument
-read from another resource's attribute. Each is a different way of asking an
-address to resolve before a plan knows what it is naming.
+This is the rule behind what [Compatibility
+reference]({{< relref "/docs/use/compatibility" >}}) still refuses, and it is
+narrower than "the value is not written in the configuration text". Two
+phases run ahead of resolution and feed it: data sources are read before
+anything resolves, so a `count` or `for_each` over one expands normally, and
+a second pass can answer a reference to a genuinely computed attribute of a
+sibling from what the cloud holds. What stops is an expansion or an identity
+that no phase can settle before a marker has to be written - a module output
+read in a `count` or `for_each`, a `for_each` key that is a parent's live ID,
+or a `count.index` two instances render identically.
 
-The same rule is why **`count` on a module call is refused permanently**,
-where a keyed `for_each` is not. `count` renumbers every address inside the
-module on any insertion or removal above the changed index: removing element
-zero turns `module.app[1]` into `module.app[0]`, silently pointing every
-marker beneath at the wrong live resource. A marker records an address, not a
-position, so no future work closes this. Rewrite as a keyed `for_each` over
-stable names, move the resources to the root module, or give the module its
-own estate.
+`count` on a module call is **not** one of them. It is admitted when the
+count is statically evaluable and none of the call's own arguments read
+`count.index`, and `module.app[0].aws_x.y` binds exactly as soundly as
+`module.app.aws_x.y` does. The premise this page used to state, that `count`
+renumbers every address beneath it, is false for the shape OpenTofu actually
+produces: shrinking a `count` retires the highest index and never renumbers a
+survivor, so an integer module-instance key is as stable an address component
+as a resource's own count key.
 
 ## Untaggable is not unidentifiable
 
