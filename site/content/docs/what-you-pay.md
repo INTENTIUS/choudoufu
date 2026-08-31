@@ -16,8 +16,8 @@ on which of three things the run is doing:
 | The run | What it costs against stock OpenTofu | Measured on |
 |---|---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
-| A plan of an estate already adopted, `live` block on | A handful of API calls: **+7 on 1392** at 745 resources | real AWS |
-| The same plan, in seconds | **about 1.3x**, at scale 1 only | emulator |
+| A plan of an estate already adopted, `live` block on | API calls at parity: **-3 on 1416** at 745 resources | real AWS |
+| The same plan, in seconds | **1.55x** at 79 resources, **2.4x to 3.0x** at 745 | real AWS |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
@@ -136,8 +136,14 @@ concurrency and narrowing work. Both sides no-change plans on every run:
 
 | Resources | stock | choudoufu, steady state | Difference |
 |---|---|---|---|
-| 79 | 149 | 165 | +16 (+10.7%) |
-| 745 | 1392 | **1399** | **+7 (+0.5%)** |
+| 79 | 149 | 155 | +6 (+4.0%) |
+| 745 | 1416 | **1413** | **-3 (-0.2%)** |
+
+Re-measured at `d359210978`. **At 745 resources choudoufu now makes fewer
+provider requests than stock**, which supersedes the +7 this table carried
+before. Per-operation the two are near-identical: `ListAttachedRolePolicies`
+325 against 324, `GetRole` 215 against 211. The one real difference is
+`DescribeTaskDefinition`, 21 against 10.
 
 Note before anything else that the 79-resource row disagrees with the emulator
 row above it: +16 against +7 on the same fixture at the same scale. Do not
@@ -164,9 +170,9 @@ Two conditions travel with that table and change how it should be read.
 **It counts provider-mediated requests only.** The figures come from
 `terraform-provider-aws`'s own `HTTP Request Sent` log entries. choudoufu's
 Cloud Control and Tagging clients log no line per request, so their HTTP calls
-are *not* in the 1399. What is known about them is a type count rather than a
-call count: 0 types went via Cloud Control, and 29 went through the
-estate-filtered tagging sweep, which is one `GetResources` for all 29 plus
+are *not* in the 1413. What is known about them is a type count rather than a
+call count: 0 types went via Cloud Control, and 31 went through the
+estate-filtered tagging sweep, which is one `GetResources` for all 31 plus
 pagination. Small, and unmeasured, and the run says so itself. The emulator
 tables higher up the page count every request through a proxy, so the two
 instruments have different denominators and their numbers should not be
@@ -408,28 +414,42 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: about 1.3x at scale 1, and unmeasured above it
+## Wall clock: 1.55x at 79 resources, and a 2.4x to 3.0x band at 745
 
 This is the number that will decide whether you can live with the fork.
 
-Scale 1, pinned emulator behind a latency-injecting reverse proxy at 100 ms,
-three runs each, all empty plans, 157 requests every time:
+Real AWS, account `...3429`, `us-east-2`, measured at `d359210978`. Same
+machine and session, minutes apart, warm provider on both sides, `TF_LOG`
+unset inside every timed region. All twelve runs are no-change plans, each
+verified by reading `No changes. Your infrastructure matches the
+configuration.` out of that plan's own output rather than from an exit code:
 
-| | wall clock | peak requests in flight |
-|---|---|---|
-| stock | 3.78, 3.36, 6.06 s | 10 |
-| choudoufu | **5.01, 5.54, 4.99 s** | 10 |
+| Resources | stock `terraform plan` | `choudoufu plan` | median | mean |
+|---|---|---|---|---|
+| 79 | 4, 3, 4 s | **6, 5, 6 s** | 1.50x | **1.55x** |
+| 745 | 17, 20, 41 s | **59, 84, 46 s** | 2.95x | 2.42x |
 
-Median against median that is **1.33x**; mean against mean it is 1.18x. This
-page quotes the larger of the two. Stock's 6.06 s third run is why they
-differ, and three runs a side is too few to call either one the number.
+**At 745 read both columns as ranges, not numbers.** Stock spreads 17 to 41 s,
+which is 141%, and choudoufu 46 to 84 s, which is 83%. The honest statement
+there is a band of roughly **2.4x to 3.0x**, and a second session could
+plausibly land outside it. The variance is not instrument noise: the harness
+logged 162 throttling lines during migrate and 23 during the plan stage at
+this size, against 1 and 0 at scale 1.
 
-Two limits, both real. The rig is not a real account: it earns its place by
-reproducing a real-AWS scale-1 cell on both sides, and it has been validated
-against that one cell and no other. And **at 745 resources there is no figure
-at all.** 1399 requests at ten wide predicts a plan near stock's, but that is
-arithmetic rather than a measurement, so this page states no ratio there. A
-real-AWS run at both scales is the outstanding work.
+At 79 resources both spreads sit under 50%, so a single figure is defensible,
+but the timer has whole-second resolution and the plans run 3 to 6 seconds, so
+one tick is a third of the value. Treat 1.55x as coarse.
+
+Both figures supersede an emulator measurement that read 1.33x median and
+1.18x mean at scale 1. Real AWS is higher on both statistics. The emulator
+number is not repeated here, because a rig validated against one cell is not
+evidence once that cell has been measured directly.
+
+**What is not explained.** At 745 resources choudoufu issues three *fewer*
+provider requests than stock and takes about two and a half times as long.
+Call volume cannot account for it, and this run did not diagnose where the
+time goes. It is the largest open quantity on this page. Do not let anyone
+tell you it is the API calls.
 
 ### And an emulator cannot answer this question
 
