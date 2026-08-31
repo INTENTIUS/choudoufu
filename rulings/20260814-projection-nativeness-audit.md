@@ -71,7 +71,7 @@ store package. All of it landed as commit `03c1fb237` ("live: record-backed
 hydration, write-back, and admission for issue #73"), merged as `9d228235b`.
 The store package is `internal/live/staterecord` (local, SSM, and S3
 implementations behind one interface); the companion ruling doc is
-`rfc/20260814-micro-state-store-ruling.md`.
+`rulings/20260814-micro-state-store-ruling.md`.
 
 ## Fork-surface measurement
 

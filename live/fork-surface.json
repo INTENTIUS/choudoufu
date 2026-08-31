@@ -8093,27 +8093,27 @@
     ],
     "rfc/": [
       {
-        "path": "rfc/20260814-micro-state-store-ruling.md",
+        "path": "rulings/20260814-micro-state-store-ruling.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-plan-approval.md",
+        "path": "rulings/20260814-plan-approval.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-projection-nativeness-audit.md",
+        "path": "rulings/20260814-projection-nativeness-audit.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260814-upstream-sync.md",
+        "path": "rulings/20260814-upstream-sync.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260823-foundation-order-ruling.md",
+        "path": "rulings/20260823-foundation-order-ruling.md",
         "status": "A"
       },
       {
-        "path": "rfc/20260828-readiness-tiers.md",
+        "path": "rulings/20260828-readiness-tiers.md",
         "status": "A"
       }
     ],

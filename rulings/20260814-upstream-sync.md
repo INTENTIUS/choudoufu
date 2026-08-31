@@ -2,7 +2,7 @@
 
 Issue: https://github.com/INTENTIUS/choudoufu/issues/77
 
-Companion to `rfc/20260814-projection-nativeness-audit.md`, which measured
+Companion to `rulings/20260814-projection-nativeness-audit.md`, which measured
 the fork surface from this side. This document measures the delta from the
 upstream side and derives the sync procedure the numbers support. Every
 figure below was computed on 2026-08-14 against `upstream/main` at

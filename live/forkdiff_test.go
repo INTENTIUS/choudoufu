@@ -15,7 +15,7 @@ import (
 // resource markers is stock OpenTofu": every path that differs between HEAD
 // and the fork point, grouped by top-level root.
 //
-// Five of the six named roots (internal/live/, tools/, live/, site/, rfc/)
+// Five of the six named roots (internal/live/, tools/, live/, site/, rulings/)
 // are entirely fork-authored trees, and the sixth (.github/) is nearly all
 // new workflows with one edited stock one - none of that needs policing.
 // What needs policing is the "other" bucket: every path outside those
@@ -53,7 +53,7 @@ var otherAllowlist = []otherAllowEntry{
 	// and each holds either whole fork-authored files, a small wiring edit
 	// to a stock file, or both.
 	{"internal/command/", "the fork's command surface: live_* files (live_plan, live_import, live_mv, live_check, discovery/lint guards, their views) plus wiring edits to stock commands (init, apply, plan, state*, meta_backend, workspace*, providers*) that call into it; mirrors ci_coverage_test.go's forkOwnedMixedRoots entry for this package"},
-	{"internal/configs/", "the live block, record_store and strict{} config schema and HCL parsing (live.go, parser_live_sidecar.go), plus the static evaluator and static scope (rfc/20260823-foundation-order-ruling.md item 3) that live-import, live-mv, live-check and discovery consume"},
+	{"internal/configs/", "the live block, record_store and strict{} config schema and HCL parsing (live.go, parser_live_sidecar.go), plus the static evaluator and static scope (rulings/20260823-foundation-order-ruling.md item 3) that live-import, live-mv, live-check and discovery consume"},
 	{"internal/tofu/", "the plan-node seam: identity resolution and marker stamping hooked into node_resource_plan_instance.go and resource_identity.go, plus the graph-walk and evaluation plumbing they need; mirrors forkOwnedMixedRoots"},
 	{"internal/engine/", "internal/engine/applying/operations_resource_managed.go keeps the create-time provisioner's `self` value's sensitivity marks (forkOwnedMixedRoots, issue #353's follow-up audit)"},
 	{"internal/backend/", "the local backend (and its s3 backend test fixtures) wires the live record store into init/plan/apply, and renames the `tofu init` suggestion text to `choudoufu init`"},

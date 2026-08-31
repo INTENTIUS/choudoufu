@@ -14,7 +14,7 @@ Depending on the maintainers's review, a feature request can have the following 
 
 1. **The feature is accepted for development by the maintainers.** This means that the core team will schedule it for an upcoming release and develop it.
 2. **The feature is accepted and open for community contributions.** The maintainers adds a `help wanted` label and waits for community volunteers to develop it.
-3. **More information is needed.** The maintainers will either add questions in comments, or when there is a deep technical issue to be resolved, call for an [RFC](./rfc/README.md) to detail a possible implementation.
+3. **More information is needed.** The maintainers will either add questions in comments, or when there is a deep technical issue to be resolved, call for an [RFC](https://github.com/opentofu/opentofu/blob/main/rfc/README.md) to detail a possible implementation.
 4. **More community input is needed.** When an issue is, on its surface, valuable, but there is no track record of a large portion of the community needing it, the maintainers adds the `needs community input` label. If you are interested in the feature and would like to use it, please add a reaction to the issue and add a description on specifically what problem it would solve for you in a comment.
 5. **The feature is rejected.** If based on the criteria above it is not feasible to implement the feature, the maintainers closes the issue with an explanation why it is being closed.
 6. **The feature is referred to the Technical Steering Committee**. If the feature requires the commitment of a larger amount of core developer time, has legal implications, or otherwise requires leadership attention, the maintainers adds the feature to the agenda of the Technical Leadership Committee. Once decided, the TSC records the decision in the [TSC notes](https://github.com/opentofu/org/tree/main/TSC).
@@ -43,10 +43,10 @@ First of all, thank you for volunteering! Before you begin coding, please take a
 - [`bug`](https://github.com/opentofu/opentofu/labels/bug): it's broken and needs to be fixed.
 - [`enhancement`](https://github.com/opentofu/opentofu/labels/enhancement): it's a short-form feature request. If the implementation path is unclear, an `rfc` may be needed in addition.
 - [`documentation`](https://github.com/opentofu/opentofu/labels/documentation): something that needs a description on the OpenTofu website.
-- [`rfc`](https://github.com/opentofu/opentofu/labels/rfc): a long-form discussion on building a feature or solving bug, see [RFC](./rfc/README.md).
+- [`rfc`](https://github.com/opentofu/opentofu/labels/rfc): a long-form discussion on building a feature or solving bug, see [RFC](https://github.com/opentofu/opentofu/blob/main/rfc/README.md).
 - [`question`](https://github.com/opentofu/opentofu/labels/question): the maintainers needs more information on the issue to decide.
 - [`needs-community-input`](https://github.com/opentofu/opentofu/labels/needs-community-input): the maintainers needs to see how many people are affected by this issue. You can provide feedback by using reactions on the issue and adding your use case in the comments. (Please describe what problem it would solve for you specifically.)
-- [`needs-rfc`](https://github.com/opentofu/opentofu/labels/needs-rfc): this issue needs a detailed technical description on how it would be implemented in the form of an [RFC](./rfc/README.md).
+- [`needs-rfc`](https://github.com/opentofu/opentofu/labels/needs-rfc): this issue needs a detailed technical description on how it would be implemented in the form of an [RFC](https://github.com/opentofu/opentofu/blob/main/rfc/README.md).
 
 ---
 

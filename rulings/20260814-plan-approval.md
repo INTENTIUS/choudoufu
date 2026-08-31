@@ -10,7 +10,7 @@ gap honestly: `site/content/day2.md` ("Plan, review, apply", lines 172-180)
 says ordinary `apply` re-plans and re-confirms, "which is the honest
 behaviour, but nothing today detects that the world moved between review and
 apply", and `site/content/compatibility.md` (lines 210-213) flags `-out` as
-"how most CI runs Terraform, so check it first". This RFC designs the
+"how most CI runs Terraform, so check it first". This ruling designs the
 replacement.
 
 The issue proposes the design direction: not a saved plan but a plan
@@ -105,7 +105,7 @@ computed from:
   `AttributesHash` (`internal/live/projection/snapshot.go`, lines 150-156)
   is a SHA-256 over the attributes JSON, present so a diff can say "changed"
   without the artifact ever holding the values. Snapshots themselves are
-  being retired (#109; see `rfc/20260814-projection-nativeness-audit.md`),
+  being retired (#109; see `rulings/20260814-projection-nativeness-audit.md`),
   but the redaction-by-construction principle is the one to reuse: a
   fingerprint artifact holds hashes, never values, so it can be pasted into
   a PR comment or a CI job output without a secrecy review.
@@ -219,7 +219,7 @@ costs:
 
 Persist the approval - digest, approver, timestamp - as a record in the
 estate's `record_store` (`internal/live/staterecord`, the `Store` interface
-in `store.go`; ruling in `rfc/20260814-micro-state-store-ruling.md`), keyed
+in `store.go`; ruling in `rulings/20260814-micro-state-store-ruling.md`), keyed
 by the digest. Apply computes its fresh fingerprint and looks the record up;
 found means approved.
 

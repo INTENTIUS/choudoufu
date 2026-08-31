@@ -85,7 +85,7 @@ func TestNativeSweepLegRoutesTheFixtureType(t *testing.T) {
 //
 // It runs the same estate four ways and asserts by value, never on a
 // predicate, that a type this estate has no evidence of costs a list call in
-// exactly the cases rfc/20260830-stale-state-charter.md says it should.
+// exactly the cases rulings/20260830-stale-state-charter.md says it should.
 func TestNativeSweepNarrowsToEstateEvidence(t *testing.T) {
 	srv := (&taggingServer{}).start(t)
 	defer srv.Close()
@@ -130,7 +130,7 @@ func TestNativeSweepNarrowsToEstateEvidence(t *testing.T) {
 
 	t.Run("a record store with no evidence of the type skips it", func(t *testing.T) {
 		if listedNativeType(t, func(req *Request) { req.HintStore = nativeSweepStore(t, `aws_vpc.main`) }) {
-			t.Errorf("%s was listed even though this estate's configuration and record store contain no instance of it and CollectUnclaimed was unset. That list call is the cost rfc/20260830-stale-state-charter.md's ruling removes.", nativeLegType)
+			t.Errorf("%s was listed even though this estate's configuration and record store contain no instance of it and CollectUnclaimed was unset. That list call is the cost rulings/20260830-stale-state-charter.md's ruling removes.", nativeLegType)
 		}
 	})
 

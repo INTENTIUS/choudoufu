@@ -131,7 +131,7 @@ func TestReadinessTypesTableRendersEveryRow(t *testing.T) {
 // TestExcludedRowsLinkLimitationsMD is issue #420's own accept criterion:
 // every tier D / excluded row's reason links live/LIMITATIONS.md at a real
 // anchor. Checked against the file itself, not asserted, because
-// rfc/20260828-readiness-tiers.md's own tier D section found that neither
+// rulings/20260828-readiness-tiers.md's own tier D section found that neither
 // sanctioned exclusion has a heading of its own there yet - see reasonFor's
 // comment for why "unadmitted-type" is the accurate anchor today.
 func TestExcludedRowsLinkLimitationsMD(t *testing.T) {
