@@ -257,6 +257,22 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, statelessView views.StatelessPlan) (int, bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	// GitHub issue #626's knob, resolved once here and used by both of this
+	// function's read paths - the projection built below and the
+	// provider-configuration fixpoint's own [projection.ReadInstances] calls,
+	// which [statelessProviderDataReads] takes it as an argument for. Once,
+	// because resolving it at each construction site would report a bad
+	// setting twice; here, because reading an environment variable costs
+	// nothing and a setting this run cannot honour should be refused before a
+	// provider process is started or a single live call is made. See
+	// [readParallelismSetting] for the setting, the refusal and the default
+	// decision.
+	readPar, readParDiags := readParallelismSetting()
+	diags = diags.Append(readParDiags)
+	if readParDiags.HasErrors() {
+		return 1, false, diags
+	}
+
 	config, cfgDiags := c.loadConfig(ctx, ".")
 	diags = diags.Append(cfgDiags)
 	if cfgDiags.HasErrors() {
@@ -438,7 +454,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar)
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -568,6 +584,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// (hintStore is nil whenever this function does), but the day
 		// that stops being true, this path should not silently regress.
 		DeposedBindings: disco.DeposedBindingsList(),
+		// GitHub issue #626's knob, resolved from the environment at the top
+		// of this function. This is the read pass issue #585 made concurrent
+		// and the bulk of what this command spends its time on, so this is the
+		// construction site the variable exists for.
+		ReadParallelism: readPar,
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is
@@ -2795,7 +2816,20 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // [statelessResolve]'s identical, already-audited call to
 // [projection.PlanInstances]: a managed resource's provider comes from its
 // own declared block, never from this phase's data-source boundary.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore) map[string]cty.Value {
+// readPar is GitHub issue #626's knob, resolved once by the caller (both
+// callers do it at the top of the run, before any provider process starts) and
+// taken as an argument rather than read from the environment here, so that one
+// run cannot use two different bounds and a bad setting is reported once.
+//
+// It is inert on this path today, and stated rather than left to be
+// rediscovered: [projection.ReadInstances] reads its concrete instances through
+// the same sequential materialize loop it always has - only
+// [projection.BuildWith]'s own concrete phase starts a read prefetch - so
+// nothing here is concurrent at any setting. It is passed anyway because this
+// is a projection read pass built from a [projection.Options], and the day
+// ReadInstances grows the same prefetch, it should inherit the bound the
+// operator set for the run rather than silently take ten.
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
 	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
 	confined := func(a *dataread.Analysis) dataread.Providers {
@@ -2809,7 +2843,7 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 	}
 
 	live := map[string]cty.Value{}
-	readOpts := projection.Options{RecordStore: recordStore}
+	readOpts := projection.Options{RecordStore: recordStore, ReadParallelism: readPar}
 	const maxProviderDataReadPasses = 5
 	for pass := 1; pass < maxProviderDataReadPasses; pass++ {
 		demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
@@ -3526,7 +3560,10 @@ Options:
                           plan graph is walked, exactly as it does for a
                           stock plan. Defaults to 10. It does not bound the
                           marker sweep, which runs before there is a graph;
-                          that is TOFU_LIVE_SWEEP_PARALLELISM below.
+                          that is TOFU_LIVE_SWEEP_PARALLELISM below. Nor does
+                          it bound the read pass that builds prior state,
+                          which also runs before there is a graph; that is
+                          TOFU_LIVE_READ_PARALLELISM below.
 
   The following stock plan options are rejected rather than ignored, because
   live resource markers remove what they operate on or have not built them yet:
@@ -3546,6 +3583,24 @@ Environment variables:
                           pipeline runs under plain "choudoufu plan" and
                           "choudoufu apply" whenever the configuration has a
                           live block, and one name has to reach all three.
+
+  TOFU_LIVE_READ_PARALLELISM=n
+                          How many of the read pass's per-instance provider
+                          round trips run at once. Defaults to 10. This is
+                          the phase between the sweep and the graph: one
+                          import and one read per managed instance, which are
+                          the same calls a stock refresh of this estate would
+                          make, at the same 10. Turn it down if a real
+                          account throttles those reads: 1 makes the pass
+                          sequential, one instance at a time in loop order. A
+                          value below 1 is refused rather than read as "no
+                          limit". A variable rather than a flag for the same
+                          reason as the sweep's.
+
+  The three bounds are separate on purpose: -parallelism is the graph walk,
+  TOFU_LIVE_SWEEP_PARALLELISM is the marker sweep, TOFU_LIVE_READ_PARALLELISM
+  is the read pass that builds prior state. Setting one does not move the
+  others.
 `
 	return strings.TrimSpace(helpText)
 }
