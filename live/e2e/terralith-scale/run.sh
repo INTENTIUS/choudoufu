@@ -108,8 +108,10 @@ set -uo pipefail
 #                     assertion must fail.
 #   BREAK_REPLACE     skip the destroy half (re-create the old object
 #                     carrying the same marker, through the AWS CLI); the
-#                     next plan must report a collision rather than
-#                     proposing nothing.
+#                     next plan must report the collision by name, and must
+#                     propose nothing for the disputed address - see that
+#                     leg's own comment for why those are two assertions
+#                     and not one.
 #
 # Exit codes: 0 on a real pass, non-zero on a real failure. Read the
 # `GAUNTLET stage=` verdict lines, never the exit code.
@@ -1462,13 +1464,35 @@ if [ "${BREAK_REPLACE:-}" = "1" ]; then
   awsl iam tag-instance-profile --instance-profile-name "${PREFIX}-team-0004-profile" \
     --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=aws_iam_instance_profile.team_0004_profile" >/dev/null \
     || fail "BREAK_REPLACE=1: could not stamp the re-created profile with the same marker"
+  # What this control asserts, and a correction to what it asserted first.
+  #
+  # The Break line for day2_replace reads "Skip the destroy half; the next
+  # plan must report a collision rather than proposing nothing." The first
+  # version of this control read that as "the plan must not be empty", and
+  # it was wrong twice over. choudoufu DOES report the collision, by name -
+  # "Live resource displaced from the address it is marked for", naming the
+  # address, the identity the live object carries and the identity the
+  # configuration computes - and having reported it, proposes nothing FOR
+  # THAT RESOURCE on purpose: "it is not read, not changed and not
+  # destroyed, and it will stay in the account until a human says which
+  # resource is which." That is the safety rule working, not failing.
+  # Proposing an action while two objects answer to one address is the way
+  # a wrong marker adopts or displaces a real object.
+  #
+  # So the assertion is on the diagnostic itself, by value. "Reports a
+  # collision" is a thing the output either says or does not say; "is not
+  # empty" was a proxy for it that the correct behaviour fails.
   BRP_PLAN="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; BRP_RC=$?
-  if [ "$BRP_RC" -eq 0 ] && plan_is_noop "$BRP_PLAN"; then
-    printf '%s\n' "$BRP_PLAN" | tail -20
-    fail "BREAK_REPLACE=1: with two live objects carrying the same tofu-address, the plan proposed nothing - this stage's collision check is not load-bearing"
-  fi
-  log "  BREAK_REPLACE=1: with the destroy half skipped, the next plan does NOT come back empty (exit $BRP_RC) - it reports the collision:"
-  { grep -m5 -E 'collision|more than one|ambiguous|^Error: ' <<< "$BRP_PLAN" || printf '%s\n' "$BRP_PLAN" | tail -12; } | sed 's/^/    | /'
+  grep -qF 'Live resource displaced from the address it is marked for' <<< "$BRP_PLAN" \
+    || { printf '%s\n' "$BRP_PLAN" | tail -30; fail "BREAK_REPLACE=1: with two live objects carrying the same tofu-address, the plan does not report the collision at all - this stage's no-collision assertion is not load-bearing"; }
+  grep -qF 'aws_iam_instance_profile.team_0004_profile' <<< "$BRP_PLAN" \
+    || { printf '%s\n' "$BRP_PLAN" | tail -30; fail "BREAK_REPLACE=1: a collision is reported but it does not name the disputed address"; }
+  grep -qF "${PREFIX}-team-0004-profile-replaced" <<< "$BRP_PLAN" \
+    || { printf '%s\n' "$BRP_PLAN" | tail -30; fail "BREAK_REPLACE=1: the collision report does not name the identity the configuration computes, so a reader cannot tell which of the two objects is which"; }
+  grep -qE '^  # aws_iam_instance_profile\.team_0004_profile (will be|must be)' <<< "$BRP_PLAN" \
+    && { grep -E '^  # .+ (will be|must be)' <<< "$BRP_PLAN"; fail "BREAK_REPLACE=1: an action is proposed for the disputed address while two live objects answer to it - that is how a wrong marker displaces a real object, and the report says nothing may be proposed for it"; }
+  log "  BREAK_REPLACE=1: with the destroy half skipped, the next plan reports the collision by name and proposes nothing for the disputed address (exit $BRP_RC):"
+  sed -n '/Live resource displaced from the address it is marked for/,/^$/p' <<< "$BRP_PLAN" | head -14 | sed 's/^/    | /'
   not_run_rest "BREAK_REPLACE=1 control run: this run exists to prove day2_replace's no-collision assertion is load-bearing and stops once it has" \
     day2_replace strict
   gauntlet_end
