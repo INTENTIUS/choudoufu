@@ -184,9 +184,12 @@ set -uo pipefail
 #                     against the AWS CLI's own answer, not merely "did not
 #                     error"; the follow-up apply is a genuine no-op.
 #   3. TEST PLAN     state file deleted, `choudoufu live-plan` proposes no
-#                     resource change and reports exactly 8 foreign objects;
-#                     the instance's tofu-address is re-checked against EC2
-#                     directly.
+#                     resource change; the default plan reports that it left
+#                     the account-inventory question unasked and a second
+#                     plan under TOFU_LIVE_COLLECT_UNCLAIMED=1 reports
+#                     exactly 8 foreign objects (see STAGE 3's own comment
+#                     for why that is now two plans); the instance's
+#                     tofu-address is re-checked against EC2 directly.
 #   4. TEST APPLY    apply the empty plan; tofu-estate-tagged object count
 #                     (24) is asserted unchanged before and after.
 #   5. DRIFT AND     the instance's Example tag is changed out of band via
@@ -897,9 +900,43 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # "none". Asserting this by value is what distinguishes "this estate's
 # known foreign shape" from "something this estate owns was missed by the
 # sweep".
-grep -qE "^Foreign resources: 8 live resources not owned by estate $ESTATE" <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "expected exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); the corpus pin, floci's default-account shape, or a real gap has moved"; }
-log "  no resource change proposed; exactly 8 foreign objects (root volume + default-VPC bootstrap, both expected)"
+#
+# WHICH PLAN IS ASKED, AND WHY THIS IS NOW TWO PLANS. Until 2026-08-30 an
+# ordinary stateless plan always asked the account-inventory question
+# ("what is in my account this estate does not know about"), so the count
+# above fell out of the plan this stage already ran.
+# rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling
+# (09d180f921, "a steady-state plan stops enumerating the whole admission
+# table") makes that question opt-in: it costs a per-type enumeration of
+# every admitted type the ARN join cannot place, and the default is now off
+# for anything but "choudoufu plan -adoption-only". An ordinary plan
+# therefore reports "Foreign resources: nothing was swept" - which the view
+# deliberately keeps distinct from "none", precisely so a narrowed run
+# cannot be read as an answer (internal/command/views/live_plan.go's
+# Foreign, "swept and found none and nothing was swept are different
+# answers").
+#
+# That is a ruled behaviour change, not a regression, so the ORACLE is what
+# moves here, not the product: this stage asserts BOTH answers rather than
+# dropping the count it was written for. The default plan must say it did
+# not ask, and a second plan that DOES ask - through
+# TOFU_LIVE_COLLECT_UNCLAIMED=1, the switch
+# internal/command/live_collect_unclaimed.go exists to provide for exactly
+# this - must still find all 8. Weakening this to the
+# "(none|nothing was swept)" pattern the estates with no foreign shape use
+# would have made the assertion unfailable on the one estate that has a
+# foreign shape worth counting.
+grep -qE '^Foreign resources: nothing was swept' <<< "$PLAN_OUT" \
+  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the default plan does not report that it left the account-inventory question unasked - rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling says a run that did not ask must say so rather than imply there is nothing"; }
+log "  default plan: $(grep -E '^Foreign resources:' <<< "$PLAN_OUT")"
+SWEEP_PLAN_OUT="$(cd "$EST" && TOFU_LIVE_COLLECT_UNCLAIMED=1 "$TOFU" live-plan -input=false -no-color 2>&1)"; SWEEP_PLAN_RC=$?
+[ "$SWEEP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$SWEEP_PLAN_OUT" | tail -60; fail "the account-inventory plan (TOFU_LIVE_COLLECT_UNCLAIMED=1) exited $SWEEP_PLAN_RC"; }
+[ ! -f "$EST/terraform.tfstate" ] || fail "the account-inventory plan wrote a state file"
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$SWEEP_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$SWEEP_PLAN_OUT"; fail "the account-inventory plan proposes a resource change the default plan did not"; }
+grep -qE "^Foreign resources: 8 live resources not owned by estate $ESTATE" <<< "$SWEEP_PLAN_OUT" \
+  || { grep -E '^Foreign resources:' <<< "$SWEEP_PLAN_OUT"; fail "expected exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap) from the plan that asked; the corpus pin, floci's default-account shape, or a real gap has moved"; }
+log "  no resource change proposed by either plan; the plan that asked found exactly 8 foreign objects (root volume + default-VPC bootstrap, both expected)"
 
 WANT_ADDR2="module.ec2_complete.aws_instance.this:0"
 if [ "$BREAK_AT" = "identity" ]; then
@@ -913,7 +950,7 @@ GOT_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE
 log "  identity re-check (via EC2, after the state file has never existed this run): unchanged"
 
 log ""
-gauntlet_stage test_plan pass "no resource change proposed, exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2"
+gauntlet_stage test_plan pass "no resource change proposed by either plan; the default plan reports \"nothing was swept\" (rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling made the account-inventory question opt-in, and a run that did not ask must say so), and a second plan run with TOFU_LIVE_COLLECT_UNCLAIMED=1 finds exactly 8 foreign objects - the instance's own root volume plus floci's default-VPC bootstrap; instance tofu-address re-checked against EC2"
 log "STAGE 3 (test plan): PASS"
 log ""
 
