@@ -60,29 +60,30 @@ Markers are written before anything is created, and a marker names which
 configuration address a live resource belongs to. If the set of instances is
 unknowable until a provider has been called, there is no marker to write.
 
-This is the rule behind most of what [Compatibility
-reference]({{< relref "/docs/use/compatibility" >}}) refuses: a `for_each`
-over a data source, a `count.index` in a resource name, an identity argument
-read from another resource's attribute. Each is a different way of asking an
-address to resolve before a plan knows what it is naming.
+This is the rule behind what [Compatibility
+reference]({{< relref "/docs/use/compatibility" >}}) still refuses, and it is
+narrower than "the value is not written in the configuration text". Two
+phases run ahead of resolution and feed it: data sources are read before
+anything resolves, so a `count` or `for_each` over one expands normally, and
+a second pass can answer a reference to a genuinely computed attribute of a
+sibling from what the cloud holds. What stops is an expansion or an identity
+that no phase can settle before a marker has to be written - a module output
+read in a `count` or `for_each`, a `for_each` key that is a parent's live ID,
+or a `count.index` two instances render identically.
 
-**`count` on a module call** is held to the same rule and passes it. The
-count expression has to be evaluable from configuration alone, and the module
-call's own arguments must not use `count.index` in a shape that could give two
-instances the same value - indexing a list by it, or `count.index % 3`. Meet
-both and every resource inside is addressed by the call's instance key, so a
-marker reads `module.app[0].aws_vpc.this` and the fork writes it for you.
+`count` on a module call is **not** one of them. It is admitted when the
+count is statically evaluable and the call's own arguments use `count.index`
+only where this fork can prove two instances cannot render the same value -
+the same test one paragraph up. Then every resource inside is addressed by
+the call's instance key, `module.app[0].aws_x.y` binds exactly as soundly as
+`module.app.aws_x.y` does, and the fork stamps that marker for you rather
+than leaving you to write it.
 
-`module.app[i]` is exactly as stable an address as `aws_subnet.this[i]`, which
-is why it is admitted at all. Shrinking a count from N to N-1 retires the
-highest index and renumbers no survivor. What is not stable is a *position*
-reaching a value the live system has to be found by, which is what the
-`count.index` in a resource name listed above is refused for too.
-
-A count this fork cannot evaluate before a provider runs is refused, like
-every other unevaluable expansion above. Rewrite it as a keyed `for_each` over
-stable names, move the resources to the root module, or give the module its
-own estate.
+The premise this page used to state, that `count` renumbers every address
+beneath it, is false for the shape OpenTofu actually produces: shrinking a
+`count` retires the highest index and never renumbers a survivor, so an
+integer module-instance key is as stable an address component as a resource's
+own count key.
 
 ## Untaggable is not unidentifiable
 
