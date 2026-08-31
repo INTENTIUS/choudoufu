@@ -630,28 +630,32 @@ timed_plans() {
 #     continuation lines. Stock's plan makes no other kind of call, so for
 #     stock this IS the plan's API-call count.
 #
-#   * CHOUDOUFU'S OWN CLIENT CALLS - a FLOOR, never an exact count.
-#     internal/live/cloudcontrol's Client talks to Cloud Control and to the
-#     Tagging API over its own net/http client, in the tofu process, and
-#     logs no line per HTTP request. What it does log, from
-#     internal/live/discovery, is one [DEBUG] line per type listed, per
-#     Tagging-API sweep, per tag-index join and - the one this issue is
-#     about - one per GetResource refinement. Pagination pages within a
-#     single ListResources/GetResources loop are NOT logged individually,
-#     so "listings" undercounts calls by however many continuation pages
-#     each listing needed. Refinements are exact: the line is printed once
-#     per GetResource, at the same place scan.Refined is incremented
-#     (internal/live/discovery/cloudcontrol.go).
+#   * CHOUDOUFU'S OWN CLIENT CALLS - NOT counted, and not countable from
+#     this log. internal/live/cloudcontrol's Client talks to Cloud Control
+#     and to the Tagging API over its own net/http client, inside the tofu
+#     process, and logs no line per HTTP request. What internal/live/
+#     discovery logs is one [DEBUG] line per TYPE listed and per TYPE swept,
+#     which is a different quantity in each direction: a Cloud Control
+#     listing is one ListResources call per type (plus pagination pages,
+#     which are not logged at all), while the WHOLE tagging sweep is one
+#     estate-filtered GetResources call that logs one line for every type it
+#     covers (tagging.go, sweepViaTagging). So both are reported as type
+#     counts, explicitly, rather than dressed up as call counts.
 #
-#   * TypeScan.Refined - issue #622's question. On floci the account is
-#     nearly empty, so this measures ~40. On a populated real account the
-#     per-object refinement scales with the ACCOUNT's object count, not the
-#     estate's, which is why only a real-AWS run can answer whether the
-#     steady-state sweep narrowing left it firing materially. Reported per
-#     type, for BOTH the first post-migration plan (the stage-gating one,
-#     cold caches, wide sweep) and a steady-state plan taken after the
-#     three timed runs - those are different questions and a single number
-#     answers neither.
+#   * TypeScan.Refined - issue #622's question - IS exact: cloudcontrol.go
+#     prints one line per GetResource refinement at the same place it
+#     increments scan.Refined. Two structural facts decide what a number
+#     here means. It can only be produced by scanTypeCloudControl, the
+#     per-type Cloud Control path; the tagging sweep never refines at all
+#     ("tags always arrive with the candidate", sweepViaTagging's own doc
+#     comment), so a run whose sweep is served entirely by the tagging path
+#     reads zero however populated the account is. And the refinement
+#     scales with the ACCOUNT's object count for the types that DO take the
+#     Cloud Control path, not with the estate's, which is why only a real
+#     account can answer whether it still fires materially. Reported for
+#     BOTH the first post-migration plan (cold hint store, widest sweep) and
+#     a steady-state plan taken after the three timed runs; those are
+#     different questions and one number answers neither.
 #
 # Like timed_plans, this block only reports. It never fails the run.
 # ══════════════════════════════════════════════════════════════════════
@@ -669,7 +673,16 @@ function flush() {
   if (entry ~ /HTTP Request Sent/) {
     total++
     op = "unknown"
-    if (match(entry, /rpc\.method=[A-Za-z0-9]+\/[A-Za-z0-9]+/)) {
+    # hclog quotes an attribute value containing a space, and several AWS
+    # service names DO contain one - rpc.method="Route 53/GetHostedZone",
+    # rpc.method="Resource Groups Tagging API/GetResources". The unquoted
+    # alternative must come second: matching it first would stop at the
+    # opening quote and bucket every Route 53 call as "unknown", which is
+    # exactly what the first version of this program did (22 of 156 calls
+    # on the floci proving run, all of them Route 53).
+    if (match(entry, /rpc\.method="[^"]+"/)) {
+      op = substr(entry, RSTART + 12, RLENGTH - 13)
+    } else if (match(entry, /rpc\.method=[A-Za-z0-9]+\/[A-Za-z0-9]+/)) {
       op = substr(entry, RSTART + 11, RLENGTH - 11)
     }
     cnt[op]++
@@ -715,8 +728,17 @@ analyze_api_calls() {
   log "  ${label}: ${total:-0} provider-mediated AWS API request(s) (exact, from rpc.method entries)"
   log "    top operations:"
   awk '$1!="TOTAL"{printf "      %8d %s\n", $2, $1}' "$WORK/apicalls_${label}.counts" | sort -rn | head -25
-  log "    choudoufu's own Cloud Control / Tagging client (FLOOR - pagination pages are not logged per call):"
-  log "      ${listings:-0} Cloud Control ListResources listing(s), ${tagsweeps:-0} Tagging-API sweep(s), ${joins:-0} tag-index join(s)"
+  # These two counts are types, not calls, and they scale differently:
+  # a Cloud Control listing is one ListResources call per TYPE (plus
+  # pagination), while the whole Tagging sweep is ONE estate-filtered
+  # GetResources call (plus pagination) that logs one line per type it
+  # covers (internal/live/discovery/tagging.go, sweepViaTagging). Reporting
+  # both as "calls" would overstate the tagging path by a factor of the
+  # type count and understate the Cloud Control path by its page depth.
+  log "    choudoufu's own Cloud Control / Tagging client (types, not calls - see below):"
+  log "      ${listings:-0} type(s) listed via Cloud Control ListResources (>= 1 call each, more with pagination)"
+  log "      ${tagsweeps:-0} type(s) covered by the estate-filtered Tagging sweep (ONE GetResources call for all of them, plus pagination)"
+  log "      ${joins:-0} tag-index join(s)"
   log "    TypeScan.Refined (#622): ${refined:-0} per-object GetResource refinement(s) total"
   if [ "${refined:-0}" -gt 0 ]; then
     log "    refinements by type:"
@@ -725,7 +747,7 @@ analyze_api_calls() {
       | sort | uniq -c | sort -rn | head -25 | sed 's/^/      /'
   fi
   API_CALL_REPORT="${API_CALL_REPORT}${API_CALL_REPORT:+
-}  ${label}: ${total:-0} provider-mediated request(s); ${listings:-0} CC listing(s) + ${tagsweeps:-0} tagging sweep(s) (floor); TypeScan.Refined=${refined:-0}"
+}  ${label}: ${total:-0} provider-mediated request(s); ${listings:-0} type(s) via Cloud Control, ${tagsweeps:-0} type(s) via the one-call tagging sweep; TypeScan.Refined=${refined:-0}"
 }
 
 # instrumented_plan runs ONE extra plan with TF_LOG=DEBUG purely to count
