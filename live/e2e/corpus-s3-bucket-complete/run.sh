@@ -634,6 +634,162 @@ log "  all 4 buckets match structurally (versioning, default encryption, policy 
 gauntlet_stage greenfield pass "29 resources from nothing (SCOPE REDUCTION's own reduced count, random_pet pinned to a literal on both sides), 3 of 4 bucket markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 buckets (versioning, default encryption, policy presence)"
 gauntlet_end_stage
 
+# ══════════════════════════════════════════════════════════════════════════
+# G-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
+# issue #643)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# WHY A SYNTHETIC BLOCK. This estate's own root configuration
+# (examples/complete/main.tf) declares no `count` and no `for_each` at all -
+# zero matches - and every count inside the module itself is the boolean
+# `count = local.create_bucket ? 1 : 0` create toggle, which is not a knob
+# that scales. Its one genuinely multi-instance knob is the module input
+# `intelligent_tiering`, a two-entry map ("general" and "documents") the
+# module fans out with for_each - but onto
+# aws_s3_bucket_intelligent_tiering_configuration, which declares no `tags`
+# argument at all (checked against the module's own resource block in
+# .corpus/s3-bucket/main.tf, line 1196), i.e. exactly the untaggable,
+# parent-derived child STAGE 7's own header below records as issue #410,
+# where a count-based removal of an untaggable instance was already
+# confirmed invisible on this very estate. So this stage takes the
+# sanctioned synthetic fallback: a NEW, self-contained resource,
+# aws_s3_bucket.count_test (count_test_block() below), of the type this
+# estate exercises most, referenced by nothing else here, at an address no
+# other stage in this script ever uses - the same discipline
+# live/e2e/reference-ec2-vpc/run.sh's PART F (aws_security_group.count_test)
+# and live/e2e/corpus-hongbomiao-storage/run.sh's PART G use.
+#
+# WHAT COUNTS AS "GENUINELY A NEW OBJECT" HERE, established directly
+# against floci with no tofu in the loop before any assertion below was
+# written (HANDOFF's identity-semantics rule), on the currently pinned image
+# (sha256:c55d74e1): an S3 bucket's id IS its own `bucket` name,
+# deterministic from configuration, so a destroy+recreate under the same
+# name comes back under the SAME id - a create-bucket -> delete-bucket ->
+# create-bucket probe on one name succeeded both times under that one name.
+# AWS mints no other server-side identifier for a bucket (unlike a security
+# group id or an IAM PolicyId), so "this is a new object" cannot be read off
+# an id here. The two discriminators used below instead are (a) head-bucket
+# failing outright while the instance is gone - a deleted bucket is
+# genuinely absent from floci, not left behind in a pending state the way a
+# KMS key is - and (b) list-buckets' own CreationDate, confirmed to change
+# across that same delete+recreate cycle (2026-08-31T06:56:33+00:00 ->
+# 2026-08-31T06:56:35+00:00). The probe also confirmed tags do NOT survive
+# the cycle (the recreated bucket came back with an empty TagSet), so a
+# marker found on the recreated instance below is one choudoufu's own apply
+# had to write again, never a leftover.
+#
+# The stock leg runs HERE rather than at the end, in the otherwise-idle
+# account the greenfield stage's own stock oracle ($ORACLE_ENDPOINT, plain
+# `terraform`, the same binary STAGE 1 cold-deploys with) just finished with
+# and never touches again - that account's four buckets are all named
+# *-greenfield, disjoint from ${ESTATE_NAME}-count-test-*. It must stay
+# ABOVE the `docker rm -f` line below, or the account it needs is gone.
+# Stock never had this count block in its own state, so unlike day2_remove's
+# and day2_replace's oracles this one cannot be computed off cold_deploy's
+# state: it stands the same 2-instance block up for real, scales it down and
+# back up, and applies every step.
+gauntlet_begin_stage day2_count
+count_test_block() { # $1 = count
+  cat <<COUNTEOF
+resource "aws_s3_bucket" "count_test" {
+  count  = $1
+  bucket = "${ESTATE_NAME}-count-test-\${count.index}"
+
+  tags = {
+    Name = "count-test"
+  }
+}
+COUNTEOF
+}
+oracle_count_provider() {
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+  s3_use_path_style           = true
+}
+
+EOF
+}
+CT0_NAME="${ESTATE_NAME}-count-test-0"
+CT1_NAME="${ESTATE_NAME}-count-test-1"
+awsco() { aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+
+log "=== G-ORACLE: stock, stand up a 2-instance count block, scale it to 1 and back, in the (idle) greenfield-oracle account ==="
+ORACLE_COUNT="$WORK/oracle-count"
+mkdir -p "$ORACLE_COUNT"
+{ oracle_count_provider; count_test_block 2; } > "$ORACLE_COUNT/main.tf"
+( cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+OC_UP_OUT="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$OC_UP_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added' <<< "$OC_UP_OUT" \
+  || { grep -E 'Apply complete' <<< "$OC_UP_OUT"; fail "stock did not create exactly 2 count-test buckets for the day2_count oracle"; }
+OC_CT0_CREATED="$(awsco s3api list-buckets --query "Buckets[?Name=='$CT0_NAME'].CreationDate | [0]" --output text)"
+OC_CT1_CREATED="$(awsco s3api list-buckets --query "Buckets[?Name=='$CT1_NAME'].CreationDate | [0]" --output text)"
+[ -n "$OC_CT0_CREATED" ] && [ "$OC_CT0_CREATED" != "None" ] || fail "stock's oracle count_test[0] bucket ($CT0_NAME) is not live after the baseline apply"
+[ -n "$OC_CT1_CREATED" ] && [ "$OC_CT1_CREATED" != "None" ] || fail "stock's oracle count_test[1] bucket ($CT1_NAME) is not live after the baseline apply"
+log "  stock: 2 instances, count_test[0]=$CT0_NAME (created=$OC_CT0_CREATED), count_test[1]=$CT1_NAME (created=$OC_CT1_CREATED)"
+
+{ oracle_count_provider; count_test_block 1; } > "$ORACLE_COUNT/main.tf"
+OC_DOWN_PLAN="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; OC_DOWN_PLAN_RC=$?
+[ "$OC_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$OC_DOWN_PLAN" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $OC_DOWN_PLAN_RC"; }
+grep -qE '^  # aws_s3_bucket\.count_test\[1\] will be destroyed' <<< "$OC_DOWN_PLAN" \
+  || { grep -E '^  # .+ will be' <<< "$OC_DOWN_PLAN"; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be' <<< "$OC_DOWN_PLAN" \
+  && { grep -E '^  # .+ will be' <<< "$OC_DOWN_PLAN"; fail "stock's scale-down plan touches count_test[0], which must be left alone"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$OC_DOWN_PLAN" \
+  || { printf '%s\n' "$OC_DOWN_PLAN" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+OC_DOWN_APPLY="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$OC_DOWN_APPLY" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$OC_DOWN_APPLY" \
+  || { grep -E 'Apply complete' <<< "$OC_DOWN_APPLY"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+if OC_CT1_STILL="$(awsco s3api head-bucket --bucket "$CT1_NAME" 2>&1)"; then
+  printf '%s\n' "$OC_CT1_STILL"; fail "stock's count_test[1] bucket ($CT1_NAME) is still live after its scale-down destroy"
+fi
+OC_CT0_AFTER_DOWN="$(awsco s3api list-buckets --query "Buckets[?Name=='$CT0_NAME'].CreationDate | [0]" --output text)"
+[ "$OC_CT0_AFTER_DOWN" = "$OC_CT0_CREATED" ] \
+  || fail "stock's surviving count_test[0] changed CreationDate across the scale-down ($OC_CT0_CREATED -> $OC_CT0_AFTER_DOWN)"
+log "  stock: exactly one destroy (count_test[1]=$CT1_NAME, head-bucket now fails), count_test[0] untouched (created=$OC_CT0_CREATED)"
+
+sleep 1
+{ oracle_count_provider; count_test_block 2; } > "$ORACLE_COUNT/main.tf"
+OC_UP_PLAN="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; OC_UP_PLAN_RC=$?
+[ "$OC_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$OC_UP_PLAN" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $OC_UP_PLAN_RC"; }
+grep -qE '^  # aws_s3_bucket\.count_test\[1\] will be created' <<< "$OC_UP_PLAN" \
+  || { grep -E '^  # .+ will be' <<< "$OC_UP_PLAN"; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be' <<< "$OC_UP_PLAN" \
+  && { grep -E '^  # .+ will be' <<< "$OC_UP_PLAN"; fail "stock's scale-up plan touches count_test[0], which must be left alone"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$OC_UP_PLAN" \
+  || { printf '%s\n' "$OC_UP_PLAN" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+OC_UP_APPLY="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$OC_UP_APPLY" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$OC_UP_APPLY" \
+  || { grep -E 'Apply complete' <<< "$OC_UP_APPLY"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+OC_CT1_NEW="$(awsco s3api list-buckets --query "Buckets[?Name=='$CT1_NAME'].CreationDate | [0]" --output text)"
+[ -n "$OC_CT1_NEW" ] && [ "$OC_CT1_NEW" != "None" ] || fail "stock's count_test[1] bucket is not live again after the scale-up"
+[ "$OC_CT1_NEW" != "$OC_CT1_CREATED" ] \
+  || fail "stock's recreated count_test[1] came back with the SAME CreationDate ($OC_CT1_CREATED) - its destroy was not real, and this oracle's own discriminator is worthless"
+OC_CT0_AFTER_UP="$(awsco s3api list-buckets --query "Buckets[?Name=='$CT0_NAME'].CreationDate | [0]" --output text)"
+[ "$OC_CT0_AFTER_UP" = "$OC_CT0_CREATED" ] || fail "stock's count_test[0] changed CreationDate across the scale-up"
+log "  stock: exactly one create (count_test[1], same deterministic bucket name, NEW CreationDate $OC_CT1_NEW, was $OC_CT1_CREATED), count_test[0]=$CT0_NAME unchanged throughout"
+ORACLE_COUNT_SHAPE="destroy the higher index only (0 add, 0 change, 1 destroy), recreate it under the same deterministic bucket name but a new CreationDate ($OC_CT1_CREATED -> $OC_CT1_NEW), index 0's CreationDate ($OC_CT0_CREATED) unchanged at both steps"
+gauntlet_end_stage
+
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
 
 # day2_remove's stock oracle (live/GAUNTLET.md #7), computed here, before
