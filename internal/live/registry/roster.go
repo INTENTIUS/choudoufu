@@ -80,6 +80,32 @@ type Roster struct {
 	// that join treats as ambiguous rather than picking one.
 	tfTypeFor map[string][]string
 
+	// tfTypeForAnyProvenance is the same reverse index built from EVERY row
+	// that names a CFN type at all, whatever its via - the reverse of
+	// anyCFNType, and deliberately wider than tfTypeFor above for the same
+	// reason anyCFNType is wider than cfnType.
+	//
+	// The narrow index answers "may Cloud Control ENUMERATE this type on its
+	// own", which is why it accepts only the provenances the package doc's
+	// "What counts as mapped" lists. The reverse join has a different
+	// question in front of it: the Resource Groups Tagging API has already
+	// handed back one object, with its ARN and its own ownership markers
+	// inline, and the only thing left to decide is which TF type that object
+	// IS. Nothing is enumerated on the strength of this answer, so a row's
+	// provenance is not the property that makes it safe - being the only
+	// ADMITTED candidate is, which is the filter the ARN join's own caller
+	// applies before using this ([joinTaggedResource]).
+	//
+	// Measured against the committed artifacts at this commit: 47 rows carry
+	// via "former2" (mapping-gen's pinned iann0036/former2 dataset, used only
+	// where no name/alias/service-alias row existed), 38 of them name a type
+	// the identity table admits, and every one of those 38 CFN types has
+	// exactly one admitted TF type - so the wider index adds no ambiguity
+	// anywhere it adds an answer. Only one of the 38, AWS::EC2::CustomerGateway,
+	// is reachable from [arnJoinTable] today; the rest become reachable if and
+	// when a row for their ARN segment is added.
+	tfTypeForAnyProvenance map[string][]string
+
 	// listable is cfn_type -> whether live/registry.json's handlers.list is
 	// set with no required input (see the package doc's "What counts as
 	// listable"). A CFN type absent from live/registry.json - the mapping
@@ -155,11 +181,14 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 	}
 
 	r := &Roster{
-		cfnType:           make(map[string]string, len(m.Rows)),
-		service:           make(map[string]string, len(m.Rows)),
-		anyCFNType:        make(map[string]string, len(m.Rows)),
-		relationships:     make(map[string][]string, len(reg.Types)),
-		tfTypeFor:         make(map[string][]string, len(m.Rows)),
+		cfnType:       make(map[string]string, len(m.Rows)),
+		service:       make(map[string]string, len(m.Rows)),
+		anyCFNType:    make(map[string]string, len(m.Rows)),
+		relationships: make(map[string][]string, len(reg.Types)),
+		tfTypeFor:     make(map[string][]string, len(m.Rows)),
+
+		tfTypeForAnyProvenance: make(map[string][]string, len(m.Rows)),
+
 		listable:          make(map[string]bool, len(reg.Types)),
 		listRequiredInput: make(map[string][]string, len(reg.Types)),
 		taggable:          make(map[string]bool, len(reg.Types)),
@@ -179,6 +208,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		// (issue #129) - and it is not something CloudControlType may say,
 		// since its own contract is about enumerability.
 		r.anyCFNType[row.TFType] = *row.CFNType
+		r.tfTypeForAnyProvenance[*row.CFNType] = append(r.tfTypeForAnyProvenance[*row.CFNType], row.TFType)
 		if parts := strings.Split(*row.CFNType, "::"); len(parts) >= 2 && parts[1] != "" {
 			r.service[row.TFType] = parts[1]
 		}
@@ -231,6 +261,22 @@ func (r *Roster) TFTypesForCFNType(cfnType string) []string {
 		return nil
 	}
 	out := append([]string(nil), r.tfTypeFor[cfnType]...)
+	sort.Strings(out)
+	return out
+}
+
+// TFTypesForCFNTypeAnyProvenance is [Roster.TFTypesForCFNType] over every
+// mapping row that names a CFN type, whatever its via - see
+// tfTypeForAnyProvenance's own field comment for why the reverse join is
+// allowed a wider index than the enumeration join, and for the measurement
+// behind it. Sorted, nil for a CFN type no row names at all. More than one
+// entry is ambiguity the caller must resolve or refuse, exactly as with the
+// narrow method.
+func (r *Roster) TFTypesForCFNTypeAnyProvenance(cfnType string) []string {
+	if r == nil || len(r.tfTypeForAnyProvenance[cfnType]) == 0 {
+		return nil
+	}
+	out := append([]string(nil), r.tfTypeForAnyProvenance[cfnType]...)
 	sort.Strings(out)
 	return out
 }
