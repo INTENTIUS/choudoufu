@@ -497,8 +497,33 @@ OVPC_ID="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe
 [ -n "$OVPC_ID" ] && [ "$OVPC_ID" != "None" ] || fail "no oracle vpc found at cidr 10.0.0.0/16 - the corpus pin has moved"
 GSUBNETS="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-subnets --filters "Name=vpc-id,Values=$GVPC_ID" --query 'length(Subnets)' --output text)"
 OSUBNETS="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-subnets --filters "Name=vpc-id,Values=$OVPC_ID" --query 'length(Subnets)' --output text)"
-[ "$GSUBNETS" = "$OSUBNETS" ] \
-  || fail "the subnet count differs: greenfield=$GSUBNETS oracle=$OSUBNETS"
+if [ "$GSUBNETS" != "$OSUBNETS" ]; then
+  # SEEN ONCE, 2026-08-31, while building this estate's day2_count section
+  # (PART G): one run in four reported greenfield=18 oracle=19 - an extra
+  # subnet in the STOCK oracle's own VPC, created by plain $TF_COLD_BIN with
+  # no choudoufu in that leg at all, and its own apply still said "Apply
+  # complete! Resources: 62 added". The other three runs, on the same image
+  # and the same commit, matched at 18. A duplicate CreateSubnet - a call
+  # floci answered slowly enough for the provider to retry one that had in
+  # fact succeeded - fits what was observed, but nothing was captured to
+  # confirm it because this assertion only ever printed the two counts and
+  # the containers are torn down on exit.
+  #
+  # So print both sides before failing. It costs two describe calls on a
+  # path that is already failing, and it turns "18 != 19" into a named
+  # object the next occurrence can be root-caused from - which side has the
+  # extra subnet, its id, its CIDR and its AZ, and therefore whether it is a
+  # duplicate of a declared one (the retry story) or something else entirely.
+  log "  greenfield subnets (id, cidr, az):"
+  aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-subnets \
+    --filters "Name=vpc-id,Values=$GVPC_ID" \
+    --query 'sort_by(Subnets,&CidrBlock)[].[SubnetId,CidrBlock,AvailabilityZone]' --output text || true
+  log "  stock oracle subnets (id, cidr, az):"
+  aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-subnets \
+    --filters "Name=vpc-id,Values=$OVPC_ID" \
+    --query 'sort_by(Subnets,&CidrBlock)[].[SubnetId,CidrBlock,AvailabilityZone]' --output text || true
+  fail "the subnet count differs: greenfield=$GSUBNETS oracle=$OSUBNETS - see the two lists above for which side carries the extra subnet and whether its CIDR duplicates a declared one"
+fi
 GEP="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=s3-vpc-endpoint" --query 'length(VpcEndpoints)' --output text)"
 OEP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=s3-vpc-endpoint" --query 'length(VpcEndpoints)' --output text)"
 [ "$GEP" = "1" ] && [ "$OEP" = "1" ] \
