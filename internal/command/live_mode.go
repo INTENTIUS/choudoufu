@@ -301,9 +301,49 @@ func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
 // make. Nil in every real run.
 var testStatelessRunner func(*statelessRunner)
 
-// statelessRejections lists the options a stateless run cannot honor, in the
-// shared vocabulary of the plan and apply flag sets. Everything here is
+// statelessSurface names which of the fork's two live-markers entry points is
+// asking [statelessRejections] for its refusals.
+//
+// There are two because there are two PIPELINES, not two judgements. A
+// configuration carrying a live block runs the ordinary plan/apply command,
+// which hands a backend.Operation to the local backend; [statelessBegin]
+// swaps the state manager underneath it and the operation's own PlanMode is
+// what reaches tofu.Context.Plan. "choudoufu live-plan -estate=name" has no
+// such operation: [LivePlanCommand.livePlan] assembles the pipeline in
+// process and calls tofu.Context.Plan itself. Everything either surface
+// refuses, it refuses for the same reason - and the one clause below that
+// reads this value says exactly why it is the exception.
+type statelessSurface int
+
+const (
+	// surfaceLiveBlock is plain "choudoufu plan" and "choudoufu apply" over a
+	// configuration carrying a live block. This is the surface the product
+	// promise is written against: an existing configuration, run with the
+	// commands its operators already run.
+	surfaceLiveBlock statelessSurface = iota
+
+	// surfaceEstateFlag is "choudoufu live-plan -estate=name" over a
+	// configuration with no live block - the preview form, which can plan an
+	// estate but cannot apply one, since plain apply in such a directory is
+	// an ordinary state-backed apply. live-plan over a configuration that
+	// DOES carry a live block is not this surface: it delegates to
+	// PlanCommand and gets surfaceLiveBlock's answers, because there it is
+	// that command (see LivePlanCommand.Run's alias).
+	surfaceEstateFlag
+)
+
+// statelessRejections lists the options a live-markers run cannot honor, in
+// the shared vocabulary of the plan and apply flag sets. Everything here is
 // refused with an explanation rather than accepted and quietly ignored.
+//
+// It is the fork's ONE list. It used to be two - this function for plan and
+// apply, livePlanRejectUnsupported for live-plan - and the two had already
+// drifted apart on -destroy, which #320 lifted from one and not the other
+// (GitHub issue #619). That is the shape markers.Taggable's three copies had
+// before every caller was made to delegate to one definition, and it is why
+// the surface is a parameter here rather than a second function: a divergence
+// has to be written down as a clause that names its reason, where
+// TestStatelessRejections_surfacesAgree can see it.
 //
 // planOut and planFile are the two the fork thought hardest about, and they
 // are refused for the same reason. A saved plan file records the state
@@ -315,8 +355,9 @@ var testStatelessRunner func(*statelessRunner)
 // "apply <planfile>" is refused rather than being handed a stale projection
 // with no discovery, no marker stamping and no live read behind it. The
 // stateless answer to "review then apply" is that plan and apply each read
-// the world when they run.
-func statelessRejections(op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
+// the world when they run. Both, plus -refresh-only, are ruled reopenable by
+// rfc/20260830-stale-state-charter.md; none of them is reopened here.
+func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	reject := func(summary, detail string) {
@@ -328,8 +369,19 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet. Rerun without -json or -json-into.")
 	}
 	if planOut != "" {
-		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against. Here prior state is rebuilt from the live system every time, so an apply plans against the live system at the moment it runs. Rerun without -out and apply directly.")
+		// The second half is guidance rather than a second reason, and it
+		// is only TRUE on the -estate form: there, and only there, plain
+		// plan and apply in the same directory are stock state-backed
+		// commands that would duplicate the estate. Saying so under a live
+		// block would be false.
+		detail := "A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Here prior state is rebuilt from the live system every run, so an apply plans against the live system at the moment it runs. "
+		switch surface {
+		case surfaceEstateFlag:
+			detail += "Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands rather than live-markers ones, and they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff."
+		default:
+			detail += "Rerun without -out and apply directly."
+		}
+		reject("Saved plan files are not available under live resource markers", detail)
 	}
 	if planFile != "" {
 		diags = diags.Append(statelessRejectPlanFile(planFile))
@@ -338,31 +390,49 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 		reject("Config generation is not available under live resource markers yet",
 			"-generate-config-out writes generated configuration for import blocks into a file, and that generated form has not been checked against the live-markers configuration subset yet. Rerun without -generate-config-out.")
 	}
-	// GitHub issue #320, ruled in #425: DestroyMode is a generalization of
-	// the orphan sweep, not a separate mechanism, so it is no longer
-	// refused here. The sweep already merges any owned instance with no
-	// matching config block into the change set as a destroy (see
-	// internal/live/untag/doc.go); DestroyMode's own contract - "destroy
-	// all remote objects... even if the configuration for those instances
-	// is still present" (plans.DestroyMode's doc comment) - asks for
-	// exactly that same merge applied to every owned instance the
-	// projection built, declared or not. Nothing downstream of
-	// statelessRejections branches on PlanMode: PriorState above builds
-	// the same projection of every owned instance regardless of mode, and
-	// the plan and apply that follow are stock, so it is stock's own
-	// destroy-graph walker - unmodified - that orders the result. See
-	// day2_remove and day2_replace, the two active stages that already
-	// lean on that same walker for a single instance at a time; this lifts
-	// the refusal on the estate-wide case rather than inventing a second
-	// ordering mechanism.
-	//
-	// -refresh-only stays refused: it is a genuinely different operation
-	// (compare a stored record against the live system) that has no
-	// meaning here, where both sides of that comparison are the live
-	// system - not a verification gap the sweep already closes.
-	if op != nil && op.PlanMode == plans.RefreshOnlyMode {
-		reject("Only the normal planning mode is available under live resource markers",
-			"Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -refresh-only.")
+	if op != nil {
+		switch {
+		// -refresh-only is refused on BOTH surfaces: it is a genuinely
+		// different operation (compare a stored record against the live
+		// system) that has no meaning here, where both sides of that
+		// comparison are the live system - not a verification gap the
+		// orphan sweep already closes.
+		case op.PlanMode == plans.RefreshOnlyMode:
+			reject("Only the normal planning mode is available under live resource markers",
+				"Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -refresh-only.")
+
+		// GitHub issue #320, ruled in #425: DestroyMode is a
+		// generalization of the orphan sweep, not a separate mechanism, so
+		// a live block no longer refuses it. The sweep already merges any
+		// owned instance with no matching config block into the change set
+		// as a destroy (see internal/live/untag/doc.go); DestroyMode's own
+		// contract - "destroy all remote objects... even if the
+		// configuration for those instances is still present"
+		// (plans.DestroyMode's doc comment) - asks for exactly that same
+		// merge applied to every owned instance the projection built,
+		// declared or not. Nothing downstream of statelessBegin branches
+		// on PlanMode: PriorState builds the same projection of every
+		// owned instance regardless of mode, and the plan and apply that
+		// follow are stock, so it is stock's own destroy-graph walker -
+		// unmodified - that orders the result.
+		//
+		// THE ONE SURFACE-CONDITIONAL VERDICT IN THIS FUNCTION, and the
+		// reason is mechanical rather than a principle. #425's "nothing
+		// branches on PlanMode" holds because the operation carries the
+		// mode into the planner. live-plan's -estate form has no
+		// operation: LivePlanCommand.livePlan calls tofu.Context.Plan
+		// itself with Mode hardcoded to plans.NormalMode. Accepting
+		// -destroy there would print a normal plan and call it a destroy,
+		// which is the silent-ignore this whole function exists to
+		// prevent, so refusing is the only honest answer while that call
+		// site ignores the flag. Delete this clause the run after that
+		// call site takes args.Operation.PlanMode; nothing else has to
+		// move with it, and TestStatelessRejections_surfacesAgree's
+		// expectation is the one line to update.
+		case op.PlanMode != plans.NormalMode && surface == surfaceEstateFlag:
+			reject("Only the normal planning mode is available under live resource markers yet",
+				"live-plan's -estate form builds its plan by calling the planner directly in the normal planning mode, so -destroy here would be accepted and then ignored. A configuration carrying a live block has no such gap: \"choudoufu plan -destroy\" and \"choudoufu destroy\" run this same pipeline in destroy mode (GitHub issue #320, ruled in #425). Deleting a resource block from the configuration also has its live resource destroyed, since the estate sweep plans an owned-but-undeclared resource as a destroy. Rerun without -destroy.")
+		}
 	}
 	if state != nil && (state.StatePath != "" || state.StateOutPath != "" || state.BackupPath != "") {
 		reject("State file options are not available under live resource markers",

@@ -166,14 +166,6 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	if moreDiags := livePlanRejectUnsupported(args.Plan); moreDiags.HasErrors() {
-		// Rendered through the base view rather than the plan view: one of
-		// the things rejected here is -json, and reporting "no JSON output"
-		// as JSON would be a strange way to say it.
-		c.View.Diagnostics(moreDiags)
-		return 1
-	}
-
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {
 		diags = diags.Append(err)
@@ -217,6 +209,25 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 		}
 		plan := &PlanCommand{Meta: c.Meta}
 		return plan.Run(originalArgs)
+	}
+
+	// Past the alias, so this run is the -estate form for certain, and
+	// [surfaceEstateFlag] is the surface whose refusals apply. GitHub issue
+	// #619: this check used to run BEFORE the alias above, out of one of two
+	// refusal sets that had already drifted apart on -destroy. That put the
+	// wrong list in front of a live-block configuration - "choudoufu
+	// live-plan -destroy" was refused where "choudoufu plan -destroy" in the
+	// same directory ran, from a command whose whole contract is that it IS
+	// that command - and printed a -out diagnostic asserting "this
+	// configuration has no live block" over one that had a live block. Both
+	// go away by asking after the surface is known, from the one list.
+	//
+	// Rendered through the base view rather than the plan view: one of the
+	// things rejected here is -json, and reporting "no JSON output" as JSON
+	// would be a strange way to say it.
+	if moreDiags := statelessRejections(surfaceEstateFlag, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""); moreDiags.HasErrors() {
+		c.View.Diagnostics(moreDiags)
+		return 1
 	}
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
@@ -2354,41 +2365,6 @@ func (c *LivePlanCommand) liveStateFileNote() tfdiags.Diagnostics {
 	))
 }
 
-// livePlanRejectUnsupported turns the plan options this command cannot
-// honor into errors. Everything rejected here is rejected because stateless
-// mode removes the thing the option operates on, or because v0 has not built
-// it yet; nothing is silently ignored.
-func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-
-	reject := func(summary, detail string) {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail))
-	}
-
-	if args.ViewOptions.ViewType != arguments.ViewHuman || args.ViewOptions.JSONInto != nil {
-		reject("Machine-readable output is not available under live resource markers yet",
-			"live-plan prints a section describing what it could not read from the live system, and that section has no JSON representation yet. Rerun without -json or -json-into.")
-	}
-	if args.OutPath != "" {
-		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Here prior state is rebuilt from the live system every run, and an apply re-plans against it at the moment it runs. Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands rather than live-markers ones, and they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff.")
-	}
-	if args.GenerateConfigPath != "" {
-		reject("Config generation is not available under live resource markers yet",
-			"-generate-config-out writes generated configuration for import blocks into a file, and that generated form has not been checked against the live-markers configuration subset yet. Rerun without -generate-config-out.")
-	}
-	if args.Operation.PlanMode != plans.NormalMode {
-		reject("Only the normal planning mode is available under live resource markers yet",
-			"live-plan produces a normal plan. -destroy is not verified against a live-markers apply yet, and deleting a resource block from the configuration is the tested way to have its live resource destroyed, since the estate sweep plans an owned-but-undeclared resource as a destroy. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -destroy and -refresh-only.")
-	}
-	if args.State.StatePath != "" || args.State.StateOutPath != "" || args.State.BackupPath != "" {
-		reject("State file options are not available under live resource markers",
-			"Prior state is a projection, built from the live system and discarded when the run ends, so these options have no file to act on. Rerun without -state, -state-out and -backup.")
-	}
-
-	return diags
-}
-
 // statelessDataReads is GitHub issue #179's pre-resolution data-read phase,
 // shared by every command that resolves identity: live-plan, plain
 // plan/apply under a live block (live_mode.go), and live-mv. It analyzes
@@ -3567,9 +3543,18 @@ Options:
 
   The following stock plan options are rejected rather than ignored, because
   live resource markers remove what they operate on or have not built them yet:
-  -out, -state, -state-out, -backup, -destroy, -refresh-only,
-  -generate-config-out, -json and -json-into. -refresh is accepted and has no
-  effect: the projection is already fresh, so the plan never refreshes.
+  -out, -state, -state-out, -backup, -refresh-only, -generate-config-out,
+  -json and -json-into. That list is the same one plain "choudoufu plan" and
+  "choudoufu apply" use under a live block; there is one list, not one per
+  command. -refresh is accepted and has no effect: the projection is already
+  fresh, so the plan never refreshes.
+
+  -destroy is the single option the two entry points answer differently, and
+  only this command's -estate form refuses it. Under a live block, "choudoufu
+  plan -destroy" and "choudoufu destroy" run this same pipeline in destroy
+  mode. The -estate form builds its plan by calling the planner directly in
+  the normal planning mode, so accepting -destroy here would hand you a normal
+  plan labelled as a destroy.
 
 Environment variables:
 
