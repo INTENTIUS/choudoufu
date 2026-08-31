@@ -129,7 +129,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 
 	if statelessCfg != nil {
 		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly,
-			statelessRejections(args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
+			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
 			view.Diagnostics(diags)

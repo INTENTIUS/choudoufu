@@ -142,7 +142,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		// question. arguments.Apply does not carry it and this passes false
 		// rather than plumbing one.
 		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
-			statelessRejections(args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
+			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 	} else if !diags.HasErrors() {
 		// GitHub issue #613. A state-backed run is the one that can propose
