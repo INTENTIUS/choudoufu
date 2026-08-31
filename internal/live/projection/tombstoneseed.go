@@ -45,7 +45,7 @@ func SeedTombstoneForInstance(ctx context.Context, store *RecordStore, addr addr
 	if tk == "" {
 		return fmt.Errorf("the tombstone for %s carries no identity to key it by", addr)
 	}
-	_, version, _, err := store.getRaw(ctx, addr)
+	_, version, _, err := store.getRawFresh(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("reading the existing record for %s before seeding a tombstone: %w", addr, err)
 	}

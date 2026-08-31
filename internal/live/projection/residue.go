@@ -1170,7 +1170,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 	// is what makes this matter - without a fresh read, the write would
 	// always assert "nothing recorded yet" and fail every time but the
 	// first.
-	_, version, _, _, getErr := store.GetResidue(ctx, addr)
+	_, version, _, _, getErr := store.GetResidueFresh(ctx, addr)
 	if getErr != nil {
 		return false, fmt.Errorf("reading the existing residue record for %s before writing: %w", addr, getErr)
 	}
