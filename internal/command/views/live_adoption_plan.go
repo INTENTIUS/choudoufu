@@ -54,11 +54,19 @@ import (
 // a failure while claiming to summarize adoption would be worse than the
 // noise it removes.
 //
-// The run itself is unchanged: the same live reads, the same discovery
-// sweep, the same projection, the same plan graph. This is a view, not a
-// pipeline mode, so a resource's adoption verdict here is the same verdict
-// the same run would have printed without the flag - which is the property
-// that makes the ledger trustworthy, and the reason the flag buys no time.
+// This type is a view, not a pipeline mode: the projection and the plan
+// graph are the same, so a resource's adoption verdict here is the same
+// verdict the run would have printed without the flag, which is the
+// property that makes the ledger trustworthy.
+//
+// What the FLAG does beyond selecting this view has changed since
+// rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling, and the
+// sentence that used to sit here ("the same live reads, the same discovery
+// sweep ... the flag buys no time") is no longer true of it: -adoption-only
+// now also asks the estate-wide sweep which live resources carry no
+// ownership marker at all, so it reads MORE than an ordinary plan rather
+// than the same. See [command.collectUnclaimedSetting]. Nothing about this
+// view changed; only what the run it renders went and looked at.
 type AdoptionOnlyPlan struct {
 	inner Plan
 	view  *View

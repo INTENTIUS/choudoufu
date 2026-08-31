@@ -144,6 +144,24 @@ type Result struct {
 	// the next full or verification sweep instead of this one.
 	GuidedSweepSkipped []string
 
+	// NativeSweepSkipped is how many admitted types the estate-wide sweep's
+	// native per-type leg did not list this pass because
+	// [Request.CollectUnclaimed] was unset and this estate's own record
+	// store gave a narrower universe to sweep - see nativesweep.go for the
+	// rule and for exactly what it gives up. Zero means the native leg
+	// listed everything [partitionSweepTypes] routed to it, which is the
+	// case for every pass that asked the account-inventory question, every
+	// pass with no record store, and every pass whose store is empty or
+	// will not list.
+	//
+	// It is scan metadata, the same way [Guided] is: nothing else in this
+	// Result depends on it, and the plan a narrowed pass proposes is the
+	// plan an unnarrowed one proposes for every removal either can see. It
+	// is reported so an operator reading "Foreign resources: nothing was
+	// swept" learns that this run did not ask the account-wide question
+	// rather than that the question came back empty.
+	NativeSweepSkipped int
+
 	// DeposedBindings is GitHub issue #361's crash-window recovery: every
 	// address whose collision (two-or-more claimants for one declared
 	// address - the shape a create-before-destroy crash produces while the

@@ -141,6 +141,59 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 		declared[r.ImportID] = true
 	}
 
+	// The parents this leg would actually read a child for, settled BEFORE
+	// any call is made. Both paths below consult exactly this list, so an
+	// empty one means neither path has anything to do and neither should
+	// spend a call finding that out.
+	//
+	// The scoped path always had that property - its call is inside the
+	// loop. The unscoped path did not: [listUnscopedChildren] ran first,
+	// unconditionally, for every parent-readable untaggable type in the
+	// whole admission table, whether or not this estate owns a single
+	// object of the parent type. Measured on a migrated 79-instance
+	// terralith that declares no bucket, no queue, no topic, no repository
+	// and no secret, that was ten list calls - five ListBuckets, plus
+	// ListQueues, ListTopics, ListSecrets, DescribeRepositories and one
+	// more bucket-level GET - every one of them enumerating a service the
+	// configuration does not mention, on every plan. The cost of this leg
+	// is meant to be bounded by the estate ("one list call per
+	// (parent-readable untaggable type, bound parent instance not already
+	// declaring a child)", above); an unconditional list is bounded by the
+	// admission table instead.
+	//
+	// Nothing about what the leg FINDS changes: byParentValue was only
+	// ever read through this same filtered set, so a run with no candidate
+	// parent could never have produced a finding from it.
+	type parentCandidate struct {
+		addr  addrs.AbsResourceInstance
+		value string
+	}
+	var candidates []parentCandidate
+	for _, r := range res.Resolutions {
+		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
+			continue
+		}
+		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, modCfg) {
+				// Issue #69's multi-provider sweep: this parent belongs to a
+				// different provider configuration, which is the pass
+				// actually responsible for reading its children. Reading it
+				// here too would be a call against the wrong account at
+				// best, and at worst a second, duplicate [ParentReadFinding]
+				// and synthetic resolution once every pass's results are
+				// merged.
+				continue
+			}
+		}
+		if declared[r.ImportID] {
+			continue
+		}
+		candidates = append(candidates, parentCandidate{addr: r.Addr, value: r.ImportID})
+	}
+	if len(candidates) == 0 {
+		return diags
+	}
+
 	// byParentValue is only built and consulted in the unscoped case: one
 	// list call for the whole type, indexed by the identity value that
 	// pins a result to its parent, so every undeclared parent below is a
@@ -158,32 +211,13 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 		diags = diags.Append(listDiags)
 	}
 
-	for _, r := range res.Resolutions {
-		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
-			continue
-		}
-		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
-			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, modCfg) {
-				// Issue #69's multi-provider sweep: this parent belongs to a
-				// different provider configuration, which is the pass
-				// actually responsible for reading its children. Reading it
-				// here too would be a call against the wrong account at
-				// best, and at worst a second, duplicate [ParentReadFinding]
-				// and synthetic resolution once every pass's results are
-				// merged.
-				continue
-			}
-		}
-		parentValue := r.ImportID
-		if declared[parentValue] {
-			continue
-		}
+	for _, c := range candidates {
 		if scoped {
-			diags = diags.Append(readParentChildScoped(ctx, req, ts, typeName, link, r.Addr, parentValue, res))
+			diags = diags.Append(readParentChildScoped(ctx, req, ts, typeName, link, c.addr, c.value, res))
 			continue
 		}
-		if found, ok := byParentValue[parentValue]; ok {
-			recordParentReadFinding(typeName, link, r.Addr, parentValue, found, res)
+		if found, ok := byParentValue[c.value]; ok {
+			recordParentReadFinding(typeName, link, c.addr, c.value, found, res)
 		}
 	}
 	return diags

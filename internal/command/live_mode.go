@@ -180,7 +180,8 @@ func statelessBegin(
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
-		view: statelessPlanView(view, adoptionOnly),
+		view:         statelessPlanView(view, adoptionOnly),
+		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
 		// -exclude addresses; PriorState is where they turn into a scope,
 		// because that is where the core context that can answer what the
@@ -422,6 +423,14 @@ type statelessRunner struct {
 	lib  plugins.Library
 	mgr  *projection.Manager
 	view views.StatelessPlan
+
+	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
+	// into view above. It selected only the renderer until
+	// rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling; now
+	// it also selects whether this run asks the estate-wide sweep's
+	// account-inventory question at all. See [collectUnclaimedSetting],
+	// which this is the default argument to.
+	adoptionOnly bool
 
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
@@ -754,7 +763,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// the "plain choudoufu plan/apply" path the comment two paragraphs up
 	// already says carries the record store for real.
 	deposedRecords := collectDeposedRecords(ctx, r.recordStore, resolutions.NeedsDiscovery())
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, r.adoptionOnly)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -897,7 +906,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		if foreignDiags.HasErrors() {
 			return nil, diags
 		}
-		r.view.Foreign(statelessForeignReport(classified))
+		r.view.Foreign(statelessForeignReport(classified, disco))
 		r.view.GuidedFallback(disco.GuidedFallback)
 	}
 
@@ -906,7 +915,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// run; only the adoption-only view renders it.
 	r.view.Adoption(statelessAdoptionReport(
 		projResult,
-		statelessForeignReport(classified),
+		statelessForeignReport(classified, disco),
 		statelessUnownedReport(projResult, estate),
 		resourceSchemas,
 		estate,
