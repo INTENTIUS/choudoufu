@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1673,6 +1674,89 @@ func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
 	}
 }
 
+// TestStatelessTestCloud_recordsEveryImportUnderConcurrency is GitHub issue
+// #629's guard, and it guards the HARNESS rather than the product: the mock
+// cloud every live-plan test asserts against has to record every call made
+// to it, including the ones two provider instances make at the same time.
+//
+// It exists because the thing that made
+// TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider fail 16 times in
+// 5000 runs was not a wrong bind - the plan was correct in all sixteen - but
+// a lost append on statelessTestCloud.imports. tofu.MockProvider's own mutex
+// does not cover it: newLivePlanCommand hands out one instance per provider
+// configuration, so a multi-provider fixture has two instances with two
+// mutexes writing one shared slice, and projection's read prefetch calls
+// them concurrently.
+//
+// Mutation: drop the c.mu.Lock/Unlock pair around the append in
+// ImportResourceStateFn and this test loses records on essentially every
+// run, with or without -race.
+func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
+	const (
+		instances  = 2
+		goroutines = 8
+		perRoutine = 250
+	)
+
+	cloud := newStatelessTestCloud()
+	cloud.allowRegion("us-west-2")
+
+	// One provider instance per configuration, exactly as
+	// newLivePlanCommand's factory produces them - which is what puts the
+	// two callers behind two different MockProvider mutexes.
+	provs := make([]providers.Interface, 0, instances)
+	for _, region := range []string{"us-east-1", "us-west-2"} {
+		p := cloud.provider()
+		resp := p.ConfigureProvider(t.Context(), providers.ConfigureProviderRequest{
+			Config: cty.ObjectVal(map[string]cty.Value{"region": cty.StringVal(region)}),
+		})
+		if resp.Diagnostics.HasErrors() {
+			t.Fatalf("configuring the %s instance: %s", region, resp.Diagnostics.Err())
+		}
+		provs = append(provs, p)
+	}
+
+	var wg sync.WaitGroup
+	for g := range goroutines {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			p := provs[g%instances]
+			for i := range perRoutine {
+				resp := p.ImportResourceState(t.Context(), providers.ImportResourceStateRequest{
+					TypeName: "aws_vpc",
+					Target:   providers.ImportTarget{ID: fmt.Sprintf("vpc-%d-%d", g, i)},
+				})
+				if resp.Diagnostics.HasErrors() {
+					t.Errorf("import %d/%d: %s", g, i, resp.Diagnostics.Err())
+					return
+				}
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	if want := goroutines * perRoutine; len(cloud.imports) != want {
+		t.Fatalf("the cloud recorded %d imports, want %d: concurrent calls through separate provider instances are losing records, which is what makes an identity assertion fail while the plan itself is correct", len(cloud.imports), want)
+	}
+	// Every record distinct and present, not merely the right count: a
+	// torn append can also duplicate one entry over another.
+	seen := make(map[string]bool, len(cloud.imports))
+	for _, key := range cloud.imports {
+		if seen[key] {
+			t.Fatalf("%q was recorded twice; a lost append overwrote another record", key)
+		}
+		seen[key] = true
+	}
+	for g := range goroutines {
+		for i := range perRoutine {
+			if want := fmt.Sprintf("aws_vpc/vpc-%d-%d", g, i); !seen[want] {
+				t.Fatalf("%q was imported but never recorded", want)
+			}
+		}
+	}
+}
+
 func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
@@ -1738,6 +1822,38 @@ func newLivePlanCommand(t *testing.T, cloud *statelessTestCloud) (*LivePlanComma
 // through a mock provider that speaks the import/read pair the projection
 // builder uses and the plan/read pair the plan engine uses.
 type statelessTestCloud struct {
+	// mu guards this cloud's three RECORDING fields - imports, applied and
+	// destroyed - which the mock provider's callbacks write while the
+	// command under test is running. GitHub issue #629.
+	//
+	// tofu.MockProvider carries a mutex of its own, so one provider
+	// instance's callbacks never overlap. That is not enough here for two
+	// reasons that compound: newLivePlanCommand's factory hands out a FRESH
+	// instance per provider configuration (each one has to remember the
+	// region it was configured with), so a multi-provider fixture has two
+	// instances holding two different mutexes; and projection's read
+	// prefetch (internal/live/projection/readconcurrency.go's
+	// startReadPrefetch) issues its import/read pairs from a pool of
+	// goroutines. Two instances plus a concurrent caller means two
+	// unsynchronised `c.imports = append(c.imports, key)` calls onto one
+	// shared slice, and a lost append is the visible result: both VPCs bind
+	// correctly, the plan is clean, and one of the two import records is
+	// simply gone.
+	//
+	// That is what made TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider
+	// fail 16 times in 5000 runs, alternating which VPC's record was lost.
+	// The BINDING was right in every one of those failures - no create was
+	// ever proposed and "No changes." was always printed; only the test's
+	// own bookkeeping dropped an entry.
+	//
+	// The setup fields below (objects, tags, listed, allowedRegions,
+	// regionOf) are written by the test body before the command runs and
+	// only read afterwards, so they need no lock. The recording fields are
+	// likewise read by the test body only after the command has returned,
+	// which is why the accessors take the lock but the direct field reads
+	// in assertions do not need it.
+	mu sync.Mutex
+
 	objects map[string]map[string]string
 	imports []string
 
@@ -1854,6 +1970,8 @@ func (c *statelessTestCloud) list(typeName, id, displayName string, tags, attrs 
 }
 
 func (c *statelessTestCloud) imported(typeName, importID string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	want := typeName + "/" + importID
 	for _, got := range c.imports {
 		if got == want {
@@ -2079,7 +2197,9 @@ func (c *statelessTestCloud) provider() providers.Interface {
 			id = req.Target.Identity.GetAttr("id").AsString()
 		}
 		key := req.TypeName + "/" + id
+		c.mu.Lock()
 		c.imports = append(c.imports, key)
+		c.mu.Unlock()
 		schema := statelessTestSchemas()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
@@ -2120,7 +2240,9 @@ func (c *statelessTestCloud) provider() providers.Interface {
 			if key == "" {
 				key = req.TypeName
 			}
+			c.mu.Lock()
 			c.destroyed = append(c.destroyed, key)
+			c.mu.Unlock()
 			return resp
 		}
 		tags := statelessTestTagsOf(req.PlannedState)
@@ -2128,7 +2250,9 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		if key == "" {
 			key = req.TypeName
 		}
+		c.mu.Lock()
 		c.applied[key] = tags
+		c.mu.Unlock()
 		return resp
 	}
 
