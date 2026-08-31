@@ -76,6 +76,9 @@ func run(scale int, out, prefix, fmtBin string) error {
 	if prefix == "" {
 		return fmt.Errorf("-prefix must not be empty")
 	}
+	if err := validatePrefix(prefix); err != nil {
+		return err
+	}
 
 	est := buildEstate(scale, prefix)
 
@@ -94,6 +97,61 @@ func run(scale int, out, prefix, fmtBin string) error {
 		c.containerResources, c.dnsResources, c.supportingResources,
 		c.duplicateRolePolicyBlocks, c.totalRolePolicyBlocks, c.duplicationPercent())
 	return nil
+}
+
+// validatePrefix refuses a -prefix carrying an uppercase letter (issue #635).
+//
+// The prefix becomes a DNS label: writeZone renders the hosted zone as
+// "<prefix>.terralith.test", and every record's name is
+// "${each.key}.${aws_route53_zone.main.name}". The AWS provider (measured at
+// the pinned 6.59.0) lowercases an aws_route53_record's name and leaves
+// aws_route53_zone.name exactly as written, so with -prefix rtA the ten
+// records are CREATED under host-NNNN.rtA.terralith.test and READ BACK under
+// host-NNNN.rta.terralith.test. Measured against floci at scale 1: all ten
+// fail the create's own read-back with
+//
+//	reading Route 53 Record (Z..._host-0002.rta.terralith.test_TXT): empty result
+//
+// and, because that leaves them absent from state while present in the zone,
+// the retry fails with
+//
+//	InvalidChangeBatch: Tried to create resource record set
+//	[name='host-0003.rta.terralith.test.rtA.terralith.test.', type='A']
+//	but it already exists.
+//
+// - the doubled suffix being the provider re-appending the zone name to a
+// stored name that already carries it. -prefix rta applies 79/79 and replans
+// empty; case is the only variable.
+//
+// This refuses rather than lowercasing silently, on purpose. -prefix exists so
+// two generated terraliths can coexist in one account without name collisions
+// (see the flag's own help text), so it is exactly the flag someone reaches
+// for to type their initials or a ticket ID. Normalising for them would make
+// -prefix RT and -prefix rt the SAME estate, turning a deliberate separation
+// into a silent collision in the account - a strictly worse failure than this
+// one, because it is invisible at generation time. Lowercasing only the zone
+// and not the IAM/ECS/EC2 names would be worse again: the estate would then
+// disagree with itself about what it is called.
+//
+// The check is deliberately no wider than the measured defect. Every -prefix
+// this repository passes is already lowercase (tl, tls$$, sca/scb/scc,
+// lc<epoch><pid>), so nothing that works today is newly refused; underscores,
+// dots and over-long labels are not checked here because nothing has measured
+// them.
+func validatePrefix(prefix string) error {
+	lower := strings.ToLower(prefix)
+	if prefix == lower {
+		return nil
+	}
+	return fmt.Errorf(
+		"-prefix %q must be all lowercase - try -prefix %q.\n"+
+			"The prefix becomes a DNS label in the Route 53 zone name (%s.terralith.test), and the AWS provider\n"+
+			"lowercases an aws_route53_record's name while leaving aws_route53_zone.name as written, so every\n"+
+			"record is created under one name and read back under another: all the records fail the apply with\n"+
+			"\"reading Route 53 Record ...: empty result\", and the retry fails with \"InvalidChangeBatch ... already\n"+
+			"exists\" (issue #635). Refusing rather than lowercasing for you, because -prefix exists to keep two\n"+
+			"estates apart and a silent lowercase would make %q and %q the same estate",
+		prefix, lower, prefix, prefix, lower)
 }
 
 // formatWithBinary canonicalizes the HCL under out, recursively, with fmtBin.
