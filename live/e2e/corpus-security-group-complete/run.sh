@@ -2211,6 +2211,22 @@ EOF
           fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
         fi
         log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+        # BREAK_COUNT is a control-only invocation that never applies the
+        # scale-down: revert the count file to its 2-instance shape so the
+        # config this script leaves behind matches what it already applied,
+        # the same discipline corpus-hongbomiao-storage's own BREAK_COUNT
+        # path follows.
+        count_test_block 2 "module.vpc.vpc_id" > "$ADOPTED_EST/count_test.tf"
+        # DELIBERATE DIFFERENCE from the three sibling day2_count sections
+        # (reference-ec2-vpc, corpus-hongbomiao-storage, corpus-iam-policy),
+        # which log the line above and then emit no verdict at all, leaving
+        # the runner to record not_run. The stage's Break text is "Expect a
+        # different instance to be destroyed; the assertion must fail," so
+        # the control's own outcome IS a failed assertion and saying so on
+        # the protocol line is what makes the control visible to a reader of
+        # the GAUNTLET output rather than to a reader of this file. It can
+        # never leak into a real run: the runner never sets BREAK_COUNT.
+        gauntlet_stage day2_count fail "BREAK_COUNT=1 (negative control, not a real verdict): the scale-down plan was asserted to destroy count_test[0], the WRONG instance, exactly as tools/gauntlet/stages.go's Break text for this stage demands - and that assertion does not hold, because the plan destroys count_test[1]. The real leg's checks are therefore load-bearing: they are reading which instance the plan actually names, not passing on any plan at all."
       else
         grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$G_DOWN_PLAN_OUT" \
           || { printf '%s\n' "$G_DOWN_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
