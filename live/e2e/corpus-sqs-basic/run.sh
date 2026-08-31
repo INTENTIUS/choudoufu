@@ -6,6 +6,15 @@ set -uo pipefail
 # count, queue URL and tofu-address string below is now read off that run's
 # output rather than derived from the module source.
 #
+# STATUS (2026-08-31, issue #643): day2_count added (PART G, and its own real
+# stock oracle at G-ORACLE) and run for real against floci
+# ghcr.io/lex00/floci@sha256:c55d74e1, the current live/floci-image pin. All
+# ten stages this script reports came back pass in that run - cold_deploy,
+# greenfield, migrate, test_plan, test_apply, drift_reconverge, day2_rename,
+# day2_replace, day2_remove, day2_count - and every timestamp and marker
+# string quoted in PART G's comments below is read off that run rather than
+# assumed.
+#
 # WHAT THE FIRST REAL RUN CORRECTED. The version committed on 2026-08-20 had
 # every assertion past stage 1's `terraform apply` DERIVED from reading
 # terraform-aws-sqs's naming locals. Three of those derivations were right and
