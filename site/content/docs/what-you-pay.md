@@ -13,11 +13,12 @@ an estate on this fork.
 The price is not one number, because it is not paid on every run. It depends
 on which of three things the run is doing:
 
-| The run | What it costs against stock OpenTofu |
-|---|---|
-| A configuration with no `live` block | Nothing. The same API calls, exactly. |
-| A plan of an estate already adopted, `live` block on | A handful of API calls: **+7 on 1392** at 745 resources on real AWS, and **about 1.3x the wall clock** |
-| Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** |
+| The run | What it costs against stock OpenTofu | Measured on |
+|---|---|---|
+| A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
+| A plan of an estate already adopted, `live` block on | A handful of API calls: **+7 on 1392** at 745 resources | real AWS |
+| The same plan, in seconds | **about 1.3x**, at scale 1 only | emulator |
+| Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
 names its fixture, its commit, and whether it came from the pinned AWS
@@ -44,6 +45,9 @@ three runs each, no variance in any column:
 
 The 79-instance column was re-run at `b20a144ab0` for this page; the
 301-instance column is the ruling's, unchanged, and has not been re-run since.
+Both oracles are behind the current pin, which `live/oracle-versions.json` puts
+at terraform `1.16.0` and tofu `1.12.6`. Nothing in this table has been re-run
+against those.
 
 OpenTofu is in that table because choudoufu is an OpenTofu fork and Terraform
 is not OpenTofu. Without the middle row, any difference between the top and
