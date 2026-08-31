@@ -13,7 +13,11 @@ set -uo pipefail
 # greenfield, migrate, test_plan, test_apply, drift_reconverge, day2_rename,
 # day2_replace, day2_remove, day2_count - and every timestamp and marker
 # string quoted in PART G's comments below is read off that run rather than
-# assumed.
+# assumed. BREAK_COUNT=1 was then run end to end on the same emulator and
+# took the stage red - "GAUNTLET stage=day2_count verdict=fail ... detail=
+# choudoufu's scale-down plan does not destroy count_test[0]", exit 1, with
+# every earlier stage still passing - so the scale-down assertion is
+# load-bearing rather than a grep that always matches.
 #
 # WHAT THE FIRST REAL RUN CORRECTED. The version committed on 2026-08-20 had
 # every assertion past stage 1's `terraform apply` DERIVED from reading
