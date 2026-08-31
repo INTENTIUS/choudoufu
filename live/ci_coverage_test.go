@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -101,7 +102,39 @@ var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd", "site"}
 // upstream commit this fork starts from, so a subpackage is fork-owned when
 // it actually holds a fork-added file, and the next one to appear is
 // required by the guard on the run it lands in.
-var forkOwnedMixedRoots = []string{"internal/command", "internal/engine/applying", "internal/tofu"}
+//
+// #623 is the fifth, and it is the one that says the list itself is the
+// bug. #591 recomputed which subpackages of a KNOWN root the fork owns; it
+// left the roots hand-maintained, and they were already wrong on the day it
+// landed. Running the same diff over the whole tree instead of over these
+// three roots found fork-added .go files in five more places:
+//
+//	internal/backend/local  live.go, plan_guard.go   (#613's un-migration seam)
+//	internal/configs        7 files, 3 of them tests
+//	internal/plans          requires_replace_path.go
+//	internal/plugin         grpc_provider_list.go + test
+//	internal/plugin6        grpc_provider_list.go + test
+//
+// Five fork-authored test files in three packages that had never executed
+// anywhere, and none of it caught by anything, because every check in this
+// file started from a list that did not name them.
+//
+// So the list stays - it is the declaration of where the fork lives, and
+// nothing can derive the difference between "upstream's package the fork
+// added to" and "a directory the fork wholly owns" - but it is no longer
+// trusted. TestForkAuthoredCodeLivesUnderADeclaredRoot recomputes the same
+// diff over the whole tree and fails on any fork-added .go file outside
+// every declared root, so the next one lands red instead of invisible.
+var forkOwnedMixedRoots = []string{
+	"internal/backend",
+	"internal/command",
+	"internal/configs",
+	"internal/engine/applying",
+	"internal/plans",
+	"internal/plugin",
+	"internal/plugin6",
+	"internal/tofu",
+}
 
 // upstreamBaseCommit is the last upstream OpenTofu commit before this fork's
 // first (5acc1ee12f, "choudoufu: OpenTofu with stateless mode"). Everything
@@ -413,10 +446,35 @@ func checkUpstreamBase(t *testing.T) {
 // guard, so the history is there.
 func forkAuthoredMixedRootDirs(t *testing.T) map[string]bool {
 	t.Helper()
+	dirs := forkAddedGoDirs(t, forkOwnedMixedRoots, upstreamTreeFiles(t, forkOwnedMixedRoots))
+	for _, root := range forkOwnedMixedRoots {
+		if !anyUnder(dirs, root) {
+			t.Errorf("no file under %s is fork-added, yet forkOwnedMixedRoots names it as a package "+
+				"upstream owns and this fork has added to. Either the fork's files there were removed - "+
+				"drop the root from forkOwnedMixedRoots and from CI's gofmt and test steps - or "+
+				"upstreamBaseCommit is pinned past them.", root)
+		}
+	}
+	return dirs
+}
+
+// upstreamTreeFiles returns the paths in upstreamBaseCommit's tree, as
+// repo-relative slash paths. A nil paths argument reads the whole tree;
+// otherwise git is asked only about those pathspecs.
+//
+// It fails rather than skips when git cannot answer. A guard that goes quiet
+// on a shallow checkout is the shape this repo has shipped four times; the
+// workflow already checks out with fetch-depth: 0 for the gauntlet ancestry
+// guard, so the history is there.
+func upstreamTreeFiles(t *testing.T, paths []string) map[string]bool {
+	t.Helper()
 	checkUpstreamBase(t)
 
-	args := []string{"ls-tree", "-r", "--name-only", upstreamBaseCommit, "--"}
-	args = append(args, forkOwnedMixedRoots...)
+	args := []string{"ls-tree", "-r", "--name-only", upstreamBaseCommit}
+	if len(paths) > 0 {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = ".."
 	out, err := cmd.Output()
@@ -426,33 +484,61 @@ func forkAuthoredMixedRootDirs(t *testing.T) map[string]bool {
 			stderr = strings.TrimSpace(string(ee.Stderr))
 		}
 		t.Fatalf("git ls-tree %s failed: %v %s\n"+
-			"This guard classifies a mixed root's subpackages by diffing the tree against the "+
-			"upstream commit this fork starts from, so it needs that commit's history present. "+
-			"If the checkout is shallow, deepen it; if the SHA no longer exists, repin "+
-			"upstreamBaseCommit in this file to the commit before the fork's first.",
+			"This guard classifies packages by diffing the tree against the upstream commit this "+
+			"fork starts from, so it needs that commit's history present. If the checkout is "+
+			"shallow, deepen it; if the SHA no longer exists, repin upstreamBaseCommit in this "+
+			"file to the commit before the fork's first.",
 			upstreamBaseCommit, err, stderr)
 	}
 
-	upstream := make(map[string]bool)
+	files := make(map[string]bool)
 	for _, line := range strings.Split(string(out), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
-			upstream[line] = true
+			files[line] = true
 		}
 	}
-	if len(upstream) == 0 {
+	scope := "the whole tree"
+	if len(paths) > 0 {
+		scope = strings.Join(paths, " ")
+	}
+	if len(files) == 0 {
 		t.Fatalf("upstream base %s has no files under %s; the pin is wrong, "+
 			"and left alone it would silently classify every upstream package as fork-owned",
-			upstreamBaseCommit, strings.Join(forkOwnedMixedRoots, " "))
+			upstreamBaseCommit, scope)
 	}
+	return files
+}
 
+// forkAddedGoDirs walks roots and returns the directories holding at least
+// one .go file that is not in the given upstream file set, keyed by
+// repo-relative slash path ("internal/command/arguments"). A root of "."
+// walks the whole repository.
+//
+// It walks the working tree rather than listing git's index on purpose: a
+// fork file that has been written but not yet committed is exactly the case
+// the guard is for, and the author should see it red before pushing rather
+// than after.
+//
+// Hidden directories are skipped, along with testdata, vendor and
+// node_modules. That is not tidiness: `.corpus` is the #102 corpus of
+// third-party Terraform repositories, and it carries 127 .go files today -
+// none of them this fork's, all of them absent from the upstream base. A
+// guard that names 127 other people's files is a guard that gets deleted.
+func forkAddedGoDirs(t *testing.T, roots []string, upstream map[string]bool) map[string]bool {
+	t.Helper()
 	dirs := make(map[string]bool)
-	for _, root := range forkOwnedMixedRoots {
-		err := filepath.WalkDir(filepath.Join("..", root), func(path string, d os.DirEntry, err error) error {
+	for _, root := range roots {
+		abs := filepath.Join("..", root)
+		err := filepath.WalkDir(abs, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if d.IsDir() {
-				if d.Name() == "testdata" || d.Name() == "vendor" {
+				if path == abs {
+					return nil
+				}
+				name := d.Name()
+				if name == "testdata" || name == "vendor" || name == "node_modules" || strings.HasPrefix(name, ".") {
 					return filepath.SkipDir
 				}
 				return nil
@@ -472,14 +558,78 @@ func forkAuthoredMixedRootDirs(t *testing.T) map[string]bool {
 		if err != nil {
 			t.Fatalf("walking %s: %v", root, err)
 		}
-		if !dirs[root] {
-			t.Errorf("no file under %s is fork-added, yet forkOwnedMixedRoots names it as a package "+
-				"upstream owns and this fork has added to. Either the fork's files there were removed - "+
-				"drop the root from forkOwnedMixedRoots and from CI's gofmt and test steps - or "+
-				"upstreamBaseCommit is pinned past them.", root)
-		}
 	}
 	return dirs
+}
+
+// anyUnder reports whether any key of dirs is root or sits beneath it.
+//
+// The subtree form matters: internal/backend's own directory holds no
+// fork-added file - backend.go, where #613 declared Operation.PlanGuard, is
+// an upstream file the fork edited - while internal/backend/local holds two.
+// A check anchored on the root directory alone would call that root stale
+// and tell the author to remove it, which is how the seam got out of CI's
+// reach in the first place.
+func anyUnder(dirs map[string]bool, root string) bool {
+	for dir := range dirs {
+		if dir == root || strings.HasPrefix(dir, root+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestForkAuthoredCodeLivesUnderADeclaredRoot is #623's guard, and the one
+// that makes the two lists at the top of this file checked rather than
+// trusted.
+//
+// Everything else here starts from forkOwnedRoots and forkOwnedMixedRoots
+// and asks whether CI covers what they name. Nothing asked whether they name
+// everything. They did not, twice: #591 found fork code in subpackages of a
+// listed root, and #623 found it in five directories no list mentioned -
+// internal/backend/local (#613's un-migration seam), internal/configs (three
+// fork-authored test files), internal/plans, internal/plugin and
+// internal/plugin6. Five test files that had never run in any tier, in a
+// repository whose CI-coverage guard reported clean.
+//
+// So this runs the same upstream-base diff #591 introduced, over the whole
+// tree instead of over three roots, and fails on any directory holding a
+// fork-added .go file that no declared root covers. Adding a root is cheap
+// and is not a decision - it is a statement of where the fork's code is.
+// Keeping a package out of CI is the decision, and ciExcludedPackages is
+// where it is made, with a reason.
+func TestForkAuthoredCodeLivesUnderADeclaredRoot(t *testing.T) {
+	dirs := forkAddedGoDirs(t, []string{"."}, upstreamTreeFiles(t, nil))
+	if len(dirs) == 0 {
+		t.Fatal("no directory in the tree holds a fork-added .go file; the walk or the pin is broken, not the tree")
+	}
+
+	declared := append(append([]string{}, forkOwnedRoots...), forkOwnedMixedRoots...)
+	var undeclared []string
+	for dir := range dirs {
+		covered := false
+		for _, root := range declared {
+			if dir == root || strings.HasPrefix(dir, root+"/") {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			undeclared = append(undeclared, dir)
+		}
+	}
+	sort.Strings(undeclared)
+
+	for _, dir := range undeclared {
+		t.Errorf("%s holds a .go file this fork added, and neither forkOwnedRoots nor "+
+			"forkOwnedMixedRoots covers it.\n"+
+			"Fork code outside every declared root is code CI does not test and the gofmt step does "+
+			"not check, and nothing else in this file can see it - that is #623, and #591 before it.\n"+
+			"Add the root it belongs under to forkOwnedMixedRoots (or forkOwnedRoots, if this fork "+
+			"wholly owns it), then to CI's gofmt step and, if the package holds tests, to CI's fast "+
+			"tier. Measure what the fast tier gains before adding a whole subtree.",
+			dir)
+	}
 }
 
 // matchedByAny reports whether a package is covered by one of CI's patterns.
