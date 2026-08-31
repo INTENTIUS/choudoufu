@@ -175,6 +175,21 @@ awsg() { x "$GREEN_ENDPOINT" "$@"; }
 
 sed_i() { local f="$1"; shift; local t; t="$(mktemp)"; sed "$@" "$f" > "$t" && mv "$t" "$f"; }
 
+# plan_is_noop is true when a plan output proposes no resource action at
+# all. Both forms count, and which one a plan prints is not something the
+# script controls: "No changes." is what an ordinary converged plan says,
+# while a plan that carries `moved` blocks prints the moves it recorded and
+# then "Plan: 0 to add, 0 to change, 0 to destroy." instead. Demanding the
+# first string alone made this script's own day2_rename stock oracle fail on
+# its first run against a plan that was, in fact, exactly the zero churn the
+# oracle exists to establish - a stale assertion, not a defect (HANDOFF's
+# "when an assertion breaks right after a fix lands").
+plan_is_noop() {
+  grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$1" && return 0
+  grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$1" && return 0
+  return 1
+}
+
 wait_healthy() {
   local ep="$1" h
   for _ in $(seq 1 45); do
@@ -420,22 +435,50 @@ marker_of_cluster() {
   x "$ep" ecs list-tags-for-resource --resource-arn "$carn" --query "tags[?key=='tofu-address'].value | [0]" --output text 2>/dev/null
 }
 
+# escape_address applies live/MARKERS.md's own escaping rule to an ordinary
+# OpenTofu address, so every expectation below is written as the address a
+# reader of the configuration would write and turned into a tag value by the
+# published rule rather than by whatever the implementation happens to do.
+# That direction matters: MARKERS.md states the comparison contract as
+# "escape the known config address, compare strings, never decode the tag
+# blind", and a check that read the tag and decoded it would be a check
+# written from the implementation.
+#
+# The rule, verbatim from that document: escape the content of every
+# instance key first, then replace every "[" with ":", delete every "]",
+# delete every '"'. Step 1 is a no-op for everything this estate produces -
+# a count index is only ever digits, and the one for_each key that reaches a
+# marker here ("pod-a") is already inside the AWS-legal set - so only steps
+# 2-4 are implemented, and an estate that grew a key needing step 1 would
+# have to extend this.
+escape_address() { printf '%s' "$1" | sed -e 's/\[/:/g' -e 's/\]//g' -e 's/"//g'; }
+
+# check_identity prints one line if the live tofu-address on an object does
+# not equal the escaped form of the address it should carry, and nothing at
+# all when it matches. $1 label, $2 the value read from the AWS CLI, $3 the
+# ordinary (unescaped) address it must carry.
+check_identity() {
+  local want
+  want="$(escape_address "$3")"
+  [ "$2" = "$want" ] \
+    || printf '%s: tofu-address=%s want=%s (the escaped form of %s, per live/MARKERS.md)\n' "$1" "$2" "$want" "$3"
+}
+
 # identity_mismatches prints one line per representative identity whose live
-# tofu-address does not equal the expected string, and nothing at all when
+# tofu-address does not equal what it should carry, and nothing at all when
 # every one matches. $1 is the endpoint; $2, when non-empty, replaces the
-# EXPECTED value of the count-indexed entry, which is how BREAK_PLAN
+# EXPECTED address of the count-indexed entry, which is how BREAK_PLAN
 # corrupts exactly one expected identity string.
 identity_mismatches() {
   local ep="$1" corrupt="${2:-}"
   local want_count="aws_iam_role.count_team[1]"
   [ -n "$corrupt" ] && want_count="$corrupt"
-  local got
-  got="$(marker_of_zone "$ep")";                                              [ "$got" = 'aws_route53_zone.main' ] || printf 'zone %s.terralith.test.: tofu-address=%s want=aws_route53_zone.main\n' "$PREFIX" "$got"
-  got="$(marker_of_role "$ep" "${PREFIX}-team-0000-role")";                   [ "$got" = 'aws_iam_role.team_0000_role' ] || printf 'role %s-team-0000-role: tofu-address=%s want=aws_iam_role.team_0000_role\n' "$PREFIX" "$got"
-  got="$(marker_of_role "$ep" "${PREFIX}-count-team-0001-role")";             [ "$got" = "$want_count" ] || printf 'role %s-count-team-0001-role: tofu-address=%s want=%s\n' "$PREFIX" "$got" "$want_count"
-  got="$(marker_of_role "$ep" "${PREFIX}-pod-a-team-0000-role")";             [ "$got" = 'module.team_pod["pod-a"].aws_iam_role.pod_role[0]' ] || printf 'role %s-pod-a-team-0000-role: tofu-address=%s want=module.team_pod["pod-a"].aws_iam_role.pod_role[0]\n' "$PREFIX" "$got"
-  got="$(marker_of_cluster "$ep")";                                           [ "$got" = 'aws_ecs_cluster.main' ] || printf 'cluster %s-cluster: tofu-address=%s want=aws_ecs_cluster.main\n' "$PREFIX" "$got"
-  got="$(marker_of_vpc "$ep")";                                               [ "$got" = 'aws_vpc.main' ] || printf 'vpc %s-vpc: tofu-address=%s want=aws_vpc.main\n' "$PREFIX" "$got"
+  check_identity "zone ${PREFIX}.terralith.test."     "$(marker_of_zone "$ep")"                                   'aws_route53_zone.main'
+  check_identity "role ${PREFIX}-team-0000-role"      "$(marker_of_role "$ep" "${PREFIX}-team-0000-role")"         'aws_iam_role.team_0000_role'
+  check_identity "role ${PREFIX}-count-team-0001-role" "$(marker_of_role "$ep" "${PREFIX}-count-team-0001-role")"  "$want_count"
+  check_identity "role ${PREFIX}-pod-a-team-0000-role" "$(marker_of_role "$ep" "${PREFIX}-pod-a-team-0000-role")"  'module.team_pod["pod-a"].aws_iam_role.pod_role[0]'
+  check_identity "cluster ${PREFIX}-cluster"          "$(marker_of_cluster "$ep")"                                'aws_ecs_cluster.main'
+  check_identity "vpc ${PREFIX}-vpc"                  "$(marker_of_vpc "$ep")"                                    'aws_vpc.main'
 }
 
 # ── 0. tools ─────────────────────────────────────────────────────────────
@@ -583,7 +626,7 @@ grep -qE '^  # .+ will be created' <<< "$O_RENAME_PLAN" \
   && { grep -E '^  # .+ will be' <<< "$O_RENAME_PLAN"; fail "stock proposes a create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
 grep -qE '^  # aws_iam_instance_profile\.team_0000_profile has moved to aws_iam_instance_profile\.team_0000_profile_renamed' <<< "$O_RENAME_PLAN" \
   || { printf '%s\n' "$O_RENAME_PLAN" | tail -20; fail "stock's plan does not report the team_0000_profile move"; }
-grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$O_RENAME_PLAN" \
+plan_is_noop "$O_RENAME_PLAN" \
   || { printf '%s\n' "$O_RENAME_PLAN" | tail -12; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn, both profiles report only their move, on the state cold_deploy produced"
 gauntlet_end_stage
@@ -719,7 +762,7 @@ PLAN_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=fa
   PLAN_ERR="$(grep -m1 -E '^Error: ' <<< "$PLAN_OUT" | tr -d '\r')"
   PLAN_RULE="$(grep -m1 -oE 'Rule: [a-z0-9-]+' <<< "$PLAN_OUT")"
   fail "the post-migration plan exited ${PLAN_RC}${PLAN_RULE:+, ${PLAN_RULE}}${PLAN_ERR:+ - first: ${PLAN_ERR}}"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
+plan_is_noop "$PLAN_OUT" \
   || { grep -E '^  #' <<< "$PLAN_OUT" | head -20; fail "the post-migration plan is not empty"; }
 log "  No changes."
 
@@ -730,7 +773,7 @@ if [ "${BREAK_PLAN:-}" = "1" ]; then
   BREAK_N="$(grep -c . <<< "$BREAK_MIS" || true)"
   [ "$BREAK_N" = "1" ] \
     || { printf '%s\n' "$BREAK_MIS"; fail "BREAK_PLAN=1: corrupting one expected identity string produced $BREAK_N mismatch(es), not exactly 1 - this stage's identity check is not load-bearing, or it is not scoped to the string that was corrupted"; }
-  grep -qF "want=$BAD" <<< "$BREAK_MIS" \
+  grep -qF "want=$(escape_address "$BAD")" <<< "$BREAK_MIS" \
     || { printf '%s\n' "$BREAK_MIS"; fail "BREAK_PLAN=1: the single mismatch is not the corrupted string"; }
   log "  BREAK_PLAN=1: exactly one mismatch, and it is the corrupted string ($BAD) - the identity assertion fails on that string and nothing else, as it must"
   not_run_rest "BREAK_PLAN=1 control run: this run exists to prove test_plan's identity assertion is load-bearing and stops once it has" \
@@ -818,7 +861,7 @@ log "  $GF_RECORDS records persisted, one per managed instance, read directly of
 log "=== F4. greenfield: the next plan proposes nothing ==="
 GF_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GF_RC=$?
 [ "$GF_RC" -eq 0 ] || { printf '%s\n' "$GF_PLAN" | tail -30; fail "the greenfield replan exited $GF_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GF_PLAN" \
+plan_is_noop "$GF_PLAN" \
   || { grep -E '^  #' <<< "$GF_PLAN" | head -20; fail "the greenfield replan is not empty"; }
 log "  No changes."
 
@@ -826,7 +869,7 @@ log "=== F5. greenfield: delete the local record store and plan again ==="
 rm -rf "$GREENDIR/.tofu-records"
 GF_PLAN2="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GF_RC=$?
 [ "$GF_RC" -eq 0 ] || { printf '%s\n' "$GF_PLAN2" | tail -40; fail "the greenfield plan with no local record store exited $GF_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GF_PLAN2" \
+plan_is_noop "$GF_PLAN2" \
   || { grep -E '^  #' <<< "$GF_PLAN2" | head -20; fail "the greenfield plan is not empty with no local record store - the objects are not being found by their markers alone, and the ${UNTAGGABLE} untaggable instances are not composing from their stamped parents"; }
 log "  No changes, with zero local memory of the run that created them - ${TAGGABLE} found by marker, ${UNTAGGABLE} composed from an already-stamped parent"
 
@@ -1114,7 +1157,7 @@ log "  $P1_ID unchanged, tofu-address now aws_iam_instance_profile.team_0001_pro
 log "=== I3. one more plan: both renames are complete and invisible ==="
 RENAME_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; RN_RC=$?
 [ "$RN_RC" -eq 0 ] || { printf '%s\n' "$RENAME_FINAL" | tail -30; fail "the post-rename plan exited $RN_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$RENAME_FINAL" \
+plan_is_noop "$RENAME_FINAL" \
   || { grep -E '^  #' <<< "$RENAME_FINAL" | head -20; fail "the post-rename plan is not empty"; }
 log "  No changes."
 gauntlet_stage day2_rename pass "moved block: aws_iam_instance_profile.team_0000_profile renamed with zero churn (0 add, 1 change, 0 destroy) and the plan itself showed the tofu-address marker being rewritten in place; live-mv: team_0001_profile renamed with no moved block at all, reported as a real cloud write; both live instance-profile ids unchanged and both markers read back at the NEW address via the AWS CLI; stock's own oracle over the identical two renames on cold_deploy's state (B1) is also zero churn (No changes., both moves reported); the plan after both renames is empty"
@@ -1145,7 +1188,7 @@ if [ "${BREAK_REMOVE:-}" = "1" ]; then
   [ "$BRM_RC" -eq 0 ] || { printf '%s\n' "$BRM_PLAN" | tail -30; fail "the BREAK_REMOVE=1 kept-block plan exited $BRM_RC"; }
   grep -qE 'will be destroyed' <<< "$BRM_PLAN" \
     && { grep -E '^  # .+ will be' <<< "$BRM_PLAN"; fail "BREAK_REMOVE=1: a destroy was proposed even though both blocks are still declared - this stage's check is not load-bearing"; }
-  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BRM_PLAN" \
+  plan_is_noop "$BRM_PLAN" \
     || { grep -E '^  #' <<< "$BRM_PLAN"; fail "BREAK_REMOVE=1: the kept-block plan is not empty"; }
   log "  BREAK_REMOVE=1: correctly proposes nothing - the blocks are still declared"
   not_run_rest "BREAK_REMOVE=1 control run: this run exists to prove day2_remove's destroy assertion is load-bearing and stops once it has" \
@@ -1187,7 +1230,7 @@ log "  both objects genuinely gone and the parent role still live - all three fa
 
 REMOVE_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; RM_RC=$?
 [ "$RM_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_FINAL" | tail -30; fail "the post-remove plan exited $RM_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$REMOVE_FINAL" \
+plan_is_noop "$REMOVE_FINAL" \
   || { grep -E '^  #' <<< "$REMOVE_FINAL" | head -20; fail "the post-remove plan is not empty"; }
 log "  No changes."
 gauntlet_stage day2_remove pass "deleting two blocks - the taggable, marked aws_iam_instance_profile.team_0002_profile and the UNTAGGABLE aws_iam_role_policy.team_0002_inline, whose parent role stays declared - proposed exactly two destroys (0 add, 0 change, 2 destroy) in an order the cloud accepted, matching stock's own plan for the same two removals on cold_deploy's state (B2); the apply destroyed exactly two, both objects are confirmed gone and the parent role confirmed still live via the AWS CLI, and the next plan is empty"
@@ -1207,11 +1250,11 @@ log "=== K0. capture the index-[0] identities that must survive the whole cycle 
 C0_ROLE_ID="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ -n "$C0_ROLE_ID" ] && [ "$C0_ROLE_ID" != "None" ] || fail "no live ${PREFIX}-count-team-0000-role before day2_count starts"
 C0_ROLE_TAG="$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0000-role")"
-[ "$C0_ROLE_TAG" = 'aws_iam_role.count_team[0]' ] \
-  || fail "count_team[0]'s role carries tofu-address=$C0_ROLE_TAG before day2_count, not aws_iam_role.count_team[0]"
+[ "$C0_ROLE_TAG" = "$(escape_address 'aws_iam_role.count_team[0]')" ] \
+  || fail "count_team[0]'s role carries tofu-address=$C0_ROLE_TAG before day2_count, not the escaped form of aws_iam_role.count_team[0]"
 C0_PROFILE_TAG="$(marker_of_profile "$ENDPOINT" "${PREFIX}-count-team-0000-profile")"
-[ "$C0_PROFILE_TAG" = 'aws_iam_instance_profile.count_team_profile[0]' ] \
-  || fail "count_team_profile[0] carries tofu-address=$C0_PROFILE_TAG before day2_count, not aws_iam_instance_profile.count_team_profile[0]"
+[ "$C0_PROFILE_TAG" = "$(escape_address 'aws_iam_instance_profile.count_team_profile[0]')" ] \
+  || fail "count_team_profile[0] carries tofu-address=$C0_PROFILE_TAG before day2_count, not the escaped form of aws_iam_instance_profile.count_team_profile[0]"
 log "  count_team[0] role id $C0_ROLE_ID, markers on the role and the profile confirmed by value"
 
 log "=== K1. choudoufu: scale the six count_team blocks from 2 to 1 ==="
@@ -1246,7 +1289,7 @@ C1_ROLE_N="$(awsl iam list-roles --query "length(Roles[?RoleName=='${PREFIX}-cou
 [ "$C1_ROLE_N" = "0" ] || fail "count_team[1]'s role still exists after the scale-down destroy"
 C0_ROLE_AFTER="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$C0_ROLE_AFTER" = "$C0_ROLE_ID" ] || fail "count_team[0]'s role id changed across the scale-down ($C0_ROLE_ID -> $C0_ROLE_AFTER)"
-[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0000-role")" = 'aws_iam_role.count_team[0]' ] \
+[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0000-role")" = "$(escape_address 'aws_iam_role.count_team[0]')" ] \
   || fail "count_team[0]'s marker no longer reads aws_iam_role.count_team[0] after the scale-down"
 log "  index [1] genuinely gone, index [0] keeps both its live id and its identity"
 
@@ -1267,15 +1310,15 @@ grep -qE 'Resources: 6 added, 0 changed, 0 destroyed' <<< "$UP_APPLY" \
   || { grep -E 'Apply complete' <<< "$UP_APPLY"; fail "the scale-up apply was not exactly six creates"; }
 C1_ROLE_BACK="$(awsl iam get-role --role-name "${PREFIX}-count-team-0001-role" --query 'Role.RoleId' --output text)"
 [ -n "$C1_ROLE_BACK" ] && [ "$C1_ROLE_BACK" != "None" ] || fail "count_team[1]'s role was not recreated by the scale-up"
-[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0001-role")" = 'aws_iam_role.count_team[1]' ] \
+[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0001-role")" = "$(escape_address 'aws_iam_role.count_team[1]')" ] \
   || fail "the recreated count_team[1] role does not carry tofu-address=aws_iam_role.count_team[1]"
 C0_ROLE_FINAL="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$C0_ROLE_FINAL" = "$C0_ROLE_ID" ] || fail "count_team[0]'s role id changed across the scale-up ($C0_ROLE_ID -> $C0_ROLE_FINAL)"
-[ "$(marker_of_profile "$ENDPOINT" "${PREFIX}-count-team-0000-profile")" = 'aws_iam_instance_profile.count_team_profile[0]' ] \
+[ "$(marker_of_profile "$ENDPOINT" "${PREFIX}-count-team-0000-profile")" = "$(escape_address 'aws_iam_instance_profile.count_team_profile[0]')" ] \
   || fail "count_team_profile[0]'s marker did not survive the full count cycle"
 COUNT_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; CT_RC=$?
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL" | tail -30; fail "the post-count plan exited $CT_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL" \
+plan_is_noop "$COUNT_FINAL" \
   || { grep -E '^  #' <<< "$COUNT_FINAL" | head -20; fail "the post-count plan is not empty"; }
 log "  index [1] recreated and correctly re-marked, index [0] untouched throughout, next plan empty"
 gauntlet_stage day2_count pass "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
@@ -1330,7 +1373,7 @@ if [ "${BREAK_REPLACE:-}" = "1" ]; then
     --tags "Key=tofu-estate,Value=$ESTATE" "Key=tofu-address,Value=aws_iam_instance_profile.team_0004_profile" >/dev/null \
     || fail "BREAK_REPLACE=1: could not stamp the re-created profile with the same marker"
   BRP_PLAN="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; BRP_RC=$?
-  if [ "$BRP_RC" -eq 0 ] && grep -qF "No changes. Your infrastructure matches the configuration." <<< "$BRP_PLAN"; then
+  if [ "$BRP_RC" -eq 0 ] && plan_is_noop "$BRP_PLAN"; then
     printf '%s\n' "$BRP_PLAN" | tail -20
     fail "BREAK_REPLACE=1: with two live objects carrying the same tofu-address, the plan proposed nothing - this stage's collision check is not load-bearing"
   fi
@@ -1344,7 +1387,7 @@ fi
 
 RP_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; RP_RC=$?
 [ "$RP_RC" -eq 0 ] || { printf '%s\n' "$RP_FINAL" | tail -30; fail "the post-replace plan exited $RP_RC"; }
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$RP_FINAL" \
+plan_is_noop "$RP_FINAL" \
   || { grep -E '^  #' <<< "$RP_FINAL" | head -20; fail "the post-replace plan is not empty - a marker collision or a leftover object"; }
 log "  No changes, and no marker collision."
 gauntlet_stage day2_replace pass "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
