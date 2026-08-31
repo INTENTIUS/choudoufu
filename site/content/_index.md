@@ -5,73 +5,62 @@ type: docs
 
 # choudoufu ![](choudoufu-inline-64.png)
 
-OpenTofu with one permission model.
+**OpenTofu plus identity hooks.** Each resource carries its own identity in
+the cloud, as two AWS tags. The apply writes them and the next plan reads them
+back live. The state file is therefore a cache you are allowed to lose, and
+the IAM you already run decides who may read or change what.
 
-Two tags on each resource, written by the apply and read live at plan time.
-AWS can tell you what an estate contains, and your IAM already decides who
-may read or change it. Nothing else to permission, nothing to go stale, and
-no lock to manage. Experimental, AWS only.
+Everything outside those hooks is stock OpenTofu. This fork is experimental,
+and it supports AWS only.
 
-A fork of OpenTofu.
+## Start here
 
-![a plate of choudoufu](choudoufu-hero.png)
+### [I have a Terraform or OpenTofu estate to migrate]({{< relref "/docs/use/migrate" >}})
 
-## Three things have to survive between runs
+Your configuration stays where it is. Adoption stamps the two tags onto the
+live estate, and a reorganisation afterwards becomes a tag rename instead of a
+state move. Read this before your first apply. Nothing binds a live resource
+to your configuration until its markers are on it, so a plan run too early
+will propose a duplicate.
 
-![Identity as two tags on the resource written by the apply, values in a record store written by choudoufu, effects as a receipt you declare, all three governed by your IAM](diagram-pieces.svg)
+### [I am starting fresh with choudoufu]({{< relref "/docs/use/start" >}})
 
-**[Identity]({{< relref "/docs/model/identity" >}})**. Pure IAM. Who may change which resource is a
-policy you already know how to write.
+For an estate with nothing in it yet, where choudoufu creates every resource
+and marks it on the way. Install a binary, add a `live` block, apply.
 
-**[Values]({{< relref "/docs/model/values" >}})**. Resources AWS has no object for.
-`null_resource`, `random_pet`, `time_static`.
+### Not sure which one you are
 
-**[Effects]({{< relref "/docs/model/effects" >}})**. A database migration that ran. The plan shows it
-coming before anything fires.
-
-[Why they are separate, and what it changes]({{< relref "/docs/model" >}}).
-
-- [How to stop a staging role reaching production]({{< relref "/docs/governance/blast-radius" >}}). The mistake fails at the cloud, not at review.
-- [How to cover every team with one policy]({{< relref "/docs/governance/abac" >}}). A new team costs a session tag, not a policy.
-- [How to deny creating anything unowned]({{< relref "/docs/governance/unowned" >}}). Ownership becomes a precondition of existing.
-- Nothing to lock. Concurrent runs settle at the API.
-
-[The policies that do these]({{< relref "/docs/governance/scope-a-role" >}}), and [where AWS honours the condition they rest on]({{< relref "/docs/governance/reach" >}}).
+Run `choudoufu live-check` in your configuration directory. It needs no
+credentials and reports what this fork would admit and refuse in the code you
+already have. [What it checks]({{< relref "/docs/use/check-a-config" >}}), and
+the [compatibility reference]({{< relref "/docs/use/compatibility" >}}) behind it.
 
 ## How far it goes
 
-**Core** is a fixed, representative set — the terraform-aws-modules examples
-most people actually deploy, plus real OpenTofu-native projects, plus one
-plain reference estate — pinned by tag, meant to reach 100%. **All** adds
-every other real estate as it's crossed, with no pin and no target.
+**Core** is a fixed set of estates that is pinned by tag and meant to reach
+100%. It holds the terraform-aws-modules examples most people actually deploy,
+alongside real OpenTofu-native projects. **All** adds every other real estate
+as it is crossed, and carries no target.
 
 {{< gauntlet-bars >}}
 
-## Migrating
+[How these are measured]({{< relref "/docs/use/measurement" >}}).
 
-Your Terraform code stays where it is. Adoption stamps the two tags onto
-the live estate; from then on a reorganisation is a tag rename, not a state
-move, and the orchestration bill is your own CI plus
-[one IAM policy]({{< relref "/docs/use/ownership-policy" >}}).
-Because plans read the tags live, there is no inventory to drift out of
-date. [How migration works]({{< relref "/docs/use/migrate" >}}).
+## Reference
 
-## Check yours
+[The model]({{< relref "/docs/model" >}}) explains what each hook stores and why
+the three kinds are kept apart.
 
-```sh
-choudoufu live-check
-```
+[Governance]({{< relref "/docs/governance" >}}) holds the IAM policies. They scope a
+role to one estate and deny the creation of anything unowned.
 
-In your config directory. No credentials.
+[Using it]({{< relref "/docs/use" >}}) covers day-2 work such as renaming or
+removing a resource.
 
-## Docs
+![a plate of choudoufu](choudoufu-hero.png)
 
-[The model]({{< relref "/docs/model" >}}), [governance]({{< relref "/docs/governance" >}}), and
-[using it]({{< relref "/docs/use" >}}) — or start at the [full docs index]({{< relref "/docs" >}}).
-
-Experimental. AWS only. Built on OpenTofu 1.13.0 from fork point
+Built on OpenTofu 1.13.0 from fork point
 [`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8).
-Plain OpenTofu is documented at [opentofu.org](https://opentofu.org/docs/).
 
 choudoufu is an independent fork. It is not affiliated with or endorsed by
 OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of the
