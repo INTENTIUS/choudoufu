@@ -287,8 +287,20 @@ shape() {
           | awk 'NF{print "service name="$1" desired="$2" launch="$3}'
       done
     fi
+    # The task definition's REVISION is deliberately not compared, for the
+    # same reason no live id is: ECS mints it from the account's own
+    # history, not from the configuration. The GREEN account carried stock's
+    # cold deploy in part A2 before this one, and a deregistered task
+    # definition family keeps its revision counter (AWS retains INACTIVE
+    # revisions), so choudoufu's apply there registers revision 2 where
+    # stock's fresh account got revision 1 - measured, on this script's own
+    # fourth run, as the single differing line out of 77. What IS compared
+    # is the family and how many ACTIVE revisions it has, which is the half
+    # that would catch a real difference: an apply that registered two
+    # revisions where stock registered one.
     x "$ep" ecs list-task-definitions --family-prefix "${PREFIX}-svc-" --status ACTIVE --query 'taskDefinitionArns' --output text 2>/dev/null \
-      | tr '\t' '\n' | grep -v '^$' | sed 's#.*/#taskdef family-revision=#' | sort
+      | tr '\t' '\n' | grep -v '^$' | sed 's#.*/##' | sed -E 's/:[0-9]+$//' \
+      | sort | uniq -c | awk 'NF{print "taskdef family="$2" active="$1}' | sort
     printf 'zone name=%s.terralith.test.\n' "$PREFIX"
     zid="$(x "$ep" route53 list-hosted-zones --query "HostedZones[?Name=='${PREFIX}.terralith.test.'].Id" --output text)"
     if [ -n "$zid" ] && [ "$zid" != "None" ]; then
@@ -972,7 +984,7 @@ if [ "$GF_SHAPE" != "$COLD_SHAPE" ]; then
   diff <(printf '%s\n' "$GF_SHAPE") <(printf '%s\n' "$COLD_SHAPE") || true
   fail "the greenfield cloud does not match stock's cold deploy, object by object"
 fi
-log "  object-by-object match across $GF_SHAPE_N structural facts: IAM role names and every role's inline policies and attachments, customer-managed policy names, instance-profile names and the role each holds, VPC cidr, subnet cidr and AZ, security-group egress rules, ECS cluster, service (name/desired/launch type) and task-definition family+revision, the hosted zone and all its records (name/type/ttl/value) - marker tags never read on either side"
+log "  object-by-object match across $GF_SHAPE_N structural facts: IAM role names and every role's inline policies and attachments, customer-managed policy names, instance-profile names and the role each holds, VPC cidr, subnet cidr and AZ, security-group egress rules, ECS cluster, service (name/desired/launch type) and task-definition family with its ACTIVE revision count, the hosted zone and all its records (name/type/ttl/value) - marker tags never read on either side"
 gauntlet_stage greenfield pass "choudoufu applied ${EXPECTED} resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across $GF_SHAPE_N structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted $GF_RECORDS records, matching stock's own instance list type for type except for the ${GF_TD_N} aws_ecs_task_definition instance(s), which get none (reported, not endorsed - the marker IS written on it and nothing here is observably worse for it); the next plan is empty; and with the local record store deleted outright every one of the ${EXPECTED} objects is still found - nothing created, destroyed or replaced, ${UNTAGGABLE} of them untaggable and composing from a stamped parent - with the only movement being ${GF_NOREC_N} residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
 
 # ══════════════════════════════════════════════════════════════════════════
