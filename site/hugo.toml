@@ -4,6 +4,11 @@ theme = "hugo-book"
 enableGitInfo = false
 
 [params]
+  # The release every measured figure on this site describes. Pages state it
+  # with {{< version >}} rather than typing it, so a release bump is one edit
+  # here and never a page that quietly still names the previous one.
+  # Bump this in the same commit that tags a release.
+  choudoufuVersion = "v0.5.0"
   BookTheme = "light"
   BookSection = "docs"
   BookToC = true
