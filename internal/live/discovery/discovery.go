@@ -538,7 +538,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		}
 	}
 
-	diags = diags.Append(bind(req, decl, res))
+	diags = diags.Append(bind(ctx, req, decl, res))
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
 	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
@@ -3257,36 +3257,13 @@ func recordCurrentClaimant(ctx context.Context, req Request, res *Result, addr a
 
 // orphanMatchesRecord reports whether a live orphan is the object rec
 // names: by import ID for a type identified by one server-minted string, or
-// by every named identity-schema component for a composite type. Mirrors
-// [deposedClaimantMatches] exactly - generic by construction, no resource
-// type name appears in it, only the property (identified by one string, or
-// by several named components) every admitted type already has one of.
+// by every named identity-schema component for a composite type. Generic by
+// construction: the comparison itself is [recordIdentityMatches], shared with
+// [orphanMatchesTombstone], [deposedClaimantMatches] and
+// [claimantMatchesRecord] so that the mark discipline it carries exists in
+// one place rather than four.
 func orphanMatchesRecord(rec projection.LocatedRecord, o *OwnedResource) bool {
-	if rec.ImportID != "" {
-		return rec.ImportID == o.ImportID
-	}
-	if len(rec.Components) == 0 {
-		return false
-	}
-	if o.Identity == cty.NilVal || o.Identity.IsNull() || !o.Identity.IsKnown() || o.Identity.IsMarked() || !o.Identity.Type().IsObjectType() {
-		return false
-	}
-	ty := o.Identity.Type()
-	for name, want := range rec.Components {
-		if !ty.HasAttribute(name) {
-			return false
-		}
-		v := o.Identity.GetAttr(name)
-		// v.IsMarked() before AsString(): cty panics rather than errors on
-		// a marked receiver, and a sensitive input variable is the
-		// ordinary way to produce one. A marked component simply does not
-		// match - refused, never unmarked, the same discipline
-		// [deposedClaimantMatches] applies to its own comparison.
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
-			return false
-		}
-	}
-	return true
+	return recordIdentityMatches(rec.ImportID, rec.Components, o.ImportID, o.Identity)
 }
 
 // tombstoneGhostIndices is [classifyOrphans]'s sibling check to
@@ -3335,33 +3312,10 @@ func tombstoneGhostIndices(ctx context.Context, req Request, res *Result, addr a
 // [projection.TombstoneRecord] rather than a [projection.LocatedRecord] -
 // the two are separate Go types (one names a CURRENT claim, the other a
 // destroyed one) even though every field this compares is named and typed
-// identically, so the comparison itself is mirrored rather than shared.
+// identically. The two record types stay separate; only the comparison is
+// shared, through [recordIdentityMatches].
 func orphanMatchesTombstone(rec projection.TombstoneRecord, o *OwnedResource) bool {
-	if rec.ImportID != "" {
-		return rec.ImportID == o.ImportID
-	}
-	if len(rec.Components) == 0 {
-		return false
-	}
-	if o.Identity == cty.NilVal || o.Identity.IsNull() || !o.Identity.IsKnown() || o.Identity.IsMarked() || !o.Identity.Type().IsObjectType() {
-		return false
-	}
-	ty := o.Identity.Type()
-	for name, want := range rec.Components {
-		if !ty.HasAttribute(name) {
-			return false
-		}
-		v := o.Identity.GetAttr(name)
-		// v.IsMarked() before AsString(): cty panics rather than errors on
-		// a marked receiver, and a sensitive input variable is the
-		// ordinary way to produce one. A marked component simply does not
-		// match - refused, never unmarked, the same discipline
-		// [orphanMatchesRecord] applies to its own comparison.
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
-			return false
-		}
-	}
-	return true
+	return recordIdentityMatches(rec.ImportID, rec.Components, o.ImportID, o.Identity)
 }
 
 // collisionOrphanProblem is the ownership collision of the undeclared: two
@@ -3524,8 +3478,16 @@ func liveIDs(ids ...string) []string {
 
 // bind turns the claims collected by the scan into bindings, unbound
 // addresses and problems, and rewrites the resolution list.
-func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
+func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	// The record-first pass over declared addresses more than one live
+	// resource claims, before any loop below reads a claimant list: a
+	// destroyed object's tags outlive it, and the estate's own record is
+	// what says which of the two the address owns now. See
+	// internal/live/discovery/supersededclaimant.go's own doc comment for
+	// why it has to run here rather than at each refusal site.
+	diags = diags.Append(pruneSupersededClaimants(ctx, req, decl, res))
 
 	bound := make(map[string]Binding)
 
@@ -3896,34 +3858,10 @@ func matchDeposedClaimant(req Request, addr addrs.AbsResourceInstance, claimants
 // by every named identity-schema component for a composite type. Generic by
 // construction - no resource type name appears in this function, only the
 // property (identified by one string, or by several named components) every
-// admitted type already has one of.
+// admitted type already has one of. The comparison is
+// [recordIdentityMatches], shared with the three sibling matchers.
 func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
-	if rec.ImportID != "" {
-		return rec.ImportID == c.importID
-	}
-	if len(rec.Components) == 0 {
-		return false
-	}
-	if c.identity == cty.NilVal || c.identity.IsNull() || !c.identity.IsKnown() || c.identity.IsMarked() || !c.identity.Type().IsObjectType() {
-		return false
-	}
-	ty := c.identity.Type()
-	for name, want := range rec.Components {
-		if !ty.HasAttribute(name) {
-			return false
-		}
-		v := c.identity.GetAttr(name)
-		// v.IsMarked() before AsString(): cty panics rather than errors on
-		// a marked receiver, and a sensitive input variable is the
-		// ordinary way to produce one. A marked component simply does not
-		// match - refused, never unmarked, since the alternative is
-		// letting a value nothing here proved safe flow into an identity
-		// comparison.
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
-			return false
-		}
-	}
-	return true
+	return recordIdentityMatches(rec.ImportID, rec.Components, c.importID, c.identity)
 }
 
 func collisionProblem(req Request, typeName string, entry *declaredEntry) Problem {
