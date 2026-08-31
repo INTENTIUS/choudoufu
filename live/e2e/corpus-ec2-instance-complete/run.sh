@@ -234,6 +234,14 @@ set -uo pipefail
 #                            Break text in tools/gauntlet/stages.go,
 #                            verbatim.
 #                  1         alias for `schema`.
+#   BREAK_COUNT  day2_count's own break control (PART C), independent of
+#                BREAK: after the real scale-down plan, assert the WRONG
+#                instance (count_test[0] rather than count_test[1]) was the
+#                one destroyed - the Break text in tools/gauntlet/stages.go
+#                for day2_count, verbatim ("Expect a different instance to
+#                be destroyed; the assertion must fail"). A BREAK_COUNT=1
+#                run must print `GAUNTLET stage=day2_count verdict=fail`
+#                and exit non-zero.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -1118,6 +1126,387 @@ log ""
     INSTANCE_ID="$F_NEW_ID"
     gauntlet_stage day2_replace pass "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
   fi
+  gauntlet_end_stage
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART C: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8; the
+  # section this estate never had, written for issue #643's board repair)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Runs here - after PART F's real, completed replace, BEFORE PART D - on
+  # purpose. PART D's own moved-block rename carries a documented,
+  # pre-existing choudoufu defect whose assertion calls fail(), and fail()
+  # exits the script; anything placed after PART D would report nothing at
+  # all on a run where that defect reproduces. day2_count's own subject has
+  # no dependency on either rename.
+  #
+  # THE SYNTHETIC BLOCK, AND WHY. terraform-aws-ec2-instance v6.4.0 has no
+  # scalable count or for_each knob anywhere this estate reaches. Every
+  # `count` in the module's own source (read directly rather than inferred -
+  # .corpus/ec2-instance/main.tf lines 42, 252, 468, 715, 729, 751, 778,
+  # 786 and 859) has the shape `count = local.create && ... ? 1 : 0`: a
+  # boolean create toggle that can hold zero or one instance and never two,
+  # so there is nothing there for day2_count to scale. The upstream
+  # complete example's one genuine fan-out, `module "ec2_multiple" {
+  # for_each = local.multiple_instances }`, is dropped by this script's own
+  # reduction (see the header) along with the spot/capacity-reservation
+  # surfaces floci does not model. So this section adds a NEW,
+  # self-contained synthetic count block - the sanctioned fallback
+  # live/GAUNTLET.md #8 names, with reference-ec2-vpc's Part F and
+  # corpus-iam-policy's Part G as precedent - reusing a type this estate
+  # ALREADY exercises (aws_ebs_volume, module.ec2_complete's own /dev/sdf
+  # data volume) rather than introducing a new one.
+  #
+  # WHY aws_ebs_volume RATHER THAN aws_security_group (reference-ec2-vpc's
+  # own choice for the same fallback): a volume needs nothing from the rest
+  # of this estate but an availability zone - no vpc_id - so count_test
+  # never references module.vpc, the module PART D renames out from under
+  # any such reference two sections later. It lives in its own file
+  # ($EST/count_test.tf) for the same reason: main.tf is rewritten by PART
+  # D's sed and PART E's perl, and a block appended there would have to
+  # survive both. C4 scales the block to zero and deletes the file, so the
+  # estate PART D inherits is byte-for-byte the estate PART F left.
+  #
+  # CONFIRMED DIRECTLY AGAINST THE EMULATOR, with no terraform in the loop,
+  # before this section was written: two volumes created through `aws ec2
+  # create-volume --tag-specifications` came back under distinct,
+  # server-minted, random ids (vol-333c22db694d10957 and
+  # vol-2a6aff95d0baaa0dc); `describe-volumes --filters Name=tag:Name,...`
+  # really does filter, checked with a negative control - a value
+  # guaranteed to match nothing returned 0 volumes, so the lookups below
+  # read a genuinely filtered list, unlike this script's own EIP lookup
+  # which has to match client-side because DescribeAddresses ignores
+  # --filters entirely (lex00/floci#150); and deleting one made
+  # `describe-volumes --volume-ids` on it fail loudly with
+  # InvalidVolume.NotFound rather than return a stale record. Every lookup
+  # below still asserts it matched EXACTLY one volume, so an emulator that
+  # regressed that filter fails here rather than silently picking a
+  # neighbour.
+  #
+  # C-ORACLE is this stage's stock oracle (live/GAUNTLET.md #8: "Stock's
+  # plan for the same count change, normalised"). Stock never had this
+  # count block, so - unlike D-ORACLE, D-REMOVE-ORACLE and F-ORACLE above -
+  # there is nothing in cold_deploy's own state to replan against: it
+  # stands the identical 2-instance block up for real with the plain
+  # terraform binary, in its own working directory against $ENDPOINT,
+  # scales it down and back up, and is torn down again before the choudoufu
+  # half starts. $GREEN_ENDPOINT is not available here - PART GREENFIELD
+  # removes its own container the moment it finishes - and $ENDPOINT is
+  # safe to borrow: STAGE 3's foreign-object count, the one assertion in
+  # this script that would notice two extra unowned objects, ran long
+  # before this point. The oracle's volumes are named apart from the
+  # choudoufu half's AND destroyed before it runs, which is the collision
+  # corpus-iam-policy's Part G hit empirically and documents. The oracle
+  # pins the SAME provider version the adopted estate itself resolved, read
+  # out of $EST/.terraform.lock.hcl rather than hardcoded, so a plan-shape
+  # difference between the two halves can never be a provider-version
+  # difference.
+  #
+  # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+  # real checks: after the real scale-down plan, assert the WRONG instance
+  # (count_test[0] rather than count_test[1]) was the one destroyed - the
+  # Break text in tools/gauntlet/stages.go for day2_count, verbatim:
+  # "Expect a different instance to be destroyed; the assertion must fail."
+  # Unlike reference-ec2-vpc's own variant, which logs and falls through
+  # leaving the stage with no verdict at all, this one routes the inverted
+  # assertion through fail(), so a BREAK_COUNT=1 run prints a real
+  # `GAUNTLET stage=day2_count verdict=fail` line. Independent of BREAK.
+  gauntlet_begin_stage day2_count
+
+  COUNT_AZ="${REGION}a"
+  awsl ec2 describe-availability-zones --query "AvailabilityZones[?ZoneName=='$COUNT_AZ'].ZoneName" --output text 2>/dev/null | grep -qx "$COUNT_AZ" \
+    || fail "$COUNT_AZ is not an availability zone this account offers - day2_count's count block has nowhere to put its volumes"
+
+  # count_test_block($1 = count): day2_count's own synthetic resource, in
+  # its own file so nothing else in this script's config edits can touch
+  # it. Unquoted heredoc so $1 interpolates; ${count.index} is escaped so
+  # bash never tries to expand it.
+  count_test_block() {
+    cat > "$EST/count_test.tf" <<COUNTEOF
+resource "aws_ebs_volume" "count_test" {
+  count             = $1
+  availability_zone = "$COUNT_AZ"
+  size              = 1
+  type              = "gp3"
+
+  tags = {
+    Name = "ec2-instance-count-test-\${count.index}"
+  }
+}
+COUNTEOF
+  }
+
+  # oracle_count_block($1 = count): the identical block for the stock
+  # oracle's own working directory, under its own Name tags so the two
+  # halves' lookups can never see each other's volumes.
+  oracle_count_block() {
+    cat > "$ORACLE_COUNT_DIR/main.tf" <<COUNTEOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= $EST_AWS_VER"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "$REGION"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  s3_use_path_style           = true
+}
+
+resource "aws_ebs_volume" "count_test" {
+  count             = $1
+  availability_zone = "$COUNT_AZ"
+  size              = 1
+  type              = "gp3"
+
+  tags = {
+    Name = "ec2-instance-count-oracle-\${count.index}"
+  }
+}
+COUNTEOF
+  }
+
+  # vol_by_name($1 = exact Name tag value): the single matching VolumeId on
+  # stdout, or a loud failure. Never "take the first row of whatever came
+  # back" - exactly one match or nothing.
+  vol_by_name() {
+    local want="$1" ids n
+    ids="$(awsl ec2 describe-volumes --filters "Name=tag:Name,Values=$want" --query 'Volumes[].VolumeId' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d')"
+    n="$(printf '%s\n' "$ids" | sed '/^$/d' | wc -l | tr -d ' ')"
+    if [ "$n" != "1" ]; then
+      printf 'describe-volumes for Name=%s matched %s volume(s): %s\n' "$want" "$n" "$(printf '%s' "$ids" | tr '\n' ' ')" >&2
+      return 1
+    fi
+    printf '%s' "$ids"
+  }
+
+  # vol_gone($1 = volume id): true when the emulator no longer knows the
+  # volume at all. floci answers InvalidVolume.NotFound for a deleted
+  # volume (confirmed directly, see this section's header), so a non-zero
+  # exit here is genuine absence, not a swallowed error.
+  vol_gone() {
+    ! awsl ec2 describe-volumes --volume-ids "$1" --query 'Volumes[0].VolumeId' --output text >/dev/null 2>&1
+  }
+
+  vol_tag() { # $1 = volume id, $2 = tag key
+    awsl ec2 describe-tags --filters "Name=resource-id,Values=$1" "Name=key,Values=$2" --query 'Tags[0].Value' --output text 2>/dev/null
+  }
+
+  EST_AWS_VER="$(grep -A2 'provider "registry.terraform.io/hashicorp/aws"' "$EST/.terraform.lock.hcl" 2>/dev/null | sed -n 's/^  version *= *"\(.*\)"$/\1/p' | head -1)"
+  [ -n "$EST_AWS_VER" ] \
+    || fail "could not read the adopted estate's own resolved hashicorp/aws version out of $EST/.terraform.lock.hcl - the day2_count oracle would otherwise silently compare two different providers"
+
+  log "=== C-ORACLE. day2_count stock oracle: stand a 2-instance count block up with plain terraform, scale it to 1 and back ==="
+  ORACLE_COUNT_DIR="$WORK/oracle-count"
+  mkdir -p "$ORACLE_COUNT_DIR"
+  oracle_count_block 2
+  ( cd "$ORACLE_COUNT_DIR" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$ORACLE_COUNT_DIR" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed (hashicorp/aws = $EST_AWS_VER)"; }
+  ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
+  [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+  grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$ORACLE_COUNT_APPLY_OUT"; fail "stock did not create exactly 2 count-test volumes for the day2_count oracle"; }
+  ORACLE_V0="$(vol_by_name ec2-instance-count-oracle-0)" || fail "no single oracle count_test[0] volume found by its Name tag"
+  ORACLE_V1="$(vol_by_name ec2-instance-count-oracle-1)" || fail "no single oracle count_test[1] volume found by its Name tag"
+  log "  stock: 2 instances created, count_test[0]=$ORACLE_V0 count_test[1]=$ORACLE_V1"
+
+  oracle_count_block 1
+  ORACLE_DOWN_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+  [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+    && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+  ORACLE_DOWN_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_DOWN_APPLY_RC=$?
+  [ "$ORACLE_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+  ORACLE_V0_AFTER_DOWN="$(awsl ec2 describe-volumes --volume-ids "$ORACLE_V0" --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true)"
+  [ "$ORACLE_V0_AFTER_DOWN" = "$ORACLE_V0" ] || fail "stock's surviving count_test[0] changed id across the scale-down ($ORACLE_V0 -> $ORACLE_V0_AFTER_DOWN)"
+  vol_gone "$ORACLE_V1" || fail "stock's count_test[1] ($ORACLE_V1) still exists after the scale-down destroy"
+  log "  stock: exactly one destroy (count_test[1]=$ORACLE_V1, gone from the account), count_test[0]=$ORACLE_V0 unchanged"
+
+  oracle_count_block 2
+  ORACLE_UP_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+  [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+    && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+  grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+    || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+  ORACLE_UP_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_UP_APPLY_RC=$?
+  [ "$ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+  grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+  ORACLE_V1_NEW="$(vol_by_name ec2-instance-count-oracle-1)" || fail "no single oracle count_test[1] volume found after the scale-up"
+  [ "$ORACLE_V1_NEW" != "$ORACLE_V1" ] || fail "stock's recreated count_test[1] came back with the SAME id ($ORACLE_V1) it had before being destroyed - the oracle's own destroy was not real"
+  ORACLE_V0_AFTER_UP="$(awsl ec2 describe-volumes --volume-ids "$ORACLE_V0" --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true)"
+  [ "$ORACLE_V0_AFTER_UP" = "$ORACLE_V0" ] || fail "stock's count_test[0] changed id across the scale-up ($ORACLE_V0 -> $ORACLE_V0_AFTER_UP)"
+  log "  stock: exactly one create (count_test[1] came back as $ORACLE_V1_NEW, was $ORACLE_V1), count_test[0]=$ORACLE_V0 unchanged throughout"
+
+  # Torn down before the choudoufu half runs: the two halves share
+  # $ENDPOINT (it is idle here, not a second account), and leaving the
+  # oracle's own untagged, unmarked volumes behind is what made
+  # corpus-iam-policy's first draft of this section read "None" off an
+  # oracle object instead of the marked one it meant to check.
+  ORACLE_COUNT_DESTROY_OUT="$(cd "$ORACLE_COUNT_DIR" && terraform destroy -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_DESTROY_RC=$?
+  [ "$ORACLE_COUNT_DESTROY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DESTROY_OUT" | tail -30; fail "the day2_count stock oracle's teardown failed"; }
+  grep -qE 'Destroy complete! Resources: 2 destroyed' <<< "$ORACLE_COUNT_DESTROY_OUT" \
+    || { grep -E 'Destroy complete' <<< "$ORACLE_COUNT_DESTROY_OUT"; fail "the day2_count stock oracle's teardown was not exactly 2 destroys"; }
+  log "  stock oracle torn down (2 destroyed) - the shared endpoint is clean before the real choudoufu side starts"
+
+  log "=== C0. choudoufu: add aws_ebs_volume.count_test, count = 2 ==="
+  count_test_block 2
+  COUNT_ADD_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_ADD_PLAN_RC=$?
+  [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -40; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+  grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -20; fail "adding the count block did not plan exactly 2 creates"; }
+  COUNT_ADD_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+  [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -40; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+  grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+  CV0_ID="$(vol_by_name ec2-instance-count-test-0)" || fail "no single live count_test[0] volume found by its Name tag"
+  CV1_ID="$(vol_by_name ec2-instance-count-test-1)" || fail "no single live count_test[1] volume found by its Name tag"
+  [ "$CV0_ID" != "$CV1_ID" ] || fail "count_test[0] and count_test[1] resolved to the same volume id ($CV0_ID)"
+  CV0_ADDR="$(vol_tag "$CV0_ID" tofu-address)"
+  CV1_ADDR="$(vol_tag "$CV1_ID" tofu-address)"
+  [ "$CV0_ADDR" = 'aws_ebs_volume.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CV0_ADDR, not aws_ebs_volume.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
+  [ "$CV1_ADDR" = 'aws_ebs_volume.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $CV1_ADDR, not aws_ebs_volume.count_test:1"
+  CV0_EST="$(vol_tag "$CV0_ID" tofu-estate)"
+  [ "$CV0_EST" = "$ESTATE" ] || fail "count_test[0] carries tofu-estate=$CV0_EST, not $ESTATE"
+  # tofu-slot, asserted by value against live/MARKERS.md's own promise:
+  # "The first instance of aws_eip.this gets slot 0, the second gets slot
+  # 1." It is the marker that survives a rename and retires on a
+  # cardinality change, so a count stage that never reads it is not
+  # reading the identity the stage is about.
+  CV0_SLOT="$(vol_tag "$CV0_ID" tofu-slot)"
+  CV1_SLOT="$(vol_tag "$CV1_ID" tofu-slot)"
+  [ "$CV0_SLOT" = "0" ] || fail "count_test[0] carries tofu-slot=$CV0_SLOT, not 0 (live/MARKERS.md: slots are assigned from a monotonic counter per count block, starting at 0)"
+  [ "$CV1_SLOT" = "1" ] || fail "count_test[1] carries tofu-slot=$CV1_SLOT, not 1"
+  log "  2 instances created: index 0 = $CV0_ID (tofu-address=$CV0_ADDR tofu-slot=$CV0_SLOT), index 1 = $CV1_ID (tofu-address=$CV1_ADDR tofu-slot=$CV1_SLOT) - read via the AWS CLI"
+
+  COUNT_NOOP_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+  [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -40; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_NOOP_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
+  log "  No changes - both new instances plan empty immediately after creation"
+
+  log "=== C1. scale count down: 2 -> 1 ==="
+  count_test_block 1
+  COUNT_DOWN_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+  [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+  if [ "${BREAK_COUNT:-}" = "1" ]; then
+    log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1] - stages.go's Break text for day2_count, inverted on purpose; this MUST report fail"
+    printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'
+    grep -qE '^  # aws_ebs_volume\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+      || fail "BREAK_COUNT=1: the scale-down plan does NOT destroy count_test[0] (it destroys the higher index, as it must) - which is exactly why the real assertion below is load-bearing rather than a grep that always matches"
+    fail "BREAK_COUNT=1: the scale-down plan destroys count_test[0], the LOWER index - stock destroys the higher one; a surviving instance was displaced"
+  fi
+
+  grep -qE '^  # aws_ebs_volume\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[0\] will be' <<< "$COUNT_DOWN_PLAN_OUT" \
+    && { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which should be untouched"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+  log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched - the same shape C-ORACLE showed"
+
+  COUNT_DOWN_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+  [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+  CV0_AFTER_DOWN="$(awsl ec2 describe-volumes --volume-ids "$CV0_ID" --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true)"
+  [ "$CV0_AFTER_DOWN" = "$CV0_ID" ] || fail "count_test[0]'s live id changed across the scale-down ($CV0_ID -> $CV0_AFTER_DOWN) - it was destroyed and recreated, not left alone"
+  vol_gone "$CV1_ID" || fail "count_test[1] ($CV1_ID) still exists in the live account after the scale-down destroy"
+  CV0_ADDR_AFTER_DOWN="$(vol_tag "$CV0_ID" tofu-address)"
+  [ "$CV0_ADDR_AFTER_DOWN" = 'aws_ebs_volume.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: $CV0_ADDR_AFTER_DOWN"
+  CV0_SLOT_AFTER_DOWN="$(vol_tag "$CV0_ID" tofu-slot)"
+  [ "$CV0_SLOT_AFTER_DOWN" = "$CV0_SLOT" ] || fail "count_test[0]'s tofu-slot changed across the scale-down ($CV0_SLOT -> $CV0_SLOT_AFTER_DOWN) - a surviving instance's slot is never reassigned"
+  log "  $CV1_ID (count_test[1]) is gone from the account (InvalidVolume.NotFound); $CV0_ID (count_test[0]) keeps its id, its tofu-address and its tofu-slot - all read via the AWS CLI"
+
+  log "=== C2. scale count back up: 1 -> 2 ==="
+  count_test_block 2
+  COUNT_UP_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_UP_PLAN_RC=$?
+  [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -40; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[1\] will be created' <<< "$COUNT_UP_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+  grep -qE '^  # aws_ebs_volume\.count_test\[0\] will be' <<< "$COUNT_UP_PLAN_OUT" \
+    && { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+  grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+  log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched - the same shape C-ORACLE showed"
+
+  COUNT_UP_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+  [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+  grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+  CV1_NEW_ID="$(vol_by_name ec2-instance-count-test-1)" || fail "no single live count_test[1] volume found by its Name tag after the scale-up"
+  [ "$CV1_NEW_ID" != "$CV1_ID" ] || fail "count_test[1] came back under the SAME id ($CV1_ID) it had before being destroyed - the destroy in C1 was not real"
+  CV1_NEW_ADDR="$(vol_tag "$CV1_NEW_ID" tofu-address)"
+  [ "$CV1_NEW_ADDR" = 'aws_ebs_volume.count_test:1' ] || fail "the recreated count_test[1] ($CV1_NEW_ID) carries tofu-address=$CV1_NEW_ADDR, not aws_ebs_volume.count_test:1"
+  CV0_AFTER_UP="$(awsl ec2 describe-volumes --volume-ids "$CV0_ID" --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true)"
+  [ "$CV0_AFTER_UP" = "$CV0_ID" ] || fail "count_test[0]'s live id changed across the scale-up ($CV0_ID -> $CV0_AFTER_UP)"
+  CV0_ADDR_AFTER_UP="$(vol_tag "$CV0_ID" tofu-address)"
+  [ "$CV0_ADDR_AFTER_UP" = 'aws_ebs_volume.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-up: $CV0_ADDR_AFTER_UP"
+  # live/MARKERS.md's own guarantee for a recreated instance, written from
+  # the spec rather than from the implementation: "New instances are
+  # assigned slots above the live high-water mark", and a slot is "never
+  # duplicated within a set". The live high-water mark after C1 is
+  # count_test[0]'s own slot, so the new instance's slot must parse as an
+  # integer strictly greater than it - not merely "different".
+  CV1_NEW_SLOT="$(vol_tag "$CV1_NEW_ID" tofu-slot)"
+  CV0_SLOT_AFTER_UP="$(vol_tag "$CV0_ID" tofu-slot)"
+  [ "$CV0_SLOT_AFTER_UP" = "$CV0_SLOT" ] || fail "count_test[0]'s tofu-slot changed across the scale-up ($CV0_SLOT -> $CV0_SLOT_AFTER_UP) - a surviving instance's slot is never reassigned"
+  case "$CV1_NEW_SLOT" in
+    ''|*[!0-9]*) fail "the recreated count_test[1] carries tofu-slot=$CV1_NEW_SLOT, which is not an unsigned base-10 integer (live/MARKERS.md)" ;;
+  esac
+  [ "$CV1_NEW_SLOT" -gt "$CV0_SLOT_AFTER_UP" ] \
+    || fail "the recreated count_test[1] carries tofu-slot=$CV1_NEW_SLOT, not above the live high-water mark ($CV0_SLOT_AFTER_UP) the surviving count_test[0] holds - live/MARKERS.md: a slot is never reused while any resource holds it and never duplicated within a set"
+  log "  count_test[1] recreated under a new id ($CV1_NEW_ID, was $CV1_ID), tofu-address=$CV1_NEW_ADDR tofu-slot=$CV1_NEW_SLOT; count_test[0] ($CV0_ID) untouched throughout the down-then-up cycle, tofu-slot still $CV0_SLOT_AFTER_UP - all read via the AWS CLI"
+
+  log "=== C3. one more plan: config and reality agree, nothing left to propose ==="
+  COUNT_FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+  [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+  log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+  log "=== C4. retire the count block: 2 -> 0, so PART D inherits exactly the estate PART F left ==="
+  count_test_block 0
+  COUNT_ZERO_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_ZERO_PLAN_RC=$?
+  [ "$COUNT_ZERO_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ZERO_PLAN_OUT" | tail -40; fail "the scale-to-zero plan exited $COUNT_ZERO_PLAN_RC"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$COUNT_ZERO_PLAN_OUT" \
+    || { printf '%s\n' "$COUNT_ZERO_PLAN_OUT" | tail -10; fail "scaling the count block to zero proposes something other than exactly two destroys"; }
+  COUNT_ZERO_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ZERO_APPLY_RC=$?
+  [ "$COUNT_ZERO_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ZERO_APPLY_OUT" | tail -40; fail "the scale-to-zero apply exited $COUNT_ZERO_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$COUNT_ZERO_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$COUNT_ZERO_APPLY_OUT"; fail "the scale-to-zero apply was not exactly two destroys"; }
+  vol_gone "$CV0_ID" || fail "count_test[0] ($CV0_ID) still exists after the count block was scaled to zero"
+  vol_gone "$CV1_NEW_ID" || fail "count_test[1] ($CV1_NEW_ID) still exists after the count block was scaled to zero"
+  rm -f "$EST/count_test.tf"
+  COUNT_GONE_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; COUNT_GONE_PLAN_RC=$?
+  [ "$COUNT_GONE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_GONE_PLAN_OUT" | tail -40; fail "the plan after deleting count_test.tf exited $COUNT_GONE_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_GONE_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$COUNT_GONE_PLAN_OUT"; fail "the plan after deleting the (already zero-instance) count_test.tf is not empty"; }
+  log "  both count_test volumes destroyed and count_test.tf deleted; the estate plans empty again, exactly as PART F left it"
+
+  log ""
+  log "PART C (day2_count): PASS"
+  gauntlet_stage day2_count pass "choudoufu: scaling aws_ebs_volume.count_test from 2 to 1 destroyed exactly count_test[1] ($CV1_ID, 0 add, 0 change, 1 destroy) and left count_test[0] ($CV0_ID) with the same live VolumeId, the same tofu-address=aws_ebs_volume.count_test:0 and the same tofu-slot=$CV0_SLOT, all read back through the AWS CLI rather than choudoufu's own report; the destroyed volume is genuinely gone (describe-volumes answers InvalidVolume.NotFound for it). Scaling back from 1 to 2 planned exactly 1 to add, 0 to change, 0 to destroy and brought count_test[1] back as a NEW object ($CV1_NEW_ID, not $CV1_ID) carrying tofu-address=aws_ebs_volume.count_test:1 and tofu-slot=$CV1_NEW_SLOT, above the live high-water mark count_test[0] still holds, while count_test[0] stayed untouched throughout; the next plan is empty, and scaling the block to zero destroys both and leaves the estate planning empty again. C-ORACLE, the same 2-instance block stood up for real with plain terraform in its own working directory at the SAME resolved provider version ($EST_AWS_VER), shows the identical shape: destroy the higher index only ($ORACLE_V1), create the higher index back under a new id ($ORACLE_V1_NEW), the lower index's id ($ORACLE_V0) unchanged both times. SYNTHETIC BLOCK, and why: terraform-aws-ec2-instance v6.4.0 declares no scalable count or for_each knob this estate reaches - all nine of its own count usages are boolean create toggles of the form 'count = local.create ? 1 : 0', which can never hold two instances, and the upstream example's one real for_each fan-out (module.ec2_multiple) is dropped by this script's reduction because floci does not model the surfaces around it - so this section adds a new, self-contained count block of a type the estate ALREADY exercises (aws_ebs_volume, module.ec2_complete's own /dev/sdf data volume), the sanctioned fallback live/GAUNTLET.md #8 names, with reference-ec2-vpc Part F and corpus-iam-policy Part G as precedent. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports day2_count fail, proving the assertion is load-bearing."
+  log ""
   gauntlet_end_stage
 
 gauntlet_begin_stage day2_rename
