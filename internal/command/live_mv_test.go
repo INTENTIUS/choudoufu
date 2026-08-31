@@ -487,6 +487,81 @@ func TestLiveMv_badArguments(t *testing.T) {
 	}
 }
 
+// TestLiveMv_readParallelism is the behavioural half of GitHub issue #640:
+// live-mv's read pass now honours TOFU_LIVE_READ_PARALLELISM, which until this
+// change it ignored - internal/live/mv's projection.Options was the one
+// construction in the tree issue #626 left unwired, so a rename read at
+// projection.DefaultReadParallelism however far down an operator had turned the
+// variable.
+//
+// What a mock cloud can and cannot show here is worth stating, because it is
+// why the assertions are the ones they are. The WIDTH of the pass is not
+// observable through this double: it changes no output, no diagnostic and no
+// call count, and live-plan's own equivalent has to instrument the provider
+// with a parking hook to see any difference at all
+// (TestLivePlan_readParallelismBoundsTheReadPass). Two things are observable,
+// and they are the two that matter for a command that WRITES:
+//
+//   - a setting the run cannot honour stops it, before the cloud is touched at
+//     all, rather than being silently replaced with ten;
+//   - the sequential setting still produces the same rename, so honouring the
+//     variable did not degrade the operation an operator reaches for during a
+//     migration.
+//
+// The structural half - that the value reaches the projection from the run
+// rather than from a constant, on this site and on every other one in the tree
+// - is TestReadParallelismReachesEveryProjectionOptions and
+// TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded.
+func TestLiveMv_readParallelism(t *testing.T) {
+	t.Run("sequential", func(t *testing.T) {
+		t.Setenv(readParallelismEnvVar, "1")
+		cloud := mvRenamedFixture(t)
+
+		c, done := newLiveMvCommand(t, cloud)
+		code := c.Run([]string{"-no-color", "aws_security_group.main", "aws_security_group.renamed"})
+		output := done(t)
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0 - %s=1 must reproduce the sequential read pass, not break the rename\nstdout:\n%s\nstderr:\n%s", code, readParallelismEnvVar, output.Stdout(), output.Stderr())
+		}
+		if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.renamed" {
+			t.Errorf("the live security group carries tofu-address = %q, want aws_security_group.renamed - the same answer the default produces", got)
+		}
+		if len(cloud.applied) != 1 || cloud.applied[0] != "aws_security_group/sg-owned" {
+			t.Errorf("expected exactly one apply against the renamed resource, got %v", cloud.applied)
+		}
+	})
+
+	t.Run("refused", func(t *testing.T) {
+		t.Setenv(readParallelismEnvVar, "0")
+		cloud := mvRenamedFixture(t)
+
+		c, done := newLiveMvCommand(t, cloud)
+		code := c.Run([]string{"-no-color", "aws_security_group.main", "aws_security_group.renamed"})
+		output := done(t)
+		if code != 1 {
+			t.Fatalf("%s=0 exited %d, want 1; a non-positive bound must be refused, never read as \"no limit\"\nstdout:\n%s\nstderr:\n%s", readParallelismEnvVar, code, output.Stdout(), output.Stderr())
+		}
+		if got := output.Stderr(); !strings.Contains(got, "The parallelism must be a positive value. Not 0.") {
+			t.Errorf("the run failed, but not with stock's refusal:\n%s", got)
+		}
+		// The refusal lands before the cloud is touched. This is the reason
+		// liveMv resolves the setting at the top of the function rather than
+		// beside the mv.Request it fills in: a rename that had already read
+		// the estate before deciding it could not honour its own bound would
+		// have spent exactly the calls the operator turned the bound down to
+		// avoid.
+		if len(cloud.imports) != 0 {
+			t.Errorf("a refused setting still read %v from the cloud; the refusal has to land before anything is read", cloud.imports)
+		}
+		if len(cloud.planned) != 0 || len(cloud.applied) != 0 {
+			t.Errorf("a refused setting still planned %v and applied %v", cloud.planned, cloud.applied)
+		}
+		if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.main" {
+			t.Errorf("a refused setting still rewrote the marker: tofu-address = %q", got)
+		}
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -570,6 +645,12 @@ type mvCloud struct {
 
 	planned []string
 	applied []string
+
+	// imports records every ImportResourceState the run made, in order. It
+	// is the read pass's own first call, so an empty slice after a run is
+	// "this run read nothing from the cloud" - which is what GitHub issue
+	// #640's refused-setting case has to be able to say.
+	imports []string
 }
 
 func mvNewCloud() *mvCloud {
@@ -710,6 +791,7 @@ func (c *mvCloud) provider() providers.Interface {
 		if req.Target.IsIdentityBased() {
 			id = req.Target.Identity.GetAttr("id").AsString()
 		}
+		c.imports = append(c.imports, req.TypeName+"/"+id)
 		schema := mvSchemas()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
