@@ -576,6 +576,23 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 
 	r.priorStateCalls++
 
+	// GitHub issue #626's knob, resolved once here for the same two reasons
+	// live-plan's own call resolves it at the top of livePlan: this function
+	// has two read paths that each build a [projection.Options] - the
+	// projection below and [statelessProviderDataReads]'s own
+	// [projection.ReadInstances] calls - and resolving at each construction
+	// site would report a bad setting twice; and a setting this run cannot
+	// honour should be refused before a provider process is started or a
+	// single live call is made. This is the path that matters most for it: a
+	// configuration with a live block runs plain "choudoufu plan" and
+	// "choudoufu apply" through here, which is why the knob is an environment
+	// variable rather than a flag. See [readParallelismSetting].
+	readPar, readParDiags := readParallelismSetting()
+	diags = diags.Append(readParDiags)
+	if readParDiags.HasErrors() {
+		return nil, diags
+	}
+
 	estate, estateDiags := r.estateName(ctx, config)
 	diags = diags.Append(estateDiags)
 	if estateDiags.HasErrors() {
@@ -741,7 +758,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// same reason live-plan's own equivalent construction is not: reading a
 	// GitHub issue #364 record-backed value that a PARENT_DERIVED formula
 	// already names as a parent is not the #388 migration's concern.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar)
 
 	merged := resolutions.All()
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened
@@ -848,6 +865,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// above. disco.DeposedBindingsList() is nil-safe for a disco this
 		// pass never produced.
 		DeposedBindings: disco.DeposedBindingsList(),
+		// GitHub issue #626's knob, resolved from the environment at the top
+		// of this function. This is the read pass issue #585 made concurrent,
+		// on the path a live-block configuration takes under plain
+		// "choudoufu plan" and "choudoufu apply".
+		ReadParallelism: readPar,
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are

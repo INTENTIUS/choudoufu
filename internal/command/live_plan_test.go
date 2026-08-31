@@ -1911,6 +1911,20 @@ type statelessTestCloud struct {
 	// not a guard. See TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider
 	// and its wrong-region twin.
 	regionOf map[string]string
+
+	// onImport, when non-nil, is called on entry to every
+	// ImportResourceState and again as that call returns, on the calling
+	// goroutine. It is the only way a test can see how WIDE the read pass
+	// is rather than only which calls it made: the recorded imports say
+	// what was read, and nothing in this cloud otherwise says how many were
+	// in flight at once. See [readWidthRecorder] in
+	// live_read_parallelism_test.go, which is the only thing that sets it.
+	//
+	// A setup field like objects and tags above, not a recording field: it
+	// is written by the test body before the command runs and only read
+	// while it runs, so it needs no lock. Whatever it points at is called
+	// concurrently and owns its own synchronisation.
+	onImport func(entering bool)
 }
 
 // allowRegion widens the set of regions this cloud's mock provider accepts
@@ -2187,6 +2201,14 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	}
 
 	p.ImportResourceStateFn = func(req providers.ImportResourceStateRequest) (resp providers.ImportResourceStateResponse) {
+		// GitHub issue #626's width probe, nil for every test but the one
+		// that measures how many of these calls overlap. Entered before any
+		// work so that a call this hook holds is holding a slot the read
+		// pass has actually issued.
+		if c.onImport != nil {
+			c.onImport(true)
+			defer c.onImport(false)
+		}
 		// Both forms, because a real provider serving an identity schema
 		// gets both: an identity object where the run has one, and the
 		// import-ID string otherwise. The two are exclusive on the wire
