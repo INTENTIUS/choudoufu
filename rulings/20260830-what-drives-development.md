@@ -1,12 +1,8 @@
----
-title: "What drives development"
-weight: 1
----
+# What Drives Development
 
-# What drives development
+Issue: https://github.com/INTENTIUS/choudoufu/issues/522
 
-Ruled 2026-08-29, amended the same day, recorded here 2026-08-30. Issue
-[#522](https://github.com/INTENTIUS/choudoufu/issues/522).
+Ruled 2026-08-29, amended the same day, recorded here 2026-08-30.
 
 The estate board was this fork's work queue from the day it existed. It
 stops being one. Fast, purpose-built fixtures drive daily work; estates
@@ -43,9 +39,9 @@ and stated the distinction the rest of this page depends on:
 Both are quoted because the first is still in the tree.
 `site/layouts/shortcodes/gauntlet-bars.html`'s header comment calls
 behaviors proven "issue #522's headline and gate" and the shortcode renders
-that bar above the two estate bars, while the prose beside it on
-[How close AWS is]({{< relref "/docs/progress" >}}) carries the amended
-framing. The prose is right and the layout is stale. That is a layout fix,
+that bar above the two estate bars, while the prose beside it on the
+progress page (`site/content/docs/progress/_index.md`, "How close AWS is")
+carries the amended framing. The prose is right and the layout is stale. That is a layout fix,
 named here so the next reader does not read the comment as the decision.
 
 ## 1. Tier 1, the behavior matrix, drives development
