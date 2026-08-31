@@ -11,7 +11,7 @@ import (
 )
 
 // TestCollectUnclaimedSettingDefaultsToAdoptionOnly is the whole mechanism
-// rfc/20260830-stale-state-charter.md's ruling left to be designed, stated
+// rulings/20260830-stale-state-charter.md's ruling left to be designed, stated
 // as a table: an ordinary plan does not ask the account-inventory question,
 // and "choudoufu plan -adoption-only" - the command whose entire subject is
 // that question - does.

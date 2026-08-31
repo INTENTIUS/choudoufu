@@ -15,7 +15,7 @@ import (
 // TestForeign_narrowedSweepSaysSo is asserted on the rendered section, not
 // on a field: the whole content of the "Foreign resources" section is the
 // difference between "we looked and there is nothing" and "we did not
-// look", and rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling
+// look", and rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling
 // makes the second answer the default for an ordinary plan. A run that did
 // not ask has to say so, and has to say how to ask.
 func TestForeign_narrowedSweepSaysSo(t *testing.T) {

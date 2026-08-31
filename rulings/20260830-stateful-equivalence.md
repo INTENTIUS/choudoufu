@@ -52,7 +52,7 @@ one of them is a reason not to install the binary.
    `live/live-cert/terralith-scale.sh` uses for floci, the same plan on the
    same estate at the same commit takes 2.73s and is **empty**. The
    difference is 35 retried `ecs:DescribeServices` calls, which is issue #572.
-   `rfc/20260830-slicing-under-choudoufu.md` saw both symptoms and concluded
+   `rulings/20260830-slicing-under-choudoufu.md` saw both symptoms and concluded
    they were a floci defect; they are a property of the fixture's provider
    block, and they reproduce and disappear on the same emulator.
 
@@ -303,7 +303,7 @@ identity-resolution defect)". An ECS ARN carries the account id.
 
 Three consequences, stated with their limits.
 
-**`rfc/20260830-slicing-under-choudoufu.md` saw this and attributed it to the
+**`rulings/20260830-slicing-under-choudoufu.md` saw this and attributed it to the
 emulator.** Its "What this does not cover" section reports "the 273-second
 `DescribeServices` retry loop" as one of two ways "the emulator's own behaviour
 around them is visibly broken", and concludes of the three ECS creates:

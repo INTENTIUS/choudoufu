@@ -539,8 +539,8 @@ func emulatorGroups(a *Artifact) []emulatorGroup {
 
 // boardBanner is the one board-wide sentence the index page still gets to
 // make, and it may only assert what every row below actually agrees on
-// (the RFC on process-as-code names this exact shape: never ship a claim
-// the rows underneath cannot support). It used to claim a single "measured
+// (the standing rule for every rendered claim in this fork: never ship a
+// claim the rows underneath cannot support). It used to claim a single "measured
 // at commit X" stamp for the whole board; no procedure ever produced that
 // fact honestly (#414), so it is gone rather than kept lying. It was then
 // fixed to borrow a.Emulator - CONFIGURATION, the pin the next run will use

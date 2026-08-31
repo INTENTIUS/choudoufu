@@ -795,7 +795,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // ---------------------------------------------------------------------------
 
 // statelessRecordBackedNeedsDiscoveryAddrs is edge 3 of the plan-node seam
-// (rfc/20260823-foundation-order-ruling.md, ruling 3; GitHub issue #388):
+// (rulings/20260823-foundation-order-ruling.md, ruling 3; GitHub issue #388):
 // among needs (a ClassNeedsDiscovery resolution list, ordinarily
 // resolutions.NeedsDiscovery()), the subset whose estate record already
 // holds an identity - read the same way
@@ -988,7 +988,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	// rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling,
+	// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling,
 	// resolved here for the same two reasons the parallelism knob above is:
 	// this function is the single funnel every sweeping entry point goes
 	// through, and a bad setting must be reported once rather than once per
@@ -1007,7 +1007,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	// Edge 3 of the plan-node seam (rfc/20260823-foundation-order-ruling.md,
+	// Edge 3 of the plan-node seam (rulings/20260823-foundation-order-ruling.md,
 	// ruling 3; issue #388): recordShrinkStore is nil unless the caller has
 	// both opened a record store AND turned CHOUDOUFU_NODE_RESOLVE=1 on -
 	// see [statelessRecordBackedNeedsDiscoveryAddrs]'s own doc comment for
@@ -1264,7 +1264,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Resolutions:       resolutions,
 		Provider:          provider,
 		Region:            provs.region(providerAddr),
-		// rfc/20260830-stale-state-charter.md's ruling: this is the
+		// rulings/20260830-stale-state-charter.md's ruling: this is the
 		// account-inventory question ("what is in my account that this
 		// estate does not know about"), and it does not stay
 		// unconditional. [collectUnclaimedSetting] is where the run picks
@@ -2096,7 +2096,7 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 		SweepCovered: res.SweepCovered,
 	}
 	if disco != nil {
-		// rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling:
+		// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling:
 		// a run that did not ask the account-inventory question must say
 		// so rather than let "nothing was swept" read as "there is
 		// nothing". See [discovery.Result.NativeSweepSkipped].

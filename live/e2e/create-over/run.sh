@@ -43,7 +43,7 @@ set -euo pipefail
 # tofu-address has to name the type being listed, it has to carry this
 # estate, and exactly one candidate may match. Step 7 pins what happens when
 # it cannot fire at all - which, since record-primary identity landed
-# (rfc/20260823-foundation-order-ruling.md item 1), also means removing the
+# (rulings/20260823-foundation-order-ruling.md item 1), also means removing the
 # record step 2's apply wrote: a plan reads the record before it ever needs
 # the join, so "it cannot fire" now has two preconditions, not one. See
 # step 7's own comment for the trace that found this.
@@ -271,7 +271,7 @@ log "  converged: nothing to create, nothing foreign"
 # must NOT do is return to proposing it silently.
 #
 # TOFU_LIVE_CLOUDCONTROL=off alone stopped being enough to reach that path
-# once record-primary identity landed (rfc/20260823-foundation-order-ruling.md
+# once record-primary identity landed (rulings/20260823-foundation-order-ruling.md
 # item 1: "every instance's identity in the record, written by live-import
 # and by EVERY apply, and a plan reads it first"). Step 2's apply already
 # wrote a record for aws_iam_role.subject, and every plan since - including

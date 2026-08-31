@@ -1,4 +1,4 @@
-# GitHub issue #388's plan-node seam (rfc/20260823-foundation-order-ruling.md,
+# GitHub issue #388's plan-node seam (rulings/20260823-foundation-order-ruling.md,
 # ruling 3): aws_lb_target_group_attachment.reads_computed's port reads
 # test_sibling.s's Computed, non-identity attribute, exactly the shape
 # corpus-alb-complete's remaining test_plan wall is (a real value the static

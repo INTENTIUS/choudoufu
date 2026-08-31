@@ -16,7 +16,7 @@ import (
 )
 
 // This file is corpus-alb-complete/test_plan's second #364 wall
-// (rfc/20260823-foundation-order-ruling.md's write half, "every instance",
+// (rulings/20260823-foundation-order-ruling.md's write half, "every instance",
 // applied to an UNTAGGABLE one): aws_route53_record has a genuine ratified
 // composite identity (table_generated.go: zone_id/name/type[/set_identifier])
 // but [identity.LocatedIdentityPlanFor] answers false for it - the
