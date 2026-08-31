@@ -252,10 +252,11 @@ set -uo pipefail
 #                     synthetic count block (aws_security_group.count_test,
 #                     count = 2, at the estate root, nothing references it)
 #                     scaled 2 -> 1 -> 2. Every count this module declares
-#                     is a boolean create toggle and its one real for_each
-#                     feeds a sibling aggregating resource, so neither can
-#                     carry this stage - the sanctioned fallback, see PART
-#                     G's own header. G0 is the stock oracle: the identical
+#                     is a boolean create toggle, and its one real for_each
+#                     is scoped to a single theme by this crossing's own
+#                     root config, so neither can carry this stage - the
+#                     sanctioned fallback, see PART G's own header for the
+#                     measured reasoning. G0 is the stock oracle: the identical
 #                     block stood up with plain tofu in its own working
 #                     directory against the same (idle) endpoint, then torn
 #                     down before the choudoufu side runs.
@@ -1986,13 +1987,19 @@ EOF
     # its identity" needs a survivor).
     #
     # The module's one genuine for_each - `aws_batch_job_definition.tiles`
-    # over `toset(var.themes)` - cannot carry it either. Its member ARNs
-    # feed `aws_batch_job_queue.tiles` and the module's own
-    # `job_definition_arns` output, so shrinking the set plans a change
-    # alongside the destroy rather than the clean `0 add, 0 change,
-    # 1 destroy` this stage asserts; and it is scoped to one theme
-    # ("base") from stage 1 onward, so widening it would move every earlier
-    # stage's 16-taggable-object assertions.
+    # over `toset(var.themes)` - cannot carry it either, for a reason that
+    # is about THIS crossing rather than about the type: this script's own
+    # root config scopes `themes` to a single theme ("base") from stage 1
+    # onward (see the SCOPING DECISION in the file header), so the set has
+    # one member and there is nothing to scale down to. Widening it to two
+    # would move every earlier stage's counted assertions - cold_deploy's
+    # and greenfield's "26 resources", migrate's "16 of 26 stamped",
+    # test_apply's 16-tagged-object count, and day2_rename's own
+    # TAGGABLE_ADDRS list, which names aws_batch_job_definition.tiles["base"]
+    # by value - and the stage that comes last is not allowed to reach back
+    # and rewrite the nine that already reported. What shrinking that set
+    # would actually plan is NOT claimed here: it was never measured,
+    # because it was never a usable option.
     #
     # So this section adds the sanctioned fallback (live/GAUNTLET.md #8;
     # precedent reference-ec2-vpc's own Part F and corpus-iam-policy's Part
@@ -2330,7 +2337,7 @@ EOF
 
       log ""
       log "PART G (day2_count): PASS"
-      gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live GroupId ($SG0_ID) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) unchanged, both read back through the AWS CLI; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) under a NEW GroupId ($SG1_ID -> $SG1_NEW_ID) carrying tofu-address=aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; every absence check reads length(SecurityGroups) through a group-id FILTER, because describe-security-groups --group-ids on a deleted id returns an empty list with exit 0 on this emulator pin; the next stateless live-plan is empty. Stock oracle (G0): the identical 2-instance block stood up with plain tofu in its own working directory against the same idle endpoint shows the identical shape - destroy the higher index only (0 add, 0 change, 1 destroy), create the higher index back under a new GroupId (1 add, 0 change, 0 destroy), the lower index's GroupId unchanged both times - then torn down (3 destroyed) before the choudoufu side ran. SYNTHETIC BLOCK, and why: every count this module declares is a boolean create toggle (create_vpc, create_s3_bucket, create_cloudfront_distribution, launch_template.existing_id == null), never a scalable set, and its one real for_each (aws_batch_job_definition.tiles over toset(var.themes)) feeds aws_batch_job_queue.tiles and the module's job_definition_arns output, so shrinking it plans a change alongside the destroy rather than the clean shape this stage asserts - the sanctioned fallback per live/GAUNTLET.md #8, precedent reference-ec2-vpc Part F and corpus-iam-policy Part G. It reuses a type this estate already exercises (aws_security_group.batch), sits at a root address nothing else names, and runs entirely after day2_remove, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly reports fail."
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live GroupId ($SG0_ID) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) unchanged, both read back through the AWS CLI; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) under a NEW GroupId ($SG1_ID -> $SG1_NEW_ID) carrying tofu-address=aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; every absence check reads length(SecurityGroups) through a group-id FILTER, because describe-security-groups --group-ids on a deleted id returns an empty list with exit 0 on this emulator pin; the next stateless live-plan is empty. Stock oracle (G0): the identical 2-instance block stood up with plain tofu in its own working directory against the same idle endpoint shows the identical shape - destroy the higher index only (0 add, 0 change, 1 destroy), create the higher index back under a new GroupId (1 add, 0 change, 0 destroy), the lower index's GroupId unchanged both times - then torn down (3 destroyed) before the choudoufu side ran. SYNTHETIC BLOCK, and why: every count this module declares is a boolean create toggle (create_vpc x7, create_s3_bucket x4, create_cloudfront_distribution x2, three launch_template variants gated on existing_id == null), never a scalable set, so scaling one is the day2_remove shape this script already runs, not a shape with a survivor; and its one real for_each (aws_batch_job_definition.tiles over toset(var.themes)) is scoped by this crossing's own root config to a single theme from stage 1 onward, so it has nothing to scale down to and widening it would move every earlier stage's counted assertions (26 resources, 16 stamped, 16 tagged objects, day2_rename's own 16-address list). What shrinking that set would plan is not claimed: it was never measured, because it was never a usable option. Sanctioned fallback per live/GAUNTLET.md #8, precedent reference-ec2-vpc Part F and corpus-iam-policy Part G. It reuses a type this estate already exercises (aws_security_group.batch), sits at a root address nothing else names, and runs entirely after day2_remove, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly reports fail."
       log ""
     fi
     gauntlet_end_stage
