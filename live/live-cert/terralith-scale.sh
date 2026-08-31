@@ -615,6 +615,147 @@ timed_plans() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
+# API-CALL INSTRUMENTATION (issue #622, and the call-count half of the
+# stock-vs-choudoufu plan comparison #578/#588 measured only in seconds).
+#
+# What is counted, and what each count is worth:
+#
+#   * PROVIDER-MEDIATED CALLS - counted EXACTLY. terraform-provider-aws
+#     logs one "HTTP Request Sent" entry per AWS SDK request when the
+#     provider's log level is DEBUG, carrying rpc.method=<Service>/<Op>.
+#     The entry is MULTI-LINE (a body block sits between the header line
+#     and the attributes), so the counter below reassembles entries on the
+#     leading timestamp before matching - a plain `grep -c` on the header
+#     line gets the total right but loses every operation name to the
+#     continuation lines. Stock's plan makes no other kind of call, so for
+#     stock this IS the plan's API-call count.
+#
+#   * CHOUDOUFU'S OWN CLIENT CALLS - a FLOOR, never an exact count.
+#     internal/live/cloudcontrol's Client talks to Cloud Control and to the
+#     Tagging API over its own net/http client, in the tofu process, and
+#     logs no line per HTTP request. What it does log, from
+#     internal/live/discovery, is one [DEBUG] line per type listed, per
+#     Tagging-API sweep, per tag-index join and - the one this issue is
+#     about - one per GetResource refinement. Pagination pages within a
+#     single ListResources/GetResources loop are NOT logged individually,
+#     so "listings" undercounts calls by however many continuation pages
+#     each listing needed. Refinements are exact: the line is printed once
+#     per GetResource, at the same place scan.Refined is incremented
+#     (internal/live/discovery/cloudcontrol.go).
+#
+#   * TypeScan.Refined - issue #622's question. On floci the account is
+#     nearly empty, so this measures ~40. On a populated real account the
+#     per-object refinement scales with the ACCOUNT's object count, not the
+#     estate's, which is why only a real-AWS run can answer whether the
+#     steady-state sweep narrowing left it firing materially. Reported per
+#     type, for BOTH the first post-migration plan (the stage-gating one,
+#     cold caches, wide sweep) and a steady-state plan taken after the
+#     three timed runs - those are different questions and a single number
+#     answers neither.
+#
+# Like timed_plans, this block only reports. It never fails the run.
+# ══════════════════════════════════════════════════════════════════════
+API_CALL_REPORT=""
+
+# apicalls_awk writes the entry-reassembling counter to a file and echoes
+# its path. Kept as a file rather than inlined so the same program can be
+# re-run by hand over a kept WORK dir (LIVECERT_KEEP_WORK=1).
+APICALLS_AWK=""
+apicalls_awk() {
+  if [ -z "$APICALLS_AWK" ]; then
+    APICALLS_AWK="$WORK/apicalls.awk"
+    cat > "$APICALLS_AWK" <<'AWKEOF'
+function flush() {
+  if (entry ~ /HTTP Request Sent/) {
+    total++
+    op = "unknown"
+    if (match(entry, /rpc\.method=[A-Za-z0-9]+\/[A-Za-z0-9]+/)) {
+      op = substr(entry, RSTART + 11, RLENGTH - 11)
+    }
+    cnt[op]++
+  }
+  entry = ""
+}
+/^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ { flush(); entry = $0; next }
+{ entry = entry " " $0 }
+END {
+  flush()
+  printf "TOTAL %d\n", total + 0
+  for (o in cnt) printf "%s %d\n", o, cnt[o]
+}
+AWKEOF
+  fi
+  printf '%s\n' "$APICALLS_AWK"
+}
+
+# analyze_api_calls reads a TF_LOG=DEBUG capture and logs, for one labelled
+# plan: the exact provider-mediated request count with its per-operation
+# breakdown, choudoufu's own discovery-client floor, and the per-type
+# GetResource refinement counts (#622). Appends one summary line to
+# API_CALL_REPORT.
+analyze_api_calls() {
+  local label="$1" f="$2"
+  local prog total refined listings tagsweeps joins
+  if [ ! -f "$f" ]; then
+    log "  ${label}: no debug log at $f - not instrumented"
+    return 0
+  fi
+  prog="$(apicalls_awk)"
+
+  awk -f "$prog" "$f" > "$WORK/apicalls_${label}.counts" 2>/dev/null
+  total="$(awk '$1=="TOTAL"{print $2}' "$WORK/apicalls_${label}.counts")"
+  [ -n "$total" ] || total=0
+
+  # One line per GetResource refinement, printed beside scan.Refined++.
+  refined="$(grep -cF 'refined with GetResource' "$f" 2>/dev/null || true)"
+  listings="$(grep -cE 'stateless/discovery: listing .* via Cloud Control' "$f" 2>/dev/null || true)"
+  tagsweeps="$(grep -cE 'stateless/discovery: sweeping .* via the Tagging API' "$f" 2>/dev/null || true)"
+  joins="$(grep -cF 'joined one from the estate' "$f" 2>/dev/null || true)"
+
+  log "  ${label}: ${total:-0} provider-mediated AWS API request(s) (exact, from rpc.method entries)"
+  log "    top operations:"
+  awk '$1!="TOTAL"{printf "      %8d %s\n", $2, $1}' "$WORK/apicalls_${label}.counts" | sort -rn | head -25
+  log "    choudoufu's own Cloud Control / Tagging client (FLOOR - pagination pages are not logged per call):"
+  log "      ${listings:-0} Cloud Control ListResources listing(s), ${tagsweeps:-0} Tagging-API sweep(s), ${joins:-0} tag-index join(s)"
+  log "    TypeScan.Refined (#622): ${refined:-0} per-object GetResource refinement(s) total"
+  if [ "${refined:-0}" -gt 0 ]; then
+    log "    refinements by type:"
+    grep -F 'refined with GetResource' "$f" \
+      | sed -E 's/.*stateless\/discovery: ([a-z0-9_]+) identifier .*/\1/' \
+      | sort | uniq -c | sort -rn | head -25 | sed 's/^/      /'
+  fi
+  API_CALL_REPORT="${API_CALL_REPORT}${API_CALL_REPORT:+
+}  ${label}: ${total:-0} provider-mediated request(s); ${listings:-0} CC listing(s) + ${tagsweeps:-0} tagging sweep(s) (floor); TypeScan.Refined=${refined:-0}"
+}
+
+# instrumented_plan runs ONE extra plan with TF_LOG=DEBUG purely to count
+# calls. It is deliberately NOT one of timed_plans' three: writing a debug
+# log inside a timed region measures the log, not the plan, which is the
+# same rule 2c/4d already state. Its own wall clock is reported anyway, so
+# a reader can see what the instrumentation cost.
+instrumented_plan() {
+  local label="$1" dir="$2" bin="$3"
+  local f="$WORK/apicalls_${label}.debug.log"
+  local start end secs out rc verdict
+  start=$(date +%s)
+  out="$(cd "$dir" && TF_LOG=DEBUG TF_LOG_PATH="$f" "$bin" plan -input=false -no-color 2>&1)"
+  rc=$?
+  end=$(date +%s)
+  secs=$((end - start))
+  if [ "$rc" -ne 0 ]; then
+    verdict="exit${rc}"
+  elif grep -qF "No changes. Your infrastructure matches the configuration." <<< "$out"; then
+    verdict="empty"
+  else
+    verdict="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' <<< "$out" | head -1 | tr ' ' '_')"
+    [ -n "$verdict" ] || verdict="non-empty"
+  fi
+  printf '%s\n' "$out" > "$WORK/apicalls_${label}.out"
+  log "  ${label}: instrumented plan took ${secs}s (${verdict}); NOT a timing measurement - TF_LOG=DEBUG is on"
+  analyze_api_calls "$label" "$f"
+}
+
+# ══════════════════════════════════════════════════════════════════════
 # cold_deploy: stock applies the unmodified (AZ/provider-corrected)
 # generator output for real.
 # ══════════════════════════════════════════════════════════════════════
@@ -663,6 +804,9 @@ gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD again
 gauntlet_end_stage
 log "=== 2c. plan timing: stock $TF_COLD plan x3, converged estate, TF_LOG unset (#578) ==="
 timed_plans "stock-terraform" "$COLD_DIR" "$TF_COLD"
+
+log "=== 2d. API calls: one EXTRA stock plan with TF_LOG=DEBUG, outside every timed region ==="
+instrumented_plan "stock-terraform" "$COLD_DIR" "$TF_COLD"
 
 # ══════════════════════════════════════════════════════════════════════
 # migrate: choudoufu live-import -approve against the stock state file.
@@ -811,6 +955,13 @@ if [ -n "$TP_FAIL" ]; then
   log "  WARNING: choudoufu's gating plan was NOT a no-change plan, so the two sides below are NOT like-for-like. Read each run's own verdict, not the seconds alone."
   printf '%s\n' "$PLAN_TIMING_REPORT"
   log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLAN_S}s (${PLAN_LOG_BYTES} bytes of debug log written inside that region)"
+  # Same reasoning as the timing measurement above: #622's refinement count
+  # is a property of the sweep, not of whether the plan came back empty, so
+  # a run that is about to fail this stage still yields it.
+  analyze_api_calls "choudoufu-first" "$PLAN_LOG"
+  instrumented_plan "choudoufu-steady" "$ADOPTED_DIR" "$TOFU"
+  log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
+  printf '%s\n' "$API_CALL_REPORT"
   CURRENT_STAGE=test_plan
   fail "$TP_FAIL"
 fi
@@ -837,6 +988,19 @@ timed_plans "choudoufu" "$ADOPTED_DIR" "$TOFU"
 log "=== PLAN TIMING SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) ==="
 printf '%s\n' "$PLAN_TIMING_REPORT"
 log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLAN_S}s (${PLAN_LOG_BYTES} bytes of debug log written inside that region)"
+
+# The stage-gating plan at step 4 is the FIRST plan after migration: cold
+# hint store, widest sweep. The one below is the FIFTH, taken after
+# timed_plans' three, so it is the steady state the sweep narrowing (#627)
+# is supposed to have narrowed. #622 asks about the steady state, but the
+# first plan is the only thing the difference can be read against, so both
+# are counted and reported separately.
+log "=== 4e. API calls: the FIRST post-migration plan (stage-gating, already TF_LOG=DEBUG) ==="
+analyze_api_calls "choudoufu-first" "$PLAN_LOG"
+log "=== 4f. API calls: one EXTRA steady-state choudoufu plan with TF_LOG=DEBUG, outside every timed region ==="
+instrumented_plan "choudoufu-steady" "$ADOPTED_DIR" "$TOFU"
+log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) ==="
+printf '%s\n' "$API_CALL_REPORT"
 
 # ══════════════════════════════════════════════════════════════════════
 # test_apply: applying the empty plan is a genuine no-op.
