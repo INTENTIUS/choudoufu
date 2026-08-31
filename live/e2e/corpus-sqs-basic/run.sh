@@ -138,6 +138,36 @@ set -uo pipefail
 # only edit needed ahead of a real `terraform apply` against floci is the
 # emulator connection flags on the provider block.
 #
+# WHAT A GENUINE SQS DELETE/RECREATE ACTUALLY CHANGES (established directly
+# against floci ghcr.io/lex00/floci@sha256:c55d74e1 before any day2_count
+# assertion below was written, with NO tofu in the loop - HANDOFF's
+# identity-semantics rule). Created one queue, read every attribute, deleted
+# it, re-created it under the SAME name, read them again:
+#   SAME     QueueUrl and QueueArn. Both are rebuilt from region + account +
+#            name (live/identity/table_generated.go's aws_sqs_queue row says
+#            exactly this), so neither can witness a destroy: the recreated
+#            queue is reachable at the identical URL the destroyed one had.
+#   GONE     in between: get-queue-url returns
+#            AWS.SimpleQueueService.NonExistentQueue and list-queues returns
+#            an empty list. Verified absence is therefore available as a
+#            discriminator, the corpus-simpleinfra-dns shape.
+#   CHANGED  CreatedTimestamp (1788159242 -> 1788159243 -> 1788159246 across
+#            two recreates), in epoch SECONDS - one-second granularity, so a
+#            destroy and a create inside the same wall-clock second would
+#            read identical. PART G below sleeps 2s between the scale-down
+#            apply and the scale-up plan and then asserts strictly GREATER,
+#            not merely different.
+#   CHANGED  tags: the recreated queue came back with an empty tag set, none
+#            carried over.
+# One divergence from documented AWS worth stating rather than relying on:
+# real SQS refuses to create a queue with a recently-deleted name for up to
+# 60 seconds (DeleteQueue's own documentation); floci accepted an immediate
+# recreate. That is permissiveness both legs of this stage see equally -
+# stock's oracle recreates through the same emulator - so it changes nothing
+# about what is compared here, and PART G's own 2-second gap is well inside
+# the window either way. Not filed as a floci defect: nothing in this stage
+# depends on the refusal.
+#
 # THE OUTPUTS QUIRK, same as corpus-iam-policy: this estate declares root
 # `output` blocks and live-plan carries no state to diff them against, so
 # OpenTofu's renderer never prints a "Plan: N to add..." summary line, empty
