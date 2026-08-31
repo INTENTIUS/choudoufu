@@ -133,6 +133,22 @@ type liveMvArgs struct {
 // first live-system call of any kind is resourceSchemas, whose answer lint
 // consumes immediately.
 func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv.Result, diags tfdiags.Diagnostics) {
+	// GitHub issue #640's knob, resolved here for the same reason livePlan
+	// and PriorState resolve theirs at the top of their own functions: a
+	// setting this run cannot honour should be refused before a provider
+	// process is started or a single live call is made, and reading an
+	// environment variable costs nothing. See [readParallelismSetting] for
+	// the setting, the refusal and the default, and [mv.Request.
+	// ReadParallelism] for why a rename honours it at all - materialize hands
+	// the whole resolution list to the projection builder for a
+	// parent-derived identity, which is the same estate-wide read pass a plan
+	// makes.
+	readPar, readParDiags := readParallelismSetting()
+	diags = diags.Append(readParDiags)
+	if readParDiags.HasErrors() {
+		return nil, diags
+	}
+
 	config, cfgDiags := c.loadConfig(ctx, ".")
 	diags = diags.Append(cfgDiags)
 	if cfgDiags.HasErrors() {
@@ -257,6 +273,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		AllowMissingConfig: args.allowMissing,
 		Tagging:            tagging,
 		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
+		ReadParallelism:    readPar,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags
@@ -433,6 +450,23 @@ Options:
   -no-color               If specified, output won't contain any color.
 
   -compact-warnings       Show warnings in a more compact form.
+
+Environment variables:
+
+  TOFU_LIVE_READ_PARALLELISM=n
+                          How many of this rename's per-instance provider
+                          round trips run at once. Defaults to 10, the same
+                          bound live-plan's read pass takes, and set by the
+                          same variable so that one name covers both. Most
+                          renames materialize a single resource and no bound
+                          can matter; a resource whose identity is derived
+                          from its parents materializes the whole
+                          configuration's resolutions, which is the same read
+                          pass a plan makes. Turn it down if a real account
+                          throttles those reads: 1 makes the pass sequential.
+                          A value below 1 is refused rather than read as "no
+                          limit", and the refusal lands before anything is
+                          read or written.
 `
 	return strings.TrimSpace(helpText)
 }

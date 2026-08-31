@@ -6,11 +6,15 @@
 package command
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -133,13 +137,25 @@ func TestReadParallelismRefusesInStocksOwnWords(t *testing.T) {
 // match: it requires that every projection.Options this package builds sets the
 // field, that the value is an identifier, and that the identifier traces to
 // [readParallelismSetting]'s own result - through a parameter for the one site
-// that lives in a helper. A hard-coded constant, a second local, a dropped
-// argument or a fourth construction site added later would each fail it, and
-// "the file contains ReadParallelism" would catch none of them.
+// that lives in a helper. A hard-coded constant, a second local or a dropped
+// argument would each fail it, and "the file contains ReadParallelism" would
+// catch none of them.
+//
+// # What this test is NOT, since issue #640
+//
+// It is the PROVENANCE half only: for the sites it names, that the value came
+// from the run. It used to carry the completeness half too, as a count of
+// three projection.Options across live_plan.go and live_mode.go, and that
+// count was green while internal/live/mv/mv.go's fourth construction sat
+// unwired - a scope of two files cannot see a fourth site in a third package,
+// so the count passed precisely by not looking. Completeness is now
+// [TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded], which walks the
+// whole checkout; a new construction site fails there rather than here.
 func TestReadParallelismReachesEveryProjectionOptions(t *testing.T) {
 	fset := token.NewFileSet()
 	planFile := parseCommandSource(t, fset, "live_plan.go")
 	modeFile := parseCommandSource(t, fset, "live_mode.go")
+	mvFile := parseCommandSource(t, fset, "live_mv.go")
 
 	// The two entry points that resolve the setting. Each one has to build a
 	// projection.Options whose ReadParallelism is the local its own
@@ -228,26 +244,324 @@ func TestReadParallelismReachesEveryProjectionOptions(t *testing.T) {
 		t.Errorf("found %d calls to statelessProviderDataReads across live_plan.go and live_mode.go, want 2 - one per entry point. A caller this test cannot see is a read pass this variable does not reach.", calls)
 	}
 
-	// Completeness, which is the half a per-site check cannot hold: a FOURTH
-	// projection.Options built in this package later would be unbounded, and
-	// nothing above would notice. This counts every one of them, set or not.
-	total := 0
-	for _, file := range []*ast.File{planFile, modeFile} {
-		ast.Inspect(file, func(n ast.Node) bool {
-			lit, ok := n.(*ast.CompositeLit)
-			if !ok || !isSelector(lit.Type, "projection", "Options") {
+	// The fourth entry point, GitHub issue #640's. live-mv builds no
+	// projection.Options of its own - internal/live/mv's materialize builds
+	// it, out of a Request field - so the provenance check here is that the
+	// command resolves the setting and puts it in the request. The engine
+	// half, that mv.go's projection.Options reads that field rather than a
+	// constant, is [TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded]'s.
+	mvFn := findAnyFuncDecl(t, mvFile, "liveMv")
+	mvResolved := identAssignedFromCall(mvFn, "readParallelismSetting")
+	if mvResolved == "" {
+		t.Fatalf("liveMv no longer calls readParallelismSetting. It is live-mv's only entry point, and nothing else can carry %s into the rename's read pass.", readParallelismEnvVar)
+	}
+	mvValues := compositeLitField(mvFn, "mv", "Request", "ReadParallelism")
+	if len(mvValues) != 1 {
+		t.Fatalf("liveMv builds %d mv.Request that set ReadParallelism, want exactly 1. Unset is issue #640's defect: live-mv's read pass runs at the engine's default whatever %s says.", len(mvValues), readParallelismEnvVar)
+	}
+	if id, ok := mvValues[0].(*ast.Ident); !ok || id.Name != mvResolved {
+		t.Errorf("liveMv sets mv.Request.ReadParallelism from %s, not from the %q that readParallelismSetting resolved", exprText(mvValues[0]), mvResolved)
+	}
+}
+
+// projectionOptionsExclusions names every projection.Options construction in
+// the tree that deliberately does NOT set ReadParallelism, with the reason.
+//
+// A site listed here is a decision. A site missing from here and from the
+// wiring is GitHub issue #626's defect - a read pass running at the engine's
+// default whatever an operator sets - and
+// [TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded] fails on it. An entry
+// here that no longer matches a site is also a failure, so the list cannot
+// outlive the code it excuses.
+//
+// Keys are the repository-relative file and the enclosing function or method,
+// deliberately not a line number: a line number goes stale on any edit above
+// it and would make this list noise.
+var projectionOptionsExclusions = []struct{ file, fn, reason string }{
+	{
+		file: "internal/live/projection/build.go",
+		fn:   "BuildFrom",
+		// This one is not an unbounded read pass that someone forgot; it is
+		// the definition of the default. BuildFrom is the package's own
+		// no-options wrapper over buildFrom, and Options{} there is what
+		// makes ReadParallelism zero, which readconcurrency.go reads as
+		// DefaultReadParallelism. Threading a bound into it would mean
+		// giving it an options parameter, at which point it is BuildWith,
+		// which already exists and is what all four command-side callers
+		// use.
+		reason: "BuildFrom is the options-free wrapper whose empty Options IS the engine default; a caller that wants a bound calls BuildWith",
+	},
+}
+
+// TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded is the completeness
+// half of issue #626's pin, rewritten for GitHub issue #640.
+//
+// What it replaces, and why the replacement is a different shape. The original
+// completeness check counted projection.Options constructions across
+// live_plan.go and live_mode.go and required the answer to be 3. That number
+// was correct and the check was green, and the whole time there was a fourth
+// construction in internal/live/mv/mv.go reading at the engine default. The
+// count did not miss it; the count could not see it, because its scope was two
+// files in one package and the gap was in another package entirely. A
+// completeness check whose scope is narrower than the thing it claims to be
+// complete about is not a weak check, it is a check of something else.
+//
+// So this one's scope is the checkout. It walks every non-test Go file, finds
+// every projection.Options composite literal - qualified anywhere, and bare
+// inside package projection itself, which is where the type is declared - and
+// requires each to either set ReadParallelism from something that is not a
+// constant, or appear in [projectionOptionsExclusions] with a reason. A stale
+// exclusion fails too.
+//
+// # What it does not cover, stated rather than implied
+//
+//   - Test files. The defect class is a read pass a user's run makes at a
+//     width the operator did not choose; internal/live/projection's own tests
+//     build a hundred-odd Options{} deliberately unbounded, and pulling those
+//     in would mean an exclusion list longer than the thing it guards. A
+//     _test.go file that reads at the wrong width misleads nobody outside it.
+//   - A value that is an identifier but the WRONG identifier. That is
+//     [TestReadParallelismReachesEveryProjectionOptions]'s job, per site, and
+//     it can only be done where the provenance is known.
+//   - A type alias for projection.Options, which would construct one under
+//     another name. None exists; nothing here would notice one.
+//
+// The spellings that would otherwise be invisible to a composite-literal sweep
+// are forbidden instead of analysed: `var o projection.Options` and a slice or
+// map of them fail with an instruction to spell the literal out. That is
+// cheaper than following an assignment chain and it cannot be wrong.
+func TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded(t *testing.T) {
+	root := repoRootFromCommandTest(t)
+	fset := token.NewFileSet()
+
+	type site struct {
+		file string
+		fn   string
+		pos  token.Position
+		val  ast.Expr // the ReadParallelism value; nil when the field is unset
+	}
+	var sites []site
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch name := d.Name(); {
+			case path == root:
+				return nil
+			// Not our source: git's own store, a vendored tree, the docs
+			// site's theme submodule, and testdata, which holds Go files
+			// that are fixtures rather than code and need not even parse.
+			case name == ".git" || name == "vendor" || name == "testdata" || name == "node_modules":
+				return fs.SkipDir
+			case strings.HasPrefix(name, "."):
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		// Cheap prefilter over a superset of both spellings, so that 1700
+		// files are read and only a handful are parsed. It cannot skip a
+		// construction: every one of them contains the word.
+		if !bytes.Contains(src, []byte("Options")) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		file, parseErr := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
+		if parseErr != nil {
+			return fmt.Errorf("parsing %s: %w", rel, parseErr)
+		}
+		// Bare Options{} means projection.Options only inside the package
+		// that declares it. Elsewhere a bare Options{} is some other
+		// package's own, and there are many.
+		bare := file.Name.Name == "projection"
+
+		isOpts := func(e ast.Expr) bool {
+			if isSelector(e, "projection", "Options") {
 				return true
 			}
-			total++
-			if len(projectionOptionsField(lit, "ReadParallelism")) == 0 {
-				t.Errorf("the projection.Options at %s does not set ReadParallelism, so that read pass runs at the engine's default whatever %s says", fset.Position(lit.Pos()), readParallelismEnvVar)
+			if !bare {
+				return false
 			}
+			id, ok := e.(*ast.Ident)
+			return ok && id.Name == "Options"
+		}
+
+		record := func(fn string, n ast.Node) {
+			ast.Inspect(n, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.CompositeLit:
+					if !isOpts(x.Type) {
+						// A slice or map OF them constructs elements this
+						// sweep cannot see, since an element literal carries
+						// no type of its own.
+						switch container := x.Type.(type) {
+						case *ast.ArrayType:
+							if isOpts(container.Elt) {
+								t.Errorf("%s builds a slice or array of projection.Options at %s. Spell each element out as its own projection.Options literal, so that this test can check its ReadParallelism.", rel, fset.Position(x.Pos()))
+							}
+						case *ast.MapType:
+							if isOpts(container.Value) {
+								t.Errorf("%s builds a map of projection.Options at %s. Spell each value out as its own projection.Options literal, so that this test can check its ReadParallelism.", rel, fset.Position(x.Pos()))
+							}
+						}
+						return true
+					}
+					s := site{file: rel, fn: fn, pos: fset.Position(x.Pos())}
+					for _, elt := range x.Elts {
+						kv, ok := elt.(*ast.KeyValueExpr)
+						if !ok {
+							continue
+						}
+						if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "ReadParallelism" {
+							s.val = kv.Value
+						}
+					}
+					sites = append(sites, s)
+				case *ast.ValueSpec:
+					// `var o projection.Options` and then o.Field = ... is a
+					// construction with no literal to inspect. Forbidden
+					// rather than followed.
+					if x.Type != nil && isOpts(x.Type) {
+						t.Errorf("%s declares a projection.Options variable at %s. Build it as a composite literal instead, so that this test can check its ReadParallelism.", rel, fset.Position(x.Pos()))
+					}
+				}
+				return true
+			})
+		}
+
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				record(fn.Name.Name, fn)
+				continue
+			}
+			// Package scope: a var block, most likely. Named "" so an
+			// exclusion for one has to say so.
+			record("", decl)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking %s: %v", root, err)
+	}
+
+	// A scanner that saw nothing would report everything wired. These four
+	// exist today and one of them is the exclusion, so a walk that misses any
+	// of them has gone wrong somewhere other than the code under test - a
+	// wrong root, a prefilter that dropped a file, a skipped directory. This
+	// is a floor and not a count: a fifth site is not a failure here, it is a
+	// failure below unless it is wired or excused.
+	found := map[string]int{}
+	for _, s := range sites {
+		found[s.file]++
+	}
+	for _, want := range []struct {
+		file string
+		n    int
+	}{
+		{"internal/command/live_plan.go", 2},
+		{"internal/command/live_mode.go", 1},
+		{"internal/live/mv/mv.go", 1},
+		{"internal/live/projection/build.go", 1},
+	} {
+		if found[want.file] < want.n {
+			t.Fatalf("the walk found %d projection.Options in %s, want at least %d. This test is not measuring what it claims to; check the root (%s) and the directory skips before reading anything below.", found[want.file], want.file, want.n, root)
+		}
+	}
+
+	excluded := map[string]string{}
+	for _, ex := range projectionOptionsExclusions {
+		key := ex.file + " " + ex.fn
+		if prior, dup := excluded[key]; dup {
+			t.Errorf("projectionOptionsExclusions has two entries for %q (%q and %q). One would silently shadow the other, and the stale-entry check below would not see it.", key, prior, ex.reason)
+		}
+		excluded[key] = ex.reason
+	}
+	matched := map[string]bool{}
+
+	for _, s := range sites {
+		key := s.file + " " + s.fn
+		reason, isExcluded := excluded[key]
+		if isExcluded {
+			matched[key] = true
+			if s.val != nil {
+				t.Errorf("the projection.Options at %s DOES set ReadParallelism, but projectionOptionsExclusions still excuses it as %q. Delete the exclusion.", s.pos, reason)
+			}
+			continue
+		}
+		if s.val == nil {
+			t.Errorf("the projection.Options at %s (%s, in %s) does not set ReadParallelism, so that read pass runs at the engine's default whatever %s says.\nWire it - the value has to come from the run, not from a constant - or add it to projectionOptionsExclusions with the reason it should not honour the setting. Issue #626 left exactly one site unwired this way and it took issue #640 to find it.", s.pos, s.fn, s.file, readParallelismEnvVar)
+			continue
+		}
+		if lit, ok := s.val.(*ast.BasicLit); ok {
+			t.Errorf("the projection.Options at %s sets ReadParallelism to the constant %s. The point of %s is that the width comes from the run.", s.pos, lit.Value, readParallelismEnvVar)
+		}
+	}
+
+	// Over the slice rather than the map, so that two stale entries report in
+	// the order they are written rather than in Go's map order.
+	for _, ex := range projectionOptionsExclusions {
+		key := ex.file + " " + ex.fn
+		if !matched[key] {
+			t.Errorf("projectionOptionsExclusions excuses %q as %q, and the walk found no projection.Options there. A stale exclusion is a hole: delete it.", key, ex.reason)
+		}
+	}
+}
+
+// repoRootFromCommandTest resolves this checkout's root from this file's own
+// location, the same approach internal/live/registry's own repoRoot uses, and
+// then proves it is a checkout rather than trusting the arithmetic.
+func repoRootFromCommandTest(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve the repository root: runtime.Caller failed")
+	}
+	// This file lives at internal/command/live_read_parallelism_test.go.
+	root, err := filepath.Abs(filepath.Join(filepath.Dir(file), "..", ".."))
+	if err != nil {
+		t.Fatalf("resolving the repository root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("resolved the repository root as %s, which has no go.mod: %v. A tree-wide test that walks the wrong tree finds nothing and passes.", root, err)
+	}
+	return root
+}
+
+// compositeLitField returns the expression every pkg.Name composite literal
+// inside root assigns to the named field. It is [projectionOptionsField] for
+// any other qualified type; that one is kept as it is because its own name is
+// what its failure messages read as.
+func compositeLitField(root ast.Node, pkg, name, field string) []ast.Expr {
+	var found []ast.Expr
+	ast.Inspect(root, func(n ast.Node) bool {
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok || !isSelector(lit.Type, pkg, name) {
 			return true
-		})
-	}
-	if total != 3 {
-		t.Errorf("found %d projection.Options constructions in live_plan.go and live_mode.go, want the 3 GitHub issue #626 names. A new one is not a failure in itself - wire it and update this count.", total)
-	}
+		}
+		for _, elt := range lit.Elts {
+			kv, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			if key, ok := kv.Key.(*ast.Ident); ok && key.Name == field {
+				found = append(found, kv.Value)
+			}
+		}
+		return true
+	})
+	return found
 }
 
 // TestReadParallelismIsDocumentedBesideTheOthers holds the documentation half
@@ -273,6 +587,85 @@ func TestReadParallelismIsDocumentedBesideTheOthers(t *testing.T) {
 	} {
 		if !strings.Contains(help, want) {
 			t.Errorf("live-plan's help no longer contains %q, so nothing tells an operator which of the three parallelism bounds they are setting", want)
+		}
+	}
+
+	// Issue #640's addition. live-mv honours the same variable, so its own
+	// help has to say so: an operator who has turned the read pass down for a
+	// migration reaches for live-mv during that same migration, and live-plan's
+	// help is not where they look for what live-mv does.
+	mvHelp := (&LiveMvCommand{}).Help()
+	for _, want := range []string{
+		"\nEnvironment variables:\n",
+		"\n  " + readParallelismEnvVar + "=n\n",
+	} {
+		if !strings.Contains(mvHelp, want) {
+			t.Errorf("live-mv's help does not contain %q. It honours %s since issue #640, and a knob nothing documents is one nobody sets.", want, readParallelismEnvVar)
+		}
+	}
+	// The sweep's variable is deliberately NOT claimed here, and its absence
+	// is asserted rather than left to chance. live-mv runs no estate-wide
+	// sweep at all: internal/live/mv's own sweep lists ONE resource type
+	// through listclient, and discovery.Discover - the thing
+	// SweepParallelism bounds - is never called from that package. Naming a
+	// bound that does nothing is worse than naming neither, so if this ever
+	// starts appearing, either the sweep arrived or the help is lying.
+	if strings.Contains(mvHelp, sweepParallelismEnvVar) {
+		t.Errorf("live-mv's help mentions %s, which bounds discovery.Discover's estate-wide sweep - a pass live-mv does not run. Either it does now, in which case wire it, or the help is describing something that does not happen.", sweepParallelismEnvVar)
+	}
+}
+
+// planCostDocRel is the operator-facing page for what a plan costs, which is
+// where someone who wants a plan to cost less goes looking.
+const planCostDocRel = "site/content/docs/model/plan-cost.md"
+
+// TestBothParallelismKnobsAreDocumentedOnThePlanCostPage is GitHub issue
+// #640's third half.
+//
+// Command help is where an operator looks once they already know a knob
+// exists. The plan-cost page is where they look when they only know the plan
+// is slow, and until this issue it named DefaultSweepParallelism - the engine
+// constant, not the variable - and said nothing about the read pass having a
+// bound at all. One of the two phases had a documented lever and the other
+// had a silent one.
+//
+// The check is scoped to one section rather than to the whole file, because
+// "the page mentions the name somewhere" is the failure mode a first draft of
+// the help pin above actually had: the name appeared in a cross reference and
+// the entry itself was gone. Both names have to be in the same section, and
+// that section has to say which phase each bounds - which is the thing the
+// separate names exist to make answerable.
+func TestBothParallelismKnobsAreDocumentedOnThePlanCostPage(t *testing.T) {
+	path := filepath.Join(repoRootFromCommandTest(t), filepath.FromSlash(planCostDocRel))
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", planCostDocRel, err)
+	}
+	page := string(raw)
+
+	const heading = "\n## Turning a phase down\n"
+	start := strings.Index(page, heading)
+	if start < 0 {
+		t.Fatalf("%s no longer has a %q section. If it was renamed, point this test at the new heading rather than widening it to the whole page - a name that appears anywhere in a long page is not documentation of the knob.", planCostDocRel, strings.TrimSpace(heading))
+	}
+	section := page[start+len(heading):]
+	if end := strings.Index(section, "\n## "); end >= 0 {
+		section = section[:end]
+	}
+
+	for _, want := range []string{
+		// Both names, in one section, so an operator reading about one is
+		// told the other exists.
+		sweepParallelismEnvVar,
+		readParallelismEnvVar,
+		// And which phase each bounds. Two bounds of ten on one pipeline are
+		// indistinguishable without this, which is the confusion the two
+		// separate names exist to prevent.
+		"the sweep's per-type list calls",
+		"the read pass's per-instance import and read",
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("the %q section of %s does not contain %q", strings.TrimSpace(heading), planCostDocRel, want)
 		}
 	}
 }

@@ -93,6 +93,34 @@ type Request struct {
 	// this package's own unit tests) that has not wired one in; either way
 	// the refusal behaves exactly as it did before this field existed.
 	RecordStore *projection.RecordStore
+
+	// ReadParallelism is how many of [mover.materialize]'s per-instance
+	// provider round trips run at once - [projection.Options.ReadParallelism],
+	// which live-plan and the live-block path already carry from
+	// TOFU_LIVE_READ_PARALLELISM (internal/command/live_read_parallelism.go).
+	// Zero, the value every caller that does not set it passes, is what
+	// Options already reads as "unset" and answers with
+	// [projection.DefaultReadParallelism]; so this package's own unit tests
+	// and any other caller behave exactly as they did before the field
+	// existed.
+	//
+	// GitHub issue #640. Issue #626 wired three of the tree's four
+	// projection.Options and left this one, so a rename read at the engine's
+	// ten however far down an operator had turned the variable. That matters
+	// here and is not merely tidiness: materialize hands the WHOLE resolution
+	// list to the projection builder for a parent-derived identity, so a
+	// live-mv of such a resource runs the same estate-wide read pass a plan
+	// runs, at the same width, against the same account - and an operator
+	// reaches for live-mv during a migration, which is when that account is
+	// least likely to have headroom. The single-instance case reads one
+	// object and any bound is equally moot for it.
+	//
+	// Deliberately a plain field rather than an environment read inside this
+	// package: internal/live is engine, and reading TOFU_LIVE_* here would
+	// give one process two places to resolve the same setting. The command
+	// resolves it once and passes it, exactly as [Request.Region] and
+	// [Request.Tagging] arrive.
+	ReadParallelism int
 }
 
 // Path is how the live resource was found.
@@ -963,8 +991,17 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 	// never wired one in), so this changes nothing for that boundary: a
 	// nil field carried into Options.RecordStore is the exact input
 	// BuildFrom already passed.
+	//
+	// ReadParallelism is issue #640's half of the same call. The list above
+	// is one instance for most renames and the whole estate's resolutions for
+	// a parent-derived one, so this read pass is the same read pass a plan
+	// makes whenever it is wide enough for a bound to mean anything. See
+	// [Request.ReadParallelism]: zero, from a caller that sets nothing, is
+	// what Options already reads as the engine default, so nothing changes
+	// for one.
 	projRes, projDiags := projection.BuildWith(ctx, m.req.Config, list, m.req.Providers, projection.Options{
-		RecordStore: m.req.RecordStore,
+		RecordStore:     m.req.RecordStore,
+		ReadParallelism: m.req.ReadParallelism,
 	})
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {

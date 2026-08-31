@@ -181,6 +181,42 @@ arithmetic, not a measurement. **Nobody has re-run the real-AWS table above
 since the change.** Until someone does, the 200s column is what this page can
 say happened, and the projection is a projection.
 
+## Turning a phase down
+
+Both terms overlap their own waiting, and each has its own bound. The two are
+separate settings because they are separate phases, and neither of them is
+stock's `-parallelism`, which bounds the graph walk and nothing on this page.
+
+| Variable | Bounds | Default | Honoured by |
+|---|---|---|---|
+| `TOFU_LIVE_SWEEP_PARALLELISM` | the sweep's per-type list calls | 10 | `live-plan`, and plain `plan`/`apply` of a configuration with a `live` block |
+| `TOFU_LIVE_READ_PARALLELISM` | the read pass's per-instance import and read | 10 | the same two, and `live-mv` |
+
+Set either to `1` for the sequential loop, one call at a time in the order the
+phase would have made them. A value below 1 is refused rather than read as "no
+limit" — the read bound's refusal lands before the run reads anything at all,
+because it is resolved before the configuration is even loaded.
+
+Neither changes what a plan costs in calls. The sweep's counts were measured
+identical at 1, 2, 10 and 20 in the timing table just above; the read pass
+makes one import and one read per instance whatever its width, which is a
+property of the loop rather than something anyone had to measure. What the
+settings change is how much of the waiting overlaps, which is why the reason to
+touch them is a real account answering `Rate exceeded` rather than a wish for a
+cheaper plan.
+
+Both defaults are 10 because stock plans an estate at `-parallelism 10`. That
+argument is the stronger of the two for the read pass, which makes call for
+call the same requests a stock refresh of the same estate makes — the
+stock-versus-choudoufu table earlier on this page — so ten asks an account for
+exactly what it already answers for OpenTofu. Read-side throttling has not been
+measured, and cannot be from an emulator, since floci does not throttle.
+
+`live-mv` honours the read bound and has no sweep to bound: a rename lists one
+resource type rather than the estate. `live-import`'s own `-parallelism` flag
+is a third thing again, the width of its stamp pass, which neither variable
+moves.
+
 ## The unmigrated estate, for contrast
 
 The same fixture and the same pin, measured before migration with no marker on
