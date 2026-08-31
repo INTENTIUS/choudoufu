@@ -578,10 +578,44 @@ command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
 [ -d "$SRC/examples/basic" ] || fail "$SRC/examples/basic is missing - run 'just corpus-fetch' first"
 
 mkdir -p "$WORK/bin"
-if [ -n "${TOFU_BIN:-}" ]; then
+
+# is_elf64_amd64 <path>: true when <path> is an ELF64 x86-64 object.
+#
+# Unlike every other crossing script, this one runs choudoufu INSIDE
+# `--platform linux/amd64` containers (see this file's header), so TOFU_BIN
+# must be a linux/amd64 build even on an Apple Silicon host. Handed a
+# host-native darwin/arm64 binary, the old unconditional `cp` succeeded and
+# the failure surfaced 60 seconds later, three stages in, as
+# `exec /work/bin/choudoufu: exec format error` reported against `migrate` -
+# a stage that had nothing to do with it. That is exactly what happened on
+# issue #643's authoritative board run: `gauntlet run` passes the caller's
+# whole environment to every script, so one TOFU_BIN set for the other 26
+# estates silently broke this one.
+#
+# The header documents "must be linux/amd64"; this makes the script enforce
+# it rather than trust it, and recover by building the right binary instead
+# of refusing. Reads the ELF header directly rather than parsing `file`'s
+# prose, which varies by platform and locale: bytes 0-3 are the magic, byte
+# 4 is the class (2 = ELF64), and bytes 18-19 are e_machine little-endian
+# (0x3e = EM_X86_64). A darwin binary is Mach-O and fails the magic check;
+# a linux/arm64 one passes the magic and class and fails on e_machine.
+is_elf64_amd64() {
+  [ -f "$1" ] || return 1
+  local hdr
+  hdr="$(od -An -tx1 -N20 "$1" 2>/dev/null | tr -d ' \n')"
+  [ "${hdr:0:8}" = "7f454c46" ] || return 1
+  [ "${hdr:8:2}" = "02" ] || return 1
+  [ "${hdr:36:4}" = "3e00" ] || return 1
+}
+
+if [ -n "${TOFU_BIN:-}" ] && is_elf64_amd64 "${TOFU_BIN:-}"; then
   cp "$TOFU_BIN" "$WORK/bin/choudoufu"
-  log "  using TOFU_BIN=$TOFU_BIN"
+  log "  using TOFU_BIN=$TOFU_BIN (verified ELF64 x86-64)"
 else
+  if [ -n "${TOFU_BIN:-}" ]; then
+    log "  TOFU_BIN=$TOFU_BIN is not an ELF64 x86-64 binary; building a linux/amd64 one instead"
+    log "  (this script execs choudoufu inside --platform linux/amd64 containers whatever the host is)"
+  fi
   ( cd "$ROOT" && env -u PWD GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$WORK/bin/choudoufu" ./cmd/choudoufu ) \
     || fail "go build ./cmd/choudoufu (linux/amd64) failed"
   log "  built linux/amd64 $WORK/bin/choudoufu"
