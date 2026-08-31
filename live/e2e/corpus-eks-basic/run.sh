@@ -324,10 +324,11 @@ set -uo pipefail
 #      terraform natively would need no override here at all. Because
 #      terraform and choudoufu run inside a second container in THIS
 #      script, the reachable endpoint has to be `network` mode
-#      (`https://floci-eks-<name>:6443`, container-DNS-based), and the k3s
-#      certificate's SAN list does not cover that name. Documented, not
-#      hidden: a floci-side fix would need the k3s cert's SAN list to
-#      include its own advertised network-mode hostname.
+#      (`https://floci-<ns>-eks-<name>:6443`, container-DNS-based, where
+#      <ns> is this run's own $FLOCI_NS), and the k3s certificate's SAN
+#      list does not cover that name. Documented, not hidden: a floci-side
+#      fix would need the k3s cert's SAN list to include its own advertised
+#      network-mode hostname.
 #
 # ── Two real floci gaps found this session, now merged and published ───
 #
@@ -362,6 +363,13 @@ set -uo pipefail
 #                `go build`. Must be linux/amd64 - it runs inside a
 #                --platform linux/amd64 container regardless of host arch.
 #   FLOCI_PORT   host port for the emulator (default 4718).
+#   FLOCI_NS     floci's child-resource namespace for this run (default
+#                eksb$$). Every floci child container is named
+#                floci-$FLOCI_NS-<service>-<id>, and cleanup() sweeps that
+#                prefix and nothing else. Set it by hand only to exercise
+#                cleanup()'s scoping against a known namespace - two
+#                concurrent runs sharing one value would sweep each other,
+#                which is the exact hazard the namespace exists to remove.
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image, which now carries both fixes described
 #                above under "Two real floci gaps".
@@ -402,6 +410,21 @@ WORK="$(mktemp -d)"
 NET="choudoufu-corpus-eks-basic-net-$$"
 FLOCI_PORT="${FLOCI_PORT:-4718}"
 FLOCI_NAME="choudoufu-corpus-eks-basic-$$"
+# floci's own per-process child-resource namespace
+# (floci.docker.resource-namespace, env FLOCI_DOCKER_RESOURCE_NAMESPACE).
+# Every child container and volume floci creates goes through
+# ContainerStorageHelper.dockerName, which turns `floci-<service>-<id>`
+# into `floci-<namespace>-<service>-<id>` when this is set. That is what
+# makes cleanup()'s sweep below scopable to THIS run instead of to every
+# floci child on the daemon. $$ for the same reason $NET and $FLOCI_NAME
+# use it: `gauntlet run -parallel` (#437) runs five estates at once on one
+# Docker daemon. Kept short and to [A-Za-z0-9_.-] because floci sanitises
+# it into a container name, and because the k3s cluster container's name
+# doubles as its network-mode DNS name (`https://floci-<ns>-eks-<cluster>:6443`).
+# Overridable only so cleanup()'s scoping can be exercised by hand against
+# a known namespace (see the header's env list); the gauntlet never sets it,
+# and two concurrent runs sharing one value would defeat the whole point.
+FLOCI_NS="${FLOCI_NS:-eksb$$}"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 TOOLBOX_IMAGE="choudoufu-corpus-eks-basic-toolbox:$$"
@@ -439,8 +462,9 @@ ADOPTED="$WORK/$ADOPTED_REL"
 cleanup() {
   # Real-mode services spawn sibling containers floci only tracks in its
   # own in-memory state: EKS real mode starts a k3s container per cluster
-  # (floci-eks-<cluster-name>), and the worker autoscaling groups here
-  # start one EC2 simulation container per instance (floci-ec2-i-<id>).
+  # (floci-$FLOCI_NS-eks-<cluster-name>), and the worker autoscaling groups
+  # here start one EC2 simulation container per instance
+  # (floci-$FLOCI_NS-ec2-i-<id>).
   # `docker rm -f "$FLOCI_NAME"` does NOT clean either up - they are
   # independent containers, destroyed along with floci's own state by a
   # bare rm -f. Found the hard way, twice: a leftover k3s container from
@@ -448,8 +472,44 @@ cleanup() {
   # EVERY later create fail with "port is already allocated"; leftover
   # EC2 containers held the shared Docker network open and made
   # `docker network rm` fail silently after that.
-  docker ps -aq --filter "name=floci-eks-" 2>/dev/null | xargs -r docker rm -f >/dev/null 2>&1 || true
-  docker ps -aq --filter "name=floci-ec2-" 2>/dev/null | xargs -r docker rm -f >/dev/null 2>&1 || true
+  #
+  # The sweep is scoped to THIS RUN by $FLOCI_NS, and must stay that way.
+  # It used to be a blanket `name=floci-eks-` / `name=floci-ec2-` pair,
+  # which matched every floci child on the daemon - including the live
+  # children of a CONCURRENT estate. `gauntlet run -parallel` (#437) runs
+  # five estates at once and several of them create aws_instance
+  # resources, so the blanket form destroyed a peer's running instances
+  # mid-apply. Verified: a decoy container named floci-ec2-i-decoy... was
+  # removed by the blanket form's own cleanup() and survives this one.
+  #
+  # Scoping is by NAME, not by the floci_namespace container label that
+  # floci's docs/configuration/docker.md documents: that label does not
+  # exist in the pinned image (live/floci-image, floci main e8276b7c) -
+  # its children carry no floci/floci_emulator/floci_namespace labels at
+  # all. Re-check after an image repin; the label filter is the tidier
+  # form once the pin carries it.
+  local ns_children c iid
+  ns_children="$(docker ps -a --filter "name=floci-${FLOCI_NS}-" --format '{{.Names}}' 2>/dev/null)"
+  # The socat port-forward sidecars floci starts for an instance's
+  # published ports are the one child the namespace does NOT rename:
+  # Ec2PortForwardManager.forwardContainerName builds
+  # `floci-ec2-fwd-<instance-id>-<port>` by concatenation rather than
+  # through dockerName. Scope them by OUR OWN instance ids, read back out
+  # of the namespaced instance container names above, so a peer's sidecars
+  # are never in range.
+  for c in $ns_children; do
+    case "$c" in
+      floci-"${FLOCI_NS}"-ec2-*)
+        iid="${c#floci-${FLOCI_NS}-ec2-}"
+        docker ps -aq --filter "name=floci-ec2-fwd-${iid}-" 2>/dev/null \
+          | xargs -r docker rm -f >/dev/null 2>&1 || true
+        ;;
+    esac
+  done
+  if [ -n "$ns_children" ]; then
+    # shellcheck disable=SC2086  # names are docker container names, never globs
+    docker rm -f $ns_children >/dev/null 2>&1 || true
+  fi
   docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
   docker network rm "$NET" >/dev/null 2>&1 || true
   docker rmi -f "$TOOLBOX_IMAGE" >/dev/null 2>&1 || true
@@ -789,6 +849,7 @@ docker run -d --rm --network "$NET" -p "${FLOCI_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
   --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
@@ -828,6 +889,24 @@ MARKED="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-ad
 [ "$MARKED" = "0" ] || fail "expected 0 objects carrying a tofu-address tag before migration, got $MARKED - this test proves nothing"
 log "  cluster $CLUSTER_NAME is ACTIVE, confirmed unmarked via the AWS CLI directly ($MARKED tofu-address tags)"
 gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarked"
+
+# Container-hygiene guard, deliberately outside any stage's verdict (a
+# stage whose verdict is already recorded must never absorb a later
+# failure - gauntlet.sh, #555). The cold apply above has just made floci
+# start a k3s container for the cluster and one EC2 simulation container
+# per worker instance, so by this point $FLOCI_NS MUST appear in at least
+# one child container name. If it does not, floci ignored
+# FLOCI_DOCKER_RESOURCE_NAMESPACE - a SILENT no-op, since the children are
+# still created, just under their un-namespaced names - and cleanup()'s
+# run-scoped sweep would match nothing, leaking every sibling and leaving
+# the next run of this estate to fail with "port is already allocated".
+# Aborting here is the loud version of that. Proven red against the pinned
+# image by starting floci with the variable misspelled: the children come
+# up as floci-ec2-i-<id>, this list is empty, and the run stops.
+NS_CHILDREN="$(docker ps -a --filter "name=floci-${FLOCI_NS}-" --format '{{.Names}}' 2>/dev/null)"
+[ -n "$NS_CHILDREN" ] \
+  || fail "no floci child container carries this run's namespace $FLOCI_NS - FLOCI_DOCKER_RESOURCE_NAMESPACE was not honoured, so cleanup()'s run-scoped sweep would leak every sibling this run created (and a blanket sweep would kill a concurrent estate's)"
+log "  run-scoped floci children after the cold apply: $(printf '%s ' $NS_CHILDREN)"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -2117,12 +2196,14 @@ docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
   --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
+  -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
   --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
@@ -2330,12 +2411,13 @@ gauntlet_end_stage
 
 # The green/oracle floci containers, and whatever k3s/EC2-simulation sibling
 # containers they spawned, are deliberately left running rather than swept
-# here: a blanket "docker ps --filter name=floci-eks-" sweep cannot tell
-# THEIR sibling containers apart from the MAIN cluster's own (already
-# running since cold_deploy and still live at this point in the script), so it
-# would kill the wrong cluster. cleanup()'s exit trap does the blanket
-# sweep once, after everything in this script is done with all three floci
-# instances.
+# here. All three floci containers share this run's one $FLOCI_NS - the
+# namespace scopes the sweep to the RUN, not to one floci within it - so a
+# sweep here could not tell THEIR sibling containers apart from the MAIN
+# cluster's own (already running since cold_deploy and still live at this
+# point in the script) and would kill the wrong cluster. cleanup()'s exit
+# trap does the run-scoped sweep once, after everything in this script is
+# done with all three floci instances.
 
 gauntlet_end
 
