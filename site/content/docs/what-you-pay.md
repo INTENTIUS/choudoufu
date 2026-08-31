@@ -16,14 +16,17 @@ on which of three things the run is doing:
 | The run | What it costs against stock OpenTofu |
 |---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. |
-| A plan of an estate already adopted, `live` block on | **Seven API calls** at 79 instances, every one named below |
+| A plan of an estate already adopted, `live` block on | A handful of API calls — **+7 on 1392** at 745 resources on real AWS — and **about 4x the wall clock** |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** |
 
-Every cost figure below is an API call count, taken against the pinned AWS
-emulator or against a real AWS account, with the fixture, the commit and the
-pin named. Seconds are the one quantity this page will not state as current,
-and [the last section](#wall-clock-is-outstanding) says why rather than
-leaving you to notice the absence.
+The second row is the one to read twice, because its two halves disagree.
+Requests are nearly at parity and get closer as the estate grows. Seconds are
+not, and [Wall clock](#wall-clock-still-4x-and-that-is-not-explained-by-calls)
+is where that sits, along with what is still unaccounted for.
+
+Every figure below names its fixture, its commit, and whether it came from the
+pinned AWS emulator or from a real AWS account. The two are not
+interchangeable and are never combined.
 
 ## With no live block, nothing at all
 
@@ -55,7 +58,7 @@ stock refuses can succeed here and never the reverse. Method, per-guard
 reading and raw values:
 [`rfc/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stateful-equivalence.md).
 
-## Planning an adopted estate: seven calls
+## Planning an adopted estate
 
 Turn the live block on, migrate the estate, and plan it the way an operator
 plans on an ordinary Tuesday. Same fixture, same emulator, three runs each,
@@ -116,22 +119,63 @@ call; and by the run reported here, at `b20a144ab0`. Reproduce it with
 `TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/`, which is also where
 the no-live-block table above comes from.
 
-### Only one scale has been measured since that changed
+Until `09d180f921` a plan enumerated the whole admission table on every run,
+about 512 native-leg list calls whatever the estate contained, and this same
+fixture read 710 where it now reads 157. The 301-instance emulator figure was
+taken before that change and has not been re-run, so it describes a plan that
+no longer exists.
 
-157 is a measurement at 79 instances. It is not a slope.
+### The same comparison on real AWS, at 79 and 745 resources
 
-Until `09d180f921` a plan enumerated the whole admission table on every run —
-about 512 native-leg list calls, whatever the estate contained — and the same
-fixture read 710 calls where it now reads 157. The two larger scales, 301 and
-745 instances, were measured before that change and **have not been re-measured
-since.** Their old figures describe a plan that no longer exists.
+Real AWS, account `...3429`, `us-east-2`, on a `main` containing all of the
+concurrency and narrowing work. Both sides no-change plans on every run:
 
-What the composition of the seven suggests is that most of them do not grow
-with the estate: four are fixed, and `GetResources` is `ceil(tagged/100)`, so
-2 at 301 instances and 4 at 745. The two ECS calls track ECS services rather
-than instances. That is an argument from the mechanism, and it is worth
-exactly what an argument is worth. If you want a number for your estate,
-measure your estate.
+| Resources | stock | choudoufu, steady state | Difference |
+|---|---|---|---|
+| 79 | 149 | 165 | +16 (+10.7%) |
+| 745 | 1392 | **1399** | **+7 (+0.5%)** |
+
+Note before anything else that the 79-resource row disagrees with the emulator
+row above it: +16 against +7 on the same fixture at the same scale. Do not
+average them or pick the flattering one. They come from **different
+instruments** — the emulator figure counts every HTTP request through a proxy,
+this one counts only what the AWS provider itself logs — from different
+accounts, and from a comparison where the two sides plan different directories.
+Both are reported; neither is a correction of the other.
+
+The residual *shrinks in absolute terms* between the two scales, which is not
+what a fixed overhead does, and the reason is that the two sides are not
+merely one adding to the other. At 745 resources choudoufu makes **fewer** IAM
+calls than stock — `ListAttachedRolePolicies` 320 against 324, `GetRole` 210
+against 215, `GetRolePolicy` 200 against 204, `ListRolePolicies` 110 against
+114 — and more ECS calls, `DescribeTaskDefinition` 31 against 10 plus a
+`ListTaskDefinitions`, a `ListServices`, two `ListRoles` and one extra
+`GetCallerIdentity`. Route 53 is identical on both sides at both scales:
+`GetHostedZone` 101, `ListResourceRecordSets` 100, `ListTagsForResource` 1.
+Why the IAM side comes out lower is not explained by that run, and this page
+is not going to invent a reason for it.
+
+Two conditions travel with that table and change how it should be read.
+
+**It counts provider-mediated requests only.** The figures come from
+`terraform-provider-aws`'s own `HTTP Request Sent` log entries. choudoufu's
+Cloud Control and Tagging clients log no line per request, so their HTTP calls
+are *not* in the 1399. What is known about them is a type count rather than a
+call count: 0 types went via Cloud Control, and 29 went through the
+estate-filtered tagging sweep, which is one `GetResources` for all 29 plus
+pagination. Small, and unmeasured, and the run says so itself. The emulator
+tables higher up the page count every request through a proxy, so the two
+instruments have different denominators and their numbers should not be
+subtracted from one another.
+
+**The two sides are not planning the same directory.** Stock plans its own
+converged state after the cold deploy and before anything migrates it;
+choudoufu plans the migrated estate. That is the honest like-for-like
+available on real AWS, and it is a weaker control than the emulator's, where
+both sides plan the same estate through the same proxy.
+
+If you want a number for your estate, measure your estate. The composition
+above is a property of what this fixture declares, not of this fork.
 
 ## The record store, which no call count used to see
 
@@ -175,14 +219,18 @@ plan.
 Measured on real AWS rather than an emulator, at 745 resources in `us-east-2`,
 recorded in
 [`live/gauntlet.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/gauntlet.json)'s
-`live_cert` block on 2026-08-30:
+`live_cert` block at `1d06e1d177`:
 
 | Stage | Result |
 |---|---|
-| `cold_deploy` | 745 resources applied by stock `terraform`, holding its own state file |
-| `migrate` | `choudoufu live-import -approve`: 335 of 745 verified, **335 stamped**, 410 skipped |
+| `cold_deploy` | 745 resources applied by stock `terraform` in 413 s, holding its own state file |
+| `migrate` | `choudoufu live-import -approve`: 335 of 745 verified, **335 stamped**, 410 skipped, in 222 s |
 | `test_plan` | Post-migration plan is empty |
 | `test_apply` | No-op apply: 0 added, 0 changed, 0 destroyed |
+
+`migrate` is the write-side cost and the one stage that is genuinely serial:
+335 tag writes, one per resource, unbatched, and 190 throttle responses all
+absorbed by the SDK's own backoff. It is paid once.
 
 **Nobody wrote a marker by hand.** The 410 skipped are untaggable by the
 provider's own schema and need no marker at all: their identity composes from
@@ -339,6 +387,11 @@ measurements rather than a tested model. And since `09d180f921` it no longer
 describes a steady-state plan at all: it describes a run that sweeps the whole
 admission table, which today means an adoption or a recovery.
 
+Nothing in the seconds crosses either. The wall-clock ratio narrows the same
+way the call ratio does, roughly 5x at 79 resources to roughly 4x at 745, and
+both sides climb. A narrowing ratio is not an approaching crossover, and this
+page will not draw one until a measurement brackets it on both sides.
+
 **No claim is made about another provider.** Every figure here is AWS.
 
 **No claim is made from one resource type's slope.**
@@ -349,53 +402,96 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock is outstanding
+## Wall clock: still 4x, and that is not explained by calls
 
-The chart this page was supposed to carry was resources against seconds, stock
-and choudoufu, with the crossover marked. It is not here, and there are two
-separate reasons.
+This is the number that will decide whether you can live with the fork, and it
+is worse than the call counts suggest.
 
-The last real-AWS timing is genuinely unflattering and it is genuinely stale.
-Same account, same region, same session, provider warm on both sides, every
-plan proposing zero changes:
+Real AWS, same account and region as the table above, same machine and
+session, minutes apart, warm provider on both sides, `TF_LOG` unset inside
+every timed region, and every one of the twelve runs a no-change plan:
 
-**Superseded. Do not quote these as what a plan costs today.**
-
-| Instances | stock `terraform plan` | `choudoufu plan` |
+| Resources | stock `terraform plan` | `choudoufu plan` |
 |---|---|---|
-| 79 | 3, 4, 3 s | 203, 211, 200 s |
-| 301 | 7, 7, 18 s | 244, 248, 254 s |
-| 745 | 19, 20, 33 s | 328, 323, 322 s |
+| 79 | 3, 4, 3 s | **17, 18, 17 s** |
+| 745 | 22, 33, 39 s | **124, 124, 123 s** |
 
-Every one of those choudoufu figures predates four changes to the code paths
-that produced them: the sweep learning to overlap its own waiting
+**choudoufu is roughly five times slower at 79 resources and roughly four
+times slower at 745.** Say that to a client before they adopt, not after.
+
+Read stock's scale-10 column as a range rather than a number. The same three
+runs on the same machine in an earlier session read 19, 20 and 33 seconds, so
+22/33/39 is the account's own variance at that size and nothing on the
+choudoufu side moved it.
+
+The ratio narrows with the estate, which is the same direction the call counts
+move and roughly the only good news here. The 745-resource pair also carries
+the structural caveat from the previous section: stock is planning its own
+converged pre-migration state, choudoufu the migrated estate.
+
+### What the concurrency work bought
+
+The same two cells before the sweep learned to overlap its own waiting
 ([#605](https://github.com/INTENTIUS/choudoufu/issues/605)), the read pass
-learning the same ([#626](https://github.com/INTENTIUS/choudoufu/issues/626)),
-the narrowing that took this fixture's plan from 710 calls to 157
+learned the same ([#626](https://github.com/INTENTIUS/choudoufu/issues/626)),
+the narrowing took this fixture's plan from 710 calls to 157
 ([#627](https://github.com/INTENTIUS/choudoufu/pull/627)), and the record store
-going from 377 round trips to 1
-([#636](https://github.com/INTENTIUS/choudoufu/pull/636)). The dominant term in
-the 200 seconds was the native leg — 521 list calls at the time of that run —
-issued one after another, which is precisely what the narrowing takes off a
-steady-state plan. Republishing that table as current would be quoting a cost
-the code no longer pays.
+went from 377 round trips to 1
+([#636](https://github.com/INTENTIUS/choudoufu/pull/636)):
 
-**A re-measurement is in flight and the number is not in yet.** When it lands
-it belongs in the table above, replacing it rather than sitting beside it.
+| Resources | choudoufu, before | choudoufu, now |
+|---|---|---|
+| 79 | 203, 211, 200 s | 17, 18, 17 s |
+| 745 | 328, 323, 322 s | 124, 124, 123 s |
 
-The second reason is that the emulator cannot stand in. A wall clock measured
-against floci grades the machine the test ran on, not this repository's code,
-which is why `live/plan-budget.json` records one and never gates on it.
+About 12x at the small scale and 2.6x at the large one. The dominant term in
+the old 200 seconds was the native leg, 521 list calls issued one after
+another, and the narrowing takes that leg off a steady-state plan entirely.
+
+### The part nobody has accounted for
+
+Put the two measurements side by side at 745 resources and they do not agree
+about what is expensive:
+
+| | stock | choudoufu |
+|---|---|---|
+| Provider API calls | 1392 | 1399 |
+| Wall clock | 22–39 s | 123–124 s |
+
+Seven extra requests do not cost ninety seconds. Something else in that plan
+is spending the time, and **this run did not measure what.** The candidates it
+can rule in or out: the tagging sweep is one `GetResources` plus pagination and
+the Cloud Control path was never entered, so it is not a hidden pile of
+choudoufu's own HTTP calls at anything like that scale — but choudoufu's own
+client logs no line per request, so "not at that scale" is an argument from the
+type counts rather than a count. Ordering, the projection's own work, and the
+record store's one bulk read are all unmeasured here.
+
+Treat the 4x as the number, and treat its cause as open. It is the largest
+unexplained quantity on this page.
+
+### And an emulator cannot answer this question
+
+A wall clock measured against the pinned emulator grades the machine the test
+ran on rather than this repository's code, which is why
+`live/plan-budget.json` records one and never gates on it. Every second on
+this page is real AWS for that reason.
 [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
-sets out that rule and the three other questions an emulator-backed measurement
+sets out the rule and the three other questions an emulator-backed measurement
 cannot answer.
 
-Until the re-measurement lands, what this page can honestly tell you about
-seconds is: at the last measurement choudoufu's plan was very much slower than
-stock's at every scale tested, most of that gap was one sequential leg, and
-that leg has since been made concurrent and then removed from the steady-state
-path entirely. How much of the gap survives all four changes is not known, and
-nobody should assume it is all of it or none of it.
+### What evaluating this costs in money
+
+Effectively **$0.00**, against a $15 ceiling, for the whole 745-resource run.
+Every write the fixture makes is free — IAM, VPC, subnet, security group,
+Route 53 record changes, ECS cluster, service and task definitions — and
+`desired_count = 0`, so no Fargate task ever ran. Both hosted zones were
+deleted well inside the twelve hours below which AWS does not charge for one.
+
+Teardown was confirmed by listing rather than inferred from an exit code, and
+then verified again independently through the AWS CLI: the account is back to
+its baseline, and the 21 ARNs still answering the run's own tag were described
+one at a time to confirm each was `INACTIVE` at zero running and zero desired.
 
 ## Where the mechanism is
 
