@@ -654,6 +654,34 @@ func matchedByAny(pkg string, patterns []string) bool {
 // gofmtLine matches the workflow's gofmt invocation and captures its roots.
 var gofmtLine = regexp.MustCompile("gofmt -l ([^\"'`)\n]+)")
 
+// gofmtBin resolves the gofmt binary once, and fails when it is not there.
+//
+// It fails rather than skips. gofmt ships in the same toolchain directory as
+// the `go` binary already running this test, so a machine without it is a
+// broken environment and not a tree worth passing - and the guard below is
+// the only thing that recomputes the claim CI's gofmt step rests on. A check
+// that stands down when its tool goes missing is green forever on exactly
+// the machine where it stopped measuring, which is the `t.Skip` shape this
+// repo has now shipped four times.
+//
+// Resolving it here also keeps "gofmt is absent" apart from "gofmt ran and
+// exited non-zero". The old code got both from one `.Output()` error and
+// reported both as "gofmt unavailable", so a root that gofmt could not parse
+// or could not find was indistinguishable from no gofmt at all.
+func gofmtBin(t *testing.T) string {
+	t.Helper()
+	bin, err := exec.LookPath("gofmt")
+	if err != nil {
+		t.Fatalf("gofmt is not on PATH: %v\n"+
+			"This guard is the only recomputation of the claim CI's `gofmt -l` step rests on, so it "+
+			"fails here rather than skipping: without gofmt it has measured nothing, and reporting "+
+			"that as a pass is the silent-green shape the fork keeps rediscovering. gofmt is part of "+
+			"the Go toolchain running this test - put `go env GOROOT`/bin on PATH (setup-go already "+
+			"does in CI) rather than relaxing the check.", err)
+	}
+	return bin
+}
+
 // TestNoInheritedFileIsGofmtDirty is the cost check on adding a
 // mostly-upstream package to the gofmt step.
 //
@@ -669,12 +697,31 @@ var gofmtLine = regexp.MustCompile("gofmt -l ([^\"'`)\n]+)")
 // and the fix at that point is a real decision - reformat them and carry the
 // diff, or narrow the gofmt step back to fork-owned files by name - rather
 // than the silent gap #171 found.
+//
+// The three ways this can end are kept apart on purpose. gofmt missing,
+// gofmt exiting non-zero, and gofmt reporting dirty files are different
+// facts about the tree and the machine, and they used to collapse into one
+// blanket `t.Skipf("gofmt unavailable")` on any error at all - which is to
+// say a permanent green whenever anything went wrong, with a message that
+// named the wrong cause for two of the three.
 func TestNoInheritedFileIsGofmtDirty(t *testing.T) {
+	bin := gofmtBin(t)
 	for _, root := range forkOwnedMixedRoots {
-		abs := filepath.Join("..", root)
-		out, err := exec.Command("gofmt", "-l", abs).Output()
+		path := filepath.Join("..", root)
+		out, err := exec.Command(bin, "-l", path).Output()
 		if err != nil {
-			t.Skipf("gofmt unavailable: %v", err)
+			var stderr string
+			if ee, ok := err.(*exec.ExitError); ok {
+				stderr = strings.TrimSpace(string(ee.Stderr))
+			}
+			t.Errorf("`%s -l %s` exited non-zero: %v %s\n"+
+				"gofmt was found on PATH, so this is gofmt refusing to read the root rather than a "+
+				"missing tool - a file under it that does not parse, or a path that is not there "+
+				"because %s was renamed or removed without forkOwnedMixedRoots following. Fix the "+
+				"file or the list: a root this guard cannot read is a root it is not checking, and "+
+				"CI's gofmt step names the same root.",
+				bin, path, err, stderr, root)
+			continue
 		}
 		var dirty, forkOwned []string
 		for _, line := range strings.Fields(string(out)) {
