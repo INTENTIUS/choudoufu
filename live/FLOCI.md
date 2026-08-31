@@ -113,10 +113,10 @@ whatever machine runs the test, not this repository's code, is what a
 wall-clock assertion would actually be grading."
 
 The contrast sits inside that one artifact. At N=200 and N=1000 its call
-counts are 4413 and 22013, fitting `calls_total = 22*N + 13` with no
+counts are 4408 and 22008, fitting `calls_total = 22*N + 8` with no
 residual, reproducible on any machine. Beside them, in the same file and from
-the same runs, `wall_clock_bucket` records "apply 9.8s / plan 8.2s at N=200,
-apply 22.9s / plan 44.3s at N=1000" and is explicitly annotated as local to
+the same runs, `wall_clock_bucket` records "apply 3.3s / plan 1.8s at N=200,
+apply 18.3s / plan 9.8s at N=1000" and is explicitly annotated as local to
 the machine that recorded it. One of those two is a ratchet; the other cannot
 be one.
 
