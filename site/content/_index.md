@@ -35,17 +35,6 @@ credentials and reports what this fork would admit and refuse in the code you
 already have. [What it checks]({{< relref "/docs/use/check-a-config" >}}), and
 the [compatibility reference]({{< relref "/docs/use/compatibility" >}}) behind it.
 
-## How far it goes
-
-**Core** is a fixed set of estates that is pinned by tag and meant to reach
-100%. It holds the terraform-aws-modules examples most people actually deploy,
-alongside real OpenTofu-native projects. **All** adds every other real estate
-as it is crossed, and carries no target.
-
-{{< gauntlet-bars >}}
-
-[How these are measured]({{< relref "/docs/use/measurement" >}}).
-
 ## Reference
 
 [The model]({{< relref "/docs/model" >}}) explains what each hook stores and why
@@ -56,6 +45,10 @@ role to one estate and deny the creation of anything unowned.
 
 [Using it]({{< relref "/docs/use" >}}) covers day-2 work such as renaming or
 removing a resource.
+
+[Progress]({{< relref "/docs/progress" >}}) tracks which real estates this fork
+runs end to end, and [what you pay]({{< relref "/docs/what-you-pay" >}}) is what
+it costs against the stock tool.
 
 ![a plate of choudoufu](choudoufu-hero.png)
 
