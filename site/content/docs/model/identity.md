@@ -72,13 +72,18 @@ read in a `count` or `for_each`, a `for_each` key that is a parent's live ID,
 or a `count.index` two instances render identically.
 
 `count` on a module call is **not** one of them. It is admitted when the
-count is statically evaluable and none of the call's own arguments read
-`count.index`, and `module.app[0].aws_x.y` binds exactly as soundly as
-`module.app.aws_x.y` does. The premise this page used to state, that `count`
-renumbers every address beneath it, is false for the shape OpenTofu actually
-produces: shrinking a `count` retires the highest index and never renumbers a
-survivor, so an integer module-instance key is as stable an address component
-as a resource's own count key.
+count is statically evaluable and the call's own arguments use `count.index`
+only where this fork can prove two instances cannot render the same value -
+the same test one paragraph up. Then every resource inside is addressed by
+the call's instance key, `module.app[0].aws_x.y` binds exactly as soundly as
+`module.app.aws_x.y` does, and the fork stamps that marker for you rather
+than leaving you to write it.
+
+The premise this page used to state, that `count` renumbers every address
+beneath it, is false for the shape OpenTofu actually produces: shrinking a
+`count` retires the highest index and never renumbers a survivor, so an
+integer module-instance key is as stable an address component as a resource's
+own count key.
 
 ## Untaggable is not unidentifiable
 
