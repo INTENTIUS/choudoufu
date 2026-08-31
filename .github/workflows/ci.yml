@@ -46,7 +46,7 @@ jobs:
       # true, and says what to do if an upstream sync ever breaks it.
       - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live internal/command internal/engine/applying internal/tofu)"
+          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
@@ -76,8 +76,23 @@ jobs:
       # whole subtree instead costs +18s wall and +100s CPU, 44s of it
       # internal/command/e2etest, whose fork-relevant assertions skip
       # without TF_ACC.
+      #
+      # internal/backend/local, internal/configs, internal/plans,
+      # internal/plugin and internal/plugin6 are the same shape, found by
+      # #623 running that same recomputation over the whole tree rather
+      # than over the roots someone had thought to list. They hold five
+      # fork-authored test files that had never executed in any tier, and
+      # internal/backend/local holds askPlanGuard - #613's seam, the one
+      # thing that stops a stateful plan stripping every marker off a
+      # migrated estate. Named package by package for the same reason as
+      # internal/command: measured on 2026-08-30, the five packages are
+      # 4.7s wall and 6.9s CPU on their own, while their five whole
+      # subtrees are 17.4s wall and 40.7s CPU, almost all of it upstream's
+      # remote-state backends. In the tier they are below the run-to-run
+      # spread - two paired runs on a loaded machine gave 380.3s/381.4s
+      # wall before and 368.9s/374.7s after.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/engine/applying/ ./internal/tofu/...
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
