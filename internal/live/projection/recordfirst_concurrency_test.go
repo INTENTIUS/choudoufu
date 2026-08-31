@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // GitHub issue #654's guard set.
@@ -46,6 +48,24 @@ func recordFirstStore(t *testing.T) *RecordStore {
 	return located.rs
 }
 
+// recordFirstResolutions is the fixture's resolutions in ASCENDING address
+// order, which is [readParallelResolutions] reversed.
+//
+// The order matters here in a way it does not for the concrete phase.
+// [builder.applyRecordFirst] runs BEFORE [orderWork], so its loop order is
+// whatever order identity resolution handed in - not address order - and
+// [readReverseGate] completes instance n-1 first. Handing them ascending is
+// what makes the gate's completion order the exact REVERSE of this phase's
+// loop order, so the ordering assertion below is testing something: with
+// [readParallelResolutions]' own descending order the two coincide and a
+// collector that appended answers as they arrived would pass.
+func recordFirstResolutions(t *testing.T) []identity.Resolution {
+	t.Helper()
+	in := readParallelResolutions(t)
+	slices.Reverse(in)
+	return in
+}
+
 // runRecordFirstPass drives the read pass over the same fixture
 // [runReadPass] uses, with every instance's identity already in the record
 // store, so the reading happens in [builder.applyRecordFirst] rather than in
@@ -57,24 +77,29 @@ func runRecordFirstPass(t *testing.T, p *readProvider, par int) *builder {
 		RecordStore:     recordFirstStore(t),
 		ReadParallelism: par,
 	})
-	b.run(context.Background(), readParallelResolutions(t))
+	b.run(context.Background(), recordFirstResolutions(t))
 	return b
 }
 
 // TestRecordFirstPassOverlapsItsReads is issue #654 itself: the record-first
 // intercept must have more than one read in flight.
 //
-// It asserts the peak through [readProvider.peakConcurrency] rather than a
-// duration, because a timing assertion here would be the check that cannot
-// fail this repository has shipped four of. Against the code this issue was
-// filed on, the peak is exactly 1.
+// Overlap is a property of the FIXTURE here, not a bet on the scheduler.
+// [readReverseGate] holds every instance inside ImportResourceState until all
+// six have arrived, so a pass that reads one at a time cannot get past the
+// first one and [readReverseGate.assertReversed] fails naming the instance it
+// could not release. The first version of this test asserted
+// [readProvider.peakConcurrency] instead and passed locally and failed on CI
+// within the hour, which is the same bet issue #597 lost on the stamping path
+// and the reason the gate exists at all.
 func TestRecordFirstPassOverlapsItsReads(t *testing.T) {
 	p := newReadProvider()
+	p.gate = newReadReverseGate(t, readParallelN)
 	b := runRecordFirstPass(t, p, readParallelN)
 
 	// The premise first: if these instances did not go through the
-	// record-first intercept, a peak above one would be measuring the
-	// concrete phase and would say nothing about issue #654.
+	// record-first intercept, overlap would be the concrete phase's and would
+	// say nothing about issue #654.
 	if got, want := len(b.materialized), readParallelN; got != want {
 		t.Fatalf("materialized %d instances, want %d: %v", got, want, addrStrings(b.materialized))
 	}
@@ -87,8 +112,24 @@ func TestRecordFirstPassOverlapsItsReads(t *testing.T) {
 		t.Fatalf("unexpected diagnostics:\n%s", renderDiags(b.diags))
 	}
 
-	if got := p.peakConcurrency(); got < 2 {
-		t.Errorf("peak concurrency in the record-first pass was %d, want at least 2: the intercept is reading one instance at a time, which is GitHub issue #654", got)
+	// The gate could only have released if every read was in flight at once.
+	p.gate.assertReversed(t, p.callLog())
+
+	// And the count the gate implies, stated rather than left to inference.
+	if got, want := p.peakConcurrency(), readParallelN; got != want {
+		t.Errorf("peak concurrency in the record-first pass was %d, want %d", got, want)
+	}
+
+	// Ordering is what the gate could have taken away: the cloud answered in
+	// the exact reverse of this phase's loop order (see
+	// [recordFirstResolutions]), and everything the run reports must still be
+	// in loop order.
+	var wantAddrs []string
+	for i := 0; i < readParallelN; i++ {
+		wantAddrs = append(wantAddrs, fmt.Sprintf("aws_cloudwatch_log_group.g%d", i))
+	}
+	if got := addrStrings(b.materialized); !slices.Equal(got, wantAddrs) {
+		t.Errorf("materialized in order\n %v\nwant loop order\n %v", got, wantAddrs)
 	}
 }
 
