@@ -333,10 +333,20 @@ dividing it by 10 is arithmetic, not a measurement", and it said nobody had
 re-run the real-AWS table. That has since been re-run twice, at two scales,
 and the projection was in the right direction but for more than one reason:
 
-| Resources | choudoufu, before | choudoufu, now | stock, now |
+| Resources | choudoufu, before | choudoufu, at `5dc10cc781` | stock |
 |---|---|---|---|
 | 79 | 203, 211, 200 s | **17, 18, 17 s** | 3, 4, 3 s |
 | 745 | 328, 323, 322 s | **124, 124, 123 s** | 22, 33, 39 s |
+
+{{% hint warning %}}
+The middle column is not current. A fifth change landed after it was measured:
+[#666](https://github.com/INTENTIUS/choudoufu/pull/666) found the read pass
+running one provider request at a time on a migrated estate and took the
+scale-1 plan from 18.3 s to 5.0 s against stock's 3.8 s, on the emulator
+behind a latency proxy. Neither scale has been re-run on real AWS since.
+[What you pay]({{< relref "/docs/what-you-pay" >}}) states what is and is not
+claimed.
+{{% /hint %}}
 
 About 12x at the small scale and 2.6x at the large one. **Do not attribute
 that to concurrency alone.** Four changes are inside it: this section's
@@ -352,8 +362,8 @@ the work at 79 resources.
 
 Read stock's 745-resource column as a range. The same three runs in an earlier
 session read 19, 20 and 33 seconds, so 22/33/39 is that account's own variance
-at that size. The full statement of the remaining ratio, and of the ninety
-seconds at 745 resources that seven extra API calls cannot explain, is on
+at that size. The full statement of the remaining ratio, and of what the
+ninety seconds at 745 resources turned out to be, is on
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
 
 ## Turning a phase down
