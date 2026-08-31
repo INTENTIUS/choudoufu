@@ -89,6 +89,43 @@ import (
 // configuration computes nothing to compare and the record is the only
 // second opinion there is. This is that comparison, sourced from the record.
 //
+// # A deposed object is not a tag shadow
+//
+// The current identity record is not the whole of what the estate records
+// about an address, and reading only it cost reference-ec2-vpc's day2_crash
+// stage a regression the day this pass landed. GitHub issue #361's crash
+// window - a create_before_destroy replace interrupted after the create
+// commits and before the destroy dispatches - leaves TWO GENUINELY LIVE
+// objects, and the one write-back the crashed apply did manage records both
+// at once: Identity names the new object, and a Deposed entry names the old
+// one ([diffDeposedForWrite]). Both carry the address's marker, so this pass
+// sees the same two-claimant shape a terminated shadow produces, and the
+// current record matches exactly one of them.
+//
+// The difference is what the OTHER object is. A terminated shadow is a dead
+// object whose tags have not been swept yet: nothing can be done to it and
+// nothing needs to be. A deposed object is alive, running, billed, and the
+// next apply's whole job is to destroy it - which is what
+// [matchDeposedClaimant] arranges, by pulling it out of the claimant set
+// into a [Result.DeposedBindings] entry. Pruning it here as though it were a
+// shadow ran before matchDeposedClaimant could ever see it, and the recovery
+// plan then proposed nothing at all.
+//
+// So a claimant is kept when it matches the current record OR any of the
+// address's recorded deposed objects, and pruned only when it matches
+// neither. The two populations do not overlap in practice for the reason
+// [diffDeposedForWrite] gives: a key present in the record but no longer
+// deposed in state "is gone: destroyed by this same apply's own crash-window
+// recovery ... deleted from the map", so an ORDINARY, uninterrupted replace
+// leaves no deposed entry for its shadow to match and the shadow is pruned
+// exactly as before.
+//
+// Keeping a deposed claimant is also the conservative direction on its own
+// terms. It leaves the entry with two or more claimants, which is the input
+// [matchDeposedClaimant] already handles under its own "exactly one match"
+// discipline, and every shape that function refuses falls through to
+// [collisionProblem] - a loud refusal, never a silent bind.
+//
 // # Generic by construction
 //
 // No resource type name appears anywhere in this file. It reaches every
@@ -96,7 +133,9 @@ import (
 // admitted type: the comparison is by import ID for a type identified by one
 // server-minted string and by every named identity-schema component for a
 // composite one, which is the property every admitted type already has one
-// of.
+// of. The deposed leg above adds no type knowledge either: it reuses
+// [recordIdentityMatches], the same comparison, over
+// [projection.DeposedRecord]'s identical identity shape.
 
 // pruneSupersededClaimants is [bind]'s record-first pass over the declared
 // addresses more than one live resource claims. For each such address whose
@@ -165,21 +204,96 @@ func pruneSupersededEntry(ctx context.Context, store *projection.RecordStore, re
 		return diags
 	}
 
+	deposed, deposedReadable := deposedCandidates(ctx, store, req, entry.res.Addr)
+	if !deposedReadable {
+		// The one way out this function has that is not "the record said
+		// nothing useful": the deposed half of the record could not be read
+		// at all, so "matches neither" is not a conclusion this pass is
+		// entitled to draw about anything. Leave the entry alone and let
+		// [collisionProblem] refuse, the same safe default every other exit
+		// here takes.
+		return diags
+	}
+
+	kept := make([]claimant, 0, len(entry.claimants))
 	superseded := make([]claimant, 0, len(entry.claimants)-1)
 	for i := range entry.claimants {
-		if i != survivor {
-			superseded = append(superseded, entry.claimants[i])
+		// A deposed object is live and awaiting destruction, not a dead
+		// tag shadow - see this file's "A deposed object is not a tag
+		// shadow". Keeping it leaves the set for [matchDeposedClaimant],
+		// which is the mechanism that acts on it.
+		if i == survivor || claimantMatchesAnyDeposed(deposed, entry.claimants[i]) {
+			kept = append(kept, entry.claimants[i])
+			continue
 		}
+		superseded = append(superseded, entry.claimants[i])
+	}
+	if len(superseded) == 0 {
+		// Every claimant is accounted for by the record. Nothing here is
+		// superseded, so the entry is not touched and nothing is reported:
+		// this is the crash window, and it is the deposed machinery's.
+		return diags
 	}
 	// The scan's own claimant order is not guaranteed stable across runs, so
 	// the diagnostics are ordered here rather than inherited.
 	sort.Slice(superseded, func(i, j int) bool { return superseded[i].displayID() < superseded[j].displayID() })
 
-	entry.claimants = []claimant{entry.claimants[survivor]}
+	entry.claimants = kept
 	for _, c := range superseded {
 		diags = diags.Append(problemDiag(res, supersededClaimantProblem(req, typeName, escaped, entry.res.Addr, rec, c)))
 	}
 	return diags
+}
+
+// deposedCandidates is every deposed object the estate records for addr,
+// from both places one can be recorded: [Request.DeposedRecords], the
+// snapshot [matchDeposedClaimant] itself consults (collected per
+// needs-discovery address before Discover runs), and the record store this
+// pass already has open, which is authoritative and covers every declared
+// address rather than that one population.
+//
+// The union is deliberate, in both directions. Reading only the snapshot
+// would let this pass drop a live deposed object at any address the caller
+// did not collect - a silent loss, since the address's surviving claimant
+// still binds. Reading only the store would work today but would couple this
+// pass's correctness to the store read succeeding for a case
+// matchDeposedClaimant can already resolve from the snapshot alone (three
+// tests in deposed_test.go supply exactly that: DeposedRecords with no
+// HintStore).
+//
+// ok is false only when the store read itself failed. An address with
+// nothing recorded is an ordinary empty result, not a failure.
+func deposedCandidates(ctx context.Context, store *projection.RecordStore, req Request, addr addrs.AbsResourceInstance) (recs []projection.DeposedRecord, ok bool) {
+	fromStore, _, _, err := store.GetDeposed(ctx, addr)
+	if err != nil {
+		return nil, false
+	}
+	seen := make(map[string]bool, len(fromStore))
+	for dk, rec := range fromStore {
+		seen[dk] = true
+		recs = append(recs, rec)
+	}
+	for dk, rec := range req.DeposedRecords[addr.String()] {
+		if seen[dk] {
+			continue
+		}
+		recs = append(recs, rec)
+	}
+	return recs, true
+}
+
+// claimantMatchesAnyDeposed reports whether a live claimant is one of the
+// deposed objects recs names. [deposedClaimantMatches] over a set, and
+// through the same [recordIdentityMatches] every other matcher here uses -
+// so the mark discipline, and the "by import ID or by every named component"
+// genericity, are the shared ones rather than a second copy.
+func claimantMatchesAnyDeposed(recs []projection.DeposedRecord, c claimant) bool {
+	for _, rec := range recs {
+		if deposedClaimantMatches(rec, c) {
+			return true
+		}
+	}
+	return false
 }
 
 // supersededClaimantProblem is the finding [pruneSupersededEntry] produces:

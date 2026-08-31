@@ -5,6 +5,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -52,6 +53,49 @@ func seedCurrentIdentity(t *testing.T, store *projection.RecordStore, addr strin
 	t.Helper()
 	if _, err := projection.SeedLocatedForInstance(t.Context(), store, mustAddr(t, addr), recordOrphanProviderAddr, rec); err != nil {
 		t.Fatalf("seeding the current-identity record for %s: %s", addr, err)
+	}
+}
+
+// seedDeposedIntoStore writes a deposed entry into the envelope an already
+// seeded current identity created, through the RAW store rather than through
+// any helper in this repository - there is no exported seeder for a deposed
+// record, and the wire shape ({"deposed": {"<key>": {"identity": {...}}}}) is
+// the same one reference-ec2-vpc's own run.sh reads with jq. Writing it by
+// hand here is deliberate: this test's whole subject is what
+// [projection.RecordStore.GetDeposed] returns for an address the caller never
+// collected into [Request.DeposedRecords], so it must not go through the
+// collection path.
+func seedDeposedIntoStore(t *testing.T, raw staterecord.Store, estate, deposedKey, importID string) {
+	t.Helper()
+	ctx := t.Context()
+	keys, err := raw.List(ctx, projection.RecordKeyPrefix(estate))
+	if err != nil {
+		t.Fatalf("listing the record store: %s", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("want exactly one seeded record key to patch, got %d: %v", len(keys), keys)
+	}
+	payload, version, exists, err := raw.Get(ctx, keys[0])
+	if err != nil || !exists {
+		t.Fatalf("reading %s: exists=%v err=%v", keys[0], exists, err)
+	}
+	var env map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &env); err != nil {
+		t.Fatalf("unmarshalling %s: %s", keys[0], err)
+	}
+	deposed, err := json.Marshal(map[string]any{
+		deposedKey: map[string]any{"identity": map[string]any{"import_id": importID}},
+	})
+	if err != nil {
+		t.Fatalf("marshalling the deposed member: %s", err)
+	}
+	env["deposed"] = deposed
+	next, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("marshalling the patched envelope: %s", err)
+	}
+	if _, err := raw.PutIfVersion(ctx, keys[0], next, version); err != nil {
+		t.Fatalf("writing the patched envelope: %s", err)
 	}
 }
 
@@ -296,6 +340,152 @@ func TestSupersededClaimant_compositeIdentityMatchesByComponent(t *testing.T) {
 	}
 }
 
+// TestDiscover_crashWindowDeposedClaimantSurvivesThePrune is
+// [gauntlet:reference-ec2-vpc/day2_crash]'s own unit, and the regression this
+// pass caused the day it landed. GitHub issue #361's crash window leaves TWO
+// GENUINELY LIVE objects and one write-back naming both: current=the new
+// object, deposed=the old one. Reading only the current identity made the
+// deposed object look exactly like a terminated tag shadow, so this pass
+// pruned it before [matchDeposedClaimant] could ever see it and the recovery
+// plan proposed nothing at all - the old instance stayed running, billed and
+// unmanaged forever.
+//
+// The deposed claimant must survive the prune, be pulled out as a
+// DeposedBinding (which is what makes the next apply destroy it), and the
+// address must still bind the NEW object BY VALUE.
+func TestDiscover_crashWindowDeposedClaimantSurvivesThePrune(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+
+	addr := mustAddr(t, `aws_vpc.main`)
+	res, diags := discoverFixture(t, cloud, Request{
+		HintStore: rawStore,
+		DeposedRecords: map[string]map[string]projection.DeposedRecord{
+			addr.String(): {
+				"deadbeef": {ImportID: "vpc-old", Provider: `provider["registry.opentofu.org/hashicorp/aws"]`},
+			},
+		},
+	})
+	assertNoErrors(t, diags)
+
+	if problems := res.ProblemsOfKind(ProblemCollision); len(problems) != 0 {
+		t.Fatalf("the crash window raised a collision:\n%s", res)
+	}
+	if len(res.DeposedBindings) != 1 {
+		t.Fatalf("want exactly one deposed binding, got %d - the deposed object was pruned as a tag shadow and the recovery plan would propose nothing:\n%s", len(res.DeposedBindings), res)
+	}
+	// BY VALUE. A deposed binding naming vpc-new would destroy the object the
+	// crashed apply had just successfully created.
+	if db := res.DeposedBindings[0]; db.ImportID != "vpc-old" {
+		t.Errorf("the deposed binding names %q, want the old object vpc-old", db.ImportID)
+	}
+
+	b, bound := res.BindingFor(addr)
+	if !bound {
+		t.Fatalf("%s did not bind at all:\n%s", addr, res)
+	}
+	// BY VALUE, both halves, exactly as the superseded scalar test asserts
+	// them: binding to vpc-old here is the wrong marker HANDOFF ranks above a
+	// missing one.
+	if b.ImportID != "vpc-new" {
+		t.Errorf("%s bound to %q, want the object the record names, vpc-new", addr, b.ImportID)
+	}
+	var resolved string
+	for _, r := range res.Resolutions {
+		if r.Addr.String() == addr.String() {
+			resolved = r.ImportID
+		}
+	}
+	if resolved != "vpc-new" {
+		t.Errorf("the merged resolution for %s carries import ID %q, want vpc-new - that value is what the plan reads", addr, resolved)
+	}
+
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("a live deposed object was reported as a displaced marker (%v), which says nothing is proposed for it - the opposite of what the recovery must do:\n%s", got, res)
+	}
+}
+
+// TestDiscover_crashWindowRecordBackedDeposedClaimantSurvivesThePrune is the
+// test above for the population issue #415 added, and the one a real crash
+// actually lands in: WriteBack commits the new object as the address's
+// CURRENT identity in the same pass it records the old one as deposed, so the
+// very next plan finds the address record-backed rather than needs-discovery
+// (see TestDiscoverDeposedDisambiguationRecordBacked's own comment). The
+// prune reaches decl.recordBacked too, so it broke this leg as well.
+func TestDiscover_crashWindowRecordBackedDeposedClaimantSurvivesThePrune(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+
+	addr := mustAddr(t, `aws_vpc.main`)
+	res, diags := discoverFixture(t, cloud, Request{
+		HintStore:         rawStore,
+		RecordBackedAddrs: map[string]bool{addr.String(): true},
+		Sweep:             true,
+		CollectUnclaimed:  true,
+		DeposedRecords: map[string]map[string]projection.DeposedRecord{
+			addr.String(): {
+				"deadbeef": {ImportID: "vpc-old", Provider: `provider["registry.opentofu.org/hashicorp/aws"]`},
+			},
+		},
+	})
+	assertNoErrors(t, diags)
+
+	if problems := res.ProblemsOfKind(ProblemCollision); len(problems) != 0 {
+		t.Fatalf("the record-backed crash window raised a collision:\n%s", res)
+	}
+	if len(res.DeposedBindings) != 1 {
+		t.Fatalf("want exactly one deposed binding, got %d:\n%s", len(res.DeposedBindings), res)
+	}
+	if db := res.DeposedBindings[0]; db.ImportID != "vpc-old" {
+		t.Errorf("the deposed binding names %q, want the old object vpc-old", db.ImportID)
+	}
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("a live deposed object was reported as a displaced marker (%v):\n%s", got, res)
+	}
+}
+
+// TestDiscover_crashWindowDeposedOnlyInTheStoreStillRefuses is the union's
+// store leg, and the reason this pass reads the record store's own Deposed
+// member rather than trusting [Request.DeposedRecords] alone.
+// collectDeposedRecords (internal/command/live_plan.go) collects one entry per
+// NEEDS-DISCOVERY address; the record store answers for every declared
+// address there is. An address the caller did not collect but the store
+// records a deposed object for must NOT have that object silently pruned:
+// dropping it binds the survivor and leaves a live, marked, running object
+// that nothing in the run mentions. Refusing is the safe rung, and it is what
+// this shape did before the superseded pass existed at all.
+func TestDiscover_crashWindowDeposedOnlyInTheStoreStillRefuses(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+	seedDeposedIntoStore(t, rawStore, estateName, "deadbeef", "vpc-old")
+
+	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
+	if !diags.HasErrors() {
+		t.Fatalf("a live deposed object recorded only in the store was silently pruned:\n%s", res)
+	}
+	if problems := res.ProblemsOfKind(ProblemCollision); len(problems) != 1 {
+		t.Fatalf("want exactly one collision problem, got:\n%s", res)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("something bound despite an unresolved collision:\n%s", res)
+	}
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("the recorded deposed object was reported as a displaced marker (%v), which claims nothing is proposed for it while it is still live:\n%s", got, res)
+	}
+}
+
 // TestSupersededClaimant_theGuardsCanFail is the "prove the check can fail"
 // obligation, run as a mutation rather than described. Each case feeds
 // [pruneSupersededEntry] the exact input the corresponding end-to-end test
@@ -304,26 +494,63 @@ func TestSupersededClaimant_compositeIdentityMatchesByComponent(t *testing.T) {
 // record" is caught here even if no fixture reaches it.
 func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 	addr := `aws_vpc.main`
-	twoClaimants := func() *declaredEntry {
+	entryWith := func(ids ...string) *declaredEntry {
+		if len(ids) == 0 {
+			ids = []string{"vpc-old", "vpc-new"}
+		}
+		cs := make([]claimant, 0, len(ids))
+		for _, id := range ids {
+			cs = append(cs, claimant{importID: id})
+		}
 		return &declaredEntry{
-			res:     identity.Resolution{Addr: mustAddr(t, addr), Class: identity.ClassNeedsDiscovery},
-			escaped: EscapeAddress(addr),
-			claimants: []claimant{
-				{importID: "vpc-old"},
-				{importID: "vpc-new"},
-			},
+			res:       identity.Resolution{Addr: mustAddr(t, addr), Class: identity.ClassNeedsDiscovery},
+			escaped:   EscapeAddress(addr),
+			claimants: cs,
 		}
 	}
 
 	tests := []struct {
-		name        string
-		rec         projection.LocatedRecord
+		name string
+		rec  projection.LocatedRecord
+		// claimants overrides the default vpc-old/vpc-new pair.
+		claimants []string
+		// deposed is what the crashed apply's own write-back recorded
+		// alongside rec, keyed by deposed key.
+		deposed     map[string]projection.DeposedRecord
 		wantKept    []string
 		wantReports int
 	}{
-		{"exactly one match prunes the other", projection.LocatedRecord{ImportID: "vpc-new"}, []string{"vpc-new"}, 1},
-		{"no match keeps both", projection.LocatedRecord{ImportID: "vpc-elsewhere"}, []string{"vpc-old", "vpc-new"}, 0},
-		{"an empty record keeps both", projection.LocatedRecord{}, []string{"vpc-old", "vpc-new"}, 0},
+		{name: "exactly one match prunes the other", rec: projection.LocatedRecord{ImportID: "vpc-new"}, wantKept: []string{"vpc-new"}, wantReports: 1},
+		{name: "no match keeps both", rec: projection.LocatedRecord{ImportID: "vpc-elsewhere"}, wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0},
+		{name: "an empty record keeps both", rec: projection.LocatedRecord{}, wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0},
+		{
+			// The crash window: the other claimant is a LIVE deposed
+			// object, so nothing is pruned and nothing is reported - the
+			// set is left for matchDeposedClaimant.
+			name:     "a recorded deposed claimant is kept, not pruned",
+			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
+			deposed:  map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
+			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
+		{
+			// A deposed record naming an object neither claimant is
+			// settles nothing: the ordinary prune stands unchanged.
+			name:     "a deposed record matching neither claimant changes nothing",
+			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
+			deposed:  map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-elsewhere"}},
+			wantKept: []string{"vpc-new"}, wantReports: 1,
+		},
+		{
+			// Both at once, which is what makes the rule "matches neither"
+			// rather than "is not the survivor": a crash window whose old
+			// object's own earlier shadow is still tag-visible. The shadow
+			// is pruned; the deposed object is kept.
+			name:      "a shadow is pruned while the deposed claimant is kept",
+			rec:       projection.LocatedRecord{ImportID: "vpc-new"},
+			claimants: []string{"vpc-dead", "vpc-old", "vpc-new"},
+			deposed:   map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
+			wantKept:  []string{"vpc-old", "vpc-new"}, wantReports: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -331,10 +558,14 @@ func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 			if !tt.rec.Empty() {
 				seedCurrentIdentity(t, seedStore, addr, tt.rec)
 			}
-			entry := twoClaimants()
+			entry := entryWith(tt.claimants...)
 			res := &Result{}
 			store := projection.NewRecordEnvelopeStore(rawStore, projection.RecordKeyPrefix(estateName))
-			diags := pruneSupersededEntry(context.Background(), store, Request{Estate: estateName}, res, "aws_vpc", entry.escaped, entry)
+			req := Request{Estate: estateName}
+			if len(tt.deposed) > 0 {
+				req.DeposedRecords = map[string]map[string]projection.DeposedRecord{entry.res.Addr.String(): tt.deposed}
+			}
+			diags := pruneSupersededEntry(context.Background(), store, req, res, "aws_vpc", entry.escaped, entry)
 			assertNoErrors(t, diags)
 
 			var kept []string
