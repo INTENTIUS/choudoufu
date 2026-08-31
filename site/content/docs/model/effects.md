@@ -38,12 +38,14 @@ If the tool ran the effect itself, the diff would stop being a preview of what
 is about to happen and become the thing happening mid-plan. That is a
 provisioner.
 
-choudoufu does run provisioners, once an estate declares a `record_store`
-(before that it refuses them, because a failed one has nowhere to be
-remembered). But a provisioner is not a smaller receipt, and reaching for one
-here would answer a different question. A provisioner runs when its resource is
-created and never again; nothing about it is re-examined on a later plan, and no
-plan shows you that it is about to run. A receipt tracks staleness across a
+choudoufu does run provisioners, on any estate with a `live` block, because the
+estate's record store - the implied local one if nothing declares another - is
+where a failed one's tainted bit is remembered. Only a configuration with no
+`live` block at all still refuses them. But a provisioner is not a smaller
+receipt, and reaching for one here would answer a different question. A
+provisioner runs when its resource is created and never again; nothing about it
+is re-examined on a later plan, and no plan shows you that it is about to run.
+A receipt tracks staleness across a
 resource's whole lifetime: its diff is the standing answer to "have this
 effect's inputs changed since it last ran", asked on every plan, for as long as
 the resource exists. Only one of those is reviewable before the fact.

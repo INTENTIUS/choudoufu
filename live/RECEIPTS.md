@@ -15,12 +15,15 @@ them, and the `receipt-cycle`/`receipt-cycle-existence` steps in
 
 ## Boundary: receipts never migrate onto the record store
 
-GitHub issue #73 gives `null_resource`, `terraform_data`, `time_*`, and
-non-sensitive `random_*` a persisted micro-state record once a `live`
-block's `record_store` is configured (`internal/live/staterecord`). A
-receipt is not a candidate for that move, and this is the line: receipts
-stay ordinary declared estate resources, forever, under the no-state-ops
-rules above, never carried by a `record_store`.
+GitHub issue #73 gives `null_resource`, `terraform_data`, `time_*` and
+`random_*` a persisted micro-state record on any estate with a `live` block
+(`internal/live/staterecord`; since #364 a block that declares no
+`record_store` gets an implied local one, and under the default
+`strict { secrets = "store" }` the secret-generating `random_*` are recorded
+the same way a stock state file records them). A receipt is not a candidate
+for that move, and this is the line: receipts stay ordinary declared estate
+resources, forever, under the no-state-ops rules above, never carried by a
+`record_store`.
 
 Two reasons, both about what stays visible.
 
@@ -168,10 +171,11 @@ which is a provisioner.
 
 That used to end the argument, because provisioners were banned outright.
 They are not any more: GitHub issue #353 admits `local-exec`, `remote-exec`
-and `file` for any estate that declares a `record_store`, since a
-create-time provisioner's one piece of memory (the tainted flag a failed one
-sets) then has somewhere to live. So the argument has to be made honestly
-rather than by pointing at a ban, and it still holds, because the two
+and `file` for any estate with a `live` block, since the estate's record
+store (the implied local one when nothing declares another) gives a
+create-time provisioner's one piece of memory - the tainted flag a failed one
+sets - somewhere to live. So the argument has to be made honestly rather than
+by pointing at a ban, and it still holds, because the two
 mechanisms answer different questions:
 
 - A provisioner runs **once, when its resource is created**, and never

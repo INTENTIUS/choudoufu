@@ -149,8 +149,9 @@ configuration with a `record_store` was told its type could never work.
   sensitive by its provider, measured over every attribute of every block
   including nested ones (see `logical_type_generated.go` for the per-type
   evidence). **Conditionally admitted as of #73's projection
-  work:** refused exactly as before when the `live` block configures no
-  `record_store`, and admitted the moment one is. The record store's key
+  work:** admitted for any configuration with a `live` block, since #364
+  gives one that declares no `record_store` an implied local store; refused
+  only where there is no `live` block at all. The record store's key
   namespace is the "no persisted micro-state" limit closing, not a
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
@@ -168,7 +169,9 @@ configuration with a `record_store` was told its type could never work.
 
   That is a measurement, and since GitHub issue #365 slice 3 what a run does
   about it is the strict block's `secrets` setting. Under the default,
-  `"store"`, such a type is admitted the moment a `record_store` is declared
+  `"store"`, such a type is admitted wherever a `live` block is present, on
+  the estate's record store like any other record-backed type and with no
+  `record_store` block needed
   - as its `StoredClass`, which is the class it would carry if nothing in its
   schema were sensitive - and the record holds the value the way a stock
   OpenTofu state file holds it. Under `"refuse"` it is refused exactly as it
@@ -249,7 +252,7 @@ implicit re-trigger machinery. Documented in `live/RECEIPTS.md`.
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
 (`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
 `record_store` being absent. Fixture at `live/e2e/limits/null-resource/`
-(no store, still refused). The admitted path is exercised by
+(no `live` block, so no store, still refused). The admitted path is exercised by
 `live/e2e/record-store/`.
 
 ### terraform-data
@@ -280,7 +283,7 @@ receipts pattern.
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
 (`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
 `record_store` being absent. Fixture at `live/e2e/limits/terraform-data/`
-(no store, still refused). The admitted path is exercised by
+(no `live` block, so no store, still refused). The admitted path is exercised by
 `live/e2e/record-store/`.
 
 ### local-file
@@ -315,7 +318,7 @@ before OpenTofu runs, not as a resource OpenTofu tracks.
 **Enforcement.** `RuleLogicalResource`, classified `EXTERNAL_ADMITTED` (see
 above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`),
 gated on `record_store` being absent. Fixture at
-`live/e2e/limits/local-file/` (no store, still refused).
+`live/e2e/limits/local-file/` (no `live` block, so no store, still refused).
 
 ### local-sensitive-file
 
@@ -329,8 +332,8 @@ resource are marked as sensitive," and its schema marks `content` and
 `local_file`'s sole sensitive field - so the persisted micro-state record
 holding this type's whole object value would hold that content. Stock
 OpenTofu's state file holds it too, which is why the default is to keep it:
-under `strict { secrets = "store" }` this type is admitted the moment a
-`record_store` is declared, exactly as `local_file` is. Under
+under `strict { secrets = "store" }` this type is admitted wherever a `live`
+block is present, exactly as `local_file` is. Under
 `strict { secrets = "refuse" }` it is refused, and that refusal is what this
 entry's fixture exercises. See "strict-secrets".
 
@@ -340,19 +343,21 @@ sensitivity marks beside it - the same posture a stock state file has, and
 no better. An estate that must not hold secret material at all is what the
 setting is for.
 
-**Forwarding address.** Declare a `record_store`, or - if the estate should
-hold no secret material - set `strict { secrets = "refuse" }` and take the
+**Forwarding address.** Add a `live` block - that alone is the whole step,
+since the implied local store is enough - or, if the estate should hold no
+secret material, set `strict { secrets = "refuse" }` and take the
 secret-store Op: generate and store the secret in a secret manager outside
 OpenTofu's model, and have configuration reference it by ARN/path, never by
-value.
+value. A `record_store` block chooses where the records go, not whether the
+type is admitted.
 
 **Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED` with a
 `StoredClass` of `EXTERNAL_ADMITTED` (`internal/live/lint/logical_type.go`,
 `ClassifyLogicalType` and `admitsUnder`), and the same question re-asked at
 the layer that acts by `internal/live/identity`'s resolver, against
 `TypeIdentity.SecretMaterial`. Fixture at
-`live/e2e/limits/local-sensitive-file/`, which declares no `record_store`
-and so is refused under either setting.
+`live/e2e/limits/local-sensitive-file/`, which declares no `live` block at
+all and so has no store under either setting, and is refused under both.
 
 ### random-password
 
@@ -365,8 +370,9 @@ live twin. What remembers it on stock OpenTofu is the state file, in clear;
 what remembers it here is the estate's record store, which is where this
 fork keeps everything a state file would. So under
 `strict { secrets = "store" }`, the default, `random_password` is admitted
-the moment a `record_store` is declared, exactly like its `RECORD_ADMITTED`
-neighbours; under `strict { secrets = "refuse" }` it is refused, which is
+wherever a `live` block is present, exactly like its `RECORD_ADMITTED`
+neighbours and with no `record_store` block needed; under
+`strict { secrets = "refuse" }` it is refused, which is
 what this entry's fixture exercises. The same applies to `random_bytes` and
 the whole `tls_*` family. See "strict-secrets".
 
@@ -379,7 +385,8 @@ retracted: it refused a configuration stock OpenTofu runs, which is
 **Why bounded at all.** The record store is not a secret manager - see
 "local-sensitive-file" just above for the same paragraph.
 
-**Forwarding address.** Declare a `record_store`, or set
+**Forwarding address.** Add a `live` block - the implied local store is
+enough, and no `record_store` block is needed - or set
 `strict { secrets = "refuse" }` and take the secret-store Op: generate and
 store the secret in a secret manager (outside OpenTofu's model entirely),
 and have configuration reference it by ARN/path, never by value.
@@ -389,8 +396,8 @@ and have configuration reference it by ARN/path, never by value.
 `ClassifyLogicalType` and `admitsUnder`), and the same question re-asked at
 the layer that acts by `internal/live/identity`'s resolver, against
 `TypeIdentity.SecretMaterial`. Fixture at
-`live/e2e/limits/random-password/`, which declares no `record_store` and so
-is refused under either setting.
+`live/e2e/limits/random-password/`, which declares no `live` block at all and
+so has no store under either setting, and is refused under both.
 
 **The same problem returns, permanently, wherever ANY `random_*` resource's
 generated attribute is built into a sibling's identity.** This is not the
@@ -461,8 +468,8 @@ external readiness check), not as a resource in the graph.
 
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
 (`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
-`record_store` being absent. Fixture at `live/e2e/limits/time-sleep/` (no
-store, still refused). The admitted path is exercised by
+`record_store` being absent. Fixture at `live/e2e/limits/time-sleep/`
+(no `live` block, so no store, still refused). The admitted path is exercised by
 `live/e2e/record-store/`.
 
 ### moved-block

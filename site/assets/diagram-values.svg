@@ -1,10 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 250" width="720" height="250"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 262" width="720" height="262"
      role="img" aria-labelledby="v-title v-desc">
   <title id="v-title">Which resources need a record store, and which do not</title>
   <desc id="v-desc">A resource with a cloud twin recovers its values by reading
   the live object. A resource with no cloud twin has nothing to read, so its
-  value is held in a record store. Secret-generating resources are refused
-  rather than recorded.</desc>
+  value is held in a record store. Secret-generating resources are recorded
+  too, in clear, the way a stock state file holds them; setting strict secrets
+  to refuse is what turns that into a refusal.</desc>
 
   <style>
     .ink   { fill: #241f16; }
@@ -54,7 +55,8 @@
   <text x="342" y="145" class="mono ink">null_resource  terraform_data  time_*</text>
   <text x="342" y="164" class="l muted">in Parameter Store, S3, or a local directory</text>
 
-  <rect x="324" y="182" width="382" height="52" rx="6" class="warn"/>
-  <text x="342" y="205" class="h ink">Refused, not recorded</text>
+  <rect x="324" y="182" width="382" height="70" rx="6" class="warn"/>
+  <text x="342" y="205" class="h ink">One record, held in clear</text>
   <text x="342" y="224" class="mono ink">random_password  random_bytes  tls_*</text>
+  <text x="342" y="243" class="l muted">refused only under strict { secrets = "refuse" }</text>
 </svg>
