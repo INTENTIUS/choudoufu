@@ -396,18 +396,21 @@ type builder struct {
 	// [builder.ambientContext].
 	ambientByProvider map[string]map[string]cty.Value
 
-	// readPrefetch is the concrete phase's in-flight reads, GitHub issue
-	// #585, and is non-nil only for the duration of [builder.run]'s own
-	// concrete loop. [builder.readFor] consults it; every other phase - the
-	// record-first intercept that runs before it, the derived, located and
-	// undeclared loops that run after - finds it nil and reads inline,
-	// exactly as every phase did before it existed.
+	// readPrefetch is the current phase's in-flight reads, GitHub issues #585
+	// and #654, and is non-nil only for the duration of a phase that starts
+	// one: [builder.applyRecordFirst]'s record-first intercept, then
+	// [builder.run]'s own concrete loop. The two never overlap - the intercept
+	// finishes and nils this field before run reaches orderWork.
+	// [builder.readFor] consults it; the derived, located and undeclared loops
+	// start none, find it nil, and read inline exactly as every phase did
+	// before it existed.
 	readPrefetch *readPrefetch
 
 	// readWasted and readMismatched are [readPrefetch.finish]'s and
-	// [readPrefetch.mismatches]' answers for the concrete phase: instances
-	// whose read was prefetched and never consumed, and answers a consumer
-	// declined because the plan named a different resolution. Both are always
+	// [readPrefetch.mismatches]' answers, accumulated across every phase that
+	// starts a prefetch: instances whose read was prefetched and never
+	// consumed, and answers a consumer declined because the plan named a
+	// different resolution. Both are always
 	// zero - a non-zero either way is a provider round trip the sequential
 	// pass would not have made, which is the property issue #585 accepts on -
 	// and they are recorded rather than asserted here so a real run degrades
@@ -533,8 +536,8 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	for _, w := range concreteWanted {
 		b.materialize(ctx, w)
 	}
-	b.readWasted = b.readPrefetch.finish()
-	b.readMismatched = b.readPrefetch.mismatches()
+	b.readWasted = append(b.readWasted, b.readPrefetch.finish()...)
+	b.readMismatched += b.readPrefetch.mismatches()
 	b.readPrefetch = nil
 
 	for _, r := range derived {
@@ -864,10 +867,24 @@ func containsStringValue(obj cty.Value, target string) bool {
 // [builder.materializeFromRecord]), changes nothing: the resolution goes on
 // to [orderWork] exactly as it arrived, and takes whatever path its
 // identity.Class would have taken with no record store in play at all.
+//
+// GitHub issue #654: this loop, not the concrete phase below it, is where a
+// MIGRATED estate does its reading. Every instance an apply or a migration has
+// written a record for is intercepted here, and after issue #636 made the
+// store one GetAll the interception is free, so on the estate this fork exists
+// to run it catches nearly everything: 78 of 79 instances at scale 1 on the
+// terralith, leaving the concrete phase with one. Issue #585 gave the concrete
+// phase a prefetch and left this loop reading one instance at a time, which is
+// why a real-AWS plan of 745 resources spent 124 seconds against stock's 22-39
+// for the same 1399 calls - measured serial, one request in flight, start to
+// finish. The prefetch is started here for exactly the same reason and in
+// exactly the same shape: the loop below is unchanged, consuming the same
+// answers to the same calls in the same order.
 func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.Resolution) []identity.Resolution {
 	if b.opts.RecordStore == nil {
 		return resolutions
 	}
+	b.readPrefetch = b.startRecordFirstPrefetch(ctx, resolutions)
 	remaining := make([]identity.Resolution, 0, len(resolutions))
 	for _, r := range resolutions {
 		switch r.Class {
@@ -880,6 +897,9 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 		}
 		remaining = append(remaining, r)
 	}
+	b.readWasted = append(b.readWasted, b.readPrefetch.finish()...)
+	b.readMismatched += b.readPrefetch.mismatches()
+	b.readPrefetch = nil
 	return remaining
 }
 

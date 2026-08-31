@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -226,6 +227,46 @@ func (b *builder) startReadPrefetch(ctx context.Context, ws []wanted) *readPrefe
 	}()
 
 	return pf
+}
+
+// startRecordFirstPrefetch plans the reads [builder.applyRecordFirst]'s loop
+// is about to make, so that they are in flight while that loop consumes them.
+//
+// It re-reads each resolution's record rather than handing the loop a
+// precomputed one, and that is deliberate: [builder.materializeFromRecord]
+// stays byte-for-byte what it was, so every diagnostic it writes, every
+// envelope version it records, every stale-record fallthrough and the order of
+// all three are produced by unchanged code - the same argument
+// [builder.startReadPrefetch] makes for the concrete phase. The second read is
+// free: [RecordStore.GetIdentity] is served from the run cache issue #636
+// introduced, so the whole intercept is still the one GetAll that issue
+// measured, and TestRecordTripsAgainstFloci is what holds that.
+//
+// A resolution this pass declines to plan for - record-backed or
+// record-located (the loop skips those itself), no record, or a record that
+// will not decode - simply gets no entry, and the loop reads it inline through
+// [builder.readFor]'s own fallback, which is what every instance did before
+// this existed.
+func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []identity.Resolution) *readPrefetch {
+	ws := make([]wanted, 0, len(resolutions))
+	for _, r := range resolutions {
+		switch r.Class {
+		case identity.ClassRecordBacked, identity.ClassRecordLocated:
+			continue
+		}
+		rec, _, _, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
+		if err != nil || !identityFound {
+			continue
+		}
+		ws = append(ws, wanted{
+			addr:        r.Addr,
+			importID:    rec.ImportID,
+			values:      recordFirstStubValues(rec),
+			undeclared:  r.Undeclared,
+			recordFirst: true,
+		})
+	}
+	return b.startReadPrefetch(ctx, ws)
 }
 
 // runReadFetch is the whole of what a prefetch worker does: one
