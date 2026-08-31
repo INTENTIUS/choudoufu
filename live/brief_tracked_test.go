@@ -86,10 +86,32 @@ func TestOperationalBriefIsTracked(t *testing.T) {
 // survive a fresh clone if it is ignored - which is the state issue #165
 // was filed about. settings.local.json and worktrees/ stay excluded, which
 // is what the narrowness was for.
+//
+// The three ways the `ls-files` call can end are kept apart on purpose. git
+// missing, git exiting non-zero, and git naming tracked paths are different
+// facts about the machine and the tree, and they used to collapse into one
+// blanket `t.Skipf("git ls-files unavailable")` on any error at all - a
+// permanent green whenever anything went wrong, under a message that named
+// the wrong cause for two of the three.
+//
+// An empty file list needs no assertion of its own here: .claude/agents/,
+// .claude/skills/ and .claude/scripts/ all carry tracked files, so a git
+// that answered about the wrong tree and returned nothing would take
+// TestOperationalBriefIsTracked above red on the same run.
 func TestLocalAgentStateStaysUntracked(t *testing.T) {
-	out, err := exec.Command("git", "-C", "..", "ls-files", ".claude/").Output()
+	bin := gitBin(t)
+	out, err := exec.Command(bin, "-C", "..", "ls-files", ".claude/").Output()
 	if err != nil {
-		t.Skipf("git ls-files unavailable: %v", err)
+		var stderr string
+		if ee, ok := err.(*exec.ExitError); ok {
+			stderr = strings.TrimSpace(string(ee.Stderr))
+		}
+		t.Fatalf("`%s -C .. ls-files .claude/` exited non-zero: %v %s\n"+
+			"git was found on PATH, so this is git refusing to answer rather than a missing tool - "+
+			"most likely the parent of live/ is not inside a git repository. The whole of this check "+
+			"is the list git returns, so it fails here rather than skipping: with no list it has "+
+			"looked at nothing, and a .claude/ full of per-machine state would pass.",
+			bin, err, stderr)
 	}
 	for _, path := range strings.Fields(string(out)) {
 		if !strings.HasPrefix(path, ".claude/agents/") && !strings.HasPrefix(path, ".claude/skills/") && !strings.HasPrefix(path, ".claude/scripts/") {

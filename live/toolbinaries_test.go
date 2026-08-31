@@ -69,12 +69,30 @@ func TestEveryToolHasAGitignoreEntry(t *testing.T) {
 // Ignore rules do not apply to a path git already tracks, so a missing entry
 // added after the fact leaves the binary in place. This test fails until it
 // is removed with `git rm --cached`.
+//
+// The three ways the `ls-files` call can end are kept apart on purpose. git
+// missing, git exiting non-zero, and git naming tracked files are different
+// facts about the machine and the tree, and they used to collapse into one
+// blanket `t.Skipf("git ls-files unavailable")` on any error at all - a
+// permanent green whenever anything went wrong, under a message that named
+// the wrong cause for two of the three.
 func TestNoCompiledBinaryIsTracked(t *testing.T) {
+	bin := gitBin(t)
 	root := repoRoot(t)
 
-	out, err := exec.Command("git", "-C", root, "ls-files", "-z").Output()
+	out, err := exec.Command(bin, "-C", root, "ls-files", "-z").Output()
 	if err != nil {
-		t.Skipf("git ls-files unavailable: %v", err)
+		var stderr string
+		if ee, ok := err.(*exec.ExitError); ok {
+			stderr = strings.TrimSpace(string(ee.Stderr))
+		}
+		t.Fatalf("`%s -C %s ls-files -z` exited non-zero: %v %s\n"+
+			"git was found on PATH, so this is git refusing to answer rather than a missing tool - "+
+			"most likely %s is not inside a git repository, because repoRoot walks up to the nearest "+
+			"go.mod and an extracted tarball or a copied tree has one without a .git. This is the "+
+			"only check that reads what is actually committed rather than what .gitignore claims, so "+
+			"it fails here rather than skipping: with no file list it has looked at nothing.",
+			bin, root, err, stderr, root)
 	}
 
 	// Mach-O (all four arch/endian spellings, plus the universal binary) and
@@ -120,6 +138,36 @@ func TestNoCompiledBinaryIsTracked(t *testing.T) {
 			"covers them - an ignore rule alone does nothing for a path git already tracks.",
 			strings.Join(found, " "))
 	}
+}
+
+// gitBin resolves the git binary once, and fails when it is not there.
+//
+// It fails rather than skips, for the reason gofmtBin gives one file over:
+// git is not optional here. The repository is a git fork whose whole subject
+// is what is and is not committed, `scripts/pickup.sh` is a git script, and
+// the guards below and in brief_tracked_test.go recompute their claims by
+// asking git and nothing else. A machine without git cannot have produced
+// the tree under test, so its absence is a broken environment rather than a
+// tree worth passing - and a guard that stands down when its tool goes
+// missing is green forever on exactly the machine where it stopped
+// measuring.
+//
+// Resolving it here also keeps "git is absent" apart from "git ran and
+// exited non-zero". Both callers used to get both from one `.Output()` error
+// and report both as "git ls-files unavailable": no git at all, a root that
+// is not a git repository, and a git that failed for its own reasons were
+// indistinguishable, and two of the three were named wrong.
+func gitBin(t *testing.T) string {
+	t.Helper()
+	bin, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("git is not on PATH: %v\n"+
+			"This guard recomputes its claim by asking git what is tracked, so without git it has "+
+			"measured nothing, and reporting that as a pass is the silent-green shape this fork keeps "+
+			"rediscovering. git is a hard requirement for working in this repository at all - install "+
+			"it or put it on PATH rather than relaxing the check.", err)
+	}
+	return bin
 }
 
 // repoRoot walks up to the checkout root.
