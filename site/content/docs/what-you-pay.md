@@ -43,7 +43,7 @@ three runs each, no variance in any column:
 | `choudoufu plan` | 150, 150, 150 | 558, 558, 558 |
 
 The 79-instance column was re-run at `b20a144ab0` for this page; the
-301-instance column is the RFC's, unchanged, and has not been re-run since.
+301-instance column is the ruling's, unchanged, and has not been re-run since.
 
 OpenTofu is in that table because choudoufu is an OpenTofu fork and Terraform
 is not OpenTofu. Without the middle row, any difference between the top and
@@ -52,11 +52,11 @@ Terraform/OpenTofu split.
 
 The code half holds too. Every fork addition to plan and apply sits behind a
 guard that a missing live block turns off. Seven things do run
-unconditionally; they are enumerated in the RFC, and the one among them that
+unconditionally; they are enumerated in the ruling, and the one among them that
 can change a verdict changes it in the accepting direction, so a configuration
 stock refuses can succeed here and never the reverse. Method, per-guard
 reading and raw values:
-[`rfc/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stateful-equivalence.md).
+[`rulings/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stateful-equivalence.md).
 
 ## Planning an adopted estate
 
@@ -113,7 +113,7 @@ fork's own structure and have nothing to do with the sweep.
 The 157 has now been produced three separate times on this fixture and pin: by
 [#627](https://github.com/INTENTIUS/choudoufu/pull/627), which landed the
 narrowing that produced it; by
-[`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md)'s
+[`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md)'s
 re-measure at `5ff7f43f5b`, which reproduced its seven-call residual call for
 call; and by the run reported here, at `b20a144ab0`. Reproduce it with
 `TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/`, which is also where

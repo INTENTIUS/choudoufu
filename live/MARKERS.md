@@ -582,7 +582,7 @@ condition on it directly through `aws:ResourceTag`, with no second permission
 model to keep in sync. That is <!-- survey-gen:begin marker-governable-count -->682 of the 1027<!-- survey-gen:end marker-governable-count -->
 admitted AWS resource types; "What this grant cannot reach" below is the
 rest, and it is a real gap rather than a caveat.
-`rfc/20260828-readiness-tiers.md` names that gap by tier - marker-carried,
+`rulings/20260828-readiness-tiers.md` names that gap by tier - marker-carried,
 declaration-carried, record-carried, excluded by design - and states, per
 tier, what a grant like this one reaches and what losing the record store
 costs.

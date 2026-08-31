@@ -48,8 +48,8 @@ The fast path can apply to any bug where all of the following are true:
   successfully done so.
 - The observed behavior clearly contradicts a statement made in the OpenTofu
   documentation, or in other documentation-like sources like the `-help` output
-  of a command or a previously-accepted RFC whose proposal hasn't been
-  superseded by a later RFC.
+  of a command or a ruling in `rulings/` that hasn't been superseded by a
+  later one.
 - There is a relatively-obvious, low-risk way to change the implementation to
   match what the documentation described, without affecting the behavior of any
   other features or introducing new capabilities that would be subject to

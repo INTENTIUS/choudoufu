@@ -7,6 +7,9 @@ package residue
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,6 +79,15 @@ func TestEveryToolHasAGitignoreEntry(t *testing.T) {
 // blanket `t.Skipf("git ls-files unavailable")` on any error at all - a
 // permanent green whenever anything went wrong, under a message that named
 // the wrong cause for two of the three.
+//
+// Two counters below are the rest of that same argument. A git that exits 0
+// and names nothing, and a tree whose files cannot be opened, both used to
+// leave `found` empty and report clean - the second one loudly enough that
+// #653 ranked it the worst check in this package: every `os.Open` failure
+// was dropped by a bare `continue`, so a permissions problem covering the
+// whole checkout hid every committed binary in it and exited 0. This test's
+// whole claim is "we read the first four bytes of everything git tracks", so
+// it now asserts that it read them.
 func TestNoCompiledBinaryIsTracked(t *testing.T) {
 	bin := gitBin(t)
 	root := repoRoot(t)
@@ -106,31 +118,82 @@ func TestNoCompiledBinaryIsTracked(t *testing.T) {
 		{0x7f, 'E', 'L', 'F'},
 	}
 
-	var found []string
+	var found, unreadable []string
+	tracked, read := 0, 0
 	for _, path := range strings.Split(string(out), "\x00") {
 		if path == "" {
 			continue
 		}
+		tracked++
 		// testdata legitimately holds fixture bytes of every shape.
 		if strings.Contains(path, "testdata/") {
 			continue
 		}
 		f, err := os.Open(filepath.Join(root, path))
 		if err != nil {
-			continue // a deleted-but-staged path, or a symlink out of tree
+			// A path git names and the filesystem does not have is the one
+			// benign case: a deleted-but-staged path, or a symlink whose
+			// target is out of tree. Everything else - a permission bit, an
+			// I/O error - is this check being unable to look, which is not
+			// the same fact as looking and finding nothing.
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			unreadable = append(unreadable, fmt.Sprintf("%s (%v)", path, err))
+			continue
 		}
 		var head [4]byte
 		n, _ := f.Read(head[:])
 		f.Close()
 		if n < 4 {
+			// Genuinely too short to carry a magic number, or a directory:
+			// the submodule gitlink git names is one. Neither can be a
+			// committed executable, so neither counts as read.
 			continue
 		}
+		read++
 		for _, m := range magics {
 			if bytes.Equal(head[:], m) {
 				found = append(found, path)
 				break
 			}
 		}
+	}
+	// The floors. `ls-files` exiting 0 with an empty list is the shape a git
+	// answering about the wrong tree produces - an empty index, a worktree
+	// git does not consider part of the repository - and it is indis-
+	// tinguishable from a clean tree by `found` alone. The tree carried 7440
+	// tracked paths when this was written; 1000 is a floor no checkout of
+	// this fork can legitimately fall under, not an estimate of the real
+	// number.
+	if tracked < 1000 {
+		t.Fatalf("`%s -C %s ls-files -z` named %d tracked path(s), want at least 1000\n"+
+			"That is not this repository. git exited 0, so it answered - about an empty index, or about "+
+			"a tree that is not this fork. With no file list to read, this check has looked at nothing, "+
+			"and an empty `found` below would have reported that as clean.",
+			bin, root, tracked)
+	}
+	if len(unreadable) > 0 {
+		// A tree-wide cause names every path at once, so the list is capped:
+		// ten of seven thousand identical permission errors say the same
+		// thing the whole seven thousand do, and the count is the finding.
+		shown := unreadable[:min(len(unreadable), 10)]
+		more := ""
+		if len(unreadable) > len(shown) {
+			more = fmt.Sprintf(" (and %d more)", len(unreadable)-len(shown))
+		}
+		t.Errorf("%d tracked path(s) could not be opened: %s%s\n"+
+			"This check reads the first bytes of every tracked file, so a path it cannot open is a path "+
+			"it is not checking - and a committed binary under one of them is exactly what it exists to "+
+			"catch. These are not missing files; a missing file is tolerated above. Fix the permissions "+
+			"rather than the check.",
+			len(unreadable), strings.Join(shown, " "), more)
+	}
+	if read == 0 {
+		t.Fatalf("git named %d tracked path(s) and not one of them could be read for its first four bytes\n"+
+			"A tree-wide read failure reads exactly like a clean tree here: no file opened, so no magic "+
+			"number matched, so nothing found. This is the shape #653 ranked worst in this package.",
+			tracked)
 	}
 	if len(found) > 0 {
 		t.Errorf("compiled binaries are tracked in git: %s\n"+

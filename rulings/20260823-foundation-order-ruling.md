@@ -140,7 +140,7 @@ and changes, in this sequence:
 
 ## What this retires
 
-- "The engine is unmodified" as a design rule (`rfc/20260814-projection-nativeness-audit.md`
+- "The engine is unmodified" as a design rule (`rulings/20260814-projection-nativeness-audit.md`
   measured it; it remains a measured cost, not a constraint).
 - The hand exclusion of `aws_iam_access_key` outside the toggles.
 - Treating the config-language subset as a permanent property of the

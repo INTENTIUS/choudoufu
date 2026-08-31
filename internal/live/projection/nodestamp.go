@@ -20,7 +20,7 @@ import (
 
 // This file is GitHub issue #388's stamp half: [NodeResolver] additionally
 // implements internal/tofu.ConfigValueAdjuster, the seam
-// rfc/20260823-foundation-order-ruling.md's constraint list fixed in
+// rulings/20260823-foundation-order-ruling.md's constraint list fixed in
 // opentofu/opentofu#3016's terms - markers are set on the evaluated
 // CONFIGURATION value, at the node, before PlanResourceChange ever runs,
 // never on the planned state after. It is the node-path twin of

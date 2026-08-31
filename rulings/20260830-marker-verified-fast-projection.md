@@ -153,7 +153,7 @@ At `f4611196e5`, counted by running the symbol rather than reading a document:
   (excluded by design, credential material), so it never reaches
   `classify`'s markerless branch. That accounts for 159 against 158 exactly.
 
-`rfc/20260828-readiness-tiers.md` already states the correct figure ("tier C
+`rulings/20260828-readiness-tiers.md` already states the correct figure ("tier C
 population: `identity.MarkerlessTypes`, currently 159 types"). The 471 came
 from the artifact's tier count, which answers a different question.
 

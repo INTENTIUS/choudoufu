@@ -1756,7 +1756,7 @@ exactly the attributes a record would hold, written for the selection route
 in `markers "record"` — and applying it here would refuse the second shape
 above while admitting the first.
 
-**RESOLVED.** The narrowing landed as ruling 5 (`rfc/20260823-foundation-order-ruling.md`,
+**RESOLVED.** The narrowing landed as ruling 5 (`rulings/20260823-foundation-order-ruling.md`,
 commit `2019d8dd73`): `LocatedType`'s credential condition is
 `sensitiveIdentityAttr` unconditionally now, not the whole-schema
 `credentialMaterial` sweep, so `aws_cognito_user_pool_client` clears it —
@@ -1802,7 +1802,7 @@ The first three are `tools/row-gen/rejected.json`'s hand veto ledger,
 checked against `internal/live/identity.DefaultTable` by
 `internal/live/harness`'s `credential-exclusions-are-sanctioned` assumption
 (`live/HARNESS.md`); the last two are ruling 5
-(`rfc/20260823-foundation-order-ruling.md`) and
+(`rulings/20260823-foundation-order-ruling.md`) and
 `internal/live/identity/located.go`'s `strictSecretsLocatedExclusion`. No
 sixth type qualifies: every other hit the sweep found either is admitted
 with its identity independent of the flagged attribute (measured, not
@@ -1901,7 +1901,7 @@ stock state that already holds it. `"create"` selects stock OpenTofu's own
 behavior for a resource with no prior state instead: plan a create.
 
 **Why bounded.** GitHub issue #365, ruling 4
-(`rfc/20260823-foundation-order-ruling.md`). The two settings are opposites
+(`rulings/20260823-foundation-order-ruling.md`). The two settings are opposites
 for the same reason `strict-secrets`'s are - a spelling that is neither is
 a question this package cannot answer - and the default refuses rather
 than creates because HANDOFF.md's safety rule outranks convenience here: a

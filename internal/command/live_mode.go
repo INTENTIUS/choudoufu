@@ -240,7 +240,7 @@ func statelessBegin(
 }
 
 // nodeResolveEnabled reports whether GitHub issue #388's plan-node seam
-// (rfc/20260823-foundation-order-ruling.md, ruling 3) routes identity
+// (rulings/20260823-foundation-order-ruling.md, ruling 3) routes identity
 // resolution through the node - internal/live/projection.NodeResolver,
 // installed as the run's tofu.ResourceIdentityResolver - instead of the
 // pre-walk static path.
@@ -356,7 +356,7 @@ const (
 // with no discovery, no marker stamping and no live read behind it. The
 // stateless answer to "review then apply" is that plan and apply each read
 // the world when they run. Both, plus -refresh-only, are ruled reopenable by
-// rfc/20260830-stale-state-charter.md; none of them is reopened here.
+// rulings/20260830-stale-state-charter.md; none of them is reopened here.
 func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -496,7 +496,7 @@ type statelessRunner struct {
 
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
-	// rfc/20260830-stale-state-charter.md's CollectUnclaimed ruling; now
+	// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling; now
 	// it also selects whether this run asks the estate-wide sweep's
 	// account-inventory question at all. See [collectUnclaimedSetting],
 	// which this is the default argument to.
