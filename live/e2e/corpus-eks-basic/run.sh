@@ -363,6 +363,13 @@ set -uo pipefail
 #                `go build`. Must be linux/amd64 - it runs inside a
 #                --platform linux/amd64 container regardless of host arch.
 #   FLOCI_PORT   host port for the emulator (default 4718).
+#   FLOCI_NS     floci's child-resource namespace for this run (default
+#                eksb$$). Every floci child container is named
+#                floci-$FLOCI_NS-<service>-<id>, and cleanup() sweeps that
+#                prefix and nothing else. Set it by hand only to exercise
+#                cleanup()'s scoping against a known namespace - two
+#                concurrent runs sharing one value would sweep each other,
+#                which is the exact hazard the namespace exists to remove.
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image, which now carries both fixes described
 #                above under "Two real floci gaps".
@@ -414,7 +421,10 @@ FLOCI_NAME="choudoufu-corpus-eks-basic-$$"
 # Docker daemon. Kept short and to [A-Za-z0-9_.-] because floci sanitises
 # it into a container name, and because the k3s cluster container's name
 # doubles as its network-mode DNS name (`https://floci-<ns>-eks-<cluster>:6443`).
-FLOCI_NS="eksb$$"
+# Overridable only so cleanup()'s scoping can be exercised by hand against
+# a known namespace (see the header's env list); the gauntlet never sets it,
+# and two concurrent runs sharing one value would defeat the whole point.
+FLOCI_NS="${FLOCI_NS:-eksb$$}"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 TOOLBOX_IMAGE="choudoufu-corpus-eks-basic-toolbox:$$"
