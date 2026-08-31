@@ -471,6 +471,16 @@ set -uo pipefail
 #                ResourceId and #371's ECS cluster ARN) plus its expected
 #                plan counts. Stage 2 fails first, so reach stage 3's
 #                corruption by commenting the 2d block's BREAK branch out.
+#   BREAK_REMOVE set to 1 to run day2_remove's own negative control (keep
+#                module.ecs_task_definition's block; no destroy may be
+#                proposed for it) instead of the real removal.
+#   BREAK_COUNT  set to 1 to run day2_count's own negative control instead
+#                of Part H's real checks: after the real scale-down plan,
+#                assert the WRONG instance (count_test[0] rather than
+#                count_test[1]) was destroyed. The Break text in
+#                tools/gauntlet/stages.go for day2_count is literally
+#                "Expect a different instance to be destroyed; the
+#                assertion must fail", and this makes it fail.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -532,8 +542,29 @@ GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
 GREEN_ESTATE="ecs-fargate-greenfield"
 
+# day2_count's stock oracle (Part H, H-ORACLE) needs an account with no
+# count_test security group in it and no marked estate to confuse with the
+# one $ENDPOINT holds. It REUSES $FLOCI_ORACLE_PORT rather than claiming a
+# fourth port: the greenfield pair's two containers are torn down at the end
+# of the greenfield stage, hundreds of lines before Part H runs, so the port
+# is free by then and this estate's whole footprint stays the same
+# [main, +1000, +2000] triple a concurrent sibling estate's own port
+# assignment is disjoint from. A fourth container at +3000 would land on the
+# NEXT worker's main port under the parallel runner's own 3000-wide
+# allocation.
+FLOCI_COUNT_ORACLE_NAME="choudoufu-corpus-ecs-fargate-count-oracle-$$"
+COUNT_ORACLE_ENDPOINT="$ORACLE_ENDPOINT"
+# The synthetic count block's own name prefix (see count_test_block below).
+# Distinct from every name this estate's corpus example produces
+# ("ex-fargate", "ex-fargate-standalone", ...) so nothing else in the estate,
+# and nothing in the oracle's own account, can collide with it.
+COUNT_SG_PREFIX="ex-fargate-count-test"
+COUNT_ORACLE_SG_PREFIX="ex-fargate-count-oracle"
+COUNT_ORACLE_DIR="$WORK/plain-oracle-count"
+
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" \
+    "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -582,6 +613,121 @@ remove_task_definition_block() {
     && fail "removing module.ecs_task_definition's block did not match in $est - the corpus pin has moved"
   grep -q 'task_definition_run_task_command' "$est/outputs.tf" \
     && fail "removing the task_definition_run_task_command output did not match in $est - the corpus pin has moved"
+}
+
+# count_test_block COUNT VPC_REF NAME_PREFIX - day2_count's own resource
+# (Part H below). A SYNTHETIC block, and deliberately so: this estate's
+# corpus example declares no scalable count or for_each knob at all. Every
+# `count` in it is the modules' own `count = local.create ? 1 : 0` create
+# toggle, which is a boolean, not a knob that can hold two instances, and
+# scaling the one thing that does hold three (module.vpc's private_subnets)
+# means editing local.azs, which cascades into the ECS service's own
+# network configuration, the ALB's subnets and the NAT gateway - a
+# many-resource churn that says nothing about which count instance a
+# scale-down destroys. So Part H adds its own block, of a type this estate
+# already exercises (modules/cluster, modules/service and
+# modules/express-service each declare aws_security_group.this, and
+# module.ecs_task_definition's own security group is one of the 8 children
+# day2_remove destroys), at an address nothing else in this configuration
+# names, created and scaled entirely within Part H - the sanctioned
+# fallback, with reference-ec2-vpc's Part F and corpus-iam-policy's Part G
+# as precedent.
+#
+# aws_security_group rather than any other taggable type this estate
+# touches because its destroy is witnessed TWICE, established directly
+# against the pinned emulator with no tofu in the loop before this
+# assertion was written: the recreated group under the same name in the
+# same VPC comes back under a NEW server-minted GroupId, and the destroyed
+# one is genuinely absent in between (describe by GroupId and by tag:Name
+# both return 0). An aws_iam_role keeps its name and ARN across a
+# destroy/create and only its RoleId moves; an S3 bucket or SQS queue keeps
+# its deterministic name entirely.
+#
+# VPC_REF lets the same helper serve both legs: Part H's own (inside the
+# adopted estate, where module.vpc.vpc_id already exists) and H-ORACLE's
+# (its own working directory, its own account, its own small VPC - see
+# count_oracle_vpc_block). Unquoted heredoc so $1..$3 interpolate;
+# ${count.index} is escaped so bash never tries to expand it.
+count_test_block() {
+  local n="$1" vpc_ref="$2" prefix="$3"
+  cat <<COUNTEOF
+resource "aws_security_group" "count_test" {
+  count       = $n
+  name        = "$prefix-\${count.index}"
+  description = "day2_count evidence (live/GAUNTLET.md #8)"
+  vpc_id      = $vpc_ref
+
+  tags = {
+    Name = "$prefix-\${count.index}"
+  }
+}
+COUNTEOF
+}
+
+# count_oracle_vpc_block - the H-ORACLE stock oracle's own tiny VPC,
+# standing in for module.vpc in a working directory that declares none of
+# this estate's real infrastructure.
+count_oracle_vpc_block() {
+  cat <<EOF
+resource "aws_vpc" "count_oracle" {
+  cidr_block = "10.99.0.0/16"
+
+  tags = {
+    Name = "$COUNT_ORACLE_SG_PREFIX-vpc"
+  }
+}
+EOF
+}
+
+# write_count_oracle_config COUNT - H-ORACLE's whole main.tf. The provider
+# block carries the same emulator flags apply_delta1 writes onto the
+# estate's own (skip_requesting_account_id = false included - #371, and the
+# ECS-specific stall #572 describes is what `true` costs here), and the same
+# ">= 6.41" constraint versions.tf declares, so stock resolves the same
+# provider version this estate's own runs do.
+write_count_oracle_config() {
+  local n="$1"
+  {
+    cat <<'EOF'
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.41"
+    }
+  }
+}
+
+EOF
+    cat <<EOF
+provider "aws" {
+  region                      = "$REGION"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = false
+  s3_use_path_style           = true
+}
+
+EOF
+    count_oracle_vpc_block
+    echo
+    count_test_block "$n" "aws_vpc.count_oracle.id" "$COUNT_ORACLE_SG_PREFIX"
+  } > "$COUNT_ORACLE_DIR/main.tf"
+}
+
+# write_adopted_count_config COUNT - the adopted estate's main.tf with the
+# count block at COUNT instances. Rebuilt from the snapshot taken before
+# Part H touched anything, so scaling down and back up is exactly a count
+# change and cannot accidentally carry any other edit with it.
+write_adopted_count_config() {
+  local n="$1"
+  {
+    cat "$WORK/main.tf.precount"
+    echo
+    count_test_block "$n" "module.vpc.vpc_id" "$COUNT_SG_PREFIX"
+  } > "$ADOPTED_EST/main.tf"
 }
 
 # apply_delta1 DEST SKIP_ACCOUNT_ID - DELTA 1, the onboarding delta: the
@@ -2060,6 +2206,245 @@ EOF
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.ecs_task_definition's block proposed exactly $REMOVE_N destroys (0 add, 0 change, $REMOVE_N destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, $REMOVE_N destroyed); the standalone task definition family ($TD_FAMILY) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty"
   fi
+  gauntlet_end_stage
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART H: CHANGE COUNT (day2_count, active stage - live/GAUNTLET.md #8)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # Proves, in the stage's own words: "Scaling a `count` block down and back
+  # up destroys and creates only the instances stock would, and every
+  # surviving instance keeps its identity."
+  #
+  # Starts from Part E's real, completed state: module.ecs_task_definition's
+  # block is gone and the adopted estate has just planned empty (E2). The
+  # block this part scales is SYNTHETIC and its own - count_test_block()
+  # near the top of this script carries the full reasoning; the short
+  # version is that this estate's corpus example declares no scalable count
+  # knob at all (every `count` in the vendored modules is a
+  # `local.create ? 1 : 0` boolean create toggle, which can never hold two
+  # instances), and the one construct that does hold three - module.vpc's
+  # private_subnets - is driven by local.azs, which the ECS service's
+  # network configuration, the ALB and the NAT gateway all read, so scaling
+  # it would churn a dozen resources and say nothing about WHICH count
+  # instance a scale-down destroys. aws_security_group is a type this
+  # estate already exercises three times over in its own vendored modules,
+  # and its destroy is witnessed twice on the pinned emulator (a new
+  # server-minted GroupId, and verified absence in between), established
+  # directly against the API with no tofu in the loop before any assertion
+  # here was written.
+  #
+  # Placed LAST, after every other stage has already reported its verdict,
+  # so no earlier stage's assertions can move: aws_security_group.count_test
+  # is an address nothing else in this configuration names, its two live
+  # objects carry names ("ex-fargate-count-test-N") no earlier assertion
+  # reads, and Part H leaves the estate holding exactly the two instances it
+  # created for itself.
+  #
+  # H-ORACLE is the stock oracle live/GAUNTLET.md #8 names: "Stock's plan
+  # for the same count change, normalised." Unlike day2_rename's,
+  # day2_remove's and day2_replace's oracles, it cannot reuse a copy of
+  # cold_deploy's own state - stock never had this count block, so there is
+  # no prior state of it to scale - so it stands the IDENTICAL 2-instance
+  # block up for real, with plain terraform, in its own working directory
+  # and its own account, and scales it down and back up exactly as Part H
+  # does. Same shape as reference-ec2-vpc's B1.7.
+  #
+  # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+  # real checks: after the real scale-down plan, assert the WRONG instance
+  # (count_test[0] rather than count_test[1]) was destroyed - the Break text
+  # in tools/gauntlet/stages.go for day2_count, verbatim: "Expect a
+  # different instance to be destroyed; the assertion must fail."
+
+  gauntlet_begin_stage day2_count
+
+  log "=== H-ORACLE. stock: the same 2-instance count block, scaled to 1 and back, in its own account ==="
+  docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+    || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
+  COUNT_ORACLE_HEALTH=""
+  for _ in $(seq 1 45); do
+    COUNT_ORACLE_HEALTH="$(curl -fs "${COUNT_ORACLE_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+    grep -q '"ec2"' <<< "${COUNT_ORACLE_HEALTH:-}" && break
+    sleep 2
+  done
+  grep -q '"ec2"' <<< "${COUNT_ORACLE_HEALTH:-}" \
+    || fail "floci did not come up healthy (ec2) at $COUNT_ORACLE_ENDPOINT for day2_count's stock oracle"
+  awsco() { aws --endpoint-url "$COUNT_ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+  log "  healthy: $COUNT_ORACLE_ENDPOINT (a fresh container, reusing the port the greenfield oracle released)"
+
+  mkdir -p "$COUNT_ORACLE_DIR"
+  write_count_oracle_config 2
+  ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 )
+    fail "the day2_count stock oracle's terraform init failed"; }
+  CO_BASE_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+    printf '%s\n' "$CO_BASE_APPLY_OUT" | tail -40; fail "the day2_count stock oracle's baseline apply failed"; }
+  grep -qE 'Apply complete! Resources: 3 added' <<< "$CO_BASE_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$CO_BASE_APPLY_OUT"; fail "stock did not create exactly 3 resources (its own VPC plus 2 count-test security groups) for the day2_count oracle"; }
+  CO_SG0="$(awsco ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_ORACLE_SG_PREFIX}-0" --query "SecurityGroups[0].GroupId" --output text)"
+  CO_SG1="$(awsco ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_ORACLE_SG_PREFIX}-1" --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$CO_SG0" ] && [ "$CO_SG0" != "None" ] || fail "no stock count_test[0] security group found by its Name tag in the day2_count oracle"
+  [ -n "$CO_SG1" ] && [ "$CO_SG1" != "None" ] || fail "no stock count_test[1] security group found by its Name tag in the day2_count oracle"
+  log "  stock: 2 instances created, count_test[0]=$CO_SG0 count_test[1]=$CO_SG1"
+
+  write_count_oracle_config 1
+  CO_DOWN_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; CO_DOWN_PLAN_RC=$?
+  [ "$CO_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_DOWN_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-down plan exited $CO_DOWN_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$CO_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$CO_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+  grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$CO_DOWN_PLAN_OUT" \
+    && { printf '%s\n' "$CO_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which must be untouched"; }
+  CO_DOWN_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$CO_DOWN_PLAN_OUT")"
+  [ "$CO_DOWN_PLAN_LINE" = "Plan: 0 to add, 0 to change, 1 to destroy." ] \
+    || { printf '%s\n' "$CO_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan is '$CO_DOWN_PLAN_LINE', not exactly one destroy"; }
+  CO_DOWN_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+    printf '%s\n' "$CO_DOWN_APPLY_OUT" | tail -30; fail "the day2_count oracle's scale-down apply failed"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$CO_DOWN_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$CO_DOWN_APPLY_OUT"; fail "the day2_count oracle's scale-down apply was not exactly one destroy"; }
+  CO_SG0_AFTER_DOWN="$(awsco ec2 describe-security-groups --group-ids "$CO_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$CO_SG0_AFTER_DOWN" = "$CO_SG0" ] || fail "stock's surviving count_test[0] changed id across the scale-down ($CO_SG0 -> $CO_SG0_AFTER_DOWN)"
+  CO_SG1_N_AFTER_DOWN="$(awsco ec2 describe-security-groups --group-ids "$CO_SG1" --query "length(SecurityGroups)" --output text 2>/dev/null || echo 0)"
+  [ "$CO_SG1_N_AFTER_DOWN" = "0" ] || fail "stock's count_test[1] ($CO_SG1) still exists after the scale-down destroy"
+  log "  stock: $CO_DOWN_PLAN_LINE - destroyed count_test[1]=$CO_SG1 only; count_test[0]=$CO_SG0 unchanged, read via the AWS CLI"
+
+  write_count_oracle_config 2
+  CO_UP_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; CO_UP_PLAN_RC=$?
+  [ "$CO_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_UP_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-up plan exited $CO_UP_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.count_test\[1\] will be created' <<< "$CO_UP_PLAN_OUT" \
+    || { printf '%s\n' "$CO_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+  grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$CO_UP_PLAN_OUT" \
+    && { printf '%s\n' "$CO_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which must be untouched"; }
+  CO_UP_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$CO_UP_PLAN_OUT")"
+  [ "$CO_UP_PLAN_LINE" = "Plan: 1 to add, 0 to change, 0 to destroy." ] \
+    || { printf '%s\n' "$CO_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan is '$CO_UP_PLAN_LINE', not exactly one create"; }
+  CO_UP_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+    printf '%s\n' "$CO_UP_APPLY_OUT" | tail -30; fail "the day2_count oracle's scale-up apply failed"; }
+  grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$CO_UP_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$CO_UP_APPLY_OUT"; fail "the day2_count oracle's scale-up apply was not exactly one create"; }
+  CO_SG1_NEW="$(awsco ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_ORACLE_SG_PREFIX}-1" --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$CO_SG1_NEW" ] && [ "$CO_SG1_NEW" != "None" ] || fail "no stock count_test[1] security group found after the day2_count oracle's scale-up"
+  [ "$CO_SG1_NEW" != "$CO_SG1" ] || fail "stock's recreated count_test[1] came back under the SAME GroupId ($CO_SG1) it had before - stock's own destroy was not real, so this oracle proves nothing"
+  CO_SG0_AFTER_UP="$(awsco ec2 describe-security-groups --group-ids "$CO_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$CO_SG0_AFTER_UP" = "$CO_SG0" ] || fail "stock's count_test[0] changed id across the scale-up ($CO_SG0 -> $CO_SG0_AFTER_UP)"
+  log "  stock: $CO_UP_PLAN_LINE - count_test[1] back under a NEW GroupId ($CO_SG1_NEW, was $CO_SG1); count_test[0]=$CO_SG0 unchanged throughout"
+  docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+
+  log "=== H0. choudoufu: add aws_security_group.count_test, count = 2 ==="
+  cp "$ADOPTED_EST/main.tf" "$WORK/main.tf.precount"
+  write_adopted_count_config 2
+  H_ADD_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; H_ADD_PLAN_RC=$?
+  [ "$H_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$H_ADD_PLAN_OUT" | tail -40; fail "the count-block-add plan exited $H_ADD_PLAN_RC"; }
+  grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$H_ADD_PLAN_OUT" \
+    || { printf '%s\n' "$H_ADD_PLAN_OUT" | tail -15; fail "adding the count block did not plan exactly 2 creates"; }
+  H_ADD_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; H_ADD_APPLY_RC=$?
+  [ "$H_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$H_ADD_APPLY_OUT" | tail -40; fail "the count-block-add apply exited $H_ADD_APPLY_RC"; }
+  grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$H_ADD_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$H_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+  H_SG0="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_SG_PREFIX}-0" --query "SecurityGroups[0].GroupId" --output text)"
+  H_SG1="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_SG_PREFIX}-1" --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$H_SG0" ] && [ "$H_SG0" != "None" ] || fail "no live count_test[0] security group found by its Name tag"
+  [ -n "$H_SG1" ] && [ "$H_SG1" != "None" ] || fail "no live count_test[1] security group found by its Name tag"
+  # The identity, read by value through the AWS CLI rather than through
+  # choudoufu's own report. A count instance's tofu-address is colon-
+  # escaped (live/MARKERS.md: aws_eip.this[2] -> aws_eip.this:2) and
+  # carries tofu-slot alongside it, the "stable, opaque cardinality slot"
+  # that same page reserves for count instances - the pair this estate's
+  # own day2_replace BREAK control manufactures by hand to prove a
+  # collision is detected.
+  H_SG0_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  H_SG1_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG1" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_ADDR" = 'aws_security_group.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is '$H_SG0_ADDR', not aws_security_group.count_test:0"
+  [ "$H_SG1_ADDR" = 'aws_security_group.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is '$H_SG1_ADDR', not aws_security_group.count_test:1"
+  H_SG0_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+  H_SG1_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG1" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_SLOT" = "0" ] || fail "count_test[0]'s live tofu-slot tag is '$H_SG0_SLOT', not 0"
+  [ "$H_SG1_SLOT" = "1" ] || fail "count_test[1]'s live tofu-slot tag is '$H_SG1_SLOT', not 1"
+  H_SG0_ESTATE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-estate" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_ESTATE" = "$ESTATE" ] || fail "count_test[0] carries tofu-estate=$H_SG0_ESTATE, not $ESTATE"
+  log "  2 instances created: [0]=$H_SG0 (tofu-address=$H_SG0_ADDR tofu-slot=$H_SG0_SLOT), [1]=$H_SG1 (tofu-address=$H_SG1_ADDR tofu-slot=$H_SG1_SLOT) - all read via the AWS CLI"
+
+  H_NOOP_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; H_NOOP_PLAN_RC=$?
+  [ "$H_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$H_NOOP_PLAN_OUT" | tail -40; fail "the post-add plan exited $H_NOOP_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$H_NOOP_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$H_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the two new instances did not bind their own markers cleanly"; }
+  log "  No changes - both new instances plan empty immediately after creation"
+
+  log "=== H1. choudoufu: scale the count block down, 2 -> 1 ==="
+  write_adopted_count_config 1
+  H_DOWN_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; H_DOWN_PLAN_RC=$?
+  [ "$H_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$H_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $H_DOWN_PLAN_RC"; }
+
+  if [ "${BREAK_COUNT:-}" = "1" ]; then
+    log "=== H1 (BREAK_COUNT=1). assert the WRONG instance (count_test[0]) was destroyed ==="
+    if grep -qE '^  # aws_security_group\.count_test\[0\] will be destroyed' <<< "$H_DOWN_PLAN_OUT"; then
+      fail "BREAK_COUNT=1: the plan really does destroy count_test[0] - the wrong-instance assertion is not load-bearing"
+    fi
+    printf '%s\n' "$H_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'
+    fail "BREAK_COUNT=1: the scale-down plan destroys count_test[1], not count_test[0] - this is the stage's own Break control ('Expect a different instance to be destroyed; the assertion must fail'), and it correctly fails"
+  fi
+
+  grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$H_DOWN_PLAN_OUT" \
+    || { printf '%s\n' "$H_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+  grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$H_DOWN_PLAN_OUT" \
+    && { printf '%s\n' "$H_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[0], which must be untouched"; }
+  H_DOWN_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$H_DOWN_PLAN_OUT")"
+  [ "$H_DOWN_PLAN_LINE" = "Plan: 0 to add, 0 to change, 1 to destroy." ] \
+    || { printf '%s\n' "$H_DOWN_PLAN_OUT" | tail -15; fail "choudoufu's scale-down plan is '$H_DOWN_PLAN_LINE', not exactly one destroy - the same shape stock proposed ($CO_DOWN_PLAN_LINE)"; }
+  log "  choudoufu: $H_DOWN_PLAN_LINE - destroys count_test[1] only, count_test[0] untouched (stock: $CO_DOWN_PLAN_LINE)"
+
+  H_DOWN_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; H_DOWN_APPLY_RC=$?
+  [ "$H_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$H_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $H_DOWN_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$H_DOWN_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$H_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+  H_SG0_AFTER_DOWN="$(awsl ec2 describe-security-groups --group-ids "$H_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$H_SG0_AFTER_DOWN" = "$H_SG0" ] || fail "count_test[0]'s live GroupId changed across the scale-down ($H_SG0 -> $H_SG0_AFTER_DOWN) - the survivor was destroyed and recreated, not left alone"
+  H_SG1_N_AFTER_DOWN="$(awsl ec2 describe-security-groups --group-ids "$H_SG1" --query "length(SecurityGroups)" --output text 2>/dev/null || echo 0)"
+  [ "$H_SG1_N_AFTER_DOWN" = "0" ] || fail "count_test[1] ($H_SG1) still exists in the live account after the scale-down destroy"
+  H_SG0_ADDR_AFTER_DOWN="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_ADDR_AFTER_DOWN" = 'aws_security_group.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-down: '$H_SG0_ADDR_AFTER_DOWN'"
+  H_SG0_SLOT_AFTER_DOWN="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_SLOT_AFTER_DOWN" = "$H_SG0_SLOT" ] || fail "count_test[0]'s tofu-slot tag changed across the scale-down ($H_SG0_SLOT -> $H_SG0_SLOT_AFTER_DOWN)"
+  log "  $H_SG1 (count_test[1]) is gone (0 found by GroupId); $H_SG0 (count_test[0]) keeps its GroupId, its tofu-address and its tofu-slot - all read via the AWS CLI"
+
+  log "=== H2. choudoufu: scale the count block back up, 1 -> 2 ==="
+  write_adopted_count_config 2
+  H_UP_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; H_UP_PLAN_RC=$?
+  [ "$H_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$H_UP_PLAN_OUT" | tail -40; fail "the scale-up plan exited $H_UP_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.count_test\[1\] will be created' <<< "$H_UP_PLAN_OUT" \
+    || { printf '%s\n' "$H_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+  grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$H_UP_PLAN_OUT" \
+    && { printf '%s\n' "$H_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which must be untouched"; }
+  H_UP_PLAN_LINE="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy\.' <<< "$H_UP_PLAN_OUT")"
+  [ "$H_UP_PLAN_LINE" = "Plan: 1 to add, 0 to change, 0 to destroy." ] \
+    || { printf '%s\n' "$H_UP_PLAN_OUT" | tail -15; fail "choudoufu's scale-up plan is '$H_UP_PLAN_LINE', not exactly one create - the same shape stock proposed ($CO_UP_PLAN_LINE)"; }
+  log "  choudoufu: $H_UP_PLAN_LINE - creates count_test[1] only, count_test[0] untouched (stock: $CO_UP_PLAN_LINE)"
+
+  H_UP_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; H_UP_APPLY_RC=$?
+  [ "$H_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$H_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $H_UP_APPLY_RC"; }
+  grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$H_UP_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$H_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+  H_SG1_NEW="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=${COUNT_SG_PREFIX}-1" --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$H_SG1_NEW" ] && [ "$H_SG1_NEW" != "None" ] || fail "no live count_test[1] security group found by its Name tag after the scale-up"
+  [ "$H_SG1_NEW" != "$H_SG1" ] || fail "count_test[1] came back under the SAME GroupId ($H_SG1) it had before being destroyed - the destroy in H1 was not real"
+  H_SG1_NEW_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG1_NEW" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$H_SG1_NEW_ADDR" = 'aws_security_group.count_test:1' ] || fail "the recreated count_test[1] ($H_SG1_NEW) carries tofu-address='$H_SG1_NEW_ADDR', not aws_security_group.count_test:1"
+  H_SG1_NEW_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG1_NEW" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+  [ "$H_SG1_NEW_SLOT" = "$H_SG1_SLOT" ] || fail "the recreated count_test[1] carries tofu-slot='$H_SG1_NEW_SLOT', not the '$H_SG1_SLOT' the destroyed instance held"
+  H_SG0_AFTER_UP="$(awsl ec2 describe-security-groups --group-ids "$H_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$H_SG0_AFTER_UP" = "$H_SG0" ] || fail "count_test[0]'s live GroupId changed across the scale-up ($H_SG0 -> $H_SG0_AFTER_UP)"
+  H_SG0_ADDR_AFTER_UP="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$H_SG0" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+  [ "$H_SG0_ADDR_AFTER_UP" = 'aws_security_group.count_test:0' ] || fail "count_test[0]'s tofu-address tag changed across the scale-up: '$H_SG0_ADDR_AFTER_UP'"
+  log "  count_test[1] is back under a NEW GroupId ($H_SG1_NEW, was $H_SG1) carrying tofu-address=$H_SG1_NEW_ADDR tofu-slot=$H_SG1_NEW_SLOT; count_test[0]=$H_SG0 untouched through the whole down-then-up cycle - all read via the AWS CLI"
+
+  log "=== H3. one more plan: config and reality agree, nothing left to propose ==="
+  H_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; H_FINAL_PLAN_RC=$?
+  [ "$H_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$H_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $H_FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$H_FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$H_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+  log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+  gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] ($H_DOWN_PLAN_LINE), leaving count_test[0]'s live GroupId ($H_SG0), its tofu-address (aws_security_group.count_test:0) and its tofu-slot ($H_SG0_SLOT) unchanged, and count_test[1] ($H_SG1) genuinely absent - all read through the AWS CLI, never choudoufu's own report; scaling back from 1 to 2 created exactly count_test[1] ($H_UP_PLAN_LINE) under a NEW server-minted GroupId ($H_SG1_NEW, was $H_SG1) carrying tofu-address=$H_SG1_NEW_ADDR and the same tofu-slot=$H_SG1_NEW_SLOT, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (H-ORACLE), the identical 2-instance block stood up for real with plain terraform in its own account and its own working directory - stock never had this block, so unlike day2_rename/day2_remove/day2_replace there is no cold_deploy state to reuse - shows the identical shape: $CO_DOWN_PLAN_LINE destroying count_test[1]=$CO_SG1 only, then $CO_UP_PLAN_LINE bringing it back under a new GroupId ($CO_SG1_NEW), with count_test[0]=$CO_SG0 unchanged both times. SYNTHETIC block, and why: this estate's corpus example (terraform-aws-modules/terraform-aws-ecs v7.6.0, examples/fargate) declares no scalable count knob at all - every count in its vendored modules is a 'count = local.create ? 1 : 0' boolean create toggle, which cannot hold two instances - and the only construct holding three, module.vpc's private_subnets, is driven by local.azs, which the ECS service's network configuration, the ALB and the NAT gateway all read, so scaling it churns a dozen unrelated resources instead of isolating which count instance a scale-down destroys. aws_security_group was chosen because this estate already exercises it three times in its own vendored modules (modules/cluster, modules/service, modules/express-service each declare aws_security_group.this) and because its destroy is witnessed TWICE on the pinned emulator - a new GroupId AND verified absence in between - established by reading the EC2 API directly with no tofu in the loop before any assertion here was written. Placed last, after every other stage reported, at an address nothing else in this configuration names, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly fails."
   gauntlet_end_stage
 fi
 gauntlet_end_stage

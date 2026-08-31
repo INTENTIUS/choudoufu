@@ -145,6 +145,10 @@ set -uo pipefail
 #                 own break control (PART F): manufacture the coexistence a
 #                 skipped destroy would leave behind.
 #   BREAK_REMOVE  set to 1 to run day2_remove's own break control instead.
+#   BREAK_COUNT   set to 1 to run day2_count's own break control instead: on
+#                 the real scale-down plan, assert the WRONG instance
+#                 (count_test[0] rather than count_test[1]) was destroyed.
+#                 The stage must report fail.
 #   BREAK_STAGE3  set to 1 to corrupt stage 3's expected inline-policy name.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5's replan.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
@@ -1313,6 +1317,367 @@ EOF
     log "  No changes. The removal is complete and invisible to the next plan."
 
     gauntlet_stage day2_remove pass "choudoufu: deleting module.crossplane_final's block proposed $REMOVE_N resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the role is genuinely gone from the live account (get-role now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report); classifyOrphans did not withhold any destroy because no other module.crossplane* block is declared anywhere in this config; the next plan is empty"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, active stage - live/GAUNTLET.md #8;
+    # issue #643's board-repair sweep)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # WHY A SYNTHETIC BLOCK, checked against .corpus rather than assumed.
+    # The pinned crossplane module declares exactly two expansion knobs, both
+    # in role.tofu and both reachable from this script's own root wiring:
+    #
+    #   aws_iam_role_policy.additional_policies
+    #     for_each = var.additional_policies                (line 33)
+    #   aws_iam_role_policy_attachment.additional_policy_attachments
+    #     for_each = toset(var.additional_policies_arns)    (line 40)
+    #
+    # There is no `count` anywhere in the module, and neither for_each can
+    # carry this stage. Both types are UNTAGGABLE (no `tags` argument in the
+    # pinned v6.59.0 Argument Reference - this script's own STAGE 2 asserts
+    # them into the UNTAGGABLE bucket by name), so neither instance carries a
+    # tofu-address marker at all, and "every surviving instance keeps its
+    # identity" could not be read back off the live object the way the stage
+    # requires. The second one is additionally proved to resolve to ZERO
+    # instances at STAGE 1. And the inline-policy set the first one expands
+    # into is policed by aws_iam_role_policies_exclusive in the same module,
+    # so scaling it moves two resources' live content at once rather than
+    # one. That is this estate's version of the same answer every sibling
+    # day2_count unit reached about a terraform-aws-modules-style
+    # `count = local.create ? 1 : 0`: a real knob that is not a scalable one.
+    #
+    # So this section uses the sanctioned fallback (live/GAUNTLET.md #8, with
+    # reference-ec2-vpc's Part F and corpus-iam-policy's Part G as
+    # precedent): a NEW, self-contained synthetic block, count = 2, of a type
+    # this estate ALREADY exercises - aws_iam_role, the module's own primary
+    # object and one of its only two taggable types - that nothing else in
+    # this estate references. It is written to its own file
+    # ($ESTATE/day2_count.tofu, .tofu like everything else here), never into
+    # the vendored module, so the header's byte-identical DELTA discipline is
+    # untouched.
+    #
+    # THE DESTROY WITNESS, established directly against floci first with no
+    # tofu in the loop (HANDOFF: "read the API directly"), on the pinned
+    # image, before any assertion below was written:
+    #
+    #   create probe-count-test-0        -> RoleId AROAK1UQR4CC8GA10BDZ
+    #   create probe-count-test-1        -> RoleId AROA8FRGRV7GAEB6SGJP
+    #   delete probe-count-test-1        -> get-role now NoSuchEntity
+    #   create probe-count-test-1 (SAME name)
+    #                                    -> RoleId AROAUNW2HNJSV6P5XNMB
+    #                                       CreateDate 07:26:41 -> 07:26:44
+    #   probe-count-test-0               -> RoleId and CreateDate unchanged
+    #
+    # An IAM role's name is deterministic from configuration and its ARN is
+    # derived from that name, so BOTH come back identical across a real
+    # destroy and recreate - neither is a witness. What AWS mints per object
+    # is the RoleId (the AROA... unique id its own IAM documentation defines
+    # as assigned at creation, and the reason AWS tells you to pin a
+    # principal by unique id rather than by ARN when you care about
+    # delete-and-recreate). floci reproduces that, and its CreateDate carries
+    # microseconds, so both discriminate a same-second recreate. This section
+    # therefore proves the destroy by a CHANGED RoleId under an UNCHANGED
+    # deterministic name - the corpus-hongbomiao-storage shape (same name,
+    # changed creation timestamp) and the reference-ec2-vpc shape (a new
+    # server-minted id) at once, rather than by a name_prefix suffix moving,
+    # which only ever proves a different name was used.
+    #
+    # G-ORACLE is this stage's stock oracle (live/GAUNTLET.md #8: "Stock's
+    # plan for the same count change, normalised"): the IDENTICAL count block
+    # emitted by the same shell function, stood up by real `tofu` (this
+    # estate's stock binary - plain terraform cannot parse a .tofu estate at
+    # all, see this script's header) in its own working directory, against
+    # $ORACLE_ENDPOINT - the third container PART GREENFIELD's own oracle
+    # used and has not touched since G6, so it is idle, and its only objects
+    # are named from $GREEN_INSTALLATION, disjoint from these. A separate
+    # container rather than a shared account means the oracle's own
+    # unmarked roles can never be mistaken for choudoufu's marked ones by a
+    # name lookup, which is the trap corpus-iam-policy's Part G had to add a
+    # teardown for.
+    #
+    # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+    # real checks: it asserts the WRONG instance was destroyed (count_test[0]
+    # rather than count_test[1]), which is the Break text in
+    # tools/gauntlet/stages.go for day2_count verbatim - "Expect a different
+    # instance to be destroyed; the assertion must fail" - and reports
+    # verdict=fail either way, saying which. Independent of BREAK,
+    # BREAK_REMOVE, BREAK_STAGE3 and BREAK_STAGE5; only reachable on the
+    # real path, since day2_count starts from Part E's completed removal.
+    gauntlet_begin_stage day2_count
+    COUNT_TEST_PREFIX="giantswarm-crossplane-count-test-"
+    CT0_NAME="${COUNT_TEST_PREFIX}0"
+    CT1_NAME="${COUNT_TEST_PREFIX}1"
+
+    # One emitter for both sides, so the real leg and the oracle differ only
+    # in which binary runs them and which account they run against - never in
+    # the configuration itself.
+    count_test_block() { # $1 = count
+      local n="$1"
+      cat <<COUNTEOF
+resource "aws_iam_role" "count_test" {
+  count = $n
+  name  = "$COUNT_TEST_PREFIX\${count.index}"
+  path  = "/"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+
+  tags = {
+    purpose = "day2_count evidence"
+  }
+}
+COUNTEOF
+    }
+    oracle_count_provider() {
+      cat <<COUNTPROVEOF
+terraform {
+  required_version = ">= 1.11"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  s3_use_path_style           = true
+}
+
+COUNTPROVEOF
+    }
+    # The two witnesses, read straight off the IAM API on whichever endpoint
+    # is asked for. Empty (never a stale value) when the role is gone.
+    role_id_on() { aws --endpoint-url "$1" --region "$REGION" iam get-role --role-name "$2" --query 'Role.RoleId' --output text 2>/dev/null || true; }
+    role_created_on() { aws --endpoint-url "$1" --region "$REGION" iam get-role --role-name "$2" --query 'Role.CreateDate' --output text 2>/dev/null || true; }
+    # The change lines a count plan is allowed to carry, normalised to the
+    # bare "<address> will be <action>" the stage's Oracle text compares.
+    count_actions() { grep -oE '^  # aws_iam_role\.count_test\[[0-9]+\] will be [a-z]+' <<< "$1" | sed -E 's/^  # //' | sort -u; }
+
+    log "=== G-ORACLE. stock tofu: the identical 2-instance count block, scaled 2 -> 1 -> 2, in the idle greenfield-oracle account ==="
+    PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
+    mkdir -p "$PLAIN_ORACLE_COUNT"
+    { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tofu"
+    ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+    ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
+    [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+    grep -qE 'Apply complete! Resources: 2 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_COUNT_APPLY_OUT"; fail "stock did not create exactly 2 count_test roles for the day2_count oracle"; }
+    ORACLE_CT0_ID="$(role_id_on "$ORACLE_ENDPOINT" "$CT0_NAME")"
+    ORACLE_CT1_ID="$(role_id_on "$ORACLE_ENDPOINT" "$CT1_NAME")"
+    ORACLE_CT0_CREATED="$(role_created_on "$ORACLE_ENDPOINT" "$CT0_NAME")"
+    ORACLE_CT1_CREATED="$(role_created_on "$ORACLE_ENDPOINT" "$CT1_NAME")"
+    [ -n "$ORACLE_CT0_ID" ] && [ "$ORACLE_CT0_ID" != "None" ] || fail "no oracle count_test[0] role ($CT0_NAME) found after stock's baseline apply"
+    [ -n "$ORACLE_CT1_ID" ] && [ "$ORACLE_CT1_ID" != "None" ] || fail "no oracle count_test[1] role ($CT1_NAME) found after stock's baseline apply"
+    [ "$ORACLE_CT0_ID" != "$ORACLE_CT1_ID" ] || fail "sanity: stock's two count_test roles share one RoleId ($ORACLE_CT0_ID) - the witness this section rests on is not per-object"
+    log "  stock: 2 instances created, count_test[0]=$CT0_NAME (RoleId=$ORACLE_CT0_ID) count_test[1]=$CT1_NAME (RoleId=$ORACLE_CT1_ID)"
+
+    { oracle_count_provider; count_test_block 1; } > "$PLAIN_ORACLE_COUNT/main.tofu"
+    ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+    [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+    ORACLE_DOWN_ACTIONS="$(count_actions "$ORACLE_DOWN_PLAN_OUT")"
+    [ "$ORACLE_DOWN_ACTIONS" = "aws_iam_role.count_test[1] will be destroyed" ] \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan is not exactly \"count_test[1] will be destroyed\", it is [$ORACLE_DOWN_ACTIONS]"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+    ORACLE_DOWN_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_DOWN_APPLY_RC=$?
+    [ "$ORACLE_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+    [ -z "$(role_id_on "$ORACLE_ENDPOINT" "$CT1_NAME")" ] \
+      || fail "stock's count_test[1] role ($CT1_NAME) still exists after the oracle's scale-down destroy"
+    [ "$(role_id_on "$ORACLE_ENDPOINT" "$CT0_NAME")" = "$ORACLE_CT0_ID" ] \
+      || fail "stock's surviving count_test[0] changed RoleId across the scale-down - stock did not leave the lower index alone"
+    [ "$(role_created_on "$ORACLE_ENDPOINT" "$CT0_NAME")" = "$ORACLE_CT0_CREATED" ] \
+      || fail "stock's surviving count_test[0] changed CreateDate across the scale-down"
+    log "  stock: exactly one destroy (count_test[1], RoleId $ORACLE_CT1_ID, now NoSuchEntity), count_test[0] RoleId and CreateDate unchanged"
+
+    { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tofu"
+    ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+    [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+    ORACLE_UP_ACTIONS="$(count_actions "$ORACLE_UP_PLAN_OUT")"
+    [ "$ORACLE_UP_ACTIONS" = "aws_iam_role.count_test[1] will be created" ] \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan is not exactly \"count_test[1] will be created\", it is [$ORACLE_UP_ACTIONS]"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+      || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+    ORACLE_UP_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_UP_APPLY_RC=$?
+    [ "$ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+    ORACLE_CT1_NEW_ID="$(role_id_on "$ORACLE_ENDPOINT" "$CT1_NAME")"
+    ORACLE_CT1_NEW_CREATED="$(role_created_on "$ORACLE_ENDPOINT" "$CT1_NAME")"
+    [ -n "$ORACLE_CT1_NEW_ID" ] && [ "$ORACLE_CT1_NEW_ID" != "None" ] || fail "no oracle count_test[1] role found after stock's scale-up"
+    [ "$ORACLE_CT1_NEW_ID" != "$ORACLE_CT1_ID" ] \
+      || fail "stock's recreated count_test[1] came back with the SAME RoleId ($ORACLE_CT1_ID) it had before being destroyed - the oracle's own destroy was not real"
+    [ "$ORACLE_CT1_NEW_CREATED" != "$ORACLE_CT1_CREATED" ] \
+      || fail "stock's recreated count_test[1] came back with the SAME CreateDate it had before being destroyed"
+    [ "$(role_id_on "$ORACLE_ENDPOINT" "$CT0_NAME")" = "$ORACLE_CT0_ID" ] \
+      || fail "stock's count_test[0] changed RoleId across the scale-up"
+    log "  stock: exactly one create (count_test[1] back under the SAME name $CT1_NAME but a NEW RoleId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0] RoleId $ORACLE_CT0_ID untouched across the whole down-then-up cycle"
+
+    log "=== G1. choudoufu: add aws_iam_role.count_test, count = 2 ==="
+    count_test_block 2 > "$ESTATE/day2_count.tofu"
+    COUNT_ADD_PLAN_OUT="$(plan_into 2>&1)"; COUNT_ADD_PLAN_RC=$?
+    [ "$COUNT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -40; fail "the count-block-add plan exited $COUNT_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$COUNT_ADD_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_ADD_PLAN_OUT" | tail -15; fail "adding the count block did not plan exactly 2 creates"; }
+    COUNT_ADD_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_APPLY_RC=$?
+    [ "$COUNT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY_OUT" | tail -40; fail "the count-block-add apply exited $COUNT_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+    CT0_ID="$(role_id_on "$ENDPOINT" "$CT0_NAME")"
+    CT1_ID="$(role_id_on "$ENDPOINT" "$CT1_NAME")"
+    CT0_CREATED="$(role_created_on "$ENDPOINT" "$CT0_NAME")"
+    CT1_CREATED="$(role_created_on "$ENDPOINT" "$CT1_NAME")"
+    [ -n "$CT0_ID" ] && [ "$CT0_ID" != "None" ] || fail "no live count_test[0] role ($CT0_NAME) after the count-block-add apply"
+    [ -n "$CT1_ID" ] && [ "$CT1_ID" != "None" ] || fail "no live count_test[1] role ($CT1_NAME) after the count-block-add apply"
+    [ "$CT0_ID" != "$CT1_ID" ] || fail "sanity: both count_test roles share one RoleId ($CT0_ID)"
+    # live/MARKERS.md's escaping rule: a count instance's tag value is
+    # colon-escaped, aws_eip.this[2] -> aws_eip.this:2.
+    CT0_ADDR_TAG="$(awsl iam list-role-tags --role-name "$CT0_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    CT1_ADDR_TAG="$(awsl iam list-role-tags --role-name "$CT1_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT0_ADDR_TAG" = 'aws_iam_role.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not aws_iam_role.count_test:0 (live/MARKERS.md's colon escaping for an indexed address)"
+    [ "$CT1_ADDR_TAG" = 'aws_iam_role.count_test:1' ] || fail "count_test[1]'s live tofu-address tag is $CT1_ADDR_TAG, not aws_iam_role.count_test:1"
+    CT0_ESTATE_TAG="$(awsl iam list-role-tags --role-name "$CT0_NAME" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text)"
+    [ "$CT0_ESTATE_TAG" = "$ESTATE_NAME" ] || fail "count_test[0] carries tofu-estate=$CT0_ESTATE_TAG, not $ESTATE_NAME"
+    CT0_PURPOSE_TAG="$(awsl iam list-role-tags --role-name "$CT0_NAME" --query "Tags[?Key=='purpose'].Value | [0]" --output text)"
+    [ "$CT0_PURPOSE_TAG" = "day2_count evidence" ] \
+      || fail "count_test[0]'s own purpose tag is \"$CT0_PURPOSE_TAG\" after stamping - the marker replaced the block's tag set instead of merging into it"
+    log "  2 instances created: index 0 = $CT0_NAME (RoleId=$CT0_ID, tofu-address=$CT0_ADDR_TAG), index 1 = $CT1_NAME (RoleId=$CT1_ID, tofu-address=$CT1_ADDR_TAG) - all read via the AWS CLI"
+
+    COUNT_NOOP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_NOOP_PLAN_RC=$?
+    [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -30; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_NOOP_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the two new instances did not bind their own markers cleanly"; }
+    log "  No changes - both new instances bind their own markers and plan empty immediately"
+
+    log "=== G2. scale count down: 2 -> 1 ==="
+    count_test_block 1 > "$ESTATE/day2_count.tofu"
+    COUNT_DOWN_PLAN_OUT="$(plan_into 2>&1)"; COUNT_DOWN_PLAN_RC=$?
+    [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
+
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      # tools/gauntlet/stages.go's Break text for day2_count, verbatim:
+      # "Expect a different instance to be destroyed; the assertion must
+      # fail." So this asserts the LOWER index was destroyed - the one the
+      # real leg proves is untouched - and nothing else changes. Either
+      # branch below reports verdict=fail; the first one is the expected
+      # outcome and its detail says the real assertion has teeth.
+      log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) is the one destroyed"
+      grep -qE '^  # aws_iam_role\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'
+             fail "BREAK_COUNT=1: the scale-down plan does not destroy count_test[0] - it destroys the HIGHER index, count_test[1] ($CT1_NAME, RoleId $CT1_ID), leaving count_test[0] ($CT0_NAME, RoleId $CT0_ID) alone, exactly as it must; the real leg's which-instance assertion is load-bearing"; }
+      fail "BREAK_COUNT=1: the scale-down plan really did propose destroying count_test[0], the LOWER index - choudoufu destroyed the wrong instance"
+    fi
+
+    COUNT_DOWN_ACTIONS="$(count_actions "$COUNT_DOWN_PLAN_OUT")"
+    [ "$COUNT_DOWN_ACTIONS" = "aws_iam_role.count_test[1] will be destroyed" ] \
+      || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan is not exactly \"count_test[1] will be destroyed\", it is [$COUNT_DOWN_ACTIONS]"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$COUNT_DOWN_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+    # The stage's own Oracle text, applied: stock's plan for the same count
+    # change, normalised. Both sides declare the same address, so the
+    # normalisation is the action-line extraction itself.
+    [ "$COUNT_DOWN_ACTIONS" = "$ORACLE_DOWN_ACTIONS" ] \
+      || fail "choudoufu's scale-down plan [$COUNT_DOWN_ACTIONS] differs from stock's [$ORACLE_DOWN_ACTIONS] for the identical count change"
+    log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched - the same action set stock proposed"
+
+    COUNT_DOWN_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_APPLY_RC=$?
+    [ "$COUNT_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY_OUT" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY_OUT"; fail "the scale-down apply was not exactly one destroy"; }
+
+    if CT1_STILL="$(awsl iam get-role --role-name "$CT1_NAME" 2>&1)"; then
+      echo "$CT1_STILL"; fail "count_test[1] ($CT1_NAME) still exists in the live account after the scale-down destroy"
+    fi
+    grep -qi 'NoSuchEntity' <<< "$CT1_STILL" \
+      || { echo "$CT1_STILL"; fail "get-role for $CT1_NAME failed with an unexpected error, not NoSuchEntity - it may still exist"; }
+    CT0_ID_AFTER_DOWN="$(role_id_on "$ENDPOINT" "$CT0_NAME")"
+    [ "$CT0_ID_AFTER_DOWN" = "$CT0_ID" ] \
+      || fail "count_test[0]'s RoleId changed across the scale-down ($CT0_ID -> $CT0_ID_AFTER_DOWN) - the survivor was destroyed and recreated, not left alone"
+    [ "$(role_created_on "$ENDPOINT" "$CT0_NAME")" = "$CT0_CREATED" ] \
+      || fail "count_test[0]'s CreateDate changed across the scale-down - the survivor is a different object"
+    CT0_ADDR_AFTER_DOWN="$(awsl iam list-role-tags --role-name "$CT0_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT0_ADDR_AFTER_DOWN" = 'aws_iam_role.count_test:0' ] \
+      || fail "count_test[0]'s tofu-address marker changed across the scale-down: $CT0_ADDR_AFTER_DOWN"
+    # The local record store, by value (HANDOFF's safety rule, the #398-guard
+    # shape). A destroyed count instance's record is TOMBSTONED, not deleted:
+    # the envelope's top-level "identity" is cleared and a "tombstone" entry
+    # added, so the honest check is has(tombstone) and not has(identity),
+    # never file absence.
+    CT1_RECORD="$ESTATE/.tofu-records/tofu-records/$ESTATE_NAME/aws_iam_role/$(record_key 'aws_iam_role.count_test[1]')"
+    [ -f "$CT1_RECORD" ] || fail "no local record file found for aws_iam_role.count_test[1] after the scale-down - expected a tombstoned record, not none at all"
+    jq -e 'has("tombstone") and (has("identity") | not)' "$CT1_RECORD" >/dev/null \
+      || fail "the record at aws_iam_role.count_test[1] after the scale-down is not tombstoned: $(cat "$CT1_RECORD")"
+    log "  $CT1_NAME (count_test[1]) is gone (NoSuchEntity) and its local record is tombstoned, not deleted; $CT0_NAME (count_test[0]) keeps RoleId $CT0_ID, its CreateDate and its marker - all read via the AWS CLI and the record store, never through choudoufu's own report"
+
+    log "=== G3. scale count back up: 1 -> 2 ==="
+    count_test_block 2 > "$ESTATE/day2_count.tofu"
+    COUNT_UP_PLAN_OUT="$(plan_into 2>&1)"; COUNT_UP_PLAN_RC=$?
+    [ "$COUNT_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -40; fail "the scale-up plan exited $COUNT_UP_PLAN_RC"; }
+    COUNT_UP_ACTIONS="$(count_actions "$COUNT_UP_PLAN_OUT")"
+    [ "$COUNT_UP_ACTIONS" = "aws_iam_role.count_test[1] will be created" ] \
+      || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan is not exactly \"count_test[1] will be created\", it is [$COUNT_UP_ACTIONS]"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$COUNT_UP_PLAN_OUT" \
+      || { printf '%s\n' "$COUNT_UP_PLAN_OUT" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+    [ "$COUNT_UP_ACTIONS" = "$ORACLE_UP_ACTIONS" ] \
+      || fail "choudoufu's scale-up plan [$COUNT_UP_ACTIONS] differs from stock's [$ORACLE_UP_ACTIONS] for the identical count change"
+    log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched - the same action set stock proposed"
+
+    COUNT_UP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_APPLY_RC=$?
+    [ "$COUNT_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY_OUT" | tail -40; fail "the scale-up apply exited $COUNT_UP_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
+
+    CT1_NEW_ID="$(role_id_on "$ENDPOINT" "$CT1_NAME")"
+    CT1_NEW_CREATED="$(role_created_on "$ENDPOINT" "$CT1_NAME")"
+    [ -n "$CT1_NEW_ID" ] && [ "$CT1_NEW_ID" != "None" ] || fail "no live count_test[1] role ($CT1_NAME) found after the scale-up"
+    [ "$CT1_NEW_ID" != "$CT1_ID" ] \
+      || fail "count_test[1] came back with the SAME RoleId ($CT1_ID) it had before being destroyed - the destroy in G2 was not real"
+    [ "$CT1_NEW_CREATED" != "$CT1_CREATED" ] \
+      || fail "count_test[1] came back with the SAME CreateDate ($CT1_CREATED) it had before being destroyed"
+    CT1_NEW_ADDR_TAG="$(awsl iam list-role-tags --role-name "$CT1_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+    [ "$CT1_NEW_ADDR_TAG" = 'aws_iam_role.count_test:1' ] \
+      || fail "the recreated count_test[1] ($CT1_NAME) carries tofu-address=$CT1_NEW_ADDR_TAG, not aws_iam_role.count_test:1"
+    CT0_ID_AFTER_UP="$(role_id_on "$ENDPOINT" "$CT0_NAME")"
+    [ "$CT0_ID_AFTER_UP" = "$CT0_ID" ] \
+      || fail "count_test[0]'s RoleId changed across the scale-up ($CT0_ID -> $CT0_ID_AFTER_UP)"
+    [ "$(role_created_on "$ENDPOINT" "$CT0_NAME")" = "$CT0_CREATED" ] \
+      || fail "count_test[0]'s CreateDate changed across the scale-up"
+    [ "$(awsl iam list-role-tags --role-name "$CT0_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)" = 'aws_iam_role.count_test:0' ] \
+      || fail "count_test[0]'s tofu-address marker changed across the scale-up"
+    CT1_NEW_RECORD_ID="$(record_import_id "$CT1_RECORD" 2>/dev/null || true)"
+    [ "$CT1_NEW_RECORD_ID" = "$CT1_NAME" ] \
+      || fail "the record at aws_iam_role.count_test[1] after the scale-up names $CT1_NEW_RECORD_ID, not the recreated role $CT1_NAME - the tombstone was not replaced by a live identity"
+    log "  count_test[1] recreated under the SAME deterministic name ($CT1_NAME) but a NEW RoleId ($CT1_NEW_ID, was $CT1_ID) and a new CreateDate ($CT1_NEW_CREATED, was $CT1_CREATED), tofu-address=$CT1_NEW_ADDR_TAG, record re-identified; count_test[0] ($CT0_NAME, RoleId $CT0_ID) untouched throughout the down-then-up cycle"
+
+    log "=== G4. one more plan: config and reality agree, nothing left to propose ==="
+    COUNT_FINAL_PLAN_OUT="$(plan_into 2>&1)"; COUNT_FINAL_PLAN_RC=$?
+    [ "$COUNT_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL_PLAN_OUT" | tail -40; fail "the post-scale-up plan exited $COUNT_FINAL_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$COUNT_FINAL_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$COUNT_FINAL_PLAN_OUT"; fail "the post-scale-up plan is not empty"; }
+    log "  No changes. The scale-down-then-up cycle is complete and invisible to the next plan."
+
+    log ""
+    log "PART G (day2_count): PASS"
+    gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_role.count_test from 2 to 1 proposed exactly \"count_test[1] will be destroyed\" (0 add, 0 change, 1 destroy) and applied it, leaving count_test[0]'s server-minted RoleId ($CT0_ID), its CreateDate and its tofu-address=aws_iam_role.count_test:0 marker all unchanged, and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 proposed exactly \"count_test[1] will be created\" (1 add, 0 change, 0 destroy) and brought it back under the SAME deterministic name ($CT1_NAME) with a NEW RoleId ($CT1_ID -> $CT1_NEW_ID) and a new CreateDate, re-marked aws_iam_role.count_test:1 and re-identified in the record store, while count_test[0] stayed untouched throughout; the next plan is empty. Every identity here is read back through the AWS CLI and the local record store, never through choudoufu's own report, and the destroy witness is the RoleId rather than the name or the ARN because both of those are deterministic from configuration and come back identical - confirmed against floci directly, no tofu in the loop, before the assertions were written. Stock oracle (G-ORACLE): real tofu standing the IDENTICAL count block up in the idle greenfield-oracle account showed the identical shape - destroy the higher index only, create the higher index back under the same name with a new RoleId ($ORACLE_CT1_ID -> $ORACLE_CT1_NEW_ID), the lower index's RoleId and CreateDate unchanged both times - and the two sides' normalised action sets are compared literally, not just described. Synthetic block, per live/GAUNTLET.md #8's sanctioned fallback: the pinned crossplane module declares no count at all and its only two for_each knobs (aws_iam_role_policy.additional_policies over var.additional_policies, aws_iam_role_policy_attachment.additional_policy_attachments over toset(var.additional_policies_arns)) are both UNTAGGABLE types that carry no marker to keep an identity in, the second provably resolving to zero instances, and the first's inline-policy set is additionally policed by aws_iam_role_policies_exclusive in the same module; aws_iam_role.count_test reuses a type this estate already exercises and lives in its own day2_count.tofu beside the estate's root wiring (\$ESTATE), so the vendored module stays byte-identical. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports fail, proving the which-instance assertion is load-bearing."
+    log ""
+    gauntlet_end_stage
   fi
   gauntlet_end_stage
 fi

@@ -6,6 +6,19 @@ set -uo pipefail
 # count, queue URL and tofu-address string below is now read off that run's
 # output rather than derived from the module source.
 #
+# STATUS (2026-08-31, issue #643): day2_count added (PART G, and its own real
+# stock oracle at G-ORACLE) and run for real against floci
+# ghcr.io/lex00/floci@sha256:c55d74e1, the current live/floci-image pin. All
+# ten stages this script reports came back pass in that run - cold_deploy,
+# greenfield, migrate, test_plan, test_apply, drift_reconverge, day2_rename,
+# day2_replace, day2_remove, day2_count - and every timestamp and marker
+# string quoted in PART G's comments below is read off that run rather than
+# assumed. BREAK_COUNT=1 was then run end to end on the same emulator and
+# took the stage red - "GAUNTLET stage=day2_count verdict=fail ... detail=
+# choudoufu's scale-down plan does not destroy count_test[0]", exit 1, with
+# every earlier stage still passing - so the scale-down assertion is
+# load-bearing rather than a grep that always matches.
+#
 # WHAT THE FIRST REAL RUN CORRECTED. The version committed on 2026-08-20 had
 # every assertion past stage 1's `terraform apply` DERIVED from reading
 # terraform-aws-sqs's naming locals. Three of those derivations were right and
@@ -138,6 +151,36 @@ set -uo pipefail
 # only edit needed ahead of a real `terraform apply` against floci is the
 # emulator connection flags on the provider block.
 #
+# WHAT A GENUINE SQS DELETE/RECREATE ACTUALLY CHANGES (established directly
+# against floci ghcr.io/lex00/floci@sha256:c55d74e1 before any day2_count
+# assertion below was written, with NO tofu in the loop - HANDOFF's
+# identity-semantics rule). Created one queue, read every attribute, deleted
+# it, re-created it under the SAME name, read them again:
+#   SAME     QueueUrl and QueueArn. Both are rebuilt from region + account +
+#            name (live/identity/table_generated.go's aws_sqs_queue row says
+#            exactly this), so neither can witness a destroy: the recreated
+#            queue is reachable at the identical URL the destroyed one had.
+#   GONE     in between: get-queue-url returns
+#            AWS.SimpleQueueService.NonExistentQueue and list-queues returns
+#            an empty list. Verified absence is therefore available as a
+#            discriminator, the corpus-simpleinfra-dns shape.
+#   CHANGED  CreatedTimestamp (1788159242 -> 1788159243 -> 1788159246 across
+#            two recreates), in epoch SECONDS - one-second granularity, so a
+#            destroy and a create inside the same wall-clock second would
+#            read identical. PART G below sleeps 2s between the scale-down
+#            apply and the scale-up plan and then asserts strictly GREATER,
+#            not merely different.
+#   CHANGED  tags: the recreated queue came back with an empty tag set, none
+#            carried over.
+# One divergence from documented AWS worth stating rather than relying on:
+# real SQS refuses to create a queue with a recently-deleted name for up to
+# 60 seconds (DeleteQueue's own documentation); floci accepted an immediate
+# recreate. That is permissiveness both legs of this stage see equally -
+# stock's oracle recreates through the same emulator - so it changes nothing
+# about what is compared here, and PART G's own 2-second gap is well inside
+# the window either way. Not filed as a floci defect: nothing in this stage
+# depends on the refusal.
+#
 # THE OUTPUTS QUIRK, same as corpus-iam-policy: this estate declares root
 # `output` blocks and live-plan carries no state to diff them against, so
 # OpenTofu's renderer never prints a "Plan: N to add..." summary line, empty
@@ -208,6 +251,20 @@ set -uo pipefail
 #                first corruption reached exits the script: a single BREAK=1
 #                that set all three would leave the later two unreachable, and
 #                an unreachable check proves nothing. Run all three.
+#   BREAK_COUNT  day2_count's own break control (PART G), a SEPARATE variable
+#                from BREAK for the same reason the values above are separate
+#                from each other: PART G runs after PART E's real removal, so
+#                it is unreachable under BREAK=rename or BREAK=remove. Set it
+#                to 1 and the scale-down assertion expects the WRONG instance
+#                to have been destroyed - count_test[0], the survivor, rather
+#                than count_test[1] - which is the Break text in
+#                tools/gauntlet/stages.go for day2_count, verbatim ("Expect a
+#                different instance to be destroyed; the assertion must
+#                fail"). The plan really does destroy count_test[1], so the
+#                by-value assertion below fails and the stage reports
+#                verdict=fail. That is the demonstration: not a branch that
+#                congratulates itself for the corruption not taking, but the
+#                same assertion pointed at the wrong index, going red.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -268,6 +325,13 @@ BREAK_AT="${BREAK:-}"
 case "$BREAK_AT" in
   ""|schema|identity|drift|rename|greenfield|remove|replace) ;;
   *) fail "BREAK must be one of: schema, identity, drift, rename, greenfield, remove, replace (1 is an alias for schema)" ;;
+esac
+# day2_count's own break control, a separate variable (see the header). A
+# typo'd value must not read as "unset" and silently run the real path, which
+# would report a pass for a run the operator asked to corrupt.
+case "${BREAK_COUNT:-}" in
+  ""|1) ;;
+  *) fail "BREAK_COUNT must be unset or 1 (got '${BREAK_COUNT:-}')" ;;
 esac
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -553,6 +617,153 @@ for pair in $EXPECTED_QUEUES; do
 done
 log "  all $N_EXPECTED queues match structurally (fifo flag, sse, kms, redrive max-receive-count, redrive-allow presence) between choudoufu's greenfield apply and stock's cold deploy in its own namespace"
 gauntlet_stage greenfield pass "6 resources from nothing (4 tagged queues + 2 untaggable redrive types), all markers verified via the AWS CLI, 6 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on all 4 queues"
+gauntlet_end_stage
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock oracle (day2_count, live/GAUNTLET.md #8,
+# issue #643)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# WHY A SYNTHETIC BLOCK. All four of this estate's module calls declare
+# `count = var.create ? 1 : 0` (the terraform-aws-sqs module default, see the
+# header's TOFU-SLOT FINDING), which is a boolean create toggle, not a knob
+# that scales: it can only ever be 0 or 1, so it can never carry the two
+# instances this stage needs, and turning it off is day2_remove's shape
+# rather than day2_count's. Neither the example nor the module offers a
+# numeric count or a for_each anywhere else. This is issue #488's sanctioned
+# synthetic-count fallback, following live/e2e/reference-ec2-vpc/run.sh's
+# PART F and corpus-hongbomiao-storage's PART G: a NEW, entirely
+# self-contained resource, aws_sqs_queue.count_test, of a type this estate
+# already exercises four times over, that nothing else in the estate
+# references and no other stage's address space ever touches.
+#
+# WHY THE ORACLE IS APPLIED FOR REAL AND HERE. Stock never had this count
+# block, so unlike day2_remove's and day2_replace's oracles there is no
+# cold_deploy state to reuse - the shape has to be stood up from nothing with
+# the stock binary. It runs in the greenfield stock oracle's own namespace
+# ($ORACLE_ENDPOINT), which stock itself just applied into and which is idle
+# from here on; "ex-complete-count-test-N" collides with none of the four
+# "ex-complete*" queues already in it. It MUST run before the
+# `docker rm -f "$FLOCI_ORACLE_NAME"` line below, or the account it needs is
+# already gone - the same placement corpus-hongbomiao-storage's own G-ORACLE
+# uses and the same reason.
+#
+# The discriminator for "genuinely a new object" is CreatedTimestamp, and the
+# reasoning behind that choice is the header's own WHAT A GENUINE SQS
+# DELETE/RECREATE ACTUALLY CHANGES paragraph, measured against floci with no
+# tofu in the loop before any of this was written: a queue's URL and ARN are
+# both rebuilt from region + account + name, so the recreated queue is
+# reachable at the identical URL and neither can witness the destroy.
+gauntlet_begin_stage day2_count
+count_test_block() { # $1 = count. Byte-for-byte the same block both legs get.
+  local n="$1"
+  cat <<COUNTEOF
+resource "aws_sqs_queue" "count_test" {
+  count = $n
+  name  = "${NAME}-count-test-\${count.index}"
+
+  tags = {
+    Example = "${NAME}"
+  }
+}
+COUNTEOF
+}
+count_oracle_provider() {
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.28"
+    }
+  }
+}
+
+provider "aws" {
+  region = "$REGION"
+
+  access_key                   = "test"
+  secret_key                   = "test"
+  skip_credentials_validation  = true
+  skip_metadata_api_check      = true
+  s3_use_path_style            = true
+}
+
+EOF
+}
+# CreatedTimestamp is epoch seconds; a missing queue makes the CLI error, so
+# stdout comes back empty rather than stale.
+queue_created_ts() { # $1 = endpoint, $2 = queue url
+  aws --endpoint-url "$1" --region "$REGION" sqs get-queue-attributes \
+    --queue-url "$2" --attribute-names CreatedTimestamp \
+    --query 'Attributes.CreatedTimestamp' --output text 2>/dev/null
+}
+
+CT0_NAME="${NAME}-count-test-0"
+CT1_NAME="${NAME}-count-test-1"
+CT0_URL="https://sqs.${REGION}.amazonaws.com/${ACCOUNT}/${CT0_NAME}"
+CT1_URL="https://sqs.${REGION}.amazonaws.com/${ACCOUNT}/${CT1_NAME}"
+
+log "=== G-ORACLE: stock terraform, a 2-instance count block scaled to 1 and back, in the (idle) greenfield oracle account ==="
+COUNT_ORACLE="$WORK/plain-oracle-count"
+mkdir -p "$COUNT_ORACLE"
+{ count_oracle_provider; count_test_block 2; } > "$COUNT_ORACLE/main.tf"
+( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+CO_ADD_OUT="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$CO_ADD_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
+grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$CO_ADD_OUT" \
+  || { grep -E 'Apply complete' <<< "$CO_ADD_OUT"; fail "stock did not create exactly 2 count_test queues for the day2_count oracle"; }
+CO_CT0_TS="$(queue_created_ts "$ORACLE_ENDPOINT" "$CT0_URL")"
+CO_CT1_TS="$(queue_created_ts "$ORACLE_ENDPOINT" "$CT1_URL")"
+[ -n "$CO_CT0_TS" ] && [ "$CO_CT0_TS" != "None" ] || fail "the oracle's count_test[0] queue ($CT0_NAME) has no CreatedTimestamp"
+[ -n "$CO_CT1_TS" ] && [ "$CO_CT1_TS" != "None" ] || fail "the oracle's count_test[1] queue ($CT1_NAME) has no CreatedTimestamp"
+log "  stock: 2 instances created, count_test[0]=$CT0_NAME (created=$CO_CT0_TS), count_test[1]=$CT1_NAME (created=$CO_CT1_TS)"
+
+{ count_oracle_provider; count_test_block 1; } > "$COUNT_ORACLE/main.tf"
+CO_DOWN_PLAN="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; CO_DOWN_PLAN_RC=$?
+[ "$CO_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_DOWN_PLAN" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $CO_DOWN_PLAN_RC"; }
+grep -qE '^  # aws_sqs_queue\.count_test\[1\] will be destroyed' <<< "$CO_DOWN_PLAN" \
+  || { printf '%s\n' "$CO_DOWN_PLAN" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_sqs_queue\.count_test\[0\] will be' <<< "$CO_DOWN_PLAN" \
+  && { printf '%s\n' "$CO_DOWN_PLAN" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$CO_DOWN_PLAN" \
+  || { printf '%s\n' "$CO_DOWN_PLAN" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+CO_DOWN_APPLY="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$CO_DOWN_APPLY" | tail -30; fail "the day2_count stock oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$CO_DOWN_APPLY" \
+  || { grep -E 'Apply complete' <<< "$CO_DOWN_APPLY"; fail "the day2_count stock oracle's scale-down apply was not exactly one destroy"; }
+if CO_CT1_STILL="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" sqs get-queue-url --queue-name "$CT1_NAME" 2>&1)"; then
+  echo "$CO_CT1_STILL"; fail "stock's count_test[1] queue ($CT1_NAME) still exists after the scale-down destroy"
+fi
+CO_CT0_TS_DOWN="$(queue_created_ts "$ORACLE_ENDPOINT" "$CT0_URL")"
+[ "$CO_CT0_TS_DOWN" = "$CO_CT0_TS" ] || fail "stock's surviving count_test[0] changed CreatedTimestamp across the scale-down ($CO_CT0_TS -> $CO_CT0_TS_DOWN)"
+log "  stock: exactly one destroy (count_test[1]=$CT1_NAME, now NonExistentQueue), count_test[0] created=$CO_CT0_TS unchanged"
+
+# CreatedTimestamp has one-second granularity (header), so the gap between
+# the destroy and the recreate has to be wider than the resolution of the
+# thing being compared, or a true recreate could read as no change at all.
+sleep 2
+{ count_oracle_provider; count_test_block 2; } > "$COUNT_ORACLE/main.tf"
+CO_UP_PLAN="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; CO_UP_PLAN_RC=$?
+[ "$CO_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_UP_PLAN" | tail -40; fail "the day2_count stock oracle's scale-up plan exited $CO_UP_PLAN_RC"; }
+grep -qE '^  # aws_sqs_queue\.count_test\[1\] will be created' <<< "$CO_UP_PLAN" \
+  || { printf '%s\n' "$CO_UP_PLAN" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_sqs_queue\.count_test\[0\] will be' <<< "$CO_UP_PLAN" \
+  && { printf '%s\n' "$CO_UP_PLAN" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$CO_UP_PLAN" \
+  || { printf '%s\n' "$CO_UP_PLAN" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+CO_UP_APPLY="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$CO_UP_APPLY" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$CO_UP_APPLY" \
+  || { grep -E 'Apply complete' <<< "$CO_UP_APPLY"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
+CO_CT1_TS_UP="$(queue_created_ts "$ORACLE_ENDPOINT" "$CT1_URL")"
+[ -n "$CO_CT1_TS_UP" ] && [ "$CO_CT1_TS_UP" != "None" ] || fail "no oracle count_test[1] queue found after the scale-up"
+[ "$CO_CT1_TS_UP" -gt "$CO_CT1_TS" ] \
+  || fail "stock's recreated count_test[1] came back with CreatedTimestamp $CO_CT1_TS_UP, not later than the destroyed queue's $CO_CT1_TS - the destroy was not real"
+CO_CT0_TS_UP="$(queue_created_ts "$ORACLE_ENDPOINT" "$CT0_URL")"
+[ "$CO_CT0_TS_UP" = "$CO_CT0_TS" ] || fail "stock's count_test[0] changed CreatedTimestamp across the scale-up ($CO_CT0_TS -> $CO_CT0_TS_UP)"
+log "  stock: exactly one create (count_test[1], back at the SAME url $CT1_URL - deterministic - but created=$CO_CT1_TS_UP, was $CO_CT1_TS), count_test[0] created=$CO_CT0_TS unchanged throughout"
 gauntlet_end_stage
 
 docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
@@ -1248,6 +1459,190 @@ EOF
     log ""
     log "STAGE E (day2_remove): PASS"
     gauntlet_stage day2_remove pass "choudoufu: deleting module.unencrypted_sqs_renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (sqs get-queue-url on the old name now returns NonExistentQueue, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly one destroy for the same object (before any rename ever touched it)"
+    log ""
+    # ══════════════════════════════════════════════════════════════════════
+    # PART G: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8, issue
+    # #643)
+    # ══════════════════════════════════════════════════════════════════════
+    #
+    # Starts from PART E's real, completed state: five managed instances
+    # (module.default_sqs_renamed's replaced queue, the fifo pair and their
+    # two untaggable redrive resources), a plan that proposes nothing, and
+    # module.unencrypted_sqs_renamed genuinely destroyed. A NEW, entirely
+    # synthetic root resource - aws_sqs_queue.count_test, count_test_block()
+    # defined above G-ORACLE and byte-for-byte the same text both legs get -
+    # is added here in its own file, so day2_count's history is
+    # self-contained and never revisits an address any other stage used.
+    # G-ORACLE above is the stock oracle for the identical shape, applied
+    # for real in the idle greenfield-oracle account before this script tore
+    # that container down; the synthetic block is issue #488's sanctioned
+    # fallback and the reason it is needed here (four boolean create
+    # toggles, no numeric knob anywhere in the module or the example) is
+    # G-ORACLE's own WHY A SYNTHETIC BLOCK note.
+    #
+    # BREAK_COUNT=1 (header) points the scale-down assertion at the WRONG
+    # index and the stage goes red - the Break text, verbatim. Reachable
+    # only when BREAK is neither "rename" nor "remove", because PART G
+    # starts from PART E's real removal.
+    gauntlet_begin_stage day2_count
+    log "=== G0. choudoufu: add aws_sqs_queue.count_test, count = 2 ==="
+    count_test_block 2 > "$EST/day2_count.tf"
+    ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the count-block-add reinit failed"; }
+    G_ADD_PLAN="$(plan_into 2>&1)"; G_ADD_PLAN_RC=$?
+    [ "$G_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_ADD_PLAN" | tail -30; fail "the count-block-add plan exited $G_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$G_ADD_PLAN" \
+      || { printf '%s\n' "$G_ADD_PLAN" | tail -10; fail "adding the 2-instance count block did not plan exactly 2 creates"; }
+    G_ADD_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_ADD_APPLY_RC=$?
+    [ "$G_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_ADD_APPLY" | tail -30; fail "the count-block-add apply exited $G_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$G_ADD_APPLY" \
+      || { grep -E 'Apply complete' <<< "$G_ADD_APPLY"; fail "the count-block-add apply did not create exactly 2 resources"; }
+
+    # Both instances' identities asserted BY VALUE off the live queues, not
+    # inferred from the apply having succeeded (HANDOFF's safety rule). A
+    # count instance's tofu-address is colon-escaped (live/MARKERS.md:
+    # aws_eip.this[2] -> aws_eip.this:2), and tofu-slot is the per-instance
+    # marker that makes this block resolvable by a stateless plan at all -
+    # the same marker the header's TOFU-SLOT FINDING is about, here carrying
+    # two DIFFERENT values for the first time in this estate.
+    G_CT0_ADDR="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-address\"" --output text)"
+    G_CT1_ADDR="$(awsl sqs list-queue-tags --queue-url "$CT1_URL" --query "Tags.\"tofu-address\"" --output text)"
+    [ "$G_CT0_ADDR" = 'aws_sqs_queue.count_test:0' ] || fail "count_test[0] ($CT0_URL) carries tofu-address=$G_CT0_ADDR, not aws_sqs_queue.count_test:0"
+    [ "$G_CT1_ADDR" = 'aws_sqs_queue.count_test:1' ] || fail "count_test[1] ($CT1_URL) carries tofu-address=$G_CT1_ADDR, not aws_sqs_queue.count_test:1"
+    G_CT0_SLOT="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-slot\"" --output text)"
+    G_CT1_SLOT="$(awsl sqs list-queue-tags --queue-url "$CT1_URL" --query "Tags.\"tofu-slot\"" --output text)"
+    [ "$G_CT0_SLOT" = "0" ] || fail "count_test[0] carries tofu-slot=$G_CT0_SLOT, not 0"
+    [ "$G_CT1_SLOT" = "1" ] || fail "count_test[1] carries tofu-slot=$G_CT1_SLOT, not 1"
+    G_CT0_TS="$(queue_created_ts "$ENDPOINT" "$CT0_URL")"
+    G_CT1_TS="$(queue_created_ts "$ENDPOINT" "$CT1_URL")"
+    [ -n "$G_CT0_TS" ] && [ "$G_CT0_TS" != "None" ] || fail "live count_test[0] queue has no CreatedTimestamp"
+    [ -n "$G_CT1_TS" ] && [ "$G_CT1_TS" != "None" ] || fail "live count_test[1] queue has no CreatedTimestamp"
+    log "  2 instances created, read via the AWS CLI:"
+    log "    index 0 = $CT0_URL (tofu-address=$G_CT0_ADDR, tofu-slot=$G_CT0_SLOT, created=$G_CT0_TS)"
+    log "    index 1 = $CT1_URL (tofu-address=$G_CT1_ADDR, tofu-slot=$G_CT1_SLOT, created=$G_CT1_TS)"
+
+    G_NOOP_PLAN="$(plan_into 2>&1)"; G_NOOP_PLAN_RC=$?
+    [ "$G_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_NOOP_PLAN" | tail -30; fail "the post-add plan exited $G_NOOP_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$G_NOOP_PLAN" \
+      && { printf '%s\n' "$G_NOOP_PLAN" | grep -E '^  # .+ will be'; fail "the plan right after adding the count block proposes a resource change - the two new instances did not bind their own markers cleanly"; }
+    log "  no resource action proposed - both new instances bind immediately, statelessly, off their own slot markers"
+
+    log "=== G1. scale count down: 2 -> 1 ==="
+    count_test_block 1 > "$EST/day2_count.tf"
+    G_DOWN_PLAN="$(plan_into 2>&1)"; G_DOWN_PLAN_RC=$?
+    [ "$G_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_DOWN_PLAN" | tail -30; fail "the scale-down plan exited $G_DOWN_PLAN_RC"; }
+
+    # The Break control is this index and nothing else: the SAME assertion,
+    # pointed at the instance that must survive. The plan really destroys
+    # index 1, so under BREAK_COUNT=1 the check below fails and fail()
+    # records verdict=fail for day2_count - which is the whole point of
+    # having it. (An inverted branch that reported success when the
+    # corruption "did not take" would exit 0 on a run the operator asked to
+    # break, and prove nothing.)
+    G_WANT_DESTROY=1
+    G_WANT_KEEP=0
+    if [ "${BREAK_COUNT:-}" = "1" ]; then
+      G_WANT_DESTROY=0
+      G_WANT_KEEP=1
+      log "  BREAK_COUNT=1: expecting count_test[0] - the SURVIVOR - to have been"
+      log "           the instance destroyed by scaling 2 -> 1. Same resource,"
+      log "           same block, same plan; only the index is wrong. This step"
+      log "           must fail and the stage must report verdict=fail."
+    fi
+    grep -qE "^  # aws_sqs_queue\.count_test\[$G_WANT_DESTROY\] will be destroyed" <<< "$G_DOWN_PLAN" \
+      || { printf '%s\n' "$G_DOWN_PLAN" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan does not destroy count_test[$G_WANT_DESTROY]"; }
+    grep -qE "^  # aws_sqs_queue\.count_test\[$G_WANT_KEEP\] will be" <<< "$G_DOWN_PLAN" \
+      && { printf '%s\n' "$G_DOWN_PLAN" | grep -E '^  # .+ will be'; fail "choudoufu's scale-down plan touches count_test[$G_WANT_KEEP], which should be untouched"; }
+    grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$G_DOWN_PLAN" \
+      || { printf '%s\n' "$G_DOWN_PLAN" | tail -10; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+    log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched"
+
+    G_DOWN_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_DOWN_APPLY_RC=$?
+    [ "$G_DOWN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_DOWN_APPLY" | tail -30; fail "the scale-down apply exited $G_DOWN_APPLY_RC"; }
+    grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$G_DOWN_APPLY" \
+      || { grep -E 'Apply complete' <<< "$G_DOWN_APPLY"; fail "the scale-down apply was not exactly one destroy"; }
+
+    # The destroy, witnessed by absence: a queue's URL is rebuilt from
+    # region + account + name, so the URL alone can never say whether the
+    # object behind it is the same one (header). get-queue-url on the name
+    # must now be a real AWS.SimpleQueueService.NonExistentQueue.
+    if G_CT1_STILL="$(awsl sqs get-queue-url --queue-name "$CT1_NAME" 2>&1)"; then
+      echo "$G_CT1_STILL"; fail "count_test[1] ($CT1_NAME) still exists in the live account after the scale-down destroy - it was orphaned, not destroyed"
+    fi
+    # The survivor, witnessed by its own live identifier and its markers -
+    # read back through the AWS CLI, never through choudoufu's own report.
+    G_CT0_URL_AFTER="$(awsl sqs get-queue-url --queue-name "$CT0_NAME" --query QueueUrl --output text)"
+    [ "$G_CT0_URL_AFTER" = "$CT0_URL" ] || fail "count_test[0]'s live queue URL changed across the scale-down: $CT0_URL -> $G_CT0_URL_AFTER"
+    G_CT0_TS_DOWN="$(queue_created_ts "$ENDPOINT" "$CT0_URL")"
+    [ "$G_CT0_TS_DOWN" = "$G_CT0_TS" ] || fail "count_test[0]'s CreatedTimestamp changed across the scale-down ($G_CT0_TS -> $G_CT0_TS_DOWN) - it was destroyed and recreated, not left alone"
+    G_CT0_ADDR_DOWN="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-address\"" --output text)"
+    [ "$G_CT0_ADDR_DOWN" = 'aws_sqs_queue.count_test:0' ] || fail "count_test[0] carries tofu-address=$G_CT0_ADDR_DOWN after the scale-down, not aws_sqs_queue.count_test:0"
+    G_CT0_SLOT_DOWN="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-slot\"" --output text)"
+    [ "$G_CT0_SLOT_DOWN" = "0" ] || fail "count_test[0] carries tofu-slot=$G_CT0_SLOT_DOWN after the scale-down, not 0"
+
+    # The destroyed instance's local record is TOMBSTONED, not deleted
+    # outright ([projection.RecordStore.tombstone]): the envelope's
+    # top-level "identity" is cleared and a "tombstone" entry is added, so
+    # the honest check is has(tombstone) and not has(identity), never file
+    # absence. A record left still naming the destroyed queue would be the
+    # wrong-marker failure that outranks a missing one.
+    G_CT1_RECORD="$EST/.tofu-records/tofu-records/$ESTATE/aws_sqs_queue/$(record_key 'aws_sqs_queue.count_test[1]')"
+    [ -f "$G_CT1_RECORD" ] || fail "no local record file found for aws_sqs_queue.count_test[1] after the scale-down - expected a tombstoned record, not none at all"
+    jq -e 'has("tombstone") and (has("identity") | not)' "$G_CT1_RECORD" >/dev/null \
+      || fail "the record at aws_sqs_queue.count_test[1] after the scale-down is not tombstoned: $(cat "$G_CT1_RECORD")"
+    log "  $CT1_NAME (count_test[1]) is gone (NonExistentQueue); $CT0_NAME (count_test[0]) still at $G_CT0_URL_AFTER with created=$G_CT0_TS_DOWN, tofu-address=$G_CT0_ADDR_DOWN, tofu-slot=$G_CT0_SLOT_DOWN, all unchanged; count_test[1]'s local record is tombstoned, not deleted"
+
+    log "=== G2. scale count back up: 1 -> 2 ==="
+    # CreatedTimestamp is epoch seconds (header), so the gap has to exceed
+    # the resolution of the value being compared or a genuine recreate could
+    # read as no change.
+    sleep 2
+    count_test_block 2 > "$EST/day2_count.tf"
+    G_UP_PLAN="$(plan_into 2>&1)"; G_UP_PLAN_RC=$?
+    [ "$G_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_UP_PLAN" | tail -30; fail "the scale-up plan exited $G_UP_PLAN_RC"; }
+    grep -qE '^  # aws_sqs_queue\.count_test\[1\] will be created' <<< "$G_UP_PLAN" \
+      || { printf '%s\n' "$G_UP_PLAN" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+    grep -qE '^  # aws_sqs_queue\.count_test\[0\] will be' <<< "$G_UP_PLAN" \
+      && { printf '%s\n' "$G_UP_PLAN" | grep -E '^  # .+ will be'; fail "choudoufu's scale-up plan touches count_test[0], which should be untouched"; }
+    grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$G_UP_PLAN" \
+      || { printf '%s\n' "$G_UP_PLAN" | tail -10; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+    log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+    G_UP_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; G_UP_APPLY_RC=$?
+    [ "$G_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$G_UP_APPLY" | tail -30; fail "the scale-up apply exited $G_UP_APPLY_RC"; }
+    grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$G_UP_APPLY" \
+      || { grep -E 'Apply complete' <<< "$G_UP_APPLY"; fail "the scale-up apply was not exactly one create"; }
+
+    G_CT1_TS_UP="$(queue_created_ts "$ENDPOINT" "$CT1_URL")"
+    [ -n "$G_CT1_TS_UP" ] && [ "$G_CT1_TS_UP" != "None" ] || fail "no live count_test[1] queue found after the scale-up"
+    [ "$G_CT1_TS_UP" -gt "$G_CT1_TS" ] \
+      || fail "count_test[1] came back with CreatedTimestamp $G_CT1_TS_UP, not later than the destroyed queue's $G_CT1_TS - the destroy in G1 was not real"
+    G_CT1_ADDR_UP="$(awsl sqs list-queue-tags --queue-url "$CT1_URL" --query "Tags.\"tofu-address\"" --output text)"
+    [ "$G_CT1_ADDR_UP" = 'aws_sqs_queue.count_test:1' ] || fail "the recreated count_test[1] carries tofu-address=$G_CT1_ADDR_UP, not aws_sqs_queue.count_test:1"
+    G_CT1_SLOT_UP="$(awsl sqs list-queue-tags --queue-url "$CT1_URL" --query "Tags.\"tofu-slot\"" --output text)"
+    [ "$G_CT1_SLOT_UP" = "1" ] || fail "the recreated count_test[1] carries tofu-slot=$G_CT1_SLOT_UP, not 1"
+    G_CT0_TS_UP="$(queue_created_ts "$ENDPOINT" "$CT0_URL")"
+    [ "$G_CT0_TS_UP" = "$G_CT0_TS" ] || fail "count_test[0]'s CreatedTimestamp changed across the scale-up ($G_CT0_TS -> $G_CT0_TS_UP)"
+    G_CT0_ADDR_UP="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-address\"" --output text)"
+    [ "$G_CT0_ADDR_UP" = 'aws_sqs_queue.count_test:0' ] || fail "count_test[0] carries tofu-address=$G_CT0_ADDR_UP after the scale-up, not aws_sqs_queue.count_test:0"
+    # The record at the recreated index must name the NEW object, and the
+    # tombstone must be gone - a record still tombstoned while the object is
+    # live is the read-half-without-the-write-half shape.
+    G_CT1_RECORD_ID="$(record_import_id "$G_CT1_RECORD" 2>/dev/null || true)"
+    [ "$G_CT1_RECORD_ID" = "$CT1_URL" ] \
+      || fail "the record at aws_sqs_queue.count_test[1] after the scale-up names $G_CT1_RECORD_ID, not the recreated queue $CT1_URL"
+    log "  count_test[1] recreated at the SAME url $CT1_URL (deterministic - region + account + name) but created=$G_CT1_TS_UP, was $G_CT1_TS; tofu-address=$G_CT1_ADDR_UP, tofu-slot=$G_CT1_SLOT_UP; count_test[0] created=$G_CT0_TS_UP and tofu-address=$G_CT0_ADDR_UP unchanged throughout the whole cycle"
+
+    log "=== G3. one more plan: config and reality agree, nothing left to propose ==="
+    G_FINAL_PLAN="$(plan_into 2>&1)"; G_FINAL_PLAN_RC=$?
+    [ "$G_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_FINAL_PLAN" | tail -30; fail "the post-scale-up plan exited $G_FINAL_PLAN_RC"; }
+    grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$G_FINAL_PLAN" \
+      && { printf '%s\n' "$G_FINAL_PLAN" | grep -E '^  # .+ will be'; fail "the post-scale-up plan proposes a resource change"; }
+    log "  no resource action proposed. The down-then-up cycle is complete and invisible to the next plan."
+
+    log ""
+    log "STAGE G (day2_count): PASS"
+    gauntlet_stage day2_count pass "synthetic block (all four module calls declare count = var.create ? 1 : 0, a boolean create toggle, so the estate has no knob that scales - issue #488's sanctioned fallback, reusing aws_sqs_queue, a type this estate already exercises four times): scaling aws_sqs_queue.count_test from 2 to 1 proposed and applied exactly one destroy (0 add, 0 change, 1 destroy) of the HIGHER index, count_test[1]; the survivor count_test[0] kept its live queue URL ($CT0_URL), its CreatedTimestamp ($G_CT0_TS) and its tofu-address=aws_sqs_queue.count_test:0 / tofu-slot=0 markers, all read back through the AWS CLI, and count_test[1]'s local record was tombstoned rather than left naming a destroyed queue; scaling 1 back to 2 proposed and applied exactly one create (1 add, 0 change, 0 destroy), and because a queue URL is rebuilt from region + account + name the recreated instance comes back at the SAME url - so the destroy is witnessed two other ways instead, by AWS.SimpleQueueService.NonExistentQueue in between and by a strictly later CreatedTimestamp ($G_CT1_TS -> $G_CT1_TS_UP), with tofu-address=aws_sqs_queue.count_test:1 back on the new object and index 0 untouched throughout; the next plan proposes no resource action; the G-ORACLE stock oracle stood the identical block up for real in the idle greenfield-oracle account and showed the identical shape - destroy the higher index only, create it back under the same url with a new CreatedTimestamp, the lower index unchanged both times"
     log ""
   fi
   gauntlet_end_stage
