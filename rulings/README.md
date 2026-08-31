@@ -16,7 +16,19 @@ updating them.
 
 Most files carry numbers. Where they do, the commands that produced them are
 included so the measurement can be rerun rather than trusted, and the date
-in the filename is the date the numbers were taken.
+in the filename is the date the numbers were taken. Every figure names a
+source the next reader can re-derive it from: a commit, a committed
+artifact, a test. Several figures in this repository have been wrong on
+first statement, so a ruling that quotes a number without one is quoting a
+rumour.
+
+Close with what the ruling did not verify. A decision record without that
+section reads as more settled than it is, and the section is what tells the
+next reader which parts are still open.
+
+This directory is the only home for these documents. The docs site links to
+a ruling by its path here rather than restating it, because a second
+hand-written copy drifts from the first and nothing catches it.
 
 Upstream OpenTofu runs its own RFC process, and its documents live in that
 project at
