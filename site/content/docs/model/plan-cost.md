@@ -327,44 +327,20 @@ Those are milliseconds over loopback, so they measure the overlap and not the
 saving. A repeat of each parallelism-1 row landed 18% lower (357.4ms and
 355.7ms), so read the ratios as approximate.
 
-**An earlier version of this section projected the real-AWS saving instead of
-measuring it.** Its words were "`521 x 0.39s` is where the 203 comes from, and
-dividing it by 10 is arithmetic, not a measurement", and it said nobody had
-re-run the real-AWS table. That has since been re-run twice, at two scales,
-and the projection was in the right direction but for more than one reason:
-
-| Resources | choudoufu, before | choudoufu, at `5dc10cc781` | stock |
-|---|---|---|---|
-| 79 | 203, 211, 200 s | **17, 18, 17 s** | 3, 4, 3 s |
-| 745 | 328, 323, 322 s | **124, 124, 123 s** | 22, 33, 39 s |
-
-{{% hint warning %}}
-The middle column is not current. A fifth change landed after it was measured:
-[#666](https://github.com/INTENTIUS/choudoufu/pull/666) found the read pass
-running one provider request at a time on a migrated estate and took the
-scale-1 plan from 18.3 s to 5.0 s against stock's 3.8 s, on the emulator
-behind a latency proxy. Neither scale has been re-run on real AWS since.
-[What you pay]({{< relref "/docs/what-you-pay" >}}) states what is and is not
-claimed.
-{{% /hint %}}
-
-About 12x at the small scale and 2.6x at the large one. **Do not attribute
-that to concurrency alone.** Four changes are inside it: this section's
-prefetch pool ([#605](https://github.com/INTENTIUS/choudoufu/issues/605)), the
-read pass learning the same
+This prefetch pool is one of four things that bound a plan's seconds in
+{{< version >}}, alongside the read pass learning the same
 ([#626](https://github.com/INTENTIUS/choudoufu/issues/626)), the narrowing
 that takes the native leg off a steady-state plan entirely
 ([#627](https://github.com/INTENTIUS/choudoufu/pull/627)), and the record
 store going from 377 round trips to one
 ([#636](https://github.com/INTENTIUS/choudoufu/pull/636)). Overlapping a leg
-and not running it are different mechanisms, and the third is doing most of
+and not running it are different mechanisms, and the narrowing does most of
 the work at 79 resources.
 
-Read stock's 745-resource column as a range. The same three runs in an earlier
-session read 19, 20 and 33 seconds, so 22/33/39 is that account's own variance
-at that size. The full statement of the remaining ratio, and of what the
-ninety seconds at 745 resources turned out to be, is on
-[what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
+What that adds up to in seconds is on
+[what you pay, and when]({{< relref "/docs/what-you-pay" >}}), which carries
+the wall-clock figures and states what each one rests on. This page is the
+mechanism; that page is the number.
 
 ## Turning a phase down
 

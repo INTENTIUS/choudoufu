@@ -1,0 +1,9 @@
+{{- /* The release the site's measured figures describe. Single source is
+       params.choudoufuVersion in hugo.toml. Fails the build loudly rather
+       than rendering an empty string, because a figure that silently loses
+       its version stamp is the defect this shortcode exists to prevent. */ -}}
+{{- with site.Params.choudoufuVersion -}}
+{{- . -}}
+{{- else -}}
+{{- errorf "site.Params.choudoufuVersion is not set in hugo.toml; {{< version >}} has nothing to render" -}}
+{{- end -}}

@@ -16,26 +16,17 @@ on which of three things the run is doing:
 | The run | What it costs against stock OpenTofu |
 |---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. |
-| A plan of an estate already adopted, `live` block on | A handful of API calls: **+7 on 1392** at 745 resources on real AWS. Seconds: see below, the published figure is out of date |
+| A plan of an estate already adopted, `live` block on | A handful of API calls: **+7 on 1392** at 745 resources on real AWS, and **about 1.3x the wall clock** |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** |
 
-{{% hint warning %}}
-**The wall-clock figures on this page predate the fix for their own cause.**
-They were measured at `5dc10cc781`. Fifty-one minutes later
-[#666](https://github.com/INTENTIUS/choudoufu/pull/666) landed `bffc5caf26`,
-which found what this page had called unexplained. The read pass was running
-one provider request at a time where stock runs ten. At scale 1 the fix took
-the plan from 18.3 s to 5.0 s, against stock's 3.8 s.
+**Every figure on this page describes choudoufu {{< version >}}.** Each one
+names its fixture, its commit, and whether it came from the pinned AWS
+emulator or from a real AWS account. The two are not interchangeable and are
+never combined.
 
-Nothing has been re-run on real AWS since. Until that happens, read every
-second below as an upper bound from before the fix, and do not quote the 4x.
-[Wall clock](#wall-clock-the-published-4x-predates-its-own-fix) has the
-detail.
-{{% /hint %}}
-
-Every figure below names its fixture, its commit, and whether it came from the
-pinned AWS emulator or from a real AWS account. The two are not
-interchangeable and are never combined.
+The 1.3x is the one figure here not yet taken on a real account. It is scale 1
+only, and [Wall clock](#wall-clock-about-13x-at-scale-1-and-unmeasured-above-it)
+says what it rests on.
 
 ## With no live block, nothing at all
 
@@ -413,114 +404,28 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: the published 4x predates its own fix
+## Wall clock: about 1.3x at scale 1, and unmeasured above it
 
-This was the number that would decide whether you could live with the fork.
-The measurement below is left exactly as it was taken. Its cause has since
-been found and fixed, and nobody has re-taken it on real AWS, so the ratio it
-states is no longer this fork's ratio.
+This is the number that will decide whether you can live with the fork.
 
-Real AWS at `5dc10cc781`. Same account and region as the table above, same
-machine and session, minutes apart. Warm provider on both sides, `TF_LOG`
-unset inside every timed region, and every one of the twelve runs a no-change
-plan:
+Scale 1, pinned emulator behind a latency-injecting reverse proxy at 100 ms,
+three runs each, all empty plans, 157 requests every time:
 
-| Resources | stock `terraform plan` | `choudoufu plan` (before the fix) |
+| | wall clock | peak requests in flight |
 |---|---|---|
-| 79 | 3, 4, 3 s | **17, 18, 17 s** |
-| 745 | 22, 33, 39 s | **124, 124, 123 s** |
-
-That is roughly five times slower at 79 resources and roughly four times
-slower at 745, **as the fork stood on 2026-08-30 at 21:52.** What replaced it
-is below.
-
-Read stock's scale-10 column as a range rather than a number. The same three
-runs on the same machine in an earlier session read 19, 20 and 33 seconds, so
-22/33/39 is the account's own variance at that size and nothing on the
-choudoufu side moved it.
-
-The ratio narrows with the estate, which is the same direction the call counts
-move and roughly the only good news here. The 745-resource pair also carries
-the structural caveat from the previous section: stock is planning its own
-converged pre-migration state, choudoufu the migrated estate.
-
-### What the concurrency work bought
-
-The same two cells before the sweep learned to overlap its own waiting
-([#605](https://github.com/INTENTIUS/choudoufu/issues/605)), the read pass
-learned the same ([#626](https://github.com/INTENTIUS/choudoufu/issues/626)),
-the narrowing took this fixture's plan from 710 calls to 157
-([#627](https://github.com/INTENTIUS/choudoufu/pull/627)), and the record store
-went from 377 round trips to 1
-([#636](https://github.com/INTENTIUS/choudoufu/pull/636)):
-
-| Resources | choudoufu, before | choudoufu, now |
-|---|---|---|
-| 79 | 203, 211, 200 s | 17, 18, 17 s |
-| 745 | 328, 323, 322 s | 124, 124, 123 s |
-
-About 12x at the small scale and 2.6x at the large one. The dominant term in
-the old 200 seconds was the native leg, 521 list calls issued one after
-another, and the narrowing takes that leg off a steady-state plan entirely.
-
-### The part nobody had accounted for, and what it turned out to be
-
-Put the two measurements side by side at 745 resources and they do not agree
-about what is expensive:
-
-| | stock | choudoufu |
-|---|---|---|
-| Provider API calls | 1392 | 1399 |
-| Wall clock | 22–39 s | 123–124 s |
-
-Seven extra requests do not cost ninety seconds. For a day this page said so
-and left the cause open.
-[#654](https://github.com/INTENTIUS/choudoufu/issues/654) then measured it.
-The read pass was running with **exactly one provider request in flight,
-start to finish.**
-
-The instrument was the pinned emulator behind a latency-injecting reverse
-proxy at 100 ms, which reproduces the scale-1 cell above on both sides, stock
-3.4 s against real AWS's 3, 4, 3 and choudoufu 18.3 s against real AWS's 17,
-18, 17. Its per-request timeline says the rest:
-
-| | requests | peak in flight | adjacent pairs not overlapping |
-|---|---|---|---|
-| stock | 150 | 10 | 9 of 149 |
-| choudoufu | 157 | **1** | **155 of 156** |
-
-157 requests at about 105 ms, one after another, is the whole of the gap.
-`/usr/bin/time -l` rules out compute: 2.9 s user plus 0.7 s system against
-18.3 s wall.
-
-The cause was [#585](https://github.com/INTENTIUS/choudoufu/issues/585)'s
-prefetch being given to the concrete phase, which on a migrated estate is
-nearly empty, because `applyRecordFirst` intercepts almost everything first.
-On the terralith at scale 1, 78 of 79 reads went through the inline fallback.
-`TOFU_LIVE_READ_PARALLELISM` moved nothing at 1, 10 or 40, because it bounds a
-phase that estate never uses.
-
-[#666](https://github.com/INTENTIUS/choudoufu/pull/666) started the same
-prefetch one loop earlier. Same estate, same proxy, three runs each, 157
-requests every time:
-
-| | wall clock | peak in flight |
-|---|---|---|
-| before | 18.34, 19.27, 19.23 s | 1 |
-| after | **5.01, 5.54, 4.99 s** | 10 |
 | stock | 3.78, 3.36, 6.06 s | 10 |
+| choudoufu | **5.01, 5.54, 4.99 s** | 10 |
 
-**What is not claimed.** No real-AWS run has been made since the fix. At 745
-resources, 1399 requests at ten wide instead of one predicts a plan near
-stock's, but that is arithmetic and not a measurement, so this page does not
-state a post-fix ratio at either scale. The scale-1 improvement above is
-emulator-plus-proxy, and it is trustworthy only to the extent that rig
-reproduces the real-AWS cell it was validated against, which it does for that
-one cell and has not been checked for the other.
+Median against median that is **1.33x**; mean against mean it is 1.18x. This
+page quotes the larger of the two. Stock's 6.06 s third run is why they
+differ, and three runs a side is too few to call either one the number.
 
-Until that run happens, the honest summary is short. The gap's cause is known
-and fixed. The old 4x is an upper bound from before the fix, and the number
-that replaces it does not exist yet.
+Two limits, both real. The rig is not a real account: it earns its place by
+reproducing a real-AWS scale-1 cell on both sides, and it has been validated
+against that one cell and no other. And **at 745 resources there is no figure
+at all.** 1399 requests at ten wide predicts a plan near stock's, but that is
+arithmetic rather than a measurement, so this page states no ratio there. A
+real-AWS run at both scales is the outstanding work.
 
 ### And an emulator cannot answer this question
 
