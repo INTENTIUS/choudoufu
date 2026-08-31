@@ -51,9 +51,13 @@ in when they earn their cost:
 
 Only the first two are unconditional today. The third is the one that costs,
 and [what a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the
-measured split. That it runs on every plan today is a decision this fork has
-since ruled against; the ruling, and what replaces it, is
-[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md).
+measured split. It used to run on every plan; since `09d180f921` a plan of an
+estate that has its own evidence to narrow by does not pay it, which took this
+fixture's plan from 710 API calls to 157 against stock's 150. The ruling behind
+that is
+[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md),
+and [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) is the
+measured statement of what is left.
 
 ## How far it goes
 
@@ -224,6 +228,7 @@ as designed, and the message it prints names the remedy.
 
 | Section | What it covers |
 |---------|-----------------|
+| [What you pay, and when]({{< relref "/docs/what-you-pay" >}}) | The measured cost of running an estate here, which of three modes it is paid in, and what is still unmeasured |
 | [The model]({{< relref "/docs/model" >}}) | Identity, values and effects: the three things that have to survive between runs |
 | [Governance]({{< relref "/docs/governance" >}}) | The IAM policies a marker makes possible, and where AWS honours the condition they rest on |
 | [Use it]({{< relref "/docs/use" >}}) | Bringing an existing estate in, starting a new one, day-2 operations, storage, and reference |
