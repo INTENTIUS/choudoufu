@@ -358,7 +358,15 @@ func TestSlicingMatrixAgainstFloci(t *testing.T) {
 				run.Proposed = proposedAddrs(out)
 				row.Plans = append(row.Plans, run)
 				if code != 0 {
-					t.Logf("slice %s plan[%s/%s] exited %d:\n%s", row.Slice, v.name, pass, code, lastLines(out, 25))
+					// Loud, and symmetrical with the stock-plan check above.
+					// A refused plan's call count is not this plan's cost: it
+					// is however far the run got before it gave up, and it is
+					// not comparable with any other row. It was logged rather
+					// than reported for the whole of issue #584's measurement,
+					// the recorded exit_code was 1 in every CLI row, and the
+					// numbers were quoted as clean ones anyway (issue #634).
+					t.Errorf("slice %s plan[%s/%s] exited %d - %d calls recorded here are a REFUSED plan's cost, not a plan's cost:\n%s",
+						row.Slice, v.name, pass, code, run.Calls, lastLines(out, 25))
 				}
 				t.Logf("slice %s plan[%s/%s]: %d calls in %.1fs", row.Slice, v.name, pass, run.Calls, run.Seconds)
 			}
@@ -873,42 +881,50 @@ func writeSlice(t *testing.T, base, dir string, blocks []tfBlock, sl sliceAssign
 	if err := os.WriteFile(filepath.Join(dir, "sliced.tf"), []byte(b.String()), 0o644); err != nil { //nolint:gosec // test artifact
 		t.Fatalf("writing sliced.tf: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "versions.tf"), []byte(versionsFor(estate)), 0o644); err != nil { //nolint:gosec // test artifact
+	if err := os.WriteFile(filepath.Join(dir, "versions.tf"), []byte(versionsFor(t, base, estate)), 0o644); err != nil { //nolint:gosec // test artifact
 		t.Fatalf("writing versions.tf: %v", err)
 	}
 	return refs
 }
 
-func versionsFor(estate string) string {
-	live := ""
-	if estate != "" {
-		live = fmt.Sprintf(`
-  live {
-    estate = %q
-    record_store "local" {
-      path = ".tofu-records"
-    }
-  }
-`, estate)
+// versionsFor is one slice's provider wiring: terralith-gen's own versions.tf,
+// read from the generated estate, with a live block spliced into its terraform
+// block when estate names one.
+//
+// It used to be a second copy of the provider block, written out here rather
+// than read, and that cost this document its headline numbers. The copy still
+// set skip_requesting_account_id long after the generator's own template
+// dropped it (issue #628, fixed in #633), so every CLI plan this bench timed
+// was resolving ECS identities against a provider with no account id: the plan
+// exited 1 on "Live resource listed but not importable", and its call count -
+// 744 at k=1 - was a refused plan's cost quoted as a clean one (issue #634).
+// The three other benches in this package read the generator's output and were
+// fixed by #633 alone; this one was not, because it did not read anything.
+//
+// So: read, never re-declare. A slice's provider configuration differs from
+// the whole estate's in exactly one respect, the live block, and that is the
+// only thing this function adds.
+func versionsFor(t *testing.T, base, estate string) string {
+	t.Helper()
+
+	path := filepath.Join(base, "versions.tf")
+	data, err := os.ReadFile(path) //nolint:gosec // a path terralith-gen just wrote
+	if err != nil {
+		t.Fatalf("reading the generated %s: %v", path, err)
 	}
-	return fmt.Sprintf(`terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.59.0"
-    }
-  }
-%s}
-
-provider "aws" {
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-  s3_use_path_style           = true
-}
-`, live)
+	src := string(data)
+	if estate == "" {
+		return src
+	}
+	// The generator's own required_version line. A missing anchor fails loudly
+	// rather than producing a choudoufu slice that is silently still stateful,
+	// which would make the migrated column measure the stock one over again.
+	const anchor = `required_version = ">= 1.5.0"`
+	if !strings.Contains(src, anchor) {
+		t.Fatalf("%s does not contain the expected anchor %q; terralith-gen's versions.tf template changed", path, anchor)
+	}
+	block := anchor + fmt.Sprintf("\n\n  live {\n    estate = %q\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }", estate)
+	return strings.Replace(src, anchor, block, 1)
 }
 
 // ---------------------------------------------------------------------------
