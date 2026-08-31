@@ -215,6 +215,12 @@ set -uo pipefail
 #                fungible-set "Two live resources claiming one slot"
 #                EC2/SQS's own marker-sweep-only identity produces), not
 #                silently propose nothing.
+#   BREAK_COUNT  set to 1 to run day2_count's own Break control (PART G,
+#                after STAGE 7) instead of that stage's real checks: after
+#                the real scale-down plan, assert the WRONG instance
+#                (count_test[0] rather than count_test[1]) is the one
+#                destroyed, so the stage reports verdict=fail. Independent
+#                of BREAK, which this stage never reads.
 #   DEBUG_KEEP   set to 1 to skip the exit trap: the floci container and the
 #                WORK directory (both estate copies, every plan log) are
 #                left behind for inspection instead of being torn down.
@@ -1574,8 +1580,11 @@ EOF
   # declared - which rules out "no parent left to derive from" as the
   # narrow cause: even with the parent still there, a count-based removal
   # of an untaggable instance is invisible with no local state to remember
-  # index 0 ever existed (day2_count, live/GAUNTLET.md #8, is a PLANNED,
-  # not yet active, stage for exactly this "scaling a count block" shape).
+  # index 0 ever existed. (day2_count, live/GAUNTLET.md #8, is the stage for
+  # the "scaling a count block" shape; it is active now and PART G below
+  # implements it - deliberately on a TAGGABLE type, because this very
+  # observation is why the estate's own untaggable multi-instance knob is
+  # not what that stage scales. See G-ORACLE's header.)
   # The resulting CLOUD is equivalent either way (a public access block is
   # bucket-scoped configuration with nothing left to describe once its own
   # bucket is gone - confirmed via the AWS CLI below), but the PLAN
@@ -1629,6 +1638,183 @@ open(p, 'w').write(s[:start] + s[end:])
   log "  no resource action proposed. simple-$PET is gone and nothing else moved."
 
   gauntlet_stage day2_remove pass "choudoufu: deleting module.simple_bucket_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy: the bucket and its untaggable public_access_block child), applied cleanly (0 added, 0 changed, 2 destroyed), the bucket is genuinely gone from the live account (head-bucket on simple-$PET now fails, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state also proposes exactly the same two destroys for the same two objects; the target was chosen to avoid issue #404's shape (a sibling policy re-reading the removed bucket's own ARN) - module.log_bucket and module.s3_bucket are both left untouched"
+  gauntlet_end_stage
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART G: CHANGE COUNT (day2_count, live/GAUNTLET.md #8, active - issue
+  # #643)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # Starts from STAGE 7's real, completed removal: the estate plans empty
+  # with module.simple_bucket_renamed's bucket and its public_access_block
+  # child gone. count_test_block() - defined above G-ORACLE, which is this
+  # stage's stock oracle for the identical shape, applied for real in the
+  # greenfield-oracle account before that container was torn down - writes
+  # the synthetic block into its own file, so day2_count's history is
+  # self-contained and never revisits an address any other stage in this
+  # script has touched. G-ORACLE's header says why the block is synthetic
+  # (this estate declares no scalable count/for_each of its own, and its one
+  # multi-instance knob drives an untaggable child) and what "genuinely a
+  # new object" means for a type whose id is its own deterministic name.
+  #
+  # BREAK_COUNT=1 exercises this stage's own Break control instead of the
+  # real checks: after the real scale-down plan, assert the WRONG instance
+  # (count_test[0] rather than count_test[1]) is the one destroyed - the
+  # Break text in tools/gauntlet/stages.go for day2_count, verbatim:
+  # "Expect a different instance to be destroyed; the assertion must fail."
+  # Both arms of that branch end in fail(), so the stage reports
+  # verdict=fail: reality destroys count_test[1], so the deliberately wrong
+  # assertion cannot hold, and that is what proves the real assertion below
+  # is load-bearing rather than a grep that always matches.
+  gauntlet_begin_stage day2_count
+  log "=== STAGE 8: day2_count - scale a count block down and back up ==="
+  log "  stock oracle already computed at G-ORACLE (above, in the idle greenfield-oracle account): $ORACLE_COUNT_SHAPE"
+
+  ct_addr_tag() { awsl s3api get-bucket-tagging --bucket "$1" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text; }
+  ct_estate_tag() { awsl s3api get-bucket-tagging --bucket "$1" --query "TagSet[?Key=='tofu-estate'].Value | [0]" --output text; }
+  ct_created() { awsl s3api list-buckets --query "Buckets[?Name=='$1'].CreationDate | [0]" --output text; }
+
+  log "=== G0. choudoufu: add aws_s3_bucket.count_test, count = 2 ==="
+  count_test_block 2 > "$ESTATE_DIR/day2_count.tf"
+  ( cd "$ESTATE_DIR" && "$TOFU" init -input=false -no-color ) > "$WORK/init-count.log" 2>&1 || {
+    tail -40 "$WORK/init-count.log"; fail "the count-block-add reinit failed"; }
+  COUNT_ADD_LOG="$WORK/plan-count-add.log"
+  plan_into "$COUNT_ADD_LOG" || { grep -vE '^[0-9]{4}-' "$COUNT_ADD_LOG" | tail -40; fail "the count-block-add plan exited non-zero"; }
+  grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be created' "$COUNT_ADD_LOG" \
+    || { grep -E '^  # .+ will be' "$COUNT_ADD_LOG"; fail "the count-block-add plan does not create count_test[0]"; }
+  grep -qE '^  # aws_s3_bucket\.count_test\[1\] will be created' "$COUNT_ADD_LOG" \
+    || { grep -E '^  # .+ will be' "$COUNT_ADD_LOG"; fail "the count-block-add plan does not create count_test[1]"; }
+  grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' "$COUNT_ADD_LOG" \
+    || { grep -E '^Plan:|^No changes' "$COUNT_ADD_LOG"; fail "adding the count block did not plan exactly two creates"; }
+  COUNT_ADD_APPLY="$(cd "$ESTATE_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_ADD_RC=$?
+  [ "$COUNT_ADD_RC" -eq 0 ] || { printf '%s\n' "$COUNT_ADD_APPLY" | tail -40; fail "the count-block-add apply exited $COUNT_ADD_RC"; }
+  grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY" \
+    || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY"; fail "the count-block-add apply did not create exactly two resources"; }
+
+  # The identity both instances must keep, asserted BY VALUE off the live
+  # cloud rather than off choudoufu's own report (HANDOFF's safety rule).
+  # live/MARKERS.md: an indexed instance's tofu-address is colon-escaped -
+  # aws_eip.this[2] is written aws_eip.this:2 - so count_test[1] is
+  # aws_s3_bucket.count_test:1, never aws_s3_bucket.count_test[1].
+  CT0_ADDR="$(ct_addr_tag "$CT0_NAME")"
+  CT1_ADDR="$(ct_addr_tag "$CT1_NAME")"
+  [ "$CT0_ADDR" = 'aws_s3_bucket.count_test:0' ] \
+    || fail "count_test[0] ($CT0_NAME) carries tofu-address=$CT0_ADDR live, not aws_s3_bucket.count_test:0"
+  [ "$CT1_ADDR" = 'aws_s3_bucket.count_test:1' ] \
+    || fail "count_test[1] ($CT1_NAME) carries tofu-address=$CT1_ADDR live, not aws_s3_bucket.count_test:1"
+  CT0_EST="$(ct_estate_tag "$CT0_NAME")"
+  [ "$CT0_EST" = "$ESTATE_NAME" ] || fail "count_test[0] carries tofu-estate=$CT0_EST, not $ESTATE_NAME"
+  CT0_CREATED="$(ct_created "$CT0_NAME")"
+  CT1_CREATED="$(ct_created "$CT1_NAME")"
+  [ -n "$CT0_CREATED" ] && [ "$CT0_CREATED" != "None" ] || fail "count_test[0] ($CT0_NAME) is not live after the add"
+  [ -n "$CT1_CREATED" ] && [ "$CT1_CREATED" != "None" ] || fail "count_test[1] ($CT1_NAME) is not live after the add"
+  log "  2 instances live: [0]=$CT0_NAME (tofu-address=$CT0_ADDR, tofu-estate=$CT0_EST, created=$CT0_CREATED), [1]=$CT1_NAME (tofu-address=$CT1_ADDR, created=$CT1_CREATED) - all read via the AWS CLI"
+
+  COUNT_NOOP_LOG="$WORK/plan-count-noop.log"
+  plan_into "$COUNT_NOOP_LOG" || { grep -vE '^[0-9]{4}-' "$COUNT_NOOP_LOG" | tail -40; fail "the post-add plan exited non-zero"; }
+  grep -vE '^[0-9]{4}-' "$COUNT_NOOP_LOG" > "$WORK/plan-count-noop-notrace.log"
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-count-noop-notrace.log"; then
+    grep -E '^  # .+ will be' "$WORK/plan-count-noop-notrace.log"
+    fail "the plan right after adding the count block proposes a resource action - the two new instances did not bind their own markers cleanly"
+  fi
+  log "  no resource action proposed right after the add: both new instances bind their own markers"
+
+  log "=== G1. scale the count down: 2 -> 1 ==="
+  count_test_block 1 > "$ESTATE_DIR/day2_count.tf"
+  COUNT_DOWN_LOG="$WORK/plan-count-down.log"
+  plan_into "$COUNT_DOWN_LOG" || { grep -vE '^[0-9]{4}-' "$COUNT_DOWN_LOG" | tail -40; fail "the scale-down plan exited non-zero"; }
+
+  if [ "${BREAK_COUNT:-}" = "1" ]; then
+    log "  BREAK_COUNT=1 (this stage's own Break control): asserting a DIFFERENT instance - count_test[0], not count_test[1] - is the one the scale-down destroys"
+    if grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be destroyed' "$COUNT_DOWN_LOG"; then
+      grep -E '^  # .+ will be' "$COUNT_DOWN_LOG"
+      fail "BREAK_COUNT=1: the scale-down plan REALLY destroys count_test[0] - the surviving instance did not keep its identity"
+    fi
+    grep -E '^  # .+ will be' "$COUNT_DOWN_LOG"
+    fail "BREAK_COUNT=1 (expected): the scale-down plan destroys count_test[1], not count_test[0], so the deliberately wrong assertion 'count_test[0] will be destroyed' does not hold - which is what proves the real assertion in this stage is load-bearing"
+  fi
+
+  grep -qE '^  # aws_s3_bucket\.count_test\[1\] will be destroyed' "$COUNT_DOWN_LOG" \
+    || { grep -E '^  # .+ will be' "$COUNT_DOWN_LOG"; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
+  grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be' "$COUNT_DOWN_LOG" \
+    && { grep -E '^  # .+ will be' "$COUNT_DOWN_LOG"; fail "choudoufu's scale-down plan touches count_test[0], which must be left alone - the same instance stock leaves alone"; }
+  grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' "$COUNT_DOWN_LOG" \
+    || { grep -E '^Plan:|^No changes' "$COUNT_DOWN_LOG"; fail "choudoufu's scale-down plan proposes something other than exactly one destroy"; }
+  log "  choudoufu: exactly one destroy (count_test[1]), count_test[0] untouched - the same shape G-ORACLE recorded for stock"
+
+  COUNT_DOWN_APPLY="$(cd "$ESTATE_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_DOWN_RC=$?
+  [ "$COUNT_DOWN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_APPLY" | tail -40; fail "the scale-down apply exited $COUNT_DOWN_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$COUNT_DOWN_APPLY" \
+    || { grep -E 'Apply complete' <<< "$COUNT_DOWN_APPLY"; fail "the scale-down apply was not exactly one destroy"; }
+
+  if CT1_STILL="$(awsl s3api head-bucket --bucket "$CT1_NAME" 2>&1)"; then
+    printf '%s\n' "$CT1_STILL"; fail "count_test[1] ($CT1_NAME) is still live after the scale-down destroy"
+  fi
+  CT0_CREATED_AFTER_DOWN="$(ct_created "$CT0_NAME")"
+  [ "$CT0_CREATED_AFTER_DOWN" = "$CT0_CREATED" ] \
+    || fail "count_test[0]'s CreationDate changed across the scale-down ($CT0_CREATED -> $CT0_CREATED_AFTER_DOWN) - it was destroyed and recreated, not left alone"
+  CT0_ADDR_AFTER_DOWN="$(ct_addr_tag "$CT0_NAME")"
+  [ "$CT0_ADDR_AFTER_DOWN" = 'aws_s3_bucket.count_test:0' ] \
+    || fail "the surviving count_test[0] carries tofu-address=$CT0_ADDR_AFTER_DOWN after the scale-down, not aws_s3_bucket.count_test:0 - the survivor did not keep its identity"
+
+  # The local record store, asserted by value: a destroyed count instance's
+  # record is TOMBSTONED, not deleted outright - the envelope's top-level
+  # "identity" is cleared and a "tombstone" entry added - so the honest
+  # check is has(tombstone) and not has(identity), never file absence (the
+  # #398-guard shape, the same discipline PART F's own record checks use).
+  CT1_RECORD="$ESTATE_DIR/.tofu-records/tofu-records/$ESTATE_NAME/aws_s3_bucket/$(record_key 'aws_s3_bucket.count_test[1]')"
+  [ -f "$CT1_RECORD" ] \
+    || fail "no local record file for aws_s3_bucket.count_test[1] after the scale-down - expected a tombstoned record, not none at all"
+  jq -e 'has("tombstone") and (has("identity") | not)' "$CT1_RECORD" >/dev/null \
+    || fail "the record at aws_s3_bucket.count_test[1] after the scale-down is not tombstoned: $(cat "$CT1_RECORD")"
+  log "  $CT1_NAME (count_test[1]) is genuinely gone (head-bucket fails); $CT0_NAME (count_test[0]) keeps its CreationDate and its tofu-address marker; count_test[1]'s local record is tombstoned, not deleted - all read directly, not through choudoufu's own report"
+
+  log "=== G2. scale the count back up: 1 -> 2 ==="
+  sleep 1
+  count_test_block 2 > "$ESTATE_DIR/day2_count.tf"
+  COUNT_UP_LOG="$WORK/plan-count-up.log"
+  plan_into "$COUNT_UP_LOG" || { grep -vE '^[0-9]{4}-' "$COUNT_UP_LOG" | tail -40; fail "the scale-up plan exited non-zero"; }
+  grep -qE '^  # aws_s3_bucket\.count_test\[1\] will be created' "$COUNT_UP_LOG" \
+    || { grep -E '^  # .+ will be' "$COUNT_UP_LOG"; fail "choudoufu's scale-up plan does not create count_test[1]"; }
+  grep -qE '^  # aws_s3_bucket\.count_test\[0\] will be' "$COUNT_UP_LOG" \
+    && { grep -E '^  # .+ will be' "$COUNT_UP_LOG"; fail "choudoufu's scale-up plan touches count_test[0], which must be left alone"; }
+  grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' "$COUNT_UP_LOG" \
+    || { grep -E '^Plan:|^No changes' "$COUNT_UP_LOG"; fail "choudoufu's scale-up plan proposes something other than exactly one create"; }
+  log "  choudoufu: exactly one create (count_test[1]), count_test[0] untouched"
+
+  COUNT_UP_APPLY="$(cd "$ESTATE_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; COUNT_UP_RC=$?
+  [ "$COUNT_UP_RC" -eq 0 ] || { printf '%s\n' "$COUNT_UP_APPLY" | tail -40; fail "the scale-up apply exited $COUNT_UP_RC"; }
+  grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY" \
+    || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY"; fail "the scale-up apply was not exactly one create"; }
+
+  CT1_NEW_CREATED="$(ct_created "$CT1_NAME")"
+  [ -n "$CT1_NEW_CREATED" ] && [ "$CT1_NEW_CREATED" != "None" ] || fail "count_test[1] ($CT1_NAME) is not live again after the scale-up"
+  [ "$CT1_NEW_CREATED" != "$CT1_CREATED" ] \
+    || fail "count_test[1] came back with the SAME CreationDate ($CT1_CREATED) it had before being destroyed - the destroy in G1 was not real"
+  CT1_NEW_ADDR="$(ct_addr_tag "$CT1_NAME")"
+  [ "$CT1_NEW_ADDR" = 'aws_s3_bucket.count_test:1' ] \
+    || fail "the recreated count_test[1] carries tofu-address=$CT1_NEW_ADDR, not aws_s3_bucket.count_test:1"
+  CT0_CREATED_AFTER_UP="$(ct_created "$CT0_NAME")"
+  [ "$CT0_CREATED_AFTER_UP" = "$CT0_CREATED" ] || fail "count_test[0]'s CreationDate changed across the scale-up"
+  CT0_ADDR_AFTER_UP="$(ct_addr_tag "$CT0_NAME")"
+  [ "$CT0_ADDR_AFTER_UP" = 'aws_s3_bucket.count_test:0' ] \
+    || fail "count_test[0] carries tofu-address=$CT0_ADDR_AFTER_UP after the scale-up, not aws_s3_bucket.count_test:0"
+  CT1_NEW_RECORD_ID="$(record_import_id "$CT1_RECORD" 2>/dev/null || true)"
+  [ "$CT1_NEW_RECORD_ID" = "$CT1_NAME" ] \
+    || fail "the record at aws_s3_bucket.count_test[1] after the scale-up names $CT1_NEW_RECORD_ID, not the recreated bucket $CT1_NAME"
+  log "  count_test[1] recreated under the same deterministic bucket name ($CT1_NAME) but a NEW CreationDate ($CT1_NEW_CREATED, was $CT1_CREATED), re-marked tofu-address=$CT1_NEW_ADDR, its record identity restored; count_test[0] untouched throughout"
+
+  log "=== G3. one more plan: nothing left to propose ==="
+  COUNT_FINAL_LOG="$WORK/plan-count-final.log"
+  plan_into "$COUNT_FINAL_LOG" || { grep -vE '^[0-9]{4}-' "$COUNT_FINAL_LOG" | tail -40; fail "the post-scale-up plan exited non-zero"; }
+  grep -vE '^[0-9]{4}-' "$COUNT_FINAL_LOG" > "$WORK/plan-count-final-notrace.log"
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-count-final-notrace.log"; then
+    grep -E '^  # .+ will be' "$WORK/plan-count-final-notrace.log"
+    fail "the post-scale-up plan proposes a resource change"
+  fi
+  log "  no resource action proposed. The down-then-up cycle is complete and invisible to the next plan."
+
+  gauntlet_stage day2_count pass "synthetic block (this estate's root configuration declares no count or for_each at all, and its only multi-instance knob - the intelligent_tiering input's two-entry map - fans out onto aws_s3_bucket_intelligent_tiering_configuration, which has no tags argument, issue #410's untaggable-child shape; so aws_s3_bucket.count_test, a taggable type this estate already exercises, at an address no other stage uses). choudoufu: scaling count_test from 2 to 1 proposed exactly one destroy (0 add, 0 change, 1 destroy), and it was the HIGHER index - count_test[1], $CT1_NAME - with count_test[0] not appearing in the plan at all; applied cleanly (0 added, 0 changed, 1 destroyed); head-bucket on $CT1_NAME then fails outright, while the survivor $CT0_NAME keeps both its CreationDate ($CT0_CREATED) and its tofu-address=aws_s3_bucket.count_test:0 marker, read through the AWS CLI rather than choudoufu's own report, and count_test[1]'s local record is tombstoned (has tombstone, no identity - the #398-guard shape) rather than deleted. Scaling back from 1 to 2 proposed exactly one create (1 add, 0 change, 0 destroy) for count_test[1] alone, and the recreated bucket is genuinely a NEW object: same deterministic name (an S3 bucket's id IS its own name - probed against floci with no tofu in the loop) but a new CreationDate ($CT1_CREATED -> $CT1_NEW_CREATED), re-stamped tofu-address=aws_s3_bucket.count_test:1 (tags do not survive a delete+recreate on this image, so the marker is one the apply wrote again), and a record identity naming the recreated bucket; count_test[0]'s CreationDate and marker were unchanged at every step. The next plan proposes no resource action. G-ORACLE, plain terraform standing the identical 2-instance block up for real in the idle greenfield-oracle account, shows the identical shape: $ORACLE_COUNT_SHAPE. BREAK_COUNT=1 asserts the wrong instance (count_test[0]) was destroyed and reports this stage fail, as the stage's Break text requires."
   gauntlet_end_stage
 fi
 gauntlet_end_stage
