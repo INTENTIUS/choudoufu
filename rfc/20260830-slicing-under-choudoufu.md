@@ -2,6 +2,194 @@
 
 Issue: https://github.com/INTENTIUS/choudoufu/issues/584
 
+## Correction, 2026-08-30: every CLI-plan figure below was a refused plan's cost
+
+Issue: https://github.com/INTENTIUS/choudoufu/issues/634
+
+Nothing in the original text has been deleted. The superseded numbers stay
+where they were written and each affected table carries a pointer back here,
+so anyone who quoted one can match it to what replaced it.
+
+### What was wrong
+
+The instrument, `internal/live/discovery/slicing_bench_test.go`, wrote its own
+`versions.tf` for each slice instead of reading the one `tools/terralith-gen`
+had generated moments earlier. That second copy set
+`skip_requesting_account_id = true`. With it set the AWS provider resolves no
+account id, every ARN-shaped identity it composes loses its account segment,
+ECS identity resolution fails (#572), and since #596 `choudoufu plan` refuses
+rather than proposing a duplicate:
+
+```
+Error: Live resource listed but not importable
+  ... a live aws_ecs_task_definition ... carrying this estate's tofu-estate marker
+```
+
+The generator dropped the flag under #628, fixed in #633. The three other
+benches in this package that use the generator write no `versions.tf` of their
+own, so that change corrected them. This one read nothing, so it kept its copy
+of the flag through #633 and beyond, and every
+`choudoufu plan` in the matrix below **exited 1**. The bench recorded
+`exit_code: 1` on every CLI row and only `t.Logf`'d it, so the counts were
+written up as a clean plan's cost. Both defects are fixed at `5ff7f43f5b`: the
+bench reads the generator's `versions.tf`, and a non-zero plan exit is now
+`t.Errorf`, symmetrical with the stock-plan check that was already loud.
+
+### What the numbers are now
+
+Re-measured at commit `5ff7f43f5b` against
+`ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`
+on darwin/arm64, scale 1, component partition, cold pass. Every plan below
+exits 0 and reports "No changes. Your infrastructure matches the
+configuration."
+
+| configuration | stock, published | stock, now | choudoufu, published | choudoufu, now |
+|---|---|---|---|---|
+| whole (k=1) | 148 | **150** | 744 | **157** |
+| k=2, summed | 148 | **152** | 1288 | **163** |
+| k=8, summed | 148 | **164** | 4530 | **198** |
+
+Per slice: stock reads 79/73 at k=2 and 13–24 at k=8 (published: 77/71 and
+11–22); choudoufu reads 83/80 at k=2 and 17–28 at k=8 (published: 624/664 and
+555–598).
+
+### Two causes, and only one of them is this defect
+
+The collapse from 744 to 157 is not one correction. It is two, and they are
+separable because both were measured independently:
+
+1. **The provider block.** `rfc/20260830-stateful-equivalence.md` ran the same
+   fixture and pin at `b1b1c6a13e`, before the narrowing below landed, with
+   only that one line changing, and got 744 → **710**: a 34-call difference,
+   plus 273s → 2.7s of SDK retry backoff.
+2. **`09d180f921`, "a steady-state plan stops enumerating the whole admission
+   table",** landed on `main` after this document was written. It narrows the
+   native sweep leg to the types an estate has its own evidence of when
+   `CollectUnclaimed` is unset, and its own commit message records 710 →
+   **157** on this same fixture and pin. This re-measure reproduces that 157
+   exactly, and its seven-call residual over stock call for call:
+   `GetResources` 1, `ListRoles` 1, ECS `ListServices`/`ListTaskDefinitions`/a
+   second `DescribeTaskDefinition` 3, and a second `GetCallerIdentity`/`GetUser`
+   pair 2.
+
+So the provider block is worth tens of calls; the narrowing is worth hundreds.
+
+### Was the refused-plan overhead uniform across k? No, and it changes sign
+
+#634 asks this because the ratio depends on it and nobody had checked. It was
+checked by running both provider blocks at the same commit and pin, everything
+else held fixed:
+
+| k | provider block | stock | choudoufu | ratio | plan verdict |
+|---|---|---|---|---|---|
+| 1 | with `skip_requesting_account_id` | 148 | 171 | 1.16x | s0 **refused** |
+| 1 | without (correct) | 150 | **157** | **1.05x** | empty |
+| 2 | with | 148 | 173 | 1.17x | s1 **refused** |
+| 2 | without (correct) | 152 | **163** | **1.07x** | empty |
+| 8 | with | 148 | 184 | 1.24x | s3 **refused** |
+| 8 | without (correct) | 164 | **198** | **1.21x** | empty |
+
+The overhead on choudoufu's summed cost is **+14 at k=1, +10 at k=2 and −14 at
+k=8**. Two constants of opposite sign make it, and both are visible per slice.
+The refusal costs **+18** calls, and it is paid once, by whichever single slice
+holds the ECS layer, however large k is: at k=8 that slice reads 39 against 25.
+Skipping the account lookup *saves* **4** calls in every slice, ECS or not, so
+it saves 4k across the estate: every other slice at k=8 reads exactly 4 lower.
+Net `18 − 4k`, which is +14, +10 and −14 at the three measured k, crosses zero
+near k=4.5, and means that from about k=5 upward **the broken configuration
+reads cheaper than the correct one**.
+
+Stock carries the second constant alone, at 2 calls per slice rather than 4,
+because choudoufu configures the provider twice. With the flag stock costs 148
+at every k, which is exactly the "148 in all three, exactly" this document
+reports as a finding; without it, it costs `148 + 2k`. That finding was an
+artifact of the missing account lookup. Slicing does add a small constant to
+stock's refresh, two calls per extra state, rather than nothing.
+
+None of this is uniform in k, so no ratio built on those numbers is safe at any
+k, and the distortion is worst where the document's headline claim sits.
+
+### Does the 30.6x ratio survive? No
+
+| | published | re-measured at `5ff7f43f5b` |
+|---|---|---|
+| whole estate, scale 1 | 5.0x | **1.05x** |
+| k=2, summed | 8.7x | **1.07x** |
+| k=8, summed | **30.6x** | **1.21x** |
+| k=8, per slice | 25x–51x | **1.13x–1.39x** |
+| whole estate, scale 4 | 2.3x | not re-measured; still refused-plan-derived |
+
+The "each additional state costs a flat ~541 API calls" model goes with it. On
+today's CLI path an extra state costs about **6** calls: 157 at k=1, 163 at
+k=2, 198 at k=8, which is 5.8 per additional slice over the six between k=2 and
+k=8.
+
+### What survives
+
+- **Finding 2 stands, and is the one to keep.** The estate-wide sweep still
+  does not scale down with a slice's type count: `native_sweep_calls` is
+  **512** for every slice at every k measured here (521 when this document was
+  written; the table moved by nine calls between the two commits, for reasons
+  unrelated to the provider block, see below), the sweep universe is still
+  1021 types whole and 1022–1026 sliced, and `partitionSweepTypes` still routes
+  992 of them to the native leg. Summed over the estate that is 512, 1024 and
+  4096 calls at k=1, 2 and 8. The flat sweep is exactly where it was.
+- **What changed is who pays it.** `09d180f921` took that leg off the
+  steady-state CLI plan path; it did not remove it. A plan with no record
+  store, a store that will not list, or an empty store still takes the full
+  universe by that commit's own rule ("any gate fails toward doing the work"),
+  and the in-process `Request` this bench issues sets `CollectUnclaimed: true`
+  and still pays 512 per slice. **Finding 3's conclusion — that slicing
+  multiplies choudoufu's plan cost — is therefore false of a steady-state plan
+  today and remains true of any run that sweeps.**
+- **Finding 4 stands.** The tagging leg is still 1 call per slice: 1, 2 and 8
+  at k=1, 2 and 8.
+- **Part 4 stands entirely.** Zero cross-slice references under the component
+  partition at both k=2 and k=8, and exactly three under the layer cut,
+  reproduced here.
+- **Part 5's second half was already corrected elsewhere and is confirmed
+  here.** The three ECS creates and the 273-second `DescribeServices` retry
+  loop were attributed to floci; `rfc/20260830-stateful-equivalence.md` showed
+  they were the provider block. With the block corrected, every plan in this
+  re-measure is empty and the slowest is **2.1s** against the 273s recorded
+  here. Under the old block at the same commit the ECS slice still takes
+  **137s**. No floci issue is warranted.
+
+### One movement that is not this defect
+
+Part 1's in-process table also moved slightly, and the provider block is not
+why: `launchAWSProvider` configures its provider from a literal three-flag body
+that never carried `skip_requesting_account_id`, so the leg measurements were
+always taken against a correct provider. At scale 1 the legs now read
+`tagging 1 / native 512 / config scan 26 / boundary 9 / post-sweep 0`, so
+sweep = 548 against 558 and total = 696 against 706, moving the read share from
+21.0% to 21.3%. Scales 4 and 10 were not re-run and their rows are unverified
+at the current commit.
+
+### Not re-measured
+
+Part 3's guided-discovery table (744, 328, 709, 269, 293) is four CLI-plan
+columns taken with the broken block and before `09d180f921`. Every figure in it
+is superseded and none has been replaced. Its two *mechanisms* are read off the
+code rather than the counts and are unaffected. The same applies to the scale-4
+whole-estate CLI row (1294) and to the `TOFU_LIVE_CLOUDCONTROL=off` column
+throughout.
+
+Reproduce with:
+
+```
+SLICE_SCALE=1 SLICE_K=8 SLICE_OUT=/tmp/k8.json TF_FLOCI_TEST=1 \
+  env -u PWD go test ./internal/live/discovery/ \
+    -run TestSlicingMatrixAgainstFloci -v -count=1 -timeout 120m
+```
+
+---
+
+*The original text follows. Not one figure, table or finding in it has been
+altered or removed. The additions are the blockquoted correction notes marked
+#634, beside the tables they supersede, plus one parenthesis naming the change
+to the instrument.*
+
 This is a measurement document, not a design proposal. It answers #584's
 matrix and, as its prerequisite, #582's open question 3 — "does the read pass
 dominate on a MIGRATED terralith?" — which #581 could only bound from below
@@ -30,6 +218,11 @@ one instruction in #584's own body. Those lead.
    whether it is one state or eight; choudoufu costs 744 at one state, 1288 at
    two and **4530 at eight**. Per slice — what a consultant actually feels —
    stock costs 11–22 calls and choudoufu 555–598.
+
+   > **Superseded, #634.** Every number in this finding is a refused plan's
+   > cost. Re-measured: stock 150/152/164, choudoufu **157/163/198**. Stock's
+   > "148 whether it is one state or eight" was itself an artifact of the
+   > missing account lookup; it is `148 + 2k`. See the correction above.
 
 4. **Under the `live-verify` mode #579 proposes, slicing would be
    irrelevant.** That mode costs the tagging leg alone, which measured 1, 2
@@ -85,8 +278,11 @@ runs at all (#593), and `live-import -approve` at scale 1 fell from 54.0s to
 7.1s for the same 598 calls (#583/#590's concurrent stamping).
 
 The instrument is `internal/live/discovery/slicing_bench_test.go`, added by
-this work. It differs from `sweep_split_bench_test.go` (#581) in exactly two
-respects, both required by the questions:
+this work. (Since `5ff7f43f5b` it reads `tools/terralith-gen`'s `versions.tf`
+rather than writing its own, and fails loudly on a non-zero plan exit. Both
+changes are #634; see the correction at the top.) It differs from
+`sweep_split_bench_test.go` (#581) in exactly two respects, both required by
+the questions:
 
 - **The estate is migrated before anything is measured.** The run applies the
   generated terralith with stock `terraform`, then runs
@@ -116,6 +312,13 @@ SLICE_SCALE=4 SLICE_K=1 SLICE_OUT=/tmp/s4k1.json TF_FLOCI_TEST=1 \
 
 ### Wall clock is not usable in these runs, and why
 
+> **Wrong diagnosis, #634 and `rfc/20260830-stateful-equivalence.md`.** The
+> 273 seconds are the broken provider block, not floci and not one resource
+> type. Re-measured at `5ff7f43f5b`: the slowest plan in the whole matrix is
+> **2.1s**, and the same slice under the old block at the same commit still
+> takes **137s**. Wall clock in these runs is unusable for the stated reasons
+> too, but the retry loop this section reasons about was self-inflicted.
+
 Every CLI plan of a slice containing the ECS layer took 273–274 seconds, to
 within half a second, across nine independent runs. Every slice without it
 took 2–4 seconds. The in-process `Discover` on the same estate takes 0.5–0.7s
@@ -136,6 +339,13 @@ Whole estate, one state, after `live-import -approve`. Every instance
 materializes (`materialized` equals `resolved_instances` at all three scales),
 which is itself the difference from #581: its scale-10 run materialized 431 of
 745.
+
+> **Small movement, and not from #634's defect.** `launchAWSProvider`
+> configures its in-process provider from a literal three-flag body that never
+> carried `skip_requesting_account_id`, so these legs were always measured
+> against a correct provider. Re-measured at `5ff7f43f5b`, the scale-1 row
+> reads `1 / 512 / 26 / 0` with a further 9 boundary calls, so sweep 548,
+> total 696, read share **21.3%**. Scales 4 and 10 were not re-run.
 
 | scale | instances | stamped | tagging leg | native leg | config scan | post-sweep | **sweep** | **read pass** | total | read share |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -195,6 +405,10 @@ estate.
 
 ### Per slice and summed, API calls
 
+> **Superseded, #634.** Every `choudoufu plan` column below exited 1. The
+> replacement matrix, and the k-by-k decomposition of what the refusal cost,
+> are in the correction at the top of this document.
+
 | configuration | states | stock plan | choudoufu plan | choudoufu, `TOFU_LIVE_CLOUDCONTROL=off` |
 |---|---|---|---|---|
 | whole | 1 | **148** | **744** | 328 |
@@ -235,6 +449,13 @@ The ratio a buyer would quote:
 | k=8, summed | 30.6x |
 | k=8, per slice | 25x–51x |
 
+> **Superseded, #634. This is the table most often quoted from this document
+> and none of it holds.** Re-measured at `5ff7f43f5b`: 1.05x whole, 1.07x at
+> k=2, **1.21x at k=8**, 1.13x–1.39x per slice. The scale-4 row was not
+> re-measured and is still refused-plan-derived. The "flat ~541 calls per
+> additional state" model below reads about 6 calls per additional state on
+> today's CLI path.
+
 The scale-4 whole-estate row is the one that shows where this is going: the
 gap closes as the estate grows, because the term choudoufu adds is flat. It
 opens as the estate is sliced, for the same reason.
@@ -253,6 +474,12 @@ from stock — "slicing makes each plan cheaper" — is true of the per-slice
 | k=2, summed | 2 | 1042 | 148 | 38 | 20 |
 | k=8, per slice | 1 (each) | 521 (each) | 11–22 | 3–12 | 10 (each) |
 | k=8, summed | 8 | 4168 | 148 | 87 | 80 |
+
+> **Re-measured, #634.** These are in-process legs and were not affected by
+> the provider block. At `5ff7f43f5b` the native leg reads **512** rather than
+> 521 in every one of the eleven slice-configurations re-run here, the tagging
+> leg is still 1 per slice, and the read pass is still 148 summed at every k.
+> The claim this table exists to make is unchanged.
 
 `native_sweep_calls` is **521 in all thirteen slice-configurations measured**
 — three whole estates at scales 1, 4 and 10, two slices at k=2, eight at k=8. The sweep universe is
@@ -278,6 +505,14 @@ what #579's RFC says the mode would cost.
 | scale 4, whole | 1148 | 2 |
 | scale 10, whole | 2032 | 4 |
 
+> **Partly superseded, #634.** The `live-verify` column is arithmetic on the
+> tagging leg and is unchanged: 1 call per slice, reproduced at 1, 2 and 8.
+> The "full plan" column's first three rows are refused-plan costs and read
+> 157, 163 and 198. The gap a `live-verify` mode would close over a
+> steady-state plan is therefore two orders of magnitude smaller than this
+> table implies, though the argument for the mode is unchanged for any run
+> that sweeps.
+
 Under such a mode, slicing costs one extra `GetResources` call per slice per
 plan and nothing else — **slicing becomes irrelevant**, which is a much
 stronger result than anything about the full plan's slicing behaviour.
@@ -295,6 +530,11 @@ below the full plan at every scale measured.
 
 Measured rather than reasoned about, as #584 asks, and the answer is that it
 does nothing on the path that ships.
+
+> **Superseded and not replaced, #634.** All four columns are CLI-plan counts
+> taken with the broken provider block, and all four predate `09d180f921`. No
+> re-measurement of this table was taken. The two mechanisms below are read off
+> the code rather than off the counts and are unaffected.
 
 | variant | no hint (fresh migration) | after an apply wrote a hint |
 |---|---|---|
@@ -426,6 +666,14 @@ and a rejected re-create ("Creation of service was not idempotent") that failed
 the apply-for-hint step — which is consistent. Worth a floci issue; not a
 choudoufu one.
 
+> **Wrong, #634.** It is neither. Both symptoms are the bench's own provider
+> block, and `rfc/20260830-stateful-equivalence.md` reached this first. With
+> the block corrected at `5ff7f43f5b`, every plan in the re-measured matrix
+> reports "No changes" and proposes nothing, at k=1, k=2 and k=8 alike. There
+> is no AWS/floci fidelity gap here to explain and no floci issue to file. The
+> reasoning above is left standing as a worked example of attributing a
+> fixture's defect to its environment.
+
 ## What this does not cover
 
 - **Real AWS.** Emulator only, by instruction. Every wall-clock figure and
@@ -446,3 +694,20 @@ choudoufu one.
   from this one's thirteen. The 521-call native leg is a property of the
   admission table and the ARN join table, not of the estate — but that is an
   argument, and only this estate was measured.
+
+Added by #634's re-measure, at `5ff7f43f5b`:
+
+- **Scales 4 and 10.** Only scale 1 was re-run. Every scale-4 and scale-10
+  figure in this document, in-process legs included, is unverified at the
+  current commit.
+- **Part 3's guided-discovery matrix**, the `TOFU_LIVE_CLOUDCONTROL=off`
+  column, and the scale-4 whole-estate CLI row. Superseded, not replaced.
+- **A plan that is not in steady state.** The re-measured CLI numbers are what
+  `09d180f921`'s narrowing costs when an estate has a populated record store.
+  A plan with no record store, one that will not list, or an empty one takes
+  the full sweep universe by that commit's own rule, and this re-measure did
+  not exercise those paths.
+- **Whether 4530 still reproduces at `cfd0dc58d4`.** The A/B above holds the
+  commit fixed and varies the provider block; it does not re-run the original
+  commit. What it shows is that at today's commit the same broken block costs
+  184 at k=8, so the bulk of 4530 → 198 is `09d180f921`, not this defect.
