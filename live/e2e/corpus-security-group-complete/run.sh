@@ -568,12 +568,12 @@ count_test_block() {
   cat <<COUNTEOF
 resource "aws_security_group" "count_test" {
   count       = $n
-  name        = "sg-complete-count-test-\${count.index}"
+  name        = "complete-count-test-\${count.index}"
   description = "day2_count evidence (live/GAUNTLET.md #8)"
   vpc_id      = $vpc_ref
 
   tags = {
-    Name = "sg-complete-count-test-\${count.index}"
+    Name = "complete-count-test-\${count.index}"
   }
 }
 COUNTEOF
@@ -588,7 +588,7 @@ oracle_vpc_block() {
 resource "aws_vpc" "count_oracle" {
   cidr_block = "10.99.0.0/16"
   tags = {
-    Name = "sg-complete-count-oracle-vpc"
+    Name = "complete-count-oracle-vpc"
   }
 }
 EOF
@@ -984,8 +984,8 @@ ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_E
 grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
   || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 3 resources (the oracle's own VPC plus 2 count-test security groups) for the day2_count oracle"; }
 awso() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
-ORACLE_SG0_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
-ORACLE_SG1_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+ORACLE_SG0_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
+ORACLE_SG1_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
 [ -n "$ORACLE_SG0_ID" ] && [ "$ORACLE_SG0_ID" != "None" ] || fail "no oracle count_test[0] security group found by its Name tag"
 [ -n "$ORACLE_SG1_ID" ] && [ "$ORACLE_SG1_ID" != "None" ] || fail "no oracle count_test[1] security group found by its Name tag"
 [ "$ORACLE_SG0_ID" != "$ORACLE_SG1_ID" ] || fail "the oracle's two count_test instances resolved to the same GroupId - the Name-tag lookup is not distinguishing them"
@@ -1035,7 +1035,7 @@ ORACLE_UP_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDP
   printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count oracle's scale-up apply failed"; }
 grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
   || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count oracle's scale-up apply was not exactly one create"; }
-ORACLE_SG1_NEW_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+ORACLE_SG1_NEW_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
 [ -n "$ORACLE_SG1_NEW_ID" ] && [ "$ORACLE_SG1_NEW_ID" != "None" ] || fail "no oracle count_test[1] security group found after the scale-up"
 [ "$ORACLE_SG1_NEW_ID" != "$ORACLE_SG1_ID" ] || fail "stock's recreated count_test[1] came back with the SAME id it had before being destroyed"
 ORACLE_SG0_AFTER_UP="$(awso ec2 describe-security-groups --group-ids "$ORACLE_SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
@@ -2178,8 +2178,8 @@ EOF
       grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$G_ADD_APPLY_OUT" \
         || { grep -E 'Apply complete' <<< "$G_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
 
-      G_SG0_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
-      G_SG1_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+      G_SG0_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
+      G_SG1_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
       [ -n "$G_SG0_ID" ] && [ "$G_SG0_ID" != "None" ] || fail "no live count_test[0] security group found by its Name tag"
       [ -n "$G_SG1_ID" ] && [ "$G_SG1_ID" != "None" ] || fail "no live count_test[1] security group found by its Name tag"
       [ "$G_SG0_ID" != "$G_SG1_ID" ] || fail "the two count_test instances resolved to the same GroupId - the Name-tag lookup is not distinguishing them"
@@ -2256,7 +2256,7 @@ EOF
         grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$G_UP_APPLY_OUT" \
           || { grep -E 'Apply complete' <<< "$G_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
 
-        G_SG1_NEW_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+        G_SG1_NEW_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:Name,Values=complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
         [ -n "$G_SG1_NEW_ID" ] && [ "$G_SG1_NEW_ID" != "None" ] || fail "no live count_test[1] security group found by its Name tag after the scale-up"
         [ "$G_SG1_NEW_ID" != "$G_SG1_ID" ] \
           || fail "count_test[1] came back with the SAME GroupId ($G_SG1_ID) it had before being destroyed - the destroy in G1 was not real"
