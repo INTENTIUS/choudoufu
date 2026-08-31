@@ -42,6 +42,27 @@ const defaultRecordDirName = ".tofu-records"
 // for a specific region; this package has no opinion on credentials beyond
 // that, the same position every other AWS client this fork builds takes.
 func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {
+	store, err := newRecordStore(ctx, rs, estate, moduleDir)
+	if err != nil || store == nil {
+		return store, err
+	}
+	// Order is load-bearing. The counter goes UNDER the cache, so what it
+	// counts is trips that actually reached the backend; over the cache it
+	// would count the calls the cache absorbs and report no change from
+	// having one, which is the measurement reading its own reflection.
+	counted, err := wrapForTripLog(store)
+	if err != nil {
+		return nil, err
+	}
+	// The estate's records, loaded once and in bulk the way stock loads its
+	// state file - see [staterecord.RunCache] for what makes it safe. The
+	// prefix is the same namespace [RecordStoreKeyPrefix] gives every caller
+	// that builds keys against this store, so a bulk load covers exactly the
+	// keys the run will ask for.
+	return staterecord.NewRunCache(counted, recordStoreKeyPrefix(rs, estate)), nil
+}
+
+func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {
 	if rs == nil {
 		return nil, nil
 	}

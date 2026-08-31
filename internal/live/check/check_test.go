@@ -135,6 +135,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"pluginschema":    true, // provider schema reading
 		"policy":          true, // the ownership policy matrix
 		"providerscope":   true, // module-aware provider address resolution (#104); a pure function, not yet wired into any pass
+		"recordtrips":     true, // the record-store round-trip measurement; an instrument, like "statefulcost" below
 		"refusalscan":     true, // the shared lockstep scanner behind those registries
 		"providerversion": true,
 		"registry":        true,

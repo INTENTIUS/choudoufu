@@ -721,11 +721,28 @@ func (s *RecordStore) List(ctx context.Context) ([]string, error) {
 // always has) is refused rather than trusted, the same discipline every one
 // of the four predecessor stores applied to its own namespace.
 func (s *RecordStore) getRaw(ctx context.Context, addr addrs.AbsResourceInstance) (env recordEnvelope, version string, exists bool, err error) {
+	return s.getEnvelope(ctx, addr, false)
+}
+
+// getRawFresh is [RecordStore.getRaw] for the reads that must never come
+// from [staterecord.RunCache]'s plan-phase snapshot: a read-modify-write's
+// own read, and a seeder's read-before-write. Both decide what to write from
+// what they read, so a remembered value there is a lost update rather than a
+// slow run. See [staterecord.RunCache]'s doc comment.
+func (s *RecordStore) getRawFresh(ctx context.Context, addr addrs.AbsResourceInstance) (env recordEnvelope, version string, exists bool, err error) {
+	return s.getEnvelope(ctx, addr, true)
+}
+
+func (s *RecordStore) getEnvelope(ctx context.Context, addr addrs.AbsResourceInstance, fresh bool) (env recordEnvelope, version string, exists bool, err error) {
 	if s == nil {
 		return recordEnvelope{}, "", false, nil
 	}
+	store := s.store
+	if fresh {
+		store = staterecord.Fresh(store)
+	}
 	key := RecordKey(s.prefix, addr)
-	payload, version, exists, err := s.store.Get(ctx, key)
+	payload, version, exists, err := store.Get(ctx, key)
 	if err != nil {
 		return recordEnvelope{}, "", false, fmt.Errorf("reading the record for %s: %w", addr, err)
 	}
@@ -753,7 +770,10 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 	if s == nil {
 		return "", nil
 	}
-	_, version, exists, err := s.store.Get(ctx, RecordKey(s.prefix, addr))
+	// Deliberately beneath any read cache: this exists to observe what the
+	// store holds NOW, so the compare-and-swap it feeds still catches a
+	// writer outside this run.
+	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, RecordKey(s.prefix, addr))
 	if err != nil {
 		return "", fmt.Errorf("reading the record for %s: %w", addr, err)
 	}
@@ -772,7 +792,19 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 // continuing would bind the instance to a wrong identity, which is
 // invisible to every verdict-level check.
 func (s *RecordStore) GetIdentity(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
-	env, version, exists, err := s.getRaw(ctx, addr)
+	return s.getIdentity(ctx, addr, false)
+}
+
+// GetIdentityFresh is [RecordStore.GetIdentity] for a seeder's
+// read-before-write: the version it returns becomes a compare-and-swap
+// expectation, so it must be the store's own, never a snapshot's. See
+// [staterecord.RunCache].
+func (s *RecordStore) GetIdentityFresh(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
+	return s.getIdentity(ctx, addr, true)
+}
+
+func (s *RecordStore) getIdentity(ctx context.Context, addr addrs.AbsResourceInstance, fresh bool) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
+	env, version, exists, err := s.getEnvelope(ctx, addr, fresh)
 	if err != nil {
 		return LocatedRecord{}, "", false, false, err
 	}
@@ -902,7 +934,17 @@ func (s *RecordStore) GetTombstones(ctx context.Context, addr addrs.AbsResourceI
 // getResidue reads addr's Residue member - GitHub issue #275's argument
 // values. keyExists and residueFound carry [getIdentity]'s same distinction.
 func (s *RecordStore) GetResidue(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
-	env, version, exists, err := s.getRaw(ctx, addr)
+	return s.getResidue(ctx, addr, false)
+}
+
+// GetResidueFresh is [RecordStore.GetResidue] for a seeder's
+// read-before-write, for the reason [RecordStore.GetIdentityFresh] gives.
+func (s *RecordStore) GetResidueFresh(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
+	return s.getResidue(ctx, addr, true)
+}
+
+func (s *RecordStore) getResidue(ctx context.Context, addr addrs.AbsResourceInstance, fresh bool) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
+	env, version, exists, err := s.getEnvelope(ctx, addr, fresh)
 	if err != nil {
 		return nil, "", false, false, err
 	}
@@ -992,7 +1034,10 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	if s == nil {
 		return "", fmt.Errorf("no record store is configured, so %s's record cannot be written", addr)
 	}
-	current, _, exists, err := s.getRaw(ctx, addr)
+	// Fresh, never from a snapshot: this read decides what is written
+	// back, and several concerns merging into one envelope in one write-back
+	// pass each have to see what the one before it just wrote.
+	current, _, exists, err := s.getRawFresh(ctx, addr)
 	if err != nil {
 		return "", err
 	}

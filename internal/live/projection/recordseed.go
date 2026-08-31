@@ -95,7 +95,7 @@ func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.A
 		return SeedUnchanged, fmt.Errorf("encoding the record for %s: %w", addr, err)
 	}
 
-	env, version, exists, getErr := store.getRaw(ctx, addr)
+	env, version, exists, getErr := store.getRawFresh(ctx, addr)
 	if getErr != nil {
 		return SeedUnchanged, fmt.Errorf("reading the existing record for %s before writing: %w", addr, getErr)
 	}

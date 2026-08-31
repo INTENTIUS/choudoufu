@@ -69,6 +69,11 @@ var guardedPackages = []string{
 	"policy",
 	"projection",
 	"providerscope",
+	// The record-store round-trip measurement: it generates an estate,
+	// shells out to terraform and choudoufu, and counts store trips out of
+	// the binary's own trip log. It touches no cty.Value at all, so like
+	// "statefulcost" below it is held to zero rather than deferred.
+	"recordtrips",
 	"providerversion",
 	"refusalscan",
 	"registry",
