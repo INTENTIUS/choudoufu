@@ -29,7 +29,7 @@ type surveyRow struct {
 }
 
 // readinessArtifact is live/readiness.json narrowed to the tier/status
-// verdict per type - rfc/20260828-readiness-tiers.md's own partition.
+// verdict per type - rulings/20260828-readiness-tiers.md's own partition.
 type readinessArtifact struct {
 	ProviderVersion string         `json:"provider_version"`
 	Types           []readinessRow `json:"types"`
@@ -157,7 +157,7 @@ func buildReport(old, new bumpArtifacts, golden goldenResult) string {
 	}
 
 	// 3. Schema-precedence, issue #387 (ruling 2 of
-	// rfc/20260823-foundation-order-ruling.md): whether the provider's own
+	// rulings/20260823-foundation-order-ruling.md): whether the provider's own
 	// identity schema reproduces the ratified row, for every ratified type
 	// carrying one - live/rowgen-convergence.json's schema_reproduces
 	// bucket, tools/row-gen/schemafirst.go's own measurement.

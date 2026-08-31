@@ -79,7 +79,7 @@ type StatelessForeign struct {
 	// ask the account-inventory question and this estate's own record
 	// store gave a narrower universe to sweep
 	// ([discovery.Result.NativeSweepSkipped],
-	// rfc/20260830-stale-state-charter.md). Zero on any run that asked -
+	// rulings/20260830-stale-state-charter.md). Zero on any run that asked -
 	// -adoption-only, or TOFU_LIVE_COLLECT_UNCLAIMED - and on any run with
 	// no record store to narrow by.
 	//

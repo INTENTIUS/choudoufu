@@ -6,6 +6,7 @@
 package residue
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"testing"
@@ -59,17 +60,35 @@ var trackedInstructions = []string{
 // keeps settings.local.json and worktrees/ out while letting the brief in.
 // That is a narrow exception and an easy one to lose while adjusting the
 // surrounding rules, so it is checked rather than trusted.
+//
+// This one always failed loudly - unlike the two skips #653 fixed - but it
+// failed with the wrong cause. Any error at all read as "not tracked by git"
+// and sent the reader to .gitignore, so no git on the machine, or a parent
+// that is not a git repository, produced four confident reports about an
+// ignore rule that was fine. Exit 1 is the only code `ls-files
+// --error-unmatch` uses to mean "this path is not tracked"; anything else is
+// git declining to answer, and the finding here is only as good as the answer.
 func TestOperationalBriefIsTracked(t *testing.T) {
+	bin := gitBin(t)
 	for _, path := range trackedInstructions {
-		out, err := exec.Command("git", "-C", "..", "ls-files", "--error-unmatch", path).CombinedOutput()
-		if err != nil {
-			t.Errorf("%s is not tracked by git (%v: %s)\n"+
-				"It is written instruction on how to work on this repository. Untracked, it does not "+
-				"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
-				"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
-				"re-includes /.claude/agents/, /.claude/skills/ and /.claude/scripts/.",
-				path, err, strings.TrimSpace(string(out)))
+		out, err := exec.Command(bin, "-C", "..", "ls-files", "--error-unmatch", path).CombinedOutput()
+		if err == nil {
+			continue
 		}
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) || ee.ExitCode() != 1 {
+			t.Fatalf("`%s -C .. ls-files --error-unmatch %s` did not answer: %v %s\n"+
+				"git was found on PATH and exit 1 is how it reports an untracked path, so this is "+
+				"neither - most likely the parent of live/ is not inside a git repository. Nothing here "+
+				"has been established about .gitignore either way.",
+				bin, path, err, strings.TrimSpace(string(out)))
+		}
+		t.Errorf("%s is not tracked by git (%v: %s)\n"+
+			"It is written instruction on how to work on this repository. Untracked, it does not "+
+			"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
+			"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
+			"re-includes /.claude/agents/, /.claude/skills/ and /.claude/scripts/.",
+			path, err, strings.TrimSpace(string(out)))
 	}
 }
 

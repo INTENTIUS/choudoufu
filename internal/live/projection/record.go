@@ -103,7 +103,7 @@ func RecordAddr(prefix, key string) (addrs.AbsResourceInstance, bool) {
 // a provider's read never gives back, "tofu-provisioned" for the
 // create-time-provisioner taint bit) is now one key per instance, one JSON
 // envelope carrying up to four independently-optional facts about it. See
-// rfc/20260823-foundation-order-ruling.md and HANDOFF.md's "The foundation".
+// rulings/20260823-foundation-order-ruling.md and HANDOFF.md's "The foundation".
 //
 // # Why one key rather than four
 //

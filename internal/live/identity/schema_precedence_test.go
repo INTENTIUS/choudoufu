@@ -12,7 +12,7 @@ import (
 )
 
 // TestSchemaPrecedenceMatchesRowByValue is ruling 2's own acceptance bar
-// (rfc/20260823-foundation-order-ruling.md, #387), asserted the way
+// (rulings/20260823-foundation-order-ruling.md, #387), asserted the way
 // live-markers.md's own measurement discipline requires: never a predicate,
 // always the rendered value. It resolves the same three fixtures twice -
 // once with no schemas, so [resolver.lookupType] uses [DefaultTable]'s row

@@ -14,8 +14,13 @@ The exceptions are resources with no twin at all. Nothing in AWS knows a
 
 ![Which resources need a record store, and which do not](diagram-values.svg)
 
-Those persist as one small record each. Declare a store and they are admitted.
-Without one they are refused.
+Those persist as one small record each, and every estate already has somewhere
+to put them. A `live` block that names no `record_store` gets an implied local
+one, a `.tofu-records` directory beside the module, so these resources are
+admitted with no `record_store` block present. What is still refused is a
+configuration with no `live` block at all.
+
+Declare the block to send the records somewhere a team can share instead:
 
 ```hcl
 # estate.chdf.hcl
@@ -41,9 +46,14 @@ regenerates, and anything reading it plans as a change. It cannot cost you a
 resource, because identity arguments must be statically evaluable, so a
 record-backed value can never name one.
 
-**Secrets never go here.** `random_password`, `random_bytes` and every `tls_*`
-are refused rather than recorded. Their output is key material, and a record
-holding a secret would be exactly the thing this design exists to avoid.
+**The record store may hold any value the state file would have held,
+including secrets, unless you set `strict { secrets = "refuse" }`.** The
+default is `strict { secrets = "store" }`, which keeps what a stock state file
+keeps, so `random_password`, `random_bytes` and the `tls_*` types are admitted
+and their generated values are recorded in clear. That is the thing to weigh
+when picking a backend, because it decides who ends up able to read them:
+[what the store may contain]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
+has the per-backend answer.
 
 ## Why this stays small
 

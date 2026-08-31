@@ -127,7 +127,7 @@ identity.
 
 **What `live-import` does.** The same read-and-verify pass as tier A, but
 `Approve` has no tag to stamp. What it writes instead is the estate's
-per-instance record - ruling 1 of `rfc/20260823-foundation-order-ruling.md`
+per-instance record - ruling 1 of `rulings/20260823-foundation-order-ruling.md`
 ("the record holds the identity of every instance, written by `live-import`
 and by every apply") applies to every tier, not only the ones with nowhere
 else to put it.
@@ -266,7 +266,7 @@ practical governance surface; tier C often has no config-computed formula
 tying the object to a parent at all, so there is nothing to substitute at
 the AWS resource-tag layer. What actually gates a tier C object is IAM on
 the record store's own backend (SSM parameter policy, S3 bucket policy, or
-local-file access, per `rfc/20260814-micro-state-store-ruling.md`) - a
+local-file access, per `rulings/20260814-micro-state-store-ruling.md`) - a
 different, and coarser, boundary than a resource tag.
 
 ### Tier D: excluded by design
@@ -274,7 +274,7 @@ different, and coarser, boundary than a resource tag.
 **The current precedent list, corrected against the code rather than
 assumed.** The population this document's issue names -
 "the `aws_iam_access_key` / `aws_iot_certificate` family" - is stale as of
-ruling 5 in `rfc/20260823-foundation-order-ruling.md` (2026-08-23): both
+ruling 5 in `rulings/20260823-foundation-order-ruling.md` (2026-08-23): both
 types moved off the unconditional veto and onto the `strict { secrets }`
 toggle. Both resolve `ClassRecordLocated` by default today - they are
 **tier C**, not tier D - and are refused only under `strict { secrets =
@@ -310,7 +310,7 @@ reason. Each carries its own stated reason in `tools/row-gen/rejected.json`:
   client-supplied write-only material."
 
 Neither type is named in `live/LIMITATIONS.md` today (checked directly:
-zero matches for either name in that file). The issue text for this RFC
+zero matches for either name in that file). The issue text for this ruling
 assumed a stated LIMITATIONS.md reason for tier D the way `markerless-type`
 has one for tier C; that assumption does not hold yet. The reason lives
 only in the row-gen ledger and the harness ratchet's rendered page. Giving
@@ -388,7 +388,7 @@ not a cloud object" - declared as groundwork for issue #73's projection
 work. Its own doc comment is explicit that no resolver in the package
 produces it yet: "a record-admitted type's resources are refused by lint...
 before resolution ever runs." No provider resource type occupies it as of
-this RFC, so it is named here only so a future reader does not mistake its
+this ruling, so it is named here only so a future reader does not mistake its
 absence from the four tiers above for an oversight. Whether it becomes a
 fifth tier or folds into tier C when #73 lands is a decision for whoever
 lands #73.
@@ -396,7 +396,7 @@ lands #73.
 **Scope of "every resource type."** The tiers above classify a type by its
 intrinsic identity shape - taggable or not, server-minted or not - which is
 readable from the provider's schema whether or not `tools/row-gen` has
-ratified a table row for it yet. That is a deliberate reading of this RFC's
+ratified a table row for it yet. That is a deliberate reading of this ruling's
 own opening claim ("AWS gave roughly half the types no tag surface" is a
 fact about the whole 1699-type roster, not about the smaller admitted
 subset) and it is what lets tier A and tier B's populations be quoted two
@@ -414,7 +414,7 @@ only the four names and their meaning, not that representation.
 ## What this settles for #418
 
 - The four tier names, in this exact spelling, are the vocabulary a
-  generator built against this RFC must emit: `marker-carried`,
+  generator built against this ruling must emit: `marker-carried`,
   `declaration-carried`, `record-carried`, `excluded by design`.
 - Precedence is fixed: tier D overrides whatever tier A, B, or C a type's
   schema would otherwise imply; `NotImportableTypes` is a filter applied

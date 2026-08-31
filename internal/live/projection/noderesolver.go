@@ -20,7 +20,7 @@ import (
 
 // NodeResolver is the live path's implementation of GitHub issue #388's
 // plan-node seam (internal/tofu.ResourceIdentityResolver;
-// rfc/20260823-foundation-order-ruling.md, ruling 3). It answers "does
+// rulings/20260823-foundation-order-ruling.md, ruling 3). It answers "does
 // this instance already have an identity" from three sources, in the order
 // HANDOFF.md's foundation section fixes: the estate's record
 // ([Ownership] #364's write half), the marker sweep this run already

@@ -84,7 +84,7 @@ const (
 const limitationsMDURL = "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md"
 
 // tierOrder and statusOrder fix the rendered table's row and column order:
-// the tiers in rfc/20260828-readiness-tiers.md's own precedence order (A,
+// the tiers in rulings/20260828-readiness-tiers.md's own precedence order (A,
 // B, C, D), the statuses in the order issue #418 names them. Both are
 // checked against the artifact's actual vocabulary by
 // TestReadinessCrossTabCoversEveryTierAndStatus in render_test.go, so a
@@ -117,7 +117,7 @@ type crossKey struct {
 // readinessCrossTab tallies every row of the artifact into its (tier,
 // status) cell. Counts.Tiers and Counts.Statuses (build.go) each carry only
 // one axis's marginal; a reader of the rendered table needs the joint
-// count, which is exactly what the RFC's tier definitions and issue #418's
+// count, which is exactly what the ruling's tier definitions and issue #418's
 // statuses compose into and neither field alone states.
 func readinessCrossTab(a Artifact) map[crossKey]int {
 	cross := make(map[crossKey]int, len(tierOrder)*len(statusOrder))
@@ -208,11 +208,11 @@ func reasonFor(r Row) string {
 	case StatusExcluded:
 		// Tier D's population (harness.SanctionedCredentialExclusions) has
 		// no dedicated live/LIMITATIONS.md heading yet -
-		// rfc/20260828-readiness-tiers.md's tier D section confirms neither
+		// rulings/20260828-readiness-tiers.md's tier D section confirms neither
 		// name appears there, and names giving them one as a follow-up
 		// outside its own scope. What is accurate today, and what
 		// RuleUnadmittedType actually reports for these two types
-		// (see that RFC section's "What live-import does"), is
+		// (see that ruling section's "What live-import does"), is
 		// unadmitted-type.
 		return fmt.Sprintf(
 			"excluded by design: generates credential material this fork can never read back and verify again (maintainer ruling, 2026-08-15, issue #175). See [LIMITATIONS.md](%s#unadmitted-type).",

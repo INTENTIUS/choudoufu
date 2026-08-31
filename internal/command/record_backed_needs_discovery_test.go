@@ -42,7 +42,7 @@ func seedIdentityRecord(t *testing.T, raw staterecord.Store, prefix string, addr
 }
 
 // TestStatelessRecordBackedNeedsDiscoveryAddrs is edge 3 of the plan-node
-// seam (rfc/20260823-foundation-order-ruling.md, ruling 3; GitHub issue
+// seam (rulings/20260823-foundation-order-ruling.md, ruling 3; GitHub issue
 // #388): it must find exactly the needs-discovery addresses whose record
 // already holds an identity - read the same way
 // [projection.NodeResolver.ResolveResourceIdentity]'s own step (a) reads it

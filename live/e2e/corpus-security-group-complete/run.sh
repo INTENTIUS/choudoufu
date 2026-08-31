@@ -1570,7 +1570,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # count.go) that aws_instance/aws_security_group both rely on appears to
   # be bypassed whenever a valid record already resolves the declared
   # address - plausibly a side effect of the record-primary plan ordering
-  # ruled 2026-08-23 (rfc/20260823-foundation-order-ruling.md), which
+  # ruled 2026-08-23 (rulings/20260823-foundation-order-ruling.md), which
   # started letting the record short-circuit before the count-set claimant
   # matcher (slotProblem/ProblemDuplicateSlot) ever runs. A real,
   # generalizable finding (a MISSING detection, not a wrong marker

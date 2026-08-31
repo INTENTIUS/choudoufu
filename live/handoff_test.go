@@ -409,10 +409,28 @@ func definedTestNames(t *testing.T, root string) map[string]bool {
 	return out
 }
 
+// walkTestFiles reads every _test.go under dir.
+//
+// A directory it cannot read is a directory it is not walking, so it says so
+// rather than returning. This used to be a bare `return`, which is the one
+// place definedTestNames' `len(out) < 100` floor does not reach: internal/
+// alone declares over five thousand tests, so losing live/, tools/ or cmd/
+// entirely - renamed, moved, unreadable - left the floor comfortably cleared
+// and every citation into the lost tree passing on a name nothing had looked
+// for. The floor answers "did the walk find anything"; this answers "did the
+// walk go where it was sent", and they are not the same question.
+//
+// Recursion only descends into entries ReadDir just returned, so a failure
+// below the top is a real fault too, and is reported the same way.
 func walkTestFiles(t *testing.T, dir string, fn func([]byte)) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		t.Errorf("reading %s: %s\n"+
+			"This walk collects the test declarations HANDOFF.md's citations are checked against, so a "+
+			"root it cannot read is a root whose tests all read as undefined - or, worse, whose absence "+
+			"is invisible because the other roots clear the floor on their own. Either the directory "+
+			"moved and definedTestNames' root list needs updating, or it should not have gone away.", dir, err)
 		return
 	}
 	for _, e := range entries {

@@ -15,7 +15,7 @@ pass is unconditional and costs what stock's refresh costs. The sweep is the
 adoption hook, which answers a question an operator needs during a migration
 or an audit and not on an ordinary plan of an estate that is already adopted.
 That it should not run on every plan is
-[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md)'s
+[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md)'s
 ruling; this page is the measurement that ruling rests on.
 
 > **Read this page as the sweep's cost, not as a plan's cost.** The ruling
@@ -65,7 +65,7 @@ actually plans. Generated terralith at three scales, applied with stock
 `terraform` and then migrated with `choudoufu live-import -approve` before
 anything was counted (commit `cfd0dc58d4`, floci pin `sha256:c55d74e1`,
 reported in
-[`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md)):
+[`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md)):
 
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|---|---|
@@ -151,7 +151,7 @@ refresh. It multiplies choudoufu's sweep.
 > sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
 > run that actually sweeps. Since `09d180f921` a steady-state plan is not one
 > of them. Full correction:
-> [`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md).
+> [`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md).
 
 ## On real AWS the sweep is nearly the whole plan
 
@@ -252,7 +252,7 @@ moves.
 
 The same fixture and the same pin, measured before migration with no marker on
 any object (commit `f4611196e5`,
-[`rfc/20260830-marker-verified-fast-projection.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-marker-verified-fast-projection.md)):
+[`rulings/20260830-marker-verified-fast-projection.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-marker-verified-fast-projection.md)):
 
 | Instances | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|

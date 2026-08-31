@@ -26,7 +26,7 @@
 // sha256:c55d74e1, that second job is nearly the whole difference between
 // this fork and stock: 710 API calls against stock's 150, with the native
 // leg's account-wide enumeration accounting for 543 of the 560-call gap.
-// rfc/20260830-stale-state-charter.md rules that it does not stay
+// rulings/20260830-stale-state-charter.md rules that it does not stay
 // unconditional, and this file is where that ruling takes effect: with
 // [Request.CollectUnclaimed] unset, the native leg is narrowed to the types
 // this estate has its own evidence of, and the rest of the admission table

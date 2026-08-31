@@ -90,7 +90,7 @@ Binding reads the record and verifies it against the marker; a lost record is
 rebuilt from tags where tags exist, and where they do not, the estate is
 exactly where stock is.
 
-Ruled 2026-08-23 (`rfc/20260823-foundation-order-ruling.md`): the record
+Ruled 2026-08-23 (`rulings/20260823-foundation-order-ruling.md`): the record
 holds the identity of **every** instance, written by `live-import` and by
 every apply, and a plan reads it first. The marker sweep and derivation
 from configuration are the recovery paths, for when there is no record or
@@ -209,7 +209,7 @@ a regression; the estate usually got better and the script did not.
 
 Units continue from `next` at all times. Underneath them, the foundation
 lands in a fixed order, ruled 2026-08-23 in
-`rfc/20260823-foundation-order-ruling.md`, which carries the measurements
+`rulings/20260823-foundation-order-ruling.md`, which carries the measurements
 each item rests on and the commits they were computed at:
 
 1. **#364 and record-primary identity**: every instance's identity in the
@@ -304,7 +304,7 @@ this file's rewrite on 2026-08-21; the reasoning for retiring them is in the
 tracker's design thread of the same date.
 
 Retired 2026-08-23: "the engine is unmodified" as a rule (it stays a
-measured cost: `rfc/20260814-projection-nativeness-audit.md`); the hand
+measured cost: `rulings/20260814-projection-nativeness-audit.md`); the hand
 exclusion of `aws_iam_access_key` outside the toggles; the config-language
 subset as a permanent property of the mode rather than of the static
-evaluator. Reasoning in `rfc/20260823-foundation-order-ruling.md`.
+evaluator. Reasoning in `rulings/20260823-foundation-order-ruling.md`.
