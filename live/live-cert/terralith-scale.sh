@@ -693,8 +693,13 @@ function flush() {
 { entry = entry " " $0 }
 END {
   flush()
-  printf "TOTAL %d\n", total + 0
-  for (o in cnt) printf "%s %d\n", o, cnt[o]
+  # Tab-separated, count BEFORE the operation, because an operation name can
+  # contain a space ("Route 53/GetHostedZone"). The first version emitted
+  # "<op> <count>" and the reader split on whitespace, so every Route 53 row
+  # printed the count as "Route" and the operation as "53" - three identical
+  # "53 Route" lines on the scale-1 real-AWS run, with the TOTAL still right.
+  printf "TOTAL\t%d\n", total + 0
+  for (o in cnt) printf "OP\t%d\t%s\n", cnt[o], o
 }
 AWKEOF
   fi
@@ -716,7 +721,7 @@ analyze_api_calls() {
   prog="$(apicalls_awk)"
 
   awk -f "$prog" "$f" > "$WORK/apicalls_${label}.counts" 2>/dev/null
-  total="$(awk '$1=="TOTAL"{print $2}' "$WORK/apicalls_${label}.counts")"
+  total="$(awk -F'\t' '$1=="TOTAL"{print $2}' "$WORK/apicalls_${label}.counts")"
   [ -n "$total" ] || total=0
 
   # One line per GetResource refinement, printed beside scan.Refined++.
@@ -727,7 +732,7 @@ analyze_api_calls() {
 
   log "  ${label}: ${total:-0} provider-mediated AWS API request(s) (exact, from rpc.method entries)"
   log "    top operations:"
-  awk '$1!="TOTAL"{printf "      %8d %s\n", $2, $1}' "$WORK/apicalls_${label}.counts" | sort -rn | head -25
+  awk -F'\t' '$1=="OP"{printf "      %8d %s\n", $2, $3}' "$WORK/apicalls_${label}.counts" | sort -rn | head -25
   # These two counts are types, not calls, and they scale differently:
   # a Cloud Control listing is one ListResources call per TYPE (plus
   # pagination), while the whole Tagging sweep is ONE estate-filtered
