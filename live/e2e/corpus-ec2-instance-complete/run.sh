@@ -1198,9 +1198,19 @@ COUNTEOF
     awsl ec2 describe-tags --filters "Name=resource-id,Values=$1" "Name=key,Values=$2" --query 'Tags[0].Value' --output text 2>/dev/null
   }
 
-  EST_AWS_VER="$(grep -A2 'provider "registry.terraform.io/hashicorp/aws"' "$EST/.terraform.lock.hcl" 2>/dev/null | sed -n 's/^  version *= *"\(.*\)"$/\1/p' | head -1)"
+  # The registry host is deliberately NOT pinned in this pattern. STAGE 1's
+  # plain `terraform init` writes
+  # provider "registry.terraform.io/hashicorp/aws"; STAGE 2's `choudoufu
+  # init` rewrites the SAME file as
+  # provider "registry.opentofu.org/hashicorp/aws", because this fork is an
+  # OpenTofu fork and resolves a bare "hashicorp/aws" source against
+  # OpenTofu's own registry. Both resolved 6.62.0 for this estate's
+  # ">= 6.37" constraint when this was checked directly; a host-specific
+  # pattern here matched neither by the time day2_count runs, which is
+  # exactly how the first draft of this section failed.
+  EST_AWS_VER="$(sed -n '/^provider "registry\.[^"]*\/hashicorp\/aws" {/,/^}/p' "$EST/.terraform.lock.hcl" 2>/dev/null | sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' | head -1)"
   [ -n "$EST_AWS_VER" ] \
-    || fail "could not read the adopted estate's own resolved hashicorp/aws version out of $EST/.terraform.lock.hcl - the day2_count oracle would otherwise silently compare two different providers"
+    || { [ -f "$EST/.terraform.lock.hcl" ] && sed -n '1,20p' "$EST/.terraform.lock.hcl"; fail "could not read the adopted estate's own resolved hashicorp/aws version out of $EST/.terraform.lock.hcl - the day2_count oracle would otherwise silently compare two different providers"; }
 
   log "=== C-ORACLE. day2_count stock oracle: stand a 2-instance count block up with plain terraform, scale it to 1 and back ==="
   ORACLE_COUNT_DIR="$WORK/oracle-count"
