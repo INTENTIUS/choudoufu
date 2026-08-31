@@ -48,7 +48,8 @@ import (
 //
 // The wall-clock win here will look small, and that is a property of the
 // emulator rather than of the change. floci answers over a loopback socket;
-// real AWS answered #578's measurement at 0.367s per call. Overlapping
+// real AWS answered #578's measurement at 0.367s per SWEEP call - that rate
+// is 205 / 558 and only divides 558. Overlapping
 // calls that take microseconds saves microseconds. API CALL COUNTS are the
 // primary figure and they must be IDENTICAL at every setting - if they move,
 // the change is doing more than overlapping. Throttle counts are reported
@@ -89,13 +90,18 @@ import (
 // config-driven scan, the one tagging GetResources call, and the consuming
 // loop's own per-object bookkeeping, which is deliberately sequential. Over
 // loopback that half is comparable to the call time, so the ceiling is about
-// 2x whatever the parallelism. Against real AWS the same calls cost 0.367s
+// 2x whatever the parallelism. Against real AWS all 558 of them cost 0.367s
 // each (#578) and the bookkeeping is unchanged, so the non-overlappable share
 // is a fraction of a percent and the ceiling is the parallelism itself. The
 // figure this benchmark establishes is therefore the CALL PARITY and the
 // determinism; the wall-clock column is context, and the real-AWS projection
 // (521 native calls x 0.39s = 203s sequential, ~20s at 10) stays a projection
 // until somebody runs it against an account.
+//
+// The two per-call rates in the paragraph above are not interchangeable and
+// have been mixed once already (#618): 0.367s is 205 / 558 and divides the
+// whole sweep, 0.39s is 203 / 521 and divides the native leg. 0.367 x 521 is
+// 191, which is a number nothing measured.
 func TestSweepParallelismAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery/sweep-parallelism")
 	flocitest.RequireBinary(t, "docker")

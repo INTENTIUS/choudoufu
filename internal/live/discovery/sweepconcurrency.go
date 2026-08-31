@@ -19,11 +19,27 @@ import (
 )
 
 // GitHub issue #605. The estate-wide sweep makes one list call per admitted
-// type, and against a real account that is the whole of a stateless plan's
-// wall clock: 521 calls at 0.367s of network latency each, measured at scale
-// 1 over 79 resources, is 203 of the plan's 205 seconds. The read pass around
-// them is already at exact call parity with stock, so there is nothing else
-// in it to remove - only the waiting to overlap.
+// type, and against a real account that is very nearly the whole of a
+// stateless plan's wall clock. #578's certification run, scale 1, 79
+// resources, us-east-2, three runs a side, every plan empty: stock 3s/4s/3s
+// against this fork's 203s/211s/200s. The sweep is 558 of those calls, so
+// the 201.3s mean difference over stock is 0.36s per sweep call - one
+// network round trip apiece - and the sweep is about 201 of the plan's 205
+// seconds. The read pass around it is already at exact call parity with
+// stock (148/556/1372 at scales 1/4/10, both sides), so there is nothing
+// else in it to remove - only the waiting to overlap.
+//
+// Quote a rate with the denominator it was divided by. 0.36s/call is
+// 201.3 / 558, the whole sweep. The native leg alone is 521 of those 558
+// calls and its own pair is 521 x 0.39s = 203s; 0.367 is 205 / 558 and so
+// belongs beside 558, never beside 521 (issue #618 - 0.367 x 521 is 191).
+//
+// Those seconds predate this file. #578 ran the sweep sequentially, and
+// nobody has repeated the real-AWS run since #605 made it concurrent, so
+// 205s is the pre-concurrency plan and the post-#605 real-AWS cost is
+// unmeasured. What has been measured against the emulator is that the call
+// count does not move with the parallelism, which is the property this file
+// is responsible for; see TestSweepParallelismAgainstFloci.
 //
 // DefaultSweepParallelism is how many of those calls this fork has in flight
 // at once when nothing else settles it.
