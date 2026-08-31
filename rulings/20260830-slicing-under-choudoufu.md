@@ -58,7 +58,7 @@ Per slice: stock reads 79/73 at k=2 and 13–24 at k=8 (published: 77/71 and
 The collapse from 744 to 157 is not one correction. It is two, and they are
 separable because both were measured independently:
 
-1. **The provider block.** `rfc/20260830-stateful-equivalence.md` ran the same
+1. **The provider block.** `rulings/20260830-stateful-equivalence.md` ran the same
    fixture and pin at `b1b1c6a13e`, before the narrowing below landed, with
    only that one line changing, and got 744 → **710**: a 34-call difference,
    plus 273s → 2.7s of SDK retry backoff.
@@ -149,7 +149,7 @@ k=8.
   reproduced here.
 - **Part 5's second half was already corrected elsewhere and is confirmed
   here.** The three ECS creates and the 273-second `DescribeServices` retry
-  loop were attributed to floci; `rfc/20260830-stateful-equivalence.md` showed
+  loop were attributed to floci; `rulings/20260830-stateful-equivalence.md` showed
   they were the provider block. With the block corrected, every plan in this
   re-measure is empty and the slowest is **2.1s** against the 273s recorded
   here. Under the old block at the same commit the ECS slice still takes
@@ -312,7 +312,7 @@ SLICE_SCALE=4 SLICE_K=1 SLICE_OUT=/tmp/s4k1.json TF_FLOCI_TEST=1 \
 
 ### Wall clock is not usable in these runs, and why
 
-> **Wrong diagnosis, #634 and `rfc/20260830-stateful-equivalence.md`.** The
+> **Wrong diagnosis, #634 and `rulings/20260830-stateful-equivalence.md`.** The
 > 273 seconds are the broken provider block, not floci and not one resource
 > type. Re-measured at `5ff7f43f5b`: the slowest plan in the whole matrix is
 > **2.1s**, and the same slice under the old block at the same commit still
@@ -380,7 +380,7 @@ Against #581's unmigrated table on the same fixture and the same pin:
 
 **Migration leaves the sweep alone and raises the read pass by 61% to 72%.**
 Per resolved instance the read pass goes from 1.09/1.13/1.14 calls
-(unmigrated) to **1.87/1.85/1.84** (migrated). The RFC's own extrapolation —
+(unmigrated) to **1.87/1.85/1.84** (migrated). `rulings/20260830-marker-verified-fast-projection.md`'s own extrapolation —
 "roughly 1471 calls and roughly 69% at scale 10, crossover roughly 300" —
 was close: measured 1372, 67.5%, and 322.
 
@@ -495,7 +495,7 @@ small slice.**
 ### The third column, projected
 
 `live-verify` does not exist. This is arithmetic on the tagging leg, which is
-what #579's RFC says the mode would cost.
+what #579 says the mode would cost.
 
 | configuration | full plan | projected `live-verify` |
 |---|---|---|
@@ -667,7 +667,7 @@ the apply-for-hint step — which is consistent. Worth a floci issue; not a
 choudoufu one.
 
 > **Wrong, #634.** It is neither. Both symptoms are the bench's own provider
-> block, and `rfc/20260830-stateful-equivalence.md` reached this first. With
+> block, and `rulings/20260830-stateful-equivalence.md` reached this first. With
 > the block corrected at `5ff7f43f5b`, every plan in the re-measured matrix
 > reports "No changes" and proposes nothing, at k=1, k=2 and k=8 alike. There
 > is no AWS/floci fidelity gap here to explain and no floci issue to file. The

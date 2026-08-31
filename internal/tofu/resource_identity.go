@@ -20,7 +20,7 @@ import (
 // resource instance that this graph walk has no prior state for, so that
 // NodePlannableResourceInstance can import it instead of planning a create.
 //
-// This is the seam ruled in rfc/20260823-foundation-order-ruling.md
+// This is the seam ruled in rulings/20260823-foundation-order-ruling.md
 // (ruling 3, "the plan-node seam"): identity resolution moves from a
 // separate static evaluation pass over configuration text into one hook at
 // the node that already evaluates real values. Nil by default; a nil
@@ -30,7 +30,9 @@ import (
 //
 // Deliberately, nothing in this signature names a graph-node type, an
 // EvalContext, or any other internal/tofu internal: upstream's proposed
-// event-model runtime (rfc/20251001-eval-plan-apply-architecture.md, #3414)
+// event-model runtime
+// (https://github.com/opentofu/opentofu/blob/main/rfc/20251001-eval-plan-apply-architecture.md,
+// opentofu/opentofu#3414)
 // evaluates "a specific resource instance is desired" as an event rather
 // than a graph-node method, and the same resolver implementation must be
 // callable from there with no adaptation if this fork ever rebases onto it.

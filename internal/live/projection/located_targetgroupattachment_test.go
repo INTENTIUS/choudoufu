@@ -17,7 +17,7 @@ import (
 )
 
 // This file is corpus-alb-complete/test_plan's remaining wall
-// (rfc/20260823-foundation-order-ruling.md's write half, applied to
+// (rulings/20260823-foundation-order-ruling.md's write half, applied to
 // aws_lb_target_group_attachment): two lambda-target attachments in the real
 // corpus refuse "Null identity argument" on port, because a lambda target
 // group genuinely has no port and the ratified table's port component is

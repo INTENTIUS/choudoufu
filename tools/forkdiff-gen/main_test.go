@@ -20,7 +20,7 @@ func TestBucketOf(t *testing.T) {
 		{"live/fork-surface.json", "live/"},
 		{"site/content/docs/index.md", "site/"},
 		{".github/workflows/ci.yml", ".github/"},
-		{"rfc/20260814-upstream-sync.md", "rfc/"},
+		{"rulings/20260814-upstream-sync.md", "rulings/"},
 		{"internal/command/apply.go", "other"},
 		{"internal/tofu/context.go", "other"},
 		{"cmd/choudoufu/main.go", "other"},
