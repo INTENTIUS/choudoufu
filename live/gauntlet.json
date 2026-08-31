@@ -1811,16 +1811,16 @@
         "test_plan": "pass"
       },
       "clear": true,
-      "commit": "ca77a50e32bb1f30fcb77e3e839af3f4afb256f4",
-      "date": "2026-08-30T21:10:38Z",
+      "commit": "1d06e1d1774d4e38ff6836e56213e5a5272d44b8",
+      "date": "2026-08-31T03:20:33Z",
       "exit_code": 0,
       "detail": {
-        "cold_deploy": "745 resources from stock terraform against aws at scale=10 in 418s, tofu-cert-run=lc1788120197-28268, debug log 13142709B/112 throttle/112 retry",
-        "migrate": "335 of 745 verified, 335 stamped, 410 skipped, in 215s, debug log 19367689B/179 throttle/179 retry",
+        "cold_deploy": "745 resources from stock terraform against aws at scale=10 in 413s, tofu-cert-run=lc1788143435-19631, debug log 13058408B/86 throttle/86 retry",
+        "migrate": "335 of 745 verified, 335 stamped, 410 skipped, in 222s, debug log 19403609B/190 throttle/190 retry",
         "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 24",
-        "test_plan": "post-migrate plan is empty in 328s; zone/role tofu-address confirmed via the AWS CLI; debug log 6870958 bytes, 1 throttling-error line(s), 1 retry line(s)"
+        "test_plan": "post-migrate plan is empty in 129s; zone/role tofu-address confirmed via the AWS CLI; debug log 5744376 bytes, 2 throttling-error line(s), 2 retry line(s)"
       },
-      "duration_s": 4040.6
+      "duration_s": 2998.6
     }
   ]
 }
