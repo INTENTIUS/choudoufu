@@ -53,8 +53,10 @@ Only the first two are unconditional today. The third is the one that costs,
 and [what a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the
 measured split. It used to run on every plan; since `09d180f921` a plan of an
 estate that has its own evidence to narrow by does not pay it, which took this
-fixture's plan from 710 API calls to 157 against stock's 150. The ruling behind
-that is
+fixture's plan from 710 API calls to 157 against stock's 150. That evidence is
+the estate's own record store, so an estate holding no keys in one — a fresh
+estate, or one still mid-migration — takes the full sweep as before. The ruling
+behind that is
 [`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md),
 and [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) is the
 measured statement of what is left.

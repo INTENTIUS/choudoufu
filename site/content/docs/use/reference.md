@@ -87,10 +87,25 @@ pinned emulator, a plain plan is 926 lines, of which 470 are the bodies of 36
 the emulator cannot list. The adoption-only run of the same estate is 53
 lines.
 
-The mode changes what is printed, not what is done: the same live reads, the
-same discovery sweep, the same plan. It therefore costs the same time as an
-ordinary plan, and every verdict in the ledger is the one that run would have
-printed anyway. It needs a `live` block; a state-backed plan refuses it.
+The mode changes what is printed, and since `09d180f921` it also changes what
+is done. The live reads and the plan are the same, and every verdict in the
+ledger is the one an ordinary run would have printed. The sweep is not the
+same: `-adoption-only` is what turns the estate-wide sweep's account-inventory
+question **on**, so it enumerates every admitted type this estate has no
+evidence of ever having used, and an ordinary plan of an adopted estate does
+not. On the 79-instance terralith that is 710 API calls against 157, about
+4.5x, and it is the flag a migrating operator is told to reach for — which is
+correct, because during a migration the account-wide question is the point.
+
+**An earlier version of this page said the mode "costs the same time as an
+ordinary plan".** That was true when written and stopped being true at
+`09d180f921`. Budget for the wider run.
+[What a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the split, the
+conditions under which an ordinary plan narrows, and
+`TOFU_LIVE_COLLECT_UNCLAIMED` for asking or declining the question
+independently of this flag.
+
+It needs a `live` block; a state-backed plan refuses it.
 
 Identity resolution and marker stamping run through the plan-node seam
 (GitHub issue #388) by default: the record, then the marker index, then the
