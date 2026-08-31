@@ -74,6 +74,21 @@ type StatelessForeign struct {
 	// Swept are the resource types that were listed in full.
 	Swept []string
 
+	// NativeSweepSkipped is how many admitted types the estate-wide
+	// sweep's native per-type leg did not list, because this run did not
+	// ask the account-inventory question and this estate's own record
+	// store gave a narrower universe to sweep
+	// ([discovery.Result.NativeSweepSkipped],
+	// rfc/20260830-stale-state-charter.md). Zero on any run that asked -
+	// -adoption-only, or TOFU_LIVE_COLLECT_UNCLAIMED - and on any run with
+	// no record store to narrow by.
+	//
+	// It is rendered rather than kept internal because the difference
+	// between "we looked and there is nothing" and "we did not look" is
+	// the whole content of this section, and a narrowed run has done less
+	// looking than the wording alone implies.
+	NativeSweepSkipped int
+
 	// Unswept are the types this classification cannot speak for, with a
 	// reason code and a sentence each.
 	Unswept []StatelessUnsweptType
@@ -686,6 +701,13 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	default:
 		colored("\n[reset][bold]Foreign resources: nothing was swept[reset]\n\n")
 		wrapped("No resource type was listed in full during this run, so nothing is known about live resources that carry no ownership marker. This is not a report that there are none.", 0)
+	}
+	if rep.NativeSweepSkipped > 0 {
+		out("\n")
+		wrapped(fmt.Sprintf("This run did not ask which live resources carry no ownership marker at all, so %d admitted %s this estate has no record of ever having used %s not listed. Every resource this estate owns was still swept for. Run \"choudoufu plan -adoption-only\" for the account-wide question.",
+			rep.NativeSweepSkipped,
+			noun(rep.NativeSweepSkipped, "type", "types"),
+			noun(rep.NativeSweepSkipped, "was", "were")), 0)
 	}
 
 	if len(rep.Candidates) > 0 {

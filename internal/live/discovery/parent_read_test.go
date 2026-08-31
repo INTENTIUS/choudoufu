@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/listclient"
 )
 
 // The parent-read sweep leg (issue #60): an untaggable, parent-readable
@@ -258,4 +260,92 @@ func TestParentReadSweepRequiresSweepFlag(t *testing.T) {
 	if len(res.ParentReads) != 0 {
 		t.Errorf("the parent-read leg ran without Request.Sweep:\n%s", res)
 	}
+}
+
+// parentlessFixture is parentReadFixture with every aws_s3_bucket removed:
+// an estate that declares no parent of any parent-readable untaggable type
+// at all. That is the ordinary case for most estates - the admission table
+// has parent-readable children across many services and a given
+// configuration touches a handful - and it is the case
+// TestParentReadSweepIssuesNoCallWithNoParent measures.
+func parentlessFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	const src = `
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+resource "aws_iam_role" "app" {
+  name               = "my-role"
+  assume_role_policy = "{}"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestParentReadSweepIssuesNoCallWithNoParent measures this leg's cost on
+// the observable that decides it: which types the provider was asked to
+// list.
+//
+// The leg's own doc comment says its cost is "one list call per
+// (parent-readable untaggable type, bound parent instance not already
+// declaring a child)". For an unscoped child - one whose list configuration
+// has no argument to scope on, which is the S3-subresource shape - that was
+// not true: [listUnscopedChildren] ran once per parent-readable type before
+// any parent was looked for, so an estate declaring no bucket still paid a
+// full bucket enumeration, and an estate declaring no queue, topic, secret
+// or repository still paid theirs. Measured on a migrated 79-instance
+// terralith that declares none of them, that was ten list calls on every
+// plan, bounded by the admission table rather than by the estate.
+//
+// Both halves are asserted here, because the negative alone would pass
+// against a leg that had stopped working altogether.
+func TestParentReadSweepIssuesNoCallWithNoParent(t *testing.T) {
+	run := func(t *testing.T, dir string) *fakeCloud {
+		t.Helper()
+		cloud := newFakeCloud()
+		cloud.listable("aws_s3_bucket")
+		cloud.listableUntagged("aws_s3_bucket_policy")
+		cloud.obj("aws_s3_bucket_policy", "my-bucket", nil)
+
+		schemas, diags := listclient.ListSchemas(t.Context(), cloud)
+		if diags.HasErrors() {
+			t.Fatalf("ListSchemas: %s", diags.Err())
+		}
+		cfg := loadConfig(t, dir)
+		res := &Result{Resolutions: resolveOrFail(t, cfg).All()}
+		req := Request{Estate: estateName, Config: cfg, Provider: cloud, Sweep: true}
+		if diags := parentReadSweep(t.Context(), req, schemas, res); diags.HasErrors() {
+			t.Fatalf("parentReadSweep: %s", diags.Err())
+		}
+		return cloud
+	}
+
+	t.Run("no parent declared", func(t *testing.T) {
+		cloud := run(t, parentlessFixture(t))
+		var listed []string
+		for _, r := range cloud.requests {
+			listed = append(listed, r.TypeName)
+		}
+		if len(listed) != 0 {
+			t.Errorf("the parent-read leg issued %d list call(s) - %v - for an estate that declares no parent of any parent-readable type. Every one of them enumerates a service this configuration does not mention, on every plan.", len(listed), listed)
+		}
+	})
+
+	t.Run("a parent declared", func(t *testing.T) {
+		cloud := run(t, parentReadFixture(t))
+		if _, ok := cloud.requestFor("aws_s3_bucket_policy"); !ok {
+			t.Error("the parent-read leg issued no list call for aws_s3_bucket_policy even though the estate declares two buckets, one of them with no declared policy. The negative case above proves nothing without this.")
+		}
+	})
 }

@@ -466,6 +466,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// nothing to report between, only before and after.
 			taggingUniverse, nativeUniverse := partitionSweepTypes(req, decl)
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
+			// rfc/20260830-stale-state-charter.md's CollectUnclaimed
+			// ruling. The tagging leg above is untouched by it - it is one
+			// call and it covers every ARN-placeable type across the whole
+			// account - and so is every removal leg below. What narrows is
+			// the per-type list loop, which is the term that tracks the
+			// admission table rather than the estate. See nativesweep.go
+			// for what that gives up and why it fails toward sweeping.
+			nativeUniverse, res.NativeSweepSkipped = estateScopedNativeSweep(ctx, req, decl, nativeUniverse)
 			// GitHub issue #605: the list calls this loop is about to make
 			// go out concurrently, up to [Request.SweepParallelism] at a
 			// time, and the loop below is unchanged - it consumes each

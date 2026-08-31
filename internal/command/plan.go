@@ -345,11 +345,15 @@ Other Options:
                                resource diff and the other live-markers
                                sections are suppressed, and each warning is
                                compacted to one line naming it - errors are
-                               never touched. The run is otherwise unchanged,
-                               so every verdict in the ledger is the one this
-                               run would have printed anyway. Refused on a
-                               state-backed plan, which has no adoption
-                               question.
+                               never touched. It also asks the estate-wide
+                               sweep which live resources carry no ownership
+                               marker at all, which an ordinary plan does not:
+                               that question is bounded by the account rather
+                               than by the estate, and it is what this ledger
+                               is for. Set TOFU_LIVE_COLLECT_UNCLAIMED=1 to
+                               ask it on an ordinary plan, or 0 to skip it
+                               here. Refused on a state-backed plan, which has
+                               no adoption question.
 
   -out=path                    Write a plan file to the given path. This can be
                                used as input to the "apply" command.
