@@ -400,6 +400,14 @@ set -uo pipefail
 #                Independent of BREAK and BREAK_GREENFIELD, and only
 #                reachable when BREAK is not 1, because day2_remove starts
 #                from day2_rename's real, completed rename.
+#   BREAK_COUNT  set to 1 to run day2_count's own negative control instead
+#                of the real checks: after the real scale-down plan, assert
+#                the WRONG instance (count_test[0] rather than count_test[1])
+#                was destroyed - the Break text in tools/gauntlet/stages.go
+#                for day2_count is literally "Expect a different instance to
+#                be destroyed; the assertion must fail." Only reachable when
+#                neither BREAK nor BREAK_REMOVE is 1, because PART G starts
+#                from day2_remove's real, completed removal.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice) and every delta lands on a copy.
@@ -512,6 +520,106 @@ copy_tree() {
          "$dest/security-group/examples/complete/.terraform.lock.hcl" \
          "$dest/security-group/examples/complete/terraform.tfstate" \
          "$dest/security-group/examples/complete/terraform.tfstate.backup"
+}
+
+# ── day2_count's own scalable block (live/GAUNTLET.md #8) ──────────────────
+#
+# WHY A SYNTHETIC BLOCK, and not one of this estate's own knobs. The stage
+# needs "a count block with at least 2 instances" that can be scaled down and
+# back up while the plan reads EXACTLY "0 to add, 0 to change, 1 to destroy"
+# and then "1 to add, 0 to change, 0 to destroy". This estate declares no
+# such knob, checked against the module's own source rather than assumed
+# (.corpus/security-group/main.tf, tag v6.0.0):
+#
+#   - every `count` in the module is the boolean create toggle
+#     `count = local.create ? 1 : 0` (aws_security_group.this line 10,
+#     aws_vpc_security_group_rules_exclusive.this line 91). A 1-or-0 toggle
+#     is not a scalable count: it can never hold two instances, so nothing
+#     about "which instance is destroyed" is observable through it.
+#   - the module's real scalers are `for_each` maps
+#     (aws_vpc_security_group_ingress_rule.this over var.ingress_rules,
+#     line 41; egress_rule, line 66), and dropping one key from
+#     ingress_rules does NOT produce a lone destroy: line 96 feeds every
+#     rule's id into aws_vpc_security_group_rules_exclusive.this[0]'s
+#     ingress_rule_ids, so the enforcer is updated in the same plan and the
+#     shape is "0 to add, 1 to change, 1 to destroy". The stage's own oracle
+#     comparison would then be asserting a two-object shape, and the
+#     surviving-identity claim would be entangled with the enforcer's own
+#     replace/update behaviour.
+#
+# So day2_count uses the sanctioned self-contained synthetic block instead -
+# the same fallback live/e2e/reference-ec2-vpc/run.sh's Part F and
+# live/e2e/corpus-iam-policy/run.sh's Part G already use, and of a type this
+# estate exercises heavily in its own right (aws_security_group: the module's
+# own SG, the two preset submodules' SGs, the standalone app SG, and the two
+# nested vpc calls' default_security_group adopters). aws_security_group.
+# count_test is named by nothing else in this estate, is added and removed
+# entirely inside PART G (and the G-ORACLE stock leg), and so day2_count's
+# own history never touches the resources every other part depends on.
+#
+# count_test_block($1 = count, $2 = vpc_id HCL expression). $2 lets the same
+# helper serve both PART G (inside the adopted estate, where module.vpc
+# already exists) and G-ORACLE (its own separate working directory and state
+# in the idle greenfield account, with its own small VPC - see
+# oracle_vpc_block below). Unquoted heredoc so $1/$2 interpolate;
+# ${count.index} is escaped so bash never tries to expand it.
+count_test_block() {
+  local n="$1" vpc_ref="$2"
+  cat <<COUNTEOF
+resource "aws_security_group" "count_test" {
+  count       = $n
+  name        = "sg-complete-count-test-\${count.index}"
+  description = "day2_count evidence (live/GAUNTLET.md #8)"
+  vpc_id      = $vpc_ref
+
+  tags = {
+    Name = "sg-complete-count-test-\${count.index}"
+  }
+}
+COUNTEOF
+}
+
+# oracle_vpc_block() is G-ORACLE's own tiny VPC, standing in for module.vpc
+# so count_test_block's security groups have a vpc_id in a working directory
+# that never declares this estate's real VPCs. 10.99.0.0/16 is clear of both
+# (10.0.0.0/16 and 10.1.0.0/16).
+oracle_vpc_block() {
+  cat <<'EOF'
+resource "aws_vpc" "count_oracle" {
+  cidr_block = "10.99.0.0/16"
+  tags = {
+    Name = "sg-complete-count-oracle-vpc"
+  }
+}
+EOF
+}
+
+# oracle_count_header() is G-ORACLE's own terraform + provider preamble: the
+# same provider pin as the estate (= 6.59.0, the release this checkout's
+# admission tables were generated against) and the same DELTA 1 emulator
+# flags, spelled out here because the oracle's working directory is a fresh
+# one that never sees the corpus example's own provider block. The endpoint
+# itself comes from AWS_ENDPOINT_URL, set per command by the caller.
+oracle_count_header() {
+  cat <<'EOF'
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "eu-west-1"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  s3_use_path_style           = true
+}
+EOF
 }
 
 gauntlet_begin
@@ -832,6 +940,107 @@ log ""
 log "STAGE F (greenfield): PASS"
 log ""
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing, all markers verified via the AWS CLI, $INSTANCES records in the local record store (#364 A2), replan empty, $N_EXPECTED_SG_TOTAL tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches \$PLAIN_EST's own stage-1 apply object by object, tags stripped"
+gauntlet_end_stage
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART G-ORACLE: CHANGE COUNT, stock (day2_count, active - live/GAUNTLET.md
+# #8): "Stock's plan for the same count change, normalised."
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Unlike D-ORACLE/D-ORACLE(remove)/F-ORACLE, this one cannot reuse a copy of
+# cold_deploy's own state: cold_deploy's state has no scalable count block in
+# it at all (see count_test_block's header for why this estate declares
+# none), so there is nothing there to scale. Stock therefore stands the SAME
+# 2-instance block up for real, with plain terraform, in its own working
+# directory - and in $GREEN_ENDPOINT, the greenfield container PART F has
+# just finished with and which nothing else in this script ever writes to
+# again (grep: no GREEN_ENDPOINT/GREEN_EST/awsg use appears below this
+# point). aws_security_group.count_test and its own 10.99.0.0/16 VPC collide
+# with nothing there, the greenfield stage's own verdict is already recorded
+# above, and its inventory check counted objects by their tofu-estate tag,
+# which a plain-terraform apply never writes. $ENDPOINT is deliberately NOT
+# used: PART G's own real leg runs there, and an oracle sharing the account
+# with the thing it is the oracle for is not an oracle.
+#
+# AWS_ENDPOINT_URL stays $ENDPOINT for the rest of the script; only this
+# block's own terraform invocations are pointed at $GREEN_ENDPOINT, via a
+# per-command environment override.
+gauntlet_begin_stage day2_count
+log ""
+log "=== G-ORACLE. stock: create a 2-instance count block, scale it to 1 and back, in the (idle) greenfield account ==="
+PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
+mkdir -p "$PLAIN_ORACLE_COUNT"
+{
+  oracle_count_header
+  echo
+  oracle_vpc_block
+  echo
+  count_test_block 2 "aws_vpc.count_oracle.id"
+} > "$PLAIN_ORACLE_COUNT/main.tf"
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count oracle's terraform init failed"; }
+ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
+grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
+  || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 3 resources (the oracle's own VPC plus 2 count-test security groups) for the day2_count oracle"; }
+awso() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
+ORACLE_SG0_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-0" --query "SecurityGroups[0].GroupId" --output text)"
+ORACLE_SG1_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$ORACLE_SG0_ID" ] && [ "$ORACLE_SG0_ID" != "None" ] || fail "no oracle count_test[0] security group found by its Name tag"
+[ -n "$ORACLE_SG1_ID" ] && [ "$ORACLE_SG1_ID" != "None" ] || fail "no oracle count_test[1] security group found by its Name tag"
+[ "$ORACLE_SG0_ID" != "$ORACLE_SG1_ID" ] || fail "the oracle's two count_test instances resolved to the same GroupId - the Name-tag lookup is not distinguishing them"
+log "  stock: 2 instances created, count_test[0]=$ORACLE_SG0_ID count_test[1]=$ORACLE_SG1_ID - read via the AWS CLI"
+
+{
+  oracle_count_header
+  echo
+  oracle_vpc_block
+  echo
+  count_test_block 1 "aws_vpc.count_oracle.id"
+} > "$PLAIN_ORACLE_COUNT/main.tf"
+ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
+[ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
+grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan does not destroy count_test[1]"; }
+grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-down plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 0 to add, 0 to change, 1 to destroy.' <<< "$ORACLE_DOWN_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -10; fail "stock's scale-down plan proposes something other than exactly one destroy"; }
+ORACLE_DOWN_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_DOWN_APPLY_OUT" | tail -30; fail "the day2_count oracle's scale-down apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$ORACLE_DOWN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_DOWN_APPLY_OUT"; fail "the day2_count oracle's scale-down apply was not exactly one destroy"; }
+ORACLE_SG0_AFTER_DOWN="$(awso ec2 describe-security-groups --group-ids "$ORACLE_SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+[ "$ORACLE_SG0_AFTER_DOWN" = "$ORACLE_SG0_ID" ] || fail "stock's surviving count_test[0] changed id across the scale-down ($ORACLE_SG0_ID -> $ORACLE_SG0_AFTER_DOWN)"
+ORACLE_SG1_N_AFTER_DOWN="$(awso ec2 describe-security-groups --group-ids "$ORACLE_SG1_ID" --query "length(SecurityGroups)" --output text 2>/dev/null || echo 0)"
+[ "$ORACLE_SG1_N_AFTER_DOWN" = "0" ] || fail "stock's count_test[1] ($ORACLE_SG1_ID) still exists after the scale-down destroy"
+log "  stock: exactly one destroy (count_test[1]=$ORACLE_SG1_ID, 0 matches now), count_test[0]=$ORACLE_SG0_ID unchanged"
+
+{
+  oracle_count_header
+  echo
+  oracle_vpc_block
+  echo
+  count_test_block 2 "aws_vpc.count_oracle.id"
+} > "$PLAIN_ORACLE_COUNT/main.tf"
+ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
+[ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
+grep -qE '^  # aws_security_group\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan does not create count_test[1]"; }
+grep -qE '^  # aws_security_group\.count_test\[0\] will be' <<< "$ORACLE_UP_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock's scale-up plan touches count_test[0], which should be untouched"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_UP_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -10; fail "stock's scale-up plan proposes something other than exactly one create"; }
+ORACLE_UP_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count oracle's scale-up apply failed"; }
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count oracle's scale-up apply was not exactly one create"; }
+ORACLE_SG1_NEW_ID="$(awso ec2 describe-security-groups --filters "Name=tag:Name,Values=sg-complete-count-test-1" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$ORACLE_SG1_NEW_ID" ] && [ "$ORACLE_SG1_NEW_ID" != "None" ] || fail "no oracle count_test[1] security group found after the scale-up"
+[ "$ORACLE_SG1_NEW_ID" != "$ORACLE_SG1_ID" ] || fail "stock's recreated count_test[1] came back with the SAME id it had before being destroyed"
+ORACLE_SG0_AFTER_UP="$(awso ec2 describe-security-groups --group-ids "$ORACLE_SG0_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+[ "$ORACLE_SG0_AFTER_UP" = "$ORACLE_SG0_ID" ] || fail "stock's count_test[0] changed id across the scale-up ($ORACLE_SG0_ID -> $ORACLE_SG0_AFTER_UP)"
+log "  stock: exactly one create (count_test[1], new id $ORACLE_SG1_NEW_ID, was $ORACLE_SG1_ID), count_test[0]=$ORACLE_SG0_ID unchanged throughout"
 gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
