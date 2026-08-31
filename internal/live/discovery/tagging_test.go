@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -173,10 +175,22 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
-			name:          "elasticloadbalancing classic load balancer: 1-part id, unmapped CFN type",
-			arn:           "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/classic-name",
-			wantOK:        false,
-			wantReasonHas: []string{"AWS::ElasticLoadBalancing::LoadBalancer", "no live/mapping.json row"},
+			// This case used to assert the join FAILED here, with "no
+			// live/mapping.json row naming a TF resource type" - true of the
+			// narrow reverse index, which rejects the classic load balancer's
+			// row because its via is "former2". The classic ELB does have a
+			// row, and it names aws_elb, which is exactly the right answer:
+			// the hazard [elbLoadBalancerEntry] was written against is
+			// joining a classic ELB's ARN to aws_lb, the V2 type, and the
+			// two-shapes-of-id rule that entry implements still prevents
+			// that. What changed is only that the correct answer is now
+			// reachable ([gauntlet:corpus-vpc-complete/day2_count]).
+			name:             "elasticloadbalancing classic load balancer: 1-part id resolves to the classic CFN type, and its former2 row names aws_elb",
+			arn:              "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/classic-name",
+			wantTypeName:     "aws_elb",
+			wantIdentityAttr: "id",
+			wantImportID:     "classic-name",
+			wantOK:           true,
 		},
 		{
 			name:             "ec2 vpc",
@@ -346,6 +360,25 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
+			// aws_customer_gateway's live/mapping.json row carries via
+			// "former2", which [registry.Roster.TFTypesForCFNType] rejects
+			// because that provenance is not a licence to ENUMERATE the type
+			// through Cloud Control. Nothing is enumerated here - the Tagging
+			// API has already returned this object - so the join falls back to
+			// the any-provenance index and takes the single admitted
+			// candidate. Before that fallback existed, this ARN warned "CFN
+			// type AWS::EC2::CustomerGateway ... has no live/mapping.json row
+			// naming a TF resource type", and an orphaned count instance's
+			// destroy went unproposed
+			// ([gauntlet:corpus-vpc-complete/day2_count]).
+			name:             "ec2 customer gateway: mapped only by a former2-provenance row, joined anyway because it is the one admitted candidate",
+			arn:              "arn:aws:ec2:eu-west-1:000000000000:customer-gateway/cgw-0123456789abcdef0",
+			wantTypeName:     "aws_customer_gateway",
+			wantIdentityAttr: "id",
+			wantImportID:     "cgw-0123456789abcdef0",
+			wantOK:           true,
+		},
+		{
 			name:          "unknown service entirely",
 			arn:           "arn:aws:glue:us-east-1:123456789012:table/db/tbl",
 			wantOK:        false,
@@ -390,6 +423,87 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 				t.Errorf("importID = %q, want %q", got.importID, tt.wantImportID)
 			}
 		})
+	}
+}
+
+// TestArnJoinWideningMovesOnlyProvenanceGapTypes recomputes, from the
+// committed artifacts, the claim [arnJoinCFNType]'s own doc comment makes:
+// switching that predicate from the roster's enumerability join to its wider
+// identity join moves types between the tagging and the native sweep legs
+// only where the ARN join table actually covers the CFN type, and today that
+// is exactly one type.
+//
+// It is written as a recomputation rather than a pinned number so it stays
+// true as the artifacts move: adding an [arnJoinTable] row over a
+// former2-provenance type is allowed and will show up here as a named
+// addition, while a type appearing in this set for any OTHER reason - a
+// mapping row changing provenance, a new admitted type - is the thing worth
+// noticing, because it means the tagging leg silently took over a type the
+// native leg used to handle.
+//
+// The set is also the answer to "how many types does this fix reach": one
+// today through the routing, with the other 37 admitted former2-provenance
+// types reachable the moment a row for their own ARN segment is added.
+func TestArnJoinWideningMovesOnlyProvenanceGapTypes(t *testing.T) {
+	roster := realRoster(t)
+
+	// The wide side is read through [arnJoinCFNType] itself, not through the
+	// roster method it happens to call, so this fails if that predicate is
+	// ever narrowed back - a guard on the code, not only a report about the
+	// artifacts. Proved red by reverting arnJoinCFNType to
+	// Roster.CloudControlType: moved comes back empty.
+	req := Request{Roster: roster}
+	var moved []string
+	for _, typeName := range identity.AdmittedTypes() {
+		narrow, narrowOK := roster.CloudControlType(typeName)
+		wide, wideOK := arnJoinCFNType(roster, typeName)
+		if narrowOK && narrow == wide {
+			continue // the two joins agree; nothing about routing changes
+		}
+		if !wideOK || !arnJoinCovers(wide) {
+			continue // the wider join reaches no CFN type the ARN table covers
+		}
+		if !arnJoinReaches(req, typeName) {
+			t.Errorf("%s: the ARN join table covers %s under the wider join, but arnJoinReaches still routes the type to the native leg", typeName, wide)
+		}
+		moved = append(moved, typeName)
+	}
+	sort.Strings(moved)
+
+	// aws_customer_gateway is the type this fix was found through. aws_elb
+	// is the second and last one today: the classic load balancer's own CFN
+	// type is in [elbLoadBalancerEntry]'s coverage and its mapping row is
+	// former2 too, so it moves for exactly the same reason. Neither is used
+	// by any estate in live/corpus-manifest.json or live/e2e, checked when
+	// this was written, so the routing change reaches no measured estate but
+	// this one's own synthetic count block.
+	want := []string{"aws_customer_gateway", "aws_elb"}
+	if !reflect.DeepEqual(moved, want) {
+		t.Errorf("the ARN-join widening moves %v between sweep legs, want %v.\n"+
+			"A type appearing here needs its own reason: the tagging leg now handles it instead of the native per-type sweep, "+
+			"so it must be one the estate-wide tag sweep can genuinely find by ARN (see arnJoinCFNType's doc comment).", moved, want)
+	}
+
+	// The half of the same measurement the reverse join rests on: every CFN
+	// type the wider index answers for, and the narrow one does not, has
+	// exactly one admitted TF type - so the fallback in [joinTaggedResource]
+	// can never have to pick between candidates.
+	ambiguous := map[string][]string{}
+	for _, typeName := range identity.AdmittedTypes() {
+		cfnType, ok := roster.CloudControlTypeOrService(typeName)
+		if !ok {
+			continue
+		}
+		if len(roster.TFTypesForCFNType(cfnType)) > 0 {
+			continue // the narrow index already answers; not this fallback's business
+		}
+		if admitted := admittedOnly(roster.TFTypesForCFNTypeAnyProvenance(cfnType)); len(admitted) > 1 {
+			ambiguous[cfnType] = admitted
+		}
+	}
+	if len(ambiguous) != 0 {
+		t.Errorf("the any-provenance reverse join is ambiguous for %v; joinTaggedResource refuses rather than guessing in that case, "+
+			"so this is a report that the fallback stopped answering for those types, not a crash", ambiguous)
 	}
 }
 

@@ -108,12 +108,14 @@ func ambiguous(cfnTypes ...string) arnJoinEntry {
 // slashes in the id) resolves to nothing, named as unknown rather than
 // forced into one of the two.
 //
-// AWS::ElasticLoadBalancing::LoadBalancer (the classic case) has no row in
-// the committed live/mapping.json, so an ARN that resolves to it still ends
-// up reported as unresolved one step later, at the CFN-to-TF join - honestly
-// naming "no TF type maps this CFN type" rather than silently joining a
-// classic ELB's ARN to aws_lb, which is what a table with only one
-// "loadbalancer" entry would do.
+// AWS::ElasticLoadBalancing::LoadBalancer (the classic case) is mapped in the
+// committed live/mapping.json only by a former2-provenance row naming aws_elb,
+// so until [joinTaggedResource]'s any-provenance fallback existed an ARN that
+// resolved to it was reported as unresolved one step later, at the CFN-to-TF
+// join. Either way the hazard this entry exists for is unchanged: what it must
+// never do is join a classic ELB's ARN to aws_lb, the V2 type, which is what a
+// table with only one "loadbalancer" entry would do. It now resolves to aws_elb
+// instead, which is the classic load balancer's real Terraform type.
 func elbLoadBalancerEntry() arnJoinEntry {
 	const v2, classic = "AWS::ElasticLoadBalancingV2::LoadBalancer", "AWS::ElasticLoadBalancing::LoadBalancer"
 	return arnJoinEntry{
@@ -253,6 +255,25 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		// batches admitted them - so this is the mapped-but-unadmitted case
 		// tagging_test.go's real-artifacts suite exercises now.
 		"carrier-gateway": single("AWS::EC2::CarrierGateway"),
+		// A customer gateway's ARN resource-type segment is "customer-gateway"
+		// (arn:aws:ec2:REGION:ACCOUNT:customer-gateway/cgw-...), unambiguous
+		// the same way "vpc" and "subnet" above are - EC2 has no second CFN
+		// type sharing that segment. live/mapping.json's own row for
+		// aws_customer_gateway names "AWS::EC2::CustomerGateway" (via
+		// former2), the string this join has to produce.
+		//
+		// Found building [gauntlet:corpus-vpc-complete/day2_count], and it is
+		// the third instance of the shape the iam/policy and
+		// cloudfront/distribution entries above already describe: scaling a
+		// count block of aws_customer_gateway from 2 down to 1 proposed NO
+		// destroy at all, where stock destroys the higher index. The
+		// estate-wide tag sweep DID find the orphaned gateway - it carries
+		// its tofu-estate and tofu-address markers, confirmed through
+		// DescribeCustomerGateways with no tofu in the loop - but could not
+		// join its ARN to any CFN type, so it was never classified and its
+		// destroy was never proposed. Silent, not loud: the plan read "No
+		// changes. Your infrastructure matches the configuration."
+		"customer-gateway": single("AWS::EC2::CustomerGateway"),
 		// A security group rule's ARN does not say whether it is an ingress
 		// or an egress rule - both share this exact shape - so the join
 		// cannot pick one. See [ambiguous].
@@ -343,11 +364,56 @@ func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 // thirteen services today, so most admitted types answer false here, and
 // that is expected, not a gap to close type by type.
 func arnJoinReaches(req Request, typeName string) bool {
-	if req.Roster == nil {
-		return false
-	}
-	cfnType, mapped := req.Roster.CloudControlType(typeName)
+	cfnType, mapped := arnJoinCFNType(req.Roster, typeName)
 	return mapped && arnJoinCovers(cfnType)
+}
+
+// arnJoinCFNType is the CFN type the tag sweep should reason about for
+// typeName: the WIDER of the roster's two joins
+// ([registry.Roster.CloudControlTypeOrService]), not the enumerability one
+// ([registry.Roster.CloudControlType]).
+//
+// The two joins differ only in which mapping-row provenances they accept,
+// and the narrow one's extra condition is about Cloud Control being able to
+// LIST the type on its own. The tagging leg lists nothing: the Resource
+// Groups Tagging API returns objects the estate already tagged, ARN and
+// markers together, and this lookup only decides whether an ARN of that
+// type could be recognised at all ([arnJoinCovers]). The roster's own doc
+// comment draws the same line - CloudControlTypeOrService is "for a caller
+// that wants identity or relationship facts rather than enumerability".
+//
+// Read out as one function because two places apply this same test and must
+// not drift: [arnJoinReaches], which routes a type to the tagging or the
+// native leg, and [sweepViaTagging]'s own universe guard, which reports a
+// type that reached it anyway.
+//
+// Measured at this commit: this widening moves exactly TWO types from the
+// native leg to the tagging leg - aws_customer_gateway, which it was found
+// through, and aws_elb, whose classic-load-balancer CFN type sits in
+// [elbLoadBalancerEntry]'s coverage and whose mapping row is former2 for the
+// same reason. It can only ever move a type whose mapping row's provenance
+// the narrow join rejects AND whose CFN type [arnJoinTable] covers; see
+// TestArnJoinWideningMovesOnlyProvenanceGapTypes, which recomputes that set
+// from the committed artifacts rather than restating it, so a third type
+// arriving is a named diff and not a silent one. Neither type is used by any
+// estate in live/corpus-manifest.json or live/e2e.
+//
+// Found building [gauntlet:corpus-vpc-complete/day2_count]: scaling an
+// aws_customer_gateway count block from 2 down to 1 proposed no destroy at
+// all, because the removal sweep sent the type to the native leg, which
+// found no way to list it and reported TYPE_NOT_LISTABLE - a claim
+// live/registry.json contradicts for AWS::EC2::CustomerGateway (handlers.list
+// true with no required input, taggable true). Stock destroys the higher
+// index. Nothing about Cloud Control enumeration changes here: a type this
+// predicate now places goes to the TAGGING leg, which never calls
+// ListResources, so the "enumerate the wrong CFN type and plan a create for
+// something that already exists" hazard the narrow join guards against is
+// not on this path.
+func arnJoinCFNType(roster *registry.Roster, typeName string) (cfnType string, ok bool) {
+	if roster == nil {
+		return "", false
+	}
+	return roster.CloudControlTypeOrService(typeName)
 }
 
 // joinARNToCFNType joins a parsed ARN's service and resource-type segment
@@ -531,6 +597,22 @@ func resolveDocumentedAlias(admitted []string) (canonical string, ok bool) {
 	return canonical, true
 }
 
+// admittedOnly keeps the candidates the identity table admits, in the order
+// given. The ARN join only ever binds an admitted type, so a candidate the
+// table does not carry could never have been the answer - which is what
+// makes it safe to read a set of candidates down to one, both when the
+// reverse index itself returned several and when it returned none and the
+// wider, any-provenance index was consulted instead.
+func admittedOnly(candidates []string) []string {
+	var admitted []string
+	for _, tf := range candidates {
+		if _, ok := identity.LookupType(tf); ok {
+			admitted = append(admitted, tf)
+		}
+	}
+	return admitted
+}
+
 // resourceSegmentLabel renders an ARN's resource-type segment for a
 // message, naming the bare-id shape explicitly rather than leaving it
 // looking like an accidental empty string.
@@ -600,6 +682,30 @@ func joinTaggedResource(roster *registry.Roster, arnStr string, tags map[string]
 
 	tfTypes := roster.TFTypesForCFNType(cfnType)
 	if len(tfTypes) == 0 {
+		// The narrow reverse index only carries rows whose provenance lets
+		// Cloud Control ENUMERATE the type ("name", "alias", "service-alias"
+		// - the registry package doc's "What counts as mapped"). Nothing is
+		// enumerated here: the Tagging API has already returned this object,
+		// ARN and ownership markers together, and the only open question is
+		// which TF type it is. So a row this join can use is one that names
+		// the type unambiguously among ADMITTED candidates, whatever its
+		// provenance - the same admission filter the len>1 branch below
+		// already leans on, applied one step earlier.
+		//
+		// Found building [gauntlet:corpus-vpc-complete/day2_count]: an
+		// aws_customer_gateway count block scaled from 2 down to 1 proposed
+		// NO destroy at all where stock destroys the higher index, because
+		// live/mapping.json's aws_customer_gateway row carries via "former2"
+		// and so was invisible to the narrow index - even though
+		// live/registry.json states AWS::EC2::CustomerGateway is listable and
+		// taggable with a single primary identifier. Silent, not loud: the
+		// plan read "No changes. Your infrastructure matches the
+		// configuration."
+		if admitted := admittedOnly(roster.TFTypesForCFNTypeAnyProvenance(cfnType)); len(admitted) == 1 {
+			tfTypes = admitted
+		}
+	}
+	if len(tfTypes) == 0 {
 		return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
 			"CFN type %s (from ARN service %q, resource segment %q) has no live/mapping.json row naming a TF resource type",
 			cfnType, a.Service, resourceSegmentLabel(a))}
@@ -610,12 +716,7 @@ func joinTaggedResource(roster *registry.Roster, arnStr string, tags map[string]
 		// ever binds a type the identity table admits, so when exactly one
 		// of the candidates is admitted the ARN is not actually ambiguous -
 		// the others could never have been the answer.
-		var admitted []string
-		for _, tf := range tfTypes {
-			if _, ok := identity.LookupType(tf); ok {
-				admitted = append(admitted, tf)
-			}
-		}
+		admitted := admittedOnly(tfTypes)
 		if len(admitted) != 1 {
 			if canonical, ok := resolveDocumentedAlias(admitted); ok {
 				// A genuine synonym pair, not a genuine ambiguity: the
@@ -791,7 +892,7 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 	}
 
 	for _, typeName := range universe {
-		cfnType, mapped := req.Roster.CloudControlType(typeName)
+		cfnType, mapped := arnJoinCFNType(req.Roster, typeName)
 		switch {
 		case !mapped || !arnJoinCovers(cfnType):
 			// Not reachable through this call's own only caller today:

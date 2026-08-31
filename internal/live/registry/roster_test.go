@@ -304,6 +304,60 @@ func TestTFTypesForCFNTypeAmbiguous(t *testing.T) {
 	}
 }
 
+// TestTFTypesForCFNTypeAnyProvenance pins the one property that separates the
+// two reverse indexes: a row whose via the narrow index rejects is still an
+// answer to "which TF type is this CFN type", because that question is not
+// about Cloud Control enumerability. aws_customer_gateway's real row carries
+// via "former2", which is exactly the shape that made an orphaned count
+// instance's destroy go unproposed
+// ([gauntlet:corpus-vpc-complete/day2_count]).
+func TestTFTypesForCFNTypeAnyProvenance(t *testing.T) {
+	mapping := `{
+	  "generated_by": "test fixture",
+	  "counts": {},
+	  "rows": [
+	    {"tf_type": "aws_customer_gateway", "cfn_type": "AWS::EC2::CustomerGateway", "via": "former2", "fold_parent": null, "note": null},
+	    {"tf_type": "aws_efs_file_system", "cfn_type": "AWS::EFS::FileSystem", "via": "name", "fold_parent": null, "note": null},
+	    {"tf_type": "aws_folded_thing", "cfn_type": "AWS::Example::Parent", "via": "fold", "fold_parent": "aws_parent", "note": null}
+	  ]
+	}`
+	registryJSON := `{"pin": {}, "generated_by": "test fixture", "counts": {}, "types": []}`
+
+	r, err := Parse([]byte(mapping), []byte(registryJSON))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	// The narrow index rejects the former2 row - that is the behaviour the
+	// enumeration path depends on and this change must not disturb.
+	if got := r.TFTypesForCFNType("AWS::EC2::CustomerGateway"); got != nil {
+		t.Errorf("TFTypesForCFNType(AWS::EC2::CustomerGateway) = %v, want nil: a former2 row is not Cloud Control enumerable", got)
+	}
+	// The wide one accepts it.
+	if got, want := r.TFTypesForCFNTypeAnyProvenance("AWS::EC2::CustomerGateway"), []string{"aws_customer_gateway"}; !equalStrings(got, want) {
+		t.Errorf("TFTypesForCFNTypeAnyProvenance(AWS::EC2::CustomerGateway) = %v, want %v", got, want)
+	}
+	// And it is wider only in provenance, not in kind: a "fold" row names a
+	// CFN type too, and the wide index carries it, so a caller reading it
+	// must still decide what a fold parent means rather than being handed a
+	// pre-filtered answer.
+	if got, want := r.TFTypesForCFNTypeAnyProvenance("AWS::Example::Parent"), []string{"aws_folded_thing"}; !equalStrings(got, want) {
+		t.Errorf("TFTypesForCFNTypeAnyProvenance(AWS::Example::Parent) = %v, want %v", got, want)
+	}
+	// A row both indexes accept reads the same through either.
+	if got, want := r.TFTypesForCFNTypeAnyProvenance("AWS::EFS::FileSystem"), []string{"aws_efs_file_system"}; !equalStrings(got, want) {
+		t.Errorf("TFTypesForCFNTypeAnyProvenance(AWS::EFS::FileSystem) = %v, want %v", got, want)
+	}
+	if got := r.TFTypesForCFNTypeAnyProvenance("AWS::Not::Mapped"); got != nil {
+		t.Errorf("TFTypesForCFNTypeAnyProvenance(unmapped) = %v, want nil", got)
+	}
+
+	var nilRoster *Roster
+	if got := nilRoster.TFTypesForCFNTypeAnyProvenance("AWS::EC2::CustomerGateway"); got != nil {
+		t.Errorf("a nil Roster should reverse-map nothing, got %v", got)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
