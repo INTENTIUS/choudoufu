@@ -34,7 +34,7 @@ the first line and the last:
 ```
 === 0. choudoufu binary ===
 ...
-=== 1. Floci on :4601 (floci/floci:latest) ===
+=== 1. Floci on :4601 (ghcr.io/lex00/floci@sha256:c55d74e1...) ===
 ...
 === 2. standup — init + apply with plain local state ===
 ...
@@ -52,6 +52,11 @@ PASS: stateless-mode E2E harness reached the end.
 
 Exit code 0 means every one of those steps checked out. Anything else, and
 the script names the step that didn't on its way out.
+
+The emulator on line 1 is printed in full, digest and all. Yours will be
+whatever `live/floci-image` pins in your checkout - the harness reads that
+file, and `FLOCI_IMAGE` overrides it - so the tail of the digest above is
+abbreviated rather than something to match against.
 
 ## Walk through what just happened
 

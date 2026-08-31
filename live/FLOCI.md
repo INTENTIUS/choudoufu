@@ -121,8 +121,15 @@ the machine that recorded it. One of those two is a ratchet; the other cannot
 be one.
 
 Real-AWS wall clock is a different quantity again, dominated by network
-latency rather than by the estate: #567's `test_plan` stage took 199s at
-scale 1 and 223-226s at scale 4, near flat across a 4x resource increase.
+latency rather than by the estate. The recorded figures are in
+`live/gauntlet.json`'s `live_cert` block, not in this page; read them at any
+commit with `jq '.live_cert[] | select(.estate == "terralith-scale") |
+.detail' live/gauntlet.json`. At the entry this section was last read
+against, `test_plan` is "post-migrate plan is empty in 129s" at scale 10,
+745 resources. Whether that stage grows with the estate is a question for
+`site/content/docs/what-you-pay.md`, which keeps the cross-scale table; the
+concurrency work of #605, #626, #627 and #636 changed the answer this
+section used to give.
 
 ### The 273-second stall, and what it says about comparing wall clocks
 
@@ -186,12 +193,16 @@ is blocked, not that the network is slow.
 **The rule this replaces the holding position with.** Two wall clocks for the
 same stage in different environments are comparable when the stage is the
 same stage — `live/live-cert/terralith-scale.sh` run with `TARGET=floci`
-versus `TARGET=aws` is one script, one estate, one code path, and its ~2-3s
-against ~200-226s is a fair statement about per-call latency over a ~525-type
-sweep. What is never comparable is a wall clock carrying a stall against one
-that does not. Before dividing two of them, account for the whole of the
-larger one: 267 of MIGRATION.md's 273.6 seconds are #572, and a ratio built
-on that number is measuring a bug.
+versus `TARGET=aws` is one script, one estate, one code path, and its floci
+seconds against its real-AWS seconds *at the same scale* is a fair statement
+about per-call latency over a ~525-type sweep. Read both sides from the
+artifacts rather than from a pair quoted on this page: `live_cert` keeps one
+entry per estate, so certifying the estate again overwrites the scale before
+it, and a pair written down here goes stale with nothing failing. What is
+never comparable is a wall clock carrying a stall against one that does not.
+Before dividing two of them, account for the whole of the larger one: 267 of
+MIGRATION.md's 273.6 seconds are #572, and a ratio built on that number is
+measuring a bug.
 
 **What to do.** Count calls. If a wall clock has to be reported, report it
 beside the machine and the pin, and never assert on it. `live/e2e/`'s
@@ -221,22 +232,35 @@ the shape that produced the pagination error — the difference is that this
 claim does not rest on the counter alone. floci implements no rate limiting
 in the first place, so there is nothing for a counter to miss.
 
-Real AWS throttles, escalates non-linearly, and absorbs it. From #567's
-live-AWS run against a real account (`us-east-2`, IAM
-`AttachRolePolicy`/`TagInstanceProfile`, stock apply at `-parallelism=10`):
+Real AWS throttles, escalates non-linearly, and absorbs it. Both columns
+below are `live/gauntlet.json`'s `live_cert` entry for `terralith-scale`
+against a real account (`us-east-2`, IAM
+`AttachRolePolicy`/`TagInstanceProfile`, stock apply at `-parallelism=10`),
+transcribed from its `detail` strings:
 
-| Stage | Scale 1, 55 resources | Scale 4, 205 resources |
+| Stage | Scale 1, 79 resources, `da61fc0863` | Scale 10, 745 resources, `1d06e1d177` |
 |---|---|---|
-| `cold_deploy` (stock apply) | 68s, 1 throttle / 1 retry | 163s, 35 throttle / 35 retry |
-| `migrate` (sequential tag writes) | 71s, 1 throttle / 1 retry | 269s, 5 throttle / 5 retry |
-| `test_plan` (the O(types) sweep) | 199s, 0 / 0 | 226s, 0 / 0 |
+| `cold_deploy` (stock apply) | 68s, 4 throttle / 4 retry | 413s, 86 throttle / 86 retry |
+| `migrate` (sequential tag writes) | 25s, 3 throttle / 3 retry | 222s, 190 throttle / 190 retry |
+| `test_plan` (the O(types) sweep) | 17s, 0 / 0 | 129s, 2 / 2 |
 
-The scale-4 column is the officially recorded run, in `live/gauntlet.json`'s
-`live_cert` block; scale 1 is from the same issue's manual runs. A factor of
-4 in resources bought roughly an order of magnitude in throttle events, which
-is what a fixed-rate account quota under sustained parallel writes looks
-like. `test_plan` is in the table as a control: the read-only sweep saw none
-at either tier, so the throttling is on the write path.
+Both runs are from 2026-08-31, and **only one of the two columns is readable
+at HEAD.** `LiveCertResult` is keyed by estate, not by scale, so
+re-certifying `terralith-scale` at any scale overwrites the entry and the
+scale before it survives only in git. The scale-10 column is the entry as it
+stands; read it with the `jq` line in section 3. The scale-1 column is gone
+from the working tree but not from history - the `live/gauntlet.json`
+committed at `1d06e1d177` still holds it: `git show
+1d06e1d177:live/gauntlet.json | jq '.live_cert[] | select(.estate ==
+"terralith-scale") | .detail'`. Nothing keeps a two-scale table here true,
+which is why each column names the run commit it was transcribed from.
+
+Nine times the resources bought more than twenty times the throttle events
+on `cold_deploy` and sixty times on `migrate`, which is what a fixed-rate
+account quota under sustained parallel writes looks like. `test_plan` is in
+the table as a control: 0 and 2, against 86 and 190 on the write stages, so
+the throttling is on the write path. Both runs predate the record-first
+serialisation fix in #654 and have not been re-measured since.
 
 The SDK's own exponential backoff absorbed every one. Nothing failed, both
 write stages completed, and the whole cost showed up as wall clock.

@@ -67,9 +67,17 @@ unexplained.
 
 A stage that always passes proves nothing. Every stage in
 [`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
-carries a `BREAK=1` control: set it, and the crossing script deliberately
-introduces the exact defect the stage exists to catch: a corrupted identity
-string, a second object mutated where only one should be, a stale planfile
-applied instead of refused. The stage must fail when that happens. A check
-that cannot be made to fail this way is not evidence for this contract,
-whatever verdict it reports on an ordinary run.
+that runs choudoufu at all carries a `BREAK=1` control: set it, and the
+crossing script deliberately introduces the exact defect the stage exists to
+catch: a corrupted identity string, a second object mutated where only one
+should be, a stale planfile applied instead of refused. The stage must fail
+when that happens. A check that cannot be made to fail this way is not
+evidence for this contract, whatever verdict it reports on an ordinary run.
+
+One stage is exempt, and its own Break line says why. Stage 1, `cold_deploy`,
+is the stock binary applying the unmodified configuration with no `live`
+block: "Not applicable; this stage has nothing of choudoufu's to break." A
+failure there is stock failing, which the gauntlet records as such rather
+than counting against this contract. Every other stage carries a control;
+`live/GAUNTLET.md`'s Break lines are the list, and they are rendered from
+`tools/gauntlet/stages.go` rather than maintained here.
