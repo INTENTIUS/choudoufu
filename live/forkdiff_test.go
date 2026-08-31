@@ -70,6 +70,7 @@ var otherAllowlist = []otherAllowEntry{
 	{"internal/tfdiags/", "hcl.go: a diagnostic's ExtraInfo now survives the round trip through configs' static evaluator (issue #178) instead of being silently dropped"},
 	{"internal/builtin/", "internal/builtin/providers/tf/provider.go: the module-path rename plus a blank-line cleanup; no logic change"},
 	{"internal/e2e/", "e2e.go: the module-path rename, including a `-coverpkg=` build-flag string value the quoted-import filter does not reach because it is not itself a quoted import line"},
+	{"internal/getproviders/", "package_authentication.go: the module-path rename plus a doc comment repointed at upstream's own copy of the provider-registry-hashes design document, after this fork retired its rfc/ directory"},
 
 	// cmd/: the binary entry point moved from cmd/tofu to cmd/choudoufu.
 	// --no-renames (see tools/forkdiff-gen's diffNameStatus doc) reports
@@ -79,10 +80,15 @@ var otherAllowlist = []otherAllowEntry{
 
 	// Fork documentation, tooling and process files with no code content.
 	{"docs/", "product docs and imagery rewritten or added for choudoufu (docs/README.md, docs/architecture.md, docs/images, docs/diagrams)"},
+	{"rfc/", "deleted: upstream's RFC directory, retired wholesale because this fork does not run a request-for-comment process. The 11 fork-authored records moved to rulings/, a named root above; everything else here was upstream's, including two documents dated 2026, and stays in git history"},
 	{"scripts/", "build.sh and debug-opentofu carry the module-path and binary-name rename; contribute.sh, pickup.sh and render-logo.sh are new fork tooling (pickup.sh is HANDOFF.md's required first command)"},
 	{".claude/", "agent briefs and scripts for the gauntlet workflow (gauntlet-orchestrator.md, gauntlet-worker.md, live-markers.md, agent-progress.sh) plus the measuring-choudoufu skill"},
 	{"contributing/", "DEVELOPING.md and FAQ.md updated for the fork; LIVE-TABLES.md and contributing/README.md are new"},
 	{"website/package-lock.json", "a dependency lockfile refresh alongside the docs/site rework; no fork logic"},
+	{"website/README.md", "a note marking the directory as inherited from upstream and unpublished by this fork, whose own site is site/; upstream's instructions below it are unchanged"},
+	{"package.json", "new: the prose-lint dependency manifest; report-only Markdown linting for this fork's hand-written docs"},
+	{"package-lock.json", "checksums for the package.json entry above"},
+	{"prose-lint.mjs", "new: the prose linter itself, run over site/content/docs, live/ and rulings/"},
 	{"version/version.go", "adds the Fork release-version var: the release tag choudoufu was built at, empty for dev builds"},
 
 	// Root-level governance and identity documents: rewritten for choudoufu
@@ -99,6 +105,8 @@ var otherAllowlist = []otherAllowEntry{
 	{"SECURITY.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
 	{"CODEOWNERS", "deleted: choudoufu does not carry GitHub's per-path review-routing file; HANDOFF.md and the gauntlet briefs are this fork's routing instead"},
 	{"HANDOFF.md", "new: this fork's single entry point, described in its own header"},
+	{"BUG_REPORTS.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
+	{"CLAUDE.md", "new: the repository-wide rules every agent session loads, alongside HANDOFF.md; content, not code"},
 	{"justfile", "new: `just <recipe>` is how every generator, `just ci` and `just contribute` are run in this fork"},
 	{"Makefile", "build targets renamed or added for the fork (the choudoufu binary, floci/gauntlet targets); stock's own targets are unchanged where they still apply"},
 	{".goreleaser.yaml", "release artifact naming (choudoufu, not tofu) and the Fork version ldflag from version/version.go"},

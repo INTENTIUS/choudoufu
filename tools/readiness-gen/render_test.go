@@ -120,7 +120,7 @@ func TestReadinessTypesTableRendersEveryRow(t *testing.T) {
 			t.Errorf("%s: reasonFor contains a newline, which would break its markdown table row: %q", r.Type, reason)
 		}
 		if r.Status == StatusInContract && reason != "" {
-			t.Errorf("%s: in-contract row has a non-empty reason %q; the RFC's four tiers name no defect for an in-contract type", r.Type, reason)
+			t.Errorf("%s: in-contract row has a non-empty reason %q; the ruling's four tiers name no defect for an in-contract type", r.Type, reason)
 		}
 		if r.Status != StatusInContract && reason == "" {
 			t.Errorf("%s: status %q is not in-contract but reasonFor returned an empty string", r.Type, r.Status)

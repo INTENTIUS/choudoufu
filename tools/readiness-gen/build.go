@@ -14,7 +14,7 @@
 //
 // # The join, and why it is not a straight lookup
 //
-// The RFC's own "Mechanism note for #418" section is explicit that the
+// The ruling's own "Mechanism note for #418" section is explicit that the
 // four tiers are not uniformly derivable from generated rosters: tiers A
 // through C each have one (live/survey-full.json's taggability signal,
 // [identity.MarkerlessTypes]), but tier D's population - the two types a
@@ -44,7 +44,7 @@
 // seven buckets the type is in; the classifier's answer exists only inside
 // a `go run ./tools/row-gen` process.
 //
-// What it does instead, documented here because the RFC leaves this
+// What it does instead, documented here because the ruling leaves this
 // representational choice to this issue: it reads live/survey-full.json's
 // own per-type Path column (SURVEY.md's five-token taxonomy, computed from
 // the provider's raw schema alone, independent of row-gen's richer,
@@ -70,13 +70,13 @@
 //
 // live/mapping.json is read too, and its per-type via/fold_parent columns
 // are surfaced in each row's facts (mappingVia, mappingFoldParent) as
-// supporting evidence - the RFC's own tier definitions never reference the
+// supporting evidence - the ruling's own tier definitions never reference the
 // TF-to-CFN mapping directly, so this generator does not let it move a
 // tier or status decision, only explain one.
 //
 // # What is approximated
 //
-// The RFC's tier C section carves out "the small set already working under
+// The ruling's tier C section carves out "the small set already working under
 // the located mechanism" (issue #270's ClassRecordLocated) as status
 // in-contract rather than pending-mechanism. Whether a markerless type is
 // actually located-eligible is [identity.LocatedType], and that function
@@ -224,7 +224,7 @@ type Row struct {
 }
 
 // Facts are the input signals that decided Row's tier and status - the
-// intersections the RFC's own prose describes (markerless-veto against
+// intersections the ruling's own prose describes (markerless-veto against
 // evidence-only, rejected-ledger against buckets) made explicit fields
 // rather than left for a reader to re-derive.
 type Facts struct {
@@ -436,7 +436,7 @@ func Build(root string) (Artifact, error) {
 }
 
 // classify is the whole tier/status rule, applied to one type. Precedence,
-// fixed by the RFC and by the task this generator was built against:
+// fixed by the ruling and by the task this generator was built against:
 //
 //  1. Tier D overrides everything else, unconditionally.
 //  2. An admitted type (identity.DefaultTable) is in-contract, tier A if
@@ -513,10 +513,10 @@ const (
 // type's destined tier.
 //
 // Taggable is the primary and, on its own, sufficient signal for tier A:
-// the RFC's own Population paragraph defines tier A as "every taggable
+// the ruling's own Population paragraph defines tier A as "every taggable
 // type: the schema carries a settable top-level tags argument", and
 // signals.taggable is computed "by the same predicate
-// internal/live/markers.Taggable applies at run time" (the RFC's own tier C
+// internal/live/markers.Taggable applies at run time" (the ruling's own tier C
 // mechanism note, about the same field). This is deliberately NOT the same
 // question as "does live/survey-full.json's Path column say marker": that
 // column's own classifier checks client-named evidence before taggability
