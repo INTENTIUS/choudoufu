@@ -193,7 +193,7 @@ neither.
 The `ssm` store writes `Type: String` parameters and does not choose a KMS key.
 That default is deliberate and the reasoning is written down, along with what
 `SecureString` would buy and cost, in
-[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-ssm-record-parameter-type-ruling.md).
+[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-ssm-record-parameter-type-ruling.md).
 
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
 backend needs to exist before the first plan, and the failure mode when it

@@ -36,7 +36,7 @@ three admission paths.
 
 ### Readiness tiers
 
-Admission is not the whole story. `rfc/20260828-readiness-tiers.md` names
+Admission is not the whole story. `rulings/20260828-readiness-tiers.md` names
 four tiers by what recovers a type's identity when the record store, the
 state file, or the tool itself is gone: marker-carried, declaration-carried,
 record-carried, and excluded by design. `live/readiness.json` assigns every
@@ -201,7 +201,7 @@ An acceptable configuration can still be refused by how it is invoked.
 - `import`, `refresh`, `taint`, `untaint`.
 - `-out` to save a plan, and `apply <planfile>`. **This is how most CI runs
   Terraform**, so check it first. Ordinary `apply` re-plans and re-confirms.
-  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC settles the
+  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s ruling settles the
   design for tying a reviewed plan to its apply. Not implemented yet.
 - `-json` and `-json-into`.
 - `-refresh-only`. Both sides of that comparison are the live system here, so

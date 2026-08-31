@@ -36,7 +36,7 @@ them can refuse a configuration stock accepts. Seven small things do run
 unconditionally; they are enumerated, and the one among them that can change
 a verdict does so in the accepting direction. The measurement and the
 guard-by-guard reading are in
-[`rfc/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stateful-equivalence.md).
+[`rulings/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stateful-equivalence.md).
 
 Turn a live block on and the hooks below become available. They still differ
 in when they earn their cost:
@@ -55,7 +55,7 @@ measured split. It used to run on every plan; since `09d180f921` a plan of an
 estate that has its own evidence to narrow by does not pay it, which took this
 fixture's plan from 710 API calls to 157 against stock's 150. The ruling behind
 that is
-[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md),
+[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md),
 and [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) is the
 measured statement of what is left.
 
