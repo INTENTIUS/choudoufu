@@ -177,7 +177,7 @@ Do not proceed past any of these; state the question and wait.
   the DESIGN is still open: those are design passes, not units. Once an
   issue names files and changes, it is a unit like any other and a worker
   lands it; the order they land in is ruled
-  (`rfc/20260823-foundation-order-ruling.md`) and is not yours to reorder.
+  (`rulings/20260823-foundation-order-ruling.md`) and is not yours to reorder.
   "This is foundation work" is a description of scope, not a reason to stop,
   and treating it as one is how a night ends with findings instead of
   cleared estates. A hook inside `internal/tofu` is no longer a stop item on

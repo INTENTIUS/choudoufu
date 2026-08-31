@@ -120,7 +120,7 @@ func TestReadinessTypesTableRendersEveryRow(t *testing.T) {
 			t.Errorf("%s: reasonFor contains a newline, which would break its markdown table row: %q", r.Type, reason)
 		}
 		if r.Status == StatusInContract && reason != "" {
-			t.Errorf("%s: in-contract row has a non-empty reason %q; the RFC's four tiers name no defect for an in-contract type", r.Type, reason)
+			t.Errorf("%s: in-contract row has a non-empty reason %q; the ruling's four tiers name no defect for an in-contract type", r.Type, reason)
 		}
 		if r.Status != StatusInContract && reason == "" {
 			t.Errorf("%s: status %q is not in-contract but reasonFor returned an empty string", r.Type, r.Status)
@@ -131,7 +131,7 @@ func TestReadinessTypesTableRendersEveryRow(t *testing.T) {
 // TestExcludedRowsLinkLimitationsMD is issue #420's own accept criterion:
 // every tier D / excluded row's reason links live/LIMITATIONS.md at a real
 // anchor. Checked against the file itself, not asserted, because
-// rfc/20260828-readiness-tiers.md's own tier D section found that neither
+// rulings/20260828-readiness-tiers.md's own tier D section found that neither
 // sanctioned exclusion has a heading of its own there yet - see reasonFor's
 // comment for why "unadmitted-type" is the accurate anchor today.
 func TestExcludedRowsLinkLimitationsMD(t *testing.T) {

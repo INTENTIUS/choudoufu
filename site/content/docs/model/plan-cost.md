@@ -15,7 +15,7 @@ pass is unconditional and costs what stock's refresh costs. The sweep is the
 adoption hook, which answers a question an operator needs during a migration
 or an audit and not on an ordinary plan of an estate that is already adopted.
 That it should not run on every plan was
-[`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md)'s
+[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md)'s
 ruling, and `09d180f921` implemented it. This page is the measurement that
 ruling rested on, and it is still the measurement of what the sweep costs when
 a run does take it.
@@ -27,7 +27,7 @@ a run does take it.
 > measured throughout this page went from **710 API calls to 157**, against
 > stock's 150. Every full-sweep figure below still describes an adoption, an
 > audit, a rebuild from markers, or any run where the narrowing has nothing to
-> narrow by, because every gate fails toward doing the work — the exact gates
+> narrow by, because every gate fails toward doing the work. The exact gates
 > are [below](#when-the-native-leg-is-narrowed-and-when-it-is-not). It no
 > longer describes an ordinary plan of an adopted estate. The scales above 79
 > instances have not been re-measured in calls since. For what a steady-state
@@ -68,41 +68,43 @@ operator-facing rather than an implementation note. They are in
 [`internal/live/discovery/nativesweep.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/discovery/nativesweep.go),
 and every one of them fails toward doing the full work.
 
-**It narrows only the native per-type leg.** The tagging leg's single
-estate-filtered `GetResources`, the record store's own orphan walk, and the
-parent-read and fold-child legs run exactly as before. The account inventory —
-"what is in my account that this estate does not know about" — is the only
-question being declined.
+**It narrows the native per-type leg and nothing else.** The tagging leg's
+single estate-filtered `GetResources`, the record store's own orphan walk, and
+the parent-read and fold-child legs all run exactly as before. The one
+question being declined is the account inventory, which asks what is in my
+account that this estate does not know about.
 
-**It narrows only when there is positive evidence to narrow by, and the
-evidence source is the record store.** All four of these take the full
+**It narrows only where there is positive evidence to narrow by, and that
+evidence is the estate's own record store.** All four of these take the full
 universe:
 
 - the run asked for the account inventory (`-adoption-only`, or
   `TOFU_LIVE_COLLECT_UNCLAIMED=1`);
-- **no record store opened for the pass**;
-- the store opened and would not list;
-- the store listed and is **empty**.
+- no record store opened for the pass;
+- a record store opened and would not list;
+- its listing came back **empty**.
 
-The third and fourth are the ones worth planning around. A fresh estate, and
-an estate whose store has not been written yet, still pay the whole admission
-table — which is correct, because an estate with no record of itself has only
-its markers to say what it owns, and that is also the rebuild-from-markers
-path. The store is the gate; declaring a `record_store` is not, since an
-estate that names none gets an implied local one.
+The last two are the ones worth planning around. A fresh estate, and an estate
+whose store has not been written yet, still pay the whole admission table.
+That is by design rather than an oversight, because an estate with no record
+of itself has only its markers to say what it owns, and it is also the
+rebuild-from-markers path. Note what the gate is not: declaring a
+`record_store` block, since an estate that names none gets an implied local
+one anyway.
 
-Given a non-empty store, the kept set is deliberately generous: every type the
-configuration declares an instance of, every type the declared set routed
-through discovery or through the record rung, and every type the store holds a
-key for. A false positive there costs one list call; a false negative costs a
-removal nobody proposes.
+Given a non-empty store, the kept set is deliberately generous. It holds every
+type the configuration declares an instance of, every type the declared set
+routed through discovery or through the record rung, and every type the store
+holds a key for. A false positive there costs one list call; a false negative
+costs a removal nobody proposes.
 
-**What a narrowed plan gives up, exactly.** One shape: a live object carrying
-this estate's marker, of a type that the configuration does not declare, that
-the record store has no entry for, and that the ARN join table cannot place
-from an ARN. That object's destroy is not proposed. Every other removal is
-unaffected, which `TestNarrowedNativeSweepStillProposesRemovals` and the
-`day2_remove` gauntlet stages check by value rather than by argument.
+A narrowed plan gives up exactly one shape of removal, and it is worth stating
+in full. Take a live object carrying this estate's marker, of a type that the
+configuration does not declare, that the record store has no entry for, and
+that the ARN join table cannot place from an ARN. Its destroy is not proposed.
+Every other removal is unaffected, which
+`TestNarrowedNativeSweepStillProposesRemovals` and the `day2_remove` gauntlet
+stages check by value rather than by argument.
 
 **A narrowed plan says so.** The "Foreign resources" section prints the count
 it skipped and the command that asks anyway, rather than letting silence read
@@ -115,12 +117,12 @@ listed. Every resource this estate owns was still swept for. Run "choudoufu
 plan -adoption-only" for the account-wide question.
 ```
 
-**One case where narrowing is deliberately not attempted at all.**
+There is one case where narrowing is deliberately not attempted at all.
 `TOFU_LIVE_CLOUDCONTROL=off` selects the other sweep leg, which has no cheap
-estate-wide oracle standing behind it — there is no `GetResources` call
-covering the types the narrowing would skip — so skipping them there would
-remove coverage with nothing underneath. That run pays the full universe
-whatever the record store holds.
+estate-wide oracle standing behind it. No `GetResources` call covers the types
+the narrowing would skip, so skipping them there would remove coverage with
+nothing underneath. That run pays the full universe whatever the record store
+holds.
 
 ## The measured split, on a migrated estate
 
@@ -130,7 +132,7 @@ actually plans. Generated terralith at three scales, applied with stock
 `terraform` and then migrated with `choudoufu live-import -approve` before
 anything was counted (commit `cfd0dc58d4`, floci pin `sha256:c55d74e1`,
 reported in
-[`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md)):
+[`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md)):
 
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|---|---|
@@ -143,7 +145,7 @@ re-measured.** As published, the 79-instance row read `521 / 558 / 706 /
 21.0%`. Re-run at `5ff7f43f5b` its legs read tagging 1, native 512,
 configuration scan 26, boundary 9, post-sweep 0, so the sweep is 548 and the
 total 696. The read pass did not move. That nine-call drift in the native leg
-is unrelated to anything on this page — in particular it is *not* the `#628`
+is unrelated to anything on this page. In particular it is *not* the `#628`
 provider-block defect, which corrupted CLI-plan counts elsewhere in the same
 document and cannot have touched these, because the in-process bench
 configures its provider from a literal three-flag body that never carried
@@ -161,13 +163,13 @@ Both terms are linear, and fitted to the three rows as published the fit was
 exact to one call at every point: `sweep = 545.9 + 0.15315N`,
 `read pass = 1.8378N + 2.8`, crossing at **322 instances**, just past this
 fixture's scale 4. Take that crossover as the shape rather than as a current
-number — the line was fitted before the 79-instance row moved by ten calls,
-and re-fitting it across one re-measured row and two published ones would
-describe no run that ever happened. The shape is what matters and it has not
-changed: below the crossing a plan is mostly the fixed sweep and adding
-resources barely moves it; above it, cost tracks your estate. It is a
-crossover between choudoufu's *own* two terms on a full-sweep run, and says
-nothing about where choudoufu meets stock — there is no such crossing, as
+number. The line was fitted before the 79-instance row moved by ten calls, and
+re-fitting it across one re-measured row and two published ones would describe
+no run that ever happened. The shape has not changed: below the crossing a
+plan is mostly the fixed sweep and adding resources barely moves it; above it,
+cost tracks your estate. It is a crossover between choudoufu's *own* two terms
+on a full-sweep run, and says nothing about where choudoufu meets stock. There
+is no such crossing, as
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
 
 ### The read pass is the number stock pays to read the same resources
@@ -185,18 +187,18 @@ and the totals differ by a constant:
 and called the two identical, call for call.** They are not identical; they
 are parallel. Every stock figure in that column came from a `terraform plan`
 run against a provider block setting `skip_requesting_account_id`, which
-suppresses the provider's own account resolution — one `GetCallerIdentity`,
+suppresses the provider's own account resolution, one `GetCallerIdentity` and
 one `GetUser`. With the block corrected,
-`rfc/20260830-stateful-equivalence.md` measured stock at **150** and **558**
-at the two smaller scales; 745 was not re-run, and 1374 is what the shared
-slope implies rather than anything anyone counted.
+`rulings/20260830-stateful-equivalence.md` measured stock at **150** and
+**558** at the two smaller scales. 745 was not re-run, and 1374 is what the
+shared slope implies rather than anything anyone counted.
 
-Those two calls are the whole of the difference. The slope is untouched: the
-read pass fits `1.8378N + 2.8`, and stock's own two-point fit is `1.84N + 5`,
-which is the same line with two more calls of constant. **The per-resource
-work is identical and the constant is not.** That is the claim to carry, and
-it is the stronger one — the coincidence that made the old column look exact
-was a defect deleting from stock a constant the read-pass term never had.
+Those two calls are the whole of the difference, and the slope is untouched.
+The read pass fits `1.8378N + 2.8`, and stock's own two-point fit is
+`1.84N + 5`, the same line with two more calls of constant. The per-resource
+work is identical and the constant is not. That is the claim to carry, and it
+is the stronger one. The coincidence that made the old column look exact was a
+defect deleting from stock a constant the read-pass term never had.
 
 So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
@@ -210,11 +212,11 @@ headline sentence, and it needs two bounds now.** It is a statement about API
 calls on a run that sweeps in full, and on that run it holds. It does not
 describe a steady-state plan, and it does not survive the move to seconds. At
 745 resources on real AWS, counting the requests the AWS provider itself logs,
-stock issues 1392 and choudoufu 1399 — seven apart — while the wall clock
-reads 22–39 s against 123–124 s. Seven requests do not cost ninety seconds.
-That count excludes choudoufu's own Cloud Control and Tagging clients, which
-log no line per request, so it is a floor rather than a total; what is spending
-the ninety seconds is
+stock issues 1392 and choudoufu 1399, seven apart, while the wall clock reads
+22–39 s against 123–124 s. Seven requests do not cost ninety seconds. That
+count excludes choudoufu's own Cloud Control and Tagging clients, which log no
+line per request, so it is a floor rather than a total; what is spending the
+ninety seconds is
 [unaccounted for]({{< relref "/docs/what-you-pay" >}}), and this page will not
 guess.
 
@@ -234,9 +236,9 @@ covered: whole estates at all three scales above, both slices of a two-way
 split, and each of eight slices of an eight-way split. It does not grow with
 the estate, and it does not shrink when a configuration declares fewer types.
 (It read **521** in all thirteen when that work was published, and 512 on the
-re-measure at `5ff7f43f5b`; the nine-call move is unrelated to anything on
-this page. Flat is the property that matters, and it is still flat. What did
-change is who pays it — the section above, and `09d180f921`.)
+re-measure at `5ff7f43f5b`; the split table above accounts for the nine calls.
+Flat is the property that matters, and it is still flat. What did change is
+who pays it, which the section above and `09d180f921` cover.)
 
 The second half of that runs the wrong way round from most people's intuition,
 so here is the mechanism. `sweepTypes` builds its universe by *removing* the
@@ -265,7 +267,7 @@ refresh. It multiplies choudoufu's sweep.
 > sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
 > run that actually sweeps. Since `09d180f921` a steady-state plan is not one
 > of them. Full correction:
-> [`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md).
+> [`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md).
 
 ## On real AWS the sweep was nearly the whole plan
 
@@ -295,8 +297,8 @@ rather than a measured quantity;
 sets out when two wall clocks may be combined and when they may not. The table
 predates the sweep becoming concurrent, which is the next section. **And it
 predates the narrowing, so a steady-state plan of this estate no longer looks
-like the second row at all** — the same pair now reads 3, 4, 3 s against 17,
-18, 17 s. Keep the 200s column as the record of what a full sweep cost
+like the second row at all.** The same pair now reads 3, 4, 3 s against 17, 18,
+17 s. Keep the 200s column as the record of what a full sweep cost
 sequentially on a real account; do not quote it as what a plan costs.
 
 ### The sweep now overlaps its own waiting
@@ -326,10 +328,10 @@ saving. A repeat of each parallelism-1 row landed 18% lower (357.4ms and
 355.7ms), so read the ratios as approximate.
 
 **An earlier version of this section projected the real-AWS saving instead of
-measuring it** — "`521 x 0.39s` is where the 203 comes from, and dividing it
-by 10 is arithmetic, not a measurement" — and said nobody had re-run the
-real-AWS table. That has since been re-run twice, at two scales, and the
-projection was in the right direction but for more than one reason:
+measuring it.** Its words were "`521 x 0.39s` is where the 203 comes from, and
+dividing it by 10 is arithmetic, not a measurement", and it said nobody had
+re-run the real-AWS table. That has since been re-run twice, at two scales,
+and the projection was in the right direction but for more than one reason:
 
 | Resources | choudoufu, before | choudoufu, now | stock, now |
 |---|---|---|---|
@@ -392,11 +394,11 @@ moves.
 
 ### Turning the account inventory off, or back on
 
-`TOFU_LIVE_COLLECT_UNCLAIMED` is not a width. It is the on/off for the
-question the [narrowing](#when-the-native-leg-is-narrowed-and-when-it-is-not)
-declines — "what is in my account that this estate does not know about" — and
-it is the only one of the three that changes what a plan costs in calls rather
-than how much of the waiting overlaps.
+`TOFU_LIVE_COLLECT_UNCLAIMED` is not a width. It is the on/off for the account
+inventory, the question the
+[narrowing](#when-the-native-leg-is-narrowed-and-when-it-is-not) declines, and
+it is the only one of the three settings here that changes what a plan costs in
+calls rather than how much of the waiting overlaps.
 
 | Value | Effect |
 |---|---|
@@ -404,7 +406,7 @@ than how much of the waiting overlaps.
 | `1`, `true`, `on`, `yes` | ask the account-wide question, whatever the command would have chosen |
 | `0`, `false`, `off`, `no` | do not ask it, **even under `-adoption-only`** |
 
-Anything else is an error naming the value, not a silent default. The variable
+Anything else errors and quotes the value it could not read. The variable
 exists beside the flag rather than instead of it because `live-plan`'s own
 `-estate` form and plain `apply` have no `-adoption-only` to reach for.
 
@@ -416,7 +418,7 @@ deliberately: on the 79-instance fixture it is the difference between 157 and
 
 The same fixture and the same pin, measured before migration with no marker on
 any object (commit `f4611196e5`,
-[`rfc/20260830-marker-verified-fast-projection.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-marker-verified-fast-projection.md)):
+[`rulings/20260830-marker-verified-fast-projection.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-marker-verified-fast-projection.md)):
 
 | Instances | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|

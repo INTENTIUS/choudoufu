@@ -92,4 +92,4 @@ GitHub issue, and upgrade to a newer version of the dependency only on our main 
 in the next minor release series. We do not typically backport these changes to earlier release series.
 
 For more information on our process for upstream security advisories, refer to
-[rfc/20250314-security-patch-policy.md](Security Advisory Policy for Upstream Dependencies).
+upstream's [Security Advisory Policy for Upstream Dependencies](https://github.com/opentofu/opentofu/blob/main/rfc/20250314-security-patch-policy.md).

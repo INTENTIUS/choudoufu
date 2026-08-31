@@ -164,7 +164,7 @@ type LiveStrict struct {
 	// NoSourceCreate is the literal string an author wrote for the
 	// "no_source_create" argument - "refuse", "create", or whatever they
 	// typed, valid or not. GitHub issue #365's ruling-4 toggle
-	// (rfc/20260823-foundation-order-ruling.md): a no-source instance (no
+	// (rulings/20260823-foundation-order-ruling.md): a no-source instance (no
 	// record, no marker, and an identity nothing - neither the static
 	// evaluator nor #388's plan-node seam - can derive) refuses by default;
 	// this selects stock's own behavior of planning a create instead. Read

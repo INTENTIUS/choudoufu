@@ -94,7 +94,7 @@ same: `-adoption-only` is what turns the estate-wide sweep's account-inventory
 question **on**, so it enumerates every admitted type this estate has no
 evidence of ever having used, and an ordinary plan of an adopted estate does
 not. On the 79-instance terralith that is 710 API calls against 157, about
-4.5x, and it is the flag a migrating operator is told to reach for — which is
+4.5x. It is also the flag a migrating operator is told to reach for, which is
 correct, because during a migration the account-wide question is the point.
 
 **An earlier version of this page said the mode "costs the same time as an

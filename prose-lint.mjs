@@ -11,7 +11,7 @@
 // The rules come from the `sentences` package, whose published tarball is the
 // `dist-lint` subsystem only: a deterministic linter for AI-writing tropes over
 // a constituency parse. Its single runtime dependency is `compromise`, pure JS,
-// no network at lint time. rfc/20260830-stale-state-charter.md carries the
+// no network at lint time. rulings/20260830-stale-state-charter.md carries the
 // justification for the dependency.
 //
 // Two things this script does that the package does not:
@@ -36,14 +36,12 @@ const ROOT = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 
 // Hand-written prose only. A generated page's findings are the generator's to
 // answer for, and editing the output loses them on the next render.
-const ROOTS = ["site/content/docs", "live", "rfc"];
+const ROOTS = ["site/content/docs", "live", "rulings"];
 const SKIP = [
   "site/content/docs/progress/", // rendered by tools/gauntlet
   "site/themes/",
   "node_modules/",
 ];
-// Inherited upstream OpenTofu RFCs. Historical documents, not this fork's prose.
-const INHERITED_RFC = /^rfc\/20(2[3-5])/;
 
 const blank = (s) => " ".repeat(s.length);
 
@@ -80,7 +78,6 @@ function tracked() {
     for (const path of walk(join(ROOT, r))) {
       const rel = relative(ROOT, path);
       if (SKIP.some((s) => rel.startsWith(s))) continue;
-      if (INHERITED_RFC.test(rel)) continue;
       out.push(rel);
     }
   }

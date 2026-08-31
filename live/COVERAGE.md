@@ -40,7 +40,7 @@ The layers above answer "is the type admitted." `live/readiness.json`
 (issue #418) answers a different question: what recovers a type's
 identity, and at what cost, when the strongest recovery path - a record
 store, a state file, the tool itself - is gone.
-`rfc/20260828-readiness-tiers.md` fixes the four tier names, in precedence
+`rulings/20260828-readiness-tiers.md` fixes the four tier names, in precedence
 order, and the six statuses. The table below crosses them, tallied from the
 artifact's own per-type rows rather than copied from its `counts` block,
 which carries only each axis's marginal. Run `go run ./tools/readiness-gen

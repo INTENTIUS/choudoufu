@@ -51,7 +51,7 @@ import (
 //
 // Like the ceiling benchmark it borrows from, this asserts no threshold.
 // The deliverable is the ratio at named scales, recorded in
-// rfc/20260830-marker-verified-fast-projection.md, not a number a future
+// rulings/20260830-marker-verified-fast-projection.md, not a number a future
 // run could regress.
 const sweepSplitEstate = "sweep-split-cohort"
 
@@ -431,7 +431,7 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 // covered by arnJoinTable, a hand-curated table).
 //
 // The numbers this logs are recorded in
-// rfc/20260830-marker-verified-fast-projection.md against the commit that
+// rulings/20260830-marker-verified-fast-projection.md against the commit that
 // produced them. This test asserts only the partition invariant - every
 // swept type lands in exactly one leg, and neither leg is empty - because
 // a threshold on the ratio would be a ratchet on a hand-curated table

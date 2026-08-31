@@ -47,7 +47,7 @@ import (
 // schemas gets exactly the table's answer minus the veto, and a caller with
 // schemas gets that plus whatever the schemas additionally justify.
 //
-// Ruling 2 of rfc/20260823-foundation-order-ruling.md (#387) inverted
+// Ruling 2 of rulings/20260823-foundation-order-ruling.md (#387) inverted
 // precedence so the provider's own identity schema wins over a ratified row
 // wherever it reproduces one - but that inversion decides which SOURCE an
 // admitted type's identity is rendered FROM, not whether the type is
