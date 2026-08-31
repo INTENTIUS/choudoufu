@@ -14,9 +14,22 @@ Both belong to hooks, and the hooks differ in when they are needed. The read
 pass is unconditional and costs what stock's refresh costs. The sweep is the
 adoption hook, which answers a question an operator needs during a migration
 or an audit and not on an ordinary plan of an estate that is already adopted.
-It runs on every plan today. That it should not is
+That it should not run on every plan is
 [`rfc/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-stale-state-charter.md)'s
 ruling; this page is the measurement that ruling rests on.
+
+> **Read this page as the sweep's cost, not as a plan's cost.** The ruling
+> above landed at `09d180f921`: a plan of an estate that has its own evidence
+> to narrow by — types declared in configuration, or holding a key in the
+> record store — no longer enumerates the whole admission table, and the
+> 79-instance fixture measured throughout this page went from **710 API calls
+> to 157**, against stock's 150. Every full-sweep figure below still describes
+> an adoption, an audit, a rebuild from markers, or any run where the narrowing
+> has nothing to narrow by, because every gate fails toward doing the work. It
+> no longer describes an ordinary plan of an adopted estate. The scales above
+> 79 instances have not been re-measured since. For what a steady-state plan
+> costs, and what is still outstanding, see
+> [what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
 
 ## The two terms
 
@@ -107,7 +120,9 @@ remembered state here to plan against.
 slicing work covered: whole estates at all three scales above, both slices of
 a two-way split, and each of eight slices of an eight-way split. It does not
 grow with the estate, and it does not shrink when a configuration declares
-fewer types.
+fewer types. (It reads **512** at `5ff7f43f5b`, having moved by nine calls
+between the two commits for reasons unrelated to any of this. Flat is the
+property that matters, and it is still flat.)
 
 The second half of that runs the wrong way round from most people's intuition,
 so here is the mechanism. `sweepTypes` builds its universe by *removing* the
@@ -121,6 +136,22 @@ calls whether it is one state or eight; the same estate through choudoufu
 costs 744 calls at one state, 1288 at two and **4530 at eight**, because each
 additional state pays the whole sweep again. Slicing redistributes stock's
 refresh. It multiplies choudoufu's sweep.
+
+> **Superseded on both sides, and the paragraph above should not be quoted.**
+> Every CLI-plan figure in it was taken with a provider block setting
+> `skip_requesting_account_id`, so every one of those choudoufu plans exited 1
+> on a refusal and its cost was written up as a clean plan's. Re-measured at
+> `5ff7f43f5b`, every plan exiting 0 with `No changes`: stock **150 / 152 /
+> 164** at k=1/2/8, choudoufu **157 / 163 / 198**. That is 1.05x, 1.07x and
+> **1.21x**, not 5.0x, 8.7x and 30.6x. Stock's "148 whether one state or
+> eight" was an artifact of the same block; stock is `148 + 2k`, two calls per
+> slice to resolve the account. The error was not uniform either — it was
+> `18 − 4k` calls and changed sign near k=4.5 — so no ratio built on those
+> numbers could be rescaled. The sentence that survives is the one about the
+> sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
+> run that actually sweeps. Since `09d180f921` a steady-state plan is not one
+> of them. Full correction:
+> [`rfc/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rfc/20260830-slicing-under-choudoufu.md).
 
 ## On real AWS the sweep is nearly the whole plan
 
