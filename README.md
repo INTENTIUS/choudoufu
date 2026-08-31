@@ -46,8 +46,11 @@ Most commonly used AWS resource types are admitted, connective tissue
 included: `aws_ecs_service` has its own ratified identity and is proven
 end to end (deploy, migrate, drift, rename, remove) on a real ECS/Fargate
 estate, and `aws_lambda_permission`, which AWS gives no tags to hang a
-marker on, is admitted too, its identity composed from the function name
-and statement ID and held in the record store rather than a marker.
+marker on, is admitted too. It is
+[declaration-carried](https://intentius.io/choudoufu/docs/use/resource-tiers/):
+no marker, and no identity held anywhere either, because the same formula -
+function name, optional qualifier, statement ID - recomputes it from the
+configuration on every run.
 [The gauntlet](https://intentius.io/choudoufu/docs/progress/) is the
 standing record of which estates clear which stages against a real
 emulator, updated by running them, not by hand.
