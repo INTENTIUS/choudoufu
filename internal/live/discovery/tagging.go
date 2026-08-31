@@ -108,12 +108,14 @@ func ambiguous(cfnTypes ...string) arnJoinEntry {
 // slashes in the id) resolves to nothing, named as unknown rather than
 // forced into one of the two.
 //
-// AWS::ElasticLoadBalancing::LoadBalancer (the classic case) has no row in
-// the committed live/mapping.json, so an ARN that resolves to it still ends
-// up reported as unresolved one step later, at the CFN-to-TF join - honestly
-// naming "no TF type maps this CFN type" rather than silently joining a
-// classic ELB's ARN to aws_lb, which is what a table with only one
-// "loadbalancer" entry would do.
+// AWS::ElasticLoadBalancing::LoadBalancer (the classic case) is mapped in the
+// committed live/mapping.json only by a former2-provenance row naming aws_elb,
+// so until [joinTaggedResource]'s any-provenance fallback existed an ARN that
+// resolved to it was reported as unresolved one step later, at the CFN-to-TF
+// join. Either way the hazard this entry exists for is unchanged: what it must
+// never do is join a classic ELB's ARN to aws_lb, the V2 type, which is what a
+// table with only one "loadbalancer" entry would do. It now resolves to aws_elb
+// instead, which is the classic load balancer's real Terraform type.
 func elbLoadBalancerEntry() arnJoinEntry {
 	const v2, classic = "AWS::ElasticLoadBalancingV2::LoadBalancer", "AWS::ElasticLoadBalancing::LoadBalancer"
 	return arnJoinEntry{
@@ -385,13 +387,16 @@ func arnJoinReaches(req Request, typeName string) bool {
 // native leg, and [sweepViaTagging]'s own universe guard, which reports a
 // type that reached it anyway.
 //
-// Measured at this commit: this widening moves exactly ONE type,
-// aws_customer_gateway, from the native leg to the tagging leg. It can only
-// ever move a type whose mapping row's provenance the narrow join rejects
-// AND whose CFN type [arnJoinTable] covers, and aws_customer_gateway is the
-// only such type today - see TestArnJoinWideningMovesOnlyProvenanceGapTypes,
-// which recomputes that set from the committed artifacts rather than
-// restating it.
+// Measured at this commit: this widening moves exactly TWO types from the
+// native leg to the tagging leg - aws_customer_gateway, which it was found
+// through, and aws_elb, whose classic-load-balancer CFN type sits in
+// [elbLoadBalancerEntry]'s coverage and whose mapping row is former2 for the
+// same reason. It can only ever move a type whose mapping row's provenance
+// the narrow join rejects AND whose CFN type [arnJoinTable] covers; see
+// TestArnJoinWideningMovesOnlyProvenanceGapTypes, which recomputes that set
+// from the committed artifacts rather than restating it, so a third type
+// arriving is a named diff and not a silent one. Neither type is used by any
+// estate in live/corpus-manifest.json or live/e2e.
 //
 // Found building [gauntlet:corpus-vpc-complete/day2_count]: scaling an
 // aws_customer_gateway count block from 2 down to 1 proposed no destroy at

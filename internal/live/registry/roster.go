@@ -101,9 +101,11 @@ type Roster struct {
 	// where no name/alias/service-alias row existed), 38 of them name a type
 	// the identity table admits, and every one of those 38 CFN types has
 	// exactly one admitted TF type - so the wider index adds no ambiguity
-	// anywhere it adds an answer. Only one of the 38, AWS::EC2::CustomerGateway,
-	// is reachable from [arnJoinTable] today; the rest become reachable if and
-	// when a row for their ARN segment is added.
+	// anywhere it adds an answer. Two of the 38 are reachable from the ARN
+	// join table today (AWS::EC2::CustomerGateway and, through the classic
+	// load balancer's own shape, AWS::ElasticLoadBalancing::LoadBalancer);
+	// the rest become reachable if and when a row for their ARN segment is
+	// added.
 	tfTypeForAnyProvenance map[string][]string
 
 	// listable is cfn_type -> whether live/registry.json's handlers.list is
