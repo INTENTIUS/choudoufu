@@ -2249,11 +2249,20 @@ EOF
     [ "$COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_DOWN_PLAN_OUT" | tail -40; fail "the scale-down plan exited $COUNT_DOWN_PLAN_RC"; }
 
     if [ "${BREAK_COUNT:-}" = "1" ]; then
+      # The control, written the way the Break text words it: the SAME
+      # assertion shape the real path uses below, pointed at the wrong
+      # index. "The assertion must fail" means this stage must report
+      # verdict=fail, not merely log that it noticed - so both arms below
+      # call fail(), which reports `GAUNTLET stage=day2_count verdict=fail`
+      # through CURRENT_STAGE. The first arm is the expected outcome (the
+      # plan does NOT destroy index 0, so the wrong-instance assertion does
+      # not hold); the second arm fires only if index 0 really was the one
+      # destroyed, which would mean the real assertion below is not
+      # load-bearing at all.
       log "  BREAK_COUNT=1: asserting the WRONG instance (count_test[0]) was destroyed instead of count_test[1]"
-      if grep -qE '^  # aws_security_group\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT"; then
-        fail "BREAK_COUNT=1: the plan actually destroys count_test[0] - this assertion is not load-bearing"
-      fi
-      log "  BREAK_COUNT=1: correctly does NOT destroy count_test[0] - the wrong-instance assertion above fails to hold, as it must"
+      grep -qE '^  # aws_security_group\.count_test\[0\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
+        || { grep -E '^  # .+ will be' <<< "$COUNT_DOWN_PLAN_OUT"; fail "BREAK_COUNT=1 (expected): the scale-down plan does NOT destroy aws_security_group.count_test[0], so the wrong-instance assertion does not hold - exactly what day2_count's Break text requires (\"Expect a different instance to be destroyed; the assertion must fail\"). The real assertion on the non-BREAK path is load-bearing."; }
+      fail "BREAK_COUNT=1: the scale-down plan really does destroy count_test[0] - the WRONG instance was destroyed, and the real assertion on the non-BREAK path is not load-bearing"
     else
       grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$COUNT_DOWN_PLAN_OUT" \
         || { grep -E '^  # .+ will be' <<< "$COUNT_DOWN_PLAN_OUT"; fail "choudoufu's scale-down plan does not destroy count_test[1]"; }
