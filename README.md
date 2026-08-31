@@ -2,12 +2,18 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu with one permission model.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**OpenTofu plus identity hooks.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
-Each resource carries its own ownership record as ordinary cloud tags. AWS
-can tell you what an estate contains, and your IAM already decides who may
-read or change it. Nothing else to permission, and no lock to manage.
-Experimental, AWS only.
+Each resource carries its own identity in the cloud, as two AWS tags. The
+apply writes them and the next plan reads them back live. The state file is
+therefore a cache you are allowed to lose, and the IAM you already run
+decides who may read or change what. This fork is experimental, and it
+supports AWS only.
+
+There are two ways in. Read [Migrate an existing
+estate](https://intentius.io/choudoufu/docs/use/migrate/) if AWS already holds
+resources your configuration manages, and [Start a new
+estate](https://intentius.io/choudoufu/docs/use/start/) if it does not.
 
 Three things have to survive between runs, and each lives somewhere AWS
 already has. Which real resource an address refers to is a tag on the
