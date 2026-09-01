@@ -49,6 +49,14 @@ bench-estate:
 demo:
     bash live/e2e/run.sh --expect 5
 
+# The smoke stack (issue #713): docker compose (pinned floci + the stock
+# opentofu oracle), scenario-per-invocation, versioned. `just smoke` lists
+# scenarios; BREAK=1 proves a scenario's assertions can fail;
+# SMOKE_INSTRUMENT=1 adds the terralith-style request counters;
+# CHOUDOUFU_VERSION=vX.Y.Z runs a pinned release instead of source.
+smoke scenario="":
+    bash live/smoke/smoke.sh {{scenario}}
+
 # One recipe for every named e2e demo: `just demo-run corpus-vpc-complete`
 # runs live/e2e/corpus-vpc-complete/run.sh. This replaced ~54 hand-cloned
 # demo-<name> recipes (issue #700), so adding an estate touches zero

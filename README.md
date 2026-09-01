@@ -78,32 +78,40 @@ every limit with its reasoning.
 
 ## See it prove itself
 
-The demo is also the test suite. It stands up a real estate against a local
-AWS emulator, hands it over to its markers partway through, and shows the
-plans stay exact across the handover. Docker, about two minutes, and the exit
-code is the verdict.
+The smoke stack is the demo and the test suite: one `docker compose` stack
+(the pinned emulator plus a pinned stock OpenTofu oracle), one scenario
+per invocation, a verdict line per step, exit 0 only when every claim
+held. Docker, about two minutes per scenario.
 
 ```
-bash live/e2e/run.sh --expect 5
+just smoke import       # stock estate -> delete the state file -> adopt
+just smoke greenfield   # a new estate from nothing
+just smoke full         # the comprehensive 15-step harness
 ```
 
-Or paste this to a coding agent (Claude Code or similar) and let it run the
-demo end to end.
+Or paste this to a coding agent (Claude Code or similar) and let it run
+the demo end to end:
 
 ```
 Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 
-1. Confirm Docker is running (`docker info` must succeed).
-2. If Go is installed, skip this step. Otherwise download the latest
-   release tarball for this platform from
-   https://github.com/INTENTIUS/choudoufu/releases, extract it, and
-   export TOFU_BIN=<absolute path to the extracted choudoufu binary>.
-3. From the repo root, run: bash live/e2e/run.sh --expect 5
-4. Report each step's result as the script prints it, and the final exit code.
-
-Exit code 0 means every claim the script makes about live resource markers
-held. Non-zero means one of them did not. Report which step failed.
+1. Confirm Docker is running (`docker info` must succeed) and the AWS CLI
+   is installed (`aws --version`).
+2. If Go is installed, skip this step. Otherwise pick the latest release
+   tag from https://github.com/INTENTIUS/choudoufu/releases and
+   export CHOUDOUFU_VERSION=<that tag> so the smoke runs a prebuilt binary.
+3. From the repo root, run: just smoke import
+4. Then run: just smoke greenfield
+5. Report each step's verdict line as it prints, and each scenario's final
+   PASS or FAIL line.
 ```
+
+`BREAK=1` corrupts one expected fact mid-scenario, and the scenario passes
+only by catching it - the assertions are load-bearing, never scenery.
+[`live/smoke/README.md`](live/smoke/README.md) has every knob: pinning the
+emulator image and the choudoufu version, running from source (choudoufu
+only; the emulator is always the pinned image), and the optional
+request-count instrumentation.
 
 ## Install
 

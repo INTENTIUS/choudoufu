@@ -1,0 +1,44 @@
+# The smoke stack (issue #713): one emulator, one stock oracle.
+#
+# floci is ALWAYS the pinned image - never built from source here; the pin
+# is live/floci-image and FLOCI_IMAGE overrides it. opentofu is the stock
+# oracle leg, pinned to live/oracle-versions.json's tofu_version; scenarios
+# that need no stock leg never start it (profile "oracle").
+#
+# choudoufu itself is not a service: it is the product under test and runs
+# on the host - built from source by default, or a pinned release binary
+# via CHOUDOUFU_VERSION. See lib.sh's resolve_choudoufu.
+services:
+  floci:
+    image: ${FLOCI_IMAGE:?smoke.sh exports this from live/floci-image}
+    ports:
+      - "${FLOCI_PORT:-4650}:4566"
+    networks:
+      default:
+        aliases:
+          # The AWS provider composes account-qualified hostnames for a
+          # few services (S3 Control: <account>.<endpoint-host>); on the
+          # host, 000000000000.localhost resolves by convention, and this
+          # alias is the same convention inside the compose network.
+          - 000000000000.floci
+
+  opentofu:
+    image: ${OPENTOFU_IMAGE:?smoke.sh exports this from live/oracle-versions.json}
+    profiles: ["oracle"]
+    entrypoint: ["tofu"]
+    working_dir: /work
+    volumes:
+      - ${SMOKE_WORK:?smoke.sh exports the scenario workdir}:/work
+      - smoke-plugins:/plugins
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      TF_PLUGIN_CACHE_DIR: /plugins
+      CHECKPOINT_DISABLE: "1"
+
+volumes:
+  # The AWS provider is large; one named volume keeps every scenario's
+  # stock leg from re-downloading it.
+  smoke-plugins:
