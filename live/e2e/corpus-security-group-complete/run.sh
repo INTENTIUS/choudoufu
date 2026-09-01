@@ -1779,7 +1779,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # count.go) that aws_instance/aws_security_group both rely on appears to
   # be bypassed whenever a valid record already resolves the declared
   # address - plausibly a side effect of the record-primary plan ordering
-  # ruled 2026-08-23 (rulings/20260823-foundation-order-ruling.md), which
+  # ruled 2026-08-23 (the foundation-order ruling (#388)), which
   # started letting the record short-circuit before the count-set claimant
   # matcher (slotProblem/ProblemDuplicateSlot) ever runs. A real,
   # generalizable finding (a MISSING detection, not a wrong marker
@@ -2138,7 +2138,7 @@ EOF
       # Every identity claim below is read through the AWS CLI, never
       # through choudoufu's own report, and the record store is read
       # straight off its own files - the write half of the read-first
-      # ruling (rulings/20260823-foundation-order-ruling.md): a record that
+      # ruling (the foundation-order ruling (#388)): a record that
       # still named the destroyed instance would be exactly the wrong-marker
       # failure HANDOFF ranks above a missing one.
       #

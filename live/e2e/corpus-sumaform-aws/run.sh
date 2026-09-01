@@ -1053,7 +1053,7 @@ GTAGGED="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" resourcegroup
 [ "$GTAGGED" = "7" ] || fail "the greenfield estate has $GTAGGED tag-stamped objects, expected 7"
 [ -d "$GREEN/.tofu-records/tofu-records" ] || fail "the greenfield apply wrote no tofu-records namespace"
 # The record store now holds an envelope per instance regardless of
-# markers selection (rulings/20260823-foundation-order-ruling.md: "the record
+# markers selection (the foundation-order ruling (#388): "the record
 # holds the identity of every instance, written by live-import and by
 # every apply") - a bare file count can no longer tell "record-selected,
 # no tag" apart from "tagged, and also recorded", so this checks the two

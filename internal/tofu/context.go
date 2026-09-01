@@ -49,7 +49,7 @@ type ContextOpts struct {
 	UIInput UIInput
 
 	// ResourceIdentityResolver and ConfigValueAdjuster are the plan-node
-	// seam (rulings/20260823-foundation-order-ruling.md, ruling 3): nil by
+	// seam (the foundation-order ruling (#388), ruling 3): nil by
 	// default, in which case NodePlannableResourceInstance.managedResourceExecute
 	// and NodeAbstractResourceInstance.plan behave exactly as they do
 	// without this field existing. See resource_identity.go.

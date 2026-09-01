@@ -880,8 +880,8 @@ func containsStringValue(obj cty.Value, target string) bool {
 	return found
 }
 
-// applyRecordFirst is GitHub issue #364 unit B's read half: rulings/20260823-
-// foundation-order-ruling.md's ruling 1 and HANDOFF.md's "The foundation"
+// applyRecordFirst is GitHub issue #364 unit B's read half: the
+// foundation-order ruling 1 (#388) and HANDOFF.md's "The foundation"
 // ("Binding reads the record and verifies it against the marker") applied
 // ahead of [orderWork], so that a resolution's identity.Class no longer
 // decides whether the estate's own record store gets consulted at all.

@@ -94,7 +94,7 @@ static evaluator, not of the mode: HANDOFF's "The order" item 1 takes the
 migrated population off that path and item 3 retires the evaluator. Measured
 2026-08-23: 97 of the 206 enumerable refusal kinds are the static-evaluation
 stage, and about 40% of the migrated gauntlet population is re-derived from
-configuration on every plan (`rulings/20260823-foundation-order-ruling.md`).
+configuration on every plan (`the foundation-order ruling (#388)`).
 
 ## How to work
 

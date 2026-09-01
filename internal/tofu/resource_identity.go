@@ -20,7 +20,7 @@ import (
 // resource instance that this graph walk has no prior state for, so that
 // NodePlannableResourceInstance can import it instead of planning a create.
 //
-// This is the seam ruled in rulings/20260823-foundation-order-ruling.md
+// This is the seam ruled in the foundation-order ruling (#388)
 // (ruling 3, "the plan-node seam"): identity resolution moves from a
 // separate static evaluation pass over configuration text into one hook at
 // the node that already evaluates real values. Nil by default; a nil

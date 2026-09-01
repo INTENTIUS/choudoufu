@@ -158,7 +158,7 @@ CONTROL_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$CONTROL_ADDR")"
 
 # is_tainted <recfile> - exit 0 iff the record exists and its "provisioned"
 # member says tainted:true. A record's mere existence stopped being that
-# signal once record-primary identity (rulings/20260823-foundation-order-ruling.md
+# signal once record-primary identity (the foundation-order ruling (#388)
 # item 1) started writing an identity+residue record for every instance a
 # create actually reached, tainted or not (issue #541 found this: the
 # control and tolerant buckets, whose provisioners never taint them, now
@@ -258,7 +258,7 @@ log "  pt-e2e-app carries both ownership markers: nothing about the live object 
 # request that only the PROVISIONER failed after did succeed, so the object
 # genuinely exists with a genuine identity and genuine residue arguments
 # (force_destroy, unset in main.tf so its default reads back), and
-# record-primary identity (rulings/20260823-foundation-order-ruling.md item 1 -
+# record-primary identity (the foundation-order ruling (#388) item 1 -
 # "every instance's identity in the record, written by live-import and by
 # EVERY apply") now records both unconditionally, on any apply that reaches
 # a successful create, whether or not a later provisioner step in the SAME

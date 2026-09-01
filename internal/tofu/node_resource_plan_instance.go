@@ -290,7 +290,7 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 		return diags
 	}
 
-	// The plan-node seam (rulings/20260823-foundation-order-ruling.md, ruling
+	// The plan-node seam (the foundation-order ruling (#388), ruling
 	// 3): when nothing already targets this instance for import, and it
 	// has no prior state, ask a configured resolver whether it knows this
 	// instance's identity. resolver is nil by default, which makes this
@@ -349,7 +349,7 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 	if importing {
 		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, providers.ImportTarget{ID: n.importTarget.ID, Identity: n.importTarget.Identity}, provider, providerSchema)
 	} else if resolvedImport != nil {
-		// Edge 2 of the plan-node seam (rulings/20260823-foundation-order-ruling.md,
+		// Edge 2 of the plan-node seam (the foundation-order ruling (#388),
 		// ruling 3; issue #388): unlike an import block, which is the
 		// operator's own promise that the object exists, a RESOLVER-supplied
 		// target is this run's best guess at what a not-yet-applied
@@ -738,7 +738,7 @@ var resolverImportSyntheticAbsentSummaries = map[string]bool{
 // importState's own synthetic "there is nothing here" diagnostics or a
 // provider's not-found-shaped error - rather than a genuine failure to
 // answer. It is edge 2 of the plan-node seam
-// (rulings/20260823-foundation-order-ruling.md, ruling 3; issue #388): a
+// (the foundation-order ruling (#388), ruling 3; issue #388): a
 // resolver-supplied target is a guess, not a promise the way an import
 // block's is, so an absent object here means the guess was wrong about
 // there being anything to import, not a reason to abort the plan.

@@ -36,7 +36,7 @@ three admission paths.
 
 ### Readiness tiers
 
-Admission is not the whole story. `rulings/20260828-readiness-tiers.md` names
+Admission is not the whole story. `the tier definitions (#417)` names
 four tiers by what recovers a type's identity when the record store, the
 state file, or the tool itself is gone: marker-carried, declaration-carried,
 record-carried, and excluded by design. `live/readiness.json` assigns every

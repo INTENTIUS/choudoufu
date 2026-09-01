@@ -11,7 +11,7 @@
 // The rules come from the `sentences` package, whose published tarball is the
 // `dist-lint` subsystem only: a deterministic linter for AI-writing tropes over
 // a constituency parse. Its single runtime dependency is `compromise`, pure JS,
-// no network at lint time. rulings/20260830-stale-state-charter.md carries the
+// no network at lint time. the stale-state ruling (#604) carries the
 // justification for the dependency.
 //
 // Two things this script does that the package does not:
@@ -36,7 +36,7 @@ const ROOT = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 
 // Hand-written prose only. A generated page's findings are the generator's to
 // answer for, and editing the output loses them on the next render.
-const ROOTS = ["site/content/docs", "live", "rulings"];
+const ROOTS = ["site/content/docs", "live"];
 const SKIP = [
   "site/content/docs/progress/", // rendered by tools/gauntlet
   "site/themes/",

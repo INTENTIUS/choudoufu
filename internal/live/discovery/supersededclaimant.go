@@ -53,7 +53,7 @@ import (
 //
 // # Why the record settles it, and why only the record
 //
-// rulings/20260823-foundation-order-ruling.md item 1 makes the estate's own
+// the foundation-order ruling (#388) item 1 makes the estate's own
 // record authoritative for "which live object does this address own right
 // now". It is written on every apply, for every ordinary taggable instance
 // as well as for the record-backed ones (see

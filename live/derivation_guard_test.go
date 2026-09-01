@@ -176,7 +176,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	},
 	"internal/live/identity/located.go": {
 		Reason: "strictSecretsLocatedExclusion: aws_iam_access_key and aws_iot_certificate, the maintainer's 2026-08-23 " +
-			"ruling (rulings/20260823-foundation-order-ruling.md, ruling 5) moving them off the four-type unconditional " +
+			"ruling (the foundation-order ruling (#388), ruling 5) moving them off the four-type unconditional " +
 			"veto this file carried before (live/HARNESS.md's credential-exclusions-are-sanctioned ratchet, a " +
 			"three-entry set as of issue #431) onto the " +
 			"same strict { secrets } toggle a RECORD_BACKED type's SecretMaterial already uses: stored by default, " +

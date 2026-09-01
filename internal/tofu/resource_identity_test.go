@@ -23,7 +23,7 @@ import (
 )
 
 // TestContext2Plan_resourceIdentityResolverNilContract is the plan-node
-// seam's nil contract (rulings/20260823-foundation-order-ruling.md, ruling 3;
+// seam's nil contract (the foundation-order ruling (#388), ruling 3;
 // HANDOFF.md "The order", item 3): with no resolver and no adjuster
 // configured, plugging the fields into ContextOpts must not change a single
 // byte of an ordinary plan. It plans the same greenfield resource - no
@@ -207,8 +207,8 @@ func (s *stubConfigValueAdjuster) AdjustConfigValue(_ context.Context, addr addr
 }
 
 // TestContext2Plan_configValueAdjusterHonoursIgnoreChanges is
-// opentofu/opentofu#3016's ordering invariant (rulings/20260823-foundation-
-// order-ruling.md, ruling 3; GitHub issue #388's stamp half), proven
+// opentofu/opentofu#3016's ordering invariant (the foundation-order
+// ruling 3; GitHub issue #388's stamp half), proven
 // generically rather than through the fork's own marker implementation:
 // [ConfigValueAdjuster] runs on the evaluated configuration value BEFORE
 // n.processIgnoreChanges, so a key an operator's own lifecycle {
@@ -307,7 +307,7 @@ resource "test_object" "a" {
 }
 
 // TestContext2Plan_resourceIdentityResolverAbsentTargetPlansCreate is edge 2
-// of the plan-node seam (rulings/20260823-foundation-order-ruling.md, ruling 3;
+// of the plan-node seam (the foundation-order ruling (#388), ruling 3;
 // issue #388): a resolver-supplied target, unlike an import block, is a
 // guess about a not-yet-applied instance's identity, not a promise that the
 // object exists. When the provider answers ImportResourceState with an

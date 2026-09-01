@@ -247,7 +247,7 @@ func checkedLayersAreFour() Assumption {
 }
 
 // SanctionedCredentialExclusions is CLAUDE.md's list: four types down to two
-// by the maintainer's 2026-08-23 ruling (rulings/20260823-foundation-order-ruling.md,
+// by the maintainer's 2026-08-23 ruling (the foundation-order ruling (#388),
 // ruling 5), and back up to three by issue #431's provider-wide sweep
 // (tools/credential-sweep), which is a measurement rather than a second
 // ruling of the same kind - see below.
@@ -267,7 +267,7 @@ func checkedLayersAreFour() Assumption {
 // hand list rather than re-deriving tier D's population from
 // tools/row-gen/rejected.json's free text, which credentialReason's own doc
 // comment already calls the weakest part of this check -
-// rulings/20260828-readiness-tiers.md's tier D section is explicit that a
+// the tier definitions (#417)'s tier D section is explicit that a
 // generator has to read this list (or an exported form of it) rather than
 // infer membership from a schema signal.
 //

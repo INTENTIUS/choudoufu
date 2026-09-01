@@ -22,8 +22,8 @@ import (
 // rule vetoes, and live/readiness.json's record-carried tier, which
 // tools/readiness-gen also fills by elimination from
 // live/survey-full.json's path column. Issues #535 and #579 both quoted
-// the second where the first was meant, and rulings/20260830's own
-// "The populations" section exists because of it.
+// the second where the first was meant, and the fast-projection
+// ruling's (#579) own "The populations" section exists because of it.
 //
 // The docs now state the split with both counts. Hand-typed counts in
 // prose are exactly the thing this repository has watched go stale, so
@@ -50,7 +50,7 @@ type readinessCounts struct {
 // tierRecordCarried and tierExcludedByDesign are tools/readiness-gen's own
 // tier names, spelled here rather than imported: that generator is a
 // package main, so its consts are not reachable, and the names are
-// published vocabulary (rulings/20260828-readiness-tiers.md).
+// published vocabulary (the tier definitions (#417)).
 const (
 	tierRecordCarried    = "record-carried"
 	tierExcludedByDesign = "excluded by design"

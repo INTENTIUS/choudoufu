@@ -340,7 +340,7 @@ func ImplementedNames() string {
 // NoSourceCreate is what a run does when an instance has no record, no live
 // marker, and an identity nothing - neither the static evaluator nor
 // GitHub issue #388's plan-node seam - can derive from its configuration.
-// Ruling 4 of rulings/20260823-foundation-order-ruling.md.
+// Ruling 4 of the foundation-order ruling (#388).
 //
 // HANDOFF.md's safety rule is why the default refuses rather than creates:
 // a genuinely new instance and a real one this run simply cannot see yet

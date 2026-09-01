@@ -3,15 +3,14 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "8e643bb0dff5bb0451f3763904eea4b3dacba102",
+  "measured_at_head": "67830aebe8c7a116592f45be0a0169ef9f09d406",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
-    "internal/live/": 1243,
-    "live/": 443,
-    "other": 453,
-    "rulings/": 13,
-    "site/": 86,
+    "internal/live/": 1253,
+    "live/": 448,
+    "other": 467,
+    "site/": 87,
     "tools/": 406
   },
   "files": {
@@ -428,6 +427,10 @@
       },
       {
         "path": "internal/live/cloudcontrol/fallback_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/cloudcontrol/requestlog_test.go",
         "status": "A"
       },
       {
@@ -1023,6 +1026,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/supersededclaimant.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/supersededclaimant_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/sweep_parallelism_bench_test.go",
         "status": "A"
       },
@@ -1244,6 +1255,14 @@
       },
       {
         "path": "internal/live/flocitest/proxy_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/timeline.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/timeline_test.go",
         "status": "A"
       },
       {
@@ -3131,6 +3150,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/compatibility_doc_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/count_index.go",
         "status": "A"
       },
@@ -4335,6 +4358,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/recordfirst_concurrency_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/recordfirst_test.go",
         "status": "A"
       },
@@ -4420,6 +4447,14 @@
       },
       {
         "path": "internal/live/projection/sighted_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/statecache_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/statecacheread_test.go",
         "status": "A"
       },
       {
@@ -4975,6 +5010,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/statefulcost/readconcurrency_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/statefulcost/statefulcost_live_test.go",
         "status": "A"
       },
@@ -5334,6 +5373,14 @@
       },
       {
         "path": "live/e2e/corpus-root-dns-zones/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/corpus-s3-bucket-complete/probe-config-consistency.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/corpus-s3-bucket-complete/probe-config-load.sh",
         "status": "A"
       },
       {
@@ -6737,6 +6784,10 @@
         "status": "A"
       },
       {
+        "path": "live/history/v0.5.0.json",
+        "status": "A"
+      },
+      {
         "path": "live/iam-reference.json",
         "status": "A"
       },
@@ -6782,6 +6833,10 @@
       },
       {
         "path": "live/marker_identity_split_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/module_count_doc_pin_test.go",
         "status": "A"
       },
       {
@@ -6834,6 +6889,10 @@
       },
       {
         "path": "live/rowgen-convergence.json",
+        "status": "A"
+      },
+      {
+        "path": "live/stale_state_ruling_test.go",
         "status": "A"
       },
       {
@@ -7024,6 +7083,10 @@
       },
       {
         "path": "cmd/choudoufu/version.go",
+        "status": "A"
+      },
+      {
+        "path": "cmd/choudoufu/wallclock_profile_test.go",
         "status": "A"
       },
       {
@@ -8647,48 +8710,6 @@
         "status": "D"
       },
       {
-        "path": "scripts/build.sh",
-        "status": "M"
-      },
-      {
-        "path": "scripts/ci-gate.sh",
-        "status": "A"
-      },
-      {
-        "path": "scripts/contribute.sh",
-        "status": "A"
-      },
-      {
-        "path": "scripts/debug-opentofu",
-        "status": "M"
-      },
-      {
-        "path": "scripts/pickup.sh",
-        "status": "A"
-      },
-      {
-        "path": "scripts/render-logo.sh",
-        "status": "A"
-      },
-      {
-        "path": "tmp/admission-pipeline/report-20260813-150951.md",
-        "status": "A"
-      },
-      {
-        "path": "version/version.go",
-        "status": "M"
-      },
-      {
-        "path": "website/README.md",
-        "status": "M"
-      },
-      {
-        "path": "website/package-lock.json",
-        "status": "M"
-      }
-    ],
-    "rulings/": [
-      {
         "path": "rulings/20260814-micro-state-store-ruling.md",
         "status": "A"
       },
@@ -8739,6 +8760,46 @@
       {
         "path": "rulings/README.md",
         "status": "A"
+      },
+      {
+        "path": "scripts/build.sh",
+        "status": "M"
+      },
+      {
+        "path": "scripts/ci-gate.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/contribute.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/debug-opentofu",
+        "status": "M"
+      },
+      {
+        "path": "scripts/pickup.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/render-logo.sh",
+        "status": "A"
+      },
+      {
+        "path": "tmp/admission-pipeline/report-20260813-150951.md",
+        "status": "A"
+      },
+      {
+        "path": "version/version.go",
+        "status": "M"
+      },
+      {
+        "path": "website/README.md",
+        "status": "M"
+      },
+      {
+        "path": "website/package-lock.json",
+        "status": "M"
       }
     ],
     "site/": [
@@ -9060,6 +9121,10 @@
       },
       {
         "path": "site/layouts/shortcodes/iamref.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/version.html",
         "status": "A"
       },
       {

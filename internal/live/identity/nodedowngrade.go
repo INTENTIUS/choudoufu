@@ -11,7 +11,7 @@ import (
 
 // DowngradeForNodeResolution turns every per-instance identity-resolution
 // refusal in diags into a warning, for GitHub issue #388's plan-node seam
-// (rulings/20260823-foundation-order-ruling.md, ruling 3) and #364's own landing
+// (the foundation-order ruling (#388), ruling 3) and #364's own landing
 // comment on unit B: "the static resolver cannot do per-address store IO
 // without an import cycle," which is why this downgrade - and the resolver
 // that gets a chance once it runs - live at the node instead of here.
