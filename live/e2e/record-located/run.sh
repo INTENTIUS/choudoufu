@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-record-located recipe; run with: just demo-run record-located)
+# Issue #270's record-located class end to end: an object with nowhere to
+# carry an ownership marker, whose id the provider minted at create time,
+# found again after the state file is deleted - by the estate's record store
+# and by nothing else. aws_cloudfront_public_key's id appears nowhere in the
+# configuration, so the run's rendered identity is checked against the
+# EMULATOR's own answer rather than against the record it read; the run then
+# points one record at the other key's object and requires that check to
+# fail. Ends by deleting a record and proving a lost one costs an announced
+# duplicate, never a deletion. Needs Docker and the AWS CLI; runs on its own
+# port (4605) so it can run beside `just demo`.
 set -euo pipefail
 
 # identity.ClassRecordLocated, end to end against a real emulator.

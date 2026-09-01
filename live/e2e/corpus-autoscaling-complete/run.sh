@@ -1,4 +1,38 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-autoscaling-complete recipe; run with: just demo-run corpus-autoscaling-complete)
+# terraform-aws-modules/terraform-aws-autoscaling's flagship "complete"
+# example (v9.3.0, .corpus/autoscaling/examples/complete), crossed live end
+# to end: twelve module calls exercising the default ASG shape, the
+# ignore_desired_capacity_changes count-gated "this" vs "idc" resource pair
+# (a real exercise of the count-is-zero-per-instance admission fix), mixed
+# instances, warm pools, EFA network interfaces, attribute-based instance
+# requirements, external launch templates, lifecycle hooks, scheduled
+# actions, and target tracking / predictive / step scaling policies, plus
+# supporting VPC, ALB, IAM, SQS and CloudWatch alarm resources. Two real,
+# generalizing floci gaps found and fixed on the way (lex00/floci
+# fix/asg-traffic-sources-scheduled-actions, merged to floci's main but not
+# yet in the pinned image): AttachTrafficSources/DetachTrafficSources/
+# DescribeTrafficSources (the modern elbv2/vpc-lattice ASG-to-load-balancer
+# wiring API) and PutScheduledUpdateGroupAction/DescribeScheduledActions/
+# DeleteScheduledAction were both entirely unimplemented - either one fails
+# any ASG apply using that feature outright, not a narrow gap. Against the
+# CURRENTLY PINNED image, stage 1 fails on 5 error sites across those two
+# gaps plus EC2 CreateCapacityReservation (also unimplemented, filed
+# lex00/floci#64, not yet fixed - blocks only module.warm_pool). Against a
+# locally rebuilt image with the ASG fix, cold deploy reaches 79 of 80
+# resources (everything except module.warm_pool). Manual verification
+# against that near-complete state found live-plan clean for the ASGs,
+# schedules, and policies themselves (all client-named/parent-derived, no
+# marker needed) and exactly two remaining stage-3 refusal classes: the
+# already-tracked default_*-adopter trio (#305) and a newly-filed admission
+# gap, aws_autoscaling_traffic_source_attachment (#310) - unadmitted despite
+# a fully composite, all-required identity the provider's own docs already
+# specify. See the script's own header and this crossing's report for the
+# full trace. Needs Docker, the AWS CLI, and terraform on PATH, plus network
+# access for `terraform init` to resolve terraform-aws-modules/vpc,
+# terraform-aws-modules/security-group, terraform-aws-modules/alb and
+# terraform-aws-modules/cloudwatch from the registry; runs on its own port
+# (4722).
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-autoscaling's flagship "complete"

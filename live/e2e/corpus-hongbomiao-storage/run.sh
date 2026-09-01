@@ -1,4 +1,26 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-hongbomiao-storage recipe; run with: just demo-run corpus-hongbomiao-storage)
+# hongbo-miao/hongbomiao.com's own "storage" environment bootstrap section
+# (live/corpus-manifest.json, pinned by commit - same repo and pin as
+# corpus-hongbomiao-labelbox, a SECOND disjoint self-contained slice of it):
+# the three module calls at the top of environments/production/aws/storage/
+# main.tofu that read no terraform_remote_state at all, before that file's
+# next section starts reading network's - the shared production S3 bucket,
+# a second independent IoT-data S3 bucket, and the Kafka KMS key (an
+# aws_kms_key/aws_kms_alias pair). Unlike Labelbox, this exercises the same
+# leaf module (amazon_s3_bucket) called twice under different module names,
+# plus a server-assigned-ID taggable type paired with a client-named
+# untaggable one that is already a ratified DefaultTable row rather than a
+# schema fallback. All five stages pass for real: 4 resources cold-deployed,
+# 3 stamped (the KMS alias is correctly UNTAGGABLE), an empty replan with
+# the state file deleted and identities re-asserted against the AWS CLI's
+# own answer, a genuine no-op apply, and drift on the IoT-data bucket's tags
+# reconverging without touching the production bucket or the KMS key. See
+# the script's own header for why Amazon SageMaker (the other candidate
+# section) was ruled out: floci itself returns UnknownOperationException for
+# CreateNotebookInstance, confirmed directly before writing this script.
+# Needs Docker, the AWS CLI, and the real `tofu` binary; runs on its own
+# port (4725).
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json)

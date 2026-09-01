@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-crossref-orcid-agent recipe; run with: just demo-run corpus-crossref-orcid-agent)
+# Issue #274's attempt: .corpus/mastino/prod-eu-west/services/crossref-orcid-agent,
+# structurally near-identical to crossref-agent (same four resource types,
+# same onboarding shape) but named separately and permanently scheduled
+# never to fire. Does NOT cross - BLOCKED BY FLOCI, not choudoufu, at the
+# very first apply. The estate's deployment zip has one internal entry
+# named crossref-agent_runner.js (a copy-paste leftover from the sibling
+# service DataCite cloned this estate from), while main.tf's handler names
+# crossref-orcid-agent_runner.js. floci's Lambda CreateFunction eagerly
+# validates the handler file exists in the deployment package; real AWS
+# Lambda does not - it only surfaces a missing/misnamed handler file at
+# invoke time - so this estate would apply cleanly against real AWS and
+# only misbehave if actually invoked, which its disabled schedule means it
+# likely never has been. The script applies the estate byte for byte and
+# pins the exact floci error rather than editing around it; it exits 0 when
+# it reaches exactly that blocker. Filed as item 7 on issue #287. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4703)
+# so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate run against a real emulator: issue #274's step

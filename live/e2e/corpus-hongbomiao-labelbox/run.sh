@@ -1,4 +1,28 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-hongbomiao-labelbox recipe; run with: just demo-run corpus-hongbomiao-labelbox)
+# hongbo-miao/hongbomiao.com's own "Labelbox" integration (live/corpus-
+# manifest.json, pinned by commit - no tag, see that entry's own comment),
+# the SECOND OpenTofu-native estate this goal has crossed and the first to
+# reach all five stages: every file in it, root and leaf modules alike, is
+# genuinely .tofu-suffixed (not just self-described as OpenTofu-native the
+# way corpus-sumaform-aws is) - proven inside the script itself by showing
+# stock terraform sees an empty directory here. Three real, unmodified leaf
+# modules (an S3 bucket, its CORS configuration, an IAM role with an inline
+# S3-read policy trusting Labelbox's own published AWS account), copied
+# byte-identical from the pinned commit; this script supplies its own root
+# wiring in place of the real project's remote-state-coupled environment
+# root, the same convention corpus-sumaform-aws uses for module.base's
+# network. All five stages pass for real: 4 resources cold-deployed, 2
+# stamped (the other 2 are correctly UNTAGGABLE - a schema-admitted,
+# client-named CORS configuration and an inline role policy - and still
+# plan and apply correctly), an empty replan with the state file deleted,
+# a genuine no-op apply, and drift on the bucket's tags reconverging
+# without touching the role. See the script's own header for two real,
+# non-blocking findings (deprecated shadow-attribute drift during
+# verification; an already-documented no-orphan-recovery warning for the
+# schema-admitted CORS type). Needs Docker, the AWS CLI, and the real
+# `tofu` binary (not just `terraform` - see the header for why); runs on
+# its own port (4724).
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json)

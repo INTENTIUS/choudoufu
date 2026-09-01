@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-reference-ec2-vpc recipe; run with: just demo-run reference-ec2-vpc)
+# The reference project: VPC, subnet, internet gateway, security group, EC2
+# instance - the plainest "getting started" AWS shape, checked both
+# directions. GREENFIELD: write it with a live block from the start, apply,
+# every object's markers read back through the AWS CLI directly (not
+# choudoufu's own report), plan empty, plan empty again with the local
+# record_store deleted entirely. ADOPTION: the identical shapes applied
+# first with plain stock terraform (real state, zero markers, confirmed via
+# the AWS CLI), then migrated with "choudoufu live-import -approve" and
+# replanned empty. Not from a corpus - hand-written, no version pins beyond
+# the ordinary #269 gap every other estate needs. Needs Docker and the AWS
+# CLI; runs on two ports (4712, 4713) so it can run beside `just demo`.
 set -uo pipefail
 
 # The reference project: the plainest AWS "getting started" shape anyone

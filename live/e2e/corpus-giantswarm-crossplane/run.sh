@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-giantswarm-crossplane recipe; run with: just demo-run corpus-giantswarm-crossplane)
+# The sixth OpenTofu-native crossing, from a fresh sourcing search:
+# giantswarm/giantswarm-aws-account-prerequisites (live/corpus-manifest.json,
+# pinned by tag v8.2.2 and commit), the crossplane/ module - Giant Swarm's
+# own customer-facing AWS account prerequisites, genuine .tofu files, and
+# the first estate in this lane from a commercial vendor's production
+# repository rather than a module registry, a personal monorepo or a
+# single-maintainer accelerator. All five stages pass for real against the
+# fully unmodified module as of 2026-08-19: test_plan was BLOCKED at exactly
+# 2 sites, both unadmitted *_exclusive enforcer types, and #334 ratified both
+# rows, so the script's own cut-down control stage retired with the block it
+# controlled for. Needs Docker, the AWS CLI, and the real `tofu` binary; runs
+# on its own port (4729).
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json)

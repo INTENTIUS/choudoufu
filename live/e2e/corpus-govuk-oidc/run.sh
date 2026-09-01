@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-govuk-oidc recipe; run with: just demo-run corpus-govuk-oidc)
+# Issue #274's step 6 on a government department's own root module:
+# .corpus/govuk-infrastructure/terraform/deployments/chat-evaluation-ci. Same
+# server-assigned-ARN subject as demo-corpus-oidc-provider and a different
+# estate - GDS's hand-written root rather than a module example - so it adds
+# a provider-level default_tags block the markers have to merge into rather
+# than replace, two names derived from variable defaults, and the #268 delta
+# in its Terraform Cloud `cloud {}` form. Four instances, applied, state file
+# deleted, replanned empty twice, every identity checked as a string against
+# IAM's own answer, and step 7 asserts IAM still holds ONE OIDC provider.
+# BREAK=1 drops the "-policy" suffix off one expected ARN and step 5 must be
+# the only step that goes red. Needs Docker, the AWS CLI, outbound HTTPS to
+# GitHub for the estate's own tls_certificate read, and a populated .corpus;
+# runs on its own port (4693) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real government estate crossed against a real emulator: issue #274's

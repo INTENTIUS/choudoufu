@@ -1,4 +1,31 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-ecs-fargate recipe; run with: just demo-run corpus-ecs-fargate)
+# terraform-aws-modules/terraform-aws-ecs's flagship "fargate" example
+# (v7.6.0, .corpus/ecs/examples/fargate) - Fargate is the most common
+# modern way people run ECS, and this module is the de facto standard way
+# people provision it. 62 real resources: an ECS cluster (Container
+# Insights, a FARGATE/FARGATE_SPOT capacity-provider split), an ECS service
+# behind an ALB with a BLUE_GREEN deployment_configuration, ECS Exec, ECS
+# Service Connect and a two-container task definition (a firelens sidecar
+# reading its image from a real, AWS-published SSM parameter), a second
+# standalone task definition, a CloudMap namespace, an ALB module, a VPC
+# module. Stages 1-2 pass in full (62/62 cold-deployed - the one SSM
+# parameter floci does not mirror from AWS's own public catalog is seeded
+# via the AWS CLI, not edited out of the config -, 43/62 resource instances
+# adopted and two markers, the cluster's and the service's own, verified
+# independently through the AWS CLI); stage 3 refuses outright on two real,
+# itemized gaps - #305's default_*-adopter trio (3 sites, same as other vpc-
+# module crossings) and a new one (#308): the service's container_definition
+# submodule for_each reads a var-chased map whose keys and filter are fully
+# static but whose expression as a whole is not, because one unrelated value
+# in the same map (the fluent-bit sidecar's image) is dynamic. Two real,
+# unrelated floci round-trip gaps (ECS CreateCluster drops `settings`;
+# CreateService/DescribeServices drop scheduling_strategy and half a dozen
+# other fields) were found and filed (lex00/floci#59, #60) but do not block
+# this script - live-import tolerates drift by design, and stage 3 refuses
+# before ever reaching a diff that would show them. See the script's own
+# header for the full breakdown. Needs Docker, the AWS CLI, terraform on
+# PATH, and a populated .corpus; runs on its own port (4790).
 set -uo pipefail
 
 # UPDATE 2026-08-24 (choudoufu/#395 and choudoufu/#376, both fixed): the

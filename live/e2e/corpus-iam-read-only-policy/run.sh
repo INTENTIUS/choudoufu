@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-iam-read-only-policy recipe; run with: just demo-run corpus-iam-read-only-policy)
+# Issue #274's crossing, another of the three smallest untouched real corpus
+# estates: .corpus/iam/examples/iam-read-only-policy, a terraform-aws-modules
+# EXAMPLE using a DIFFERENT iam module than demo-corpus-iam-policy - one that
+# builds its policy from a generated allowed_services matrix rather than a
+# literal document, instantiated three times with only the first
+# contributing a resource (the other two use create_policy = false and
+# create = false respectively). The module's own use_name_prefix defaults to
+# true, so the policy's name is server-assigned (the NAME_PREFIX discovery
+# shape, same as demo-corpus-oidc-provider's role) rather than statically
+# derivable, and the assertion reads the ARN IAM actually minted. No
+# backend, no version pin needed - `version = ">= 6.28"` resolves straight
+# to 6.60.0 clean, the same absence-is-a-finding result demo-corpus-iam-policy
+# found. Applied, state file deleted, replanned empty twice, the rendered
+# identity checked against IAM's own answer. BREAK=1 corrupts the expected
+# identity and the run must catch it in step 5 and nowhere else. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4699)
+# so it can run beside `just demo`.
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-iam's iam-read-only-policy example

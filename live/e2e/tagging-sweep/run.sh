@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-tagging-sweep recipe; run with: just demo-run tagging-sweep)
+# Issue #255's estate-wide tagging sweep end to end: a resource's block
+# deleted, the live resource found through ONE Resource Groups Tagging API
+# call by the command wiring a user actually runs, and a control run showing
+# the per-type fallback cannot see it at all. Needs Docker and the AWS CLI;
+# runs on its own port (4601) so it can run beside `just demo`.
 set -euo pipefail
 
 # GitHub issue #255, end to end against a real emulator.

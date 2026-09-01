@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-records recipe; run with: just demo-run record-store)
+# Issue #73's record-backed lifecycle end to end: a record_store declared, the
+# four RECORD_ADMITTED types created, re-planned clean, replaced and destroyed.
+# No Docker and no AWS - null, time and random are cloud-free providers, so this
+# runs against a local directory in well under a minute. It is the only
+# end-to-end exercise the record-backed class has, which is why it is a recipe
+# rather than a script you have to know about.
 set -euo pipefail
 
 # GitHub issue #73's record-backed behavioral e2e: the LOCAL store variant.

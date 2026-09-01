@@ -1,4 +1,27 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-simpleinfra-dns recipe; run with: just demo-run corpus-simpleinfra-dns)
+# rust-lang/simpleinfra's terraform/dns estate - the Rust project's real
+# production DNS configuration for seven domains it owns, crates.io included.
+# 35 instances, and the split is the point: 7 aws_route53_zone are TAGGABLE
+# and carry markers, 28 aws_route53_record carry no tags at all and must
+# re-derive their identity from their tagged parent zone: 28 of 35 instances,
+# 80%, carry no marker at all. (No claim about the manifest's maximum - that
+# would need every entry counted, and it has not been.)
+#
+# It is not a duplicate of demo-repeated-module, which targets the same
+# .corpus directory for issue #280: that script applies the estate with the
+# live block already declared, so it never cold-deploys, never runs
+# live-import, and has no drift stage. This runs all five. Stage 5 is the one
+# worth reading - it drifts an UNTAGGABLE record set out of band, which no
+# other crossing's drift stage does, so the derived-from-tagged identity has
+# to be right before the drift is even visible.
+#
+# All five stages PASS for real as of 2026-08-19, with three deltas from the
+# published form (backend removed #268, provider pin #269, emulator flags) -
+# the same three .corpus/simpleinfra/terraform/team-members-access needed,
+# minus its fourth: this estate declares no data block anywhere, asserted
+# rather than assumed. Needs Docker, the AWS CLI, and the real `terraform`
+# binary (it is a Terraform-authored estate); runs on its own port (4741).
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json) for

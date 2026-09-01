@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-provisioner-taint recipe; run with: just demo-run provisioner-taint)
+# Issue #353's crossing: a create-time provisioner that FAILS on an ordinary
+# marker-tracked cloud resource. internal/live/stamp marks the object before
+# the create request goes out, so the moment the bucket exists it looks
+# healthy to every later run; the tofu-provisioned namespace is the only
+# thing that says otherwise, and this proves it end to end - the apply
+# fails, the object is live and fully marked, the next plan (with no state
+# file) proposes replacing it, and the provisioner really re-runs, counted
+# from the shell's own side effects rather than from a plan verdict. Also
+# pins the three things that must NOT happen: on_failure = continue records
+# nothing, changing the provisioner's command text between runs changes
+# nothing, and a record must not outlive the failure it describes - the
+# operator deletes the half-built object by hand, the next apply re-creates
+# it and the provisioner succeeds, and the plan after that has to be empty
+# rather than proposing to destroy a healthy bucket. Needs Docker and the
+# AWS CLI; runs on its own port (4742) so it can run beside `just demo`.
 set -euo pipefail
 
 # GitHub issue #353's crossing: a create-time provisioner on a
