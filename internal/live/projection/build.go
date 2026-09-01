@@ -194,6 +194,20 @@ type Options struct {
 	// that makes keeping one safe here and unsafe for stock OpenTofu.
 	StateCache *states.State
 
+	// CacheServesReads is issue #712's gate on [StateCache]: only a run
+	// whose user disabled refresh (-refresh=false) may serve a verified
+	// instance's ATTRIBUTES from the cache instead of reading them. A
+	// default plan reads every instance, exactly as stock's default
+	// refreshes every instance, because a cache hit that substitutes the
+	// read also substitutes drift detection - the smoke's drift-reconverge
+	// step caught a fresh cache hiding an out-of-band retention change,
+	// which is staleness costing results, the one thing the #685 ruling
+	// forbids. Under -refresh=false the trade is the user's own, stock's
+	// own flag names it, and this fork's version is strictly safer than
+	// stock's: the sweep still verified existence and ownership moments
+	// ago, where stock's -refresh=false verifies nothing.
+	CacheServesReads bool
+
 	// ReadParallelism is how many of the read pass's per-instance provider
 	// round trips - one ImportResourceState plus one ReadResource each -
 	// this projection has in flight at once. Zero, the zero value, means

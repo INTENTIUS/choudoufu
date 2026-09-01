@@ -342,6 +342,13 @@ func (b *builder) cacheHit(w wanted, prep readPrep) *readFetch {
 	if b.opts.StateCache == nil {
 		return nil
 	}
+	// Issue #712: a default plan reads every instance - the read IS drift
+	// detection, and only -refresh=false (Options.CacheServesReads) opts
+	// into serving attributes from the cache, the same trade stock's own
+	// flag makes, made safer by the sweep's existence-and-ownership vouch.
+	if !b.opts.CacheServesReads {
+		return nil
+	}
 	// Verified is the tag index's own answer. Without it there is nothing to
 	// check the cache against, so there is no hit.
 	if !b.opts.Ownership.verified(w.addr) {

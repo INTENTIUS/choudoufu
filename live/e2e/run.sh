@@ -1216,8 +1216,25 @@ else
     --description "unmanaged, no tofu-estate marker" --vpc-id "$VPC_ID" --query 'GroupId' --output text)"
   [ -n "$FOREIGN_SG" ] || fail "foreign-protected" "could not create the unmarked security group"
 
+  # The CollectUnclaimed ruling (#604): a plain run does not ask the
+  # account-inventory question - aws_security_group scans server-side
+  # estate-filtered, so an unmarked object is invisible to it - and the
+  # run that did not ask must SAY so. This half pins both facts, and it
+  # is what this step silently stopped testing for the ~10 days nothing
+  # ran this script after the ruling landed.
+  OUT_DEFAULT="$(cd "$MAIN" && tf live-plan -input=false -no-color 2>&1)" || fail "foreign-protected" "default live-plan failed: $OUT_DEFAULT"
+  if grep -q "$FOREIGN_SG" <<< "$OUT_DEFAULT"; then
+    fail "foreign-protected" "the unmarked SG appeared on a run that never asked the account-inventory question - the #604 narrowing is not narrowing"
+  fi
+  grep -qE '^Not swept for removal: [0-9]+ resource types' <<< "$OUT_DEFAULT" \
+    || fail "foreign-protected" "the narrowed run does not say what it did not sweep - #604 requires the run that did not ask to say so"
+  echo "  default run: unmarked SG invisible and the plan says so (Not swept present) - #604's narrowing, both halves"
+
+  # The opted-in run is the original contract: the foreign SG is
+  # reported, as foreign, in the Foreign section, and nothing is
+  # proposed for delete.
   STEP7_T0=$(date +%s)
-  OUT="$(cd "$MAIN" && tf live-plan -input=false -no-color 2>&1)" || fail "foreign-protected" "live-plan failed: $OUT"
+  OUT="$(cd "$MAIN" && TOFU_LIVE_COLLECT_UNCLAIMED=1 tf live-plan -input=false -no-color 2>&1)" || fail "foreign-protected" "opted-in live-plan failed: $OUT"
   STEP7_T1=$(date +%s)
 
   # Sanity check 1: the assertion mechanism only means something if $OUT is
@@ -1679,7 +1696,31 @@ else
     --query "length(Addresses[?Tags[?Key=='tofu-estate' && Value=='stateless-e2e']])" --output text)"
   [ "$MAIN_EIP_COUNT_AFTER" = "$MAIN_EIP_COUNT_BEFORE" ] \
     || fail "plain-plan-works" "the main estate's EIP count changed after the estate-block apply: $MAIN_EIP_COUNT_BEFORE -> $MAIN_EIP_COUNT_AFTER"
-  echo "  plain apply: 7 added; main estate untouched (VPC $MAIN_VPC_ID, EIP count $MAIN_EIP_COUNT_AFTER unchanged); no state file"
+  echo "  plain apply: 7 added; main estate untouched (VPC $MAIN_VPC_ID, EIP count $MAIN_EIP_COUNT_AFTER unchanged); no authoritative state file"
+
+  # ── 11's cache half: the #685 ruling, live ──────────────────────────
+  # Plain apply writes the cache by default; deleting it must change
+  # nothing about the next plan. This is the smoke-level twin of the
+  # unit guard TestCacheConditionsPlanIdentically, and it has to run
+  # HERE, before this step's teardown dismantles the live estate - a
+  # first placement after teardown failed exactly the way it should
+  # have, by comparing plans of a demolished estate.
+  CACHE11="$WORK11/.terraform/choudoufu-cache.tfstate"
+  [ -f "$CACHE11" ] \
+    || fail "plain-plan-works" "plain apply wrote no cache at $CACHE11 - the #685 ruling makes the cache the default, not an opt-in"
+  OUT_C1="$(cd "$WORK11" && "$TOFU" plan -input=false -no-color 2>&1 | grep -v '^discovering:')" \
+    || fail "plain-plan-works" "plan with the cache present failed"
+  grep -q "No changes." <<< "$OUT_C1" \
+    || fail "plain-plan-works" "the cache-equality comparison needs a genuinely empty plan and did not get one: $OUT_C1"
+  rm -f "$CACHE11"
+  OUT_C2="$(cd "$WORK11" && "$TOFU" plan -input=false -no-color 2>&1 | grep -v '^discovering:')" \
+    || fail "plain-plan-works" "plan with the cache deleted failed"
+  [ "$OUT_C1" = "$OUT_C2" ] \
+    || fail "plain-plan-works" "deleting the cache changed the plan output - staleness is supposed to cost reads, never results"
+  # Deliberately NOT asserted: that a plan rewrites the cache. Only the
+  # apply state hook (and the interrupt path) persist, checked against
+  # backend/local's PersistState call sites.
+  echo "  cache written by plain apply; deleting it changed nothing - staleness costs reads, never results"
 
   # 2. Live markers, read via the AWS CLI, never via choudoufu: the claim is that
   # the ownership record is on the resource, so asking choudoufu to confirm its
@@ -2264,6 +2305,13 @@ unadmitted-type:unadmitted-type
 markerless-type:markerless-type
 count-index-in-tag:count-index
 foreach-invalid-key:for-each-key
+reserved-symbol:reserved-symbol
+strict-marker-repair:strict-marker-repair
+strict-markers:strict-markers
+strict-markers-unrecordable:strict-markers-unrecordable
+strict-no-source-create:strict-no-source-create
+strict-secrets:strict-secrets
+strict-secrets-refusal:logical-resource
 overlong-address:overlong-address
 ignore-changes:ignore-changes
 module-providers:module-providers
@@ -2360,7 +2408,11 @@ cloud-block:state-backend"
     # alone is enough for them. Full "init" resolves providers from the
     # registry (the same network access step 2's stock init+apply already
     # requires) and installs the module in one pass.
-    if [ "$LDIR" = "child-live-config" ]; then
+    # strict-secrets-refusal is the same class: random_password's
+    # SECRET_REFUSED classification needs hashicorp/random's resolved
+    # schema, so with only a copy the run refuses earlier and differently
+    # (dependency lock) before RuleLogicalResource can fire.
+    if [ "$LDIR" = "child-live-config" ] || [ "$LDIR" = "strict-secrets-refusal" ]; then
       run_tf "$LINT_WORK" init -input=false -no-color
       [ "$TF_RC" -eq 0 ] \
         || fail "lint-rejects" "$LDIR: choudoufu init could not resolve providers/modules: $TF_OUT"
