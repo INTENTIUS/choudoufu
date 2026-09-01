@@ -1,0 +1,32 @@
+# The against-a-real-service tier (issue #691): every flocitest.Gate'd
+# test, run nightly against the pinned emulator, failing red rather than
+# tee'ing into || true. live/floci_tier_gate_test.go asserts this file
+# exists and that the Makefile recipe it runs covers the whole gated
+# roster, so neither half can silently rot.
+name: floci-tier
+
+on:
+  schedule:
+    - cron: "43 4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floci-tier
+  cancel-in-progress: false
+
+jobs:
+  test-floci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Run the floci tier
+        run: make test-floci
