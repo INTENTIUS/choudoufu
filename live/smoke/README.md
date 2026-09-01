@@ -100,6 +100,15 @@ showing its own checks would have caught it.
   control makes only the SSM store unreachable (the provider stays
   healthy) and proves the run refuses by name instead of planning an
   empty-looking estate - the #693 failure class, permanently on watch.
+- **recovery-is-a-rerun** - *Claim 5: recovery is a re-run, never
+  surgery.* An apply that died after its first create call (resource
+  made, markers stamped, run gone) recovers by being run again: the plan
+  binds the crashed vpc by its marker, builds the rest around it, and
+  duplicates nothing; then every local file is deleted and the next plan
+  is still clean, with the narration noting the disposable cache is the
+  one file allowed to hold attribute material. The BREAK control
+  withholds the markers - the re-run must refuse to bind and build a
+  second vpc, stock's crash behavior surfacing as the claim's boundary.
 
 ## Knobs
 
