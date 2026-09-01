@@ -263,6 +263,15 @@ analyze_debug_log() {
   local f="$1"
   local bytes throttle retry pagination
   bytes="$(wc -c < "$f" | tr -d ' ')"
+  # Known bound, deliberately not "fixed": this counts LINES, and a raw XML
+  # error body that puts <Code>Throttling</Code> and <Message>Rate
+  # exceeded</Message> on separate lines is caught once, by the message. A
+  # body carrying the code and no recognised message counts zero. Adding
+  # '<Code>Throttling</Code>' to the alternation was tried and reverted: it
+  # makes the common two-line body count 2 for one throttle, which corrupts
+  # the number far more than the gap it closes. The count is a lower bound,
+  # and it is applied identically to both binaries, so a comparison between
+  # them stays sound even where the absolute is short.
   throttle="$(grep -cE 'ThrottlingException|Throttling:|TooManyRequestsException|Rate exceeded|PriorRequestNotComplete|RequestLimitExceeded' "$f" 2>/dev/null || true)"
   retry="$(grep -iE 'retry|retrying|backoff|backing off' "$f" 2>/dev/null | grep -vi 'unretryable' | wc -l | tr -d ' ')"
   pagination="$(grep -icE 'NextToken|Marker=|IsTruncated=true|nextMarker' "$f" 2>/dev/null || true)"
@@ -780,6 +789,18 @@ instrumented_plan() {
   printf '%s\n' "$out" > "$WORK/apicalls_${label}.out"
   log "  ${label}: instrumented plan took ${secs}s (${verdict}); NOT a timing measurement - TF_LOG=DEBUG is on"
   analyze_api_calls "$label" "$f"
+
+  # The same capture also answers "was this side throttled", and until now
+  # nothing asked it. analyze_debug_log ran only on cold_deploy's apply,
+  # migrate's tag writes and test_plan - so every throttle count this harness
+  # has ever printed for a PLAN belongs to choudoufu, and stock's plan-side
+  # count did not exist. That made the two sides incomparable exactly where
+  # the comparison matters: stock's apply (writes) against choudoufu's plan
+  # (reads) is not a like-for-like pairing. One call, both labels, no extra
+  # AWS request - the log is already on disk.
+  read -r _b _t _r _p <<< "$(analyze_debug_log "$f")"
+  log "  ${label}: plan-side throttling: ${_t} throttling-error line(s), ${_r} retry line(s), ${_p} pagination-continuation line(s) in ${_b}B"
+  printf '%s %s %s %s %s\n' "$label" "$_b" "$_t" "$_r" "$_p" >> "$WORK/plan_throttle_by_label.txt"
 }
 
 # ══════════════════════════════════════════════════════════════════════

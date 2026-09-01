@@ -16,8 +16,8 @@ on which of three things the run is doing:
 | The run | What it costs against stock OpenTofu | Measured on |
 |---|---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
-| A plan of an estate already adopted, `live` block on | API calls at parity: **-3 on 1416** at 745 resources | real AWS |
-| The same plan, in seconds | **1.55x** at 79 resources, **2.4x to 3.0x** at 745 | real AWS |
+| A plan of an estate already adopted, `live` block on | API calls at parity, or slightly fewer: **-3 on 1416**, then **-45 on 1449** | real AWS |
+| The same plan, in seconds | **1.55x** at 79 resources, **about 3x** at 745 | real AWS |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
@@ -137,13 +137,14 @@ concurrency and narrowing work. Both sides no-change plans on every run:
 | Resources | stock | choudoufu, steady state | Difference |
 |---|---|---|---|
 | 79 | 149 | 155 | +6 (+4.0%) |
-| 745 | 1416 | **1413** | **-3 (-0.2%)** |
+| 745, session 1 | 1416 | **1413** | **-3 (-0.2%)** |
+| 745, session 2 | 1449 | **1404** | **-45 (-3.1%)** |
 
-Re-measured at `d359210978`. **At 745 resources choudoufu now makes fewer
-provider requests than stock**, which supersedes the +7 this table carried
-before. Per-operation the two are near-identical: `ListAttachedRolePolicies`
-325 against 324, `GetRole` 215 against 211. The one real difference is
-`DescribeTaskDefinition`, 21 against 10.
+Re-measured at `d359210978`. **At 745 resources choudoufu makes fewer provider
+requests than stock**, in both sessions, which supersedes the +7 this table
+carried before. Per-operation the two are near-identical:
+`ListAttachedRolePolicies` 325 against 324, `GetRole` 215 against 211. The one
+real difference is `DescribeTaskDefinition`, 21 against 10.
 
 Note before anything else that the 79-resource row disagrees with the emulator
 row above it: +16 against +7 on the same fixture at the same scale. Do not
@@ -414,42 +415,68 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: 1.55x at 79 resources, and a 2.4x to 3.0x band at 745
+## Wall clock: 1.55x at 79 resources, about 3x at 745
 
 This is the number that will decide whether you can live with the fork.
 
-Real AWS, account `...3429`, `us-east-2`, measured at `d359210978`. Same
-machine and session, minutes apart, warm provider on both sides, `TF_LOG`
-unset inside every timed region. All twelve runs are no-change plans, each
-verified by reading `No changes. Your infrastructure matches the
-configuration.` out of that plan's own output rather than from an exit code:
+Real AWS, account `...3429`, `us-east-2`, at `d359210978`. Warm provider on
+both sides, `TF_LOG` unset inside every timed region, every run a no-change
+plan verified by reading `No changes. Your infrastructure matches the
+configuration.` out of that plan's own output rather than from an exit code.
+The 745 row pools two independent sessions, six runs a side:
 
 | Resources | stock `terraform plan` | `choudoufu plan` | median | mean |
 |---|---|---|---|---|
 | 79 | 4, 3, 4 s | **6, 5, 6 s** | 1.50x | **1.55x** |
-| 745 | 17, 20, 41 s | **59, 84, 46 s** | 2.95x | 2.42x |
+| 745, session 1 | 17, 20, 41 s | 59, 84, 46 s | 2.95x | 2.42x |
+| 745, session 2 | 19, 41, 18 s | 67, 132, 58 s | 3.53x | 3.29x |
+| **745, pooled** | 17-41 s | **46-132 s** | **3.23x** | **2.86x** |
 
-**At 745 read both columns as ranges, not numbers.** Stock spreads 17 to 41 s,
-which is 141%, and choudoufu 46 to 84 s, which is 83%. The honest statement
-there is a band of roughly **2.4x to 3.0x**, and a second session could
-plausibly land outside it. The variance is not instrument noise: the harness
-logged 162 throttling lines during migrate and 23 during the plan stage at
-this size, against 1 and 0 at scale 1.
+**Read 745 as "about 3x" and no more precisely than that.** The two sessions
+disagree, 2.42x against 3.29x on the means, and the spread inside a single
+session reaches 141% on the stock side. An earlier version of this page
+published a 2.4x to 3.0x band from session 1 alone; session 2 landed above it.
+Stock's mean was 26.0 s in both sessions, so the movement is all on the
+choudoufu side, whose mean rose by roughly a third between them.
 
 At 79 resources both spreads sit under 50%, so a single figure is defensible,
 but the timer has whole-second resolution and the plans run 3 to 6 seconds, so
 one tick is a third of the value. Treat 1.55x as coarse.
 
-Both figures supersede an emulator measurement that read 1.33x median and
-1.18x mean at scale 1. Real AWS is higher on both statistics. The emulator
-number is not repeated here, because a rig validated against one cell is not
-evidence once that cell has been measured directly.
+### What the 3x is not
 
-**What is not explained.** At 745 resources choudoufu issues three *fewer*
-provider requests than stock and takes about two and a half times as long.
-Call volume cannot account for it, and this run did not diagnose where the
-time goes. It is the largest open quantity on this page. Do not let anyone
-tell you it is the API calls.
+Four candidate explanations have been measured and eliminated. Each is a
+negative result with a control behind it, and together they are the reason
+this page will not offer you a mechanism.
+
+**It is not the API calls.** choudoufu issues *fewer* provider requests than
+stock at this size, in both sessions: 1413 against 1416, then 1404 against
+1449. The per-operation breakdown is in the table higher up this page.
+
+**It is not request serialisation.** Against the pinned emulator behind a
+100 ms latency proxy, both binaries run ten requests in flight at 745
+resources, with 62 of 1392 adjacent pairs non-overlapping on the choudoufu
+side. The rig is not blind to the opposite result: forced to
+`TOFU_LIVE_READ_PARALLELISM=1`, the same measurement reports 1391 of 1392
+non-overlapping. Raising that knob to 40 makes choudoufu *faster* than stock
+on the emulator, so the read pass is nowhere near a ceiling.
+
+**It is not compute.** At 745 resources CPU is 7.99 s for choudoufu against
+6.11 s for stock, over twenty runs a side. That 1.88 s is 4.5% of the gap, and
+most of the absolute is stock's, so compute at this size is a property of the
+estate rather than of the fork.
+
+**It is not throttling, and this one runs backwards.** Both plans were
+instrumented in the same session, minutes apart. Stock was throttled **76**
+times against choudoufu's **15**, concentrating on one hosted zone's
+account-wide limit, with 56 of those 76 in Route 53. Measured backoff covered
+84.5% of stock's log span against choudoufu's 57.4%. So the faster binary is
+the one carrying five times the throttling headwind, which rules throttling
+out as the cause of the gap.
+
+That leaves the gap real, reproduced across two sessions, and unexplained by
+any mechanism this project has been able to instrument. It is the largest open
+quantity here. What is known is what it is not.
 
 ### And an emulator cannot answer this question
 
