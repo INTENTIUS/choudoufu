@@ -191,8 +191,12 @@ func statelessBegin(
 
 	runner := &statelessRunner{
 		settings: settings,
-		lib:      local.ContextOpts.Plugins,
-		mgr:      mgr,
+		// Issue #712: -refresh=false is the only door to cache-served
+		// reads; a default plan or apply (PlanRefresh true) reads every
+		// instance, so drift is always visible.
+		cacheServesReads: !opReq.PlanRefresh,
+		lib:              local.ContextOpts.Plugins,
+		mgr:              mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
@@ -574,6 +578,14 @@ type statelessRunner struct {
 	// account-inventory question at all. See [collectUnclaimedSetting],
 	// which this is the default argument to.
 	adoptionOnly bool
+
+	// cacheServesReads is issue #712's capture of the operation's refresh
+	// setting: true only when the user passed -refresh=false, which is the
+	// sole condition under which the state cache may stand in for a
+	// verified instance's per-instance read. Captured at [statelessBegin]
+	// from opReq.PlanRefresh because the runner never sees the operation
+	// again - the same reason targets and excludes below are copied.
+	cacheServesReads bool
 
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
@@ -1007,8 +1019,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
 		// a cache is an optimisation, so every failure to load one is a
 		// missing optimisation and never a failed run.
-		StateCache:  loadStateCache(),
-		RecordStore: r.recordStore,
+		StateCache: loadStateCache(),
+		// Issue #712: only -refresh=false lets the cache stand in for
+		// the per-instance reads; a default plan reads, so drift on a
+		// verified instance is always visible. opReq.PlanRefresh is
+		// captured at statelessBegin.
+		CacheServesReads: r.cacheServesReads,
+		RecordStore:      r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the
