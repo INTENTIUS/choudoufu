@@ -1060,29 +1060,6 @@ if [ "$TARGET" = "aws" ]; then
   fi
 fi
 
-log "=== 4a3. state cache: written by the apply, and USED by the next plan (#685) ==="
-# The cache half of the state model. A cache that is written and never
-# consulted is indistinguishable from a working one in every other line of
-# this log, which is exactly the state this fork shipped for months while its
-# documentation described a cache. So both halves are asserted, and a hit
-# count of zero fails rather than warns.
-if [ -n "${CHOUDOUFU_STATE_CACHE:-}" ]; then
-  if [ ! -s "$CHOUDOUFU_STATE_CACHE" ]; then
-    fail "state cache enabled at $CHOUDOUFU_STATE_CACHE and nothing was written there"
-  fi
-  cache_bytes="$(wc -c < "$CHOUDOUFU_STATE_CACHE" | tr -d " ")"
-  log "  cache written: ${cache_bytes}B at $CHOUDOUFU_STATE_CACHE"
-  # The plan logs one line per build that was given a cache, including zero.
-  cache_hits="$(grep -oE "state cache supplied [0-9]+ instance" "$PLAN_LOG" 2>/dev/null | grep -oE "[0-9]+" | tail -1)"
-  if [ -z "$cache_hits" ]; then
-    fail "the plan never reported a state-cache result; the cache was written but the plan did not load it"
-  fi
-  log "  cache USED: the plan answered $cache_hits instance(s) from it instead of reading"
-  [ "$cache_hits" -gt 0 ] || fail "the state cache was written and loaded and supplied 0 instances - written, not used"
-else
-  log "  state cache: CHOUDOUFU_STATE_CACHE unset, so the cache half is NOT under test in this run"
-fi
-
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
   read -r PLAN_LOG_BYTES THROTTLE_HITS RETRY_LINES PAGINATION_HITS <<< "$(analyze_debug_log "$PLAN_LOG")"
@@ -1168,6 +1145,38 @@ AFTER_N="$(livecert_aws resourcegroupstaggingapi get-resources \
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
+
+log "=== 5b. state cache: written by the apply, and USED by the plan after it (#685) ==="
+# Placement matters and the first attempt got it wrong. test_apply (stage 5)
+# is the first choudoufu APPLY, so it is the first thing that can write a
+# cache - a check before it would have asserted against a file that cannot
+# exist yet. This runs one more plan, after the apply, which is the first plan
+# in the whole harness that has a cache to read.
+#
+# A cache that is written and never consulted is indistinguishable from a
+# working one in every other line of this log, which is the state this fork
+# shipped for months while its documentation described a cache. So all three
+# halves are asserted and zero hits FAILS rather than warns.
+if [ -n "${CHOUDOUFU_STATE_CACHE:-}" ]; then
+  [ -s "$CHOUDOUFU_STATE_CACHE" ] \
+    || fail "state cache enabled at $CHOUDOUFU_STATE_CACHE and the apply wrote nothing there"
+  log "  written: $(wc -c < "$CHOUDOUFU_STATE_CACHE" | tr -d " ")B at $CHOUDOUFU_STATE_CACHE"
+
+  CACHE_LOG="$WORK/cache_plan.debug.log"
+  CACHE_OUT="$(cd "$ADOPTED_DIR" && TF_LOG=DEBUG TF_LOG_PATH="$CACHE_LOG" "$TOFU" plan -input=false -no-color 2>&1)"; CACHE_RC=$?
+  [ "$CACHE_RC" -eq 0 ] || { printf '%s\n' "$CACHE_OUT" | tail -20; fail "the post-apply plan exited $CACHE_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$CACHE_OUT" \
+    || fail "the post-apply plan was not empty, so a cache hit count from it would not be comparable"
+
+  CACHE_HITS="$(grep -oE "state cache supplied [0-9]+ instance" "$CACHE_LOG" 2>/dev/null | grep -oE "[0-9]+" | tail -1)"
+  [ -n "$CACHE_HITS" ] \
+    || fail "the plan never reported a state-cache result; the cache was written but the plan did not load it"
+  log "  USED: the post-apply plan answered $CACHE_HITS instance(s) from the cache instead of reading them"
+  [ "$CACHE_HITS" -gt 0 ] \
+    || fail "the state cache was written and loaded and supplied 0 instances - written, not used"
+else
+  log "  CHOUDOUFU_STATE_CACHE unset, so the cache half is NOT under test in this run"
+fi
 
 CURRENT_STAGE=""
 gauntlet_end
