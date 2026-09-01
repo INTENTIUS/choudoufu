@@ -28,6 +28,7 @@ fail proves nothing, so every claim ships with its failure demonstrated.
 | Recovery is a re-run, never surgery | `just smoke recovery-is-a-rerun` | 2 min |
 | The roundtrip: one command in, one file out | `just smoke roundtrip` | 3 min |
 | Identity is a tag you can read and move | `just smoke identity-is-a-tag` | 3 min |
+| Stock until you say otherwise | `just smoke stock-until-you-say-otherwise` | 3 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
@@ -330,6 +331,49 @@ The `BREAK=1` run skips `live-mv` after the code rename. The live vpc
 still wears the old address, so the plan must treat the new name as
 missing and the old one as orphaned - stock's destroy-and-recreate,
 demonstrated as what the retag saves you from.
+
+## Claim 8: stock until you say otherwise
+
+A configuration with no live block gets stock behavior - measured, not
+promised. The scenario plans the same state-backed estate with choudoufu
+and with the pinned stock oracle, side by side with debug logging on:
+the plan texts match and so do the request counts, exactly. And once you
+do turn the live block on, what you pay scales with your estate rather
+than the account around it.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info) and the AWS CLI is installed. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
+https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+
+  just smoke stock-until-you-say-otherwise
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke stock-until-you-say-otherwise and report the
+"caught" line: it runs the choudoufu leg with the live block ON, and
+the measurement must show the difference.
+```
+
+The steps as they print:
+
+1. `a stock estate, stood up by choudoufu with no live block` - the
+   fixture's live block is removed and choudoufu applies the ordinary
+   way: a real `terraform.tfstate`, no markers, no hooks.
+2. `same plan, same requests` - choudoufu and the pinned oracle each
+   plan the estate with `TF_LOG=debug`; the scenario asserts the
+   filtered plan texts are equal and the request counts identical.
+   This is the #588 parity measurement as a two-minute demo.
+3. `say otherwise - and pay for your estate, not your account` - the
+   live estate goes up and its plan's request count is measured. Twenty
+   foreign resources then appear in the account and the count is
+   measured again; it must not move.
+4. `teardown` - estate and clutter both removed.
+
+The `BREAK=1` run plans the choudoufu leg with the live block on. The
+asked-for machinery must show up in the measurement - a live plan that
+measured identical to stock would mean the parity comparison compares
+nothing.
 
 ## Reading a run
 
