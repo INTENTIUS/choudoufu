@@ -25,9 +25,10 @@ names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
 never combined.
 
-The 1.3x is the one figure here not yet taken on a real account. It is scale 1
-only, and [Wall clock](#wall-clock-about-13x-at-scale-1-and-unmeasured-above-it)
-says what it rests on.
+The seconds are the least settled figure here. Three independent real-AWS
+sessions at 745 resources land between 2.05x and 3.53x on the median, and
+[Wall clock](#wall-clock-155x-at-79-resources-about-3x-at-745-and-now-a-mechanism)
+gives all three alongside what is now known about where the time goes.
 
 ## With no live block, nothing at all
 
@@ -415,7 +416,7 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: 1.55x at 79 resources, about 3x at 745
+## Wall clock: 1.55x at 79 resources, about 3x at 745, and now a mechanism
 
 This is the number that will decide whether you can live with the fork.
 
@@ -430,36 +431,74 @@ The 745 row pools two independent sessions, six runs a side:
 | 79 | 4, 3, 4 s | **6, 5, 6 s** | 1.50x | **1.55x** |
 | 745, session 1 | 17, 20, 41 s | 59, 84, 46 s | 2.95x | 2.42x |
 | 745, session 2 | 19, 41, 18 s | 67, 132, 58 s | 3.53x | 3.29x |
-| **745, pooled** | 17-41 s | **46-132 s** | **3.23x** | **2.86x** |
+| 745, session 3 | 19, 45, 22 s | 34, 45, 50, 63, 37 s | 2.05x | 1.60x |
+| **745, pooled** | 17-45 s | **34-132 s** | **2.90x** | **2.28x** |
 
-**Read 745 as "about 3x" and no more precisely than that.** The two sessions
-disagree, 2.42x against 3.29x on the means, and the spread inside a single
-session reaches 141% on the stock side. An earlier version of this page
-published a 2.4x to 3.0x band from session 1 alone; session 2 landed above it.
-Stock's mean was 26.0 s in both sessions, so the movement is all on the
-choudoufu side, whose mean rose by roughly a third between them.
+**Read 745 as "about 3x" and no more precisely than that.** Three independent
+sessions land at 2.95x, 3.53x and 2.05x on the median, and the spread inside a
+single session reaches 141% on the stock side. An earlier version of this page
+published a 2.4x to 3.0x band from session 1 alone; session 2 came in above it
+and session 3 below it. The pooled median is 2.90x and the pooled mean 2.28x,
+which is the honest width of what nine stock runs and eleven choudoufu runs
+support.
 
 At 79 resources both spreads sit under 50%, so a single figure is defensible,
 but the timer has whole-second resolution and the plans run 3 to 6 seconds, so
 one tick is a third of the value. Treat 1.55x as coarse.
 
+### Where the seconds go
+
+A wall-clock block profile of a real-AWS plan at 745 resources puts the cost
+on one frame. The goroutine running the plan blocks for 49.72 s of a 51 s run,
+and 46.14 s of that is a single channel receive:
+
+| Blocked in | seconds |
+|---|---|
+| `statelessRunner.PriorState` | 48.97 |
+| `projection.BuildWith` → `builder.materialize` | 46.49 |
+| `builder.applyRecordFirst` → `readFor` | 46.22 |
+| **`readPrefetch.take`, waiting on one read's answer** | **46.14** |
+| `discovery.Discover` → `scanType`, the estate sweep | 2.05 |
+
+Two things to take from that. **The estate-wide sweep, the mechanism this fork
+exists for, costs 2.05 s of a 51 s plan.** And the read pass is running at an
+effective concurrency of **3.8 against a configured bound of 10**: its 745
+workers block 176.25 s in aggregate, compressed into 46.14 s of wall clock.
+
+The read pass takes its answers strictly in order. A slot is claimed before
+each read and released only when the plan consumes *that* instance's answer,
+so a single slow read does not occupy one slot, it stops the window advancing.
+Measured on a real account, one `aws_route53_record` in SDK backoff stalled all
+745 reads for 10.7 seconds with no request, no response and no log line in
+between. Requests in flight fell to zero and stayed there until it cleared.
+
+What matters is the amplification. A retry costs stock **0.09 s** of pipeline
+dead air and costs choudoufu **1.06 s**, because stock's graph walk lets
+independent work proceed past a throttled read where an in-order prefetch
+cannot. Over a whole plan that leaves choudoufu with **22.9 s of 42.8 s in
+which nothing at all is in flight**, against stock's 12.2 s of 40.7 s.
+
+This is [issue #683](https://github.com/INTENTIUS/choudoufu/issues/683), and it
+is a defect rather than a design limit. What it is *not* known to be is the
+whole of the ratio: the two plans profiled per-request ran only 1.06x apart,
+so the mechanism is proven and its share is not.
+
 ### What the 3x is not
 
-Four candidate explanations have been measured and eliminated. Each is a
-negative result with a control behind it, and together they are the reason
-this page will not offer you a mechanism.
+Four candidate explanations were measured and eliminated on the way to that,
+and each remains a useful negative with a control behind it.
 
 **It is not the API calls.** choudoufu issues *fewer* provider requests than
-stock at this size, in both sessions: 1413 against 1416, then 1404 against
-1449. The per-operation breakdown is in the table higher up this page.
+stock at this size, in every session: 1413 against 1416, 1404 against 1449,
+then 1409 against 1460. The per-operation breakdown is in the table higher up
+this page.
 
-**It is not request serialisation.** Against the pinned emulator behind a
-100 ms latency proxy, both binaries run ten requests in flight at 745
-resources, with 62 of 1392 adjacent pairs non-overlapping on the choudoufu
-side. The rig is not blind to the opposite result: forced to
-`TOFU_LIVE_READ_PARALLELISM=1`, the same measurement reports 1391 of 1392
-non-overlapping. Raising that knob to 40 makes choudoufu *faster* than stock
-on the emulator, so the read pass is nowhere near a ceiling.
+**It is not request serialisation, and peak concurrency is why this took so
+long to find.** Both binaries reach ten requests in flight at 745 resources,
+on the emulator and on real AWS. Ten reads really are outstanding; they just
+cannot retire, so the peak statistic reads clean while the mean sits at 2.97
+against stock's 3.35. Anyone checking this needs to measure occupancy over
+time, not the peak.
 
 **It is not compute.** At 745 resources CPU is 7.99 s for choudoufu against
 6.11 s for stock, over twenty runs a side. That 1.88 s is 4.5% of the gap, and
@@ -471,12 +510,13 @@ instrumented in the same session, minutes apart. Stock was throttled **76**
 times against choudoufu's **15**, concentrating on one hosted zone's
 account-wide limit, with 56 of those 76 in Route 53. Measured backoff covered
 84.5% of stock's log span against choudoufu's 57.4%. So the faster binary is
-the one carrying five times the throttling headwind, which rules throttling
-out as the cause of the gap.
+the one carrying five times the throttling headwind.
 
-That leaves the gap real, reproduced across two sessions, and unexplained by
-any mechanism this project has been able to instrument. It is the largest open
-quantity here. What is known is what it is not.
+That last one was nearly a wrong answer. Comparing throttle *counts* says
+throttling cannot be the cause, and comparing what a throttle *costs* says the
+opposite: stock absorbs five times as many and pays a tenth as much for each.
+The defect is not that choudoufu is throttled. It is that choudoufu cannot
+absorb being throttled.
 
 ### And an emulator cannot answer this question
 
