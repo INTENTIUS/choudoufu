@@ -41,16 +41,16 @@ The stamp pass writes `tofu-estate` and `tofu-address` into the resource's own
 `tags` argument. For most types the AWS provider carries tags on the create
 call, which is what puts `aws:RequestTag` in the request for this condition to
 read. Where a service cannot tag on create, the provider tags immediately
-afterwards, the key is absent from the create, and this Deny stops a legitimate
-one.
+afterwards; the key is then absent from the create call, and this Deny stops a
+legitimate one.
 
 Name the actions you have confirmed. Do not reach for a wildcard and find out
 in production.
 
 ## It governs more than choudoufu
 
-The policy conditions the create call, not the tool, so it applies to the
-console, the CLI, another pipeline, and anything else with credentials. That is
+The policy conditions the create call rather than the tool, so it applies to
+anything with credentials - the console, the CLI, another pipeline. That is
 the point. A resource created by hand either carries an estate tag or does not
 get created.
 

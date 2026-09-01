@@ -21,8 +21,8 @@ collision.
 
 Compare a backend whose lock fails or was never configured, where the last
 state write wins and the loser's resource drops silently out of every future
-plan. A crash mid-apply is the same story, lock or no lock, because a resource
-created but not yet recorded is orphaned either way. Under markers the tag rode
+plan. A lock does not help with a crash mid-apply either: a resource created
+but not yet recorded is orphaned either way. Under markers the tag rode
 the create call itself, so the resource is discoverable and there is nothing to
 unlock or recover.
 

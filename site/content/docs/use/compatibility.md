@@ -36,10 +36,11 @@ three admission paths.
 
 ### Readiness tiers
 
-Admission is not the whole story. `the tier definitions (#417)` names
+Beyond admission, `the tier definitions (#417)` names
 four tiers by what recovers a type's identity when the record store, the
-state file, or the tool itself is gone: marker-carried, declaration-carried,
-record-carried, and excluded by design. `live/readiness.json` assigns every
+state file, or the tool itself is gone. Three tiers name the carrier
+(marker-carried, declaration-carried, record-carried); the fourth is excluded
+by design. `live/readiness.json` assigns every
 provider type exactly one tier and one of six statuses; the table below is
 generated from it. `live/COVERAGE.md` carries the same table with more
 context, and [Resource tier lookup]({{< relref "/docs/use/resource-tiers"
@@ -131,11 +132,10 @@ each colliding with an escaping rule this fork does not own:
 An empty key is refused too. An escaped address ending in a bare `:` does not
 parse back as a marker.
 
-One case is narrower. When the `for_each` expression itself cannot be read
-statically, because it is rooted at a data source, another resource, or
-anything else known only once the cloud has been read, the stamping pass
-cannot build the per-key escape table, so the key set narrows back to the
-unescaped one: letters, digits, space and
+One case is narrower. When the `for_each` expression itself is rooted at a
+data source or another resource - anything known only once the cloud has been
+read - the stamping pass cannot build the per-key escape table, so the key
+set narrows back to the unescaped one: letters, digits, space and
 <!-- markerkey:extras -->`+` `-` `=` `.` `_` `:` `/` `@`<!-- /markerkey:extras -->
 ([#227](https://github.com/INTENTIUS/choudoufu/issues/227)).
 
@@ -146,7 +146,7 @@ lint and the resolver, read it from there, so the two cannot drift.
 
 Where the name in configuration is the identity, that argument must resolve
 before a provider is called. An expression containing **no managed-resource
-reference** is statically evaluated, and that covers a lot: literals, string
+reference** is statically evaluated - and that covers literals, string
 templates, input variables, locals, functions, `path.*`,
 `terraform.workspace`, module outputs, data-source results, and arbitrary
 composition of those. All three of these resolve:
@@ -164,12 +164,12 @@ An expression that **does** reference a managed resource takes one of two
 routes instead. By default it is matched structurally: a bare traversal
 becomes a reference to that parent's identity attribute, and a string
 template becomes a sequence of literal and parent parts, which is what makes
-`"${aws_route_table.main.id}_0.0.0.0/0"` expressible. Where a run has already
-resolved and discovered once, a second pass can answer a reference to a
-sibling's genuinely computed attribute from what the cloud holds, which is
-what admits `aws_acm_certificate.cert.domain_validation_options`.
+`"${aws_route_table.main.id}_0.0.0.0/0"` expressible. After one
+resolve-and-discover cycle, a later pass can also read a sibling's genuinely
+computed attribute out of what the cloud holds, which is what admits
+`aws_acm_certificate.cert.domain_validation_options`.
 
-What still stops:
+Some expression shapes still stop:
 
 | Written like this | Why it stops |
 |---|---|
@@ -214,10 +214,10 @@ non-static, and a statically-evaluable `count` whose own arguments read
 reaching a resource's own identity.
 
 Stamping keeps up. A call with exactly one instance is stamped with that
-instance's key, and since
+instance's key. Since
 [#378](https://github.com/INTENTIUS/choudoufu/issues/378) a call with more
 than one is stamped through `tofu.marker_module_prefix`, the same mechanism a
-`for_each`'d call already used, so `module.sites[0]` and `module.sites[1]`
+`for_each`'d call already used. `module.sites[0]` and `module.sites[1]`
 render their own addresses out of the one shared body.
 
 A resource inside a `for_each`'d module needs its own marker built by hand
@@ -227,8 +227,8 @@ module]({{< relref "/docs/use/keyed-modules" >}}).
 ### Crossing a module boundary
 
 A marker carries the full module-qualified address, escaped into a tag value
-per `live/MARKERS.md`, where `[` becomes `:` and `]` and `"` are dropped.
-`choudoufu live-mv` handles those like any root address, so flattening a module
+per `live/MARKERS.md` (`[` becomes `:`; `]` and `"` are dropped).
+`choudoufu live-mv` handles those like any root address. Flattening a module
 into the root, moving a resource into a module, and renaming across two module
 instances are ordinary renames. A step through a `count`-keyed module instance
 is one too, since
@@ -237,8 +237,8 @@ that a module `count` renumbers its survivors. What `live-mv` refuses is the
 pair of addresses that describes no move: the same address twice, two
 different resource types, and anything that is not a managed resource.
 
-`choudoufu live-import` traverses the whole state, every managed resource
-instance, root module and child module alike.
+`choudoufu live-import` traverses every managed resource instance in the
+whole state - root and child modules alike.
 [#59](https://github.com/INTENTIUS/choudoufu/issues/59)'s module epic gave the
 other walkers (identity, discovery, stamp, projection, mv) real traversal and
 this one matches them, so a resource's `tofu-address` marker carries its full
@@ -255,8 +255,8 @@ account or region, each with its own `assume_role`, resources pinned with the
 `provider` meta-argument. Admitted, and proven end to end against the emulator.
 
 One bound. Resources needing marker discovery must share a single provider
-configuration. The line runs through how identity is recovered, not through
-which account a resource sits in.
+configuration. The line runs through how identity is recovered rather than
+through which account a resource sits in.
 
 **Client-named types span freely.** An S3 bucket, an IAM role, a log group.
 Their identity is already in your code, so nothing goes looking for them and
@@ -273,8 +273,8 @@ configuration, and run them separately. `-target` does not help, because the
 check runs over the whole configuration during discovery, before any target
 filter applies.
 
-This is where the mode stands today, not a permanent boundary. The multi-pass
-machinery already exists.
+This is where the mode stands today rather than a permanent boundary. The
+multi-pass machinery already exists.
 
 A module call's `providers` mapping is honoured, and used to be refused. Since
 [#188](https://github.com/INTENTIUS/choudoufu/issues/188)
@@ -296,21 +296,25 @@ Check the region before pasting it.
 
 An acceptable configuration can still be refused by how it is invoked.
 
-- `backend "s3" {}` and `cloud {}` are refused. There is no state to store.
-- Any workspace other than `default`, and `workspace new` / `workspace select`.
-- Every `tofu state` subcommand, including read-only `state list` and
-  `state show`.
-- `import`, `refresh`, `taint`, `untaint`.
-- `-out` to save a plan, and `apply <planfile>`. **This is how most CI runs
-  Terraform**, so check it first. Ordinary `apply` re-plans and re-confirms.
-  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s ruling settles the
-  design for tying a reviewed plan to its apply. Not implemented yet.
-- `-json` and `-json-into`.
-- `-refresh-only`. Both sides of that comparison are the live system here, so
-  there is nothing for it to do.
-- `-state`, `-state-out`, `-backup`, `-generate-config-out`.
+- A `backend "s3" {}` or `cloud {}` block is refused. There is no state to
+  store.
+- Any workspace other than `default` is refused, and so are `workspace new`
+  and `workspace select`.
+- Every `tofu state` subcommand is refused, including read-only `state list`
+  and `state show`.
+- Four commands are refused: `import`, `refresh`, `taint`, `untaint`.
+- A saved plan is refused: `-out`, and `apply <planfile>`. **This is how most
+  CI runs Terraform**, so check it first. Ordinary `apply` re-plans and
+  re-confirms. [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s
+  ruling settles the design for tying a reviewed plan to its apply. Not
+  implemented yet.
+- The `-json` and `-json-into` flags are refused.
+- A `-refresh-only` run is refused: both sides of that comparison are the
+  live system here, so there is nothing for it to do.
+- Four more flags are refused: `-state`, `-state-out`, `-backup`,
+  `-generate-config-out`.
 
-`apply -destroy` (and `choudoufu destroy`) work: they remove every object
+`apply -destroy` (and `choudoufu destroy`) work. They remove every object
 this estate owns, in one apply, the same way `apply` after deleting every
 resource block already did - see
 [#320](https://github.com/INTENTIUS/choudoufu/issues/320).
@@ -412,12 +416,12 @@ in the live path read the mapping at all.
 [#188](https://github.com/INTENTIUS/choudoufu/issues/188) closed that for the
 parent-side shape: `providers = { aws = aws.useast1 }` is now resolved by
 `internal/live/providerscope` and honoured, which is every one of the 110
-sites the corpus had ever produced for this rule. What stays refused is
-`providers = { aws.primary = aws }`, the `configuration_aliases` shape, where
-the alias is on the child side and the root declares no configuration under
-that name for the module's resources to resolve against; the provider would
-be configured from the environment with nothing from the configuration
-reaching it. `providers = { aws = aws }` is admitted, naming what live mode
+sites the corpus had ever produced for this rule. What stays refused is the
+`configuration_aliases` shape, `providers = { aws.primary = aws }`: the alias
+is on the child side, and the root declares no configuration under that name
+for the module's resources to resolve against. The provider would be
+configured from the environment with nothing from the configuration reaching
+it. `providers = { aws = aws }` is admitted, naming what live mode
 already does, and so is `{ myaws = aws }`, where only the child's local name
 differs. Root-level provider aliases work correctly, and a resource's own
 `provider =` argument is honoured.
@@ -429,10 +433,10 @@ most-installed shared AWS modules declares one and that upstream calls the
 pattern legacy. The corpus then found a real site using exactly that shape,
 and since [#201](https://github.com/INTENTIUS/choudoufu/issues/201) live mode
 walks to a module's own provider block and honours it rather than falling
-back to the root. The one shape the rule still names, a module-local provider
-block reached through a call using `count`, `for_each`, `enabled` or
-`depends_on`, is rejected by OpenTofu's own configuration validation before
-lint ever runs, in this fork and in stock alike.
+back to the root. The one shape the rule still names is a module-local
+provider block reached through a call using `count`, `for_each`, `enabled` or `depends_on`.
+OpenTofu's own configuration validation rejects it before lint ever runs in
+this fork and in stock alike.
 
 ## Editors and linters
 

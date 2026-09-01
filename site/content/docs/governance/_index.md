@@ -11,9 +11,9 @@ that are reliably there, on everything, correct. That is what markers are.
 
 Every resource this fork creates carries `tofu-estate` and
 `tofu-address`, derived from its configuration address and written
-as part of the create call. Not a convention someone has to remember, not a
-`default_tags` block that drifts, and not something a resource can
-be created without.
+as part of the create call. That is not a convention someone has to remember
+or a `default_tags` block that drifts; a resource cannot be created without
+it.
 
 So scoping a role is ordinary tag conditions, once the tags underneath them
 are guaranteed rather than hoped for.
@@ -65,8 +65,8 @@ supports. Nothing in it inspects a tag removal, and AWS says so directly. It
 cannot be configured to block a tag from being removed. Do not rely on one for
 this.
 
-**SCPs can block the untagging call**, but only inside the
-organization, only in member accounts, and only where the condition key is
+**SCPs can block the untagging call**, but the block holds only in the
+organization's member accounts and only where the condition key is
 honored. Denying the tag-removal actions for the marker keys, with an exception
 for whichever principal runs choudoufu, is the closest thing to a real
 backstop. MARKERS.md carries the policy.

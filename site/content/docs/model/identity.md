@@ -106,9 +106,9 @@ the [declaration-carried tier]({{< relref "/docs/use/resource-tiers" >}})
 names.
 
 They are not a rounding error. On a generated estate shaped like one that had
-grown organically, the untaggable share of *instances* was 41 of 79, 164 of
-301 and 410 of 745 at three sizes: 52%, 54% and 55%, all three of them made
-up entirely of the types named above. A realistic estate is roughly half
+grown organically, the untaggable share of *instances* at three sizes was 41
+of 79 (52%), 164 of 301 (54%) and 410 of 745 (55%), all three made up
+entirely of the types named above. A realistic estate is roughly half
 resources that hold a marker and half resources that derive their identity
 from one.
 
@@ -146,5 +146,5 @@ account's access controls protect them. A stripped marker hides the resource
 from the next plan, which proposes a replacement beside it.
 
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-is the normative spec. It covers the escaping rule, continuation tags, the
-rename rule, and which protections were tested rather than assumed.
+is the normative spec. It covers the escaping rule, continuation tags and the
+rename rule, and says which protections were tested rather than assumed.

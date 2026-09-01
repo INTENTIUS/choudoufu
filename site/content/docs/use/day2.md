@@ -5,8 +5,8 @@ weight: 4
 
 # Day-2 operations
 
-Running an estate after the first apply. Renaming, removing, recording effects
-the cloud cannot report, and working with other people.
+Running an estate after the first apply: renaming and removing resources,
+recording effects the cloud cannot report, and working with other people.
 
 | Task | Page |
 |---|---|
@@ -23,13 +23,13 @@ pattern, and `data "terraform_remote_state"` is refused.
 
 ## Plan, review, apply
 
-Saved plan files are refused, so planning in a PR and applying that exact
+Saved plan files are refused. Planning in a PR and applying that exact
 artifact has no equivalent yet. Ordinary `apply` re-plans and re-confirms
-against the live system, which is the honest behaviour, but nothing today
+against the live system - the honest behaviour - but nothing today
 detects that the world moved between review and apply.
 
 The design closing that gap is settled.
 [#74](https://github.com/INTENTIUS/choudoufu/issues/74) chose a plan
 fingerprint, a digest printed at plan time that apply checks against its own
 fresh plan, refusing on mismatch. `the plan-approval design (#74)` holds the
-design. Not implemented yet.
+design; it is not implemented yet.

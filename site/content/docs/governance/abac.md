@@ -30,7 +30,7 @@ estate manages rather than applied by a convention someone has to remember.
 ```
 
 One policy covers every team. Onboarding a team is a session tag rather than a
-new policy, and there is no per-team document to review, drift, or forget to
+new policy. There is no per-team document to review, drift, or forget to
 revoke.
 
 The principal tag can come from your identity provider through

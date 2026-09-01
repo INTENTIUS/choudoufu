@@ -9,7 +9,7 @@ Two questions with no other home. Everything else that used to live on this
 page has a real page now: what changes for you is in [The three
 pieces]({{< relref "/docs/model" >}}), self-service tagging and IAM in
 [Scoping a role]({{< relref "/docs/governance" >}}), storage in [Where things
-are stored]({{< relref "/docs/use/storage" >}}), migration in [Migrate an
+are stored]({{< relref "/docs/use/storage" >}}). Migration is in [Migrate an
 existing estate]({{< relref "/docs/use/migrate" >}}), marker stripping in
 [Identity]({{< relref "/docs/model/identity" >}}), and concurrent applies in
 [Two runs at once]({{< relref "/docs/model/concurrency" >}}).

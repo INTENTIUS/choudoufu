@@ -17,9 +17,10 @@ Several of the most frequent refusals are that one rule under different
 diagnostics.
 
 **Do not read the fixture or module-example populations as a compatibility
-rate.** Module `examples/` directories demonstrate a module's full surface, so
-they lean far harder on variables, conditionals and `dynamic` blocks than a
-configuration describing one deployment, and refuse almost across the board.
+rate.** A module's `examples/` directory demonstrates its full surface.
+Variables, conditionals and `dynamic` blocks appear far more often there than
+in a configuration describing one deployment, so those populations refuse
+almost across the board.
 Those populations are marked as a ranking, settled by
 [#118](https://github.com/INTENTIUS/choudoufu/issues/118). One population can
 honestly carry a rate since

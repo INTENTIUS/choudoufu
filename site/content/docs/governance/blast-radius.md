@@ -33,8 +33,8 @@ Attach this to the role your staging runs use.
 ```
 
 A mistake now fails at the cloud rather than at review. The guardrail sits
-below the tool, so it holds whatever the tool was pointed at, whatever
-directory someone was standing in, and whatever the plan said.
+below the tool, so it holds whatever the tool was pointed at and whatever the
+plan said, from whatever directory someone was standing in.
 
 ## Keep reads out of the Deny
 

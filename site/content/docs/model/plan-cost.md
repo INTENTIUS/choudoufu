@@ -6,8 +6,8 @@ weight: 7
 # What a plan costs
 
 Prior state is rebuilt by reading the live system every time you plan, because
-nothing stored is trusted. That reading is two costs, not one, and they grow
-along different axes. Which of the two dominates depends on the size of your
+nothing stored is trusted. That reading is two costs, and they grow along
+different axes. Which of the two dominates depends on the size of your
 estate, and the answer flips.
 
 Both belong to hooks, and the hooks differ in when they are needed. The read
@@ -20,28 +20,28 @@ ruling, and `09d180f921` implemented it. This page is the measurement that
 ruling rested on, and it is still the measurement of what the sweep costs when
 a run does take it.
 
-> **Read this page as the sweep's cost, not as a plan's cost.** Since
-> `09d180f921` a plan of an estate that has its own evidence to narrow by —
-> types declared in configuration, or holding a key in the record store — no
+> **Read this page as the sweep's cost.** Since
+> `09d180f921` a plan of an estate that has its own evidence to narrow by -
+> types declared in configuration, or holding a key in the record store - no
 > longer enumerates the whole admission table, and the 79-instance fixture
 > measured throughout this page went from **710 API calls to 157**, against
-> stock's 150. Every full-sweep figure below still describes an adoption, an
-> audit, a rebuild from markers, or any run where the narrowing has nothing to
-> narrow by, because every gate fails toward doing the work. The exact gates
+> stock's 150. Every full-sweep figure below still describes a run where the
+> narrowing has nothing to narrow by - an adoption, an audit, a rebuild from
+> markers - because every gate fails toward doing the work. The exact gates
 > are [below](#when-the-native-leg-is-narrowed-and-when-it-is-not). It no
 > longer describes an ordinary plan of an adopted estate. The scales above 79
-> instances have not been re-measured in calls since. For what a steady-state
-> plan costs, and what is still outstanding, see
+> instances have not been re-measured in calls since. What a steady-state plan
+> costs and what is still outstanding is on
 > [what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
 
 ## The two terms
 
-**The sweep asks what this estate owns. It is O(types).** One estate-filtered
+**The sweep asks what this estate owns, and it is O(types).** One estate-filtered
 tagging call covers the types whose ARNs the hand-curated join table can
 resolve; every other admitted type is routed to the native leg and gets its
-own list attempt. The work is set by the size of the admission table, not by
-the size of your estate. Counted at `5d55f4aa9f`, and reproducible in under a
-second with no cloud and no emulator:
+own list attempt. The work is set by the size of the admission table, and it
+does not grow with your estate. Counted at `5d55f4aa9f`, and reproducible in
+under a second with no cloud and no emulator:
 
 ```
 go test ./internal/live/discovery/ -run TestSweepUniversePartitionIsMostlyNative
@@ -54,9 +54,9 @@ the type is either not listable or not taggable. Measured at `5dbe452a1e` for
 [#586](https://github.com/INTENTIUS/choudoufu/issues/586), where 435 of the
 502 fired against the 79-instance fixture below in its unmigrated state.
 
-**The read pass asks what each owned resource currently looks like. It is
+**The read pass asks what each owned resource currently looks like, and it is
 O(resources).** One or more provider Reads per instance the plan materializes,
-how many depending entirely on which resource types you have. It is the same
+how many depending entirely on which resource types you have. That is the same
 work a stock refresh does, and it measured equal to stock's per resource at
 every scale below, to the call.
 
@@ -99,9 +99,13 @@ holds a key for. A false positive there costs one list call; a false negative
 costs a removal nobody proposes.
 
 A narrowed plan gives up exactly one shape of removal, and it is worth stating
-in full. Take a live object carrying this estate's marker, of a type that the
-configuration does not declare, that the record store has no entry for, and
-that the ARN join table cannot place from an ARN. Its destroy is not proposed.
+in full. Take a live object carrying this estate's marker, of a type that:
+
+- the configuration does not declare;
+- the record store has no entry for; and
+- the ARN join table cannot place from an ARN.
+
+Its destroy is not proposed.
 Every other removal is unaffected, which
 `TestNarrowedNativeSweepStillProposesRemovals` and the `day2_remove` gauntlet
 stages check by value rather than by argument.
@@ -204,8 +208,7 @@ So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
 refreshes, and **nothing in this fork adds to them or can subtract from
 them.** `live/plan-budget.json` says the same of its own figures: the shape
-"is a property of the AWS provider's own Read, not of anything this fork
-adds."
+"is a property of the AWS provider's own Read".
 
 **"Everything choudoufu spends above stock is the sweep" was this page's
 headline sentence, and it needs two bounds now.** It is a statement about API
@@ -261,12 +264,12 @@ refresh. It multiplies choudoufu's sweep.
 > 164** at k=1/2/8, choudoufu **157 / 163 / 198**. That is 1.05x, 1.07x and
 > **1.21x**, not 5.0x, 8.7x and 30.6x. Stock's "148 whether one state or
 > eight" was an artifact of the same block; stock is `148 + 2k`, two calls per
-> slice to resolve the account. The error was not uniform either — it was
-> `18 − 4k` calls and changed sign near k=4.5 — so no ratio built on those
+> slice to resolve the account. The error was not uniform either - it was
+> `18 − 4k` calls and changed sign near k=4.5 - so no ratio built on those
 > numbers could be rescaled. The sentence that survives is the one about the
 > sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
 > run that actually sweeps. Since `09d180f921` a steady-state plan is not one
-> of them. Full correction:
+> of them. The full correction is
 > [`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634)).
 
 ## On real AWS the sweep was nearly the whole plan
@@ -286,7 +289,7 @@ same operation:
 | `choudoufu plan` | 203s | 211s | 200s |
 
 Stock finishes the read pass, the term both sides share, in three seconds.
-The remaining 200 seconds is the sweep. Spread over the 558 sweep calls
+The sweep is the remaining 200 seconds. Spread over the 558 sweep calls
 counted at that scale it is about 0.36s each, which is one network round trip
 apiece, and at the time of that run the sweep made them one after another.
 
@@ -309,7 +312,7 @@ be made one after another, and since
 `Discover` prefetches the sweep's per-type listings through a bounded worker
 pool, `DefaultSweepParallelism = 10`
 (`internal/live/discovery/sweepconcurrency.go`), the same bound stock plans an
-estate at. It covers the sweep's per-type listing and nothing else — the
+estate at. It covers the sweep's per-type listing and nothing else - the
 config-driven scan, the tagging leg's single `GetResources`, and the parent
 and record-orphan reads are untouched.
 
@@ -338,15 +341,16 @@ and not running it are different mechanisms, and the narrowing does most of
 the work at 79 resources.
 
 What that adds up to in seconds is on
-[what you pay, and when]({{< relref "/docs/what-you-pay" >}}), which carries
+[what you pay, and when]({{< relref "/docs/what-you-pay" >}}); it carries
 the wall-clock figures and states what each one rests on. This page is the
 mechanism; that page is the number.
 
 ## Turning a phase down
 
 Both terms overlap their own waiting, and each has its own bound. The two are
-separate settings because they are separate phases, and neither of them is
-stock's `-parallelism`, which bounds the graph walk and nothing on this page.
+separate settings because they are separate phases. Neither of them is
+stock's `-parallelism` - that flag bounds the graph walk and nothing on this
+page.
 
 | Variable | Bounds | Default | Honoured by |
 |---|---|---|---|
@@ -355,7 +359,7 @@ stock's `-parallelism`, which bounds the graph walk and nothing on this page.
 
 Set either to `1` for the sequential loop, one call at a time in the order the
 phase would have made them. A value below 1 is refused rather than read as "no
-limit" — the read bound's refusal lands before the run reads anything at all,
+limit" - the read bound's refusal lands before the run reads anything at all,
 because it is resolved before the configuration is even loaded.
 
 Neither changes what a plan costs in calls. The sweep's counts were measured
@@ -368,8 +372,8 @@ cheaper plan.
 
 Both defaults are 10 because stock plans an estate at `-parallelism 10`. That
 argument is the stronger of the two for the read pass, which makes call for
-call the same requests a stock refresh of the same estate makes — the
-stock-versus-choudoufu table earlier on this page — so ten asks an account for
+call the same requests a stock refresh of the same estate makes - the
+stock-versus-choudoufu table earlier on this page - so ten asks an account for
 exactly what it already answers for OpenTofu. Read-side throttling has not been
 measured, and cannot be from an emulator, since floci does not throttle.
 
@@ -438,11 +442,11 @@ passes through once.
   reads 1, 2 and 4 rather than 1 everywhere. `cloudcontrol.Client.GetResources`
   sets no `ResourcesPerPage`, so the real page size is the Resource Groups
   Tagging API's own default and no emulator-backed run can report it.
-- **One fixture, one composition.** The 512-call native leg is a property of
+- **One fixture, one composition** - the 512-call native leg is a property of
   the admission table and the ARN join table rather than of the estate, but
   that is an argument; only this estate was measured, and it declares thirteen
   types.
-- **AWS only.** Nothing here says anything about another provider.
+- **AWS only** - nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
   79-instance fixture's headline, 157 against 710, and the real-AWS pair at

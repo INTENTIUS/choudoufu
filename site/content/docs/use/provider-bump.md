@@ -85,8 +85,8 @@ correct, with no need to reach a hypothetical newer release to find out.
    like any other regression: read why before deciding whether the new
    release is at fault or the classifier is.
 4. If nothing in the ledger needs a human ruling, bump
-   `internal/live/pins.AWSProviderVersion` by hand, re-run `just tables` so
-   every derived artifact and rendered doc catches up, and commit the whole
+   `internal/live/pins.AWSProviderVersion` by hand and re-run `just tables`
+   so every derived artifact and rendered doc catches up. Commit the whole
    set together - the pin, the regenerated artifacts, and the rendered
    spans - so `just ci`'s staleness guards hold on the next run.
 5. If the schema-precedence or convergence sections flag a mismatch worth a

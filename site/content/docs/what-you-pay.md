@@ -45,7 +45,7 @@ three runs each, no variance in any column:
 | `choudoufu plan` | 150, 150, 150 | 558, 558, 558 |
 
 The 79-instance column was re-run at `b20a144ab0` for this page; the
-301-instance column is the ruling's, unchanged, and has not been re-run since.
+301-instance column is the ruling's and has not been re-run since.
 Both oracles are behind the current pin, which `live/oracle-versions.json` puts
 at terraform `1.16.0` and tofu `1.12.6`. Nothing in this table has been re-run
 against those.
@@ -78,7 +78,7 @@ every plan exit 0 with `No changes`:
 
 157 against 150 is **+4.7%**, and the residual is seven calls rather than a
 percentage, because the two sides can be diffed action by action. Of stock's
-150 calls, **148 across 18 AWS actions are matched exactly** — same actions,
+150 calls, **148 across 18 AWS actions are matched exactly** - same actions,
 same counts:
 
 ```
@@ -132,8 +132,9 @@ no longer exists.
 
 ### The same comparison on real AWS, at 79 and 745 resources
 
-Real AWS, account `...3429`, `us-east-2`, on a `main` containing all of the
-concurrency and narrowing work. Both sides no-change plans on every run:
+Real AWS in account `...3429` and region `us-east-2` on a `main` containing
+all of the concurrency and narrowing work. Both sides no-change plans on every
+run:
 
 | Resources | stock | choudoufu, steady state | Difference |
 |---|---|---|---|
@@ -150,17 +151,17 @@ real difference is `DescribeTaskDefinition`, 21 against 10.
 Note before anything else that the 79-resource row disagrees with the emulator
 row above it: +16 against +7 on the same fixture at the same scale. Do not
 average them or pick the flattering one. They come from **different
-instruments** — the emulator figure counts every HTTP request through a proxy,
-this one counts only what the AWS provider itself logs — from different
+instruments** - the emulator figure counts every HTTP request through a proxy,
+this one counts only what the AWS provider itself logs - from different
 accounts, and from a comparison where the two sides plan different directories.
 Both are reported; neither is a correction of the other.
 
 The residual *shrinks in absolute terms* between the two scales, which is not
 what a fixed overhead does, and the reason is that the two sides are not
 merely one adding to the other. At 745 resources choudoufu makes **fewer** IAM
-calls than stock — `ListAttachedRolePolicies` 320 against 324, `GetRole` 210
+calls than stock - `ListAttachedRolePolicies` 320 against 324, `GetRole` 210
 against 215, `GetRolePolicy` 200 against 204, `ListRolePolicies` 110 against
-114 — and more ECS calls, `DescribeTaskDefinition` 31 against 10 plus a
+114 - and more ECS calls, `DescribeTaskDefinition` 31 against 10 plus a
 `ListTaskDefinitions`, a `ListServices`, two `ListRoles` and one extra
 `GetCallerIdentity`. Route 53 is identical on both sides at both scales:
 `GetHostedZone` 101, `ListResourceRecordSets` 100, `ListTagsForResource` 1.
@@ -175,10 +176,10 @@ Cloud Control and Tagging clients log no line per request, so their HTTP calls
 are *not* in the 1413. What is known about them is a type count rather than a
 call count: 0 types went via Cloud Control, and 31 went through the
 estate-filtered tagging sweep, which is one `GetResources` for all 31 plus
-pagination. Small, and unmeasured, and the run says so itself. The emulator
-tables higher up the page count every request through a proxy, so the two
-instruments have different denominators and their numbers should not be
-subtracted from one another.
+pagination. That share is small and unmeasured, and the run says so itself.
+The emulator tables higher up the page count every request through a proxy,
+so the two instruments have different denominators and their numbers should
+not be subtracted from one another.
 
 **The two sides are not planning the same directory.** Stock plans its own
 converged state after the cold deploy and before anything migrates it;
@@ -187,7 +188,7 @@ available on real AWS, and it is a weaker control than the emulator's, where
 both sides plan the same estate through the same proxy.
 
 If you want a number for your estate, measure your estate. The composition
-above is a property of what this fixture declares, not of this fork.
+above is a property of what this fixture declares rather than of this fork.
 
 ## The record store, which no call count used to see
 
@@ -208,7 +209,7 @@ information.
 It now pays one too. A bulk read plus a run cache that switches itself off
 permanently the first time anything writes through it takes the same plan to
 **1 trip, one `GetAll`**, with the three plan outputs byte-identical to the
-377-trip baseline's, run for run. Reproduced here at `b20a144ab0`:
+377-trip baseline's, run for run, reproduced here at `b20a144ab0`:
 
 ```
 run 1: aws-calls 157, record-trips 1
@@ -241,7 +242,7 @@ recorded in
 | `test_apply` | No-op apply: 0 added, 0 changed, 0 destroyed |
 
 `migrate` is the write-side cost and the one stage that is genuinely serial:
-335 tag writes, one per resource, unbatched, and 190 throttle responses all
+335 unbatched tag writes, one per resource, plus 190 throttle responses all
 absorbed by the SDK's own backoff. It is paid once.
 
 **Nobody wrote a marker by hand.** The 410 skipped are untaggable by the
@@ -338,8 +339,8 @@ Two things in the old answer were wrong, and the second is the one worth
 carrying away.
 
 **Stock is not cost-neutral under slicing.** Its "148 whether one state or
-eight" was itself an artifact of the same provider block. Stock is `148 + 2k`:
-it pays two calls per slice to resolve the account. choudoufu pays about six
+eight" was itself an artifact of the same provider block. Stock is `148 + 2k`,
+two calls per slice to resolve the account. choudoufu pays about six
 per slice, so an extra state costs roughly four calls more here than it costs
 stock.
 
@@ -387,10 +388,10 @@ stock                = 1.84N + 5      (150 at N=79, 558 at N=301)
 choudoufu, migrated  = 1.99N + 553    (710 at N=79, 1152 at N=301)
 ```
 
-The fixed cost is real. The marginal cost is about **8% higher**, not lower,
-because a migrated instance is read by the projection and also pays its share
-of the sweep. The *ratio* therefore falls with N — 4.7x at 79 instances, 2.1x
-at 301 — while the absolute *difference* never closes. There is nothing to
+The fixed cost is real. The marginal cost is about **8% higher** rather than
+lower: a migrated instance is read by the projection and also pays its share
+of the sweep. The *ratio* therefore falls with N - 4.7x at 79 instances, 2.1x
+at 301 - while the absolute *difference* never closes. There is nothing to
 cross.
 
 Two caveats on those two lines, in opposite directions. Two points determine a
@@ -483,8 +484,8 @@ cannot answer.
 ### What evaluating this costs in money
 
 Effectively **$0.00**, against a $15 ceiling, for the whole 745-resource run.
-Every write the fixture makes is free — IAM, VPC, subnet, security group,
-Route 53 record changes, ECS cluster, service and task definitions — and
+Every write the fixture makes is free - IAM, VPC, subnet, security group,
+Route 53 record changes, ECS cluster, service and task definitions - and
 `desired_count = 0`, so no Fargate task ever ran. Both hosted zones were
 deleted well inside the twelve hours below which AWS does not charge for one.
 
@@ -496,6 +497,6 @@ one at a time to confirm each was `INACTIVE` at zero running and zero desired.
 ## Where the mechanism is
 
 This page is the decision. [What a plan costs]({{< relref "/docs/model/plan-cost" >}})
-is the mechanism: the two terms a plan is made of, how each one grows, the
+is the mechanism: the two terms a plan is made of and how each one grows, the
 per-leg split at three scales, and the two concurrency bounds you can turn
 down when a real account starts answering `Rate exceeded`.
