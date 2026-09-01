@@ -29,6 +29,8 @@ path - stock OpenTofu stands an estate up, the state file is deleted, and
 the estate plans empty from its markers alone. `greenfield` is a new
 estate from nothing, markers riding the create calls. `BREAK=1` corrupts
 one expected fact mid-run and the scenario passes only by catching it.
+[The claims]({{< relref "/docs/claims" >}}) walks all four claim
+scenarios phase by phase, with a paste-and-go prompt for each.
 [The harness's own page](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/README.md)
 has every knob, including pinning both the emulator and the choudoufu
 version, and the optional request-count instrumentation.
