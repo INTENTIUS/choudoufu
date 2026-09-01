@@ -12,8 +12,18 @@ export FLOCI_PORT
 COMPOSE=(docker compose -p choudoufu-smoke -f "$SMOKE_DIR/docker-compose.yml")
 
 fail() { echo "FAIL [$1]: $2" >&2; exit 1; }
-step() { echo; echo "=== $* ==="; }
+step() { echo; echo "=== $* ==="; echo; }
 note() { echo "  $*"; }
+
+# The output contract (issue #713: easy to OBSERVE): every step teaches.
+#   explain - what is about to happen and why it matters, before it runs
+#   cmd     - the command being run, verbatim, so the watcher could type it
+#   evidence- real output lines, indented, so the claim is seen not asserted
+#   proof   - what the evidence just proved, one arrow line
+explain() { while [ $# -gt 0 ]; do echo "  $1"; shift; done; echo; }
+cmd() { echo "  \$ $*"; }
+evidence() { sed 's/^/      /'; }
+proof() { echo; echo "  -> $*"; echo; }
 
 # resolve_choudoufu answers where the binary under test comes from, in
 # priority order, and reports its provenance for the banner:
