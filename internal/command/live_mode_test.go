@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
@@ -1116,5 +1117,109 @@ func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
 	t.Logf("second run: %d cache hit(s); a hit needs the estate sweep to have marker-verified the instance", hits)
 	if hits < 0 {
 		t.Fatal("negative cache hits")
+	}
+}
+
+// TestCacheConditionsPlanIdentically is issue #685's accept bar and the
+// ruling's teeth (live/stale_state_ruling_test.go pins the prose; this pins
+// the behavior): a plan under a fresh cache, a stale cache and no cache at
+// all must be byte-identical, because the cache is never consulted for
+// ownership and live wins any disagreement. "Stale" here is a cache from
+// the pre-create world - an empty statefile - planned against a cloud that
+// holds both resources; the plan must read exactly as the fresh one does.
+//
+// The negative control keeps the comparison honest the way an e2e BREAK=1
+// leg does: after the three equal captures, a marked orphan is added to
+// the live system and the next plan MUST differ, proving the equality
+// assertions compare something that can fail. Without it, three identical
+// bugs would read as three identical successes.
+func TestCacheConditionsPlanIdentically(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cachePath := filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")
+	// The seeded fixture: both resources exist, marked and readable, so
+	// every healthy plan below is a genuine "No changes." - the equality
+	// would hold vacuously on a fixture whose plans all propose creates.
+	cloud := liveBlockCloud()
+
+	// The apply that writes the fresh cache (a no-op apply still persists).
+	{
+		view, done := testView(t)
+		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+		if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+			out := done(t)
+			t.Fatalf("apply exit %d\nstderr:\n%s", code, out.Stderr())
+		}
+		done(t)
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("the apply wrote no cache at the default path %s: %v", cachePath, err)
+	}
+
+	plan := func(label string) string {
+		t.Helper()
+		view, done := testView(t)
+		p := &PlanCommand{Meta: liveBlockMeta(view, cloud)}
+		code := p.Run([]string{"-no-color"})
+		out := done(t)
+		if code != 0 {
+			t.Fatalf("%s plan exit %d\nstdout:\n%s\nstderr:\n%s", label, code, out.Stdout(), out.Stderr())
+		}
+		return out.Stdout()
+	}
+
+	fresh := plan("fresh-cache")
+	if !strings.Contains(fresh, "No changes.") {
+		t.Fatalf("the healthy plan is not a no-op, so the equalities below would compare the wrong thing:\n%s", fresh)
+	}
+
+	// Stale: the cache says the world is empty; the world is not.
+	stale := func() string {
+		f, err := os.Create(cachePath)
+		if err != nil {
+			t.Fatalf("replacing the cache: %v", err)
+		}
+		if err := statefile.Write(statefile.New(states.NewState(), "stale-lineage", 1), f, encryption.StateEncryptionDisabled()); err != nil {
+			t.Fatalf("writing the stale cache: %v", err)
+		}
+		f.Close()
+		return plan("stale-cache")
+	}()
+
+	if err := os.Remove(cachePath); err != nil {
+		t.Fatalf("removing the cache: %v", err)
+	}
+	absent := plan("absent-cache")
+
+	if fresh != stale {
+		t.Errorf("a stale cache changed the plan.\n--- fresh ---\n%s\n--- stale ---\n%s", fresh, stale)
+	}
+	if fresh != absent {
+		t.Errorf("a missing cache changed the plan.\n--- fresh ---\n%s\n--- absent ---\n%s", fresh, absent)
+	}
+
+	// The negative control: a real difference in the live system must move
+	// the plan, or the three equalities above compared nothing. This
+	// fixture's fake cloud runs no marker sweep (the WrittenThenUsed test
+	// documents why), so an added orphan is invisible here; attribute
+	// drift on an existing object is what the per-instance read path
+	// genuinely sees.
+	cloud.mu.Lock()
+	drifted := false
+	for key, attrs := range cloud.objects {
+		if strings.HasPrefix(key, "aws_vpc/") {
+			attrs["cidr_block"] = "10.99.0.0/16"
+			drifted = true
+		}
+	}
+	cloud.mu.Unlock()
+	if !drifted {
+		t.Fatal("no aws_vpc object to drift; the negative control has nothing to mutate")
+	}
+	control := plan("negative-control")
+	if control == fresh {
+		t.Fatal("the negative control produced a byte-identical plan; the equality assertions above are comparing something that cannot fail")
 	}
 }
