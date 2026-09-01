@@ -17,7 +17,9 @@ commit that is no longer HEAD).
 choudoufu is an OpenTofu fork that runs a user's **existing** OpenTofu
 configuration against live cloud resources, with cloud tags as the
 authoritative ownership markers and a small per-instance record for what the
-cloud cannot hold, instead of a state file.
+cloud cannot hold. The state file is a cache that is allowed to be stale
+(the ruling is pinned by live/stale_state_ruling_test.go); today no cache
+is persisted at all, which is open defect #685, not the design.
 
 **The promise: if OpenTofu runs an estate, choudoufu runs it too.** Migration
 from a stock state file is lossless, a greenfield apply is equivalent, day-2

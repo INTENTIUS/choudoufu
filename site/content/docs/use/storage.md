@@ -21,8 +21,12 @@ write yourself, and choudoufu only lints it.
 ## Ownership markers
 
 Two tags, `tofu-estate` and `tofu-address`, written onto each resource as it is
-created. Every plan rebuilds prior state by reading them back off the live
-system.
+created. Prior state is a projection of them, allowed to go stale and
+rebuilt by reading the live system. Today every plan rebuilds it from
+scratch, because no cache is persisted between runs - that is the open gap
+[#685](https://github.com/INTENTIUS/choudoufu/issues/685), not the design:
+the design allows a local, disposable cache whose loss costs one slower
+run and nothing else.
 
 Only these are authoritative about *what you own*, and they live on your
 resources in your account rather than anywhere choudoufu keeps.
