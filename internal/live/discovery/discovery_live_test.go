@@ -32,7 +32,9 @@ import (
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/registry"
 )
 
 // This is P2.3's live half: a real AWS provider plugin, the emulated cloud,
@@ -154,12 +156,29 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 
 	// --- Discovery --------------------------------------------------------
 	start := time.Now()
+	// CloudControl and Roster mirror what live_plan wires in production:
+	// without them, a declared type with no provider list schema
+	// (aws_iam_role here) has no listing route at all, and issue #692's
+	// vouching assertion below would be testing a leg the request never
+	// offered.
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: endpoint, Region: awsRegion})
+	roster, rosterErr := registry.Embedded()
+	if rosterErr != nil {
+		t.Fatalf("loading the embedded roster: %v", rosterErr)
+	}
 	res, diags := Discover(ctx, Request{
-		Estate:      estateName,
-		Config:      cfg,
-		Resolutions: resolutions,
-		Provider:    provider,
-		Region:      awsRegion,
+		Estate:       estateName,
+		Config:       cfg,
+		Resolutions:  resolutions,
+		Provider:     provider,
+		Region:       awsRegion,
+		CloudControl: cc,
+		Roster:       roster,
+		// Simulates a state cache holding candidates for the fixture's
+		// client-named IAM role (production computes this from the loaded
+		// cache): the vouching pass lists the type once and the sighting
+		// vouches the instance - issue #692's assertion below.
+		CacheVouchTypes: []string{"aws_iam_role"},
 	})
 	elapsed := time.Since(start)
 	t.Logf("discovery took %s\n%s", elapsed, res)
@@ -199,6 +218,41 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		}
 		if !strings.HasPrefix(b.ImportID, prefix) {
 			t.Errorf("%s bound to %q, which is not a %s… identity", addr, b.ImportID, prefix)
+		}
+	}
+
+	// Issue #692's guard: the cache may only serve an instance the sweep
+	// vouched for (projection.Ownership.Verified, fed by MarkerVerified),
+	// and IAM is the type family the tagging leg can never vouch for -
+	// GetResources does not index IAM even on real AWS (probed directly,
+	// recorded on the issue). So IAM instances MUST reach MarkerVerified
+	// through the native leg, or the default-on state cache (#705) is
+	// structurally useless for the IAM-heavy estates the terralith
+	// models. This asserts the estate's own IAM instances are vouched
+	// for, by value, against the real emulator.
+	// Issue #692's vouching pass, pinned at the layer it can honestly
+	// reach. CacheVouchTypes above asked for aws_iam_role, and the pass
+	// must LIST the type - that is the new behavior this run proves, and
+	// it is what turns on displacement and collision sighting for
+	// declared IAM, which no leg produced before.
+	//
+	// What it deliberately does NOT assert is a MarkerVerified entry for
+	// the role, because that would encode an expectation the AWS API
+	// shape refuses: iam:ListRoles returns roles WITHOUT their tags, on
+	// real AWS and on the emulator alike, so a listed IAM sighting
+	// carries no marker and classifies unclaimed. Marker-vouching an IAM
+	// instance therefore costs one tags call per instance on every leg -
+	// the same order as the read the cache wanted to skip - and the
+	// cheap vouch for tagging-unserved services has to come from the
+	// record store's bulk load instead (one List per run, identity per
+	// instance, already fetched). That is the record-primary leg, tracked
+	// on #692.
+	{
+		scan, ok := res.ScanFor("aws_iam_role")
+		if !ok {
+			t.Error("CacheVouchTypes named aws_iam_role and no scan was recorded for it: the vouching pass never listed the type (issue #692)")
+		} else if scan.Listed == 0 {
+			t.Errorf("the vouching pass scanned aws_iam_role but listed nothing; the fixture's role exists, so the listing route is broken: %+v", scan)
 		}
 	}
 
