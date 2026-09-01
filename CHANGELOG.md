@@ -4,9 +4,45 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.8.0 (Unreleased)
+## choudoufu v0.9.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.8.0 (2026-09-01)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.8.0.json`](live/history/v0.8.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.7.0.json live/history/v0.8.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+FORK WORK:
+
+- **Fix: a fresh state cache no longer hides drift on default plans**
+  (#712, PR #714). v0.6.0's cache hit rule substituted the per-instance
+  read whenever the estate sweep vouched for an instance's marker, and
+  the read is drift detection - an out-of-band attribute change on a
+  verified instance was invisible while the cache was fresh. Affected:
+  v0.6.0 and v0.7.0. Now a default plan reads every instance, restoring
+  plan parity with stock's default, and only `-refresh=false` serves
+  sweep-verified instances from the cache - the same trade stock's own
+  flag names, made cheaper and safer here because the sweep verified
+  existence and ownership moments earlier, where stock's flag verifies
+  nothing. The unit guards gained the drift condition the equality
+  guard could not see, red-proved from the failure itself.
+- The user-path smoke test passes end to end again (#712, PR #714).
+  `just demo` had been failing at its foreign-resource step since the
+  account-inventory question became opt-in (#604), and - with nothing
+  in CI running it - every later step was unreachable, which is how the
+  drift regression above shipped twice. The harness now tests the #604
+  narrowing both ways, asserts the cache half of the #685 ruling
+  (written by plain apply, deleting it changes nothing), and its lint
+  tables carry all 33 fixtures. Reviving it is what caught the fix
+  above; making it un-rottable is #713, the versioned docker-compose
+  smoke stack.
 
 ## choudoufu v0.7.0 (2026-09-01)
 
