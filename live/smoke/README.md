@@ -84,6 +84,17 @@ showing its own checks would have caught it.
   today's wire savings are small until #692's vouch widening lands. The
   BREAK control drifts the live world and proves the three-way equality
   comparator can fail.
+- **backend-sets-itself-up** - *Claim 4: the live backend sets itself
+  up automatically when configured.* A live block with no storage
+  declared gets a local record store the way stock implies a local state
+  file - a .tofu-records directory appears beside the module at first
+  use, sentinel already written; declaring record_store "ssm" {} is the
+  entire cloud setup, and the store provisions its own sentinel into
+  Parameter Store where any AWS tool can read it; none of stock's
+  bucket/lock-table/IAM/migration ceremony exists to perform. The BREAK
+  control makes only the SSM store unreachable (the provider stays
+  healthy) and proves the run refuses by name instead of planning an
+  empty-looking estate - the #693 failure class, permanently on watch.
 
 ## Knobs
 
