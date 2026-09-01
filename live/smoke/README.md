@@ -126,6 +126,16 @@ showing its own checks would have caught it.
   with a clean plan after, where stock demands state surgery. The BREAK
   control renames the code but skips the retag - the plan must propose
   stock's destroy-and-recreate, proving the tag is the identity.
+- **stock-until-you-say-otherwise** - *Claim 8: no live block, no
+  difference - and the cost scales with your estate, not your account.*
+  Choudoufu with the live block removed plans a state-backed estate
+  against the pinned stock oracle, both under TF_LOG: filtered plan
+  texts equal, request counts identical. Then the live estate stands up
+  and twenty foreign resources appear in the account - the plan's
+  request count must not move, because every read is estate-scoped. The
+  BREAK control runs the choudoufu leg with the live block on: the
+  measurement must show the difference, or the parity comparison
+  compares nothing.
 
 ## Knobs
 
