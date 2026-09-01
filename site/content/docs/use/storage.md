@@ -21,12 +21,17 @@ write yourself, and choudoufu only lints it.
 ## Ownership markers
 
 Two tags, `tofu-estate` and `tofu-address`, written onto each resource as it is
-created. Prior state is a projection of them, allowed to go stale and
-rebuilt by reading the live system. Today every plan rebuilds it from
-scratch, because no cache is persisted between runs - that is the open gap
-[#685](https://github.com/INTENTIUS/choudoufu/issues/685), not the design:
-the design allows a local, disposable cache whose loss costs one slower
-run and nothing else.
+created. Prior state is a projection of them, allowed to go stale, and it
+is cached: every live-mode run writes `choudoufu-cache.tfstate` under the
+data dir (`.terraform`, or `TF_DATA_DIR`), and the next plan serves an
+instance from that cache only when the estate sweep has verified its
+marker in the same run. The cache is never consulted for ownership, so
+losing it - or its being arbitrarily stale - costs one slower run and
+nothing else, which a guard proves by requiring a fresh, a stale and a
+missing cache to plan byte-identically
+([#685](https://github.com/INTENTIUS/choudoufu/issues/685)).
+`CHOUDOUFU_STATE_CACHE` overrides the path; the literal value `off`
+disables persistence.
 
 Only these are authoritative about *what you own*, and they live on your
 resources in your account rather than anywhere choudoufu keeps.

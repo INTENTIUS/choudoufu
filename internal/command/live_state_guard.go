@@ -50,7 +50,7 @@ func (m *Meta) statelessStateGuard(ctx context.Context, subcommand string) tfdia
 		tfdiags.Error,
 		"Command not available under live resource markers",
 		fmt.Sprintf(
-			"\"choudoufu state %s\" operates on a stored state file, and this configuration's live block says there is no state file. %s",
+			"\"choudoufu state %s\" operates on an authoritative state file, and under a live block the state file is only a disposable cache that is never consulted for ownership. %s",
 			subcommand, statelessStateReplacement(subcommand),
 		),
 	))
@@ -74,8 +74,8 @@ var statelessStateReplacements = map[string]string{
 	"mv":   "Run \"choudoufu live-mv OLD NEW\", which rewrites the tofu-address marker on the live resource. That is the whole rename.",
 	"rm": "Delete the resource block from the configuration, or, to stop managing a resource without destroying it, remove its tofu-estate and tofu-address tags. " +
 		"A resource block deleted from the configuration is planned as a destroy by the estate sweep, so forgetting a resource without destroying it is a tag removal here rather than an edit to a record.",
-	"pull": "There is no state file to pull. Prior state under live resource markers is a projection built by reading the live system. If you are moving an existing state-backed estate onto markers, pull the file with stock OpenTofu before adding the live block, then run \"choudoufu live-import -state=PATH -estate=NAME\", which reads it once, read-only, and reports what it can stamp.",
-	"push": "There is no state file to push, and the record it would install is exactly the authority live resource markers remove. To seed an estate from an existing state file, \"choudoufu live-import -state=PATH -estate=NAME\" reports what it can adopt, and with -approve stamps the ownership markers, rather than installing a record.",
+	"pull": "There is no authoritative state file to pull - the file under the data dir is a disposable cache of the projection, not a record anything should build on. Prior state under live resource markers is a projection built by reading the live system. If you are moving an existing state-backed estate onto markers, pull the file with stock OpenTofu before adding the live block, then run \"choudoufu live-import -state=PATH -estate=NAME\", which reads it once, read-only, and reports what it can stamp.",
+	"push": "There is no authoritative state file to push into, and the record it would install is exactly the authority live resource markers remove. To seed an estate from an existing state file, \"choudoufu live-import -state=PATH -estate=NAME\" reports what it can adopt, and with -approve stamps the ownership markers, rather than installing a record.",
 	"replace-provider": "Provider addresses live in a state file, and a live-markers run derives each resource's provider from the configuration on every run, " +
 		"so changing the configuration is the whole operation.",
 }

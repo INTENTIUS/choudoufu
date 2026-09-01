@@ -472,5 +472,5 @@ Environment variables:
 }
 
 func (c *LiveMvCommand) Synopsis() string {
-	return "Rename a resource by rewriting its ownership marker, with no state file (experimental)"
+	return "Rename a resource by rewriting its ownership marker; the marker is the record (experimental)"
 }

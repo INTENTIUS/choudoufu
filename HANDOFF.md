@@ -91,10 +91,12 @@ touches state, pinned by `live/stale_state_ruling_test.go`:
 - when cache and live disagree, live wins, always;
 - losing the cache costs a slower run and nothing else.
 
-Today the code persists no cache and rebuilds prior state from live reads
-on every plan; that is open defect #685, not the design, and no document,
-error string or test may describe the absence of a state file as the
-product. The live backend is the three pieces the model docs name -
+The cache is real as of v0.6.0: written by default to
+choudoufu-cache.tfstate under the data dir, serving an instance only when
+the sweep vouched for its marker in the same run, with the equality guard
+proving a stale or missing cache cannot change a plan. #685 stays open
+for the re-measurement and the widened vouching. No document, error
+string or test may describe the absence of a state file as the product. The live backend is the three pieces the model docs name -
 identity as tags, values in the record store, effects as receipts - and
 the cache is a projection of them that may always be thrown away.
 

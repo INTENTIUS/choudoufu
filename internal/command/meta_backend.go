@@ -831,7 +831,7 @@ func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState
 		tfdiags.Error,
 		"Backend migration is not available under live resource markers",
 		fmt.Sprintf(
-			"This configuration has a live block, so it has no backend and no state file, and %s cannot move state into it: there is nowhere for the state to land. %s was asked for, which would have written %s's state into this directory as a real state file - the one artifact this configuration exists to not have.\n\n"+
+			"This configuration has a live block, so it has no backend and no authoritative state file, and %s cannot move state into it: there is nowhere with authority for the state to land. %s was asked for, which would have installed %s's state in this directory as the record of ownership - the one authority a live block exists to not have.\n\n"+
 				"Nothing has been migrated and nothing has been deleted. To convert an existing project, leave the old backend's state where it is and adopt the live resources by their ownership markers - see live/MARKERS.md - then run \"choudoufu init\" with no migration flags.",
 			flag, flag, from,
 		),

@@ -45,7 +45,7 @@ func (m *Meta) statelessCommandGuard(ctx context.Context, command string) tfdiag
 		// refused, with the answer that is true of all of them.
 		refusal = statelessCommandRefusal{
 			summary: "Command not available under live resource markers",
-			detail: fmt.Sprintf("\"choudoufu %s\" operates on a stored state file, and this configuration's live block says there is no state file. ", command) +
+			detail: fmt.Sprintf("\"choudoufu %s\" operates on an authoritative state file, and under a live block the state file is only a disposable cache - it is never consulted for ownership, so there is nothing here this command could correctly change. ", command) +
 				"Run \"choudoufu plan\", which reads the live system on every run.",
 		}
 	}
@@ -62,18 +62,18 @@ type statelessCommandRefusal struct {
 var statelessCommandRefusals = map[string]statelessCommandRefusal{
 	"import": {
 		summary: "Import is not available under live resource markers",
-		detail:  "\"choudoufu import\" writes a record of an existing resource into a state file, and this configuration's live block says there is no state file to write it into. Ownership under live resource markers is the tofu-estate and tofu-address tag pair described in live/MARKERS.md. Adopt the resource instead: add its resource block to the configuration and run \"choudoufu plan\", which prints the live resource under \"Adoptable\" together with the exact command that stamps its markers. The marker pair is the whole contract, so any tool that writes those two tags adopts the resource.",
+		detail:  "\"choudoufu import\" writes a record of an existing resource into an authoritative state file, and under a live block no state file carries that authority - a record written into the disposable cache would be discarded the moment the live system disagreed. Ownership under live resource markers is the tofu-estate and tofu-address tag pair described in live/MARKERS.md. Adopt the resource instead: add its resource block to the configuration and run \"choudoufu plan\", which prints the live resource under \"Adoptable\" together with the exact command that stamps its markers. The marker pair is the whole contract, so any tool that writes those two tags adopts the resource.",
 	},
 	"refresh": {
 		summary: "Refresh is not available under live resource markers",
-		detail:  "\"choudoufu refresh\" updates a stored state file to match the live system, and this configuration's live block says there is no state file to update. Run \"choudoufu plan\": it reads the live system on every run, which is the comparison refresh exists to make possible.",
+		detail:  "\"choudoufu refresh\" updates an authoritative state file to match the live system. Under a live block the cache is rewritten from the live system by every plan and apply, so refresh has nothing separate to do. Run \"choudoufu plan\": it reads the live system on every run, which is the comparison refresh exists to make possible.",
 	},
 	"taint": {
 		summary: "Taint is not available under live resource markers",
-		detail:  "\"choudoufu taint\" marks an object in a state file as degraded so that the next plan replaces it, and this configuration's live block says there is no state file to carry that mark from one run to the next. A live-markers run rebuilds its prior state by reading the live system every time, so a mark written now would not survive to the next plan. Ask for the replacement in the run that performs it: \"choudoufu plan -replace=ADDRESS\" and \"choudoufu apply -replace=ADDRESS\".",
+		detail:  "\"choudoufu taint\" marks an object in an authoritative state file as degraded so that the next plan replaces it. Under a live block the state file is a cache with no authority: prior state is rebuilt by reading the live system, so a mark written into the cache would not survive to the next plan. Ask for the replacement in the run that performs it: \"choudoufu plan -replace=ADDRESS\" and \"choudoufu apply -replace=ADDRESS\".",
 	},
 	"untaint": {
 		summary: "Untaint is not available under live resource markers",
-		detail:  "\"choudoufu untaint\" removes a degraded mark from a state file, and this configuration's live block says there is no state file. A live-markers run never records one, so there is nothing to remove, and nothing in a live-markers run can leave an object tainted.",
+		detail:  "\"choudoufu untaint\" removes a degraded mark from an authoritative state file. Under a live block no state carries authority, taint marks are never recorded, and nothing in a live-markers run can leave an object tainted - so there is nothing to remove.",
 	},
 }

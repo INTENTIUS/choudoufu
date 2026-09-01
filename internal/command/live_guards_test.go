@@ -107,7 +107,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 			name:        "state pull",
 			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state pull"`,
-			replacement: "There is no state file to pull",
+			replacement: "There is no authoritative state file to pull",
 			run: func(m Meta) int {
 				c := &StatePullCommand{Meta: m}
 				return c.Run([]string{"-no-color"})

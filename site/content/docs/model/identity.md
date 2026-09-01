@@ -56,12 +56,11 @@ written. What that requires in practice is narrower than it once was, and
 narrower than "written literally in the configuration text" - the
 paragraphs below say exactly which shapes still stop a run.
 
-The rule is also a consequence of a gap rather than a law of the design:
-prior state is currently rebuilt from the live system on every plan
-([#685](https://github.com/INTENTIUS/choudoufu/issues/685) tracks
-persisting it as a disposable cache), so identity must be re-derivable
-with no memory of the last run. As the cache and the plan-node seam
-([#644](https://github.com/INTENTIUS/choudoufu/issues/644)) land, the
+The rule is also a consequence of the cold path rather than a law of the
+design: the disposable state cache
+([#685](https://github.com/INTENTIUS/choudoufu/issues/685)) now persists
+between runs, and as its vouching widens and the plan-node seam
+([#644](https://github.com/INTENTIUS/choudoufu/issues/644)) lands, the
 shapes this rule refuses shrink to the genuinely cold case: an estate
 encountered with no cache, no record and no marker to read.
 

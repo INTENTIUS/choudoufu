@@ -36,7 +36,7 @@ them can refuse a configuration stock accepts. Seven small things do run
 unconditionally; they are enumerated, and the one among them that can change
 a verdict does so in the accepting direction. The measurement and the
 guard-by-guard reading are in
-[`rulings/20260830-stateful-equivalence.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stateful-equivalence.md).
+the stateful-equivalence measurement ([#588](https://github.com/INTENTIUS/choudoufu/issues/588)).
 
 Turn a live block on and the hooks below become available. They still differ
 in when they earn their cost:
@@ -57,7 +57,7 @@ fixture's plan from 710 API calls to 157 against stock's 150. That evidence is
 the estate's own record store, so an estate holding no keys in one, a fresh
 estate or one still mid-migration, takes the full sweep as before. The ruling
 behind that is
-[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md),
+the stale-state ruling ([#604](https://github.com/INTENTIUS/choudoufu/issues/604), pinned by `live/stale_state_ruling_test.go`),
 and [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) is the
 measured statement of what is left.
 

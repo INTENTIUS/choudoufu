@@ -19,13 +19,13 @@ import (
 // "terraform" block, or the [LiveSidecarFilename] sidecar file, whose whole
 // body is the same content the block would carry. Its presence is what puts a
 // run into what the code currently calls stateless mode: no backend, no
-// lock, prior state rebuilt from the live system on every operation, and -
-// today - no state file at all. The ruling this drifted from (maintainer,
-// 2026-08-30; issue #685; pinned by live/stale_state_ruling_test.go) is
-// narrower: the state file loses its AUTHORITY, not its existence. The
-// cache is never consulted for ownership, live wins any disagreement, and
-// losing it costs a slower run and nothing else. Persisting that cache
-// back under .terraform/ is #685's open work, and no comment, refusal
+// lock, and no AUTHORITATIVE state file. The ruling (maintainer,
+// 2026-08-30; issue #685; pinned by live/stale_state_ruling_test.go): the
+// state file loses its authority, not its existence. A disposable cache
+// writes by default to choudoufu-cache.tfstate under the data dir; it is
+// never consulted for ownership, live wins any disagreement, and losing
+// it costs a slower run and nothing else - a guard proves a fresh, a
+// stale and a missing cache plan byte-identically. No comment, refusal
 // text or test may treat the file's absence as the product.
 //
 // It is deliberately a configuration block and not a command-line flag.
@@ -34,7 +34,7 @@ import (
 // with it; a flag would mean a run that forgot it silently fell back to
 // trusting the file as that record, which is exactly the failure this
 // mode exists to remove. Removing the file's authority is the point;
-// removing the file was the over-rotation #685 unwinds.
+// removing the file was the over-rotation #685 unwound.
 //
 // The block is also why a live-mode module cannot have a backend today: a
 // "backend" or "cloud" block alongside it is refused here, in the

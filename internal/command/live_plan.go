@@ -50,9 +50,12 @@ import (
 )
 
 // LivePlanCommand plans a configuration with no authoritative state: no
-// backend, no state file, no lock. Prior state is a projection, rebuilt by
-// reading the live system at the start of the run and discarded when the run
-// ends.
+// backend, no lock. Prior state is a projection, rebuilt by reading the
+// live system at the start of the run and discarded when the run ends -
+// this standalone command neither reads nor writes the #685 state cache,
+// which belongs to plain plan/apply's StatelessRun seam (live_mode.go's
+// runner wires it); a diagnostic command that wrote the cache would
+// overwrite the last real run's snapshot with its own.
 //
 // The pipeline is lint -> identity -> discovery -> projection -> the ordinary
 // plan engine:

@@ -34,8 +34,10 @@ import (
 //   - a tracked directory named rfc/, rulings/ or decisions/;
 //   - any tracked file citing a dated decision document by path
 //     (rfc/YYYYMMDD-*, rulings/YYYYMMDD-*, decisions/YYYYMMDD-*), with
-//     two history exceptions: CHANGELOG.md, and live/fork-surface.json,
-//     whose rows record the deleted upstream rfc/ paths as inventory;
+//     three history exceptions: CHANGELOG.md; live/fork-surface.json,
+//     whose rows record the deleted upstream rfc/ paths as inventory; and
+//     live/history/, whose files are frozen release snapshots that are
+//     never rewritten (cmdSnapshot byte-copies deliberately);
 //   - a local or remote git branch under rfc/ or rulings/.
 //
 // Citing an upstream OpenTofu RFC by full URL is fine - that is
@@ -53,7 +55,7 @@ func TestNoProseDecisionAuthority(t *testing.T) {
 	}
 
 	cite := regexp.MustCompile(`(?:rfc|rulings|decisions)/[0-9]{8}-[A-Za-z0-9-]+`)
-	out, err := exec.Command("git", "-C", root, "grep", "-Il", "-E", `(rfc|rulings|decisions)/[0-9]{8}-`, "--", ".", ":!CHANGELOG.md", ":!live/fork-surface.json").Output()
+	out, err := exec.Command("git", "-C", root, "grep", "-Il", "-E", `(rfc|rulings|decisions)/[0-9]{8}-`, "--", ".", ":!CHANGELOG.md", ":!live/fork-surface.json", ":!live/history/").Output()
 	if err == nil { // git grep exits nonzero when nothing matches, which is the pass
 		for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 			if f == "" {

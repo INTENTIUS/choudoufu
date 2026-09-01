@@ -36,9 +36,11 @@ func oneResourceState(t *testing.T) *states.State {
 	return s
 }
 
-// TestStateCacheOffByDefault pins that a Manager nobody enabled the cache on
-// writes nothing at all. This is the behaviour every release up to v0.5.0 had,
-// and enabling a persisted file is a charter decision rather than a default.
+// TestStateCacheOffByDefault pins that a MANAGER nobody enabled the cache on
+// writes nothing at all - the zero value stays inert. The command layer is
+// what enables it, by default since v0.6.0 (the #685 ruling), through
+// stateCachePath; a Manager constructed anywhere else must not grow a
+// side effect nobody asked for.
 func TestStateCacheOffByDefault(t *testing.T) {
 	dir := t.TempDir()
 	m := NewManager()
