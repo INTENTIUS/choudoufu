@@ -1060,6 +1060,29 @@ if [ "$TARGET" = "aws" ]; then
   fi
 fi
 
+log "=== 4a3. state cache: written by the apply, and USED by the next plan (#685) ==="
+# The cache half of the state model. A cache that is written and never
+# consulted is indistinguishable from a working one in every other line of
+# this log, which is exactly the state this fork shipped for months while its
+# documentation described a cache. So both halves are asserted, and a hit
+# count of zero fails rather than warns.
+if [ -n "${CHOUDOUFU_STATE_CACHE:-}" ]; then
+  if [ ! -s "$CHOUDOUFU_STATE_CACHE" ]; then
+    fail "state cache enabled at $CHOUDOUFU_STATE_CACHE and nothing was written there"
+  fi
+  cache_bytes="$(wc -c < "$CHOUDOUFU_STATE_CACHE" | tr -d " ")"
+  log "  cache written: ${cache_bytes}B at $CHOUDOUFU_STATE_CACHE"
+  # The plan logs one line per build that was given a cache, including zero.
+  cache_hits="$(grep -oE "state cache supplied [0-9]+ instance" "$PLAN_LOG" 2>/dev/null | grep -oE "[0-9]+" | tail -1)"
+  if [ -z "$cache_hits" ]; then
+    fail "the plan never reported a state-cache result; the cache was written but the plan did not load it"
+  fi
+  log "  cache USED: the plan answered $cache_hits instance(s) from it instead of reading"
+  [ "$cache_hits" -gt 0 ] || fail "the state cache was written and loaded and supplied 0 instances - written, not used"
+else
+  log "  state cache: CHOUDOUFU_STATE_CACHE unset, so the cache half is NOT under test in this run"
+fi
+
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
   read -r PLAN_LOG_BYTES THROTTLE_HITS RETRY_LINES PAGINATION_HITS <<< "$(analyze_debug_log "$PLAN_LOG")"

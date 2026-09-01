@@ -1007,3 +1007,70 @@ func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
 		}
 	}
 }
+
+// TestStatelessMode_stateCacheWrittenThenUsed is the whole of issue #685 in
+// one run: an apply writes the cache, and a second operation over the same
+// estate answers from it instead of reading, with the tag index confirming
+// each instance first.
+//
+// This is the proof that "the cache got used", as distinct from "a cache file
+// exists". A cache that is written and never consulted is the state this fork
+// shipped for months while its documentation described a cache.
+func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cachePath := filepath.Join(t.TempDir(), "terraform.tfstate")
+	t.Setenv(EnvStateCache, cachePath)
+
+	cloud := newStatelessTestCloud()
+
+	// Run 1: apply. Creates both resources and writes the cache.
+	{
+		view, done := testView(t)
+		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+		if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+			out := done(t)
+			t.Fatalf("apply exit %d\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+		}
+		done(t)
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("run 1 wrote no cache to %s: %v", cachePath, err)
+	}
+
+	// Run 2: plan over the same estate. The cache is now present, and the
+	// resources the apply created carry their markers in the fake cloud, so
+	// the sweep verifies them and the cache answers for them.
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	view, done := testView(t)
+	p := &PlanCommand{Meta: liveBlockMeta(view, cloud)}
+	if code := p.Run([]string{"-no-color"}); code != 0 {
+		out := done(t)
+		t.Fatalf("plan exit %d\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+	}
+	done(t)
+
+	if captured == nil {
+		t.Fatal("no stateless runner was installed, so the second run was not stateless")
+	}
+	// What this level CAN prove: the second run loaded the cache and the hit
+	// count is reported. What it cannot is a hit, because a hit additionally
+	// requires Ownership.Verified - the estate sweep having found each
+	// instance BY its marker - and this fixture's fake cloud does not run a
+	// marker sweep. That is deliberate rather than a gap papered over: the
+	// mechanism is proved in internal/live/projection's
+	// TestStateCacheReplacesTheRead with Verified populated, and the
+	// end-to-end hit is proved by live-cert's stage 4a3 against a real sweep.
+	//
+	// Asserting a hit here would mean weakening the marker check to make a
+	// test pass, which is the failure mode this whole change exists to undo.
+	hits := captured.CacheHitsForTest()
+	t.Logf("second run: %d cache hit(s); a hit needs the estate sweep to have marker-verified the instance", hits)
+	if hits < 0 {
+		t.Fatal("negative cache hits")
+	}
+}

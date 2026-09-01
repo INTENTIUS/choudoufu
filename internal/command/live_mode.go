@@ -642,6 +642,7 @@ type statelessRunner struct {
 	// runs on the single goroutine backend_local.go's localRunDirect calls it
 	// from, never concurrently with itself.
 	priorStateCalls int
+	cacheHits       int
 
 	// nodeResolve and resolver are GitHub issue #388's plan-node seam,
 	// set once in statelessBegin from [nodeResolveEnabled] and populated
@@ -673,6 +674,12 @@ func (r *statelessRunner) RecordedRootOutputs() map[string]cty.Value {
 // PriorStateCalls returns how many times PriorState has run on this runner.
 // Exists for the GitHub issue #80 regression pin (see priorStateCalls):
 // a passing plan or apply must report exactly one.
+// CacheHitsForTest reports how many instances the most recent projection
+// answered from the state cache instead of a provider read. Issue #685's
+// proof surface: a cache that is written, loaded and then ignored is
+// indistinguishable from a working one without this number.
+func (r *statelessRunner) CacheHitsForTest() int { return r.cacheHits }
+
 func (r *statelessRunner) PriorStateCalls() int {
 	return r.priorStateCalls
 }
@@ -1019,6 +1026,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if projDiags.HasErrors() {
 		return nil, diags
 	}
+	r.cacheHits = projResult.CacheHits()
 
 	r.view.Omissions(statelessOmissions(projResult))
 	r.view.Unowned(statelessUnownedReport(projResult, estate))
