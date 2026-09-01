@@ -109,6 +109,15 @@ showing its own checks would have caught it.
   one file allowed to hold attribute material. The BREAK control
   withholds the markers - the re-run must refuse to bind and build a
   second vpc, stock's crash behavior surfacing as the claim's boundary.
+- **roundtrip** - *Claim 6: one command in, one file out.* A tagless
+  stock estate is adopted by live-import (reads the state file once,
+  stamps markers on what verifies), operated with its state file
+  deleted, then handed back: the cache is copied to terraform.tfstate,
+  the live block removed, and stock strips the marker tags and destroys
+  the whole estate from the returned file. The BREAK control skips
+  live-import - the plan must propose a duplicate estate, the
+  documented quiet failure of migrations that flip the block on and
+  bind nothing.
 
 ## Knobs
 
