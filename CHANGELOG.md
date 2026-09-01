@@ -4,9 +4,57 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.7.0 (Unreleased)
+## choudoufu v0.8.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.7.0 (2026-09-01)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.7.0.json`](live/history/v0.7.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.6.0.json live/history/v0.7.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board did not move; this release is the repository telling the truth
+about itself. No resource-facing behavior changed.
+
+FORK WORK:
+
+- The stale-state ruling is pinned where it cannot drift (PR #701).
+  HANDOFF's foundation section opens with the maintainer's ruling - the
+  cache is never consulted for ownership, live wins any disagreement,
+  losing it costs a slower run and nothing else - and
+  `live/stale_state_ruling_test.go` fails if the lines are ever edited
+  away.
+- The prose-authority mechanism is dissolved (PR #701). The rulings/
+  directory (previously rfc/, renamed once and regrown within two days)
+  is gone: every decision document was re-homed verbatim onto the
+  tracker issue its own header names, all 126 code and doc citations now
+  name the issue, guard or fixture that holds the decision, and
+  `live/decision_authority_guard_test.go` refuses a tracked rfc/,
+  rulings/ or decisions/ directory, any dated decision-document
+  citation, and any rfc/* or rulings/* branch. Upstream's website/ tree
+  (448 files, never published by this fork) went with it.
+- The language layer speaks v0.6.0's present tense (PR #701). The eleven
+  live-mode refusal texts and meta_backend's diagnostic now refuse for
+  the true reason - these commands operate on an AUTHORITATIVE state
+  file, which a live block deliberately does not have - instead of
+  claiming no file exists while the cache sits in the data dir. The
+  refusals themselves are unchanged. storage.md becomes the first
+  user-facing page to document the default cache: the file name, the
+  `CHOUDOUFU_STATE_CACHE` override, and the `off` switch.
+- The against-a-real-service test tier gates something (PR #704, #691).
+  `floci-tier.yml` runs `make test-floci` nightly with no `|| true`; the
+  recipe's scope now covers the seven gated files under tools/ it
+  silently missed; and `live/floci_tier_gate_test.go` derives the gated
+  roster from `flocitest.Gate` call sites, failing when a gated package
+  escapes the recipe or the workflow disappears. The staterecord
+  conformance run that would have caught v0.6.0's silent-List defect
+  before it shipped is in that tier.
 
 ## choudoufu v0.6.0 (2026-09-01)
 
