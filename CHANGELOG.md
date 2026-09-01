@@ -4,9 +4,70 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.6.0 (Unreleased)
+## choudoufu v0.7.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.6.0 (2026-09-01)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.6.0.json`](live/history/v0.6.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.5.0.json live/history/v0.6.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board did not move because this release changes what runs underneath
+it: every row's evidence predates the cache default below and stands at
+the commit its own `last_run` records. The next sweep re-measures with
+the cache on.
+
+FORK WORK:
+
+- The state file is back, as a cache (#685, PR #705). The maintainer's
+  ruling - the cache is never consulted for ownership, live wins any
+  disagreement, losing it costs a slower run and nothing else - is pinned
+  by `live/stale_state_ruling_test.go`, and the cache now writes by
+  default to `choudoufu-cache.tfstate` under the data dir (`.terraform`,
+  or `TF_DATA_DIR`), the directory every OpenTofu gitignore already
+  covers. `CHOUDOUFU_STATE_CACHE` overrides the path; the literal value
+  `off` disables persistence. A plan serves an instance from the cache
+  only when the estate sweep vouched for its marker in the same run.
+- The guard that keeps the ruling true (PR #706):
+  `TestCacheConditionsPlanIdentically` proves a fresh cache, a stale
+  cache claiming the world is empty, and no cache at all plan
+  byte-identically, with a built-in negative control that fails the test
+  itself if the comparison goes vacuous.
+- Record-store reliability, from a real failure (#688, #689, #693; PRs
+  #702, #703). A leading-slash key was accepted then handled three
+  different ways across the local, SSM and S3 stores - writes succeeded
+  while List returned empty, which read as an empty estate and surfaced
+  as a plan proposing to re-create live resources. Keys are refused
+  loudly at validation now, conformance pins the contract across all
+  three stores, and every store provisions a sentinel at construction
+  and reads it back through List, so a store whose List is broken
+  refuses the run instead of shaping the plan.
+- Sweep vouching and IAM visibility (#692, PR #709). A sighting of a
+  live object carrying a declared address's marker now vouches that
+  instance for the cache instead of being discarded; IAM routes through
+  the native sweep leg (the tagging API does not index IAM, probed
+  against real AWS), which also closes a real hole: a second marked
+  object carrying a declared IAM address was previously invisible to
+  every leg. `Request.CacheVouchTypes` lists cache-candidate types once
+  per run so their sightings reach the classifiers.
+- Real-AWS wall-clock work (#654, #666, #683, PRs #676-#687): the
+  plan-side throttle analyzer, choudoufu's own client request logging in
+  the provider's wording, the scale-10 timeline, and the withdrawal of
+  every earlier wall-clock ratio that compared a cached stock plan
+  against an uncached choudoufu one (PR #684) - superseded by v0.5.0's
+  like-for-like call-count figures.
+- Cleanup (#694, #700; PRs #694, #707): three orphan tools and the
+  artifact nothing read are gone; one `just demo-run <name>` recipe
+  replaces 54 hand-cloned demo recipes, with every retired recipe's
+  comment moved into its estate's own `run.sh` (line-level audit, zero
+  lost lines).
 
 ## choudoufu v0.5.0 (2026-08-31)
 
