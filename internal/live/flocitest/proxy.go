@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // CountingProxy is an HTTP reverse proxy that stands in for floci's own
@@ -50,14 +51,24 @@ import (
 //     naming Throttling/TooManyRequests/SlowDown/RequestLimitExceeded).
 //     Retried calls inflate the same total a busy-but-unthrottled action
 //     would, and only this counter tells them apart.
+//   - [CountingProxy.SpansFrom] with [Timeline] - the per-request
+//     timeline, from which peak concurrency and the non-overlapping
+//     adjacent-pair count come, paired with [CountingProxy.SetLatency]
+//     which makes serialisation visible on the clock at all. See
+//     timeline.go.
 type CountingProxy struct {
 	mu        sync.Mutex
 	counts    map[string]int
 	total     int
 	pages     map[string]int
 	throttles map[string]int
+	spans     []Span
 	srv       *httptest.Server
 	endpoint  string
+
+	// latency is nanoseconds, read on every request, written by
+	// [CountingProxy.SetLatency] from another goroutine between runs.
+	latency atomicDuration
 }
 
 // NewCountingProxy starts a counting proxy in front of target (floci's own
@@ -76,7 +87,15 @@ func NewCountingProxy(t *testing.T, target string) *CountingProxy {
 	rp := httputil.NewSingleHostReverseProxy(u)
 	rp.ModifyResponse = p.observeResponse
 	p.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Stamped before the injected latency, so the span is the interval
+		// the CALLER waits, which is what "in flight" has to mean for a
+		// concurrency reading to say anything about the caller.
+		start := time.Now()
 		action := p.record(r)
+		if d := p.Latency(); d > 0 {
+			time.Sleep(d)
+		}
+		defer func() { p.appendSpan(Span{Action: action, Start: start, End: time.Now()}) }()
 		// httputil.ReverseProxy.ServeHTTP clones r via r.Context() before
 		// handing the clone to Director/RoundTrip, and http.Transport sets
 		// resp.Request to (a clone of) that same outbound request - so a
@@ -419,4 +438,5 @@ func (p *CountingProxy) Reset() {
 	p.total = 0
 	p.pages = map[string]int{}
 	p.throttles = map[string]int{}
+	p.spans = nil
 }
