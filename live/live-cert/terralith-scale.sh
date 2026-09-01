@@ -140,6 +140,20 @@ esac
 # ── teardown ────────────────────────────────────────────────────────────
 TEARDOWN_DONE=0
 MIGRATE_DONE=0
+
+# ssm_prefix_count counts parameters under a path. NOT `--query
+# 'length(Parameters)'`: the CLI applies that per RESULT PAGE, so a prefix
+# holding 66 parameters printed "10\n10\n10\n10\n10\n10\n6" - a string every
+# numeric comparison chokes on. On the 2026-09-01 proof run that made a
+# working record store report "holds no parameters" (a FALSE failure), and
+# the same bug in teardown skipped the delete loop and left 75 parameters
+# behind. Counting names line-by-line aggregates across pages correctly.
+ssm_prefix_count() {
+  aws ssm get-parameters-by-path --path "$1" --recursive \
+    --query 'Parameters[].Name' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
   TEARDOWN_DONE=1
@@ -187,14 +201,13 @@ EOF
   # own teardown. Doing it here rather than in sweep() because it must run on
   # every exit path, including a run that never reached test_plan.
   if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
-    rs_left="$(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
-      --query 'length(Parameters)' --output text 2>/dev/null || echo 0)"
+    rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
     log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
     if [ "${rs_left:-0}" -gt 0 ]; then
       aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
         --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
         | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
-      log "    remaining after delete: $(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --query 'length(Parameters)' --output text 2>/dev/null || echo '?')"
+      log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
     fi
   fi
 
@@ -1044,17 +1057,18 @@ if [ "$TARGET" = "aws" ]; then
   [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
 
   if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
-    rec_n="$(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
-      --query 'length(Parameters)' --output text 2>/dev/null || echo 0)"
+    rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
     log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
     [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
-    # And prove the PLAN reads it, not just that the apply wrote it. A store
-    # written once and never consulted again is not a state model.
-    if grep -qiE "ssm|GetParametersByPath|record store" "$PLAN_LOG" 2>/dev/null; then
-      log "  values: the plan's own debug log shows record-store access"
-    else
-      fail "values piece unread: $SSM_PREFIX holds $rec_n parameter(s) but the plan's debug log shows no record-store access"
-    fi
+    # A read-side check was tried here and REMOVED as vacuous rather than
+    # kept looking rigorous: it grepped the plan log for "ssm", which matches
+    # the provider's own aws_ssm_parameter type sweep 600+ times on any run,
+    # so it could not fail for the right reason. choudoufu's staterecord SSM
+    # client logs nothing per request (the #682 logging covers the
+    # cloudcontrol/tagging client, a different seam), so there is nothing
+    # honest to grep for until that client logs too. Write-side proof stands;
+    # the read side is proved at the cache stage (5b), whose "state cache
+    # supplied N" line comes from the projection itself.
   else
     log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
   fi
