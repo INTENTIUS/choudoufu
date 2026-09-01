@@ -17,7 +17,7 @@ on which of three things the run is doing:
 |---|---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
 | A plan of an estate already adopted, `live` block on | API calls at parity, or slightly fewer: **-3 on 1416**, then **-45 on 1449** | real AWS |
-| The same plan, in seconds | **1.55x** at 79 resources, **about 3x** at 745 | real AWS |
+| The same plan, in seconds | **withdrawn**, see below | — |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
@@ -25,10 +25,10 @@ names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
 never combined.
 
-The seconds are the least settled figure here. Three independent real-AWS
-sessions at 745 resources land between 2.05x and 3.53x on the median, and
-[Wall clock](#wall-clock-155x-at-79-resources-about-3x-at-745-and-now-a-mechanism)
-gives all three alongside what is now known about where the time goes.
+**There is currently no wall-clock figure on this page.** The three real-AWS
+sessions that produced one were comparing a cached plan against an uncached
+one, and [Wall clock](#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like)
+sets out why they are withdrawn rather than restated.
 
 ## With no live block, nothing at all
 
@@ -73,7 +73,7 @@ every plan exit 0 with `No changes`:
 |---|---|
 | stock `terraform plan`, state file | 150, 150, 150 |
 | stock `tofu plan`, state file | 150, 150, 150 |
-| `choudoufu plan`, live block, migrated, **no state file at all** | **157, 157, 157** |
+| `choudoufu plan`, live block, migrated | **157, 157, 157** |
 | `choudoufu live-plan`, the same estate | 157, 157, 157 |
 
 157 against 150 is **+4.7%**, and the residual is seven calls rather than a
@@ -416,107 +416,59 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: 1.55x at 79 resources, about 3x at 745, and now a mechanism
+## Wall clock: withdrawn, because the comparison was not like for like
 
-This is the number that will decide whether you can live with the fork.
+**Every wall-clock ratio this page published at 745 resources is withdrawn.**
+Three sessions had measured 2.95x, 3.53x and 2.05x on the median, and the page
+had begun offering a mechanism for them. The comparison underneath was invalid.
 
-Real AWS, account `...3429`, `us-east-2`, at `d359210978`. Warm provider on
-both sides, `TF_LOG` unset inside every timed region, every run a no-change
-plan verified by reading `No changes. Your infrastructure matches the
-configuration.` out of that plan's own output rather than from an exit code.
-The 745 row pools two independent sessions, six runs a side:
+The harness ran stock in one directory and choudoufu in another. Stock's
+directory holds `terraform.tfstate`. choudoufu's holds `.tofu-records` and **no
+state file at all**: `live-import` reads stock's state file to perform the
+migration and never writes one into the estate it migrates to.
 
-| Resources | stock `terraform plan` | `choudoufu plan` | median | mean |
-|---|---|---|---|---|
-| 79 | 4, 3, 4 s | **6, 5, 6 s** | 1.50x | **1.55x** |
-| 745, session 1 | 17, 20, 41 s | 59, 84, 46 s | 2.95x | 2.42x |
-| 745, session 2 | 19, 41, 18 s | 67, 132, 58 s | 3.53x | 3.29x |
-| 745, session 3 | 19, 45, 22 s | 34, 45, 50, 63, 37 s | 2.05x | 1.60x |
-| **745, pooled** | 17-45 s | **34-132 s** | **2.90x** | **2.28x** |
+So the measurement was not stock against this fork. It was **a cached plan
+against an uncached one.** choudoufu read all 745 objects live because nothing
+had told it any of them were already known, which is what a plan does when its
+cache is missing rather than stale.
 
-**Read 745 as "about 3x" and no more precisely than that.** Three independent
-sessions land at 2.95x, 3.53x and 2.05x on the median, and the spread inside a
-single session reaches 141% on the stock side. An earlier version of this page
-published a 2.4x to 3.0x band from session 1 alone; session 2 came in above it
-and session 3 below it. The pooled median is 2.90x and the pooled mean 2.28x,
-which is the honest width of what nine stock runs and eleven choudoufu runs
-support.
+This is a defect in the test harness, not a discovery about the fork, and the
+figures cannot be salvaged by reinterpreting them. They are withdrawn rather
+than restated.
 
-At 79 resources both spreads sit under 50%, so a single figure is defensible,
-but the timer has whole-second resolution and the plans run 3 to 6 seconds, so
-one tick is a third of the value. Treat 1.55x as coarse.
+### What this fork actually keeps, and what the test was missing
 
-### Where the seconds go
+choudoufu is stock OpenTofu plus identity hooks. It keeps **the ordinary state
+file, as a cache**, and adds three pieces that live in the cloud: identity as
+two tags on the resource, values in a record store, and effects as receipts.
+The state file is demoted from being the record of what you own to being a copy
+you are allowed to lose or to find stale. Demoted is not deleted, and a cache
+you never write is not a cache.
 
-A wall-clock block profile of a real-AWS plan at 745 resources puts the cost
-on one frame. The goroutine running the plan blocks for 49.72 s of a 51 s run,
-and 46.14 s of that is a single channel receive:
+Two things were therefore missing from the comparison. choudoufu's estate had
+no state file to cache into, and its record store was configured as
+`record_store "local"`, a directory on disk, so the values piece was never
+exercised against the cloud either. Of the three pieces, only identity - the
+tags - was genuinely under test.
 
-| Blocked in | seconds |
-|---|---|
-| `statelessRunner.PriorState` | 48.97 |
-| `projection.BuildWith` → `builder.materialize` | 46.49 |
-| `builder.applyRecordFirst` → `readFor` | 46.22 |
-| **`readPrefetch.take`, waiting on one read's answer** | **46.14** |
-| `discovery.Discover` → `scanType`, the estate sweep | 2.05 |
+### What survives
 
-Two things to take from that. **The estate-wide sweep, the mechanism this fork
-exists for, costs 2.05 s of a 51 s plan.** And the read pass is running at an
-effective concurrency of **3.8 against a configured bound of 10**: its 745
-workers block 176.25 s in aggregate, compressed into 46.14 s of wall clock.
+The **API call counts** survive: they were counted per request on both sides
+and do not depend on the cache being present. choudoufu issues fewer provider
+requests than stock at 745 resources in all three sessions.
 
-The read pass takes its answers strictly in order. A slot is claimed before
-each read and released only when the plan consumes *that* instance's answer,
-so a single slow read does not occupy one slot, it stops the window advancing.
-Measured on a real account, one `aws_route53_record` in SDK backoff stalled all
-745 reads for 10.7 seconds with no request, no response and no log line in
-between. Requests in flight fell to zero and stayed there until it cleared.
+**The head-of-line defect survives**
+([#683](https://github.com/INTENTIUS/choudoufu/issues/683)). A block profile
+puts 46.14 s of a 51 s plan in one channel receive, and one throttled read
+stalls the whole read pass regardless of why the reads are being made. That is
+a real defect in the read pass's slot accounting. What changes is its
+importance: it was stalling a pass that should not have been reading 745
+objects in the first place.
 
-What matters is the amplification. A retry costs stock **0.09 s** of pipeline
-dead air and costs choudoufu **1.06 s**, because stock's graph walk lets
-independent work proceed past a throttled read where an in-order prefetch
-cannot. Over a whole plan that leaves choudoufu with **22.9 s of 42.8 s in
-which nothing at all is in flight**, against stock's 12.2 s of 40.7 s.
+A corrected comparison, with choudoufu given the state file it is designed to
+keep and a record store in the cloud, has not been run yet. Nothing replaces
+these figures until it has.
 
-This is [issue #683](https://github.com/INTENTIUS/choudoufu/issues/683), and it
-is a defect rather than a design limit. What it is *not* known to be is the
-whole of the ratio: the two plans profiled per-request ran only 1.06x apart,
-so the mechanism is proven and its share is not.
-
-### What the 3x is not
-
-Four candidate explanations were measured and eliminated on the way to that,
-and each remains a useful negative with a control behind it.
-
-**It is not the API calls.** choudoufu issues *fewer* provider requests than
-stock at this size, in every session: 1413 against 1416, 1404 against 1449,
-then 1409 against 1460. The per-operation breakdown is in the table higher up
-this page.
-
-**It is not request serialisation, and peak concurrency is why this took so
-long to find.** Both binaries reach ten requests in flight at 745 resources,
-on the emulator and on real AWS. Ten reads really are outstanding; they just
-cannot retire, so the peak statistic reads clean while the mean sits at 2.97
-against stock's 3.35. Anyone checking this needs to measure occupancy over
-time, not the peak.
-
-**It is not compute.** At 745 resources CPU is 7.99 s for choudoufu against
-6.11 s for stock, over twenty runs a side. That 1.88 s is 4.5% of the gap, and
-most of the absolute is stock's, so compute at this size is a property of the
-estate rather than of the fork.
-
-**It is not throttling, and this one runs backwards.** Both plans were
-instrumented in the same session, minutes apart. Stock was throttled **76**
-times against choudoufu's **15**, concentrating on one hosted zone's
-account-wide limit, with 56 of those 76 in Route 53. Measured backoff covered
-84.5% of stock's log span against choudoufu's 57.4%. So the faster binary is
-the one carrying five times the throttling headwind.
-
-That last one was nearly a wrong answer. Comparing throttle *counts* says
-throttling cannot be the cause, and comparing what a throttle *costs* says the
-opposite: stock absorbs five times as many and pays a tenth as much for each.
-The defect is not that choudoufu is throttled. It is that choudoufu cannot
-absorb being throttled.
 
 ### And an emulator cannot answer this question
 
