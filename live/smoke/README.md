@@ -118,6 +118,14 @@ showing its own checks would have caught it.
   live-import - the plan must propose a duplicate estate, the
   documented quiet failure of migrations that flip the block on and
   bind nothing.
+- **identity-is-a-tag** - *Claim 7: identity is a tag you can read and
+  move.* Two estates share one account with nothing but their estate
+  tags between them - both plan clean, neither ever names the other's
+  resources; the plain AWS CLI's tagging API answers ownership with the
+  tool absent; and a code rename settles as one live-mv tag rewrite
+  with a clean plan after, where stock demands state surgery. The BREAK
+  control renames the code but skips the retag - the plan must propose
+  stock's destroy-and-recreate, proving the tag is the identity.
 
 ## Knobs
 
