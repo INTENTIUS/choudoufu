@@ -110,6 +110,7 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.40.0
+	golang.org/x/tools v0.47.0
 	google.golang.org/api v0.271.0
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.11
@@ -257,7 +258,6 @@ require (
 	golang.org/x/exp v0.0.0-20250808145144-a408d31f581a // indirect
 	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/genproto v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
@@ -280,8 +280,6 @@ replace github.com/hashicorp/hcl/v2 v2.20.1 => github.com/opentofu/hcl/v2 v2.20.
 tool (
 	github.com/intentius/choudoufu/cmd/choudoufu
 	github.com/intentius/choudoufu/tools/find-dep-upgrades
-	github.com/intentius/choudoufu/tools/find-pkg-importer
-	github.com/intentius/choudoufu/tools/loggraphdiff
 	github.com/intentius/choudoufu/tools/protobuf-compile
 	github.com/intentius/choudoufu/tools/selected-go-version
 	github.com/mitchellh/gox
