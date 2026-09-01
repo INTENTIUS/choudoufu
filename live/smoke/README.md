@@ -49,6 +49,23 @@ just smoke full           # the comprehensive 15-step harness (~6 minutes)
   the AWS CLI and no choudoufu in the loop.
 - **full** - wraps `live/e2e/run.sh --expect 5`, the 15-step harness.
 
+## Claim scenarios
+
+Each claim scenario states one product claim up front, proves it against
+the live stack while narrating why each step matters, asserts the
+claim's honest boundary out loud, and carries a `BREAK=1` control that
+manufactures the one corruption the claim cannot cover - passing only by
+showing its own checks would have caught it.
+
+- **no-silent-orphans** - *Claim 1: a resource this estate owns cannot
+  fall out of its plans unnoticed.* A crash-shaped create (resource made,
+  markers written, nothing ever recorded) and a deleted resource block
+  both surface as named plan lines and are removed by an ordinary apply;
+  the two types the sweep cannot recover are announced by the apply
+  itself. The BREAK control creates the resource unmarked - the one shape
+  the claim excludes - and proves the naming check fails without the
+  marker.
+
 ## Knobs
 
 | Variable | Effect |
