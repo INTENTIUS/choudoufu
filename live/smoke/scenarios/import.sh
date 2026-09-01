@@ -1,5 +1,5 @@
 # import
-# The migration path: stock OpenTofu (the pinned oracle, in its own
+# The migration path: stock stands the estate up, the state file is deleted, the estate plans empty from markers alone. ~2 min.
 # container) stands an estate up with a plain local state file; the state
 # file is deleted; choudoufu adopts the estate off its markers and plans
 # empty. BREAK=1 strips one live marker and requires the plan to catch it.
