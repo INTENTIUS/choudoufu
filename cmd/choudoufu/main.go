@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	rtrace "runtime/trace"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +46,78 @@ const (
 	envTmpLogPath = "TF_TEMP_LOG_PATH"
 
 	EnvCPUProfile = "TOFU_CPU_PROFILE"
+
+	// EnvTrace writes a runtime/trace execution trace. A CPU profile cannot
+	// answer where a plan's WALL CLOCK goes, because it samples only running
+	// goroutines: measured at 745 resources, CPU is 7.99s of a 59s plan, so a
+	// CPU flame graph describes about a seventh of the run and is silent about
+	// the rest. An execution trace records the blocking too - network waits,
+	// scheduler latency, syscalls - which is where the remaining time is.
+	// Read with `go tool trace`.
+	EnvTrace = "CHOUDOUFU_TRACE"
+
+	// EnvBlockProfile writes a block profile: cumulative time goroutines spent
+	// blocked on channels, mutexes and other sync primitives, attributed to the
+	// stack that blocked. `go tool pprof` renders it as a flame graph in the
+	// same shape as a CPU profile, but measuring waiting rather than running.
+	// The value is the sample rate in nanoseconds; 1 records every event.
+	EnvBlockProfile     = "CHOUDOUFU_BLOCK_PROFILE"
+	EnvBlockProfileRate = "CHOUDOUFU_BLOCK_PROFILE_RATE"
+
+	// EnvMutexProfile writes a mutex contention profile. Separate from the
+	// block profile because lock contention and channel waiting have different
+	// fixes, and a run can show one without the other.
+	EnvMutexProfile     = "CHOUDOUFU_MUTEX_PROFILE"
+	EnvMutexProfileRate = "CHOUDOUFU_MUTEX_PROFILE_RATE"
 )
+
+// profileRate reads a sampling rate from env, falling back to def. An
+// unparseable or non-positive value falls back rather than silently disabling
+// the profile, because a profile that records nothing looks exactly like a
+// program with nothing to record.
+func profileRate(env string, def int) int {
+	v := os.Getenv(env)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
+}
+
+// writeProfileTo writes one of the runtime's named profiles. Split from its
+// reporting wrapper so it can be tested without constructing a view; it must
+// not write a file for a name the runtime does not register, because an empty
+// file is indistinguishable from a profile with no samples.
+func writeProfileTo(name, path string) error {
+	p := pprof.Lookup(name)
+	if p == nil {
+		return fmt.Errorf("no %s profile registered", name)
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("could not open %s profile output: %w", name, err)
+	}
+	if err := p.WriteTo(f, 0); err != nil {
+		f.Close()
+		return fmt.Errorf("could not write %s profile: %w", name, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("could not close %s profile: %w", name, err)
+	}
+	return nil
+}
+
+// writeNamedProfile writes a named profile at exit and reports any failure
+// rather than swallowing it: a missing profile after a run that asked for one
+// must not be mistaken for an empty one.
+func writeNamedProfile(rv *views.Root, name, path string) {
+	if err := writeProfileTo(name, path); err != nil {
+		rv.Error(err.Error())
+	}
+}
 
 func main() {
 	os.Exit(realMain())
@@ -102,6 +175,37 @@ func realMain() int {
 			return 1
 		}
 		defer pprof.StopCPUProfile()
+	}
+
+	// Wall-clock instrumentation. Each is independent and off unless asked
+	// for, and each writes on the way out so an interrupted run leaves a
+	// truncated file rather than none.
+	if tracePath := os.Getenv(EnvTrace); tracePath != "" {
+		traceOut, err := os.Create(tracePath)
+		if err != nil {
+			rv.Error(fmt.Sprintf("Could not open trace output: %s", err))
+			return 1
+		}
+		if err := rtrace.Start(traceOut); err != nil {
+			rv.Error(fmt.Sprintf("Could not start trace: %s", err))
+			return 1
+		}
+		defer func() {
+			rtrace.Stop()
+			if err := traceOut.Close(); err != nil {
+				rv.Error(fmt.Sprintf("Could not close trace: %s", err))
+			}
+		}()
+	}
+
+	if blockPath := os.Getenv(EnvBlockProfile); blockPath != "" {
+		runtime.SetBlockProfileRate(profileRate(EnvBlockProfileRate, 1))
+		defer writeNamedProfile(rv, "block", blockPath)
+	}
+
+	if mutexPath := os.Getenv(EnvMutexProfile); mutexPath != "" {
+		runtime.SetMutexProfileFraction(profileRate(EnvMutexProfileRate, 1))
+		defer writeNamedProfile(rv, "mutex", mutexPath)
 	}
 
 	ctx, err := tracing.OpenTelemetryInit(context.Background())
