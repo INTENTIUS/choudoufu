@@ -34,7 +34,12 @@ import (
 func TestFlociTierCoversEveryGatedPackage(t *testing.T) {
 	root := repoRoot(t)
 
-	out, err := exec.Command("git", "-C", root, "grep", "-l", "flocitest.Gate", "--", "*_test.go").Output()
+	// The pattern requires the call's open paren, so this file - whose
+	// prose and error strings name flocitest.Gate without calling it -
+	// cannot match itself. A condition that can match itself is the
+	// while-pgrep-matches-its-own-command-line bug wearing a test's
+	// clothes (CLAUDE.md records six workers lost to that one).
+	out, err := exec.Command("git", "-C", root, "grep", "-l", "flocitest\\.Gate(", "--", "*_test.go").Output()
 	if err != nil {
 		t.Fatalf("enumerating flocitest.Gate call sites: %v", err)
 	}
