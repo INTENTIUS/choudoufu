@@ -1,5 +1,5 @@
 # greenfield
-# A new estate from nothing: a live-block configuration, one plain apply.
+# A new estate from nothing: markers ride the creates, the replan is empty, the cache is disposable, destroy is exact. ~1 min.
 # Proves markers ride the create calls, the replan is empty, the #685
 # cache exists and is disposable, and destroy tears down exactly what was
 # made. BREAK=1 rewrites one live marker and requires the replan to catch

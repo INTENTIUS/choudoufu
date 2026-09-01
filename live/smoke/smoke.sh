@@ -19,14 +19,24 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCENARIO="${1:-}"
-if [ -z "$SCENARIO" ] || [ ! -f "$HERE/scenarios/$SCENARIO.sh" ]; then
-  echo "usage: smoke.sh <scenario>" >&2
-  echo "scenarios:" >&2
+
+list_scenarios() {
+  echo "scenarios (run one with: just smoke <name>):"
   for s in "$HERE"/scenarios/*.sh; do
     b="$(basename "$s" .sh)"
-    echo "  $b - $(sed -n '2s/^# //p' "$s")" >&2
+    printf "  %-12s %s\n" "$b" "$(sed -n '2s/^# //p' "$s")"
   done
+}
+
+SCENARIO="${1:-}"
+if [ -z "$SCENARIO" ]; then
+  # No argument is a request for the list, not a mistake.
+  list_scenarios
+  exit 0
+fi
+if [ ! -f "$HERE/scenarios/$SCENARIO.sh" ]; then
+  echo "no scenario named '$SCENARIO'" >&2
+  list_scenarios >&2
   exit 2
 fi
 

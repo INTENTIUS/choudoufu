@@ -1,5 +1,5 @@
 # full
-# The comprehensive harness: every step of live/e2e/run.sh (greenfield,
+# The comprehensive 15-step harness (live/e2e/run.sh end to end). ~6 min.
 # adoption, drift, foreign protection, removal, count scaling, rename,
 # receipts, reconvergence, and every lint fixture), driven end to end.
 # Roughly six minutes.
