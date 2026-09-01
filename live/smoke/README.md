@@ -65,6 +65,15 @@ showing its own checks would have caught it.
   itself. The BREAK control creates the resource unmarked - the one shape
   the claim excludes - and proves the naming check fails without the
   marker.
+- **no-self-managed-locks** - *Claim 2: contention settles at the
+  platform API, never in a lock this tool holds.* force-unlock refuses
+  with the true reason (no lock exists to force); two simultaneous
+  applies of the same client-named resource are refereed by the cloud's
+  own uniqueness constraint with no lock ever taken; the loser's whole
+  recovery is a clean re-plan; and the one unrefereeable race - a true
+  duplicate of a server-assigned resource - surfaces as a named pair for
+  a human to resolve with one delete. The BREAK control strips the
+  winner's marker and proves the convergence check fails without it.
 
 ## Knobs
 

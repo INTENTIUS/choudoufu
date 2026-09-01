@@ -60,6 +60,10 @@ type statelessCommandRefusal struct {
 }
 
 var statelessCommandRefusals = map[string]statelessCommandRefusal{
+	"force-unlock": {
+		summary: "There is no lock to force open",
+		detail:  "\"choudoufu force-unlock\" releases the lock protecting an authoritative state file, and under a live block no such lock exists: there is no shared record to protect, so concurrent runs are not serialized by this tool at all. Contention settles at the platform API - a duplicate client-named create is rejected by the cloud's own uniqueness constraint and the loser converges on its next plan; a genuine duplicate of a server-assigned resource is reported as a named collision for a human to resolve; record-store writes are conditional and a losing writer gets a named version conflict. Nothing is held that a crash could leave stuck, so there is nothing here to force.",
+	},
 	"import": {
 		summary: "Import is not available under live resource markers",
 		detail:  "\"choudoufu import\" writes a record of an existing resource into an authoritative state file, and under a live block no state file carries that authority - a record written into the disposable cache would be discarded the moment the live system disagreed. Ownership under live resource markers is the tofu-estate and tofu-address tag pair described in live/MARKERS.md. Adopt the resource instead: add its resource block to the configuration and run \"choudoufu plan\", which prints the live resource under \"Adoptable\" together with the exact command that stamps its markers. The marker pair is the whole contract, so any tool that writes those two tags adopts the resource.",
