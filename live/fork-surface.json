@@ -3,13 +3,13 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "67830aebe8c7a116592f45be0a0169ef9f09d406",
+  "measured_at_head": "bb45512c9be0ddec79eaaa8797d8cbe8fa18ccaf",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
     "internal/live/": 1253,
-    "live/": 448,
-    "other": 467,
+    "live/": 449,
+    "other": 454,
     "site/": 87,
     "tools/": 406
   },
@@ -5232,6 +5232,10 @@
         "status": "A"
       },
       {
+        "path": "live/decision_authority_guard_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/derivation_guard_test.go",
         "status": "A"
       },
@@ -8708,58 +8712,6 @@
       {
         "path": "rfc/yyyymmdd-template.md",
         "status": "D"
-      },
-      {
-        "path": "rulings/20260814-micro-state-store-ruling.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260814-plan-approval.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260814-projection-nativeness-audit.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260814-upstream-sync.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260823-foundation-order-ruling.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260828-readiness-tiers.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-marker-verified-fast-projection.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-slicing-under-choudoufu.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-ssm-record-parameter-type-ruling.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-stale-state-charter.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-stateful-equivalence.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/20260830-what-drives-development.md",
-        "status": "A"
-      },
-      {
-        "path": "rulings/README.md",
-        "status": "A"
       },
       {
         "path": "scripts/build.sh",

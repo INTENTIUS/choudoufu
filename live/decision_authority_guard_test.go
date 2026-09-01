@@ -34,7 +34,8 @@ import (
 //   - a tracked directory named rfc/, rulings/ or decisions/;
 //   - any tracked file citing a dated decision document by path
 //     (rfc/YYYYMMDD-*, rulings/YYYYMMDD-*, decisions/YYYYMMDD-*), with
-//     CHANGELOG.md excepted as history;
+//     two history exceptions: CHANGELOG.md, and live/fork-surface.json,
+//     whose rows record the deleted upstream rfc/ paths as inventory;
 //   - a local or remote git branch under rfc/ or rulings/.
 //
 // Citing an upstream OpenTofu RFC by full URL is fine - that is
@@ -52,7 +53,7 @@ func TestNoProseDecisionAuthority(t *testing.T) {
 	}
 
 	cite := regexp.MustCompile(`(?:rfc|rulings|decisions)/[0-9]{8}-[A-Za-z0-9-]+`)
-	out, err := exec.Command("git", "-C", root, "grep", "-Il", "-E", `(rfc|rulings|decisions)/[0-9]{8}-`, "--", ".", ":!CHANGELOG.md").Output()
+	out, err := exec.Command("git", "-C", root, "grep", "-Il", "-E", `(rfc|rulings|decisions)/[0-9]{8}-`, "--", ".", ":!CHANGELOG.md", ":!live/fork-surface.json").Output()
 	if err == nil { // git grep exits nonzero when nothing matches, which is the pass
 		for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 			if f == "" {
@@ -62,8 +63,21 @@ func TestNoProseDecisionAuthority(t *testing.T) {
 			if rerr != nil {
 				t.Fatalf("reading %s: %v", f, rerr)
 			}
-			for _, m := range cite.FindAllString(string(b), 3) {
-				t.Errorf("%s cites %q as decision authority; cite the issue, the guard test or the fixture that holds the decision instead", f, m)
+			flagged := 0
+			for _, line := range strings.Split(string(b), "\n") {
+				// An upstream RFC cited by its full upstream URL is
+				// upstream's document about upstream's decision; only a
+				// repo-local path is a prose authority here.
+				if strings.Contains(line, "opentofu/opentofu") {
+					continue
+				}
+				for _, m := range cite.FindAllString(line, 2) {
+					t.Errorf("%s cites %q as decision authority; cite the issue, the guard test or the fixture that holds the decision instead", f, m)
+					flagged++
+				}
+				if flagged >= 3 {
+					break
+				}
 			}
 		}
 	}
