@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -166,11 +167,25 @@ func statelessBegin(
 		return diags
 	}
 
-	// The manager's one optional side effect - guided discovery's hint
-	// (issue #109) - is enabled later, in PriorState, once the estate name
-	// is settled and the live block's record store (its carrier) is open.
-	// Nothing to configure here.
+	// The manager's optional side effects: guided discovery's hint (issue
+	// #109) is enabled later, in PriorState, once the estate name is settled
+	// and the live block's record store (its carrier) is open.
 	mgr := projection.NewManager()
+
+	// Issue #685: the state cache. This fork's own documentation says a state
+	// file "becomes a cache rather than the record of what you own", and that
+	// was implemented as writing nothing - so there was no cache, and every
+	// plan rebuilt prior state from live reads.
+	//
+	// Off unless CHOUDOUFU_STATE_CACHE names a path, because admitting a
+	// persisted file changes the charter's surface and that is a maintainer
+	// decision, not a default to slip in. The write itself is safe by
+	// construction: nothing reads this file for authority yet, so enabling it
+	// can only cost a file on disk.
+	if cachePath := os.Getenv(EnvStateCache); cachePath != "" {
+		mgr.EnableStateCache(cachePath)
+		log.Printf("[DEBUG] stateless: state cache enabled at %s (%s)", cachePath, EnvStateCache)
+	}
 
 	runner := &statelessRunner{
 		settings: settings,
@@ -314,6 +329,12 @@ var testStatelessRunner func(*statelessRunner)
 // refuses, it refuses for the same reason - and the one clause below that
 // reads this value says exactly why it is the exception.
 type statelessSurface int
+
+// EnvStateCache names a path where a live-block run writes its state
+// snapshot as an ordinary statefile, for the next run to start from. Empty or
+// unset writes none, which is the behaviour every release up to and including
+// v0.5.0 had. Issue #685.
+const EnvStateCache = "CHOUDOUFU_STATE_CACHE"
 
 const (
 	// surfaceLiveBlock is plain "choudoufu plan" and "choudoufu apply" over a
