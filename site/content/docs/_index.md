@@ -3,6 +3,36 @@ title: Docs
 weight: 1
 ---
 
+# See it work before reading about it
+
+The smoke stack stands up a real estate against a local AWS emulator and
+proves the claims below as it goes, one verdict line per step. Docker,
+about two minutes per scenario, exit 0 means every claim held. Paste this
+to a coding agent (Claude Code or similar) and it runs the whole thing:
+
+```
+Clone https://github.com/INTENTIUS/choudoufu, then do the following.
+
+1. Confirm Docker is running (`docker info` must succeed) and the AWS CLI
+   is installed (`aws --version`).
+2. If Go is installed, skip this step. Otherwise pick the latest release
+   tag from https://github.com/INTENTIUS/choudoufu/releases and
+   export CHOUDOUFU_VERSION=<that tag> so the smoke runs a prebuilt binary.
+3. From the repo root, run: just smoke import
+4. Then run: just smoke greenfield
+5. Report each step's verdict line as it prints, and each scenario's final
+   PASS or FAIL line.
+```
+
+Or by hand: `just smoke` lists the scenarios. `import` is the migration
+path - stock OpenTofu stands an estate up, the state file is deleted, and
+the estate plans empty from its markers alone. `greenfield` is a new
+estate from nothing, markers riding the create calls. `BREAK=1` corrupts
+one expected fact mid-run and the scenario passes only by catching it.
+[The harness's own page](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/README.md)
+has every knob, including pinning both the emulator and the choudoufu
+version, and the optional request-count instrumentation.
+
 # What choudoufu is
 
 **OpenTofu plus identity hooks.** Almost everything in this fork is stock
