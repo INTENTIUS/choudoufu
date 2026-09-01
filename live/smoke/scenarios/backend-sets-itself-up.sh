@@ -20,9 +20,10 @@ sed 's/smoke-auto-local/smoke-auto-ssm/; s|estate = "smoke-auto-ssm"|estate = "s
 step "the claim"
 explain \
   "The live backend sets itself up when configured. Compare stock's" \
-  "remote-backend day one: create a bucket, enable versioning, create a" \
-  "lock table, write IAM for both, keep them in step forever, then run" \
-  "init and answer migration prompts. Here the backend is three pieces" \
+  "remote-backend day one: stand up a bucket with versioning and a lock" \
+  "table beside it, then wire IAM for both and keep it all in step" \
+  "forever. Only then does init run, with migration prompts to answer." \
+  "Here the backend is three pieces" \
   "that live where AWS already is - identity as tags, values in a record" \
   "store, effects as receipts - and DECLARING them is the entire setup." \
   "Each store also proves itself before any plan trusts it: at first use" \
@@ -32,8 +33,8 @@ explain \
 
 step "1. no store declared - the local one appears unbidden"
 explain \
-  "Copy A declares a live block, one record-backed resource, and NOTHING" \
-  "about storage. The way stock implies a local state file, a live block" \
+  "Copy A declares a live block and one record-backed resource, with" \
+  "NOTHING about storage. The way stock implies a local state file, a live block" \
   "implies a local record store: a .tofu-records directory beside the" \
   "module, created at first use, sentinel first."
 cmd "choudoufu apply -auto-approve   # no record_store anywhere in the config"
@@ -91,7 +92,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -qiE "record.store|sentinel" <<< "$BOUT" \
     || fail "auto" "the run failed but nothing named the record store - an anonymous failure is not the loud refusal the claim promises: $BOUT"
   grep -iE "record.store|sentinel" <<< "$BOUT" | head -1 | evidence
-  proof "caught: unreachable means refused-by-name, never an empty-looking estate. The sentinel is why."
+  proof "caught - unreachable means refused-by-name, never an empty-looking estate. The sentinel is why."
   exit 0
 fi
 

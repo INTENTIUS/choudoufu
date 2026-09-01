@@ -13,12 +13,12 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "the claim"
 explain \
-  "No Silent Orphans: once this estate owns a resource, no later run can" \
-  "quietly forget it. The failure this targets is stock's oldest one - a" \
-  "state entry lost to a crash, a bad merge, or surgery, and the live" \
-  "resource silently drops out of every future plan, still running," \
-  "still billing, invisible. Here the record of ownership is ON the" \
-  "resource, so forgetting would take losing the resource itself."
+  "No Silent Orphans means that once this estate owns a resource, no" \
+  "later run can forget it. The failure this targets is stock's oldest" \
+  "one - a state entry lost to a crash, a bad merge, or surgery, and the" \
+  "live resource drops out of every future plan, still running, still" \
+  "billing, invisible. Here the record of ownership is ON the resource," \
+  "so forgetting would take losing the resource itself."
 
 step "1. stand the estate up"
 cmd "choudoufu init && choudoufu apply -auto-approve"
@@ -59,8 +59,8 @@ step "3. the next plan finds it - nobody had to remember"
 explain \
   "A plan now reads the live system. The marker on the subnet says this" \
   "estate owns an aws_subnet.crashed; the configuration declares no such" \
-  "block; so the plan must PROPOSE DESTROYING it, by name. That is the" \
-  "claim: owned-but-undeclared is a plan line, never a silence."
+  "block; so the plan must PROPOSE DESTROYING it, by name. That is what" \
+  "the claim promises for anything owned but undeclared."
 cmd "choudoufu plan"
 POUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
   || fail "orphans" "plan failed: $POUT"
@@ -69,7 +69,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     fail "orphans" "BREAK: the plan named an UNMARKED resource as the estate's own removal - the naming assertion is guessing"
   fi
   awsl ec2 delete-subnet --subnet-id "$CRASHED" >/dev/null 2>&1 || true
-  proof "caught: without the marker, the plan cannot claim it - so the naming check below is a real check, and unmarked resources are exactly the boundary the claim states."
+  proof "caught - without the marker the plan cannot claim it, so the naming check below is a real check; unmarked resources are exactly the boundary the claim states."
   exit 0
 fi
 grep -E "aws_subnet.crashed" <<< "$POUT" | head -1 | evidence
@@ -81,8 +81,8 @@ proof "the orphan surfaced by its own marker, with a proposed destroy. The crash
 
 step "4. a deleted block is the same story"
 explain \
-  "The everyday case: an engineer deletes the security group's block from" \
-  "the configuration. The live security group still carries this" \
+  "The everyday case is an engineer deleting the security group's block" \
+  "from the configuration. The live security group still carries this" \
   "estate's markers, so the next plan proposes destroying it too - now" \
   "two orphans, both named."
 cmd "delete the aws_security_group block; choudoufu plan"

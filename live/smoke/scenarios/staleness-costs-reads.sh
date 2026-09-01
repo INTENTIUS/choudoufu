@@ -17,20 +17,19 @@ plan_filtered() { (cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 | g
 step "the claim"
 explain \
   "Staleness costs reads, never results. The state file here is a cache" \
-  "of the projection, and the ruling it lives under has three lines: it" \
-  "is never consulted for ownership, live wins any disagreement, and" \
-  "losing it costs a slower run and nothing else. Stale is the EXPECTED" \
-  "condition - the name of the project is fermented tofu. This scenario" \
-  "makes the cache fresh, ancient, and absent, and demands one identical" \
-  "answer each time; then it measures where the cost actually lands."
+  "of the projection, under a short ruling: ownership is never read from" \
+  "it; disagreements go to live; the only cost of losing it is a slower" \
+  "run. Stale is the EXPECTED condition - the" \
+  "name of the project is fermented tofu. This scenario puts the cache" \
+  "in every condition it can reach and demands one identical answer each" \
+  "time; then it measures where the cost actually lands."
 
 step "1. stand up, and manufacture a genuinely ancient cache"
 explain \
   "First apply creates the estate and writes cache C1. Then the whole" \
   "estate is destroyed and applied AGAIN - a new world with new" \
   "server-assigned ids - while C1 is kept aside. C1 now remembers a" \
-  "world that no longer exists: every VPC and subnet id in it is dead." \
-  "That is not simulated staleness; it is the real thing."
+  "world that no longer exists: every VPC and subnet id in it is dead."
 cmd "apply ; save cache ; apply -destroy ; apply"
 ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "stale" "init failed"
 A1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "stale" "first apply failed: $A1"
@@ -47,8 +46,8 @@ proof "the ancient cache and reality now disagree about every server-assigned id
 
 step "2. three cache states, one answer"
 explain \
-  "The same plan, three times: with the fresh cache, with the ancient" \
-  "cache swapped in (dead ids and all), and with no cache file at all." \
+  "The same plan runs under the fresh cache and again under the ancient" \
+  "one, dead ids and all; a third run has no cache file whatsoever." \
   "The outputs must be byte-identical. A cache that could bend a plan" \
   "toward its own memory would be a record, and records are exactly what" \
   "this file is never allowed to be."
@@ -86,7 +85,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   if [ "$P_FRESH" = "$P_DRIFT" ]; then
     fail "stale" "BREAK: the world moved and the plan output did not - the equality checks above are scenery"
   fi
-  proof "caught: a real difference moves the comparator, so the three-way equality is a real check."
+  proof "caught - a real difference moves the comparator, so the three-way equality is a real check."
   exit 0
 fi
 
@@ -94,8 +93,8 @@ step "3. the world moves and the fresh cache does not hide it"
 explain \
   "Three days after the cache became the default, this exact shape" \
   "shipped broken: a fresh cache served a verified instance's attributes" \
-  "and an out-of-band drift went invisible. The smoke caught it, the fix" \
-  "gated cache-served reads behind -refresh=false, and this step is the" \
+  "and an out-of-band drift went invisible. The smoke caught it, and the" \
+  "fix gated cache-served reads behind -refresh=false. This step is the" \
   "regression pinned forever: drift the retention while the cache is" \
   "fresh and present, and the default plan must show it."
 cmd "aws logs put-retention-policy --retention-in-days 7 ; choudoufu plan"
@@ -111,7 +110,7 @@ AOUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1
   || fail "stale" "the reconverging apply failed"
 grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$AOUT" \
   || fail "stale" "reconvergence was not exactly one in-place change: $AOUT"
-proof "the read pass is drift detection, and no cache freshness excuses skipping it on a default plan. One apply reconverged it."
+proof "the read pass is drift detection; no cache freshness excuses skipping it on a default plan. One apply reconverged it."
 
 step "4. the one opt-in, and where the cost actually lives"
 explain \
@@ -140,13 +139,14 @@ grep "state cache supplied" "$LOGDIR/with.log" | sed 's/.*projection: //' | head
 echo "cache hits: $HITS_WITH with, $HITS_WITHOUT without; wire requests: $REQ_WITH with, $REQ_WITHOUT without" | evidence
 [ "$HITS_WITH" -gt 0 ] || fail "stale" "-refresh=false with a fresh, sweep-verified cache served nothing - the opt-in path is dead"
 [ "$HITS_WITHOUT" -eq 0 ] || fail "stale" "cache hits were reported with no cache file present - the counter is lying"
-proof "the opt-in path served $HITS_WITH instance(s) and losing the cache changed only work, never the answer. Honest footnote: on this small estate the wire saving rounds to nothing ($REQ_WITH vs $REQ_WITHOUT requests) because the sweep currently vouches a narrow slice and other phases still read - widening that slice is tracked, open work (#692). The claim never promised big savings; it promised the price of staleness is only ever paid in work."
+proof "the opt-in path served $HITS_WITH instance(s) and losing the cache changed only work, never the answer. The honest footnote is that on this small estate the wire saving rounds to nothing ($REQ_WITH vs $REQ_WITHOUT requests) because the sweep currently vouches a narrow slice and other phases still read - widening that slice is tracked, open work (#692). The claim never promised big savings; it promised the price of staleness is only ever paid in work."
 
 step "5. the same answer where values live in the record store"
 explain \
   "The cache also memorizes record-backed resources - ones whose values" \
-  "live in the live backend's record store, not AWS. Same manufacture," \
-  "harder shape: save the cache, destroy the estate, rebuild it SMALLER." \
+  "live in the live backend's record store, not AWS. The manufacture" \
+  "repeats with a harder shape. The cache is saved; the estate is then" \
+  "destroyed and rebuilt SMALLER." \
   "The saved cache now holds dead identities AND a phantom resource that" \
   "exists nowhere. If the cache had any authority the phantom would leak" \
   "into the plan. The store's List is the inventory; the answer must not" \
@@ -197,7 +197,7 @@ if grep -q 'phantom' <<< "$RP_ANCIENT"; then
   fail "stale" "the phantom leaked out of the ancient cache into the plan: $RP_ANCIENT"
 fi
 echo "cache remembers 2 resources including terraform_data.phantom; plan through it: $(grep -m1 'No changes.' <<< "$RP_ANCIENT")" | evidence
-proof "a cache holding a resource that exists nowhere changed nothing - not even a destroy for the phantom. The store's List is the inventory; the cache is a memo."
+proof "a cache holding a resource that exists nowhere changed nothing - not even a destroy for the phantom. The store answered for what exists; the cache stayed a memo."
 ( cd "$R" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
   || fail "stale" "record estate teardown failed"
 

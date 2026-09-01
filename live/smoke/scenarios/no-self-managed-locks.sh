@@ -26,13 +26,13 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "the claim"
 explain \
-  "No self-managed locks: stock serializes runs with a lock you must" \
-  "provision, keep in step with your IAM, and sometimes force open after" \
-  "a crash - because its state file is a shared mutable record that two" \
-  "writers would corrupt. Here there is no authoritative shared record," \
-  "so there is nothing to lock. Contention lands where it always really" \
-  "was: at the cloud API, which already has answers - uniqueness" \
-  "constraints, last-writer-wins, and conditional writes."
+  "Stock serializes runs with a self-managed lock you must provision," \
+  "keep in step with your IAM, and sometimes force open after a crash -" \
+  "because its state file is a shared mutable record that two writers" \
+  "would corrupt. Here there is no authoritative shared record, so there" \
+  "is nothing to lock. Contention lands where it always was: at the" \
+  "cloud API, which already referees competing writers with uniqueness" \
+  "constraints and conditional writes."
 
 step "1. there is no lock to force open, and the tool says so"
 explain \
@@ -71,7 +71,7 @@ if [ -n "$LOSER" ]; then
   grep -E "EntityAlreadyExists" "$SMOKE_WORK/$LOSER.out" | head -1 | evidence
   grep -q "EntityAlreadyExists" "$SMOKE_WORK/$LOSER.out" \
     || fail "locks" "copy $LOSER lost the race but not to the platform's uniqueness constraint: $(cat "$SMOKE_WORK/$LOSER.out")"
-  proof "the platform's own 409 was the referee: one create won, the loser was told by AWS itself, and no lock existed anywhere in the exchange."
+  proof "the platform's own 409 was the referee - one create won and AWS itself told the loser. No lock existed anywhere in the exchange."
 elif [ "$A_RC" -eq 0 ] && [ "$B_RC" -eq 0 ]; then
   ADDS=$(( $(grep -oE 'Resources: [0-9]+ added' "$SMOKE_WORK/a.out" | grep -oE '[0-9]+') + $(grep -oE 'Resources: [0-9]+ added' "$SMOKE_WORK/b.out" | grep -oE '[0-9]+') ))
   [ "$ADDS" -eq 1 ] || fail "locks" "both applies succeeded but created $ADDS roles between them - the platform should have allowed exactly one"
@@ -96,17 +96,17 @@ if [ "${BREAK:-0}" = "1" ]; then
   if grep -q "No changes." <<< "$BOUT"; then
     fail "locks" "BREAK: the re-plan is still clean with the winner's marker gone - the convergence assertion below proves nothing"
   fi
-  proof "caught: convergence really does rest on the marker, so the clean re-plan below is a real check."
+  proof "caught - convergence rests on the marker, so the clean re-plan below is a real check."
   awsl iam delete-role --role-name smoke-locks-contender >/dev/null 2>&1 || true
   exit 0
 fi
 
 step "3. the loser converges by reading reality"
 explain \
-  "Stock's lockless loser leaves a corrupted state file. This loser just" \
-  "re-plans: the winner's role carries the estate's marker, the plan" \
-  "binds to it, and there is nothing left to do. No repair command, no" \
-  "state surgery, no unlock."
+  "Stock's lockless loser leaves a corrupted state file. This loser" \
+  "only has to re-plan - the winner's role carries the estate's marker" \
+  "and the plan binds to it, leaving nothing to do. There is no repair" \
+  "command and no state surgery to perform."
 cmd "choudoufu plan   # in the losing copy"
 CONV="$(cd "$SMOKE_WORK/$LOSER" && chdf plan -input=false -no-color 2>&1)" \
   || fail "locks" "the loser's convergence plan failed: $CONV"
