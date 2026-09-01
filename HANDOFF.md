@@ -81,6 +81,23 @@ reference page is rendered from the schema.
 
 ## The foundation
 
+**The state file is a cache, and it is allowed to be stale.** Maintainer
+ruling, 2026-08-30, recorded on issue #685: choudoufu can do anything
+OpenTofu does as long as the state file can be stale, and losing it is a
+refresh, never a failure. Three lines govern every design decision that
+touches state, pinned by `live/stale_state_ruling_test.go`:
+
+- the cache is never consulted for ownership;
+- when cache and live disagree, live wins, always;
+- losing the cache costs a slower run and nothing else.
+
+Today the code persists no cache and rebuilds prior state from live reads
+on every plan; that is open defect #685, not the design, and no document,
+error string or test may describe the absence of a state file as the
+product. The live backend is the three pieces the model docs name -
+identity as tags, values in the record store, effects as receipts - and
+the cache is a projection of them that may always be thrown away.
+
 Every managed instance has a **record**: identity, the arguments the provider
 never echoes back, sensitivity marks, taint, deposed key. One per resource,
 namespaced per estate, under IAM, written with compare-and-swap. **Markers**
