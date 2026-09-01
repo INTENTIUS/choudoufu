@@ -3,16 +3,16 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "8e643bb0dff5bb0451f3763904eea4b3dacba102",
+  "measured_at_head": "04c5b802df812a0913a450732232d2cf8513457f",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
-    "internal/live/": 1243,
-    "live/": 443,
-    "other": 453,
+    "internal/live/": 1253,
+    "live/": 446,
+    "other": 454,
     "rulings/": 13,
-    "site/": 86,
-    "tools/": 406
+    "site/": 87,
+    "tools/": 404
   },
   "files": {
     ".github/": [
@@ -428,6 +428,10 @@
       },
       {
         "path": "internal/live/cloudcontrol/fallback_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/cloudcontrol/requestlog_test.go",
         "status": "A"
       },
       {
@@ -1023,6 +1027,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/supersededclaimant.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/supersededclaimant_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/sweep_parallelism_bench_test.go",
         "status": "A"
       },
@@ -1244,6 +1256,14 @@
       },
       {
         "path": "internal/live/flocitest/proxy_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/timeline.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/timeline_test.go",
         "status": "A"
       },
       {
@@ -3131,6 +3151,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/compatibility_doc_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/count_index.go",
         "status": "A"
       },
@@ -4335,6 +4359,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/recordfirst_concurrency_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/recordfirst_test.go",
         "status": "A"
       },
@@ -4420,6 +4448,14 @@
       },
       {
         "path": "internal/live/projection/sighted_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/statecache_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/statecacheread_test.go",
         "status": "A"
       },
       {
@@ -4975,6 +5011,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/statefulcost/readconcurrency_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/statefulcost/statefulcost_live_test.go",
         "status": "A"
       },
@@ -5334,6 +5374,14 @@
       },
       {
         "path": "live/e2e/corpus-root-dns-zones/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/corpus-s3-bucket-complete/probe-config-consistency.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/corpus-s3-bucket-complete/probe-config-load.sh",
         "status": "A"
       },
       {
@@ -6737,6 +6785,10 @@
         "status": "A"
       },
       {
+        "path": "live/history/v0.5.0.json",
+        "status": "A"
+      },
+      {
         "path": "live/iam-reference.json",
         "status": "A"
       },
@@ -6785,6 +6837,10 @@
         "status": "A"
       },
       {
+        "path": "live/module_count_doc_pin_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/oracle-versions.json",
         "status": "A"
       },
@@ -6798,10 +6854,6 @@
       },
       {
         "path": "live/providerversion.go",
-        "status": "A"
-      },
-      {
-        "path": "live/ratification-queue.json",
         "status": "A"
       },
       {
@@ -7024,6 +7076,10 @@
       },
       {
         "path": "cmd/choudoufu/version.go",
+        "status": "A"
+      },
+      {
+        "path": "cmd/choudoufu/wallclock_profile_test.go",
         "status": "A"
       },
       {
@@ -9063,6 +9119,10 @@
         "status": "A"
       },
       {
+        "path": "site/layouts/shortcodes/version.html",
+        "status": "A"
+      },
+      {
         "path": "site/static/choudoufu-favicon-16.png",
         "status": "A"
       },
@@ -9419,6 +9479,10 @@
       {
         "path": "tools/find-dep-upgrades/main.go",
         "status": "M"
+      },
+      {
+        "path": "tools/find-pkg-importer/main.go",
+        "status": "D"
       },
       {
         "path": "tools/floci-capability-gen/digest.go",
@@ -9885,6 +9949,10 @@
         "status": "A"
       },
       {
+        "path": "tools/loggraphdiff/loggraphdiff.go",
+        "status": "D"
+      },
+      {
         "path": "tools/mapping-gen/carve-seed.json",
         "status": "A"
       },
@@ -10054,22 +10122,6 @@
       },
       {
         "path": "tools/provider-bump-report/report_test.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/ratification-queue-gen/build.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/ratification-queue-gen/build_test.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/ratification-queue-gen/main.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/ratification-queue-gen/proposeparse.go",
         "status": "A"
       },
       {
