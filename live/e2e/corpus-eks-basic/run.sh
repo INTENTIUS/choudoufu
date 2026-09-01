@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-eks-basic recipe; run with: just demo-run corpus-eks-basic)
+# terraform-aws-modules/terraform-aws-eks's own "basic" example (v9.0.0,
+# .corpus/eks/examples/basic), crossed live end to end: cold plain apply,
+# choudoufu live-import, live-plan. Stages 1-2 pass in full (54/54 resources
+# cold-deployed, 3/4 root-module resources adopted); stage 3 refuses
+# outright on real, itemized gaps - 50 resources inside module.vpc and
+# module.eks are out of live-import v1's root-module-only scope (issue #59),
+# plus unadmitted default_*/VPN-gateway types and undeclared-record-store
+# logical resources - so stages 4-5 are unreachable. See the script's own
+# header for the full breakdown and the two floci gaps (EKS worker AMI
+# discovery, SuspendProcesses/ResumeProcesses) found and fixed along the
+# way. Needs Docker (with a socket floci can reach - EKS real mode spawns a
+# k3s sibling container) and the AWS CLI; runs on its own port (4718).
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-eks's "basic" example (v9.0.0,

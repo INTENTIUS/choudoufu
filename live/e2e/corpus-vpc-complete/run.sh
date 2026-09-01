@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-vpc-complete recipe; run with: just demo-run corpus-vpc-complete)
+# terraform-aws-modules/terraform-aws-vpc's flagship "complete" example
+# (issue #274's real-estate crossing pipeline), all five stages: cold deploy
+# with plain terraform, choudoufu live-import adoption, an empty replan with
+# the state file deleted and three rendered identities checked against the
+# AWS CLI's own answer, a genuine no-op apply, and drift on one object
+# reconverging without touching any other. Needs Docker, the AWS CLI, and a
+# real `terraform` (or tofu; see TF_COLD_BIN) on PATH; runs on its own port
+# (4713) so it can run beside `just demo`.
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-vpc's flagship "complete" example

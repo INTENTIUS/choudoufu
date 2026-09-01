@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-salesforce-api recipe; run with: just demo-run corpus-salesforce-api)
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/salesforce-api,
+# 6 instances - the lambda-residue defect (filename, source_code_hash,
+# publish never settling without a record_store) at twice the population,
+# since this estate deploys TWO filename-zipped Lambdas rather than one,
+# plus the aws_cloudwatch_event_rule/target pair and two aws_lambda_permission
+# instances riding along. Same two-phase shape as demo-records: PHASE 1 with
+# no record_store reproduces the defect and shows applying it does not
+# settle it; PHASE 2 adds one record_store block, applies once, and replans
+# empty twice. All 6 rendered identities are checked against the emulator's
+# own answer. BREAK=1 corrupts one expected string and the run must catch it
+# in step 6 and nowhere else. Needs Docker, the AWS CLI and a populated
+# .corpus; runs on its own port (4697) so it can run beside `just demo`.
 set -uo pipefail
 
 # Issue #274's crossing: .corpus/mastino/prod-eu-west/services/salesforce-api,

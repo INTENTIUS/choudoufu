@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-repeated-module recipe; run with: just demo-run repeated-module)
+# Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
+# module seven times, and every one of the seven hosted zones used to come
+# back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
+# seven real objects, after an apply that reported success. The seven
+# markers are read off the zones with the AWS CLI rather than out of the
+# plan, because the plan showed the right values while the cloud got the
+# wrong ones. Point TOFU_BIN at a binary built before
+# internal/live/stamp/sharedbody.go and step 4 fails with all seven
+# collapsed.
+#
+# It also crosses: 35 instances applied, the state file deleted, replanned
+# empty twice, and all 35 rendered import identities checked as strings
+# against Route 53's own answer. The estate is applied EXACTLY as the Rust
+# project wrote it - the four trailing dots in impl/main.tf are left on,
+# because #281 is fixed and the workaround that used to strip them is gone.
+# Needs Docker, the AWS CLI and a populated .corpus; runs on its own port
+# (4606) so it can run beside `just demo`.
 set -uo pipefail
 
 # One local module called seven times, crossed against a real emulator: issue

@@ -1,4 +1,24 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-lambda-simple recipe; run with: just demo-run corpus-lambda-simple)
+# The five-stage real-estate crossing pipeline (cold deploy, migrate, test
+# plan, test apply, drift and reconverge - live/corpus-crossing-manifest.json)
+# for .corpus/lambda/examples/simple, terraform-aws-modules/terraform-aws-
+# lambda's minimal entry point - Lambda is one of the most commonly deployed
+# AWS services via Terraform, and calling a published module the way this
+# example does is how essentially every real Terraform root module uses one.
+# Stage 1 (plain terraform, no live block) and stage 2 (choudoufu live-import
+# -approve, all three module-nested AWS resources verified by reading their
+# tags with the AWS CLI, never through choudoufu's own report) both pass for
+# real. Stage 3 currently fails with the real, unmodified choudoufu error:
+# type admission runs per declared resource block rather than per resolved
+# instance, so aws_lambda_function_url.this and
+# aws_lambda_function_recursion_config.this - both count = 0 in this
+# example - still refuse the whole plan. See the script's own header for the
+# fix stage 2 needed (a module-scope bug in live-import, fixed on this
+# branch) and the separate one stage 3 still needs. BREAK=1 corrupts one
+# expected tofu-address before stage 2's AWS CLI checks; that step must be
+# the only one that fails. Needs Docker, the AWS CLI, python3 and a populated
+# .corpus; runs on its own port (4714) so it can run beside `just demo`.
 set -uo pipefail
 
 # The five-stage real-estate crossing (see live/corpus-crossing-manifest.json)

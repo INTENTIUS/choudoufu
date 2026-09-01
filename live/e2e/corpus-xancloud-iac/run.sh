@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-xancloud-iac recipe; run with: just demo-run corpus-xancloud-iac)
+# The fourth OpenTofu-native crossing: XanCloud/xancloud-iac's own
+# landing-zone-basic blueprint (VPC + CloudTrail + account-level IAM
+# baseline, 42 resource instances), pinned by tag v0.2.0 and commit. A
+# young, single-maintainer, actively-developed AWS landing-zone
+# accelerator whose README and docs describe it as "OpenTofu-first"
+# throughout, run with its own examples/dev.tfvars unmodified. See the
+# script's own header for the full evidence and exactly which two files
+# (providers.tf, versions.tf) this crossing patches for emulator wiring
+# and why. Needs Docker, the AWS CLI, and the real `tofu` binary; runs on
+# its own port (4727).
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json)

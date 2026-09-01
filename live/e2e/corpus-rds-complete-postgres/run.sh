@@ -1,4 +1,34 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-rds-complete-postgres recipe; run with: just demo-run corpus-rds-complete-postgres)
+# .corpus/rds/examples/complete-postgres, from terraform-aws-modules/
+# terraform-aws-rds - the de facto standard way people provision RDS
+# Postgres, and the first RDS estate ever crossed against a cloud (#102 only
+# ever used it for a static, offline measurement). Follows the five-stage
+# shape (cold deploy / migrate / test plan / test apply / drift-reconverge),
+# and is a genuine partial pass, reported honestly rather than routed
+# around: stage 1 stands up 39 real resources with plain terraform, no
+# choudoufu involved. Stage 2 (choudoufu live-import) migrates 23 of 39 for
+# real (18 VERIFIED + 5 DRIFTED; 16 skipped, 13 untaggable by design and 3
+# blocked by #305) - live-import's own root-module-only restriction (#59
+# was closed elsewhere but never lifted here) has since been fixed. Stage 3
+# (choudoufu live-plan against the really-migrated estate) refuses on
+# exactly two known, open, itemized grounds - terraform-aws-modules/
+# security-group's ingress_with_cidr_blocks builds an identity argument
+# through a lookup()-keyed index the static walker cannot trace (7
+# count-index-in-tag sites, #304), and the VPC module's default_* adopters
+# (aws_default_network_acl/route_table/security_group, all three actually
+# created here) are unadmitted types (3 sites, #305). Two more real,
+# unrelated floci gaps (cross-region automated-backups-replication has no
+# matching RDS action; SecretsManager RotateSecret wrongly requires a
+# Lambda ARN for an RDS-managed secret's Lambda-less hosted rotation) are
+# worked around with documented deltas so stage 1 can stand the estate up
+# at all - see the script's header for the full account, including the
+# exact code locations and the two floci issues filed for them. BREAK=1
+# corrupts the stage-3 site-count assertion, proving it is load-bearing.
+# Needs Docker, the AWS CLI, real terraform (stage 1 is deliberately not
+# choudoufu) and a
+# populated .corpus (`just corpus-fetch`); runs on its own port (4720) so it
+# can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator:

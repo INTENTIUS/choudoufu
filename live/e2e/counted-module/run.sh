@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-counted-module recipe; run with: just demo-run counted-module)
+# A module call expanded with count, crossed against a real emulator. Stamping
+# read only a module call's for_each, so every resource under a count'd call
+# was marked with the UNKEYED module path - an address identity resolution
+# never computes for it. Reads the tofu-address off three real VPCs with the
+# AWS CLI, then deletes the state file and rebinds to all three from the tags
+# alone. Point TOFU_BIN at a binary built before internal/live/stamp's
+# childExpansion and step 4 fails with module.one.aws_vpc.main. Needs Docker
+# and the AWS CLI, no corpus; runs on its own port (4607).
 set -uo pipefail
 
 # A module call expanded with count, crossed against a real emulator.

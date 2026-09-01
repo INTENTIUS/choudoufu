@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-dataread recipe; run with: just demo-run dataread-projection)
+# Issue #193's managed-argument projection end to end: a data source whose
+# argument reads an attribute the resource's own block sets, read against a
+# real emulator, with the parameter's live value moved out from under the
+# configuration first so a static shortcut cannot pass. Needs Docker and the
+# AWS CLI; runs on its own port (4599) so it can run beside `just demo`.
 set -euo pipefail
 
 # GitHub issue #193's read side, end to end against a real emulator.

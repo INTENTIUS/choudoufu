@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-sqs-basic recipe; run with: just demo-run corpus-sqs-basic)
+# The five-stage real-estate crossing pipeline (cold deploy, migrate, test
+# plan, test apply, drift and reconverge - live/corpus-crossing-manifest.json)
+# for .corpus/sqs/examples/complete, terraform-aws-modules/terraform-aws-sqs's
+# own showcase example, reduced to its four self-contained module calls (the
+# script's header states the trim and grep-verifies it, so a moved pin fails
+# loudly). SQS queueing is a service surface no other crossing here reaches.
+# All five stages pass for real. What makes this estate worth its slot is the
+# two resources hanging off the FIFO queue: aws_sqs_queue_redrive_policy and
+# aws_sqs_queue_redrive_allow_policy are untaggable, have no row in the
+# generated identity table, and resolve entirely through the provider's own
+# identity schema (queue_url) - and they resolve to two DIFFERENT queues, the
+# source and the DLQ, which stage 2 asserts by value rather than by "did it
+# error". Four tagged queues plus two derived from tagged parents: the
+# invariant, with nothing in a third bucket. BREAK takes three values -
+# schema, identity, drift - each corrupting a different assertion and each
+# required to exit non-zero at its own stage. Needs Docker, the AWS CLI, the
+# real terraform binary and a populated .corpus; runs on its own port (4690)
+# so it can run beside `just demo`.
 set -uo pipefail
 
 # STATUS (2026-08-20): VERIFIED. All five stages were run for real against

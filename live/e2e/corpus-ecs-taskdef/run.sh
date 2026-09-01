@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-ecs-taskdef recipe; run with: just demo-run corpus-ecs-taskdef)
+# A PINNED DEFECT, not a passing crossing: exit 0 means it is still there.
+# Both .corpus/mastino/prod-eu-west/services/analytics-worker and
+# .../datafile-generator die on "Listed resource with no identity" over
+# aws_ecs_task_definition, and they still do. This runs DataCite's own
+# resource block and its own container_definitions file against floci: it
+# applies, it carries its marker, ListTaskDefinitions answers, and the
+# provider resolves the revision ARN - and then the cold replan refuses,
+# because the generated row looks this type up by `id` while the provider's
+# own identity schema (live/survey-full.json) says family + revision. The
+# script asserts both halves: the refusal BY NAME and the enumeration
+# working, so a regression in either is not hidden by the other. This is one
+# resource rather than the whole estate because these two estates read
+# twelve data sources between them and the emulator has had to grow into
+# them one at a time; the private hosted zone that used to be named here is
+# no longer among the gaps, and elbv2 never was - that service is fully
+# implemented and registered under its signing name, elasticloadbalancing,
+# which is the key /_localstack/health reports it under. Needs Docker, the
+# AWS CLI and a populated .corpus; runs on its own port (4694).
 set -uo pipefail
 
 # aws_ecs_task_definition crossed against a real emulator, using DataCite's

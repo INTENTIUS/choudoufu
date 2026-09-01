@@ -1,4 +1,28 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-security-group-complete recipe; run with: just demo-run corpus-security-group-complete)
+# terraform-aws-modules/terraform-aws-security-group's flagship "complete"
+# example (v6.0.0, .corpus/security-group/examples/complete), crossed live
+# end to end: 67 real resources across the root module, its postgresql and
+# consul preset submodules, a standalone SG and prefix list, and two nested
+# terraform-aws-vpc calls. This module is a common dependency of other
+# terraform-aws-modules (rds, eks, ...) - a prior crossing found and filed
+# #304 through it as a side effect; this is the first direct crossing of
+# the module's own example. v6.0.0 rewrote the module onto per-rule
+# aws_vpc_security_group_ingress_rule/egress_rule/rules_exclusive
+# resources, so #304's old count.index-in-lookup() pattern does not appear
+# here at all. Stages 1-2 pass in full (67/67 cold-deployed via a
+# documented DELTA for lex00/floci#57 - EC2 AssociateSecurityGroupVpc has
+# no floci handler -, 52/67 resource instances adopted and verified
+# independently through the AWS CLI); stage 3 refuses outright on two real,
+# itemized gaps - #305's default_*-adopter trio (6 sites, same as other vpc-
+# module crossings) and a new one: aws_vpc_security_group_rules_exclusive
+# (3 sites) has no resource identity schema in the pinned provider release
+# and no admission-table row, even though its own import docs name
+# security_group_id as its whole identity. See the script's own header for
+# the full breakdown. Needs Docker, the AWS CLI, terraform on PATH, and
+# network access for `terraform init` to resolve terraform-aws-modules/vpc
+# from the registry (same as demo-corpus-vpc-complete); runs on its own
+# port (4721).
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-security-group's flagship "complete"
