@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-root-dns-zones recipe; run with: just demo-run corpus-root-dns-zones)
+# Issue #274's crossing: .corpus/govuk-aws/terraform/projects/infra-root-dns-zones,
+# two aws_route53_zone instances (internal + external) from GDS's Terraform
+# 0.12-era module. Its provider pin - `version = "2.46.0"` as a bare
+# provider-block argument, no required_providers at all - has no darwin_arm64
+# package for this machine, so it is replaced with a real required_providers
+# block pinned to 6.59.0, the same #269-shape fix as demo-corpus-cloudwatch-splunk.
+# The estate's own `data "terraform_remote_state"` read (an S3-backed state
+# file from another team's VPC module) is kept as written; a real S3 object
+# holding a minimal, hand-written state file is seeded to answer it. Applied,
+# state file deleted, replanned with no resource change proposed twice (the
+# estate declares root outputs, so - like demo-corpus-iam-read-only-policy -
+# a permanent "Changes to Outputs" section is expected and the assertion
+# checks for the absence of a resource action header rather than for
+# "Plan:"). Both rendered identities (the real zone IDs, since
+# aws_route53_zone is ServerAssigned) checked against Route 53's own answer.
+# BREAK=1 corrupts the expected identity and the run must catch it in step 5
+# and nowhere else. Needs Docker, the AWS CLI and a populated .corpus; runs
+# on its own port (4702) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

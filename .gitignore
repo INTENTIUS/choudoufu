@@ -90,7 +90,6 @@ site/public/
 /estate-plan
 /estate-types
 /find-dep-upgrades
-/find-pkg-importer
 /floci-capability-gen
 /forkdiff-gen
 /harness-gen
@@ -98,13 +97,11 @@ site/public/
 /importdocs-gen
 /importer-probe
 /limits-gen
-/loggraphdiff
 /mapping-gen
 /merge-guard
 /oracle-bump-report
 /protobuf-compile
 /provider-bump-report
-/ratification-queue-gen
 /readiness-gen
 /refusal-probe
 /registry-gen

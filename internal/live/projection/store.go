@@ -7,8 +7,10 @@ package projection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -54,12 +56,70 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 	if err != nil {
 		return nil, err
 	}
+	// The provisioning handshake, under the trip counter so its two
+	// backend calls are counted honestly and above the run cache so the
+	// List it verifies is the backend's own, never a snapshot's.
+	if err := provisionStoreSentinel(ctx, counted, recordStoreKeyPrefix(rs, estate)); err != nil {
+		return nil, err
+	}
 	// The estate's records, loaded once and in bulk the way stock loads its
 	// state file - see [staterecord.RunCache] for what makes it safe. The
 	// prefix is the same namespace [RecordStoreKeyPrefix] gives every caller
 	// that builds keys against this store, so a bulk load covers exactly the
 	// keys the run will ask for.
 	return staterecord.NewRunCache(counted, recordStoreKeyPrefix(rs, estate)), nil
+}
+
+// sentinelKeyName is the last segment of every store's sentinel key. It is
+// not a resource record: [RecordAddr] returns false for it (the segment is
+// not valid unpadded base64 of an address), which is the documented
+// contract for keys this package did not write, so every List consumer
+// skips it the way it skips any foreign key.
+const sentinelKeyName = ".store-sentinel"
+
+// sentinelPayload deliberately says what the record is for, so an operator
+// reading the raw store sees an explanation rather than an opaque blob.
+const sentinelPayload = "choudoufu record-store sentinel: proves this store's write and List paths work; see INTENTIUS/choudoufu#693"
+
+// SentinelKey is the store's provisioning sentinel under prefix, exported
+// so tests and tooling can name it without re-deriving the shape.
+func SentinelKey(prefix string) string {
+	if prefix == "" {
+		return sentinelKeyName
+	}
+	return prefix + "/" + sentinelKeyName
+}
+
+// provisionStoreSentinel is issue #693's handshake: write a sentinel record
+// once (PutIfAbsent, so a raced or repeated provision is a no-op), then
+// read it back through List - the same code path plans use to enumerate
+// records. One handshake proves write, read and List together, and turns
+// the failure mode that motivated it inside out: a store whose List
+// silently returns nothing used to read as an empty estate and surface as
+// a plan proposing to re-create live resources (#688's terralith run);
+// now it is a loud, named refusal before any plan is built.
+func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) error {
+	key := SentinelKey(prefix)
+	if _, err := store.PutIfAbsent(ctx, key, []byte(sentinelPayload)); err != nil {
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			return fmt.Errorf("record_store: provisioning the sentinel at %q: %w", key, err)
+		}
+		// Already provisioned by an earlier run or a racing one - the
+		// conflict is the success case here.
+	}
+	listPrefix := ""
+	if prefix != "" {
+		listPrefix = prefix + "/"
+	}
+	keys, err := store.List(ctx, listPrefix)
+	if err != nil {
+		return fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
+	}
+	if !slices.Contains(keys, key) {
+		return fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)
+	}
+	return nil
 }
 
 func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {

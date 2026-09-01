@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-oidc-provider recipe; run with: just demo-run corpus-oidc-provider)
+# Issue #274's step 6 on .corpus/iam/examples/iam-oidc-provider, whose
+# central object is findable only by enumerating the account:
+# aws_iam_openid_connect_provider has a server-assigned ARN, so a run that
+# cannot list it concludes it does not exist and creates a SECOND one - with
+# every plan verdict staying clean, because creating a resource the run
+# believes is absent is not an error. Step 7 is that assertion: IAM still
+# holds one OIDC provider after a second apply. Three instances cover three
+# identity shapes at once - a server-assigned ARN, a name_prefix role whose
+# name IAM assigns, and an untaggable attachment whose identity is its two
+# endpoints. Step 5 shows force_detach_policies needing a record_store and
+# proves it does not settle without one. BREAK=1 corrupts one expected
+# identity by a single host label and step 5b must be the only step that
+# goes red. Needs Docker, the AWS CLI, outbound HTTPS to GitHub for the
+# module's own tls_certificate read, and a populated .corpus; runs on its
+# own port (4692) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

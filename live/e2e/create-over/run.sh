@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-create-over recipe; run with: just demo-run create-over)
+# The create-over-existing defect, end to end and pinned: a needs-discovery
+# resource whose type loses its tags on the provider's list path is invisible
+# to marker discovery, so a live-plan proposes creating what the estate
+# already owns and an apply then creates a second one, once per run. Exit 0
+# means the defect is still there; when it goes red the fix has landed and the
+# script says which assertions to invert. Needs Docker and the AWS CLI; runs
+# on its own port (4602) so it can run beside `just demo`.
 set -euo pipefail
 
 # Create-over-existing, end to end against a real emulator.

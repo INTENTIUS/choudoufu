@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-service-linked-roles recipe; run with: just demo-run corpus-service-linked-roles)
+# Issue #274's step 6, on GOV.UK's own smallest estate:
+# .corpus/govuk-infrastructure/terraform/deployments/service-linked-roles,
+# one aws_iam_service_linked_role and nothing else - no data sources, no
+# modules. IAM decides the role's name, not this configuration, so the only
+# way a second run finds the one it already owns is to enumerate the
+# account and read a marker off what comes back. variables-common.tf is the
+# same real symlink demo-corpus-mobile-backend's own comment documents,
+# shared across every govuk-infrastructure deployment, and it declares
+# seven variables this estate never reads - all seven get a tfvars value
+# because OpenTofu requires one regardless. Applied, state file deleted,
+# replanned empty twice, and the one rendered identity checked as a string
+# against IAM's own answer. BREAK=1 corrupts the expected identity and the
+# run must catch it in step 5 and nowhere else. Needs Docker, the AWS CLI
+# and a populated .corpus; runs on its own port (4707) so it can run beside
+# `just demo`.
 set -uo pipefail
 
 # A real government estate crossed against a real emulator: issue #274's

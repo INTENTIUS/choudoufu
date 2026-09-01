@@ -220,7 +220,7 @@ cloud objects; nothing above declares a `record_store` at all, so without this
 harness that whole class has no end-to-end exercise.
 
 ```
-just demo-records
+just demo-run run record-store
 ```
 
 Under a minute, and it needs neither Docker nor the AWS CLI: `null_resource`,
@@ -252,7 +252,7 @@ source whose argument reads a managed resource attribute the resource's own
 block **sets**, resolved before the plan and read against a real emulator.
 
 ```
-just demo-dataread
+just demo-run run dataread-projection
 ```
 
 It needs Docker and the AWS CLI, and runs on port 4599 rather than 4566 so
@@ -297,7 +297,7 @@ call, through the command wiring rather than a hand-built
 `discovery.Request`.
 
 ```
-just demo-tagging-sweep
+just demo-run tagging-sweep
 ```
 
 It needs Docker and the AWS CLI, and runs on port 4601 rather than 4566 or
@@ -347,7 +347,7 @@ means the defect is still present; when it goes red, the fix has landed and
 the script names the assertions to invert.
 
 ```
-just demo-create-over
+just demo-run create-over
 ```
 
 Docker and the AWS CLI, port 4602, about a minute after the image is pulled.
@@ -391,7 +391,7 @@ because the silent form is the one worth pinning.
 cloud before.
 
 ```
-just demo-record-located
+just demo-run record-located
 ```
 
 Docker and the AWS CLI, port 4605, about two minutes after the image is
@@ -566,7 +566,7 @@ Route 53 estate, written for their own account and not for us; it has passed
 and until this harness existed it had never been run against anything.
 
 ```
-just demo-corpus-crossing
+just demo-run corpus-crossing
 ```
 
 Docker, the AWS CLI, a populated `.corpus` (`just corpus-fetch`), port 4605.

@@ -1,4 +1,28 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-crossref-agent recipe; run with: just demo-run corpus-crossref-agent)
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/crossref-agent,
+# four resources (a CloudWatch event rule and target driving a Lambda
+# function, with its EventBridge invoke permission) - the first Lambda-based
+# estate this campaign crosses, and could not even bootstrap until #297 (a
+# fresh apply's aws_lambda_permission existence check hit floci's
+# not-found-shaped GetPolicy response before the function existed, which
+# surfaced as a hard "Cannot import for projection" failure). All four types
+# are client-named and literal, so no version override is needed even though
+# `version = "~> 5"` resolves to the release #269 flags. Needs a Lambda
+# execution role, a VPC, two subnets and a security group seeded through the
+# AWS CLI over the estate's own (untouched) data-source reads. The estate's
+# own deprecated `runtime = "nodejs14.x"` is applied as written; floci does
+# not enforce AWS's since-added rejection of new functions on that runtime.
+# `record_store "local" {}` (#275) is added to the live block: filename,
+# source_code_hash and publish are pure inputs the Lambda API never returns,
+# and without the record store a cold live-plan would propose the identical
+# update on aws_lambda_function forever - the first real corpus estate to
+# confirm #275's fix generalizes beyond its own live/e2e/lambda-residue
+# fixture. Applied, state file deleted, replanned empty twice, all 4
+# rendered identities checked against the emulator's own answer. BREAK=1
+# corrupts the expected identity and the run must catch it in step 5 and
+# nowhere else. Needs Docker, the AWS CLI and a populated .corpus; runs on
+# its own port (4701) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

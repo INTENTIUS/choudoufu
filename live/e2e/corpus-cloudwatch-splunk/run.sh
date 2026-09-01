@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-cloudwatch-splunk recipe; run with: just demo-run corpus-cloudwatch-splunk)
+# Issue #274's crossing, one of the three smallest untouched real corpus
+# estates picked smallest-first to establish the method rather than to
+# maximise instance count in one slot:
+# .corpus/govuk-aws/terraform/projects/infra-cyber-cloudwatch-to-splunk, one
+# aws_cloudwatch_log_subscription_filter. It cost two of #274's four
+# onboarding-delta classes despite the single instance: `backend "s3" {}`
+# to remove (#268) and `version = "~> 3.25"`, old enough to resolve to a
+# release with no list resources at all (#269's shape). The type has no
+# tags argument, so its identity - log_group_name and filter name, joined
+# the way the provider's own import syntax joins them - re-derives from the
+# declaration and needs no marker carrier. Applied, state file deleted,
+# replanned empty twice, the rendered identity checked against CloudWatch
+# Logs' own answer. BREAK=1 corrupts the expected identity and the run must
+# catch it in step 5 and nowhere else. Needs Docker, the AWS CLI and a
+# populated .corpus; runs on its own port (4698) so it can run beside
+# `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

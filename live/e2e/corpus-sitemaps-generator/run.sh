@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-sitemaps-generator recipe; run with: just demo-run corpus-sitemaps-generator)
+# Issue #274's attempted crossing, and #298's repro:
+# .corpus/mastino/prod-eu-west/services/sitemaps-generator, three resources
+# (aws_s3_bucket.akita, aws_cloudwatch_log_group and aws_ecs_task_definition)
+# apply cleanly and are confirmed live through the AWS CLI, then live-plan
+# fails: discovery's Cloud Control fallback (needed because `version = "~> 5"`
+# resolves to 5.100.0, the release #269 documented as carrying no list
+# resources at all) finds the task definition correctly but hands
+# ImportResourceState the literal "family:revision" string instead of the
+# ARN, which this provider's importer for that type rejects. Re-pinning to
+# 6.58.0 (the #269 workaround demo-corpus-ecs-taskdef uses) clears that step
+# but trades it for a floci gap: aws_s3_bucket's tag read under that
+# provider version calls S3 Control's ListTagsForResource, addressed via an
+# account-ID-prefixed hostname floci cannot resolve. This script does not
+# fake a pass - it exits non-zero at step 5, distinguishing #298's exact
+# signature from any other failure. Needs Docker, the AWS CLI and a
+# populated .corpus; runs on its own port (4705) so it can run beside
+# `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

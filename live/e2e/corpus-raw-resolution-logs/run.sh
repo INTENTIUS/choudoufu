@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-raw-resolution-logs recipe; run with: just demo-run corpus-raw-resolution-logs)
+# Issue #274's crossing, smallest-by-instance-count of a second batch:
+# .corpus/mastino/prod-eu-west/services/raw-resolution-logs, one
+# aws_s3_bucket. Needs no version override - its client-supplied bucket name
+# never calls ListBuckets, so the release #269 flags for having no list
+# resources never bites. A REAL FINDING, not hidden: the estate's deprecated
+# `acl = "private"` argument never round-trips through the provider's Read,
+# so live-plan never reaches a fully empty second plan - confirmed
+# reproducing byte-for-byte under plain, unmodified `terraform import` +
+# `terraform plan` against the same floci, with zero choudoufu code in the
+# path. Steps 5-6 assert this explicitly: the update is bounded to exactly
+# the known acl/force_destroy attributes, never a create, a destroy, or
+# anything else, and the rendered identity (the literal bucket name) is
+# checked against S3's own answer both times. BREAK=1 corrupts the expected
+# identity and the run must catch it in step 5 and nowhere else. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4700)
+# so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

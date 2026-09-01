@@ -109,6 +109,20 @@ func validateKeyPrefix(keyPrefix string) error {
 	if strings.ContainsRune(keyPrefix, 0) {
 		return fmt.Errorf("staterecord: key %q contains a NUL byte", keyPrefix)
 	}
+	if strings.HasPrefix(keyPrefix, "/") {
+		// Keys are store-relative: every backend prepends its own
+		// configured prefix. A leading slash used to be accepted and
+		// handled differently by every store - the local and SSM stores
+		// normalized it away on write but not in List's filter, so a
+		// Put succeeded and the List that should return it came back
+		// empty, and the S3 store kept the slash and diverged from
+		// both. An empty List reads as an empty estate, so the failure
+		// surfaced as a plan proposing to re-create live resources
+		// (issue #688's terralith run). Refusing loudly here is the
+		// fix's contract half; issue #689 pins it across all three
+		// stores.
+		return fmt.Errorf("staterecord: key %q starts with %q: keys are store-relative, and the store prepends its own configured prefix (issue #688)", keyPrefix, "/")
+	}
 	for _, seg := range strings.Split(keyPrefix, "/") {
 		if seg == ".." {
 			return fmt.Errorf("staterecord: key %q contains a %q path segment", keyPrefix, "..")

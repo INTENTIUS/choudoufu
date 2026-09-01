@@ -1,4 +1,26 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-alb-complete recipe; run with: just demo-run corpus-alb-complete)
+# terraform-aws-modules/terraform-aws-alb's flagship "complete-alb" example
+# (v9.9.0) - one of the most commonly deployed AWS resources in Terraform.
+# 80 resources: VPC (+ default_* adopter trio, v5.x's manage_default_*
+# default), the ALB (6 listeners, 7 listener rules, 3 target groups, 1
+# security group), two ACM certificates (root + wildcard), an S3 log
+# bucket, Cognito user pool + client, two Lambda functions, two EC2
+# instances. Needed three real floci fixes to stand up cleanly (all found,
+# fixed, tested and merged in this pass): lex00/floci#58 (ACM wildcard-SAN
+# validation record kept a literal "*." in its name), #61 (S3
+# "log-delivery-write" canned ACL rejected), #62 (t3.nano missing from the
+# instance-type catalog). Stage 1-2 pass for real (80 cold-deployed, 44
+# stamped, 4 failed on a fourth real floci gap left open - #65, ELBv2
+# dropping AuthenticateCognitoConfig/AuthenticateOidcConfig on read).
+# Stage 3 refuses outright on two real admission gaps - #305's default_*
+# trio (3 sites, same family as other v5.x vpc-module crossings) and a new
+# one, #309: aws_cognito_user_pool_client (untaggable, no identity schema,
+# but a parent-scoped Cognito-native list API exists - see the issue).
+# Needs Docker, the AWS CLI, terraform on PATH, and network access (for
+# `terraform init` to resolve the vpc/acm/s3-bucket/lambda registry modules
+# and to fetch the Lambda deployment zip fixture); runs on its own port
+# (4723).
 set -uo pipefail
 
 # terraform-aws-modules/terraform-aws-alb's flagship "complete-alb" example

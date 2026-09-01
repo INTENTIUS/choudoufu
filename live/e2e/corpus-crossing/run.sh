@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-crossing recipe; run with: just demo-run corpus-crossing)
+# Issue #274's step 6: a real third-party estate crossed against a real
+# emulator. .corpus/mastino/global/dns is 63 instances of DataCite's own
+# production DNS - two hosted zones sharing the name datacite.org, told apart
+# by their markers alone, and 59 untaggable records that carry no marker and
+# do not need one. Applied, stripped of its state file, replanned empty twice,
+# with every rendered identity checked against Route 53's own answer rather
+# than against a verdict. Steps 4 and 7 pin the two defects this estate found
+# on its first contact with a cloud. Needs Docker, the AWS CLI and a populated
+# .corpus (`just corpus-fetch`); runs on its own port (4605) so it can run
+# beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

@@ -1,4 +1,33 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-cloudfront recipe; run with: just demo-run corpus-cloudfront)
+# Issue #274's cloudfront leg, and the first live-cloud contact for the
+# unique-name discovery mechanism (aws_cloudfront_cache_policy,
+# aws_cloudfront_origin_request_policy - "unique-name" in
+# live/survey-full.json), landed the same day this script did. It found and
+# fixed a real bug: EVERY unique-name type failed its first apply
+# unconditionally, before discovery ever ran, because
+# internal/command/live_plan.go's statelessStampGaps re-derived stamping
+# severity without consulting identity.DiscoveryCause.BindsByName() the way
+# internal/live/stamp's own mustStamp() already did. Step 5 pins the fix and
+# fails on the pre-fix message if it regresses.
+#
+# The FULL 16-instance .corpus/govuk-infrastructure cloudfront estate does
+# NOT cross, though it no longer fails where it used to. It spans two
+# provider configurations (default and an aliased us-east-1 "global" one)
+# with discovery-needing resources on both sides, which was a hard refusal
+# before any resource was touched until issue #283 made discovery run one
+# scoped pass per configuration. Step 3 asserts that refusal is gone and
+# pins where the estate stops instead: aws_wafv2_web_acl, declared on
+# aws.global, has no list operation the provider serves. Step 6 isolates the two
+# unique-name resources (extracted verbatim, not retyped) and finds a
+# SEPARATE, floci-only gap: Cloud Control's List/GetResource for these two
+# types answers with a flat Properties shape, not AWS's own documented one
+# (Name nested under CachePolicyConfig / OriginRequestPolicyConfig -
+# live/registry.json's unique_name_property), so the crossing itself
+# (delete state, replan empty) cannot complete against floci - choudoufu
+# correctly refuses rather than binding wrong. Needs Docker, the AWS CLI and
+# a populated .corpus; runs on its own port (4694) so it can run beside
+# `just demo`.
 set -uo pipefail
 
 # GitHub issue #274's cloudfront leg: the first real-cloud contact for the

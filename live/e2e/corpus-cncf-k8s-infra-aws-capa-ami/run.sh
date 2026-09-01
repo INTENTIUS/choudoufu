@@ -1,4 +1,28 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-cncf-k8s-infra-aws-capa-ami recipe; run with: just demo-run corpus-cncf-k8s-infra-aws-capa-ami)
+# Issue #274's attempt: .corpus/k8s-io/infra/aws/terraform/cncf-k8s-infra-aws-capa-ami,
+# Kubernetes SIG cluster-lifecycle's own IAM setup for CAPA's AMI-building
+# pipeline. refusal-probe reports this entry "clean, 1 instance" but never
+# resolves its two terraform-aws-modules calls; resolved, it is four
+# resources. Does NOT cross - BLOCKED BY CHOUDOUFU, not floci, at the very
+# first apply: `policies = { ImageBuilder = aws_iam_policy.imagebuilder.arn }`
+# passed into the iam-github-oidc-role module's for_each, then attached via
+# a bare `each.value`, refuses with "Dynamic value in static context" - a
+# whole-value reference to a SIBLING resource's server-assigned ARN, reached
+# across a module-call boundary. The for_each KEY SET is statically known
+# (this is not #187/#284's already-fixed ACM shape), and the gap is flagged
+# in the source itself: resolve.go's `expansion.keyOnly` doc comment calls
+# resolving a bare each.value here "a further extension this fix does not
+# make." The script proves it is a genuine parity defect, not an
+# unavoidable one: the identical config, same binary, with the live block
+# removed, applies cleanly (4 resources) - stock OpenTofu only requires a
+# for_each's own key set known at plan time, and "attach the policy I just
+# created to the role I just created" is one of the most common patterns in
+# Terraform/OpenTofu. Two further deltas get the estate to init at all: a
+# module version pin (`~> 5.0`) for an unrelated upstream subdirectory
+# rename, and a #269-shape provider version pin (`= 6.58.0`). Filed as
+# issue #301. Needs Docker, the AWS CLI and a populated .corpus; runs on
+# its own port (4709) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate run against a real emulator: issue #274's step

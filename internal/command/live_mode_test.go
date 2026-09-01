@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
@@ -351,14 +352,51 @@ func TestStatelessMode_plainApply(t *testing.T) {
 
 	assertNoStateArtifacts(t, td)
 
+	// The ruling's flip of the old two-half no-persistence proof (#685):
+	// PersistState must now have WRITTEN the cache, at the default path
+	// under the data dir, and nowhere else (assertNoStateArtifacts above
+	// still fails on any other .tfstate-shaped file, especially at the
+	// module root, where a file would read as authority).
+	cachePath := filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Errorf("the state cache was not written at %s after a plain apply (%v); the ruling makes the cache the default, not an opt-in", cachePath, err)
+	}
+
 	if captured == nil {
 		t.Fatal("no stateless runner was installed, so this apply was not stateless")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
-		t.Error("PersistState was never called, so the no-persistence claim was not exercised")
+		t.Error("PersistState was never called, so the persistence path was not exercised")
 	}
 	if n := captured.PriorStateCalls(); n != 1 {
 		t.Errorf("PriorState ran %d times for one apply, want exactly 1 (GitHub issue #80: the estate sweep and per-resource read cost must be paid once per invocation, not twice)", n)
+	}
+}
+
+// TestStatelessMode_cacheOffSwitch pins the opt-out: CHOUDOUFU_STATE_CACHE=off
+// must leave no cache file anywhere, for the run that may not write one (an
+// audit from a read-only working copy). The literal "off" rather than empty
+// is deliberate: empty means "the default path", so forgetting the variable
+// can never silently disable the cache the way forgetting a flag used to
+// silently change where state went.
+func TestStatelessMode_cacheOffSwitch(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+	t.Setenv(EnvStateCache, "off")
+
+	cloud := newStatelessTestCloud()
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+	if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+		output := done(t)
+		t.Fatalf("exit code %d\nstderr:\n%s", code, output.Stderr())
+	} else {
+		done(t)
+	}
+
+	if _, err := os.Stat(filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")); err == nil {
+		t.Error("CHOUDOUFU_STATE_CACHE=off still wrote the cache file")
 	}
 }
 
@@ -888,6 +926,13 @@ func assertNoStateArtifacts(t *testing.T, root string) {
 			if name == "terraform.tfstate.d" {
 				t.Errorf("a workspace state directory was created: %s", rel)
 			}
+		case name == "choudoufu-cache.tfstate" && strings.Contains(rel, ".terraform"):
+			// The one sanctioned artifact: the ruling's state cache
+			// (issue #685, pinned by live/stale_state_ruling_test.go),
+			// derived and disposable, under the data dir every OpenTofu
+			// gitignore covers. Anything else .tfstate-shaped still
+			// fails below - especially at the module root, where a file
+			// would read as authority.
 		case name == "terraform.tfstate", name == "errored.tfstate",
 			strings.HasSuffix(name, ".tfstate"), strings.HasSuffix(name, ".tfstate.backup"),
 			strings.HasSuffix(name, ".lock.info"):
@@ -1072,5 +1117,109 @@ func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
 	t.Logf("second run: %d cache hit(s); a hit needs the estate sweep to have marker-verified the instance", hits)
 	if hits < 0 {
 		t.Fatal("negative cache hits")
+	}
+}
+
+// TestCacheConditionsPlanIdentically is issue #685's accept bar and the
+// ruling's teeth (live/stale_state_ruling_test.go pins the prose; this pins
+// the behavior): a plan under a fresh cache, a stale cache and no cache at
+// all must be byte-identical, because the cache is never consulted for
+// ownership and live wins any disagreement. "Stale" here is a cache from
+// the pre-create world - an empty statefile - planned against a cloud that
+// holds both resources; the plan must read exactly as the fresh one does.
+//
+// The negative control keeps the comparison honest the way an e2e BREAK=1
+// leg does: after the three equal captures, a marked orphan is added to
+// the live system and the next plan MUST differ, proving the equality
+// assertions compare something that can fail. Without it, three identical
+// bugs would read as three identical successes.
+func TestCacheConditionsPlanIdentically(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cachePath := filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")
+	// The seeded fixture: both resources exist, marked and readable, so
+	// every healthy plan below is a genuine "No changes." - the equality
+	// would hold vacuously on a fixture whose plans all propose creates.
+	cloud := liveBlockCloud()
+
+	// The apply that writes the fresh cache (a no-op apply still persists).
+	{
+		view, done := testView(t)
+		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+		if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+			out := done(t)
+			t.Fatalf("apply exit %d\nstderr:\n%s", code, out.Stderr())
+		}
+		done(t)
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("the apply wrote no cache at the default path %s: %v", cachePath, err)
+	}
+
+	plan := func(label string) string {
+		t.Helper()
+		view, done := testView(t)
+		p := &PlanCommand{Meta: liveBlockMeta(view, cloud)}
+		code := p.Run([]string{"-no-color"})
+		out := done(t)
+		if code != 0 {
+			t.Fatalf("%s plan exit %d\nstdout:\n%s\nstderr:\n%s", label, code, out.Stdout(), out.Stderr())
+		}
+		return out.Stdout()
+	}
+
+	fresh := plan("fresh-cache")
+	if !strings.Contains(fresh, "No changes.") {
+		t.Fatalf("the healthy plan is not a no-op, so the equalities below would compare the wrong thing:\n%s", fresh)
+	}
+
+	// Stale: the cache says the world is empty; the world is not.
+	stale := func() string {
+		f, err := os.Create(cachePath)
+		if err != nil {
+			t.Fatalf("replacing the cache: %v", err)
+		}
+		if err := statefile.Write(statefile.New(states.NewState(), "stale-lineage", 1), f, encryption.StateEncryptionDisabled()); err != nil {
+			t.Fatalf("writing the stale cache: %v", err)
+		}
+		f.Close()
+		return plan("stale-cache")
+	}()
+
+	if err := os.Remove(cachePath); err != nil {
+		t.Fatalf("removing the cache: %v", err)
+	}
+	absent := plan("absent-cache")
+
+	if fresh != stale {
+		t.Errorf("a stale cache changed the plan.\n--- fresh ---\n%s\n--- stale ---\n%s", fresh, stale)
+	}
+	if fresh != absent {
+		t.Errorf("a missing cache changed the plan.\n--- fresh ---\n%s\n--- absent ---\n%s", fresh, absent)
+	}
+
+	// The negative control: a real difference in the live system must move
+	// the plan, or the three equalities above compared nothing. This
+	// fixture's fake cloud runs no marker sweep (the WrittenThenUsed test
+	// documents why), so an added orphan is invisible here; attribute
+	// drift on an existing object is what the per-instance read path
+	// genuinely sees.
+	cloud.mu.Lock()
+	drifted := false
+	for key, attrs := range cloud.objects {
+		if strings.HasPrefix(key, "aws_vpc/") {
+			attrs["cidr_block"] = "10.99.0.0/16"
+			drifted = true
+		}
+	}
+	cloud.mu.Unlock()
+	if !drifted {
+		t.Fatal("no aws_vpc object to drift; the negative control has nothing to mutate")
+	}
+	control := plan("negative-control")
+	if control == fresh {
+		t.Fatal("the negative control produced a byte-identical plan; the equality assertions above are comparing something that cannot fail")
 	}
 }

@@ -8,6 +8,8 @@ package staterecord
 import (
 	"context"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,50 @@ import (
 // other's keys.
 func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Helper()
+
+	t.Run("AbsoluteKeysAreRefusedLoudly", func(t *testing.T) {
+		// Issue #689, from #688's terralith run: keys are
+		// store-relative, and a leading slash used to be accepted then
+		// handled differently by every store - the local and SSM
+		// stores normalized it on write but not in List's filter, so
+		// the write succeeded and the List came back empty, which a
+		// caller cannot tell from an empty estate. Every operation now
+		// refuses the shape with the same named error, on every store.
+		s := newStore(t)
+		if _, err := s.PutIfAbsent(context.Background(), "/abs/key", []byte("v")); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("PutIfAbsent(\"/abs/key\") err = %v, want the store-relative refusal", err)
+		}
+		if _, _, _, err := s.Get(context.Background(), "/abs/key"); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("Get(\"/abs/key\") err = %v, want the store-relative refusal", err)
+		}
+		if _, err := s.List(context.Background(), "/abs/"); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("List(\"/abs/\") err = %v, want the store-relative refusal", err)
+		}
+	})
+
+	t.Run("DeepRelativeKeysRoundTripThroughList", func(t *testing.T) {
+		// The companion positive case: the relative shape production
+		// keys actually use (projection.RecordKey: root/estate/type/
+		// encoded-address) round-trips through every prefix depth,
+		// and a sibling whose name shares a string prefix but not a
+		// path segment stays excluded - the segment rule #690 pins in
+		// the fake and the real services enforce.
+		s := newStore(t)
+		ctx := context.Background()
+		for _, k := range []string{"records/est-a/aws_vpc/AbCd", "records/est-a/aws_vpc/EfGh", "records/est-ab/aws_vpc/Zz99"} {
+			if _, err := s.PutIfAbsent(ctx, k, []byte("v")); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", k, err)
+			}
+		}
+		got, err := s.List(ctx, "records/est-a/")
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		want := []string{"records/est-a/aws_vpc/AbCd", "records/est-a/aws_vpc/EfGh"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("List(\"records/est-a/\") = %v, want %v (est-ab must not string-prefix-match est-a/)", got, want)
+		}
+	})
 
 	t.Run("GetOnMissingKeyIsNotAnError", func(t *testing.T) {
 		s := newStore(t)

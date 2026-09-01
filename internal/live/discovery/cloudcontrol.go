@@ -383,6 +383,12 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			// displaced.go.
 			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
 				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
+			} else if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+				// Issue #692: the sweep saw this declared instance's own
+				// marker on a live object and nothing contradicts it, so
+				// the sighting vouches for the instance instead of being
+				// discarded - see Result.VerifiedDeclared.
+				res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
 			}
 			continue
 		}

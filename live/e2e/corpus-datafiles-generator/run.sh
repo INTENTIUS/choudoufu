@@ -1,4 +1,21 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-datafiles-generator recipe; run with: just demo-run corpus-datafiles-generator)
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/datafiles-generator,
+# one resource (aws_s3_bucket.datafiles) - the rest of the estate's
+# ECS-based generator is commented out in the source itself, decommissioned
+# but the bucket kept. Six data sources OpenTofu evaluates unconditionally
+# (a VPC endpoint, an ECS cluster, two IAM roles, a security group and two
+# subnets) are seeded even though five feed only the estate's
+# commented-out resources. Hits the exact same class of gap
+# demo-corpus-raw-resolution-logs already isolated to the provider: the
+# deprecated `acl` argument, plus `force_destroy`, never round-trips through
+# aws_s3_bucket's Read, so a cold live-plan proposes the identical update
+# forever. Applied, state file deleted, replanned twice, bounded to exactly
+# that known acl/force_destroy update and nothing else, the rendered
+# identity (the literal bucket name) checked against S3's own answer both
+# times. BREAK=1 corrupts the expected identity and the run must catch it in
+# step 5 and nowhere else. Needs Docker, the AWS CLI and a populated
+# .corpus; runs on its own port (4704) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate crossed against a real emulator: issue #274's

@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# (moved from the justfile's retired demo-corpus-govuk-root-dns recipe; run with: just demo-run corpus-govuk-root-dns)
+# Issue #274's attempt: .corpus/govuk-infrastructure/terraform/deployments/root-dns
+# (NOT the already-crossed demo-corpus-root-dns-zones, a different repo -
+# govuk-aws - and a different estate). Three Route53 zones. Does NOT cross -
+# blocked before choudoufu's live-marker mechanism is ever reached: remote.tf
+# reads `data "tfe_outputs" "vpc"`, which is not AWS at all - it is the
+# hashicorp/tfe provider reading GDS's own real, live "govuk" HCP Terraform
+# organization over HTTPS, and fails at the first plan/apply with "required
+# token could not be found" before any AWS call is made. Neither a choudoufu
+# defect nor a floci gap: there is no floci endpoint a `tfe` provider block
+# could ever point at, and this campaign has no business authenticating
+# against GDS's production HCP Terraform org even if it could. Also proves
+# live/corpus-refusals.json's "clean, 0 sites, 3 instances" verdict wrong in
+# the way #274 itself opened with - it has never touched a cloud, and cannot.
+# Needs Docker, the AWS CLI and a populated .corpus; runs on its own port
+# (4710) so it can run beside `just demo`.
 set -uo pipefail
 
 # A real third-party estate run against a real emulator: issue #274's step

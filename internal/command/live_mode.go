@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -174,19 +175,18 @@ func statelessBegin(
 	// and the live block's record store (its carrier) is open.
 	mgr := projection.NewManager()
 
-	// Issue #685: the state cache. This fork's own documentation says a state
-	// file "becomes a cache rather than the record of what you own", and that
-	// was implemented as writing nothing - so there was no cache, and every
-	// plan rebuilt prior state from live reads.
-	//
-	// Off unless CHOUDOUFU_STATE_CACHE names a path, because admitting a
-	// persisted file changes the charter's surface and that is a maintainer
-	// decision, not a default to slip in. The write itself is safe by
-	// construction: nothing reads this file for authority yet, so enabling it
-	// can only cost a file on disk.
-	if cachePath := os.Getenv(EnvStateCache); cachePath != "" {
+	// Issue #685: the state cache. It used to be off unless
+	// CHOUDOUFU_STATE_CACHE named a path, pending a maintainer decision;
+	// that decision is now on record (maintainer, 2026-08-30, recorded on
+	// #685 and pinned by live/stale_state_ruling_test.go): the state file
+	// is a cache, never consulted for ownership, live wins any
+	// disagreement, and losing it costs a slower run and nothing else. So
+	// the cache is on by default, at a path under the data dir every
+	// OpenTofu gitignore already covers, and the env var becomes the
+	// override - see stateCachePath for the full contract.
+	if cachePath := stateCachePath(); cachePath != "" {
 		mgr.EnableStateCache(cachePath)
-		log.Printf("[DEBUG] stateless: state cache enabled at %s (%s)", cachePath, EnvStateCache)
+		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
 	}
 
 	runner := &statelessRunner{
@@ -332,7 +332,30 @@ var testStatelessRunner func(*statelessRunner)
 // reads this value says exactly why it is the exception.
 type statelessSurface int
 
-// loadStateCache reads the cache CHOUDOUFU_STATE_CACHE names, or returns nil.
+// stateCachePath resolves where this run's state cache lives.
+//
+// The default is choudoufu-cache.tfstate under the working directory's data
+// dir (.terraform, or TF_DATA_DIR when set): a derived, disposable file in
+// the directory every OpenTofu gitignore already ignores, per the ruling
+// recorded on issue #685. CHOUDOUFU_STATE_CACHE overrides the path, and the
+// literal value "off" disables persistence entirely - for a run that must
+// leave no file behind, such as an audit from a read-only working copy.
+func stateCachePath() string {
+	switch v := os.Getenv(EnvStateCache); v {
+	case "":
+		dataDir := os.Getenv("TF_DATA_DIR")
+		if dataDir == "" {
+			dataDir = ".terraform"
+		}
+		return filepath.Join(dataDir, "choudoufu-cache.tfstate")
+	case "off":
+		return ""
+	default:
+		return v
+	}
+}
+
+// loadStateCache reads the cache stateCachePath resolves, or returns nil.
 //
 // Every failure path returns nil and logs: no file yet (the ordinary state
 // before the first apply), an unreadable file, a file that is not a statefile.
@@ -340,7 +363,7 @@ type statelessSurface int
 // anything the cache does not answer, and because a cache that could fail a
 // plan would be a record rather than a cache.
 func loadStateCache() *states.State {
-	path := os.Getenv(EnvStateCache)
+	path := stateCachePath()
 	if path == "" {
 		return nil
 	}
