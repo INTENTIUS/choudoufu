@@ -74,6 +74,16 @@ showing its own checks would have caught it.
   duplicate of a server-assigned resource - surfaces as a named pair for
   a human to resolve with one delete. The BREAK control strips the
   winner's marker and proves the convergence check fails without it.
+- **staleness-costs-reads** - *Claim 3: staleness costs reads, never
+  results.* A cache holding dead ids (saved before a full
+  destroy-and-recreate), an absent cache, and a fresh one produce
+  byte-identical plans; an out-of-band drift stays visible straight
+  through a fresh cache (the #712 regression, pinned forever); and the
+  one opt-in path, -refresh=false, demonstrably serves from the cache
+  while losing it changes only work - with the honest footnote that
+  today's wire savings are small until #692's vouch widening lands. The
+  BREAK control drifts the live world and proves the three-way equality
+  comparator can fail.
 
 ## Knobs
 
