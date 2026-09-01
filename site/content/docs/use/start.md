@@ -97,7 +97,7 @@ resource "aws_s3_bucket" "data" {
 }
 ```
 
-A fuller example adding a subnet, a security group, a log group and a
+A fuller example adding a subnet and security group, a log group, and a
 `count`-expanded pair of EIPs is checked in at `live/e2e/estate-block/`. It runs
 as it stands.
 

@@ -9,14 +9,14 @@ Most people arrive here, with an OpenTofu configuration already managing live
 AWS resources.
 
 Migrating means binding those resources to your configuration, one marker at a
-time, until each carries its own ownership record. It does not happen
-automatically and the failure mode is quiet.
+time, until each carries its own ownership record. Nothing does this
+automatically, and the failure mode is quiet.
 
 {{% hint warning %}}
 Turning on live markers does not bind resources you already manage. A resource
 with no marker is not yours yet, so the first plan reads it as absent and
-proposes a second one beside it. Applying that plan does not fail. It creates
-the duplicate.
+proposes a second one beside it. Applying that plan succeeds, and creates the
+duplicate.
 
 Run `choudoufu plan` and read the `Adoptable` and `Unowned` sections before
 applying anything.
@@ -58,11 +58,12 @@ Three groups. Which one a resource falls into decides the work.
 `tofu-address` tags binds on the first plan with no action from you. Arriving
 from `choudoufu live-import`, this is everything.
 
-**Offered for adoption.** Where AWS assigned the identity, a VPC, a subnet, a
-security group, the configuration holds nothing naming the live object and the
-marker is the only way back. The plan still offers a match when configuration
-content is distinctive enough to compare, a VPC by `cidr_block`, a security
-group by `name`, a subnet by `cidr_block` and `availability_zone`. `matchTable`
+**Offered for adoption.** Where AWS assigned the identity, the configuration
+holds nothing naming the live object and the marker is the only way back. A
+VPC, a subnet and a security group are the common cases. The plan still
+offers a match when configuration content is distinctive enough to compare: a
+VPC by `cidr_block`, a security group by `name`, a subnet by `cidr_block` and
+`availability_zone`. `matchTable`
 in
 [`internal/live/foreign/classify.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/foreign/classify.go)
 holds the full list, though you do not need it in advance. The plan's
@@ -173,7 +174,7 @@ blind spot never fires, because nothing on this path matches content.
 Two bounds on that measurement, both worth knowing before you rely on it. The
 ratio was taken at one scale, against a generated estate rather than somebody's
 real one. And stamping is one tag-write round trip per resource, so it is
-linear: roughly 1.3 to 1.4 seconds per stamped resource against a local
+linear at roughly 1.3 to 1.4 seconds per stamped resource against a local
 emulator (issue #566). Reading the state file and reporting what would be
 stamped is separate, read-only, and near flat at about 1.5 seconds either way.
 
@@ -238,8 +239,8 @@ instead.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
 6. **Delete the state file, if you want it gone.** Not before here, and not
-   required at all. Nothing reads it, nothing refuses it, and nothing checks
-   that you removed it, so this is housekeeping rather than a migration step.
+   required at all. Nothing reads or refuses it, and nothing checks that you
+   removed it, so this is housekeeping rather than a migration step.
 
 There is no `choudoufu adopt` command and no need for one. Two tags is the
 whole contract (`live/MARKERS.md`), so any tool that writes two tags can adopt

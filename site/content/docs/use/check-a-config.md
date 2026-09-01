@@ -13,8 +13,8 @@ choudoufu live-check ./
 
 Point it at any OpenTofu configuration. No `live` block, no cloud calls, no
 requirement that the directory has heard of this fork. It prints a verdict,
-then every refusal that fired with its site count, the types responsible, and
-what to do about each.
+then every refusal that fired. Each refusal comes with its site count, the
+types responsible, and what to do about it.
 
 Run `choudoufu init` first if you can. With provider schemas available it
 judges types from the provider's own identity schema as well as the built-in

@@ -5,20 +5,18 @@ weight: 2
 
 # Tutorial: see markers work
 
-In about two minutes, a real VPC, subnet, security group, S3 bucket and log
-group will exist inside a local AWS emulator. choudoufu will build them,
-delete its own state file, and rebuild its bookkeeping from nothing but two
-tags read straight off those live resources. Then it will drift three of them
-behind its own back, out of band, and correct exactly what drifted and
-nothing else. Every claim in this walkthrough is checked by the same run, not
-described after the fact.
+The run below stands up a real VPC, subnet and security group, plus an S3
+bucket and a log group, inside a local AWS emulator. choudoufu builds them
+and deletes its own state file, then rebuilds its bookkeeping from two tags
+read straight off the live resources. It then drifts three of them out of
+band and corrects exactly what drifted. The whole thing takes about two
+minutes, and every claim in this walkthrough is checked by the same run.
 
 ## Before you start
 
-You need Docker, running. `docker info` must succeed. That's the whole
-requirement: no AWS account, no credentials, no cloud spend. The estate
-stands up inside a pinned local emulator that speaks the AWS API on your own
-machine.
+You need Docker running - `docker info` must succeed - and nothing else. No
+AWS account or credentials, and no cloud spend. The estate stands up inside
+a pinned local emulator that speaks the AWS API on your own machine.
 
 ## Run it
 
@@ -83,8 +81,8 @@ attribute, with no noise on its neighbours. Step 7 creates a security group
 choudoufu never declared, and it shows up as foreign, never as something to
 delete. Step 8 removes a whole resource block from the configuration and
 watches exactly that live resource get destroyed. Step 13 does three
-differently-shaped drifts at once and reconverges all three in a single
-apply.
+drifts at once, each of a different kind, and reconverges all three in a
+single apply.
 
 By step 14, the run turns to what choudoufu refuses. Every fixture under
 `live/e2e/limits/` is a configuration this mode is not yet safe to accept,
@@ -92,18 +90,18 @@ and the step confirms each one is rejected, by name, for the reason its own
 fixture claims and no other.
 
 You have just watched choudoufu build a real, emulated AWS estate, hand its
-own bookkeeping over to tags on the live resources, survive three shapes of
+own bookkeeping over to tags on the live resources, survive three kinds of
 drift and a removal without losing track of anything, and refuse the
 constructs it isn't ready for, all without touching a credential.
 
 ## Next
 
-- To do this against your own AWS account, see
-  [Start a new estate]({{< relref "/docs/use/start" >}}).
-- If AWS already holds resources you want choudoufu to take over instead of
-  creating them fresh, see
-  [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}).
-- For why two tags are enough to recover identity, see
-  [the model]({{< relref "/docs/model" >}}).
+- [Start a new estate]({{< relref "/docs/use/start" >}}) does this against
+  your own AWS account.
+- [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) covers
+  resources AWS already holds that choudoufu should take over instead of
+  creating fresh.
+- [The model]({{< relref "/docs/model" >}}) explains why two tags are enough
+  to recover identity.
 - Every step, flag and environment knob this harness has is catalogued in
   [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md).
