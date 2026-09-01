@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -317,11 +318,42 @@ func (c *Client) call(ctx context.Context, operation string, payload any, out an
 		if sleep == nil {
 			sleep = retrySleep
 		}
-		if sleepErr := sleep(ctx, backoffDelay(c.retryBaseDelay, c.retryMaxDelay, attempt)); sleepErr != nil {
+		delay := backoffDelay(c.retryBaseDelay, c.retryMaxDelay, attempt)
+
+		// Wording and shape deliberately match the AWS provider's own retry
+		// line ("retrying request <Service>/<Operation>, attempt N"), because
+		// the log analyzers that account for wall clock - live-cert's
+		// analyze_debug_log, and the gap analysis that reads stalls out of a
+		// TF_LOG capture - key on exactly that phrasing. Emitting a different
+		// wording here would leave these retries counted as zero, which is the
+		// state this line exists to end: until now call() slept on a throttle
+		// and logged nothing, so every throttle choudoufu's own Tagging and
+		// Cloud Control clients absorbed was invisible to every instrument,
+		// while the provider's were fully accounted. The next attempt is
+		// attempt+1, matching the SDK's convention that the first retry is
+		// "attempt 2".
+		log.Printf("[DEBUG] stateless/%s: retrying request %s/%s, attempt %d: after %s, %v",
+			c.service, c.serviceLabel(), operation, attempt+1, delay, err)
+
+		if sleepErr := sleep(ctx, delay); sleepErr != nil {
 			return sleepErr
 		}
 	}
 	return lastErr
+}
+
+// serviceLabel names the AWS service the way the provider's own log lines do,
+// so a reader (and an analyzer) sees "Resource Groups Tagging/GetResources"
+// beside "Route 53/ListResourceRecordSets" rather than an internal hostname.
+func (c *Client) serviceLabel() string {
+	switch c.service {
+	case "tagging":
+		return "Resource Groups Tagging"
+	case "cloudcontrolapi":
+		return "Cloud Control"
+	default:
+		return c.service
+	}
 }
 
 // callOnce is call's single attempt: marshals payload, sends it as
@@ -344,11 +376,26 @@ func (c *Client) callOnce(ctx context.Context, operation string, payload any, ou
 		return fmt.Errorf("cloudcontrol: signing the %s request: %w", operation, err)
 	}
 
+	// One line per request, in the provider's own wording. Before this, the
+	// only trace choudoufu's clients left was a per-type summary from
+	// discovery, so the estate-wide tag sweep - one GetResources plus its
+	// pagination - was entirely absent from a TF_LOG capture. Any tool that
+	// counted requests or measured stalls from that capture was therefore
+	// measuring the provider's traffic and calling it the run's.
+	log.Printf("[DEBUG] stateless/%s: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=POST http.url=%s http.request_content_length=%d",
+		c.service, c.serviceLabel(), operation, c.baseURL(), len(body))
+
+	started := c.clock()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		log.Printf("[DEBUG] stateless/%s: HTTP Request Failed: rpc.service=%s rpc.method=%s duration_ms=%d error=%v",
+			c.service, c.serviceLabel(), operation, c.clock().Sub(started).Milliseconds(), err)
 		return fmt.Errorf("cloudcontrol: %s: %w", operation, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	log.Printf("[DEBUG] stateless/%s: HTTP Response Received: rpc.service=%s rpc.method=%s http.status_code=%d duration_ms=%d",
+		c.service, c.serviceLabel(), operation, resp.StatusCode, c.clock().Sub(started).Milliseconds())
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
