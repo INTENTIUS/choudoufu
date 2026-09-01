@@ -142,7 +142,66 @@ echo "cache hits: $HITS_WITH with, $HITS_WITHOUT without; wire requests: $REQ_WI
 [ "$HITS_WITHOUT" -eq 0 ] || fail "stale" "cache hits were reported with no cache file present - the counter is lying"
 proof "the opt-in path served $HITS_WITH instance(s) and losing the cache changed only work, never the answer. Honest footnote: on this small estate the wire saving rounds to nothing ($REQ_WITH vs $REQ_WITHOUT requests) because the sweep currently vouches a narrow slice and other phases still read - widening that slice is tracked, open work (#692). The claim never promised big savings; it promised the price of staleness is only ever paid in work."
 
-step "5. teardown"
+step "5. the same answer where values live in the record store"
+explain \
+  "The cache also memorizes record-backed resources - ones whose values" \
+  "live in the live backend's record store, not AWS. Same manufacture," \
+  "harder shape: save the cache, destroy the estate, rebuild it SMALLER." \
+  "The saved cache now holds dead identities AND a phantom resource that" \
+  "exists nowhere. If the cache had any authority the phantom would leak" \
+  "into the plan. The store's List is the inventory; the answer must not" \
+  "move."
+R="$SMOKE_WORKROOT/stale-records"; mkdir -p "$R"
+RCACHE="$R/.terraform/choudoufu-cache.tfstate"
+rplan() { (cd "$R" && chdf plan -input=false -no-color 2>&1 | grep -v '^discovering:'); }
+cat > "$R/main.tf" <<'TFEOF'
+terraform {
+  live {
+    estate = "smoke-stale-records"
+  }
+}
+
+resource "terraform_data" "survivor" {
+  input = "s"
+}
+
+resource "terraform_data" "phantom" {
+  input = "p"
+}
+TFEOF
+cmd "apply ; save cache ; destroy ; drop a block ; apply ; plan (fresh vs ancient)"
+( cd "$R" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record init failed"
+( cd "$R" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record apply failed"
+[ -f "$RCACHE" ] || fail "stale" "no cache after the record apply"
+cp "$RCACHE" "$R/ancient-cache.tfstate" || fail "stale" "saving the record cache failed"
+( cd "$R" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record destroy failed"
+cat > "$R/main.tf" <<'TFEOF'
+terraform {
+  live {
+    estate = "smoke-stale-records"
+  }
+}
+
+resource "terraform_data" "survivor" {
+  input = "s"
+}
+TFEOF
+( cd "$R" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record re-apply failed"
+RP_FRESH="$(rplan)" || fail "stale" "fresh record plan failed"
+grep -q "No changes." <<< "$RP_FRESH" || fail "stale" "the rebuilt record estate is not converged: $RP_FRESH"
+cp "$R/ancient-cache.tfstate" "$RCACHE" || fail "stale" "restoring the ancient record cache failed"
+RP_ANCIENT="$(rplan)" || fail "stale" "ancient-cache record plan failed"
+[ "$RP_FRESH" = "$RP_ANCIENT" ] \
+  || fail "stale" "the ancient record cache bent the plan: fresh [$RP_FRESH] vs ancient [$RP_ANCIENT]"
+if grep -q 'phantom' <<< "$RP_ANCIENT"; then
+  fail "stale" "the phantom leaked out of the ancient cache into the plan: $RP_ANCIENT"
+fi
+echo "cache remembers 2 resources including terraform_data.phantom; plan through it: $(grep -m1 'No changes.' <<< "$RP_ANCIENT")" | evidence
+proof "a cache holding a resource that exists nowhere changed nothing - not even a destroy for the phantom. The store's List is the inventory; the cache is a memo."
+( cd "$R" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "stale" "record estate teardown failed"
+
+step "6. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 DOUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "stale" "teardown failed: $DOUT"
@@ -151,7 +210,8 @@ grep -qE "Resources: 0 added, 0 changed, $ADDED destroyed" <<< "$DOUT" \
 proof "$ADDED destroyed - the estate is gone."
 
 echo "  What you watched: a cache holding dead ids, an empty cache, and a"
-echo "  fresh one produce byte-identical plans; a moving world stay visible"
+echo "  fresh one produce byte-identical plans - against the cloud and"
+echo "  against the record store, phantom resource and all; a moving world stay visible"
 echo "  straight through a fresh cache; and the only price of losing the"
 echo "  cache appear exactly where it belongs - in the request count of the"
 echo "  one path that opts into staleness by name."

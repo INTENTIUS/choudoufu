@@ -123,7 +123,55 @@ for t in aws_cloudwatch_log_group aws_s3_bucket; do
 done
 proof "the claim's boundary is announced by the tool itself, at apply time, before anything could be lost."
 
-step "7. teardown"
+step "7. the same claim where values live in the record store"
+explain \
+  "Everything above surfaced because discovery reads AWS. Record-backed" \
+  "resources (terraform_data and friends) have no cloud home - their" \
+  "values live in the live backend's record store, here the implied" \
+  "local one. The claim must hold there too: delete the block, and the" \
+  "recorded resource surfaces from the store's own List - no state" \
+  "file consulted, no cloud involved at all."
+R="$SMOKE_WORKROOT/orphan-records"; mkdir -p "$R"
+cat > "$R/main.tf" <<'TFEOF'
+terraform {
+  live {
+    estate = "smoke-orphan-records"
+  }
+}
+
+resource "terraform_data" "kept" {
+  input = "k"
+}
+
+resource "terraform_data" "forgotten" {
+  input = "f"
+}
+TFEOF
+cmd "choudoufu apply ; delete the forgotten block ; choudoufu plan"
+( cd "$R" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "orphans" "record init failed"
+ROUT="$(cd "$R" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "orphans" "record apply failed: $ROUT"
+cat > "$R/main.tf" <<'TFEOF'
+terraform {
+  live {
+    estate = "smoke-orphan-records"
+  }
+}
+
+resource "terraform_data" "kept" {
+  input = "k"
+}
+TFEOF
+RP="$(cd "$R" && chdf plan -input=false -no-color 2>&1)" || fail "orphans" "record plan failed: $RP"
+grep -q 'terraform_data.forgotten will be destroyed' <<< "$RP" \
+  || fail "orphans" "the recorded resource fell out of the plan silently: $RP"
+grep -qE 'Plan: 0 to add, 0 to change, 1 to destroy' <<< "$RP" \
+  || fail "orphans" "the record plan proposed more than the one destroy: $RP"
+grep -E 'terraform_data.forgotten will be destroyed' <<< "$RP" | head -1 | evidence
+( cd "$R" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "orphans" "record estate teardown failed"
+proof "same guarantee, third backend piece: the store's List is the inventory, so a forgotten record falls INTO the plan too."
+
+step "8. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 DOUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "orphans" "teardown failed: $DOUT"
@@ -133,6 +181,7 @@ grep -qE "Resources: 0 added, 0 changed, $REMAINING destroyed" <<< "$DOUT" \
 proof "$REMAINING destroyed - the estate is gone."
 
 echo "  What you watched: a crashed create and a deleted block both surface"
-echo "  as named plan lines and get removed by an ordinary apply, and the"
-echo "  one place the sweep cannot reach announced itself at apply time."
+echo "  as named plan lines and get removed by an ordinary apply - for cloud"
+echo "  and record-backed resources alike - and the one place the sweep"
+echo "  cannot reach announced itself at apply time."
 echo "  Owned resources do not fall out of plans here - they fall INTO them."

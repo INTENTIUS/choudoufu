@@ -62,7 +62,9 @@ showing its own checks would have caught it.
   markers written, nothing ever recorded) and a deleted resource block
   both surface as named plan lines and are removed by an ordinary apply;
   the two types the sweep cannot recover are announced by the apply
-  itself. The BREAK control creates the resource unmarked - the one shape
+  itself; and the same guarantee is proven for record-backed resources,
+  whose deleted block surfaces from the record store's own List with no
+  cloud involved. The BREAK control creates the resource unmarked - the one shape
   the claim excludes - and proves the naming check fails without the
   marker.
 - **no-self-managed-locks** - *Claim 2: contention settles at the
@@ -77,8 +79,11 @@ showing its own checks would have caught it.
 - **staleness-costs-reads** - *Claim 3: staleness costs reads, never
   results.* A cache holding dead ids (saved before a full
   destroy-and-recreate), an absent cache, and a fresh one produce
-  byte-identical plans; an out-of-band drift stays visible straight
-  through a fresh cache (the #712 regression, pinned forever); and the
+  byte-identical plans - against the cloud estate and against the
+  record store, where the ancient cache holds a phantom resource that
+  exists nowhere and still bends nothing; an out-of-band drift stays
+  visible straight through a fresh cache (the #712 regression, pinned
+  forever); and the
   one opt-in path, -refresh=false, demonstrably serves from the cache
   while losing it changes only work - with the honest footnote that
   today's wire savings are small until #692's vouch widening lands. The
