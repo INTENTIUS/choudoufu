@@ -39,6 +39,22 @@ type Result struct {
 	// in address order.
 	Bindings []Binding
 
+	// VerifiedDeclared is issue #692's other half of the vouching set:
+	// declared instances whose identity came out of the configuration (so
+	// no Binding was ever created for them), but whose live object the
+	// estate sweep saw carrying exactly their marker, with no displacement
+	// verdict against it. Without this, the sweep's sighting of a
+	// client-named instance was discarded at the "already declared" branch
+	// (see displaced.go), and the state cache - forbidden from serving
+	// anything the sweep has not vouched for - could never serve the
+	// client-named majority of an IAM-heavy estate: measured on the
+	// terralith, 6 of 38 instances vouched, every miss IAM, which the
+	// tagging leg can never see (GetResources does not index IAM even on
+	// real AWS; probed, recorded on #692). Populated by the three sighting
+	// classifiers via [declared.vouchAddr]; consumed through
+	// [Result.MarkerVerified].
+	VerifiedDeclared []addrs.AbsResourceInstance
+
 	// Unbound lists the declared needs-discovery instances that nothing
 	// claimed, in address order. Absence is not an error: the resource does
 	// not exist and the plan will propose creating it.
@@ -673,7 +689,10 @@ func (r *Result) MarkerVerified() map[string]bool {
 	if r == nil {
 		return nil
 	}
-	out := make(map[string]bool, len(r.Bindings)+len(r.Surplus)+len(r.Orphans))
+	out := make(map[string]bool, len(r.Bindings)+len(r.Surplus)+len(r.Orphans)+len(r.VerifiedDeclared))
+	for _, a := range r.VerifiedDeclared {
+		out[a.String()] = true
+	}
 	for _, b := range r.Bindings {
 		out[b.Addr.String()] = true
 	}

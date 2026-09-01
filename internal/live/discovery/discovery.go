@@ -118,6 +118,22 @@ type Request struct {
 	// gives up server-side filtering, and it is what P2.4 sets.
 	CollectUnclaimed bool
 
+	// CacheVouchTypes lists resource types the caller's state cache holds
+	// candidates for whose declared instances resolve ClassConcrete - the
+	// client-named majority the ordinary scan deliberately skips, because
+	// with no cache "nothing was waiting to be found" and the per-instance
+	// read verified each marker anyway. A cache hit SKIPS that read, so
+	// its verification has to come from somewhere else, and one list call
+	// per type vouching every instance at once is the cheap somewhere
+	// (issue #692: on the terralith, one iam:ListRoles-shaped call stands
+	// in for ~30 per-role reads). Each listed type's sightings flow
+	// through the ordinary classifiers, whose declared branch feeds
+	// [Result.VerifiedDeclared]; a type that cannot be listed simply
+	// yields no vouches, and those instances fall back to the read path
+	// exactly as if there were no cache. Empty means what it always
+	// meant: no extra listing.
+	CacheVouchTypes []string
+
 	// Sweep asks for the estate-wide sweep as well as the config-driven
 	// scan: every admitted resource type the configuration no longer
 	// declares is listed too, looking for this estate's markers.
@@ -454,6 +470,18 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 
+	// The cache-vouching pass (issue #692): list the concrete-declared
+	// types the caller's cache holds candidates for, so their sightings
+	// reach the declared-branch classifiers and vouch the instances a
+	// cache hit would otherwise serve unverified. Skipped for any type
+	// the loop above already scanned.
+	for _, typeName := range req.CacheVouchTypes {
+		if decl.types[typeName] != nil || decl.all[typeName] == nil {
+			continue
+		}
+		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, false, &typesScanned, &resourcesFound))
+	}
+
 	// The sweep runs after the config-driven scan so that a type appearing
 	// in both is scanned once, on the terms the configuration set.
 	if req.Sweep {
@@ -651,6 +679,22 @@ func sweepTypes(req Request, decl *declared) []string {
 			continue
 		}
 		out = append(out, t)
+	}
+	// A DECLARED type is ordinarily excluded here because the tagging
+	// leg's one estate-wide GetResources covers its live objects anyway -
+	// every declared sighting (displacement, collision, and issue #692's
+	// vouching) arrives for free. For a service GetResources never serves
+	// (taggingAPIUnservedServices; probed against real AWS, recorded on
+	// #692), nothing arrives at all: a second marked object carrying a
+	// declared IAM address was invisible to every leg, and the state
+	// cache could never be vouched an IAM instance. Those types join the
+	// universe so the native per-type leg lists them - cost bounded by
+	// the estate's own declared types in unserved services, a handful,
+	// not the admission table.
+	for t := range decl.types {
+		if cloudObservable(t) && taggingAPIUnservedType(t) {
+			out = append(out, t)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -868,6 +912,21 @@ type declaredAddress struct {
 // instance address for the given resource type.
 func (d *declared) declares(typeName, escaped string) bool {
 	return d.all[typeName][escaped] != nil
+}
+
+// vouchAddr returns the single declared instance address the escaped marker
+// value names, for the sweep to vouch for (issue #692): a live object
+// carrying this estate's marker for a declared, unambiguous address is the
+// same grade of evidence a needs-discovery binding rests on, and
+// [Result.MarkerVerified] is where both kinds land. An ambiguous marker
+// (two instances escaping to one value) vouches for nothing, because there
+// is no single instance it names.
+func (d *declared) vouchAddr(typeName, escaped string) (addrs.AbsResourceInstance, bool) {
+	da := d.all[typeName][escaped]
+	if da == nil || da.ambiguous {
+		return addrs.AbsResourceInstance{}, false
+	}
+	return da.res.Addr, true
 }
 
 // record files one resolution's escaped address in [declared.all], marking
@@ -2115,6 +2174,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// Reported, never acted on: see displaced.go.
 			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
 				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
+			} else if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+				// Issue #692: see Result.VerifiedDeclared - the sighting
+				// vouches for the declared instance instead of being
+				// discarded.
+				res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
 			}
 			continue
 		}

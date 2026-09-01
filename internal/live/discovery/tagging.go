@@ -365,7 +365,39 @@ func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 // that is expected, not a gap to close type by type.
 func arnJoinReaches(req Request, typeName string) bool {
 	cfnType, mapped := arnJoinCFNType(req.Roster, typeName)
-	return mapped && arnJoinCovers(cfnType)
+	return mapped && arnJoinCovers(cfnType) && !taggingAPIUnservedType(typeName)
+}
+
+// taggingAPIUnservedServices is the set of ARN service segments the
+// Resource Groups Tagging API does not index at all, keyed by resource-type
+// name prefix: GetResources never
+// returns their resources, no matter how they are tagged. Probed against
+// real AWS 2026-09-01 - an IAM role tagged at create never appeared in
+// us-east-1 or us-east-2, with a tag filter and with a bare
+// resource-type filter (recorded on issue #692) - and floci matches real
+// AWS here. Being parseable by [arnJoinTable] is not the same fact as
+// being SERVED by GetResources, and conflating the two routed IAM to the
+// tagging universe where its sightings simply never happened: the
+// terralith's client-named IAM majority went unvouched (6 of 38
+// instances), and the state cache - which may only serve what the sweep
+// vouches for - was structurally useless for exactly the estates it
+// helps most. A type in an unserved service sweeps through the native
+// per-type leg instead.
+var taggingAPIUnservedServices = map[string]bool{
+	"aws_iam_": true,
+}
+
+// taggingAPIUnservedType reports whether typeName lives in a service
+// GetResources never serves, by the resource type's own name prefix - the
+// one spelling every caller has with no roster in hand. One prefix per
+// entry in [taggingAPIUnservedServices]; the two lists grow together.
+func taggingAPIUnservedType(typeName string) bool {
+	for prefix := range taggingAPIUnservedServices {
+		if strings.HasPrefix(typeName, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // arnJoinCFNType is the CFN type the tag sweep should reason about for
@@ -1055,6 +1087,12 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		// displaced.go.
 		if want, displaced := decl.displacedFrom(bindType, escaped, claim); displaced {
 			return diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, claim)))
+		}
+		if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+			// Issue #692: see Result.VerifiedDeclared - the sighting
+			// vouches for the declared instance instead of being
+			// discarded.
+			res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
 		}
 		return diags
 	}
