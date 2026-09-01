@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/clistate"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -34,6 +35,7 @@ import (
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -329,6 +331,33 @@ var testStatelessRunner func(*statelessRunner)
 // refuses, it refuses for the same reason - and the one clause below that
 // reads this value says exactly why it is the exception.
 type statelessSurface int
+
+// loadStateCache reads the cache CHOUDOUFU_STATE_CACHE names, or returns nil.
+//
+// Every failure path returns nil and logs: no file yet (the ordinary state
+// before the first apply), an unreadable file, a file that is not a statefile.
+// None of them can fail the run, because the projection reads live for
+// anything the cache does not answer, and because a cache that could fail a
+// plan would be a record rather than a cache.
+func loadStateCache() *states.State {
+	path := os.Getenv(EnvStateCache)
+	if path == "" {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("[DEBUG] stateless: no state cache at %s (%s); the projection will read live", path, err)
+		return nil
+	}
+	defer f.Close()
+	sf, err := statefile.Read(f, encryption.StateEncryptionDisabled())
+	if err != nil || sf == nil || sf.State == nil {
+		log.Printf("[WARN] stateless: the state cache at %s could not be read (%v); the projection will read live", path, err)
+		return nil
+	}
+	log.Printf("[DEBUG] stateless: loaded the state cache from %s", path)
+	return sf.State
+}
 
 // EnvStateCache names a path where a live-block run writes its state
 // snapshot as an ordinary statefile, for the next run to start from. Empty or
@@ -945,7 +974,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
-		RecordStore:         r.recordStore,
+		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
+		// a cache is an optimisation, so every failure to load one is a
+		// missing optimisation and never a failed run.
+		StateCache:  loadStateCache(),
+		RecordStore: r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the

@@ -289,15 +289,83 @@ func runReadFetch(ctx context.Context, e *readFetch) {
 // it is byte-for-byte the sequence materialize ran before this file existed:
 // prepare, then read, then return.
 func (b *builder) readFor(ctx context.Context, w wanted) *readFetch {
+	// The cache is consulted before the prefetch, so a hit costs no read on
+	// this goroutine. prepareRead is pure - configuration lookup and schema
+	// resolution, no provider call - so paying it first is free, and the
+	// cache needs its schema to decode.
+	//
+	// A hit on the concrete phase still leaves a prefetched answer unconsumed,
+	// which readPrefetch.finish reports as wasted. That accounting is correct
+	// and deliberately left visible: the saving on that phase comes from not
+	// PLANNING the read, which is a separate change, while the record-first
+	// intercept - 78 of 79 instances on a migrated estate - reads inline
+	// through here and is saved outright.
+	prep := b.prepareRead(ctx, w)
+	if prep.terminal == nil {
+		if hit := b.cacheHit(w, prep); hit != nil {
+			return hit
+		}
+	}
 	if e := b.readPrefetch.take(w); e != nil {
 		return e
 	}
-	e := &readFetch{want: w, prep: b.prepareRead(ctx, w)}
+	e := &readFetch{want: w, prep: prep}
 	if e.prep.terminal != nil {
 		return e
 	}
 	runReadFetch(ctx, e)
 	return e
+}
+
+// cacheHit is issue #685's whole point: the answer for w taken from the state
+// cache instead of from a provider read, or nil to read.
+//
+// Two conditions, and the second is what makes this safe in a way it would not
+// be for stock OpenTofu.
+//
+//  1. The cache holds an object for this exact instance.
+//  2. Ownership.Verified holds the address - meaning the estate sweep found a
+//     live object carrying this instance's own tofu-address marker, in this
+//     run, moments ago.
+//
+// So a cached entry is a CANDIDATE and the tag index is the oracle. The cache
+// is never trusted on its own: it supplies attributes for an object the cloud
+// has just confirmed exists and is ours. That is why staleness costs reads
+// rather than correctness, and why the one-sided oracle is unchanged - a
+// marker present proves existence, and a marker absent means no hit and an
+// ordinary read.
+//
+// What this does NOT do is skip the read for anything the sweep did not
+// verify: an untaggable instance, an instance whose marker is gone, an
+// instance the cache has never seen. Those all fall through and read.
+func (b *builder) cacheHit(w wanted, prep readPrep) *readFetch {
+	if b.opts.StateCache == nil {
+		return nil
+	}
+	// Verified is the tag index's own answer. Without it there is nothing to
+	// check the cache against, so there is no hit.
+	if !b.opts.Ownership.verified(w.addr) {
+		return nil
+	}
+	ms := b.opts.StateCache.Module(w.addr.Module)
+	if ms == nil {
+		return nil
+	}
+	is := ms.ResourceInstance(w.addr.Resource)
+	if is == nil || !is.HasCurrent() {
+		return nil
+	}
+	obj, err := is.Current.Decode(prep.schema.Block.ImpliedType())
+	if err != nil {
+		// A cache we cannot decode is a cache we ignore. It is not an error:
+		// the file may have been written by another version, and the read
+		// path below is always correct.
+		log.Printf("[DEBUG] projection: state cache holds %s but it did not decode (%s); reading instead", w.addr, err)
+		return nil
+	}
+	b.cacheHits++
+	log.Printf("[DEBUG] projection: state cache hit for %s, marker verified by the estate sweep; no provider read", w.addr)
+	return &readFetch{want: w, prep: prep, obj: obj, status: statusMaterialized}
 }
 
 // take is the prefetched answer for w, or nil for a caller to read inline.

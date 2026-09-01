@@ -24,6 +24,11 @@ import (
 // P2's discovery pass needs the same list to know what to go looking for.
 // Callers that only want the state can use [Result.State].
 type Result struct {
+	// cacheHits counts instances answered from Options.StateCache rather than
+	// a provider read. Unexported with a CacheHits accessor because it is
+	// evidence about the run, not part of the projection. Issue #685.
+	cacheHits int
+
 	// State is the projection: an in-memory prior state holding one object
 	// per instance that was materialized. It is never nil, and is never
 	// written anywhere by this package.
