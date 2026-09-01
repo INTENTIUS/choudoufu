@@ -12,11 +12,11 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 5s | 3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration |
+| Cold deploy | pass | 12s | 3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration |
 | Migrate | pass | 27s | 2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI |
 | Replan from nothing | pass | 2s | no resource change proposed; both alarms' tofu-address unchanged, dashboard body re-derived and matches distribution_id |
 | No-op apply | pass | 2s | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file |
@@ -28,11 +28,11 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
-| Greenfield apply | pass | 11s | 3 resources from nothing (2 tagged alarms + the untaggable dashboard), both alarm markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on both alarms |
+| Greenfield apply | FAIL | 14s | expected 3 records under the local record store after the greenfield apply (2 alarms + the untaggable dashboard), found 4 |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `fcb55698e7` on 2026-08-31T11:51:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 1m23.5s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Last run at commit `17f00a1e97` on 2026-09-01T10:32:37Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 26.5s.
+Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).
 
 FIVE OF FIVE, real, as of 2026-08-21 (crossing 77be0bc336 base). datapoints_to_alarm DELTA applied per lex00/floci#93's own suggested workaround (explicit value = evaluation_periods on both alarms, AWS's own create-time default, so nothing about what stage 1 creates changes) - verified for real, not assumed: the '1 -> null' diff is gone from both stock `tofu plan` and `choudoufu live-plan` against the same live alarms. Getting stage 3's automated assertion to actually SEE the empty plan uncovered a second, real, unrelated choudoufu bug: `choudoufu live-plan`'s delegation to plain `choudoufu plan` when a live block is present (`plan.Run(originalArgs)`) kept originalArgs as a second slice header over live-plan's own rawArgs backing array rather than an independent copy, and arguments.ParseView's in-place compaction of recognized flags (like -no-color) silently corrupted it whenever a flag followed -no-color - -target being the realistic case, since every -target/-exclude run hits this same alias. Effect: -no-color never reached the delegate, so live-plan's output for every -target run (this estate included) carried real ANSI escape codes despite the flag, invisibly breaking any exact-string assertion like stage 3's "No changes." check - not a semantics bug (a manual rerun confirmed the plan was already empty before the fix), but the automated proof of it was blind. Fixed in internal/command/live_plan.go (originalArgs := append([]string(nil), rawArgs...)), regression-tested in internal/command/live_mode_test.go (confirmed to fail without the fix, pass with it). Stage 5 then hit a third, distinct, real bug - floci's: CloudWatch PutMetricAlarm is documented (AWS CLI's own bundled help) as create-only for tags, so a real out-of-band update can never touch existing tags; floci's PutMetricAlarm wipes them instead, confirmed directly (list-tags-for-resource: two markers before, empty after an update with no --tags), destroying this crossing's ownership marker. Filed as https://github.com/lex00/floci/issues/95. Worked around in this harness only (not floci, not a change to what stage 5 tests) by re-applying the known tags via TagResource immediately after each drift call. Re-crossed for real with all three fixes/workarounds in place: cold_deploy 3 resources added; migrate 2 of 3 stamped (dashboard correctly UNTAGGABLE), both tofu-address markers verified via the AWS CLI; test_plan genuinely EMPTY with both alarms' markers and the dashboard's re-derived identity re-verified after the state file was deleted; test_apply a genuine no-op, 2 objects before and after, no state file either time; drift_reconverge proposes fixing exactly the one drifted alarm, applies it, and the live value reads back correct. `just ci` green. BREAK=1 still verified failing at stage 2's identity assertion (unchanged by this update - that check sits before stage 3 and exits the script before stage 5 is ever reached, a pre-existing property of the script's control flow, not something this update touched).
 

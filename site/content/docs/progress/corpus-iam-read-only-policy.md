@@ -12,11 +12,11 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 18s | Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration |
+| Cold deploy | pass | 15s | Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration |
 | Migrate | pass | 1m5s | 1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge |
 | Replan from nothing | pass | 2s | no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged |
 | No-op apply | pass | 3s | genuine no-op: 1 objects before, 1 after, no state file either time |
@@ -28,11 +28,11 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
-| Greenfield apply | pass | 33s | 1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document) |
+| Greenfield apply | FAIL | 19s | expected 1 record under the local record store after the greenfield apply, found 2 |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `fcb55698e7` on 2026-08-31T11:51:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 2m49s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Last run at commit `17f00a1e97` on 2026-09-01T10:32:37Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 36.3s.
+Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).
 
 Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, same upgrade as corpus-iam-policy and following the same corpus-vpc-complete/corpus-lambda-simple structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout. All five stages pass cleanly: cold_deploy (plain terraform apply, "Apply complete! Resources: 1 added" - only the first of this module's three instantiations contributes a resource, confirmed 0 objects tagged before migration), migrate (live-import dry run verifies "1 of 1 resource instance(s) are eligible for stamping", -approve reports "1 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped", tofu-address=module.read_only_iam_policy.aws_iam_policy.policy:0 read directly through the AWS CLI against the real, server-assigned name IAM minted), test_plan (live-plan genuinely empty, identity re-read unchanged after the state file's only copy was deleted), test_apply ("0 added, 0 changed, 0 destroyed", object count unchanged at 1), and drift_reconverge (the one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object by address, apply reconverges to "0 added, 1 changed, 0 destroyed"). Same tofu-slot finding as corpus-iam-policy (see that entry) applies identically here - the module's aws_iam_policy also declares count = var.create && var.create_policy ? 1 : 0 - and is folded into stage 2 the same way ("0 added, 1 changed, 0 destroyed" before stage 3 is attempted). Genuine constraint found here that corpus-iam-policy does not share: this estate creates exactly ONE real object (the other two module calls contribute nothing), so stage 5's BREAK=1 cannot prove non-vacuousness by tampering a second object the way corpus-iam-policy's or corpus-vpc-complete's can - there isn't one. Used the address-corruption technique instead (the same shape and resource type, naming a module that in fact creates nothing) and verified it independently at both sites it appears: run as committed it fails stage 3's identity check; run separately with stage 3's corruption disabled, it correctly fails stage 5's exact-address assertion instead. That second, isolated verification also caught a real bug in this script's first draft: the exact-equality comparison against a live-plan diff header's address (bracket form, "policy[0]") was written against the escaped tag-value form ("policy:0") and could never have matched even on the correct object - fixed by keeping both address forms as separate variables, and the fix was re-verified with a full clean pass afterward.
 

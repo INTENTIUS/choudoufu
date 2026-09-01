@@ -12,11 +12,11 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 17s | Apply complete! Resources: 2 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-policy-crossing before migration |
+| Cold deploy | pass | 16s | Apply complete! Resources: 2 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-policy-crossing before migration |
 | Migrate | pass | 16s | 2 of 2 stamped, both carrying tofu-slot=0/0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge |
 | Replan from nothing | pass | 2s | no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) both unchanged |
 | No-op apply | pass | 3s | genuine no-op: 2 objects before, 2 after, no state file either time |
@@ -28,11 +28,11 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
-| Greenfield apply | pass | 57s | 2 resources from nothing (both aws_iam_policy), markers verified via the AWS CLI, 2 records in the local record store (#364 A2), replan empty both with and without the local record store, both policies' documents and paths match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
+| Greenfield apply | FAIL | 37s | expected 2 records under the local record store after the greenfield apply (one per policy), found 3 |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `fcb55698e7` on 2026-08-31T11:51:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 2m44.5s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Last run at commit `17f00a1e97` on 2026-09-01T10:32:37Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 54.5s.
+Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).
 
 Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, following corpus-vpc-complete/corpus-lambda-simple's structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout, not read from the predecessor's prior notes. All five stages pass cleanly: cold_deploy (plain terraform apply, "Apply complete! Resources: 2 added", confirmed 0 objects tagged before migration), migrate (live-import dry run verifies "2 of 2 resource instance(s) are eligible for stamping", -approve reports "2 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped", both tofu-address/tofu-estate tags read directly through the AWS CLI: module.iam_policy.aws_iam_policy.policy:0 and module.iam_policy_from_data_source.aws_iam_policy.policy:0), test_plan (live-plan genuinely empty, both identities re-read unchanged after the state file's only copy was deleted), test_apply ("0 added, 0 changed, 0 destroyed", object count unchanged at 2), and drift_reconverge (one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object, apply reconverges it to "0 added, 1 changed, 0 destroyed"). BREAK=1 verified twice, independently, against each stage it targets: run as committed it fails stage 3's identity check (expects the real policy's tofu-address on a module that was never created); run separately with stage 3's corruption disabled, it correctly fails stage 5 by tampering a second object and proving the "exactly one object" count assertion is load-bearing (both objects flagged, not silently 1). NEW FINDING, not previously documented in any real crossing that reached this deep: live-import -approve deliberately writes only tofu-estate and tofu-address, never tofu-slot (internal/live/stamp/doc.go's own "tofu-slot comes in from outside" - a slot is minted from a monotonic counter over the live set that a read-only, one-state-file view cannot compute). Both of this estate's aws_iam_policy resources declare count = var.create ? 1 : 0, exactly the shape that needs one, so the FIRST live-plan straight after live-import -approve is not empty - it proposes adding tofu-slot="0" to both, and nothing else. Folded into stage 2 as one ordinary `choudoufu apply` ("0 added, 2 changed, 0 destroyed") before stage 3 is attempted; every replan after is genuinely empty. This is real, deliberate, already-documented product behavior, not a defect - but it will recur on any count-based resource crossing that reaches this far and had not yet been noticed in one that actually got here. Also caught and fixed while verifying: a self-authored bug where stage 5's negative drift assertion compared a live-plan diff header's address (bracket form, "policy[0]") against the escaped tag-value form ("policy:0") and could never have matched - a vacuous check that a stricter assertion in the sibling script (see corpus-iam-read-only-policy) surfaced; fixed here by keeping both forms as separate variables.
 

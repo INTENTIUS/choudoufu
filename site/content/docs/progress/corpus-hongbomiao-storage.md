@@ -12,11 +12,11 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 26s | Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration |
+| Cold deploy | pass | 19s | Apply complete! Resources: 4 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-storage-crossing before migration |
 | Migrate | pass | 46s | 3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket hongbomiao-storage-crossing-hm-production -> tofu-address=module.hm_production_bucket.aws_s3_bucket.main, bucket hongbomiao-storage-crossing-hm-iot-data -> tofu-address=module.s3_bucket_iot_data.aws_s3_bucket.main, key 6353cced-4868-4f98-84ab-ce6a6cbfae4d -> tofu-address=module.kafka_kms_key.aws_kms_key.main |
 | Replan from nothing | pass | 4s | empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key |
 | No-op apply | pass | 3s | genuine no-op: 3 objects before, 3 after, no state file either time |
@@ -28,11 +28,11 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
-| Greenfield apply | pass | 1m2s | 4 resources from nothing (2 buckets under aws.production, KMS key and untaggable alias under the default aws provider), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object per provider namespace, marker tags never compared |
+| Greenfield apply | FAIL | 48s | expected 4 records under the local record store after the greenfield apply (2 buckets, the KMS key, the untaggable alias), found 5 |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `fcb55698e7` on 2026-08-31T11:51:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 3m25.6s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Last run at commit `17f00a1e97` on 2026-09-01T10:32:37Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 1m9.1s.
+Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).
 
 Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns "UnknownOperationException: Operation CreateNotebookInstance is not supported by floci", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, "4 added, 0 changed, 0 destroyed", confirmed 0 objects pre-tagged), migrate (live-import: "3 of 4 resource instance(s) are eligible for stamping", 1 UNTAGGABLE - the KMS alias; -approve: "3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan "No changes", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, "0 added, 0 changed, 0 destroyed", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin.
 

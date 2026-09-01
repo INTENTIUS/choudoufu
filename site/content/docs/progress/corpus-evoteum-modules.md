@@ -12,11 +12,11 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 13s | 10 resources added (1 vpc, 3 subnets, 1 igw, 1 route table, 3 associations, 1 dynamodb table); confirmed unmarked |
+| Cold deploy | pass | 18s | 10 resources added (1 vpc, 3 subnets, 1 igw, 1 route table, 3 associations, 1 dynamodb table); confirmed unmarked |
 | Migrate | pass | 46s | 7 of 10 verified and stamped, 0 failed, 3 correctly UNTAGGABLE; markers read back via the AWS CLI |
 | Replan from nothing | pass | 3s | no changes; VPC and table markers unchanged, all three untaggable associations resolved by their composite identity |
 | No-op apply | pass | 3s | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 7, no state file |
@@ -28,11 +28,11 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
 | Plan, review, apply (planned) | not run |  |  |
-| Greenfield apply | pass | 26s | 10 resources from nothing (1 vpc, 3 subnets, 1 igw, 1 route table, 3 untaggable associations, 1 dynamodb table), VPC marker verified via the AWS CLI, 10 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on vpc/subnets/igw/route-table/dynamodb-table |
+| Greenfield apply | FAIL | 18s | expected 10 records under the local record store after the greenfield apply (one per managed instance), found 11 |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `fcb55698e7` on 2026-08-31T11:51:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 2m20.8s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Last run at commit `17f00a1e97` on 2026-09-01T10:32:37Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`. Total run time 36s.
+Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).
 
 Landed 2026-08-19 (crossing f388f7891c, merge a749395e48), the eighth OpenTofu-native estate and the second from a commercial vendor. OpenTofu-native evidence, four independent kinds, all asserted by the script: self-description as OpenTofu's with no compatibility claim; zero .tf files in the whole pinned tree (109 .tofu, 0 .tf); .pre-commit-config.yaml running tofuutils/pre-commit-opentofu's tofu_validate/tofu_fmt with no Terraform hook; and .tofutest.hcl unit tests, the first evidence in this lane Terraform could not parse. Production code - the org's own estate-config repo calls aws/bucket from it over a setproduct() for_each. Scoped to the two of eleven AWS modules that are self-contained; nine excluded with stated reasons, aws/bucket because its name folds random_password.result (the secret-bearing twin of the random_pet wall corpus-lambda-simple already hits). One delta, asserted at exactly one line: aws/networking/main.tofu's aws constraint ~> 5.0 -> = 6.59.0 (tofu init refuses the root's own pin otherwise); aws/dynamodb byte-identical. Real run rc=0. cold_deploy: 10 instances, both for_each expansions confirmed at 3 keys. migrate: 7 of 10 stamped, 3 UNTAGGABLE route table associations. test_plan: EMPTY with the state file deleted, VPC/subnet/route-table/table markers re-read through the AWS CLI and all three untaggable associations independently confirmed as their {route_table_id}/{subnet_id} composite says. test_apply: genuine no-op, 7 objects before and after, no state file either time. drift_reconverge: exactly module.networking.aws_vpc.main proposed and fixed, marker surviving the incremental tag update. Both negative controls (BREAK=1, BREAK_STAGE5=1) verified failing in real full runs. First estate in either lane whose for_each keys fall outside the AWS tag-value charset ([A-Za-z0-9 _.:/=+@-]), so EscapeAddress is load-bearing: the marker is module.networking.aws_subnet.public:10@d0@d101@d0/24, and the expected values are hand-written from internal/live/markers/markers.go:196's own rule rather than computed by the code under test, each checked to be inside the AWS charset. No Go code touched; nothing in this estate refused - live-plan's diagnostic surface is empty, not merely small. justfile gained demo-corpus-evoteum-modules (port 4730); live/corpus-manifest.json gained the pin; HANDOFF.md section 3 updated, including a correction of its own stale 'four of six' figure to three of six (this manifest was always the source of truth and never agreed with that prose claim).
 
