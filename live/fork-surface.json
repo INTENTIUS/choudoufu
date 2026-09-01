@@ -3,13 +3,13 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "bb45512c9be0ddec79eaaa8797d8cbe8fa18ccaf",
+  "measured_at_head": "eb9daa0ef61a596afaafef7c67c314c0cd45c62f",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 27,
     "internal/live/": 1253,
     "live/": 449,
-    "other": 454,
+    "other": 900,
     "site/": 87,
     "tools/": 406
   },
@@ -8746,12 +8746,1796 @@
         "status": "M"
       },
       {
+        "path": "website/.eslintrc.js",
+        "status": "D"
+      },
+      {
+        "path": "website/Dockerfile",
+        "status": "D"
+      },
+      {
         "path": "website/README.md",
-        "status": "M"
+        "status": "D"
+      },
+      {
+        "path": "website/data/cli-nav-data.json",
+        "status": "D"
+      },
+      {
+        "path": "website/data/internals-nav-data.json",
+        "status": "D"
+      },
+      {
+        "path": "website/data/intro-nav-data.json",
+        "status": "D"
+      },
+      {
+        "path": "website/data/language-nav-data.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docker-compose.build-non-main.yml",
+        "status": "D"
+      },
+      {
+        "path": "website/docker-compose.build.yml",
+        "status": "D"
+      },
+      {
+        "path": "website/docker-compose.yml",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/auth/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/cloud/command-line-arguments.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/cloud/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/cloud/migrating.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/cloud/settings.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/code/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/apply.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/console.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/destroy.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/env.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/fmt.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/force-unlock.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/get.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/graph.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/import.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/init.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/login.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/logout.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/metadata-functions.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/output.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/plan.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/providers/_category_.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/providers/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/providers/lock.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/providers/mirror.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/providers/schema.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/refresh.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/show.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/list.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/mv.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/pull.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/push.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/replace-provider.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/rm.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/state/show.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/taint.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/.gitignore",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/expect_failures_resources/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/expect_failures_resources/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/expect_failures_variables/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/expect_failures_variables/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/mock_provider/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/mock_provider/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/mock_resource/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/mock_resource/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/module/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/module/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/module/test-harness/harness.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/nested-layout/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/nested-layout/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/nested-layout/module/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/nested-layout/module/tests/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/offline/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/offline/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_module/bucket_meta/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_module/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_module/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/plan/Dockerfile",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/plan/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/plan/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/provider_alias/Dockerfile",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/provider_alias/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/provider_alias/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/run_in_variables/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/run_in_variables/mod/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/simple/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/simple/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/test.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/variables/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/variables/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/flat-layout-module.txt",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/flat-layout.txt",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/nested-layout-module.txt",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/nested-layout.txt",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/untaint.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/validate.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/version.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/delete.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/list.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/new.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/select.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/workspace/show.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/config/config-file.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/config/environment-variables.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/config/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/import/importability.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/import/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/import/usage.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/init/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/inspect/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/oci_registries/credentials.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/oci_registries/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/oci_registries/module-package.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/oci_registries/provider-mirror.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/plugins/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/plugins/signing.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/private_registry/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/run/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/inspect.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/move.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/recover.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/resource-addressing.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/state/taint.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/workspaces/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/images/graph-example.png",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/credentials-helpers.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/debugging.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/functions-meta.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/graph.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/json-format.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/login-protocol.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/machine-readable-ui.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/module-registry-protocol.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/provider-meta.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/provider-network-mirror-protocol.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/provider-registry-protocol.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/remote-service-discovery.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/internals/tracing.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/core-workflow.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/.gitignore",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/alpine.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/alpine.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/brew.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/bsd.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/buildkite.jsx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/buildkite.svg",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/deb.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/deb.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/docker-compose.yaml",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/docker.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/alpine-convenience.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/alpine-manual.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/brew-install.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/deb-convenience.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/deb-step1.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/deb-step2.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/deb-step3.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/deb-step4.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/docker-pull.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/docker-run.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/install-dnf.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/install-yum.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/install-zypper.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/repo-yum.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/repo-zypper.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/rpm-convenience.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/scoop-install.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/standalone-install.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/standalone-install.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-checksum-linux.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-checksum-macos.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-checksum.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-cosign.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-cosign.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/verify-installation.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/examples/winget-install.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/fedora.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/homebrew.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/rpm.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/rpm.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/snap.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/standalone.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/test-install-instructions.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/install/windows.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/migration/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/migration/migration-guide.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/migration/multiple-configurations.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/tacos.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/upgrading.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/use-cases.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/vs/boto.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/vs/chef-puppet.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/vs/cloudformation.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/vs/custom.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/vs/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/intro/whats-new.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/attr-as-blocks.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/checks/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/data-sources/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/ephemerality/ephemeral-resources.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/ephemerality/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/ephemerality/write-only-attributes.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/conditionals.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/custom-conditions.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/dynamic-blocks.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/for.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/function-calls.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/operators.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/references.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/splat.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/strings.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/type-constraints.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/types.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/expressions/version-constraints.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/files/dependency-lock.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/files/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/files/override.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/abs.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/abspath.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/alltrue.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/anytrue.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64decode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64encode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64gunzip.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64gzip.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64sha256.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/base64sha512.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/basename.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/bcrypt.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/can.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/ceil.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/chomp.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/chunklist.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/cidrcontains.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/cidrhost.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/cidrnetmask.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/cidrsubnet.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/cidrsubnets.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/coalesce.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/coalescelist.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/compact.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/concat.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/contains.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/csvdecode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/dirname.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/distinct.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/element.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/endswith.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/ephemeralasnull.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/file.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filebase64.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filebase64sha256.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filebase64sha512.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/fileexists.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filemd5.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/fileset.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filesha1.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filesha256.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/filesha512.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/flatten.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/floor.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/format.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/formatdate.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/formatlist.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/indent.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/index_function.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/issensitive.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/join.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/jsondecode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/jsonencode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/keys.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/length.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/log.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/lookup.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/lower.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/matchkeys.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/max.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/md5.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/merge.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/min.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/nonsensitive.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/one.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/parseint.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/pathexpand.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/plantimestamp.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/pow.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/range.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/regex.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/regexall.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/replace.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/reverse.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/rsadecrypt.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sensitive.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/setintersection.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/setproduct.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/setsubtract.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/setunion.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sha1.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sha256.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sha512.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/signum.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/slice.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sort.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/split.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/startswith.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/strcontains.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/strrev.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/substr.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/sum.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/templatefile.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/templatestring.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/textdecodebase64.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/textencodebase64.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/timeadd.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/timecmp.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/timestamp.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/title.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/tobool.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/tolist.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/tomap.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/tonumber.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/toset.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/tostring.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/transpose.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/trim.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/trimprefix.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/trimspace.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/trimsuffix.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/try.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/type.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/upper.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/urldecode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/urlencode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/uuid.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/uuidv5.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/values.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/yamldecode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/yamlencode.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/zipmap.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/import/generating-configuration.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/import/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/_category_.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/count.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/depends_on.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/enabled.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/examples/resource-provider-dynamic-instances.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/for_each.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/lifecycle.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/module-providers.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/meta-arguments/resource-provider.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/composition.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/providers.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/publish.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/refactoring.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/develop/structure.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/sources.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/modules/syntax.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/providers/builtin.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/providers/configuration.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/providers/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/providers/requirements.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/behavior.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/connection.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/file.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/local-exec.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/null_resource.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/remote-exec.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/provisioners/syntax.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/syntax.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/resources/tf-data.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/_category_.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/azurerm.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/configuration.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/consul.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/cos.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/gcs.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/http.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/kubernetes.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/local.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/oss.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/pg.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/remote.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/backends/s3.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/settings/tf-cloud.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/backends.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/encryption.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/aes_gcm.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/aws_kms.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/azure_vault_asymmetric.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/azure_vault_ex1.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/azure_vault_ex2.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/azure_vault_ex3.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/azure_vault_symmetric.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/configuration.ps1",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/configuration.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/configuration.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/enforce.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external-header.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external-input.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external-method.go",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external-method.py",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external-output.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/external-method/method-external.tofu",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/fallback.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/fallback_from_unencrypted.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/fallback_to_unencrypted.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/gcp_kms.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-header.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-input.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-output.json",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-provider.go",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-provider.py",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external-provider.sh",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/keyprovider-external.tofu",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/openbao.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/pbkdf2.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/sample.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/terraform_remote_state.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/terraform_remote_state_full_a.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/examples/encryption/terraform_remote_state_full_b.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/import.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/locking.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/purpose.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/remote-state-data.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/remote.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/sensitive-data.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/state/workspaces.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/syntax/configuration.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/syntax/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/syntax/json.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/syntax/style.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/v1-compatibility-promises.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/values/index.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/values/locals.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/values/outputs.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/values/variables.mdx",
+        "status": "D"
       },
       {
         "path": "website/package-lock.json",
-        "status": "M"
+        "status": "D"
+      },
+      {
+        "path": "website/package.json",
+        "status": "D"
       }
     ],
     "site/": [
