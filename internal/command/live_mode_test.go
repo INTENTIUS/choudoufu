@@ -351,14 +351,51 @@ func TestStatelessMode_plainApply(t *testing.T) {
 
 	assertNoStateArtifacts(t, td)
 
+	// The ruling's flip of the old two-half no-persistence proof (#685):
+	// PersistState must now have WRITTEN the cache, at the default path
+	// under the data dir, and nowhere else (assertNoStateArtifacts above
+	// still fails on any other .tfstate-shaped file, especially at the
+	// module root, where a file would read as authority).
+	cachePath := filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Errorf("the state cache was not written at %s after a plain apply (%v); the ruling makes the cache the default, not an opt-in", cachePath, err)
+	}
+
 	if captured == nil {
 		t.Fatal("no stateless runner was installed, so this apply was not stateless")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
-		t.Error("PersistState was never called, so the no-persistence claim was not exercised")
+		t.Error("PersistState was never called, so the persistence path was not exercised")
 	}
 	if n := captured.PriorStateCalls(); n != 1 {
 		t.Errorf("PriorState ran %d times for one apply, want exactly 1 (GitHub issue #80: the estate sweep and per-resource read cost must be paid once per invocation, not twice)", n)
+	}
+}
+
+// TestStatelessMode_cacheOffSwitch pins the opt-out: CHOUDOUFU_STATE_CACHE=off
+// must leave no cache file anywhere, for the run that may not write one (an
+// audit from a read-only working copy). The literal "off" rather than empty
+// is deliberate: empty means "the default path", so forgetting the variable
+// can never silently disable the cache the way forgetting a flag used to
+// silently change where state went.
+func TestStatelessMode_cacheOffSwitch(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+	t.Setenv(EnvStateCache, "off")
+
+	cloud := newStatelessTestCloud()
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+	if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+		output := done(t)
+		t.Fatalf("exit code %d\nstderr:\n%s", code, output.Stderr())
+	} else {
+		done(t)
+	}
+
+	if _, err := os.Stat(filepath.Join(td, ".terraform", "choudoufu-cache.tfstate")); err == nil {
+		t.Error("CHOUDOUFU_STATE_CACHE=off still wrote the cache file")
 	}
 }
 
@@ -888,6 +925,13 @@ func assertNoStateArtifacts(t *testing.T, root string) {
 			if name == "terraform.tfstate.d" {
 				t.Errorf("a workspace state directory was created: %s", rel)
 			}
+		case name == "choudoufu-cache.tfstate" && strings.Contains(rel, ".terraform"):
+			// The one sanctioned artifact: the ruling's state cache
+			// (issue #685, pinned by live/stale_state_ruling_test.go),
+			// derived and disposable, under the data dir every OpenTofu
+			// gitignore covers. Anything else .tfstate-shaped still
+			// fails below - especially at the module root, where a file
+			// would read as authority.
 		case name == "terraform.tfstate", name == "errored.tfstate",
 			strings.HasSuffix(name, ".tfstate"), strings.HasSuffix(name, ".tfstate.backup"),
 			strings.HasSuffix(name, ".lock.info"):

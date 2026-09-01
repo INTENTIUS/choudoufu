@@ -111,7 +111,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Could not write the state cache",
-		What:    "GitHub issue #685's state cache could not be written to the path CHOUDOUFU_STATE_CACHE names, so the next plan rebuilds prior state from live reads instead of starting from the cache. This costs API calls and not correctness: a cached entry is a candidate verified against the tag index, never a fact trusted, so an absent cache is the same as a stale one.",
+		What:    "GitHub issue #685's state cache could not be written (default: choudoufu-cache.tfstate under the data dir; CHOUDOUFU_STATE_CACHE overrides the path, the value off disables), so the next plan rebuilds prior state from live reads instead of starting from the cache. This costs API calls and not correctness: a cached entry is a candidate verified against the tag index, never a fact trusted, so an absent cache is the same as a stale one.",
 	},
 	{
 		Summary: "Cyclic parent-derived identities",
