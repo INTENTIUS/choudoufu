@@ -183,6 +183,17 @@ type Options struct {
 	// leaving BuildWith's output byte-identical to before.
 	DeposedBindings []DeposedBinding
 
+	// StateCache is a previously written state snapshot to use as a CANDIDATE
+	// set for this build, or nil for none. Issue #685.
+	//
+	// It is never trusted on its own. A cached object is used in place of a
+	// provider read only for an instance the estate sweep independently
+	// verified in this run, by finding a live object carrying that instance's
+	// own tofu-address marker - see [builder.cacheHit]. So a stale or absent
+	// cache costs reads and cannot cost correctness, which is the property
+	// that makes keeping one safe here and unsafe for stock OpenTofu.
+	StateCache *states.State
+
 	// ReadParallelism is how many of the read pass's per-instance provider
 	// round trips - one ImportResourceState plus one ReadResource each -
 	// this projection has in flight at once. Zero, the zero value, means
@@ -261,6 +272,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	})
 
 	res := &Result{
+		cacheHits:        b.cacheHits,
 		State:            b.state,
 		Materialized:     b.materialized,
 		Omitted:          b.omissionList,
@@ -269,8 +281,23 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		EnvelopeVersions: b.envelopeVersions,
 		Policy:           b.policyList,
 	}
+	// Issue #685: report the cache's effect, always, including zero. A cache
+	// that is configured and never hits looks exactly like one that is working
+	// unless the number is printed, and that indistinguishability is the whole
+	// reason this fork shipped documentation describing a cache it did not
+	// write.
+	if opts.StateCache != nil {
+		log.Printf("[DEBUG] projection: state cache supplied %d instance(s) that would otherwise have been read", b.cacheHits)
+	}
+
 	return res, diags.Append(b.diags)
 }
+
+// CacheHits reports how many instances this build answered from
+// [Options.StateCache] instead of a provider read. Zero when no cache was
+// given, and zero is also a legitimate answer for a cache that matched
+// nothing the estate sweep verified.
+func (r *Result) CacheHits() int { return r.cacheHits }
 
 // newBuilder is the one place a builder is constructed, shared by
 // [buildFrom] and by [ReadInstances] so that a narrow read talks to
@@ -417,6 +444,11 @@ type builder struct {
 	// into one extra read rather than a panic.
 	readWasted     []string
 	readMismatched int
+
+	// cacheHits counts instances answered from Options.StateCache instead of a
+	// provider read. Reported so a run can PROVE the cache was used rather
+	// than merely configured.
+	cacheHits int
 
 	diags tfdiags.Diagnostics
 }

@@ -17,7 +17,7 @@ on which of three things the run is doing:
 |---|---|---|
 | A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
 | A plan of an estate already adopted, `live` block on | API calls at parity, or slightly fewer: **-3 on 1416**, then **-45 on 1449** | real AWS |
-| The same plan, in seconds | **1.55x** at 79 resources, **about 3x** at 745 | real AWS |
+| The same plan, in seconds | **withdrawn**, see below | — |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
@@ -25,9 +25,10 @@ names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
 never combined.
 
-The 1.3x is the one figure here not yet taken on a real account. It is scale 1
-only, and [Wall clock](#wall-clock-about-13x-at-scale-1-and-unmeasured-above-it)
-says what it rests on.
+**There is currently no wall-clock figure on this page.** The three real-AWS
+sessions that produced one were comparing a cached plan against an uncached
+one, and [Wall clock](#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like)
+sets out why they are withdrawn rather than restated.
 
 ## With no live block, nothing at all
 
@@ -72,7 +73,7 @@ every plan exit 0 with `No changes`:
 |---|---|
 | stock `terraform plan`, state file | 150, 150, 150 |
 | stock `tofu plan`, state file | 150, 150, 150 |
-| `choudoufu plan`, live block, migrated, **no state file at all** | **157, 157, 157** |
+| `choudoufu plan`, live block, migrated | **157, 157, 157** |
 | `choudoufu live-plan`, the same estate | 157, 157, 157 |
 
 157 against 150 is **+4.7%**, and the residual is seven calls rather than a
@@ -415,68 +416,59 @@ unusually chatty `Read`. Extrapolating from somebody else's resource type will
 be wrong by whatever the ratio between the two providers' `Read`
 implementations happens to be.
 
-## Wall clock: 1.55x at 79 resources, about 3x at 745
+## Wall clock: withdrawn, because the comparison was not like for like
 
-This is the number that will decide whether you can live with the fork.
+**Every wall-clock ratio this page published at 745 resources is withdrawn.**
+Three sessions had measured 2.95x, 3.53x and 2.05x on the median, and the page
+had begun offering a mechanism for them. The comparison underneath was invalid.
 
-Real AWS, account `...3429`, `us-east-2`, at `d359210978`. Warm provider on
-both sides, `TF_LOG` unset inside every timed region, every run a no-change
-plan verified by reading `No changes. Your infrastructure matches the
-configuration.` out of that plan's own output rather than from an exit code.
-The 745 row pools two independent sessions, six runs a side:
+The harness ran stock in one directory and choudoufu in another. Stock's
+directory holds `terraform.tfstate`. choudoufu's holds `.tofu-records` and **no
+state file at all**: `live-import` reads stock's state file to perform the
+migration and never writes one into the estate it migrates to.
 
-| Resources | stock `terraform plan` | `choudoufu plan` | median | mean |
-|---|---|---|---|---|
-| 79 | 4, 3, 4 s | **6, 5, 6 s** | 1.50x | **1.55x** |
-| 745, session 1 | 17, 20, 41 s | 59, 84, 46 s | 2.95x | 2.42x |
-| 745, session 2 | 19, 41, 18 s | 67, 132, 58 s | 3.53x | 3.29x |
-| **745, pooled** | 17-41 s | **46-132 s** | **3.23x** | **2.86x** |
+So the measurement was not stock against this fork. It was **a cached plan
+against an uncached one.** choudoufu read all 745 objects live because nothing
+had told it any of them were already known, which is what a plan does when its
+cache is missing rather than stale.
 
-**Read 745 as "about 3x" and no more precisely than that.** The two sessions
-disagree, 2.42x against 3.29x on the means, and the spread inside a single
-session reaches 141% on the stock side. An earlier version of this page
-published a 2.4x to 3.0x band from session 1 alone; session 2 landed above it.
-Stock's mean was 26.0 s in both sessions, so the movement is all on the
-choudoufu side, whose mean rose by roughly a third between them.
+This is a defect in the test harness, not a discovery about the fork, and the
+figures cannot be salvaged by reinterpreting them. They are withdrawn rather
+than restated.
 
-At 79 resources both spreads sit under 50%, so a single figure is defensible,
-but the timer has whole-second resolution and the plans run 3 to 6 seconds, so
-one tick is a third of the value. Treat 1.55x as coarse.
+### What this fork actually keeps, and what the test was missing
 
-### What the 3x is not
+choudoufu is stock OpenTofu plus identity hooks. It keeps **the ordinary state
+file, as a cache**, and adds three pieces that live in the cloud: identity as
+two tags on the resource, values in a record store, and effects as receipts.
+The state file is demoted from being the record of what you own to being a copy
+you are allowed to lose or to find stale. Demoted is not deleted, and a cache
+you never write is not a cache.
 
-Four candidate explanations have been measured and eliminated. Each is a
-negative result with a control behind it, and together they are the reason
-this page will not offer you a mechanism.
+Two things were therefore missing from the comparison. choudoufu's estate had
+no state file to cache into, and its record store was configured as
+`record_store "local"`, a directory on disk, so the values piece was never
+exercised against the cloud either. Of the three pieces, only identity - the
+tags - was genuinely under test.
 
-**It is not the API calls.** choudoufu issues *fewer* provider requests than
-stock at this size, in both sessions: 1413 against 1416, then 1404 against
-1449. The per-operation breakdown is in the table higher up this page.
+### What survives
 
-**It is not request serialisation.** Against the pinned emulator behind a
-100 ms latency proxy, both binaries run ten requests in flight at 745
-resources, with 62 of 1392 adjacent pairs non-overlapping on the choudoufu
-side. The rig is not blind to the opposite result: forced to
-`TOFU_LIVE_READ_PARALLELISM=1`, the same measurement reports 1391 of 1392
-non-overlapping. Raising that knob to 40 makes choudoufu *faster* than stock
-on the emulator, so the read pass is nowhere near a ceiling.
+The **API call counts** survive: they were counted per request on both sides
+and do not depend on the cache being present. choudoufu issues fewer provider
+requests than stock at 745 resources in all three sessions.
 
-**It is not compute.** At 745 resources CPU is 7.99 s for choudoufu against
-6.11 s for stock, over twenty runs a side. That 1.88 s is 4.5% of the gap, and
-most of the absolute is stock's, so compute at this size is a property of the
-estate rather than of the fork.
+**The head-of-line defect survives**
+([#683](https://github.com/INTENTIUS/choudoufu/issues/683)). A block profile
+puts 46.14 s of a 51 s plan in one channel receive, and one throttled read
+stalls the whole read pass regardless of why the reads are being made. That is
+a real defect in the read pass's slot accounting. What changes is its
+importance: it was stalling a pass that should not have been reading 745
+objects in the first place.
 
-**It is not throttling, and this one runs backwards.** Both plans were
-instrumented in the same session, minutes apart. Stock was throttled **76**
-times against choudoufu's **15**, concentrating on one hosted zone's
-account-wide limit, with 56 of those 76 in Route 53. Measured backoff covered
-84.5% of stock's log span against choudoufu's 57.4%. So the faster binary is
-the one carrying five times the throttling headwind, which rules throttling
-out as the cause of the gap.
+A corrected comparison, with choudoufu given the state file it is designed to
+keep and a record store in the cloud, has not been run yet. Nothing replaces
+these figures until it has.
 
-That leaves the gap real, reproduced across two sessions, and unexplained by
-any mechanism this project has been able to instrument. It is the largest open
-quantity here. What is known is what it is not.
 
 ### And an emulator cannot answer this question
 

@@ -7,11 +7,17 @@ package projection
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -106,6 +112,30 @@ type Manager struct {
 	// returning an error there would turn a cache failure into an apply
 	// failure.
 	hintWarning tfdiags.Diagnostics
+
+	// cachePath is where PersistState writes the state snapshot, or "" to
+	// write none. Issue #685: this fork's own documentation says a state
+	// file "becomes a cache rather than the record of what you own", and
+	// for a long time that was implemented as writing nothing at all - so
+	// there was no cache, and every plan rebuilt prior state from live
+	// reads. Demoted is not deleted.
+	//
+	// What makes keeping one safe here, and unsafe for stock, is that
+	// identity lives on the resource. A cached entry is a CANDIDATE to be
+	// verified against the tag index, never a fact to be trusted, so a
+	// stale or absent cache costs reads and cannot cost correctness. The
+	// one-sided oracle is unchanged: a marker present proves existence, a
+	// marker absent proves nothing.
+	//
+	// The write carries PersistState's contract exactly as the hint does -
+	// a failure is a warning, never an operation failure. A cache that
+	// could fail an apply would not be a cache.
+	cachePath string
+
+	// cacheWarning is the diagnostic from the most recent failed cache
+	// write, kept separate from hintWarning so a reader can tell which of
+	// the two side effects failed.
+	cacheWarning tfdiags.Diagnostics
 }
 
 var _ statemgr.Full = (*Manager)(nil)
@@ -156,6 +186,17 @@ func (m *Manager) RefreshState(context.Context) error {
 func (m *Manager) PersistState(ctx context.Context, _ *tofu.Schemas) error {
 	m.mu.Lock()
 	m.persists++
+	cachePath := m.cachePath
+	if cachePath != "" {
+		// Snapshot under the lock, write outside it, for the same reason
+		// the hint does: states.State is not safe for concurrent
+		// read/write.
+		snapshot := m.current.DeepCopy()
+		m.mu.Unlock()
+		warning := writeStateCache(cachePath, snapshot)
+		m.mu.Lock()
+		m.cacheWarning = warning
+	}
 	store := m.hintStore
 	if store == nil {
 		m.mu.Unlock()
@@ -221,6 +262,84 @@ func (m *Manager) HintWarning() tfdiags.Diagnostics {
 	defer m.mu.Unlock()
 	return m.hintWarning
 }
+
+// EnableStateCache makes PersistState write the state snapshot to path.
+// Passing "" disables it, which is the state a Manager nobody called this on
+// is in. Issue #685.
+func (m *Manager) EnableStateCache(path string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cachePath = path
+}
+
+// CacheWarning returns the diagnostic from the most recent failed cache
+// write, or nil. Separate from [Manager.HintWarning] so a reader can tell
+// which of PersistState's two side effects failed.
+func (m *Manager) CacheWarning() tfdiags.Diagnostics {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cacheWarning
+}
+
+// writeStateCache writes snapshot to path as an ordinary statefile, via a
+// temporary file and a rename so a reader never sees a half-written cache and
+// an interrupted write leaves the previous one intact.
+//
+// It returns a warning rather than an error, and every caller must treat it
+// that way: this is PersistState's contract, and a cache that could fail an
+// apply would not be a cache.
+//
+// The file carries a lineage and serial because statefile.Write requires
+// them, but nothing reads them for authority. The cache is a candidate set to
+// be verified against the tag index, so a lineage mismatch is not a conflict
+// to refuse - it is a cache to ignore.
+func writeStateCache(path string, snapshot *states.State) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	warn := func(err error) tfdiags.Diagnostics {
+		log.Printf("[WARN] projection: could not write the state cache to %s: %s", path, err)
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Could not write the state cache",
+			fmt.Sprintf("choudoufu could not write %s: %s.\n\nThis does not affect the result of this run. The next plan will rebuild prior state from live reads instead of starting from the cache, which costs API calls and not correctness.", path, err),
+		))
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return warn(err)
+	}
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".tmp*")
+	if err != nil {
+		return warn(err)
+	}
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
+
+	sf := &statefile.File{
+		Lineage: stateCacheLineage,
+		Serial:  1,
+		State:   snapshot,
+	}
+	if err := statefile.Write(sf, f, encryption.StateEncryptionDisabled()); err != nil {
+		_ = f.Close()
+		return warn(err)
+	}
+	if err := f.Close(); err != nil {
+		return warn(err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return warn(err)
+	}
+	log.Printf("[DEBUG] projection: wrote the state cache to %s (%d managed resource(s))", path, len(snapshot.RootModule().Resources))
+	return diags
+}
+
+// stateCacheLineage is a fixed, recognisable lineage. It is deliberately not
+// random: nothing treats this file as authoritative, so a lineage exists only
+// because the statefile format carries one, and a constant makes it obvious in
+// a file that this is a cache rather than a state of record.
+const stateCacheLineage = "choudoufu-state-cache"
 
 // GetRootOutputValues implements [statemgr.OutputReader] from the in-memory
 // snapshot.

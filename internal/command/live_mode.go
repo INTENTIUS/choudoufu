@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/clistate"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -33,6 +35,7 @@ import (
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -166,11 +169,25 @@ func statelessBegin(
 		return diags
 	}
 
-	// The manager's one optional side effect - guided discovery's hint
-	// (issue #109) - is enabled later, in PriorState, once the estate name
-	// is settled and the live block's record store (its carrier) is open.
-	// Nothing to configure here.
+	// The manager's optional side effects: guided discovery's hint (issue
+	// #109) is enabled later, in PriorState, once the estate name is settled
+	// and the live block's record store (its carrier) is open.
 	mgr := projection.NewManager()
+
+	// Issue #685: the state cache. This fork's own documentation says a state
+	// file "becomes a cache rather than the record of what you own", and that
+	// was implemented as writing nothing - so there was no cache, and every
+	// plan rebuilt prior state from live reads.
+	//
+	// Off unless CHOUDOUFU_STATE_CACHE names a path, because admitting a
+	// persisted file changes the charter's surface and that is a maintainer
+	// decision, not a default to slip in. The write itself is safe by
+	// construction: nothing reads this file for authority yet, so enabling it
+	// can only cost a file on disk.
+	if cachePath := os.Getenv(EnvStateCache); cachePath != "" {
+		mgr.EnableStateCache(cachePath)
+		log.Printf("[DEBUG] stateless: state cache enabled at %s (%s)", cachePath, EnvStateCache)
+	}
 
 	runner := &statelessRunner{
 		settings: settings,
@@ -314,6 +331,39 @@ var testStatelessRunner func(*statelessRunner)
 // refuses, it refuses for the same reason - and the one clause below that
 // reads this value says exactly why it is the exception.
 type statelessSurface int
+
+// loadStateCache reads the cache CHOUDOUFU_STATE_CACHE names, or returns nil.
+//
+// Every failure path returns nil and logs: no file yet (the ordinary state
+// before the first apply), an unreadable file, a file that is not a statefile.
+// None of them can fail the run, because the projection reads live for
+// anything the cache does not answer, and because a cache that could fail a
+// plan would be a record rather than a cache.
+func loadStateCache() *states.State {
+	path := os.Getenv(EnvStateCache)
+	if path == "" {
+		return nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("[DEBUG] stateless: no state cache at %s (%s); the projection will read live", path, err)
+		return nil
+	}
+	defer f.Close()
+	sf, err := statefile.Read(f, encryption.StateEncryptionDisabled())
+	if err != nil || sf == nil || sf.State == nil {
+		log.Printf("[WARN] stateless: the state cache at %s could not be read (%v); the projection will read live", path, err)
+		return nil
+	}
+	log.Printf("[DEBUG] stateless: loaded the state cache from %s", path)
+	return sf.State
+}
+
+// EnvStateCache names a path where a live-block run writes its state
+// snapshot as an ordinary statefile, for the next run to start from. Empty or
+// unset writes none, which is the behaviour every release up to and including
+// v0.5.0 had. Issue #685.
+const EnvStateCache = "CHOUDOUFU_STATE_CACHE"
 
 const (
 	// surfaceLiveBlock is plain "choudoufu plan" and "choudoufu apply" over a
@@ -592,6 +642,7 @@ type statelessRunner struct {
 	// runs on the single goroutine backend_local.go's localRunDirect calls it
 	// from, never concurrently with itself.
 	priorStateCalls int
+	cacheHits       int
 
 	// nodeResolve and resolver are GitHub issue #388's plan-node seam,
 	// set once in statelessBegin from [nodeResolveEnabled] and populated
@@ -623,6 +674,12 @@ func (r *statelessRunner) RecordedRootOutputs() map[string]cty.Value {
 // PriorStateCalls returns how many times PriorState has run on this runner.
 // Exists for the GitHub issue #80 regression pin (see priorStateCalls):
 // a passing plan or apply must report exactly one.
+// CacheHitsForTest reports how many instances the most recent projection
+// answered from the state cache instead of a provider read. Issue #685's
+// proof surface: a cache that is written, loaded and then ignored is
+// indistinguishable from a working one without this number.
+func (r *statelessRunner) CacheHitsForTest() int { return r.cacheHits }
+
 func (r *statelessRunner) PriorStateCalls() int {
 	return r.priorStateCalls
 }
@@ -924,7 +981,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
-		RecordStore:         r.recordStore,
+		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
+		// a cache is an optimisation, so every failure to load one is a
+		// missing optimisation and never a failed run.
+		StateCache:  loadStateCache(),
+		RecordStore: r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the
@@ -965,6 +1026,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if projDiags.HasErrors() {
 		return nil, diags
 	}
+	r.cacheHits = projResult.CacheHits()
 
 	r.view.Omissions(statelessOmissions(projResult))
 	r.view.Unowned(statelessUnownedReport(projResult, estate))

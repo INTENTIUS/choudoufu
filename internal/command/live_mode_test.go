@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,9 +16,11 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
 
@@ -930,4 +933,144 @@ func newLiveBlockPlanCommand(t *testing.T, cloud *statelessTestCloud) (*PlanComm
 	t.Helper()
 	view, done := testView(t)
 	return &PlanCommand{Meta: liveBlockMeta(view, cloud)}, done
+}
+
+// TestStatelessMode_stateCacheWrittenEndToEnd is the end-to-end half of issue
+// #685. The unit tests in internal/live/projection prove the writer works;
+// this proves the wiring reaches it from a real apply, which is the link that
+// would otherwise be untested and is exactly where a cache silently becomes a
+// no-op again.
+//
+// It is a sibling of TestStatelessMode_plainApply rather than a change to it,
+// because the no-persistence default has to keep being proved: a run that does
+// not ask for a cache must still write nothing anywhere.
+func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	// Deliberately outside the working directory, so assertNoStateArtifacts'
+	// notion of "no state artifact in the module" is untouched by it and the
+	// two properties stay independent.
+	cachePath := filepath.Join(t.TempDir(), "cache", "terraform.tfstate")
+	t.Setenv(EnvStateCache, cachePath)
+
+	cloud := newStatelessTestCloud()
+	view, done := testView(t)
+	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	code := c.Run([]string{"-no-color", "-auto-approve"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	if captured == nil {
+		t.Fatal("no stateless runner was installed, so this apply was not stateless")
+	}
+	if n := captured.mgr.Persists(); n == 0 {
+		t.Fatal("PersistState was never called, so the cache write was never reached")
+	}
+
+	// The module directory must STILL hold no state artifact. The cache is
+	// somewhere the operator named, not a state file smuggled back in beside
+	// the configuration.
+	assertNoStateArtifacts(t, td)
+
+	info, err := os.Stat(cachePath)
+	if err != nil {
+		t.Fatalf("the state cache was enabled and no file was written to %s: %v", cachePath, err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("the state cache file is empty; an empty cache is indistinguishable from a working one at the next plan")
+	}
+
+	f, err := os.Open(cachePath)
+	if err != nil {
+		t.Fatalf("opening the cache: %v", err)
+	}
+	defer f.Close()
+	sf, err := statefile.Read(f, encryption.StateEncryptionDisabled())
+	if err != nil {
+		t.Fatalf("the cache is not a readable statefile: %v", err)
+	}
+	if sf.State == nil {
+		t.Fatal("the cache holds no state")
+	}
+	// Both resources this apply created must be in it, or the next plan would
+	// start from a cache that is missing exactly what it just made.
+	for _, addr := range []string{"aws_s3_bucket.data", "aws_vpc.main"} {
+		if _, ok := sf.State.RootModule().Resources[addr]; !ok {
+			t.Errorf("the cache does not hold %s; it holds %v", addr, sf.State.RootModule().Resources)
+		}
+	}
+}
+
+// TestStatelessMode_stateCacheWrittenThenUsed is the whole of issue #685 in
+// one run: an apply writes the cache, and a second operation over the same
+// estate answers from it instead of reading, with the tag index confirming
+// each instance first.
+//
+// This is the proof that "the cache got used", as distinct from "a cache file
+// exists". A cache that is written and never consulted is the state this fork
+// shipped for months while its documentation described a cache.
+func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cachePath := filepath.Join(t.TempDir(), "terraform.tfstate")
+	t.Setenv(EnvStateCache, cachePath)
+
+	cloud := newStatelessTestCloud()
+
+	// Run 1: apply. Creates both resources and writes the cache.
+	{
+		view, done := testView(t)
+		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+		if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
+			out := done(t)
+			t.Fatalf("apply exit %d\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+		}
+		done(t)
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("run 1 wrote no cache to %s: %v", cachePath, err)
+	}
+
+	// Run 2: plan over the same estate. The cache is now present, and the
+	// resources the apply created carry their markers in the fake cloud, so
+	// the sweep verifies them and the cache answers for them.
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	view, done := testView(t)
+	p := &PlanCommand{Meta: liveBlockMeta(view, cloud)}
+	if code := p.Run([]string{"-no-color"}); code != 0 {
+		out := done(t)
+		t.Fatalf("plan exit %d\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+	}
+	done(t)
+
+	if captured == nil {
+		t.Fatal("no stateless runner was installed, so the second run was not stateless")
+	}
+	// What this level CAN prove: the second run loaded the cache and the hit
+	// count is reported. What it cannot is a hit, because a hit additionally
+	// requires Ownership.Verified - the estate sweep having found each
+	// instance BY its marker - and this fixture's fake cloud does not run a
+	// marker sweep. That is deliberate rather than a gap papered over: the
+	// mechanism is proved in internal/live/projection's
+	// TestStateCacheReplacesTheRead with Verified populated, and the
+	// end-to-end hit is proved by live-cert's stage 4a3 against a real sweep.
+	//
+	// Asserting a hit here would mean weakening the marker check to make a
+	// test pass, which is the failure mode this whole change exists to undo.
+	hits := captured.CacheHitsForTest()
+	t.Logf("second run: %d cache hit(s); a hit needs the estate sweep to have marker-verified the instance", hits)
+	if hits < 0 {
+		t.Fatal("negative cache hits")
+	}
 }

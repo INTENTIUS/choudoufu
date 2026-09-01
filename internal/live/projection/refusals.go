@@ -110,6 +110,10 @@ var refusals = []Refusal{
 		What:    "Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.",
 	},
 	{
+		Summary: "Could not write the state cache",
+		What:    "GitHub issue #685's state cache could not be written to the path CHOUDOUFU_STATE_CACHE names, so the next plan rebuilds prior state from live reads instead of starting from the cache. This costs API calls and not correctness: a cached entry is a candidate verified against the tag index, never a fact trusted, so an absent cache is the same as a stale one.",
+	},
+	{
 		Summary: "Cyclic parent-derived identities",
 		What:    "Two or more resources derive their identities from each other, directly or transitively, so none of them can be built first.",
 	},

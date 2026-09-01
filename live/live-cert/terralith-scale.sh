@@ -73,6 +73,35 @@ SCALE="${SCALE:-1}"
 RUN_ID="${RUN_ID:-lc$(date +%s)-$$}"
 PREFIX="${PREFIX:-lc$(date +%s)$$}"
 ESTATE="tl-livecert-$PREFIX"
+
+# Which record_store backend the adopted estate declares. Until now this was
+# hardcoded to "local", a directory on disk beside the module - which means
+# every real-AWS run this harness has ever produced exercised the VALUES half
+# of the state model against local disk, not against the cloud. Of the three
+# pieces (identity as tags, values in a record store, effects as receipts),
+# only identity was genuinely under test.
+#
+# "ssm" is the default for TARGET=aws because it needs nothing created first:
+# it writes under a prefix derived from the estate name, and teardown is a
+# prefix delete. "s3" needs a bucket the run would have to make and destroy.
+# floci keeps "local", because the point there is speed and the emulator's
+# Parameter Store is not what is under test.
+if [ "$TARGET" = "aws" ]; then
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-ssm}"
+else
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-local}"
+fi
+case "$RECORD_STORE_BACKEND" in
+  local) RECORD_STORE_ARGS='      path = ".tofu-records"' ;;
+  ssm)   RECORD_STORE_ARGS="      key_prefix = \"/choudoufu/livecert/$PREFIX\"
+      region     = \"$REGION\"" ;;
+  s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
+         RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
+      key_prefix = \"choudoufu/livecert/$PREFIX\"
+      region     = \"$REGION\"" ;;
+  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
+esac
+SSM_PREFIX="/choudoufu/livecert/$PREFIX"
 WORK="${LIVECERT_WORK_DIR:-$(mktemp -d)}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
@@ -111,6 +140,20 @@ esac
 # ── teardown ────────────────────────────────────────────────────────────
 TEARDOWN_DONE=0
 MIGRATE_DONE=0
+
+# ssm_prefix_count counts parameters under a path. NOT `--query
+# 'length(Parameters)'`: the CLI applies that per RESULT PAGE, so a prefix
+# holding 66 parameters printed "10\n10\n10\n10\n10\n10\n6" - a string every
+# numeric comparison chokes on. On the 2026-09-01 proof run that made a
+# working record store report "holds no parameters" (a FALSE failure), and
+# the same bug in teardown skipped the delete loop and left 75 parameters
+# behind. Counting names line-by-line aggregates across pages correctly.
+ssm_prefix_count() {
+  aws ssm get-parameters-by-path --path "$1" --recursive \
+    --query 'Parameters[].Name' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
   TEARDOWN_DONE=1
@@ -129,8 +172,8 @@ terraform {
   }
   live {
     estate = "$ESTATE"
-    record_store "local" {
-      path = ".tofu-records"
+    record_store "$RECORD_STORE_BACKEND" {
+$RECORD_STORE_ARGS
     }
   }
 }
@@ -152,6 +195,20 @@ EOF
     sd_rc=$?
     log "    exit=$sd_rc (see $WORK/teardown_stock_destroy.out) - not trusted alone, verifying by listing next"
     [ "$sd_rc" -ne 0 ] && tail -30 "$WORK/teardown_stock_destroy.out" | sed 's/^/    | /'
+  fi
+
+  # The record store is not tagged and no destroy reaches it, so it needs its
+  # own teardown. Doing it here rather than in sweep() because it must run on
+  # every exit path, including a run that never reached test_plan.
+  if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
+    rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
+    log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
+    if [ "${rs_left:-0}" -gt 0 ]; then
+      aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+        --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+        | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+      log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
+    fi
   fi
 
   if verify_empty; then
@@ -873,8 +930,8 @@ terraform {
   }
   live {
     estate = "$ESTATE"
-    record_store "local" {
-      path = ".tofu-records"
+    record_store "$RECORD_STORE_BACKEND" {
+$RECORD_STORE_ARGS
     }
   }
 }
@@ -983,6 +1040,40 @@ else
   log "  plan empty in ${PLAN_S}s"
 fi
 
+log "=== 4a2. state model: prove each piece was actually exercised, not just configured ==="
+# A run that DECLARES a cloud record store and then never writes to it looks
+# identical, in every other line of this log, to one that used local disk. So
+# each piece is checked against the cloud, by listing, and the check fails the
+# stage rather than warning - "configured" is not "used".
+#
+# Identity is proved by the tag index, values by the record store. Effects are
+# not asserted here: this fixture declares none, so an assertion would be
+# vacuously green and worse than no assertion at all.
+if [ "$TARGET" = "aws" ]; then
+  ident_n="$(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
+  [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
+
+  if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
+    rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
+    log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
+    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
+    # A read-side check was tried here and REMOVED as vacuous rather than
+    # kept looking rigorous: it grepped the plan log for "ssm", which matches
+    # the provider's own aws_ssm_parameter type sweep 600+ times on any run,
+    # so it could not fail for the right reason. choudoufu's staterecord SSM
+    # client logs nothing per request (the #682 logging covers the
+    # cloudcontrol/tagging client, a different seam), so there is nothing
+    # honest to grep for until that client logs too. Write-side proof stands;
+    # the read side is proved at the cache stage (5b), whose "state cache
+    # supplied N" line comes from the projection itself.
+  else
+    log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
+  fi
+fi
+
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
   read -r PLAN_LOG_BYTES THROTTLE_HITS RETRY_LINES PAGINATION_HITS <<< "$(analyze_debug_log "$PLAN_LOG")"
@@ -1068,6 +1159,38 @@ AFTER_N="$(livecert_aws resourcegroupstaggingapi get-resources \
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
+
+log "=== 5b. state cache: written by the apply, and USED by the plan after it (#685) ==="
+# Placement matters and the first attempt got it wrong. test_apply (stage 5)
+# is the first choudoufu APPLY, so it is the first thing that can write a
+# cache - a check before it would have asserted against a file that cannot
+# exist yet. This runs one more plan, after the apply, which is the first plan
+# in the whole harness that has a cache to read.
+#
+# A cache that is written and never consulted is indistinguishable from a
+# working one in every other line of this log, which is the state this fork
+# shipped for months while its documentation described a cache. So all three
+# halves are asserted and zero hits FAILS rather than warns.
+if [ -n "${CHOUDOUFU_STATE_CACHE:-}" ]; then
+  [ -s "$CHOUDOUFU_STATE_CACHE" ] \
+    || fail "state cache enabled at $CHOUDOUFU_STATE_CACHE and the apply wrote nothing there"
+  log "  written: $(wc -c < "$CHOUDOUFU_STATE_CACHE" | tr -d " ")B at $CHOUDOUFU_STATE_CACHE"
+
+  CACHE_LOG="$WORK/cache_plan.debug.log"
+  CACHE_OUT="$(cd "$ADOPTED_DIR" && TF_LOG=DEBUG TF_LOG_PATH="$CACHE_LOG" "$TOFU" plan -input=false -no-color 2>&1)"; CACHE_RC=$?
+  [ "$CACHE_RC" -eq 0 ] || { printf '%s\n' "$CACHE_OUT" | tail -20; fail "the post-apply plan exited $CACHE_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$CACHE_OUT" \
+    || fail "the post-apply plan was not empty, so a cache hit count from it would not be comparable"
+
+  CACHE_HITS="$(grep -oE "state cache supplied [0-9]+ instance" "$CACHE_LOG" 2>/dev/null | grep -oE "[0-9]+" | tail -1)"
+  [ -n "$CACHE_HITS" ] \
+    || fail "the plan never reported a state-cache result; the cache was written but the plan did not load it"
+  log "  USED: the post-apply plan answered $CACHE_HITS instance(s) from the cache instead of reading them"
+  [ "$CACHE_HITS" -gt 0 ] \
+    || fail "the state cache was written and loaded and supplied 0 instances - written, not used"
+else
+  log "  CHOUDOUFU_STATE_CACHE unset, so the cache half is NOT under test in this run"
+fi
 
 CURRENT_STAGE=""
 gauntlet_end
