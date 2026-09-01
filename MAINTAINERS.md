@@ -28,8 +28,9 @@
 
 * Triaging issues as they are created
 * Supporting Users via GitHub issues, Discussions, and on the CNCF Slack
-* Reviewing PRs and RFCs submitted by the Contributors to the project
-* Authoring PRs and RFCs to fix bugs and build new features
+* Reviewing PRs submitted by the Contributors to the project
+* Authoring PRs to fix bugs and build new features; design decisions are
+  recorded on their tracker issues, not through an RFC process
 * Attending community meetings (timezone permitting)
 * Organizing work into releases
 

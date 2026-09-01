@@ -175,7 +175,7 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 //
 // It does NOT also refuse on [strictSecretsLocatedExclusion]. That was
 // this function's job before the maintainer's 2026-08-23 ruling
-// (rulings/20260823-foundation-order-ruling.md, ruling 5): an unconditional
+// (the foundation-order ruling (#388), ruling 5): an unconditional
 // veto, baked into the schema question itself, so a caller with no way to
 // express the operator's `strict { secrets }` setting still refused the
 // two named types. Schema admission and the operator's policy are
@@ -282,7 +282,7 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 }
 
 // strictSecretsLocatedExclusion is the maintainer's 2026-08-23 ruling
-// (rulings/20260823-foundation-order-ruling.md, ruling 5), which moved
+// (the foundation-order ruling (#388), ruling 5), which moved
 // aws_iam_access_key and aws_iot_certificate out of the unconditional,
 // pre-compatible-by-default veto this file carried before it (see git
 // history for the retired sanctionedCredentialExclusion, and

@@ -46,7 +46,7 @@ type Request struct {
 	Config *configs.Config
 
 	// RecordBackedAddrs is edge 3 of the plan-node seam
-	// (rulings/20260823-foundation-order-ruling.md, ruling 3; GitHub issue
+	// (the foundation-order ruling (#388), ruling 3; GitHub issue
 	// #388), keyed by [addrs.AbsResourceInstance.String]. An address listed
 	// here is excluded from the per-instance binding demand
 	// [declaredInstances] builds from a ClassNeedsDiscovery resolution -
@@ -494,7 +494,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// nothing to report between, only before and after.
 			taggingUniverse, nativeUniverse := partitionSweepTypes(req, decl)
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
-			// rulings/20260830-stale-state-charter.md's CollectUnclaimed
+			// the stale-state ruling's (#604) CollectUnclaimed
 			// ruling. The tagging leg above is untouched by it - it is one
 			// call and it covers every ARN-placeable type across the whole
 			// account - and so is every removal leg below. What narrows is
@@ -2951,7 +2951,7 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 	// current one turn up as orphans of the SAME address, and the tag
 	// sweep alone cannot tell them apart.
 	//
-	// The estate's own record can: rulings/20260823-foundation-order-ruling.md
+	// The estate's own record can: the foundation-order ruling (#388)
 	// item 1 makes the record authoritative for "which live object does
 	// this address own right now", written on every apply (day2_replace's
 	// own apply already overwrote this address's record with the new

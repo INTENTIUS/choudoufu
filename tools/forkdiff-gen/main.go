@@ -11,7 +11,7 @@
 // tofu show <planfile> by embedding schemas into the planfile (#4239)", the
 // commit this checkout diverged from github.com/opentofu/opentofu at - and
 // groups every changed path (added, modified, deleted) by top-level root:
-// internal/live/, tools/, live/, site/, .github/, rulings/, and a catch-all
+// internal/live/, tools/, live/, site/, .github/, and a catch-all
 // "other" for anything not under one of those. live/forkdiff_test.go (issue
 // #423's guard) holds the other bucket to an allowlist: empty, or every
 // entry accounted for with a one-line reason.
@@ -120,7 +120,6 @@ var namedRoots = []string{
 	"live/",
 	"site/",
 	".github/",
-	"rulings/",
 }
 
 // importRenameQuoted matches a quoted Go import path naming the pre-fork

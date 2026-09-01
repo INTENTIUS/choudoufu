@@ -14,7 +14,7 @@ import (
 // from OUTSIDE the configuration.
 //
 // The design note attached to GitHub issue #365's ruling 4 and 5 comment
-// (rulings/20260823-foundation-order-ruling.md), itself following
+// (the foundation-order ruling (#388)), itself following
 // opentofu/opentofu#3016's configuration-tier idea, is the reason this
 // exists at all: a `strict` block lives in the same commit as the resources
 // it governs, so an author who wants to relax it can always do so in the

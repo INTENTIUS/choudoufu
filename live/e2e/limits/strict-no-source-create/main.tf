@@ -1,5 +1,5 @@
 # Limits fixture: RuleStrictNoSourceCreate (GitHub issue #365, ruling 4;
-# rulings/20260823-foundation-order-ruling.md).
+# the foundation-order ruling (#388)).
 #
 # `no_source_create = "maybe"` is neither of the two settings this fork's
 # schema defines. The refusal is the point, for the same reason

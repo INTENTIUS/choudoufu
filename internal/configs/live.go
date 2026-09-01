@@ -18,21 +18,29 @@ import (
 // Live represents a module's live configuration: a "live" block inside a
 // "terraform" block, or the [LiveSidecarFilename] sidecar file, whose whole
 // body is the same content the block would carry. Its presence is what puts a
-// run into stateless mode: no state file, no backend, no lock, with prior
-// state rebuilt from the live system on every operation.
+// run into what the code currently calls stateless mode: no backend, no
+// lock, and no AUTHORITATIVE state file. The ruling (maintainer,
+// 2026-08-30; issue #685; pinned by live/stale_state_ruling_test.go): the
+// state file loses its authority, not its existence. A disposable cache
+// writes by default to choudoufu-cache.tfstate under the data dir; it is
+// never consulted for ownership, live wins any disagreement, and losing
+// it costs a slower run and nothing else - a guard proves a fresh, a
+// stale and a missing cache plan byte-identically. No comment, refusal
+// text or test may treat the file's absence as the product.
 //
 // It is deliberately a configuration block and not a command-line flag.
-// Whether a team's infrastructure has an authoritative state file is a
-// property of the configuration, checked in and reviewed with it; a flag
-// would mean a run that forgot it silently fell back to writing a state
-// file, which is exactly the failure this mode exists to remove.
+// Whether a team's infrastructure treats a state file as the record of
+// ownership is a property of the configuration, checked in and reviewed
+// with it; a flag would mean a run that forgot it silently fell back to
+// trusting the file as that record, which is exactly the failure this
+// mode exists to remove. Removing the file's authority is the point;
+// removing the file was the over-rotation #685 unwound.
 //
-// The block is also why a stateless module cannot have a backend: a "backend"
-// or "cloud" block alongside it is refused here, in the configuration
-// decoder, rather than only by the stateless subset lint. The decoder is the
-// earlier wall, and it is the one every command passes through - including
-// the ones that would otherwise reach for a state manager before any
-// stateless code ran.
+// The block is also why a live-mode module cannot have a backend today: a
+// "backend" or "cloud" block alongside it is refused here, in the
+// configuration decoder, rather than only by the lint. The refusal is
+// aimed at a second authoritative home for state; #685's direction is to
+// narrow it to exactly that, so a disposable local cache never trips it.
 type Live struct {
 	// Estate is the name of the estate this configuration owns, as it appears
 	// in the tofu-estate marker described by live/MARKERS.md. It is
@@ -164,7 +172,7 @@ type LiveStrict struct {
 	// NoSourceCreate is the literal string an author wrote for the
 	// "no_source_create" argument - "refuse", "create", or whatever they
 	// typed, valid or not. GitHub issue #365's ruling-4 toggle
-	// (rulings/20260823-foundation-order-ruling.md): a no-source instance (no
+	// (the foundation-order ruling (#388)): a no-source instance (no
 	// record, no marker, and an identity nothing - neither the static
 	// evaluator nor #388's plan-node seam - can derive) refuses by default;
 	// this selects stock's own behavior of planning a create instead. Read

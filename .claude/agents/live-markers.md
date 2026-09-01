@@ -17,7 +17,12 @@ commit that is no longer HEAD).
 choudoufu is an OpenTofu fork that runs a user's **existing** OpenTofu
 configuration against live cloud resources, with cloud tags as the
 authoritative ownership markers and a small per-instance record for what the
-cloud cannot hold, instead of a state file.
+cloud cannot hold. The state file is a cache that is allowed to be stale,
+written by default to choudoufu-cache.tfstate under the data dir and never
+consulted for ownership (the ruling is pinned by
+live/stale_state_ruling_test.go; the guard TestCacheConditionsPlanIdentically
+proves staleness cannot change a plan). #685 remains open for the
+re-measurement and the widened vouching, not for the cache's existence.
 
 **The promise: if OpenTofu runs an estate, choudoufu runs it too.** Migration
 from a stock state file is lossless, a greenfield apply is equivalent, day-2
@@ -94,7 +99,7 @@ static evaluator, not of the mode: HANDOFF's "The order" item 1 takes the
 migrated population off that path and item 3 retires the evaluator. Measured
 2026-08-23: 97 of the 206 enumerable refusal kinds are the static-evaluation
 stage, and about 40% of the migrated gauntlet population is re-derived from
-configuration on every plan (`rulings/20260823-foundation-order-ruling.md`).
+configuration on every plan (`the foundation-order ruling (#388)`).
 
 ## How to work
 

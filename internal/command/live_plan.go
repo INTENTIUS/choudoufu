@@ -50,9 +50,12 @@ import (
 )
 
 // LivePlanCommand plans a configuration with no authoritative state: no
-// backend, no state file, no lock. Prior state is a projection, rebuilt by
-// reading the live system at the start of the run and discarded when the run
-// ends.
+// backend, no lock. Prior state is a projection, rebuilt by reading the
+// live system at the start of the run and discarded when the run ends -
+// this standalone command neither reads nor writes the #685 state cache,
+// which belongs to plain plan/apply's StatelessRun seam (live_mode.go's
+// runner wires it); a diagnostic command that wrote the cache would
+// overwrite the last real run's snapshot with its own.
 //
 // The pipeline is lint -> identity -> discovery -> projection -> the ordinary
 // plan engine:
@@ -795,7 +798,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // ---------------------------------------------------------------------------
 
 // statelessRecordBackedNeedsDiscoveryAddrs is edge 3 of the plan-node seam
-// (rulings/20260823-foundation-order-ruling.md, ruling 3; GitHub issue #388):
+// (the foundation-order ruling (#388), ruling 3; GitHub issue #388):
 // among needs (a ClassNeedsDiscovery resolution list, ordinarily
 // resolutions.NeedsDiscovery()), the subset whose estate record already
 // holds an identity - read the same way
@@ -988,7 +991,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling,
+	// the CollectUnclaimed ruling (#604),
 	// resolved here for the same two reasons the parallelism knob above is:
 	// this function is the single funnel every sweeping entry point goes
 	// through, and a bad setting must be reported once rather than once per
@@ -1007,7 +1010,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	// Edge 3 of the plan-node seam (rulings/20260823-foundation-order-ruling.md,
+	// Edge 3 of the plan-node seam (the foundation-order ruling (#388),
 	// ruling 3; issue #388): recordShrinkStore is nil unless the caller has
 	// both opened a record store AND turned CHOUDOUFU_NODE_RESOLVE=1 on -
 	// see [statelessRecordBackedNeedsDiscoveryAddrs]'s own doc comment for
@@ -1264,7 +1267,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Resolutions:       resolutions,
 		Provider:          provider,
 		Region:            provs.region(providerAddr),
-		// rulings/20260830-stale-state-charter.md's ruling: this is the
+		// the stale-state ruling's (#604) ruling: this is the
 		// account-inventory question ("what is in my account that this
 		// estate does not know about"), and it does not stay
 		// unconditional. [collectUnclaimedSetting] is where the run picks
@@ -2096,7 +2099,7 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 		SweepCovered: res.SweepCovered,
 	}
 	if disco != nil {
-		// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling:
+		// the CollectUnclaimed ruling (#604):
 		// a run that did not ask the account-inventory question must say
 		// so rather than let "nothing was swept" read as "there is
 		// nothing". See [discovery.Result.NativeSweepSkipped].

@@ -994,7 +994,7 @@ func (r *resolver) expKey(rc *configs.Resource) string {
 }
 
 // lookupType is [LookupType] with the schema fallback ahead of it, not just
-// behind it: ruling 2 of rulings/20260823-foundation-order-ruling.md (#387).
+// behind it: ruling 2 of the foundation-order ruling (#388) (#387).
 // When the caller supplied provider schemas AND [SynthesizeTypeIdentity]
 // reproduces what the hand table already says for typeName -
 // [preferSynthesized]'s own comparison, the same one

@@ -899,8 +899,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 	}
 }
 
-// locateByRecord is the record-primary fallback (rulings/20260823-foundation-
-// order-ruling.md, "The order" item 1; GitHub issue #364) for a
+// locateByRecord is the record-primary fallback (the foundation-order
+// ruling's "The order" item 1; GitHub issue #364) for a
 // provider-assigned type this provider cannot list: before find refuses for
 // lack of a marker search path, it asks the estate's record store for an
 // identity recorded under the OLD address. A migration writes exactly this

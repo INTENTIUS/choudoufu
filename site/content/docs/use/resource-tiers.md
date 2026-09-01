@@ -19,7 +19,7 @@ marker-carried." Roughly half the provider's resource types have no tag
 surface at all, so no scheme that requires every type to reach the strongest
 tier can describe AWS honestly. The full definition, in the vocabulary this
 page uses, is
-[`rulings/20260828-readiness-tiers.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260828-readiness-tiers.md).
+[`the tier definitions (#417)`](https://github.com/INTENTIUS/choudoufu/blob/main/the tier definitions (#417)).
 
 ## The four tiers
 

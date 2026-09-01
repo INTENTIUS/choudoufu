@@ -15,7 +15,7 @@ pass is unconditional and costs what stock's refresh costs. The sweep is the
 adoption hook, which answers a question an operator needs during a migration
 or an audit and not on an ordinary plan of an estate that is already adopted.
 That it should not run on every plan was
-[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md)'s
+[`the stale-state ruling (#604)`](https://github.com/INTENTIUS/choudoufu/blob/main/the stale-state ruling (#604))'s
 ruling, and `09d180f921` implemented it. This page is the measurement that
 ruling rested on, and it is still the measurement of what the sweep costs when
 a run does take it.
@@ -132,7 +132,7 @@ actually plans. Generated terralith at three scales, applied with stock
 `terraform` and then migrated with `choudoufu live-import -approve` before
 anything was counted (commit `cfd0dc58d4`, floci pin `sha256:c55d74e1`,
 reported in
-[`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md)):
+[`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634))):
 
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|---|---|
@@ -189,7 +189,7 @@ are parallel. Every stock figure in that column came from a `terraform plan`
 run against a provider block setting `skip_requesting_account_id`, which
 suppresses the provider's own account resolution, one `GetCallerIdentity` and
 one `GetUser`. With the block corrected,
-`rulings/20260830-stateful-equivalence.md` measured stock at **150** and
+`the stateful-equivalence measurement (#588)` measured stock at **150** and
 **558** at the two smaller scales. 745 was not re-run, and 1374 is what the
 shared slope implies rather than anything anyone counted.
 
@@ -267,7 +267,7 @@ refresh. It multiplies choudoufu's sweep.
 > sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
 > run that actually sweeps. Since `09d180f921` a steady-state plan is not one
 > of them. Full correction:
-> [`rulings/20260830-slicing-under-choudoufu.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-slicing-under-choudoufu.md).
+> [`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634)).
 
 ## On real AWS the sweep was nearly the whole plan
 
@@ -404,7 +404,7 @@ deliberately: on the 79-instance fixture it is the difference between 157 and
 
 The same fixture and the same pin, measured before migration with no marker on
 any object (commit `f4611196e5`,
-[`rulings/20260830-marker-verified-fast-projection.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-marker-verified-fast-projection.md)):
+[`the fast-projection ruling (#579)`](https://github.com/INTENTIUS/choudoufu/blob/main/the fast-projection ruling (#579))):
 
 | Instances | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|

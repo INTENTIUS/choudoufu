@@ -7,7 +7,7 @@ package identity
 
 import "sort"
 
-// This file is ruling 2 of rulings/20260823-foundation-order-ruling.md (issue
+// This file is ruling 2 of the foundation-order ruling (#388) (issue
 // #387), the online half: [resolver.lookupType] calls schemaReproducesRow to
 // decide, at RESOLUTION time and with the REAL provider schemas, whether a
 // synthesized entry ([SynthesizeTypeIdentity]) says the same thing a hand

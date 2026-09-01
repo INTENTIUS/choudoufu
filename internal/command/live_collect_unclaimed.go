@@ -43,7 +43,7 @@ const collectUnclaimedEnvVar = "TOFU_LIVE_COLLECT_UNCLAIMED"
 //
 // The default is adoptionOnly - GitHub issue #587's -adoption-only flag -
 // and that is the whole of the mechanism
-// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling left to be
+// the CollectUnclaimed ruling (#604) left to be
 // designed. The charter offers three shapes (an opt-in flag, a periodic
 // schedule the record store tracks, or on for the commands where the answer
 // is the point) and this is the third, using the flag that already exists

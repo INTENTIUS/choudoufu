@@ -20,7 +20,10 @@ func TestBucketOf(t *testing.T) {
 		{"live/fork-surface.json", "live/"},
 		{"site/content/docs/index.md", "site/"},
 		{".github/workflows/ci.yml", ".github/"},
-		{"rulings/20260814-upstream-sync.md", "rulings/"},
+		// rulings/ was a named root until the 2026-09-01 dissolve
+		// (live/decision_authority_guard_test.go); a path under it now
+		// falls through to the catch-all like any other deleted tree.
+		{"rulings/former-root-probe.md", "other"},
 		{"internal/command/apply.go", "other"},
 		{"internal/tofu/context.go", "other"},
 		{"cmd/choudoufu/main.go", "other"},

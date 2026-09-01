@@ -905,7 +905,7 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # ordinary stateless plan always asked the account-inventory question
 # ("what is in my account this estate does not know about"), so the count
 # above fell out of the plan this stage already ran.
-# rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling
+# the CollectUnclaimed ruling (#604)
 # (09d180f921, "a steady-state plan stops enumerating the whole admission
 # table") makes that question opt-in: it costs a per-type enumeration of
 # every admitted type the ARN join cannot place, and the default is now off
@@ -927,7 +927,7 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # would have made the assertion unfailable on the one estate that has a
 # foreign shape worth counting.
 grep -qE '^Foreign resources: nothing was swept' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the default plan does not report that it left the account-inventory question unasked - rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling says a run that did not ask must say so rather than imply there is nothing"; }
+  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the default plan does not report that it left the account-inventory question unasked - the CollectUnclaimed ruling (#604) says a run that did not ask must say so rather than imply there is nothing"; }
 log "  default plan: $(grep -E '^Foreign resources:' <<< "$PLAN_OUT")"
 SWEEP_PLAN_OUT="$(cd "$EST" && TOFU_LIVE_COLLECT_UNCLAIMED=1 "$TOFU" live-plan -input=false -no-color 2>&1)"; SWEEP_PLAN_RC=$?
 [ "$SWEEP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$SWEEP_PLAN_OUT" | tail -60; fail "the account-inventory plan (TOFU_LIVE_COLLECT_UNCLAIMED=1) exited $SWEEP_PLAN_RC"; }
@@ -950,7 +950,7 @@ GOT_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE
 log "  identity re-check (via EC2, after the state file has never existed this run): unchanged"
 
 log ""
-gauntlet_stage test_plan pass "no resource change proposed by either plan; the default plan reports \"nothing was swept\" (rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling made the account-inventory question opt-in, and a run that did not ask must say so), and a second plan run with TOFU_LIVE_COLLECT_UNCLAIMED=1 finds exactly 8 foreign objects - the instance's own root volume plus floci's default-VPC bootstrap; instance tofu-address re-checked against EC2"
+gauntlet_stage test_plan pass "no resource change proposed by either plan; the default plan reports \"nothing was swept\" (the CollectUnclaimed ruling (#604) made the account-inventory question opt-in, and a run that did not ask must say so), and a second plan run with TOFU_LIVE_COLLECT_UNCLAIMED=1 finds exactly 8 foreign objects - the instance's own root volume plus floci's default-VPC bootstrap; instance tofu-address re-checked against EC2"
 log "STAGE 3 (test plan): PASS"
 log ""
 
@@ -1570,7 +1570,7 @@ COUNTEOF
       # discovery.go's classifyOrphans already solves exactly this shape one
       # function over, for an UNDECLARED address: recordCurrentClaimant
       # disambiguates from the estate's own identity record, which
-      # rulings/20260823-foundation-order-ruling.md item 1 makes
+      # the foundation-order ruling (#388) item 1 makes
       # authoritative for "which live object does this address own right
       # now", and which the replace's own apply already rewrote to the new
       # instance's id. The declared count-instance path has no equivalent.
@@ -1586,7 +1586,7 @@ COUNTEOF
           --query "Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key=='tofu-slot']|[0].Value]" \
           --output text 2>&1 | awk 'NF{printf "%s(%s,slot=%s) ", $1, $2, $3}')"
         log "  the live claimants of module.ec2_complete.aws_instance.this[0], id(state,slot), via the AWS CLI: $F_CLAIMANTS"
-        fail "choudoufu refuses where stock proceeds (HANDOFF's first row): after the replace applied cleanly, the post-replace plan refuses with \"Indistinguishable instances without per-instance markers\" because the TERMINATED old instance still carries this estate's tofu-estate/tofu-address/tofu-slot tags and the estate-wide tag sweep counts it as a second live claimant of module.ec2_complete.aws_instance.this[0]. The claimants this run measured, id(state,slot) via the AWS CLI: $F_CLAIMANTS - so the refusal's own suggested discriminator cannot break the tie either: both carry the SAME tofu-slot, which live/MARKERS.md permits by design (\"a slot whose resource has been deleted may be assigned again later\"), so the replacement legitimately took the retired instance's slot back. Stock's own post-replace plan is empty: its state names one instance id and it never asks the account what else claims the address. The lingering tags are real AWS behaviour, confirmed against the pinned emulator with no tofu in the loop (run-instances, terminate-instances, then describe-instances/describe-tags/resourcegroupstaggingapi all still return the terminated id and its markers), so this is not an emulator gap to fix in floci. The fix belongs in the declared count-instance binding path, which needs the discipline discovery.go's classifyOrphans already applies to an UNDECLARED address: recordCurrentClaimant disambiguates from the estate's own identity record (authoritative per rulings/20260823-foundation-order-ruling.md item 1, and rewritten to the new id by the replace's own apply) and returns a survivor only when EXACTLY one candidate matches. Not fixed in this script-only pass"
+        fail "choudoufu refuses where stock proceeds (HANDOFF's first row): after the replace applied cleanly, the post-replace plan refuses with \"Indistinguishable instances without per-instance markers\" because the TERMINATED old instance still carries this estate's tofu-estate/tofu-address/tofu-slot tags and the estate-wide tag sweep counts it as a second live claimant of module.ec2_complete.aws_instance.this[0]. The claimants this run measured, id(state,slot) via the AWS CLI: $F_CLAIMANTS - so the refusal's own suggested discriminator cannot break the tie either: both carry the SAME tofu-slot, which live/MARKERS.md permits by design (\"a slot whose resource has been deleted may be assigned again later\"), so the replacement legitimately took the retired instance's slot back. Stock's own post-replace plan is empty: its state names one instance id and it never asks the account what else claims the address. The lingering tags are real AWS behaviour, confirmed against the pinned emulator with no tofu in the loop (run-instances, terminate-instances, then describe-instances/describe-tags/resourcegroupstaggingapi all still return the terminated id and its markers), so this is not an emulator gap to fix in floci. The fix belongs in the declared count-instance binding path, which needs the discipline discovery.go's classifyOrphans already applies to an UNDECLARED address: recordCurrentClaimant disambiguates from the estate's own identity record (authoritative per the foundation-order ruling (#388) item 1, and rewritten to the new id by the replace's own apply) and returns a survivor only when EXACTLY one candidate matches. Not fixed in this script-only pass"
       fi
       fail "the post-replace plan exited $F_FINAL_PLAN_RC"
     fi

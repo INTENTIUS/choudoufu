@@ -19,7 +19,7 @@ import (
 // NodeAbstractResourceInstance.plan computes into origConfigVal - instead
 // of against a static reading of the instance's HCL the way resolveInstance
 // (resolve.go) does. This is GitHub issue #388's plan-node seam
-// (rulings/20260823-foundation-order-ruling.md, ruling 3): "the identity
+// (the foundation-order ruling (#388), ruling 3): "the identity
 // table's Components against real values."
 //
 // It applies the identical table every ClassConcrete resolution already
@@ -133,7 +133,7 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 // one of those reasons alike, which is right for that function's own
 // callers (a wrong guess and no guess must read identically to them). This
 // is for a caller with a different question: GitHub issue #388's
-// plan-node seam (rulings/20260823-foundation-order-ruling.md, ruling 3, ruling
+// plan-node seam (the foundation-order ruling (#388), ruling 3, ruling
 // 4/#365), deciding whether a config-identified type's own missing source
 // is the ambiguous case ruling 4 refuses by default - a real object this
 // run simply could not derive the identity of - or a case with no

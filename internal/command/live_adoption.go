@@ -44,7 +44,9 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // [github.com/intentius/choudoufu/internal/live/liveimport.Ratify]'s own
 // precondition: it refuses without a parsed tfstate ("live-import needs a
 // parsed tfstate to read, and none was given"), and a configuration under a
-// live block has no state file at all - that is what the live block means.
+// live block has no AUTHORITATIVE state file to hand it - the cache under
+// the data dir is not a migration source, and treating it as one would
+// ratify stale identities.
 // The ratification report is therefore unreachable from a plan, and this is
 // the filtered view.
 //

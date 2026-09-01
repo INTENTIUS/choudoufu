@@ -81,6 +81,25 @@ reference page is rendered from the schema.
 
 ## The foundation
 
+**The state file is a cache, and it is allowed to be stale.** Maintainer
+ruling, 2026-08-30, recorded on issue #685: choudoufu can do anything
+OpenTofu does as long as the state file can be stale, and losing it is a
+refresh, never a failure. Three lines govern every design decision that
+touches state, pinned by `live/stale_state_ruling_test.go`:
+
+- the cache is never consulted for ownership;
+- when cache and live disagree, live wins, always;
+- losing the cache costs a slower run and nothing else.
+
+The cache is real as of v0.6.0: written by default to
+choudoufu-cache.tfstate under the data dir, serving an instance only when
+the sweep vouched for its marker in the same run, with the equality guard
+proving a stale or missing cache cannot change a plan. #685 stays open
+for the re-measurement and the widened vouching. No document, error
+string or test may describe the absence of a state file as the product. The live backend is the three pieces the model docs name -
+identity as tags, values in the record store, effects as receipts - and
+the cache is a projection of them that may always be thrown away.
+
 Every managed instance has a **record**: identity, the arguments the provider
 never echoes back, sensitivity marks, taint, deposed key. One per resource,
 namespaced per estate, under IAM, written with compare-and-swap. **Markers**
@@ -90,7 +109,7 @@ Binding reads the record and verifies it against the marker; a lost record is
 rebuilt from tags where tags exist, and where they do not, the estate is
 exactly where stock is.
 
-Ruled 2026-08-23 (`rulings/20260823-foundation-order-ruling.md`): the record
+Ruled 2026-08-23 (`the foundation-order ruling (#388)`): the record
 holds the identity of **every** instance, written by `live-import` and by
 every apply, and a plan reads it first. The marker sweep and derivation
 from configuration are the recovery paths, for when there is no record or
@@ -209,7 +228,7 @@ a regression; the estate usually got better and the script did not.
 
 Units continue from `next` at all times. Underneath them, the foundation
 lands in a fixed order, ruled 2026-08-23 in
-`rulings/20260823-foundation-order-ruling.md`, which carries the measurements
+`the foundation-order ruling (#388)`, which carries the measurements
 each item rests on and the commits they were computed at:
 
 1. **#364 and record-primary identity**: every instance's identity in the
@@ -304,7 +323,7 @@ this file's rewrite on 2026-08-21; the reasoning for retiring them is in the
 tracker's design thread of the same date.
 
 Retired 2026-08-23: "the engine is unmodified" as a rule (it stays a
-measured cost: `rulings/20260814-projection-nativeness-audit.md`); the hand
+measured cost: `the projection-nativeness audit (#81)`); the hand
 exclusion of `aws_iam_access_key` outside the toggles; the config-language
 subset as a permanent property of the mode rather than of the static
-evaluator. Reasoning in `rulings/20260823-foundation-order-ruling.md`.
+evaluator. Reasoning in `the foundation-order ruling (#388)`.

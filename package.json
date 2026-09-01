@@ -2,7 +2,7 @@
   "name": "choudoufu-prose-lint",
   "private": true,
   "type": "module",
-  "description": "Prose lint for this fork's hand-written Markdown. Report-only; see rulings/20260830-stale-state-charter.md for why a Go repository carries a Node dependency.",
+  "description": "Prose lint for this fork's hand-written Markdown. Report-only; see the stale-state ruling (#604) for why a Go repository carries a Node dependency.",
   "scripts": {
     "prose-lint": "node prose-lint.mjs"
   },

@@ -92,7 +92,7 @@ var enforcedLimits = map[string]Rule{
 	// TestStrictSecretsRefusalToggleIsTheObstacle is this directory's
 	// mutation check. See live/LIMITATIONS.md, "strict-secrets-refusal".
 	"strict-secrets-refusal": RuleLogicalResource,
-	// GitHub issue #365 ruling 4 (rulings/20260823-foundation-order-ruling.md).
+	// GitHub issue #365 ruling 4 (the foundation-order ruling (#388)).
 	// See live/LIMITATIONS.md, "strict-no-source-create".
 	"strict-no-source-create": RuleStrictNoSourceCreate,
 	"policy-scope":            RulePolicyScope,

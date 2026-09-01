@@ -292,10 +292,6 @@ test-floci-clean: ## Removes floci containers left behind by `test-floci`.
 	@ docker ps -aq --filter ancestor=$(FLOCI_IMAGE) | while read -r id; do docker rm -f $$id > /dev/null; done
 
 .PHONY:
-test-linux-install-instructions:
-	@cd "$(CURDIR)/website/docs/intro/install" && ./test-install-instructions.sh
-
-.PHONY:
 integration-tests: test-s3 test-pg test-consul test-kubernetes test-floci integration-tests-clean ## Runs all integration tests test.
 
 .PHONY:

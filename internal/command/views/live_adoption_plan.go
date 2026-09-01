@@ -60,7 +60,7 @@ import (
 // property that makes the ledger trustworthy.
 //
 // What the FLAG does beyond selecting this view has changed since
-// rulings/20260830-stale-state-charter.md's CollectUnclaimed ruling, and the
+// the CollectUnclaimed ruling (#604), and the
 // sentence that used to sit here ("the same live reads, the same discovery
 // sweep ... the flag buys no time") is no longer true of it: -adoption-only
 // now also asks the estate-wide sweep which live resources carry no

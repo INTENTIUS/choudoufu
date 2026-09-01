@@ -197,7 +197,7 @@ func TestLocatedTypeFailsClosedWithoutSchemas(t *testing.T) {
 
 // TestLocatedTypeAdmitsFormerSanctionedNamesOnSchemaAlone is the inverse of
 // what this test asserted before the maintainer's 2026-08-23 ruling
-// (rulings/20260823-foundation-order-ruling.md, ruling 5): [LocatedType] on its
+// (the foundation-order ruling (#388), ruling 5): [LocatedType] on its
 // own - no secrets context, schema only - now admits both of
 // [strictSecretsLocatedExclusion]'s names whenever a clean schema would
 // admit any other markerless type, because the veto that used to live
@@ -611,7 +611,7 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 
 // TestTheSecretsSettingNowReachesTheLocatedCredentialException is what
 // TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto asserted before
-// the maintainer's 2026-08-23 ruling (rulings/20260823-foundation-order-ruling.md,
+// the maintainer's 2026-08-23 ruling (the foundation-order ruling (#388),
 // ruling 5), inverted where the ruling moved the ground: the setting still
 // does not reach [LocatedType]'s condition 2 (hazard one, below, is
 // unchanged), but it now DOES reach [strictSecretsLocatedExclusion]'s two

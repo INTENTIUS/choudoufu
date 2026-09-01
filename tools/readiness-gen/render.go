@@ -84,7 +84,7 @@ const (
 const limitationsMDURL = "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md"
 
 // tierOrder and statusOrder fix the rendered table's row and column order:
-// the tiers in rulings/20260828-readiness-tiers.md's own precedence order (A,
+// the tiers in the tier definitions (#417)'s own precedence order (A,
 // B, C, D), the statuses in the order issue #418 names them. Both are
 // checked against the artifact's actual vocabulary by
 // TestReadinessCrossTabCoversEveryTierAndStatus in render_test.go, so a
@@ -208,7 +208,7 @@ func reasonFor(r Row) string {
 	case StatusExcluded:
 		// Tier D's population (harness.SanctionedCredentialExclusions) has
 		// no dedicated live/LIMITATIONS.md heading yet -
-		// rulings/20260828-readiness-tiers.md's tier D section confirms neither
+		// the tier definitions (#417)'s tier D section confirms neither
 		// name appears there, and names giving them one as a follow-up
 		// outside its own scope. What is accurate today, and what
 		// RuleUnadmittedType actually reports for these two types

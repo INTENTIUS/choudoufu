@@ -5,7 +5,7 @@
 
 // Package main implements tools/readiness-gen, issue #418's join.
 //
-// rulings/20260828-readiness-tiers.md fixes four names - marker-carried,
+// the tier definitions (#417) fixes four names - marker-carried,
 // declaration-carried, record-carried, excluded by design - and what each
 // one means: what recovers a type's identity, and at what cost, when the
 // strongest recovery path is gone. It deliberately does not say how many
@@ -125,7 +125,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// The four tier names, spelled exactly as rulings/20260828-readiness-tiers.md's
+// The four tier names, spelled exactly as the tier definitions (#417)'s
 // "What this settles for #418" section fixes them.
 const (
 	TierMarkerCarried      = "marker-carried"

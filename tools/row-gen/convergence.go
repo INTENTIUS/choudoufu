@@ -105,7 +105,7 @@ type convergenceArtifact struct {
 	Summary     convergenceSummary        `json:"summary"`
 	ByService   map[string]serviceSummary `json:"by_service"`
 
-	// SchemaReproduces is ruling 2 of rulings/20260823-foundation-order-ruling.md
+	// SchemaReproduces is ruling 2 of the foundation-order ruling (#388)
 	// (#387): issue #387's own measurement, over every config-identified
 	// ratified row the provider also serves an identity schema for - does
 	// [identity.SynthesizeTypeIdentity] say the same thing the row does?

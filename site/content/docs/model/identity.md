@@ -50,15 +50,19 @@ runs. The next section states the rule in full.
 
 ## The static-evaluability rule
 
-Every `count`, every `for_each`, and every identity-bearing argument must be
-computable from `var`, `local`, `path` and `terraform` alone, plus functions
-over those.
+A marker names which configuration address a live resource belongs to, so
+an expansion or an identity has to be settleable before the marker is
+written. What that requires in practice is narrower than it once was, and
+narrower than "written literally in the configuration text" - the
+paragraphs below say exactly which shapes still stop a run.
 
-No data sources. No module outputs. No attributes of other resources.
-
-Markers are written before anything is created, and a marker names which
-configuration address a live resource belongs to. If the set of instances is
-unknowable until a provider has been called, there is no marker to write.
+The rule is also a consequence of the cold path rather than a law of the
+design: the disposable state cache
+([#685](https://github.com/INTENTIUS/choudoufu/issues/685)) now persists
+between runs, and as its vouching widens and the plan-node seam
+([#644](https://github.com/INTENTIUS/choudoufu/issues/644)) lands, the
+shapes this rule refuses shrink to the genuinely cold case: an estate
+encountered with no cache, no record and no marker to read.
 
 This is the rule behind what [Compatibility
 reference]({{< relref "/docs/use/compatibility" >}}) still refuses, and it is

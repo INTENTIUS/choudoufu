@@ -1195,7 +1195,7 @@ func (n *NodeAbstractResourceInstance) plan(
 		return nil, nil, keyData, diags
 	}
 
-	// The plan-node seam (rulings/20260823-foundation-order-ruling.md, ruling
+	// The plan-node seam (the foundation-order ruling (#388), ruling
 	// 3): a configured adjuster (nil by default, in which case this block
 	// is inert) gets to rewrite the evaluated configuration value here,
 	// before anything else touches it. This is the ONLY point this ever

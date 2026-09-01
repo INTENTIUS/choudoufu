@@ -58,7 +58,7 @@ already answer. Because ownership rides on the resources, anything derived
 from it is allowed to go stale: a projection, a cache, a state file. Losing
 one costs a read, not an estate. That is the property this fork's charter
 rests on, and
-[`rulings/20260830-stale-state-charter.md`](https://github.com/INTENTIUS/choudoufu/blob/main/rulings/20260830-stale-state-charter.md)
+[`the stale-state ruling (#604)`](https://github.com/INTENTIUS/choudoufu/blob/main/the stale-state ruling (#604))
 states it and its one hard limit, which is that a marker's absence proves
 nothing, so an unconfirmable entry is re-read rather than assumed.
 
