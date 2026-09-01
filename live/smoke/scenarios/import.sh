@@ -25,7 +25,7 @@ step "2. adoption is deleting the state file"
 rm -f "$SMOKE_WORK/terraform.tfstate" "$SMOKE_WORK/terraform.tfstate.backup"
 note "terraform.tfstate deleted; the estate itself never moved - identity lives on the resources"
 
-export AWS_ENDPOINT_URL="http://localhost:${FLOCI_PORT}"
+export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "3. choudoufu init resolves providers"

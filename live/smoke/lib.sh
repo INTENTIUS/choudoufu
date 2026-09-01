@@ -4,12 +4,22 @@ SMOKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SMOKE_DIR/../.." && pwd)"
 SMOKE_VERSION="$(cat "$SMOKE_DIR/VERSION")"
 
-FLOCI_PORT="${FLOCI_PORT:-4650}"
+# Every run is fully isolated: its own compose project (so one run's
+# cleanup can never tear down another run's emulator - the first
+# concurrent invocation proved that the hard way, killing the
+# maintainer's apply mid-run) and, unless pinned, its own free port.
+SMOKE_ID="${SMOKE_ID:-$$-$RANDOM}"
+
+# Port 0 asks the kernel for a free port at bind time - the only
+# race-free answer. A probe-then-bind loop lost the race on its first
+# concurrent test: both runs probed during the other's startup window
+# and picked the same port. FLOCI_PORT pins one explicitly when wanted.
+FLOCI_PORT="${FLOCI_PORT:-0}"
 export FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 export OPENTOFU_IMAGE="${OPENTOFU_IMAGE:-ghcr.io/opentofu/opentofu:$(python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['tofu_version'])")}"
 export FLOCI_PORT
 
-COMPOSE=(docker compose -p choudoufu-smoke -f "$SMOKE_DIR/docker-compose.yml")
+COMPOSE=(docker compose -p "choudoufu-smoke-${SMOKE_ID}" -f "$SMOKE_DIR/docker-compose.yml")
 
 fail() { echo "FAIL [$1]: $2" >&2; exit 1; }
 step() { echo; echo "=== $* ==="; }
@@ -51,7 +61,7 @@ resolve_choudoufu() {
 banner() {
   echo "choudoufu smoke v$SMOKE_VERSION - scenario: $1"
   echo "  choudoufu: $CHOUDOUFU_PROVENANCE"
-  echo "  floci:     $FLOCI_IMAGE (host port $FLOCI_PORT; pinned image, never built here)"
+  echo "  floci:     $FLOCI_IMAGE (pinned image, never built here)"
   echo "  opentofu:  $OPENTOFU_IMAGE (stock oracle leg)"
   [ "${SMOKE_INSTRUMENT:-0}" = "1" ] && echo "  instrumentation: ON (TF_LOG=debug capture + request summary)"
   echo
@@ -59,10 +69,22 @@ banner() {
 
 stack_up() {
   "${COMPOSE[@]}" up -d floci >/dev/null 2>&1 || fail "stack" "docker compose up floci failed"
+  # Resolve the port the kernel actually assigned (or the pinned one).
+  # The endpoint host is localhost ON PURPOSE, not 127.0.0.1: the AWS
+  # provider composes account-qualified hostnames for a few services
+  # (S3 Control: 000000000000.<host>), and subdomains of localhost
+  # resolve to loopback by convention where subdomains of a raw IP
+  # cannot resolve at all - swapping in 127.0.0.1 broke exactly that.
+  FLOCI_PORT="$("${COMPOSE[@]}" port floci 4566 2>/dev/null | sed 's/.*://')"
+  [ -n "$FLOCI_PORT" ] || fail "stack" "could not resolve floci's published port"
+  export FLOCI_PORT
+  SMOKE_ENDPOINT="http://localhost:${FLOCI_PORT}"
+  export SMOKE_ENDPOINT
+  echo "  emulator up at $SMOKE_ENDPOINT (compose project choudoufu-smoke-$SMOKE_ID)"
   local i
   for i in $(seq 1 30); do
-    curl -fsS "http://localhost:${FLOCI_PORT}/_localstack/health" >/dev/null 2>&1 && return 0
-    curl -fsS "http://localhost:${FLOCI_PORT}/" >/dev/null 2>&1 && return 0
+    curl -fsS "${SMOKE_ENDPOINT}/_localstack/health" >/dev/null 2>&1 && return 0
+    curl -fsS "${SMOKE_ENDPOINT}/" >/dev/null 2>&1 && return 0
     sleep 1
   done
   fail "stack" "floci never answered on :${FLOCI_PORT}"
@@ -88,7 +110,7 @@ stock() {
   "${COMPOSE[@]}" run --rm --user "$(id -u):$(id -g)" opentofu "$@"
 }
 
-awsl() { aws --endpoint-url "http://localhost:${FLOCI_PORT}" "$@"; }
+awsl() { aws --endpoint-url "$SMOKE_ENDPOINT" "$@"; }
 
 # chdf runs the binary under test. Under SMOKE_INSTRUMENT=1 every call's
 # TF_LOG=debug stream lands in its own file so the summary can count what
