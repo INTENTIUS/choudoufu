@@ -822,6 +822,34 @@ func TestStatelessMode_refreshRefused(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
+// TestStatelessMode_forceUnlockRefused: under a live block there is no lock
+// to force open, and the refusal must say so - before this guard, the
+// command fell through to stock's local-backend path and reported "State
+// locked by another local process" for a lock that never existed, which is
+// exactly the misleading answer the no-locks claim forbids. Found by the
+// claim scenario's own probe.
+func TestStatelessMode_forceUnlockRefused(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	view, done := testView(t)
+	c := &UnlockCommand{Meta: liveBlockMeta(view, liveBlockCloud())}
+
+	code := c.Run([]string{"-no-color", "LOCK-ID"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
+	}
+	if !strings.Contains(output.Stderr(), "There is no lock to force open") {
+		t.Errorf("wrong diagnostic:\n%s", output.Stderr())
+	}
+	if strings.Contains(output.Stderr(), "State locked by another local process") {
+		t.Errorf("the misleading stock lock error is back:\n%s", output.Stderr())
+	}
+	assertNoStateArtifacts(t, td)
+}
+
 // TestStatelessMode_backendConflict: a configuration asking for both is
 // refused by the decoder, which is the earliest wall and the one every
 // command passes through.
