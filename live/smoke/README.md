@@ -56,7 +56,7 @@ just smoke full           # the comprehensive 15-step harness (~6 minutes)
 | `CHOUDOUFU_VERSION=v0.8.0` | run a pinned release binary instead of building from source |
 | `CHOUDOUFU_BIN=/path` | run an explicit binary |
 | `FLOCI_IMAGE=...` | override the pinned emulator image (default: `live/floci-image`) |
-| `FLOCI_PORT=4650` | host port for the emulator |
+| `FLOCI_PORT=4650` | pin the emulator host port; unset, the kernel assigns a free one, so concurrent runs never collide |
 | `OPENTOFU_IMAGE=...` | override the stock oracle (default: `live/oracle-versions.json`'s tofu) |
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |

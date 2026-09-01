@@ -12,7 +12,7 @@ services:
   floci:
     image: ${FLOCI_IMAGE:?smoke.sh exports this from live/floci-image}
     ports:
-      - "${FLOCI_PORT:-4650}:4566"
+      - "127.0.0.1:${FLOCI_PORT:-4650}:4566"
     networks:
       default:
         aliases:
@@ -40,5 +40,8 @@ services:
 
 volumes:
   # The AWS provider is large; one named volume keeps every scenario's
-  # stock leg from re-downloading it.
+  # stock leg from re-downloading it. The explicit name makes it SHARED
+  # across the per-run compose projects isolation creates - without it,
+  # every run would get its own empty cache and re-download the provider.
   smoke-plugins:
+    name: choudoufu-smoke-plugins
