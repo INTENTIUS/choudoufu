@@ -73,6 +73,35 @@ SCALE="${SCALE:-1}"
 RUN_ID="${RUN_ID:-lc$(date +%s)-$$}"
 PREFIX="${PREFIX:-lc$(date +%s)$$}"
 ESTATE="tl-livecert-$PREFIX"
+
+# Which record_store backend the adopted estate declares. Until now this was
+# hardcoded to "local", a directory on disk beside the module - which means
+# every real-AWS run this harness has ever produced exercised the VALUES half
+# of the state model against local disk, not against the cloud. Of the three
+# pieces (identity as tags, values in a record store, effects as receipts),
+# only identity was genuinely under test.
+#
+# "ssm" is the default for TARGET=aws because it needs nothing created first:
+# it writes under a prefix derived from the estate name, and teardown is a
+# prefix delete. "s3" needs a bucket the run would have to make and destroy.
+# floci keeps "local", because the point there is speed and the emulator's
+# Parameter Store is not what is under test.
+if [ "$TARGET" = "aws" ]; then
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-ssm}"
+else
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-local}"
+fi
+case "$RECORD_STORE_BACKEND" in
+  local) RECORD_STORE_ARGS='      path = ".tofu-records"' ;;
+  ssm)   RECORD_STORE_ARGS="      key_prefix = \"/choudoufu/livecert/$PREFIX\"
+      region     = \"$REGION\"" ;;
+  s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
+         RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
+      key_prefix = \"choudoufu/livecert/$PREFIX\"
+      region     = \"$REGION\"" ;;
+  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
+esac
+SSM_PREFIX="/choudoufu/livecert/$PREFIX"
 WORK="${LIVECERT_WORK_DIR:-$(mktemp -d)}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
@@ -129,8 +158,8 @@ terraform {
   }
   live {
     estate = "$ESTATE"
-    record_store "local" {
-      path = ".tofu-records"
+    record_store "$RECORD_STORE_BACKEND" {
+$RECORD_STORE_ARGS
     }
   }
 }
@@ -152,6 +181,21 @@ EOF
     sd_rc=$?
     log "    exit=$sd_rc (see $WORK/teardown_stock_destroy.out) - not trusted alone, verifying by listing next"
     [ "$sd_rc" -ne 0 ] && tail -30 "$WORK/teardown_stock_destroy.out" | sed 's/^/    | /'
+  fi
+
+  # The record store is not tagged and no destroy reaches it, so it needs its
+  # own teardown. Doing it here rather than in sweep() because it must run on
+  # every exit path, including a run that never reached test_plan.
+  if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
+    rs_left="$(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+      --query 'length(Parameters)' --output text 2>/dev/null || echo 0)"
+    log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
+    if [ "${rs_left:-0}" -gt 0 ]; then
+      aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+        --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+        | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+      log "    remaining after delete: $(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --query 'length(Parameters)' --output text 2>/dev/null || echo '?')"
+    fi
   fi
 
   if verify_empty; then
@@ -873,8 +917,8 @@ terraform {
   }
   live {
     estate = "$ESTATE"
-    record_store "local" {
-      path = ".tofu-records"
+    record_store "$RECORD_STORE_BACKEND" {
+$RECORD_STORE_ARGS
     }
   }
 }
@@ -981,6 +1025,39 @@ elif ! grep -qF "No changes. Your infrastructure matches the configuration." <<<
   TP_FAIL="the post-migrate plan is not empty - see $WORK/test_plan.out"
 else
   log "  plan empty in ${PLAN_S}s"
+fi
+
+log "=== 4a2. state model: prove each piece was actually exercised, not just configured ==="
+# A run that DECLARES a cloud record store and then never writes to it looks
+# identical, in every other line of this log, to one that used local disk. So
+# each piece is checked against the cloud, by listing, and the check fails the
+# stage rather than warning - "configured" is not "used".
+#
+# Identity is proved by the tag index, values by the record store. Effects are
+# not asserted here: this fixture declares none, so an assertion would be
+# vacuously green and worse than no assertion at all.
+if [ "$TARGET" = "aws" ]; then
+  ident_n="$(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
+  [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
+
+  if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
+    rec_n="$(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+      --query 'length(Parameters)' --output text 2>/dev/null || echo 0)"
+    log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
+    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
+    # And prove the PLAN reads it, not just that the apply wrote it. A store
+    # written once and never consulted again is not a state model.
+    if grep -qiE "ssm|GetParametersByPath|record store" "$PLAN_LOG" 2>/dev/null; then
+      log "  values: the plan's own debug log shows record-store access"
+    else
+      fail "values piece unread: $SSM_PREFIX holds $rec_n parameter(s) but the plan's debug log shows no record-store access"
+    fi
+  else
+    log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
+  fi
 fi
 
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
