@@ -352,6 +352,12 @@ func TestModule_liveSidecar(t *testing.T) {
 	if got, want := mod.Live.DeclRange.Filename, "testdata/valid-modules/live-sidecar/"+LiveSidecarFilename; filepath.ToSlash(got) != want {
 		t.Errorf("DeclRange filename is %q, want %q", got, want)
 	}
+	// Issue #732's toggle rides the same shared decoder, so the sidecar
+	// form pins it too (review nit on #737: only the block form was
+	// tested).
+	if got, want := mod.Live.Reads, "full"; got != want {
+		t.Errorf("reads is %q from the sidecar, want %q", got, want)
+	}
 }
 
 // TestModule_liveSidecarSelectiveBackendWall is the hazard the maintainer

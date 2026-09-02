@@ -970,7 +970,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// when no cache loads, and everything downstream degrades to reading.
 	stateCache := loadStateCache()
 	var cacheVouchTypes []string
-	if r.cacheServesReads {
+	if r.envelopeVouch {
+		// Gated on the envelope arm, not merely on cacheServesReads
+		// (review finding on #734): the listing's unmarked sightings feed
+		// ONLY that arm, so an apply-shaped -refresh=false run - which
+		// rebuilds with the arm off by the maintainer ruling's bound -
+		// would pay one list per type for evidence nothing consumes, and
+		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
 	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly)
@@ -1059,7 +1065,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// Issue #692 increment 2: the listing pass's unmarked sightings
 		// of the cache-vouch types, and the plan-shaped-operation gate
 		// the maintainer ruling requires. See both fields' doc comments.
-		CacheVouchSightings: cacheVouchSightingsFrom(disco, cacheVouchTypes),
+		CacheVouchSightings: cacheVouchSightings(disco),
 		EnvelopeVouchServes: r.envelopeVouch,
 		RecordStore:         r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
@@ -1411,33 +1417,16 @@ func cacheVouchTypesFor(cache *states.State, resolutions []identity.Resolution) 
 	return out
 }
 
-// cacheVouchSightingsFrom shapes discovery's unmarked sightings into
-// [projection.Options.CacheVouchSightings]: type to the set of live
-// identities the listing pass saw. Restricted to the cache-vouch types on
-// purpose - Unclaimed can also hold a CollectUnclaimed account sweep's
-// population, which proves existence for objects no cache entry asks
-// about. A sighting carrying another estate's marker never reaches
-// Unclaimed at all (discovery's OtherEstate branch drops it), so a
-// handed-over instance falls through the envelope arm and reads.
-func cacheVouchSightingsFrom(disco *discovery.Result, vouchTypes []string) map[string]map[string]bool {
-	if disco == nil || len(vouchTypes) == 0 {
+// cacheVouchSightings hands the sandboxed vouch pass's own product
+// ([discovery.Result.CacheVouchSightings]) to the projection, nil-safely.
+// The pass is hermetic - the sightings never ride through Unclaimed, which
+// also holds a CollectUnclaimed account sweep's population and everything
+// the foreign report renders (review findings on #734/#737).
+func cacheVouchSightings(disco *discovery.Result) map[string]map[string]bool {
+	if disco == nil {
 		return nil
 	}
-	want := make(map[string]bool, len(vouchTypes))
-	for _, t := range vouchTypes {
-		want[t] = true
-	}
-	out := map[string]map[string]bool{}
-	for _, u := range disco.Unclaimed {
-		if !want[u.TypeName] || u.ImportID == "" {
-			continue
-		}
-		if out[u.TypeName] == nil {
-			out[u.TypeName] = map[string]bool{}
-		}
-		out[u.TypeName][u.ImportID] = true
-	}
-	return out
+	return disco.CacheVouchSightings
 }
 
 // EnvReads overrides the live block's "reads" argument for one run:

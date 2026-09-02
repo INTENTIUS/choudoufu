@@ -923,10 +923,10 @@ func locatedAttrString(obj cty.Value, name string) (string, bool) {
 // locatedAttrSegment reads one top-level DOCUMENTED IMPORT-STRING SEGMENT
 // off an applied object - [locatedAttrString]'s guards for a string
 // attribute, or a number attribute rendered into the plain decimal form the
-// provider's own import strings use, for [LocatedComposedImportID]. It is
-// not used by the wire-identity Components branch ([LocatedIdentity]),
-// which is a different mechanism the provider's own identity schema already
-// requires to be a top-level string.
+// provider's own import strings use, for [LocatedComposedImportID]. Since
+// issue #742 it is also the wire-identity Components branch's reader
+// ([LocatedIdentity]), so both record-writing routes share one rendering
+// and one refusal set.
 //
 // [attrsByDocName] is what let a number attribute reach here in the first
 // place - see its doc comment for why aws_security_group_rule's

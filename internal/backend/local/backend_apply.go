@@ -167,10 +167,19 @@ func (b *Local) opApply(
 		// diff and is never asked to approve something that will then be
 		// refused. -auto-approve skips the prompt and not this.
 		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
-		diags = diags.Append(guardDiags)
 		if guardRefused {
+			diags = diags.Append(guardDiags)
 			op.ReportResult(runningOp, diags)
 			return
+		}
+		// A guard that warns without refusing is warning about what the
+		// apply below is about to do, so the warning has to land BEFORE
+		// the apply does it - held to the end, a mid-migration duplicate
+		// build (issue #716's breadcrumb) reads as a post-mortem under
+		// "Apply complete". Shown here and not appended, so ReportResult
+		// does not print it a second time.
+		if len(guardDiags) > 0 {
+			op.View.Diagnostics(guardDiags)
 		}
 
 		if testHookStopPlanApply != nil {
@@ -289,10 +298,19 @@ func (b *Local) opApply(
 		// makes itself would be bypassed by "plan -out=p && apply p", where
 		// the plan was made by an earlier process.
 		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
-		diags = diags.Append(guardDiags)
 		if guardRefused {
+			diags = diags.Append(guardDiags)
 			op.ReportResult(runningOp, diags)
 			return
+		}
+		// A guard that warns without refusing is warning about what the
+		// apply below is about to do, so the warning has to land BEFORE
+		// the apply does it - held to the end, a mid-migration duplicate
+		// build (issue #716's breadcrumb) reads as a post-mortem under
+		// "Apply complete". Shown here and not appended, so ReportResult
+		// does not print it a second time.
+		if len(guardDiags) > 0 {
+			op.View.Diagnostics(guardDiags)
 		}
 	}
 
