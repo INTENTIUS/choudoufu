@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -195,6 +196,7 @@ func statelessBegin(
 		// reads; a default plan or apply (PlanRefresh true) reads every
 		// instance, so drift is always visible.
 		cacheServesReads: !opReq.PlanRefresh,
+		envelopeVouch:    !opReq.PlanRefresh && opReq.Type == backend.OperationTypePlan,
 		lib:              local.ContextOpts.Plugins,
 		mgr:              mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
@@ -579,6 +581,17 @@ type statelessRunner struct {
 	// which this is the default argument to.
 	adoptionOnly bool
 
+	// envelopeVouch is issue #692 increment 2's capture of the operation
+	// SHAPE, alongside cacheServesReads' capture of its refresh setting:
+	// the maintainer ruling (recorded on #692, 2026-09-01) admits
+	// record-attested ownership in place of the C1 tags read only on the
+	// -refresh=false path, and bounds it so no mutation ever acts on
+	// record-vouched ownership. A plan-shaped operation may serve the
+	// envelope arm; an apply rebuilds its projection with it off, so
+	// every instance an apply touches took the full read, tags check
+	// included.
+	envelopeVouch bool
+
 	// cacheServesReads is issue #712's capture of the operation's refresh
 	// setting: true only when the user passed -refresh=false, which is the
 	// sole condition under which the state cache may stand in for a
@@ -942,7 +955,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// the "plain choudoufu plan/apply" path the comment two paragraphs up
 	// already says carries the record store for real.
 	deposedRecords := collectDeposedRecords(ctx, r.recordStore, resolutions.NeedsDiscovery())
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, r.adoptionOnly)
+	// Issue #685's cache, loaded once: BuildWith consumes it below, and
+	// issue #692's vouch-listing pass needs to know, before discovery
+	// runs, which concrete-declared types it holds candidates for. Nil
+	// when no cache loads, and everything downstream degrades to reading.
+	stateCache := loadStateCache()
+	var cacheVouchTypes []string
+	if r.cacheServesReads {
+		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
+	}
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -1019,13 +1041,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
 		// a cache is an optimisation, so every failure to load one is a
 		// missing optimisation and never a failed run.
-		StateCache: loadStateCache(),
+		StateCache: stateCache,
 		// Issue #712: only -refresh=false lets the cache stand in for
 		// the per-instance reads; a default plan reads, so drift on a
 		// verified instance is always visible. opReq.PlanRefresh is
 		// captured at statelessBegin.
 		CacheServesReads: r.cacheServesReads,
-		RecordStore:      r.recordStore,
+		// Issue #692 increment 2: the listing pass's unmarked sightings
+		// of the cache-vouch types, and the plan-shaped-operation gate
+		// the maintainer ruling requires. See both fields' doc comments.
+		CacheVouchSightings: cacheVouchSightingsFrom(disco, cacheVouchTypes),
+		EnvelopeVouchServes: r.envelopeVouch,
+		RecordStore:         r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the
@@ -1340,4 +1367,66 @@ func joinAnd(names []string) string {
 		out += n
 	}
 	return out + " and " + names[len(names)-1]
+}
+
+// cacheVouchTypesFor is issue #692's answer to "which types should the
+// listing pass vouch for": the resource types the state cache holds
+// instances of AND the run's resolutions make concrete - the client-named
+// majority whose per-instance reads a cache hit wants to skip. Sorted so
+// the discovery request is deterministic; nil when there is no cache,
+// which is also the request field's "no extra listing" value.
+func cacheVouchTypesFor(cache *states.State, resolutions []identity.Resolution) []string {
+	if cache == nil {
+		return nil
+	}
+	cached := map[string]bool{}
+	for _, mod := range cache.Modules {
+		for _, rsc := range mod.Resources {
+			cached[rsc.Addr.Resource.Type] = true
+		}
+	}
+	types := map[string]bool{}
+	for _, res := range resolutions {
+		if res.Class != identity.ClassConcrete {
+			continue
+		}
+		if t := res.Addr.Resource.Resource.Type; cached[t] {
+			types[t] = true
+		}
+	}
+	out := make([]string, 0, len(types))
+	for t := range types {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// cacheVouchSightingsFrom shapes discovery's unmarked sightings into
+// [projection.Options.CacheVouchSightings]: type to the set of live
+// identities the listing pass saw. Restricted to the cache-vouch types on
+// purpose - Unclaimed can also hold a CollectUnclaimed account sweep's
+// population, which proves existence for objects no cache entry asks
+// about. A sighting carrying another estate's marker never reaches
+// Unclaimed at all (discovery's OtherEstate branch drops it), so a
+// handed-over instance falls through the envelope arm and reads.
+func cacheVouchSightingsFrom(disco *discovery.Result, vouchTypes []string) map[string]map[string]bool {
+	if disco == nil || len(vouchTypes) == 0 {
+		return nil
+	}
+	want := make(map[string]bool, len(vouchTypes))
+	for _, t := range vouchTypes {
+		want[t] = true
+	}
+	out := map[string]map[string]bool{}
+	for _, u := range disco.Unclaimed {
+		if !want[u.TypeName] || u.ImportID == "" {
+			continue
+		}
+		if out[u.TypeName] == nil {
+			out[u.TypeName] = map[string]bool{}
+		}
+		out[u.TypeName][u.ImportID] = true
+	}
+	return out
 }
