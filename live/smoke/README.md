@@ -136,7 +136,7 @@ showing its own checks would have caught it.
   BREAK control runs the choudoufu leg with the live block on: the
   measurement must show the difference, or the parity comparison
   compares nothing.
-- **vouch-is-the-read** - *Claim 9: the vouch is the read.* A
+- **record-is-the-values** - *Claim 9: the record is the values.* A
   record-backed resource's values ARE its record: a default plan
   converges from the store's answer with nothing opted into; an
   out-of-band edit of the record surfaces on the very next default plan

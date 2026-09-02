@@ -29,7 +29,7 @@ fail proves nothing, so every claim ships with its failure demonstrated.
 | The roundtrip: one command in, one file out | `just smoke roundtrip` | 3 min |
 | Identity is a tag you can read and move | `just smoke identity-is-a-tag` | 3 min |
 | Stock until you say otherwise | `just smoke stock-until-you-say-otherwise` | 3 min |
-| The vouch is the read | `just smoke vouch-is-the-read` | 1 min |
+| The record is the values | `just smoke record-is-the-values` | 1 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
@@ -376,7 +376,7 @@ asked-for machinery must show up in the measurement - a live plan that
 measured identical to stock would mean the parity comparison compares
 nothing.
 
-## Claim 9: the vouch is the read
+## Claim 9: the record is the values
 
 A record-backed resource - `terraform_data` and its kin - has no cloud
 home; its values live in the record store. That makes the store's
@@ -390,10 +390,10 @@ Clone https://github.com/INTENTIUS/choudoufu. If Go is not installed,
 export CHOUDOUFU_VERSION=<latest tag from
 https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
 
-  just smoke vouch-is-the-read
+  just smoke record-is-the-values
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke vouch-is-the-read and report the "caught" line: it
+BREAK=1 just smoke record-is-the-values and report the "caught" line: it
 overwrites the record with garbage, and the run must refuse by name
 rather than plan against made-up values.
 ```

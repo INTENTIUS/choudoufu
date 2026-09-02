@@ -1,5 +1,5 @@
-# vouch-is-the-read
-# CLAIM 9 - The vouch is the read: a record-backed resource's values ARE its record, consulted on every default plan; mutate it and the plan sees it, corrupt it and the run refuses. ~1 min.
+# record-is-the-values
+# CLAIM 9 - The record is the values: a record-backed resource's values ARE its record, consulted on every default plan; mutate it and the plan sees it, corrupt it and the run refuses. ~1 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/vouch"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -19,8 +19,8 @@ REC="$SMOKE_WORK/.tofu-records/tofu-records/smoke-vouch/terraform_data/dGVycmFmb
 
 step "the claim"
 explain \
-  "The vouch is the read. A record-backed resource has no cloud home:" \
-  "its values live in the record store. The store's answer is therefore" \
+  "The record is the values. A record-backed resource has no cloud" \
+  "home: its values live in the record store. The store's answer is therefore" \
   "the authoritative read, and every DEFAULT plan consults it with" \
   "nothing opted into and no flag passed. That has two testable edges. An" \
   "out-of-band change to the record is a change to the values, so the" \
@@ -64,7 +64,7 @@ step "2. the default plan reads the record - and only the record"
 cmd "choudoufu plan   # no flags, nothing opted into"
 P1="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "vouch" "plan failed: $P1"
 grep -q "No changes." <<< "$P1" || fail "vouch" "the estate did not plan clean: $P1"
-proof "a default plan, converged from the store's own answer. The vouch and the read are the same act."
+proof "a default plan, converged from the store's own answer. Reading the estate and reading the records are the same act."
 
 step "3. mutate the record out of band - the next default plan sees it"
 explain \
