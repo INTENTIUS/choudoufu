@@ -136,8 +136,12 @@ Rename the block, then rewrite the tag.
 choudoufu live-mv aws_vpc.old aws_vpc.new
 ```
 
-The tag write is the move. `moved` blocks have nothing to act on and are
-refused.
+The tag write is the move. An honourable `moved` block is carried the
+same way: discovery reads the marker under both of its addresses, and
+the ordinary tags diff rewrites it to the new one in place - which is
+what keeps the migration blocks published modules ship working. The
+shapes that cannot be aliased are refused loudly, by the one predicate
+lint and discovery share.
 
 ## Stripping a marker
 
