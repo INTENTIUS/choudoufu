@@ -11,13 +11,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // StatePullCommand is a Command implementation that shows a single resource.
@@ -48,6 +48,12 @@ func (c *StatePullCommand) Run(rawArgs []string) int {
 	}
 
 	c.Meta.variableArgs = args.Vars.All()
+
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "pull"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
 
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
@@ -110,7 +116,7 @@ func (c *StatePullCommand) Run(rawArgs []string) int {
 
 func (c *StatePullCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state pull [options]
+Usage: choudoufu [global options] state pull [options]
 
   Pull the state from its location, upgrade the local copy, and output it
   to stdout.

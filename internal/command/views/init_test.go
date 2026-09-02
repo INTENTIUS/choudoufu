@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/terminal"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/terminal"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func TestInitViews(t *testing.T) {
@@ -90,11 +90,11 @@ func TestInitViews(t *testing.T) {
 			wantJson: []map[string]any{
 				{
 					"@level":   "info",
-					"@message": "You may now begin working with cloud backend. Try running \"tofu plan\" to see any changes that are required for your infrastructure. If you ever set or change modules or OpenTofu Settings, run \"tofu init\" again to reinitialize your working directory.",
+					"@message": "You may now begin working with cloud backend. Try running \"choudoufu plan\" to see any changes that are required for your infrastructure. If you ever set or change modules or OpenTofu Settings, run \"choudoufu init\" again to reinitialize your working directory.",
 					"@module":  "tofu.ui",
 				},
 			},
-			wantStdout: withNewline("\nYou may now begin working with cloud backend. Try running \"tofu plan\" to\nsee any changes that are required for your infrastructure.\n\nIf you ever set or change modules or OpenTofu Settings, run \"tofu init\"\nagain to reinitialize your working directory."),
+			wantStdout: withNewline("\nYou may now begin working with cloud backend. Try running \"choudoufu plan\" to\nsee any changes that are required for your infrastructure.\n\nIf you ever set or change modules or OpenTofu Settings, run \"choudoufu init\"\nagain to reinitialize your working directory."),
 		},
 		"initSuccessCLI_non-cloud": {
 			viewCall: func(init Init) {
@@ -103,11 +103,11 @@ func TestInitViews(t *testing.T) {
 			wantJson: []map[string]any{
 				{
 					"@level":   "info",
-					"@message": "You may now begin working with OpenTofu. Try running \"tofu plan\" to see any changes that are required for your infrastructure. All OpenTofu commands should now work. If you ever set or change modules or backend configuration for OpenTofu, rerun this command to reinitialize your working directory. If you forget, other commands will detect it and remind you to do so if necessary.",
+					"@message": "You may now begin working with OpenTofu. Try running \"choudoufu plan\" to see any changes that are required for your infrastructure. All OpenTofu commands should now work. If you ever set or change modules or backend configuration for OpenTofu, rerun this command to reinitialize your working directory. If you forget, other commands will detect it and remind you to do so if necessary.",
 					"@module":  "tofu.ui",
 				},
 			},
-			wantStdout: withNewline("\nYou may now begin working with OpenTofu. Try running \"tofu plan\" to see\nany changes that are required for your infrastructure. All OpenTofu commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for OpenTofu,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary."),
+			wantStdout: withNewline("\nYou may now begin working with OpenTofu. Try running \"choudoufu plan\" to see\nany changes that are required for your infrastructure. All OpenTofu commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for OpenTofu,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary."),
 		},
 		"initializingModules_upgrade": {
 			viewCall: func(init Init) {
@@ -324,11 +324,11 @@ func TestInitViews(t *testing.T) {
 			wantJson: []map[string]any{
 				{
 					"@level":   "info",
-					"@message": "OpenTofu has created a lock file .terraform.lock.hcl to record the provider selections it made above. Include this file in your version control repository so that OpenTofu can guarantee to make the same selections by default when you run \"tofu init\" in the future.",
+					"@message": "OpenTofu has created a lock file .terraform.lock.hcl to record the provider selections it made above. Include this file in your version control repository so that OpenTofu can guarantee to make the same selections by default when you run \"choudoufu init\" in the future.",
 					"@module":  "tofu.ui",
 				},
 			},
-			wantStdout: withNewline("\nOpenTofu has created a lock file .terraform.lock.hcl to record the provider\nselections it made above. Include this file in your version control repository\nso that OpenTofu can guarantee to make the same selections by default when\nyou run \"tofu init\" in the future."),
+			wantStdout: withNewline("\nOpenTofu has created a lock file .terraform.lock.hcl to record the provider\nselections it made above. Include this file in your version control repository\nso that OpenTofu can guarantee to make the same selections by default when\nyou run \"choudoufu init\" in the future."),
 		},
 		"lockFileChanged": {
 			viewCall: func(init Init) {

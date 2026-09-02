@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/terminal"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/terminal"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // TestNewView it's just a sanity check to be sure that we have it initialized as expected.
@@ -428,8 +428,8 @@ func TestView_HelpPrompt(t *testing.T) {
 			output := done(t)
 
 			stderr := output.Stderr()
-			if !strings.Contains(stderr, fmt.Sprintf("tofu %s -help", cmd)) {
-				t.Errorf("expected help prompt to contain 'tofu apply -help', got %q", stderr)
+			if !strings.Contains(stderr, fmt.Sprintf("choudoufu %s -help", cmd)) {
+				t.Errorf("expected help prompt to contain 'choudoufu apply -help', got %q", stderr)
 			}
 		})
 	}

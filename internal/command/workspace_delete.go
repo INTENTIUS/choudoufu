@@ -14,11 +14,11 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 type WorkspaceDeleteCommand struct {
@@ -225,7 +225,7 @@ func (c *WorkspaceDeleteCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceDeleteCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace delete [options] NAME
+Usage: choudoufu [global options] workspace delete [options] NAME
 
   Delete a OpenTofu workspace
 

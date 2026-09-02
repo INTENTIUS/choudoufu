@@ -10,15 +10,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // StateMvCommand is a Command implementation that shows a single resource.
@@ -62,6 +62,12 @@ func (c *StateMvCommand) Run(rawArgs []string) int {
 		LockTimeout: args.State.LockTimeout,
 		StatePath:   args.State.StatePath,
 		BackupPath:  args.State.BackupPath,
+	}
+
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "mv"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
 	}
 
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
@@ -549,7 +555,7 @@ func (c *StateMvCommand) validateResourceMove(addrFrom, addrTo addrs.AbsResource
 
 func (c *StateMvCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state (move|mv) [options] SOURCE DESTINATION
+Usage: choudoufu [global options] state (move|mv) [options] SOURCE DESTINATION
 
  This command will move an item matched by the address given to the
  destination address. This command can also move to a destination address

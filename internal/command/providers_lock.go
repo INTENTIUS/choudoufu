@@ -11,18 +11,18 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/cliconfig/ociauthconfig"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/depsfile"
+	"github.com/intentius/choudoufu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/oci"
+	"github.com/intentius/choudoufu/internal/providercache"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/cliconfig/ociauthconfig"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/depsfile"
-	"github.com/opentofu/opentofu/internal/getproviders"
-	"github.com/opentofu/opentofu/internal/oci"
-	"github.com/opentofu/opentofu/internal/providercache"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
 	"github.com/opentofu/svchost/uritemplates"
 )
 
@@ -386,10 +386,10 @@ func (c *ProvidersLockCommand) Run(rawArgs []string) int {
 
 func (c *ProvidersLockCommand) Help() string {
 	return `
-Usage: tofu [global options] providers lock [options] [providers...]
+Usage: choudoufu [global options] providers lock [options] [providers...]
 
   Normally the dependency lock file (.terraform.lock.hcl) is updated
-  automatically by "tofu init", but the information available to the
+  automatically by "choudoufu init", but the information available to the
   normal provider installer can be constrained when you're installing providers
   from filesystem or network mirrors, and so the generated lock file can end
   up incomplete.

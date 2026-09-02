@@ -19,20 +19,20 @@ import (
 	"github.com/opentofu/svchost"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configload"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/depsfile"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plans/planfile"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configload"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/depsfile"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans/planfile"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // DefaultStateName is the name of the default, initial state that every
@@ -288,6 +288,21 @@ type Operation struct {
 	// Hooks can be used to perform actions triggered by various events during
 	// the operation's lifecycle.
 	Hooks []tofu.Hook
+
+	// PlanGuard, when non-nil, is asked about the completed plan after it has
+	// been rendered and before anything can be applied. Error diagnostics
+	// abort the operation; warnings are shown and the operation continues.
+	//
+	// This is a fork addition, and it exists for one refusal: GitHub issue
+	// #613, a state-backed plan that proposes stripping a migrated estate's
+	// ownership markers. That refusal needs the finished plan (the markers
+	// are only visible once the refresh has read them back) AND it needs to
+	// stop an apply that was given -auto-approve, and no seam that already
+	// existed offered both. See internal/command's statefulMarkerGuard.
+	//
+	// A guard, not a filter: it may not modify the plan, and a backend calls
+	// it exactly once per operation.
+	PlanGuard func(plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
 
 	// Plan is a plan that was passed as an argument. This is valid for
 	// plan and apply arguments but may not work for all backends.

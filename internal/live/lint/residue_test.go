@@ -1,0 +1,114 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package lint
+
+import (
+	"strings"
+	"testing"
+
+	residue "github.com/intentius/choudoufu/live"
+)
+
+// TestRefusalNamesDeprecatedServiceCohort, TestRefusalNamesUnmappedCohort,
+// TestRefusalNamesRegistryLaggardCohort and
+// TestRefusalNamesEmulatorBlockedCohort are the residue roster's second
+// consumer (issue #49): one refusal-message test per cohort the refusal
+// path can name. Each fixture's type is outside admittedTypesV0 on purpose,
+// so CheckContext's unadmitted-type refusal fires, and each test holds the
+// refusal's Detail to exactly the sentence live/residue.go's Lookup would
+// produce for that type - not a hardcoded string, so a wording change to
+// the cohort sentences moves both sides together instead of the test
+// silently pinning stale prose.
+//
+// live/residue.go's CohortCFNOnly has no fifth test alongside these: no
+// Terraform configuration can name a CloudFormation-only type, so that
+// cohort never reaches a refusal at all. It is exercised on the doc side
+// only, by tools/survey-gen's residue_test.go.
+func TestRefusalNamesDeprecatedServiceCohort(t *testing.T) {
+	assertRefusalNamesCohort(t, "testdata/residue-deprecated", "aws_pinpoint_app.app", residue.CohortDeprecated)
+}
+
+func TestRefusalNamesUnmappedCohort(t *testing.T) {
+	assertRefusalNamesCohort(t, "testdata/residue-unmapped", "aws_cloudformation_type.example", residue.CohortUnmapped)
+}
+
+func TestRefusalNamesRegistryLaggardCohort(t *testing.T) {
+	assertRefusalNamesCohort(t, "testdata/residue-laggard", "aws_config_delivery_channel.example", residue.CohortRegistryLaggard)
+}
+
+func TestRefusalNamesEmulatorBlockedCohort(t *testing.T) {
+	assertRefusalNamesCohort(t, "testdata/residue-emulator", "aws_ssm_document.runbook", residue.CohortEmulatorBlocked)
+}
+
+// assertRefusalNamesCohort loads dir, runs CheckContext, and checks that
+// the sole RuleUnadmittedType issue's Detail ends with exactly the
+// sentence residue.Lookup produces for the fixture's resource type, and
+// that Lookup itself reports the expected cohort.
+func assertRefusalNamesCohort(t *testing.T, dir, construct string, wantCohort residue.Cohort) {
+	t.Helper()
+
+	resourceType := strings.SplitN(construct, ".", 2)[0]
+	// A cohort fixture whose type drifted onto the markerless roster stops
+	// exercising the cohort sentence at all: RuleMarkerlessType fires
+	// instead, and it carries no cohort sentence by design (see
+	// checkManagedResources). The rule assertion below would catch it, but
+	// with a message about rules rather than about what actually happened,
+	// which sent one reader looking in the wrong place already.
+	if markerlessVetoed(resourceType) {
+		t.Fatalf("%s is on identity.MarkerlessTypes, so it now raises RuleMarkerlessType and never reaches the %s cohort sentence; move this fixture to an unadmitted, non-markerless type in the same cohort", resourceType, wantCohort)
+	}
+	cohort, sentence, ok := residue.Lookup(resourceType)
+	if !ok {
+		t.Fatalf("residue.Lookup(%q) reports no cohort; the fixture no longer exercises %s", resourceType, wantCohort)
+	}
+	if cohort != wantCohort {
+		t.Fatalf("residue.Lookup(%q) = %q, want %q; fixture and cohort data have drifted apart", resourceType, cohort, wantCohort)
+	}
+
+	cfg := loadConfigDir(t, dir)
+	issues := CheckContext(t.Context(), cfg)
+	if len(issues) != 1 || issues[0].Rule != RuleUnadmittedType {
+		t.Fatalf("expected exactly one RuleUnadmittedType issue for %s, got %v", dir, issues)
+	}
+	if issues[0].Construct != construct {
+		t.Errorf("issue named construct %q, want %q", issues[0].Construct, construct)
+	}
+	if !strings.HasSuffix(issues[0].Detail, sentence) {
+		t.Errorf("refusal Detail does not end with the %s cohort sentence.\ngot:  %s\nwant suffix: %s", wantCohort, issues[0].Detail, sentence)
+	}
+}
+
+// TestRefusalSilentForTypeInNoCohort holds the other half of issue #49's
+// contract: a type in no exclusion cohort - the common case, since most
+// unadmitted types are simply not wired yet rather than excluded by any
+// rule - keeps exactly today's base refusal message, with nothing appended
+// by [residue.Lookup]. aws_accessanalyzer_analyzer is in no cohort: a
+// real CFN counterpart, no deprecated service, not emulator-blocked -
+// simply not yet ratified by any batch. aws_customer_gateway and then
+// aws_cloudwatch_event_rule held this fixture's place before their batches
+// admitted them (the EC2 networking batch, and the omitted-bus fallback
+// vocabulary Component.Default introduced).
+func TestRefusalSilentForTypeInNoCohort(t *testing.T) {
+	if _, _, ok := residue.Lookup("aws_accessanalyzer_analyzer"); ok {
+		t.Fatal("aws_accessanalyzer_analyzer now resolves to a cohort; this test needs a type genuinely in none")
+	}
+
+	cfg := loadConfigDir(t, "testdata/unadmitted")
+	issues := CheckContext(t.Context(), cfg)
+	if len(issues) != 1 || issues[0].Rule != RuleUnadmittedType {
+		t.Fatalf("expected exactly one RuleUnadmittedType issue, got %v", issues)
+	}
+	// The property under test is "residue.Lookup appended nothing", and the
+	// only way to see that from here is that the Detail still ends where the
+	// base sentence ends. That couples this assertion to checkManagedResources'
+	// closing words: if you reword the base refusal, reword this too. It last
+	// moved in #101, when the sentence stopped naming admission.go as the
+	// table's home and stopped promising provider identity schemas "later".
+	const baseTail = `if this type has a documented import ID, open an issue naming the type and the ID`
+	if !strings.HasSuffix(issues[0].Detail, baseTail) {
+		t.Errorf("a type in no cohort should end with the base table sentence unchanged, got: %s", issues[0].Detail)
+	}
+}

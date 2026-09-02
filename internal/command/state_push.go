@@ -12,16 +12,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/tfdiags"
 
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // StatePushCommand is a Command implementation that shows a single resource.
@@ -56,6 +56,13 @@ func (c *StatePushCommand) Run(rawArgs []string) int {
 	c.Meta.variableArgs = args.Vars.All()
 	c.Meta.stateArgs = *args.State
 	c.Meta.backendArgs = *args.Backend
+
+	// See statelessStateGuard: refused before the source state is even read,
+	// and well before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "push"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
 
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
@@ -204,7 +211,7 @@ func (c *StatePushCommand) Run(rawArgs []string) int {
 
 func (c *StatePushCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state push [options] PATH
+Usage: choudoufu [global options] state push [options] PATH
 
   Update remote state from a local state file at PATH.
 

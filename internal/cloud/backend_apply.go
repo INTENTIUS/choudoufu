@@ -16,11 +16,11 @@ import (
 
 	tfe "github.com/hashicorp/go-tfe"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/jsonformat"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/jsonformat"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 func (b *Cloud) opApply(ctx, stopCtx, cancelCtx context.Context, op *backend.Operation, w *tfe.Workspace) (*tfe.Run, error) {
@@ -74,7 +74,7 @@ func (b *Cloud) opApply(ctx, stopCtx, cancelCtx context.Context, op *backend.Ope
 			"No configuration files found",
 			`Apply requires configuration to be present. Applying without a configuration `+
 				`would mark everything for destruction, which is normally not what is desired. `+
-				`If you would like to destroy everything, please run 'tofu destroy' which `+
+				`If you would like to destroy everything, please run 'choudoufu destroy' which `+
 				`does not require any configuration files.`,
 		))
 	}

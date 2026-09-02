@@ -17,12 +17,12 @@ import (
 	"github.com/hashicorp/hcl/v2/ext/dynblock"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/lang/blocktoattr"
-	"github.com/opentofu/opentofu/internal/lang/marks"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang/blocktoattr"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/function"
@@ -400,6 +400,153 @@ func (s *Scope) evalContext(ctx context.Context, parent *hcl.EvalContext, refs [
 	return hclCtx, diags
 }
 
+// EvalContextTolerant builds an *hcl.EvalContext the same way EvalContext
+// does, except one reference [Data.StaticValidateReferences] refuses does
+// not also take down every OTHER, answerable reference alongside it.
+// EvalContext validates the whole reference set as a single batch and
+// returns an EMPTY context - no variables populated at all - the moment ANY
+// one of them fails; that is the right default everywhere a caller trusts
+// diags.HasErrors() before ever looking at the value (which is every
+// caller today), but it means an expression reading nine perfectly static
+// references and one dynamic one cannot be evaluated for ANY of them,
+// because the hcl.EvalContext they would all need never gets built at all.
+//
+// Each reference here is validated on its own, so a refusal is isolated to
+// it rather than poisoning its siblings. A refused reference is not simply
+// left out of the context, though: HCL's own "Unsupported attribute" error
+// for a variable namespace that is simply missing carries no
+// RefusedReference extra, which would make it indistinguishable from a
+// genuine typo - exactly the ambiguity a caller looking past a refusal (see
+// [configs.StaticEvaluator.EvaluateStructural]) needs to avoid. Instead,
+// the refused reference's own TOP-LEVEL namespace (module, a resource
+// type's own name, count, each, ...) becomes cty.DynamicVal - the one value
+// attribute and index access both accept unconditionally without a further
+// error, so a chain through it (module.vpc.vpc_cidr_block,
+// aws_vpc.this[0].id) still resolves, to unknown, instead of erring a
+// second, unclassifiable way.
+//
+// Returned diagnostics still include every refusal StaticValidateReferences
+// produced, at the same severity, so a caller checking diags.HasErrors() in
+// the ordinary way sees exactly what it always has - this method changes
+// what gets INTO the context, never what gets reported about it.
+func (s *Scope) EvalContextTolerant(ctx context.Context, refs []*addrs.Reference) (*hcl.EvalContext, tfdiags.Diagnostics) {
+	if s == nil {
+		panic("attempt to construct EvalContext for nil Scope")
+	}
+
+	var diags tfdiags.Diagnostics
+
+	var parent *hcl.EvalContext
+	hclCtx := parent.NewChild()
+	hclCtx.Functions = make(map[string]function.Function)
+	hclCtx.Variables = make(map[string]cty.Value)
+	maps.Copy(hclCtx.Functions, s.Functions())
+
+	if len(refs) == 0 {
+		return hclCtx, diags
+	}
+
+	var allowed []*addrs.Reference
+	var stubKeys []string
+	for _, ref := range refs {
+		refDiags := s.Data.StaticValidateReferences(ctx, []*addrs.Reference{ref}, s.SelfAddr, s.SourceAddr)
+		if refDiags.HasErrors() {
+			diags = diags.Append(refDiags)
+			if key, ok := tolerantStubKey(ref.Subject); ok {
+				stubKeys = append(stubKeys, key)
+			}
+			continue
+		}
+		allowed = append(allowed, ref)
+	}
+
+	varBuilder := s.newEvalVarBuilder()
+	for _, ref := range allowed {
+		if ref.Subject == addrs.Self {
+			diags = diags.Append(varBuilder.putSelfValue(ctx, s.SelfAddr, ref))
+			continue
+		}
+
+		if subj, ok := ref.Subject.(addrs.ProviderFunction); ok {
+			if _, ok := hclCtx.Functions[subj.String()]; !ok {
+				fn, fnDiags := s.ProviderFunctions(ctx, subj, ref.SourceRange)
+				diags = diags.Append(fnDiags)
+
+				if !fnDiags.HasErrors() {
+					hclCtx.Functions[subj.String()] = *fn
+				}
+			}
+
+			continue
+		}
+
+		diags = diags.Append(varBuilder.putValueBySubject(ctx, ref))
+	}
+
+	varBuilder.buildAllVariablesInto(hclCtx.Variables)
+
+	// Every refused reference's own top-level namespace becomes a single
+	// opaque unknown value, applied AFTER buildAllVariablesInto so it wins
+	// over whatever (necessarily incomplete, since the refused ref itself
+	// was excluded from varBuilder above) object that call would otherwise
+	// have produced for the same key.
+	for _, key := range stubKeys {
+		hclCtx.Variables[key] = cty.DynamicVal
+	}
+
+	return hclCtx, diags
+}
+
+// tolerantStubKey reports the top-level hclCtx.Variables key a refused
+// reference's subject would have been resolved under, mirroring exactly the
+// classification [staticScopeData.StaticValidateReferences]
+// (internal/configs/static_scope.go) and [evalVarBuilder.putValueBySubject]
+// (this file, above) already agree on - never a new classification of its
+// own. Reports false for anything it does not recognize, which is the safe
+// direction for [Scope.EvalContextTolerant] to fail in: that reference's
+// namespace is simply left unstubbed, so an expression that actually needed
+// it still fails exactly as EvalContext would have, rather than risking a
+// wrong stub standing in for a value HCL later reads through.
+func tolerantStubKey(subject addrs.Referenceable) (string, bool) {
+	switch subj := subject.(type) {
+	case addrs.ModuleCallInstanceOutput, addrs.ModuleCall, addrs.ModuleCallInstance:
+		return "module", true
+	case addrs.CountAttr:
+		return "count", true
+	case addrs.ForEachAttr:
+		return "each", true
+	case addrs.Resource:
+		return tolerantStubKeyForResource(subj)
+	case addrs.ResourceInstance:
+		return tolerantStubKeyForResource(subj.ContainingResource())
+	}
+	return "", false
+}
+
+// tolerantStubKeyForResource is [tolerantStubKey]'s resource-mode case,
+// split out because a resource subject reaches it two ways (a whole
+// resource, or one instance of one) that both resolve to the very same key.
+func tolerantStubKeyForResource(res addrs.Resource) (string, bool) {
+	switch res.Mode {
+	case addrs.DataResourceMode:
+		return "data", true
+	case addrs.EphemeralResourceMode:
+		return "ephemeral", true
+	case addrs.ManagedResourceMode:
+		// buildResourceObjects (below) exposes a managed resource under its
+		// OWN type name at the top level (aws_vpc, and so on), not under a
+		// shared "resource" key the way data/ephemeral resources share
+		// "data"/"ephemeral" - see buildAllVariablesInto's own comment on
+		// why managed resources get both a top-level and an escape-hatch
+		// binding. Stubbing the type name covers the top-level form; the
+		// "resource" escape hatch is deliberately left unstubbed; it is a
+		// mechanism for a reserved-name COLLISION, not how any ordinary
+		// reference in this codebase's corpus is ever written.
+		return res.Type, true
+	}
+	return "", false
+}
+
 type evalVarBuilder struct {
 	s *Scope
 
@@ -625,6 +772,39 @@ func normalizeRefValue(val cty.Value, diags tfdiags.Diagnostics) (cty.Value, tfd
 		// we can still evaluate and catch type errors but we'll avoid
 		// producing redundant re-statements of the same errors we've already
 		// dealt with here.
+		//
+		// A [Data] method is free to report an error and return NO value at
+		// all - cty.NilVal - and several do: staticScopeData's
+		// GetInputVariable answers an undeclared variable that way
+		// (internal/configs/static_scope.go), and upstream's own
+		// evaluationStateData.GetCheckBlock answers a check reference
+		// outside `tofu test` that way (internal/tofu/evaluate.go). Such a
+		// value has no type to preserve, and cty.UnknownVal's argument must
+		// be a REAL type: cty.NilType is the zero cty.Type, whose typeImpl
+		// interface is nil, so cty.UnknownVal(cty.NilType) yields a value
+		// that is NOT equal to cty.NilVal (its interior is the unknown
+		// sentinel, not nil) yet panics inside cty the moment anything asks
+		// its type a question - convert.Convert on it reaches
+		// convert.MismatchMessage, which calls Type.FriendlyName on the nil
+		// typeImpl and segfaults.
+		//
+		// So an absent type becomes cty.DynamicVal, cty's own "unknown
+		// value of unknown type", which is exactly what this branch means
+		// to produce and is what every attribute, index and conversion
+		// operation already accepts unconditionally.
+		//
+		// This was latent for as long as [Scope.EvalExpr] was the only
+		// consumer of a context built while diagnostics were accumulating:
+		// EvalExpr returns at its own diags.HasErrors() gate before ever
+		// calling expr.Value, so the ill-formed entry sat in the context
+		// unread. [configs.StaticEvaluator.EvaluateStructural] (GitHub
+		// issue #304) evaluates against such a context on purpose - that is
+		// the whole point of it - and reached the value on the first real
+		// configuration that referenced an undeclared variable from inside
+		// a module-call argument.
+		if val.Type() == cty.NilType {
+			return cty.DynamicVal, diags
+		}
 		return cty.UnknownVal(val.Type()), diags
 	}
 	return val, diags

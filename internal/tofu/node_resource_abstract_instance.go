@@ -16,22 +16,22 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/checks"
-	commShared "github.com/opentofu/opentofu/internal/communicator/shared"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/lang"
-	"github.com/opentofu/opentofu/internal/lang/evalchecks"
-	"github.com/opentofu/opentofu/internal/lang/marks"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plans/objchange"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/shared"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/checks"
+	commShared "github.com/intentius/choudoufu/internal/communicator/shared"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/lang/evalchecks"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans/objchange"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/shared"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // traceNamePlanResourceInstance is a standardize trace span name we use for the
@@ -1195,6 +1195,36 @@ func (n *NodeAbstractResourceInstance) plan(
 		return nil, nil, keyData, diags
 	}
 
+	// The plan-node seam (the foundation-order ruling (#388), ruling
+	// 3): a configured adjuster (nil by default, in which case this block
+	// is inert) gets to rewrite the evaluated configuration value here,
+	// before anything else touches it. This is the ONLY point this ever
+	// happens, and it must stay before n.processIgnoreChanges below and
+	// before PlanResourceChange further down: opentofu/opentofu#3016
+	// requires OpenTofu to send the provider exactly the planned new state
+	// the provider itself returned, which permanently rules out mutating
+	// anything after PlanResourceChange runs. See ConfigValueAdjuster's
+	// doc comment in resource_identity.go.
+	// extraIgnoreChanges is GitHub issue #451's second, narrower hook
+	// (IgnoreChangesAdjuster, resource_identity.go): an optional capability
+	// the same adjuster value may implement, checked once here rather than
+	// re-fetched at n.processIgnoreChanges' two call sites below. See that
+	// interface's own doc comment for why it exists as a type assertion on
+	// this value instead of a new ContextOpts field of its own.
+	var extraIgnoreChanges []cty.Path
+	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
+		adjustedConfigVal, adjustDiags := adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		diags = diags.Append(adjustDiags)
+		if adjustDiags.HasErrors() {
+			return nil, nil, keyData, diags
+		}
+		origConfigVal = adjustedConfigVal
+
+		if ia, ok := adjuster.(IgnoreChangesAdjuster); ok {
+			extraIgnoreChanges = ia.AdjustIgnoreChanges(ctx, n.Addr, *schema)
+		}
+	}
+
 	metaConfigVal, metaDiags := n.providerMetas(ctx, evalCtx)
 	diags = diags.Append(metaDiags)
 	if diags.HasErrors() {
@@ -1251,7 +1281,7 @@ func (n *NodeAbstractResourceInstance) plan(
 	// starting values.
 	// Here we operate on the marked values, so as to revert any changes to the
 	// marks as well as the value.
-	configValIgnored, ignoreChangeDiags := n.processIgnoreChanges(priorVal, origConfigVal, schema.Block)
+	configValIgnored, ignoreChangeDiags := n.processIgnoreChanges(priorVal, origConfigVal, schema.Block, extraIgnoreChanges)
 	diags = diags.Append(ignoreChangeDiags)
 	if ignoreChangeDiags.HasErrors() {
 		return nil, nil, keyData, diags
@@ -1370,7 +1400,7 @@ func (n *NodeAbstractResourceInstance) plan(
 		// A nil schema is passed to processIgnoreChanges to indicate that we
 		// don't want to fixup a config value according to the schema when
 		// ignoring "all", rather we are reverting provider imposed changes.
-		plannedNewVal, ignoreChangeDiags = n.processIgnoreChanges(unmarkedPriorVal, plannedNewVal, nil)
+		plannedNewVal, ignoreChangeDiags = n.processIgnoreChanges(unmarkedPriorVal, plannedNewVal, nil, extraIgnoreChanges)
 		diags = diags.Append(ignoreChangeDiags)
 		if ignoreChangeDiags.HasErrors() {
 			return nil, nil, keyData, diags
@@ -1409,6 +1439,35 @@ func (n *NodeAbstractResourceInstance) plan(
 			if plannedPathDiags.HasErrors() && priorPathDiags.HasErrors() {
 				// This means the path was invalid in both the prior and new
 				// values, which is an error with the provider itself.
+				if plans.RequiresReplacePathIsDegenerate(path) {
+					// The path itself carries no information: an attribute
+					// step with an empty name cannot correspond to any real
+					// attribute in any schema, so the provider is not
+					// telling us WHICH attribute forces replacement - there
+					// is nothing to safely act on, and nothing safe to
+					// assume it means either "replace the whole object"
+					// (that is the zero-length path, not this) or "replace
+					// nothing" would be reading intent into a signal that
+					// carries none. What is safe: this one signal cannot be
+					// honored, so it is dropped from the replace set below
+					// rather than aborting the entire plan, and the drop is
+					// reported loudly as a provider defect rather than
+					// silently swallowed. Nothing else here changes: the
+					// resource's real attributes are still compared for
+					// changes on their own, independently of this path, so
+					// a genuine difference elsewhere still surfaces and
+					// still forces a replace when a well-formed path says
+					// so.
+					diags = diags.Append(tfdiags.Sourceless(
+						tfdiags.Warning,
+						"Provider produced a malformed requires-replacement path",
+						fmt.Sprintf(
+							"Provider %q has indicated \"requires replacement\" on %s for an attribute path (%#v) that names no attribute in any schema, so choudoufu cannot tell which value it means.\n\nThis is a bug in the provider, which should be reported in the provider's own issue tracker. choudoufu is proceeding without treating this as a forced replacement; if %s does genuinely need to be replaced, force it explicitly with the -replace option.",
+							n.ResolvedProvider.ProviderConfig.InstanceString(n.ResolvedProviderKey), n.Addr, path, n.Addr,
+						),
+					))
+					continue
+				}
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					"Provider produced invalid plan",
@@ -1687,7 +1746,14 @@ func (n *NodeAbstractResourceInstance) plan(
 	return plan, state, keyData, diags
 }
 
-func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, schema *configschema.Block) (cty.Value, tfdiags.Diagnostics) {
+// extra is GitHub issue #451's IgnoreChangesAdjuster contribution
+// (resource_identity.go), unioned onto whatever the configuration's own
+// lifecycle block already lists - see that interface's doc comment and
+// this method's callers in [NodeAbstractResourceInstance.plan]. nil for
+// every call site until a ConfigValueAdjuster optionally implementing it
+// is configured, which keeps this identical to the pre-#451 behavior in
+// that case.
+func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, schema *configschema.Block, extra []cty.Path) (cty.Value, tfdiags.Diagnostics) {
 	// ignore_changes only applies when an object already exists, since we
 	// can't ignore changes to a thing we've not created yet.
 	if prior.IsNull() {
@@ -1695,6 +1761,7 @@ func (n *NodeAbstractResource) processIgnoreChanges(prior, config cty.Value, sch
 	}
 
 	ignoreChanges := traversalsToPaths(n.Config.Managed.IgnoreChanges)
+	ignoreChanges = append(ignoreChanges, extra...)
 	ignoreAll := n.Config.Managed.IgnoreAllChanges
 
 	if len(ignoreChanges) == 0 && !ignoreAll {

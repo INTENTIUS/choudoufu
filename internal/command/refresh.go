@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs/configload"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs/configload"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // RefreshCommand is a cli.Command implementation that refreshes the state
@@ -76,6 +76,19 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 	if encDiags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
+	}
+
+	// Refresh is the one remaining operation whose whole purpose is to write
+	// a state file, so a stateless configuration is refused here rather than
+	// left to produce one as a side effect of a command that changes nothing.
+	// What it would do is what a stateless plan does anyway: read the live
+	// system.
+	if guardDiags := c.statelessCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
+		diags = diags.Append(guardDiags)
+		if guardDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
 	}
 
 	// Prepare the backend with the backend-specific arguments
@@ -160,7 +173,7 @@ func (c *RefreshCommand) OperationRequest(ctx context.Context, be backend.Enhanc
 
 func (c *RefreshCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] refresh [options]
+Usage: choudoufu [global options] refresh [options]
 
   Update the state file of your infrastructure with metadata that matches
   the physical resources they are tracking.

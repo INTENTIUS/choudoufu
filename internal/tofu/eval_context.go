@@ -11,17 +11,17 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/checks"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/lang"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/refactoring"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/refactoring"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // EvalContext is the interface that is given to eval nodes to execute.
@@ -177,4 +177,14 @@ type EvalContext interface {
 
 	// Returns the currently configured encryption setup
 	GetEncryption() encryption.Encryption
+
+	// ResourceIdentityResolver returns the plan-node seam's identity
+	// resolver, or nil if none was configured (the default). See
+	// resource_identity.go.
+	ResourceIdentityResolver() ResourceIdentityResolver
+
+	// ConfigValueAdjuster returns the plan-node seam's configuration value
+	// adjuster, or nil if none was configured (the default). See
+	// resource_identity.go.
+	ConfigValueAdjuster() ConfigValueAdjuster
 }

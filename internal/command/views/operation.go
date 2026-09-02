@@ -11,19 +11,19 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/format"
-	"github.com/opentofu/opentofu/internal/command/jsonentities"
-	"github.com/opentofu/opentofu/internal/command/jsonformat"
-	"github.com/opentofu/opentofu/internal/command/jsonplan"
-	"github.com/opentofu/opentofu/internal/command/jsonprovider"
-	viewsjson "github.com/opentofu/opentofu/internal/command/views/json"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/format"
+	"github.com/intentius/choudoufu/internal/command/jsonentities"
+	"github.com/intentius/choudoufu/internal/command/jsonformat"
+	"github.com/intentius/choudoufu/internal/command/jsonplan"
+	"github.com/intentius/choudoufu/internal/command/jsonprovider"
+	viewsjson "github.com/intentius/choudoufu/internal/command/views/json"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // Operation provides information for the main operations, like plan, apply, etc.
@@ -370,14 +370,14 @@ Gracefully shutting down...
 `
 
 const planHeaderNoOutput = `
-Note: You didn't use the -out option to save this plan, so OpenTofu can't guarantee to take exactly these actions if you run "tofu apply" now.
+Note: You didn't use the -out option to save this plan, so OpenTofu can't guarantee to take exactly these actions if you run "choudoufu apply" now.
 `
 
 const planHeaderYesOutput = `
 Saved the plan to: %s
 
 To perform exactly these actions, run the following command to apply:
-    tofu apply %q
+    choudoufu apply %q
 `
 
 const planHeaderGenConfig = `

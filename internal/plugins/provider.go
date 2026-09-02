@@ -13,10 +13,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/version"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -55,7 +55,7 @@ type ProviderManager interface {
 	StopAll(context.Context) error
 	// CloseAll forcefully closes all tracked providers.
 	// See [providers.Unconfigured.Close] for more information.
-	// See cmd/tofu/main.go:plugin.CleanupClients for the fallback.
+	// See cmd/choudoufu/main.go:plugin.CleanupClients for the fallback.
 	CloseAll(context.Context) error
 	// Shutdown locks the provider manager in a Shutdown state and calls CloseAll,
 	// preventing any further usage of this object.

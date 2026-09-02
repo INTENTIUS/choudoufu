@@ -19,11 +19,11 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 var (
@@ -164,7 +164,7 @@ func (c *FmtCommand) fmt(paths []string, stdin io.Reader, stdout io.Writer, args
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					"Invalid file extension",
-					"Only .tf, .tofu, .tfvars, .tftest.hcl, and .tofutest.hcl files can be processed with tofu fmt",
+					"Only .tf, .tofu, .tfvars, .tftest.hcl, and .tofutest.hcl files can be processed with choudoufu fmt",
 				))
 				continue
 			}
@@ -177,7 +177,7 @@ func (c *FmtCommand) fmt(paths []string, stdin io.Reader, stdout io.Writer, args
 func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, args arguments.Fmt) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	log.Printf("[TRACE] tofu fmt: Formatting %s", path)
+	log.Printf("[TRACE] choudoufu fmt: Formatting %s", path)
 
 	src, err := io.ReadAll(r)
 	if err != nil {
@@ -257,7 +257,7 @@ func (c *FmtCommand) processFile(path string, r io.Reader, w io.Writer, args arg
 func (c *FmtCommand) processDir(path string, stdout io.Writer, args arguments.Fmt) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	log.Printf("[TRACE] tofu fmt: looking for files in %s", path)
+	log.Printf("[TRACE] choudoufu fmt: looking for files in %s", path)
 
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -587,7 +587,7 @@ func (c *FmtCommand) trimNewlines(tokens hclwrite.Tokens) hclwrite.Tokens {
 
 func (c *FmtCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] fmt [options] [target...]
+Usage: choudoufu [global options] fmt [options] [target...]
 
   Rewrites all OpenTofu configuration files to a canonical format. All
   configuration files (.tf), variables files (.tfvars), and testing files 

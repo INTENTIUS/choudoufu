@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tracing"
 
 	"github.com/mitchellh/cli"
 
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // UnlockCommand is a cli.Command implementation that manually unlocks
@@ -37,6 +37,17 @@ func (c *UnlockCommand) Run(rawArgs []string) int {
 	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
 	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
 	c.View.DiagsWithNewline()
+
+	// Under a live block there is no lock to force open; refuse with the
+	// true reason before any backend machinery can produce stock's
+	// misleading "State locked by another local process" for a lock that
+	// never existed (found by the no-locks claim scenario's probe).
+	if guardDiags := c.statelessCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
+		c.View.Diagnostics(guardDiags)
+		if guardDiags.HasErrors() {
+			return 1
+		}
+	}
 
 	// Parse and validate flags
 	args, closer, diags := arguments.ParseUnlock(rawArgs)
@@ -147,7 +158,7 @@ func (c *UnlockCommand) Run(rawArgs []string) int {
 
 func (c *UnlockCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] force-unlock [options] LOCK_ID
+Usage: choudoufu [global options] force-unlock [options] LOCK_ID
 
   Manually unlock the state for the defined configuration.
 

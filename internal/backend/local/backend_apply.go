@@ -14,16 +14,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // test hook called between plan+apply during opApply
@@ -78,7 +78,7 @@ func (b *Local) opApply(
 			"No configuration files",
 			"Apply requires configuration to be present. Applying without a configuration "+
 				"would mark everything for destruction, which is normally not what is desired. "+
-				"If you would like to destroy everything, run 'tofu destroy' instead.",
+				"If you would like to destroy everything, run 'choudoufu destroy' instead.",
 		))
 		op.ReportResult(runningOp, diags)
 		return
@@ -161,6 +161,26 @@ func (b *Local) opApply(
 		hasUI := op.View != nil && op.UIIn != nil
 		mustConfirm := hasUI && !op.AutoApprove && !trivialPlan
 		op.View.Plan(plan, schemas)
+
+		// The guard is asked after the plan is rendered and before the
+		// approval prompt, so an operator refused here has seen the whole
+		// diff and is never asked to approve something that will then be
+		// refused. -auto-approve skips the prompt and not this.
+		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
+		if guardRefused {
+			diags = diags.Append(guardDiags)
+			op.ReportResult(runningOp, diags)
+			return
+		}
+		// A guard that warns without refusing is warning about what the
+		// apply below is about to do, so the warning has to land BEFORE
+		// the apply does it - held to the end, a mid-migration duplicate
+		// build (issue #716's breadcrumb) reads as a post-mortem under
+		// "Apply complete". Shown here and not appended, so ReportResult
+		// does not print it a second time.
+		if len(guardDiags) > 0 {
+			op.View.Diagnostics(guardDiags)
+		}
 
 		if testHookStopPlanApply != nil {
 			testHookStopPlanApply()
@@ -273,6 +293,25 @@ func (b *Local) opApply(
 				op.View.PlannedChange(change)
 			}
 		}
+
+		// The saved-plan branch. A guard that only ran on the plan opApply
+		// makes itself would be bypassed by "plan -out=p && apply p", where
+		// the plan was made by an earlier process.
+		guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
+		if guardRefused {
+			diags = diags.Append(guardDiags)
+			op.ReportResult(runningOp, diags)
+			return
+		}
+		// A guard that warns without refusing is warning about what the
+		// apply below is about to do, so the warning has to land BEFORE
+		// the apply does it - held to the end, a mid-migration duplicate
+		// build (issue #716's breadcrumb) reads as a post-mortem under
+		// "Apply complete". Shown here and not appended, so ReportResult
+		// does not print it a second time.
+		if len(guardDiags) > 0 {
+			op.View.Diagnostics(guardDiags)
+		}
 	}
 
 	// Set up our hook for continuous state updates
@@ -320,15 +359,51 @@ func (b *Local) opApply(
 		return
 	}
 
+	// GitHub issue #73's write-back: record-backed resource instances have
+	// no cloud object of their own, so their apply-time result has to be
+	// persisted here explicitly rather than through the ordinary provider
+	// lifecycle. Run unconditionally on b.Stateless (never for an ordinary,
+	// non-live-block run, where it is nil) and after the state write above
+	// has already succeeded, whether or not the apply itself finished
+	// clean: a resource that did apply successfully before some later
+	// resource failed still deserves its record, so the next plan does not
+	// propose creating it again.
+	if b.Stateless != nil {
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas)
+		diags = diags.Append(wbDiags)
+		if wbDiags.HasErrors() {
+			op.ReportResult(runningOp, diags)
+			return
+		}
+	}
+
 	if applyDiags.HasErrors() {
 		op.ReportResult(runningOp, diags)
 		return
 	}
 
+	if b.Stateless != nil {
+		// A real apply just finished changing the live system with no
+		// errors - the one moment [StatelessRun.AfterApply] exists for. See
+		// its own doc comment for why this can never fire from a plan-only
+		// operation: opPlan never reaches this line, because it never calls
+		// lr.Core.Apply at all.
+		//
+		// A per-resource failure reported here (GitHub issue #67's untag
+		// verb could not release a tag from some undeclared orphan, say) is
+		// never a reason to roll anything back - the graph's own changes
+		// already landed and are reported above - but it is real: the
+		// operation's own result reflects it via ReportResult below rather
+		// than only printing a diagnostic and returning success anyway.
+		diags = diags.Append(b.Stateless.AfterApply(ctx))
+	}
+
 	// If we've accumulated any warnings along the way then we'll show them
 	// here just before we show the summary and next steps. If we encountered
-	// errors then we would've returned early at some other point above.
-	op.View.Diagnostics(diags)
+	// errors then we would've returned early at some other point above,
+	// except for a stateless run's AfterApply, whose own failure is reported
+	// through the result here rather than by an early return - see above.
+	op.ReportResult(runningOp, diags)
 }
 
 // backupStateForError is called in a scenario where we're unable to persist the
@@ -386,10 +461,10 @@ func (b *Local) backupStateForError(stateFile *statefile.File, err error, view v
 
 const stateWriteBackedUpError = `The error shown above has prevented OpenTofu from writing the updated state to the configured backend. To allow for recovery, the state has been written to the file "errored.tfstate" in the current working directory.
 
-Running "tofu apply" again at this point will create a forked state, making it harder to recover.
+Running "choudoufu apply" again at this point will create a forked state, making it harder to recover.
 
 To retry writing this state, use the following command:
-    tofu state push errored.tfstate
+    choudoufu state push errored.tfstate
 `
 
 const stateWriteConsoleFallbackError = `The errors shown above prevented OpenTofu from writing the updated state to
@@ -397,7 +472,7 @@ the configured backend and from creating a local backup file. As a fallback,
 the raw state data is printed above as a JSON object.
 
 To retry writing this state, copy the state data (from the first { to the last } inclusive) and save it into a local file called errored.tfstate, then run the following command:
-    tofu state push errored.tfstate
+    choudoufu state push errored.tfstate
 `
 
 const stateWriteFatalErrorFmt = `Failed to save state after apply.

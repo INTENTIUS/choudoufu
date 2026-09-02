@@ -6,7 +6,7 @@
 package arguments
 
 import (
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // ProvidersSchema represents the command-line arguments for the 'providers schema' command.
@@ -56,7 +56,7 @@ func ParseProvidersSchema(args []string) (*ProvidersSchema, func(), tfdiags.Diag
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Output only in json is allowed",
-			"The `tofu providers schema` command requires the `-json` flag.",
+			"The `choudoufu providers schema` command requires the `-json` flag.",
 		))
 	}
 

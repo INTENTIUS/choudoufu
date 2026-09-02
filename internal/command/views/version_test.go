@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	tfversion "github.com/intentius/choudoufu/version"
 )
 
 func TestVersionViews(t *testing.T) {
@@ -166,6 +167,31 @@ on darwin_arm64
 			testVersionHuman(t, tc.viewType, tc.viewCall, tc.wantStdout, tc.wantStderr)
 		})
 	}
+}
+
+// TestVersionViews_fork covers release builds of choudoufu, which set
+// tfversion.Fork to the release tag via linker flags. The human output names
+// the fork release; the JSON output keeps the upstream-shaped version.
+func TestVersionViews_fork(t *testing.T) {
+	tfversion.Fork = "v0.2.0"
+	t.Cleanup(func() { tfversion.Fork = "" })
+
+	t.Run("human", func(t *testing.T) {
+		testVersionHuman(t, arguments.ViewHuman, func(v Version) {
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+		}, "choudoufu v0.2.0 (based on OpenTofu v0.1.0-dev)\non darwin_arm64\n", "")
+	})
+
+	t.Run("json", func(t *testing.T) {
+		testVersionHuman(t, arguments.ViewJSON, func(v Version) {
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+		}, `{
+  "terraform_version": "0.1.0-dev",
+  "platform": "darwin_arm64",
+  "provider_selections": null
+}
+`, "")
+	})
 }
 
 func testVersionHuman(t *testing.T, viewType arguments.ViewType, call func(v Version), wantStdout, wantStderr string) {

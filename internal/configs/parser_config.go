@@ -8,8 +8,8 @@ package configs
 import (
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/opentofu/opentofu/internal/encryption/config"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/encryption/config"
+	"github.com/intentius/choudoufu/version"
 )
 
 // LoadConfigFile reads the file at the given path and parses it as a config
@@ -135,6 +135,13 @@ func loadConfigFileBody(body hcl.Body, _ string, override bool) (*File, hcl.Diag
 					diags = append(diags, cfgDiags...)
 					if encryptionCfg != nil {
 						file.Encryptions = append(file.Encryptions, encryptionCfg)
+					}
+
+				case "live":
+					liveCfg, cfgDiags := decodeLiveBlock(innerBlock)
+					diags = append(diags, cfgDiags...)
+					if liveCfg != nil {
+						file.Lives = append(file.Lives, liveCfg)
 					}
 
 				default:
@@ -347,6 +354,10 @@ var terraformBlockSchema = &hcl.BodySchema{
 		},
 		{
 			Type: "encryption",
+		},
+		{
+			// Fork addition: stateless mode. See live.go.
+			Type: "live",
 		},
 	},
 }

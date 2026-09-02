@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // UntaintCommand is a cli.Command implementation that manually untaints
@@ -54,6 +54,17 @@ func (c *UntaintCommand) Run(rawArgs []string) int {
 	c.Meta.stateArgs = *args.State
 
 	addr := args.TargetAddress
+
+	// Untainting is a write to a state file, so a stateless configuration is
+	// refused here, before a backend is prepared and before anything can
+	// reach a state manager.
+	if guardDiags := c.statelessCommandGuard(ctx, "untaint"); len(guardDiags) > 0 {
+		diags = diags.Append(guardDiags)
+		if guardDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
 
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
@@ -154,7 +165,7 @@ func (c *UntaintCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No such resource instance",
-			fmt.Sprintf("There is no resource instance in the state with the address %s. If the resource configuration has just been added, you must run \"tofu apply\" once to create the corresponding instance(s) before they can be tainted.", addr),
+			fmt.Sprintf("There is no resource instance in the state with the address %s. If the resource configuration has just been added, you must run \"choudoufu apply\" once to create the corresponding instance(s) before they can be tainted.", addr),
 		))
 		view.Diagnostics(diags)
 		return 1
@@ -166,7 +177,7 @@ func (c *UntaintCommand) Run(rawArgs []string) int {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"No such resource instance",
-				fmt.Sprintf("Resource instance %s is currently part-way through a create_before_destroy replacement action. Run \"tofu apply\" to complete its replacement before tainting it.", addr),
+				fmt.Sprintf("Resource instance %s is currently part-way through a create_before_destroy replacement action. Run \"choudoufu apply\" to complete its replacement before tainting it.", addr),
 			))
 		} else {
 			// Don't know why we're here, but we'll produce a generic error message anyway.
@@ -225,12 +236,12 @@ func (c *UntaintCommand) Run(rawArgs []string) int {
 
 func (c *UntaintCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] untaint [options] name
+Usage: choudoufu [global options] untaint [options] name
 
   OpenTofu uses the term "tainted" to describe a resource instance
   which may not be fully functional, either because its creation
   partially failed or because you've manually marked it as such using
-  the "tofu taint" command.
+  the "choudoufu taint" command.
 
   This command removes that state from a resource instance, causing
   OpenTofu to see it as fully-functional and not in need of

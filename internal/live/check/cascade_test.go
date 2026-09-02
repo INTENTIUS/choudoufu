@@ -1,0 +1,627 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package check
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
+)
+
+// These tests are GitHub issue #184's rescoped fix: identity.ResolveWith
+// runs with no [identity.Context.DataResults] here (Analyze is an offline
+// instrument; only a real live-plan reads data sources), so an identity
+// argument that reads one refuses as "Dynamic value in static context" -
+// already reclassified as data-read-eligible by classifyDataSite - and
+// every OTHER resource whose identity references that resource's identity
+// attribute cascades into identity's own "Unresolvable identity", a
+// diagnostic that carries no reference back to the data read that actually
+// caused it (internal/live/identity/resolve.go's parentPart). Analyze
+// traces that cascade back through [neededByResourceAddr] and
+// [parseCascadeDetail] and reclassifies it the same way, transitively.
+
+// TestAnalyzeCascadesEligibleReadThroughDependents: the log stream's
+// "Unresolvable identity" is re-homed under the data-read pass, alongside
+// the log group's own finding, so both collapse into one eligible-read
+// finding with two sites.
+func TestAnalyzeCascadesEligibleReadThroughDependents(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-eligible")
+
+	if len(report.Findings) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %+v", len(report.Findings), report.Findings)
+	}
+	f := report.Findings[0]
+	if f.Layer != LayerDataread || f.ID != dataread.SummaryEligibleRead {
+		t.Fatalf("finding is %s/%s, want %s/%s", f.Layer, f.ID, LayerDataread, dataread.SummaryEligibleRead)
+	}
+	if len(f.Sites) != 2 {
+		t.Fatalf("want two sites (the log group's own read and the log stream's cascade), got %d: %+v", len(f.Sites), f.Sites)
+	}
+	var sawCascade bool
+	for _, site := range f.Sites {
+		if strings.Contains(site.Detail, "depends on the identity of") {
+			sawCascade = true
+			if !strings.Contains(site.Detail, "own identity depends on a data source") {
+				t.Errorf("cascaded site lacks the explanatory tail: %s", site.Detail)
+			}
+		}
+	}
+	if !sawCascade {
+		t.Errorf("no site carries the cascade wording; sites: %+v", f.Sites)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingDataReadEligible {
+		t.Errorf("classified %q, want %q", got, OnboardingDataReadEligible)
+	}
+}
+
+// TestAnalyzeCascadesThroughAModuleBoundary: identity.StaticIdentifier's
+// NeededBy carries a redundant, differently-spelled module prefix inside a
+// child module ("module.child:module.child.type.name.attr" - see
+// neededByResourceAddr's doc comment). The recovered address must still
+// match the cascade diagnostic's own parent text, or the propagation never
+// fires for anything but the root module.
+func TestAnalyzeCascadesThroughAModuleBoundary(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-eligible-module")
+
+	if len(report.Findings) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %+v", len(report.Findings), report.Findings)
+	}
+	f := report.Findings[0]
+	if f.Layer != LayerDataread || f.ID != dataread.SummaryEligibleRead {
+		t.Fatalf("finding is %s/%s, want %s/%s", f.Layer, f.ID, LayerDataread, dataread.SummaryEligibleRead)
+	}
+	if len(f.Sites) != 2 {
+		t.Fatalf("want two sites, got %d: %+v", len(f.Sites), f.Sites)
+	}
+}
+
+// TestAnalyzeCascadesPerForEachKey: two for_each keys must not collide in
+// eligibleAddrs - each key's log stream cascades from its OWN key's log
+// group, not from whichever key happened to be seen first.
+func TestAnalyzeCascadesPerForEachKey(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-eligible-foreach")
+
+	if len(report.Findings) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %+v", len(report.Findings), report.Findings)
+	}
+	f := report.Findings[0]
+	if f.Layer != LayerDataread || f.ID != dataread.SummaryEligibleRead {
+		t.Fatalf("finding is %s/%s, want %s/%s", f.Layer, f.ID, LayerDataread, dataread.SummaryEligibleRead)
+	}
+	if len(f.Sites) != 4 {
+		t.Fatalf("want four sites (two log groups, two log streams), got %d: %+v", len(f.Sites), f.Sites)
+	}
+	for _, key := range []string{`"a"`, `"b"`} {
+		var found bool
+		for _, site := range f.Sites {
+			if strings.Contains(site.Detail, "depends on the identity of") && strings.Contains(site.Detail, key) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no cascaded site names key %s; sites: %+v", key, f.Sites)
+		}
+	}
+}
+
+// TestAnalyzeDoesNotCascadeAnUnrelatedFailure is the false-"you are fine"
+// guard: the log group's identity fails for a reason that has nothing to
+// do with a data read, so the log stream's cascade onto it must stay a
+// hard "Unresolvable identity" refusal, not read as eligible.
+func TestAnalyzeDoesNotCascadeAnUnrelatedFailure(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-blocked")
+
+	var identityCount, datareadCount int
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			if f.ID != "Identity argument not set" && f.ID != "Unresolvable identity" {
+				t.Errorf("unexpected identity finding %s", f.ID)
+			}
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+		}
+	}
+	if datareadCount != 0 {
+		t.Errorf("an unrelated failure was reclassified as data-read-eligible: %+v", report.Findings)
+	}
+	if identityCount != 2 {
+		t.Fatalf("want two identity-layer sites (the group's own failure and the policy's cascade), got %d: %+v", identityCount, report.Findings)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeDoesNotReclassifyMultiComponentCascade is GitHub issue #221's
+// regression guard: the audit's own repro, reproduced with a built binary
+// before either fix existed. aws_cloudwatch_log_stream's identity has TWO
+// real components (log_group_name, name); log_group_name cascades from the
+// log group's eligible data-source read, but "name" has no value at all - a
+// second, wholly independent failure.
+//
+// Before #221's interim fix, resolveInstance's first-failing-component
+// short-circuit never reached "name", so it raised no diagnostic of its own
+// anywhere in this configuration, and the cascade fixpoint reclassified the
+// whole instance as "no configuration edit is needed" from log_group_name
+// alone - which was false; plain "tofu validate" refuses this
+// configuration.
+//
+// After #221's proper fix, resolveInstance evaluates every component: both
+// failures now raise their own diagnostic, so "name" is visible as its own
+// hard "Identity argument not set" refusal alongside the log_group_name
+// cascade - and the fixpoint's hardFailureAddrs gate refuses to reclassify
+// a cascade sharing that same instance address, leaving the cascade itself
+// a hard "Unresolvable identity" refusal too, so neither reads as fine.
+func TestAnalyzeDoesNotReclassifyMultiComponentCascade(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-multicomponent-blocked")
+
+	var identityCount, datareadCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			identityIDs[f.ID] += len(f.Sites)
+			if f.ID != "Identity argument not set" && f.ID != "Unresolvable identity" {
+				t.Errorf("unexpected identity finding %s", f.ID)
+			}
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+		}
+	}
+	// The log group's OWN data-source read is still eligible on its own
+	// terms - #221 does not touch the direct case, only the cascade. Only
+	// the log stream's cascade onto it must stay held back.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the log group's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	// Two identity-layer sites now, not one: "name"'s own failure is no
+	// longer invisible, and the log stream's cascade stays held back
+	// because that sibling failure exists - both visible, both refused.
+	if identityCount != 2 {
+		t.Fatalf("want two identity-layer sites (the log stream's own \"name\" failure and its log_group_name cascade, both held hard-refused), got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Identity argument not set\" site and one \"Unresolvable identity\" site, got %+v", identityIDs)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeReclassifiesEveryComponentOfAMultiComponentCascade is GitHub
+// issue #221's proper fix, positive case (the audit's second adversarial
+// question: "a dependent whose failures are all eligible-traceable across
+// three components"). aws_route53_record has THREE real components
+// (zone_id, name, type), each cascading onto a DIFFERENT resource whose own
+// identity, in turn, reads the same eligible data source.
+//
+// #221's interim fix would have refused this outright - it refused any
+// cascade whose dependent type carried more than one real component,
+// unconditionally, regardless of whether every one of them was actually
+// fine. The proper fix evaluates every component, sees that all three
+// failures trace back to an eligible read, and reclassifies the whole
+// instance - proving the interim fix was not merely conservative but
+// strictly worse here: it would have blocked a configuration nothing here
+// actually blocks.
+func TestAnalyzeReclassifiesEveryComponentOfAMultiComponentCascade(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-multicomponent-eligible")
+
+	if len(report.Findings) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %+v", len(report.Findings), report.Findings)
+	}
+	f := report.Findings[0]
+	if f.Layer != LayerDataread || f.ID != dataread.SummaryEligibleRead {
+		t.Fatalf("finding is %s/%s, want %s/%s", f.Layer, f.ID, LayerDataread, dataread.SummaryEligibleRead)
+	}
+	// Three buckets' own reads, plus the record's three cascaded
+	// components (zone_id, name, type) - all six sites, none held back.
+	if len(f.Sites) != 6 {
+		t.Fatalf("want six sites, got %d: %+v", len(f.Sites), f.Sites)
+	}
+	var cascadeCount int
+	for _, site := range f.Sites {
+		if strings.Contains(site.Detail, "depends on the identity of") {
+			cascadeCount++
+		}
+	}
+	if cascadeCount != 3 {
+		t.Errorf("want three cascaded sites (zone_id, name, type), got %d: %+v", cascadeCount, f.Sites)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingDataReadEligible {
+		t.Errorf("classified %q, want %q", got, OnboardingDataReadEligible)
+	}
+}
+
+// TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop is GitHub
+// issue #221's proper fix, chain case (the audit's third adversarial
+// question: "a chain where an intermediate hop has a mixed failure set").
+//
+// aws_cloudwatch_log_stream.child is a mixed intermediate hop: its
+// log_group_name cascades from the log group's eligible read, but its
+// "name" has no value at all - an independent hard failure, so child stays
+// hard-refused (same shape as
+// TestAnalyzeDoesNotReclassifyMultiComponentCascade).
+// aws_cloudwatch_log_subscription_filter.grandchild then references
+// child's own log_group_name attribute, one hop further down the chain.
+//
+// The danger this pins: if child's OWN cascade (log_group_name) were
+// allowed to add child to eligibleAddrs on its own - ignoring that child
+// also has an unrelated hard failure - grandchild's cascade onto child
+// would read "no configuration edit is needed" for an instance whose
+// identity can never actually be built. child must never enter
+// eligibleAddrs, so grandchild's cascade must stay hard-refused too.
+func TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-chain-mixed-intermediate")
+
+	var identityCount, datareadCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			identityIDs[f.ID] += len(f.Sites)
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+			for _, site := range f.Sites {
+				if strings.Contains(site.Detail, "grandchild") {
+					t.Errorf("grandchild's cascade onto the mixed intermediate hop was reclassified as eligible: %s", site.Detail)
+				}
+			}
+		}
+	}
+	// The log group's own read: still eligible on its own terms.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the log group's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	// child's own "name" failure, child's log_group_name cascade, and
+	// grandchild's cascade onto child - three sites, all held back.
+	if identityCount != 3 {
+		t.Fatalf("want three identity-layer sites, got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 2 {
+		t.Errorf("want one \"Identity argument not set\" site and two \"Unresolvable identity\" sites (child's own cascade and grandchild's), got %+v", identityIDs)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeCascadesPerForEachKeyEvenWhenOneKeyIsMixed is GitHub issue
+// #221's proper fix, for_each case (the audit's fourth adversarial
+// question: "a for_each/count expanded dependent where only some instances
+// have the mixed set").
+//
+// aws_cloudwatch_log_stream.child is for_each'd over two keys. Both
+// instances' log_group_name cascades from the same log group's eligible
+// read. Only key "b"'s "name" evaluates to null - a per-instance,
+// independent hard failure ("Null identity argument"); key "a"'s "name" is
+// an ordinary literal and never fails.
+//
+// hardFailureAddrs and eligibleAddrs are keyed by the full instance
+// address, key included, so the two keys of one resource block must not
+// share a verdict: child["a"] reclassifies, child["b"] stays hard-refused.
+func TestAnalyzeCascadesPerForEachKeyEvenWhenOneKeyIsMixed(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-mixed-per-foreach-key")
+
+	var eligibleSites []string
+	var identityCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			for _, site := range f.Sites {
+				eligibleSites = append(eligibleSites, site.Detail)
+			}
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// The log group's own read, plus child["a"]'s cascade - and nothing
+	// naming child["b"].
+	if len(eligibleSites) != 2 {
+		t.Fatalf("want two data-read-eligible sites, got %d: %+v", len(eligibleSites), eligibleSites)
+	}
+	var sawKeyA bool
+	for _, detail := range eligibleSites {
+		if strings.Contains(detail, `child["b"]`) {
+			t.Errorf("child[\"b\"] (the mixed key) was reclassified as eligible: %s", detail)
+		}
+		if strings.Contains(detail, `child["a"]`) {
+			sawKeyA = true
+		}
+	}
+	if !sawKeyA {
+		t.Errorf("child[\"a\"] (the clean key) was not reclassified as eligible: %+v", eligibleSites)
+	}
+	// child["b"]'s own "Null identity argument" plus its log_group_name
+	// cascade - both held back, and nothing from child["a"].
+	if identityCount != 2 {
+		t.Fatalf("want two identity-layer sites (both from child[\"b\"]), got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Null identity argument"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Null identity argument\" site and one \"Unresolvable identity\" site, got %+v", identityIDs)
+	}
+
+	// The estate as a whole stays blocked - child["b"] alone keeps it there
+	// even though child["a"] is individually fine.
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeDoesNotCascadeOntoADirectlyEligibleParentThatAlsoHardFails is
+// the hole the #221 family left open, found by reading the fixpoint's two
+// gates against each other: it guarded hardFailureAddrs on the CHILD and
+// eligibleAddrs on the PARENT, so a parent that was both eligible and
+// independently hard-failing still resolved a cascade onto itself.
+//
+// TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop looks like it
+// covers this and does not. There the mixed hop's good component is itself
+// a cascade, so the hop is only ever a candidate for eligibleAddrs by way
+// of the fixpoint - which does check hardFailureAddrs - and it never gets
+// in. Here the mixed hop's good component reads the data source DIRECTLY,
+// so classifyDataSite's branch puts it into eligibleAddrs with no
+// hard-failure gate at all, and the dependent's cascade found it there.
+//
+// Reproduced on the unfixed tree: this fixture reported two
+// data-read-eligible sites (parent's own read plus dependent's cascade,
+// reading "No configuration edit is needed") and zero "Unresolvable
+// identity" sites, while parent's "name" failure sat in the same report
+// proving its identity can never be built.
+func TestAnalyzeDoesNotCascadeOntoADirectlyEligibleParentThatAlsoHardFails(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-direct-read-mixed-parent")
+
+	var datareadCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+			for _, site := range f.Sites {
+				if strings.Contains(site.Detail, "dependent") {
+					t.Errorf("the dependent's cascade onto a hard-failing parent was reclassified as eligible: %s", site.Detail)
+				}
+			}
+		case LayerIdentity:
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// Only the parent's own read stays eligible - #221's settled position
+	// is that the direct case is untouched; it is the cascade onto the
+	// instance, not the read itself, that has to be held back.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the parent's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Identity argument not set\" site (the parent's own) and one \"Unresolvable identity\" site (the dependent's held-back cascade), got %+v", identityIDs)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeCascadesOntoADirectlyEligibleParentPerForEachKey is the
+// adversarial half of the test above: what does the new parent gate newly
+// REFUSE that used to work?
+//
+// Both keys of the parent read the same eligible data source directly, so
+// both are in eligibleAddrs; only key "b" is also hard-failing. A gate
+// keyed by resource rather than by instance address would pass the test
+// above and still hold back dependent["a"], a reference nothing is wrong
+// with. dependent["a"] must reclassify and dependent["b"] must not, from
+// one fixpoint pass over one eligibleAddrs.
+//
+// Reproduced on the unfixed tree: four data-read-eligible sites and zero
+// "Unresolvable identity" - both dependents read as fine, dependent["b"]
+// falsely.
+func TestAnalyzeCascadesOntoADirectlyEligibleParentPerForEachKey(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-direct-read-mixed-parent-foreach")
+
+	var eligibleSites []string
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			for _, site := range f.Sites {
+				eligibleSites = append(eligibleSites, site.Detail)
+			}
+		case LayerIdentity:
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// Both parent keys' own reads, plus dependent["a"]'s cascade.
+	if len(eligibleSites) != 3 {
+		t.Fatalf("want three data-read-eligible sites, got %d: %+v", len(eligibleSites), eligibleSites)
+	}
+	var sawKeyA bool
+	for _, detail := range eligibleSites {
+		if strings.Contains(detail, `dependent["a"]`) {
+			sawKeyA = true
+		}
+		if strings.Contains(detail, `dependent["b"]`) {
+			t.Errorf("dependent[\"b\"]'s cascade onto the hard-failing parent key was reclassified as eligible: %s", detail)
+		}
+	}
+	if !sawKeyA {
+		t.Errorf("dependent[\"a\"]'s cascade onto a clean parent key was newly refused by the parent gate: %+v", eligibleSites)
+	}
+	if identityIDs["Null identity argument"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Null identity argument\" site (parent[\"b\"]) and one \"Unresolvable identity\" site (dependent[\"b\"]), got %+v", identityIDs)
+	}
+}
+
+// TestParseCascadeDetail pins the fixed format
+// internal/live/identity/resolve.go's parentPart raises "Unresolvable
+// identity" with, and that a summary or detail that does not match it -
+// including a future wording change identity makes that this package
+// cannot see coming - never crashes and never parses partial garbage.
+func TestParseCascadeDetail(t *testing.T) {
+	cases := []struct {
+		name       string
+		summary    string
+		detail     string
+		wantOK     bool
+		wantChild  string
+		wantParent string
+	}{
+		{
+			name:       "well formed",
+			summary:    "Unresolvable identity",
+			detail:     `aws_cloudwatch_log_stream.per_zone.log_group_name depends on the identity of aws_cloudwatch_log_group.per_zone, which could not be resolved (see the other error).`,
+			wantOK:     true,
+			wantChild:  "aws_cloudwatch_log_stream.per_zone.log_group_name",
+			wantParent: "aws_cloudwatch_log_group.per_zone",
+		},
+		{
+			name:    "wrong summary",
+			summary: "Not an identity attribute",
+			detail:  `aws_cloudwatch_log_stream.per_zone.log_group_name depends on the identity of aws_cloudwatch_log_group.per_zone, which could not be resolved (see the other error).`,
+			wantOK:  false,
+		},
+		{
+			name:    "right summary, unrecognised detail",
+			summary: "Unresolvable identity",
+			detail:  "something identity changed to say instead",
+			wantOK:  false,
+		},
+		{
+			name:    "empty",
+			summary: "Unresolvable identity",
+			detail:  "",
+			wantOK:  false,
+		},
+		{
+			// A for_each key that legitimately contains the parser's own
+			// separator text. strings.Index finds the FIRST occurrence of
+			// cascadeMiddle, which is the one inside the key's quoted
+			// string, not the real one further right - so this
+			// mis-splits. The fail-safe direction matters more than the
+			// exact wrong values: ok must still be true (parseCascadeDetail
+			// itself never panics or rejects on this shape, since the
+			// detail still contains the middle and ends with the fixed
+			// suffix), but the recovered child and parent must NOT be the
+			// real addresses, so [Analyze]'s cascade fixpoint can never
+			// match them against a real eligibleAddrs entry and this stays
+			// a hard "Unresolvable identity" refusal - safe, not silent.
+			name:       "address contains the parser's own separator text",
+			summary:    "Unresolvable identity",
+			detail:     `aws_instance.x[" depends on the identity of x"].id depends on the identity of aws_instance.y, which could not be resolved (see the other error).`,
+			wantOK:     true,
+			wantChild:  `aws_instance.x["`,
+			wantParent: `x"].id depends on the identity of aws_instance.y`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			child, parent, ok := parseCascadeDetail(tc.summary, tc.detail)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if child != tc.wantChild {
+				t.Errorf("child = %q, want %q", child, tc.wantChild)
+			}
+			if parent != tc.wantParent {
+				t.Errorf("parent = %q, want %q", parent, tc.wantParent)
+			}
+			// The fail-safe assertion this case exists for: a mis-split
+			// address must never coincide with a real
+			// addrs.AbsResourceInstance.String() shape that the fixpoint
+			// could accidentally match against eligibleAddrs. Both halves
+			// here carry a stray '"' or a run-on sentence fragment, which
+			// [addrs.ParseAbsResourceInstanceStr] refuses - proving the
+			// mismatch cannot silently resolve to a real instance.
+			if tc.name == "address contains the parser's own separator text" {
+				if _, diags := addrs.ParseAbsResourceInstanceStr(child); !diags.HasErrors() {
+					t.Errorf("mis-split child %q parsed as a real resource-instance address; the safe-direction guarantee depends on it NOT doing so", child)
+				}
+			}
+		})
+	}
+}
+
+// TestNeededByResourceAddr pins the three shapes
+// [neededByResourceAddr] must recover identically to a cascade
+// diagnostic's own parent text: root module, nested module (the
+// differently-spelled, redundant module prefix), and a for_each key.
+func TestNeededByResourceAddr(t *testing.T) {
+	cases := []struct {
+		name     string
+		neededBy string
+		want     string
+	}{
+		{
+			name:     "root",
+			neededBy: `aws_cloudwatch_log_group.per_zone.name`,
+			want:     `aws_cloudwatch_log_group.per_zone`,
+		},
+		{
+			name:     "nested module, doubled prefix",
+			neededBy: `module.child:module.child.aws_cloudwatch_log_group.per_zone.name`,
+			want:     `module.child.aws_cloudwatch_log_group.per_zone`,
+		},
+		{
+			name:     "for_each key",
+			neededBy: `aws_cloudwatch_log_group.per_zone["a"].name`,
+			want:     `aws_cloudwatch_log_group.per_zone["a"]`,
+		},
+		{
+			name:     "no attribute segment",
+			neededBy: `aws_cloudwatch_log_group`,
+			want:     "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := neededByResourceAddr(tc.neededBy); got != tc.want {
+				t.Errorf("neededByResourceAddr(%q) = %q, want %q", tc.neededBy, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAnalyzeCascadeSweepsEveryEligibleFixture is a coarse sweep over every
+// "eligible" cascade fixture: no [LayerIdentity] finding may survive
+// [Analyze] on any of them.
+//
+// Correction (#221's audit): an earlier version of this comment claimed the
+// test "cross-checks against what identity.ResolveWith actually emits
+// today" - implying an oracle independent of the rest of this file. It does
+// not. It calls analyzeFixtureDir, the exact same [Analyze] entry point
+// TestAnalyzeCascadesEligibleReadThroughDependents and its two siblings
+// above already call on these same three fixtures, and those three already
+// assert the identical fact with exact finding and site counts - this test
+// is fully redundant with them. It is not, however, a self-agreement
+// ratchet in the sense that matters (a test that checks a derivation
+// against a rule the code itself computed): Analyze calls
+// identity.ResolveWith for real, so this does exercise the true resolver
+// transitively. It simply adds no coverage the three tests above lack.
+func TestAnalyzeCascadeSweepsEveryEligibleFixture(t *testing.T) {
+	for _, dir := range []string{"cascade-eligible", "cascade-eligible-module", "cascade-eligible-foreach"} {
+		t.Run(dir, func(t *testing.T) {
+			report := analyzeFixtureDir(t, dir)
+			for _, f := range report.Findings {
+				if f.Layer == LayerIdentity {
+					t.Errorf("%s: an identity-layer finding survived the cascade fix: %s (%d sites)", dir, f.ID, len(f.Sites))
+				}
+			}
+		})
+	}
+}

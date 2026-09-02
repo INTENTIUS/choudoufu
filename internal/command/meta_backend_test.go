@@ -17,24 +17,24 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcltest"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/copy"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/copy"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 
-	backendInit "github.com/opentofu/opentofu/internal/backend/init"
-	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
-	backendInmem "github.com/opentofu/opentofu/internal/backend/remote-state/inmem"
+	backendInit "github.com/intentius/choudoufu/internal/backend/init"
+	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
+	backendInmem "github.com/intentius/choudoufu/internal/backend/remote-state/inmem"
 )
 
 // Test empty directory with no config/state creates a local state.
@@ -2145,4 +2145,126 @@ func testMetaBackend(t *testing.T) *Meta {
 	})
 
 	return &m
+}
+
+// ---------------------------------------------------------------------------
+// A live block ends the backend machinery (C5)
+// ---------------------------------------------------------------------------
+
+// liveBackendTestDir writes a working directory whose configuration has a
+// live block and whose .terraform still records a previously initialized
+// "local" backend - the shape a converted project is in, and the shape that
+// used to reach backendFromConfig's "unsetting a backend" scenario.
+func liveBackendTestDir(t *testing.T) string {
+	t.Helper()
+
+	td := t.TempDir()
+	t.Chdir(td)
+
+	const liveConfig = `terraform {
+  live {
+    estate = "my-estate"
+  }
+}
+`
+	if err := os.WriteFile("main.tf", []byte(liveConfig), 0o644); err != nil {
+		t.Fatalf("writing the live configuration: %s", err)
+	}
+
+	dataDir := workdir.DefaultDataDir
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("creating the data directory: %s", err)
+	}
+	const backendRecord = `{
+  "version": 3,
+  "serial": 1,
+  "lineage": "00000000-0000-0000-0000-000000000000",
+  "backend": {
+    "type": "local",
+    "config": {"path": "previous.tfstate"},
+    "hash": 123456789
+  }
+}`
+	record := filepath.Join(dataDir, arguments.DefaultStateFilename)
+	if err := os.WriteFile(record, []byte(backendRecord), 0o644); err != nil {
+		t.Fatalf("writing the previous backend record: %s", err)
+	}
+
+	// The state that backend held. Nothing may move it or touch it.
+	if err := os.WriteFile("previous.tfstate", []byte(liveStateFixture), 0o644); err != nil {
+		t.Fatalf("writing the previous backend's state: %s", err)
+	}
+
+	return td
+}
+
+// TestMetaBackend_liveSkipsBackend: in a converted directory a plain command
+// - a plan, an apply, anything that reaches Backend() without asking for a
+// migration - gets a working local backend and no complaint. Before the
+// guard it got "Backend initialization required", because the leftover
+// record in .terraform read as "the backend was unset", which pushed the
+// operator toward the -migrate-state that writes the state file.
+func TestMetaBackend_liveSkipsBackend(t *testing.T) {
+	td := liveBackendTestDir(t)
+
+	m := testMetaBackend(t)
+	// Not a migration: the ordinary case, whatever the test helper defaults to.
+	m.backendArgs = arguments.Backend{}
+
+	b, diags := m.Backend(t.Context(), &BackendOpts{}, encryption.StateEncryptionDisabled())
+	if diags.HasErrors() {
+		t.Fatalf("Backend() failed in a live directory: %s", diags.Err())
+	}
+	if b == nil {
+		t.Fatal("Backend() returned no backend at all")
+	}
+
+	// Nothing was migrated, nothing was written, nothing was moved.
+	if _, err := os.Stat(filepath.Join(td, arguments.DefaultStateFilename)); err == nil {
+		t.Error("a state file appeared in a live directory")
+	}
+	if got, err := os.ReadFile(filepath.Join(td, "previous.tfstate")); err != nil {
+		t.Errorf("the previous backend's state is gone: %s", err)
+	} else if string(got) != liveStateFixture {
+		t.Errorf("the previous backend's state was modified:\n%s", got)
+	}
+}
+
+// TestMetaBackend_liveRefusesMigration: asking for the migration explicitly
+// is refused with a message that names the live block, rather than silently
+// doing nothing. The flags name an operation on a stored state, and a
+// configuration that has none should say so.
+func TestMetaBackend_liveRefusesMigration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args arguments.Backend
+	}{
+		{"migrate-state", arguments.Backend{MigrateState: true}},
+		{"reconfigure", arguments.Backend{Reconfigure: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			td := liveBackendTestDir(t)
+
+			m := testMetaBackend(t)
+			m.backendArgs = tc.args
+
+			_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+			if !diags.HasErrors() {
+				t.Fatal("the migration was accepted in a live directory")
+			}
+			msg := diags.Err().Error()
+			if !strings.Contains(msg, "live block") {
+				t.Errorf("the refusal does not name the live block:\n%s", msg)
+			}
+
+			if _, err := os.Stat(filepath.Join(td, arguments.DefaultStateFilename)); err == nil {
+				t.Error("a state file appeared in a live directory")
+			}
+			if got, err := os.ReadFile(filepath.Join(td, "previous.tfstate")); err != nil {
+				t.Errorf("the previous backend's state is gone: %s", err)
+			} else if string(got) != liveStateFixture {
+				t.Errorf("the previous backend's state was modified:\n%s", got)
+			}
+		})
+	}
 }

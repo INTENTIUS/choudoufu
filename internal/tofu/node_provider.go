@@ -13,13 +13,13 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // traceAttrProviderAddress is a standardized trace span attribute name that we
@@ -52,6 +52,21 @@ type NodeApplyableProvider struct {
 	*NodeAbstractProvider
 
 	instances map[addrs.InstanceKey]providers.Configured
+
+	// configKnown records, per instance key, whether the value ConfigureProvider
+	// last built for this provider was wholly known (cty.Value.IsWhollyKnown).
+	// It is set every time ConfigureProvider computes configVal, regardless of
+	// verifyConfigIsKnown - that flag only decides whether an unknown value is
+	// fatal here (walkImport) or tolerated (an ordinary plan/apply walk); a
+	// caller elsewhere in the graph that is about to attempt a LIVE call
+	// through this provider outside the normal, schema-only PlanResourceChange
+	// path (the plan-node seam's resolver-driven identity verification -
+	// resource_identity.go, node_resource_plan_instance.go - is the one that
+	// exists today) still needs to know which case it is in, because a
+	// provider configured from an unknown value is not safely usable for a
+	// live network call even when core tolerated building it. See
+	// [NodeApplyableProvider.ConfigKnown].
+	configKnown map[addrs.InstanceKey]bool
 }
 
 var (
@@ -71,6 +86,28 @@ func (n *NodeApplyableProvider) Instance(key addrs.InstanceKey) (providers.Confi
 	}
 
 	return instance, nil
+}
+
+// ConfigKnown reports whether this provider instance's configuration was
+// wholly known the last time ConfigureProvider built it. Defaults to true
+// (permissive - unchanged behavior) when ConfigureProvider has not recorded
+// an answer for key: the mocked-provider early return in Execute never
+// computes configVal at all, and walkValidate never calls ConfigureProvider
+// in the first place, so both leave every key absent from configKnown and
+// both are cases where nothing about this method's own concern (a provider
+// built from an unknown value being unsafe for a live call) applies.
+//
+// This is [ResolvedProvider.ConfigKnown]'s source: [transform_provider.go]'s
+// ProviderTransformer populates that field via a type assertion against
+// [GraphNodeProvider] rather than widening the interface itself, so a node
+// type that never implements this method (a mock, a proxy) is unaffected
+// and every existing caller of GraphNodeProvider is unaffected too.
+func (n *NodeApplyableProvider) ConfigKnown(key addrs.InstanceKey) bool {
+	known, ok := n.configKnown[key]
+	if !ok {
+		return true
+	}
+	return known
 }
 
 // GraphNodeProvider
@@ -229,6 +266,16 @@ func (n *NodeApplyableProvider) ConfigureProvider(ctx context.Context, evalCtx E
 		tracing.SetSpanError(span, diags)
 		return diags
 	}
+
+	// Recorded unconditionally, not only when verifyConfigIsKnown - see
+	// [NodeApplyableProvider.ConfigKnown]'s own doc comment for why a caller
+	// outside this function still needs this answer even on an ordinary
+	// plan/apply walk, where an unknown value is tolerated here rather than
+	// fatal.
+	if n.configKnown == nil {
+		n.configKnown = make(map[addrs.InstanceKey]bool)
+	}
+	n.configKnown[providerKey] = configVal.IsWhollyKnown()
 
 	if verifyConfigIsKnown && !configVal.IsWhollyKnown() {
 		diags = diags.Append(&hcl.Diagnostic{

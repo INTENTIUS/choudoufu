@@ -21,23 +21,23 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-version"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/flags"
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/flags"
-	"github.com/opentofu/opentofu/internal/command/workdir"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/depsfile"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/getmodules"
-	"github.com/opentofu/opentofu/internal/getproviders"
-	"github.com/opentofu/opentofu/internal/providercache"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/depsfile"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/getmodules"
+	"github.com/intentius/choudoufu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/providercache"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 )
 
 func TestInit_empty(t *testing.T) {
@@ -3430,4 +3430,158 @@ func expectedPackageInstallPath(name, version string) string {
 	return filepath.ToSlash(filepath.Join(
 		baseDir, fmt.Sprintf("registry.opentofu.org/hashicorp/%s/%s/%s", name, version, platform),
 	))
+}
+
+// ---------------------------------------------------------------------------
+// A live directory never gets a state file out of init (C5)
+// ---------------------------------------------------------------------------
+
+// liveStateFixture is a v4 state file with one resource in it, standing in
+// for the state a project had before it converted to stateless mode. Its
+// content is what a backend migration would copy into the working directory.
+const liveStateFixture = `{
+  "version": 4,
+  "terraform_version": "1.6.0",
+  "serial": 2,
+  "lineage": "5e2f0a0c-0000-0000-0000-000000000000",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "test_instance",
+      "name": "foo",
+      "provider": "provider[\"registry.opentofu.org/hashicorp/test\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {"id": "bar"}
+        }
+      ]
+    }
+  ]
+}`
+
+// TestInit_liveRefusesBackendMigration is C5's regression. A project that had
+// a backend, and then adopted a live block, used to reach the
+// backend-changed path in "tofu init": with -migrate-state or -force-copy
+// the previous backend's state was copied into the working directory as a
+// real v4 terraform.tfstate, in a directory whose configuration says there is
+// no state. Nothing afterwards noticed, and removing the live block later
+// would have promoted that file to truth.
+//
+// init must not write one, and it must say why rather than silently doing
+// less than asked.
+func TestInit_liveRefusesBackendMigration(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("init-backend"), td)
+	t.Chdir(td)
+
+	// First init: an ordinary directory with a "local" backend at path "foo".
+	{
+		view, done := testView(t)
+		c := &InitCommand{
+			Meta: Meta{
+				WorkingDir:       workdir.NewDir("."),
+				testingOverrides: metaOverridesForProvider(testProvider()),
+				View:             view,
+			},
+		}
+		if code := c.Run(nil); code != 0 {
+			t.Fatalf("the first init failed:\n%s", done(t).Stderr())
+		}
+		done(t)
+	}
+
+	// The state that backend holds, which a migration would copy.
+	if err := os.WriteFile("foo", []byte(liveStateFixture), 0o644); err != nil {
+		t.Fatalf("writing the previous backend's state: %s", err)
+	}
+
+	// The conversion: the backend block is replaced by a live block.
+	const liveConfig = `terraform {
+  live {
+    estate = "my-estate"
+  }
+}
+`
+	if err := os.WriteFile("main.tf", []byte(liveConfig), 0o644); err != nil {
+		t.Fatalf("writing the live configuration: %s", err)
+	}
+
+	view, done := testView(t)
+	c := &InitCommand{
+		Meta: Meta{
+			WorkingDir:       workdir.NewDir("."),
+			testingOverrides: metaOverridesForProvider(testProvider()),
+			View:             view,
+		},
+	}
+	code := c.Run([]string{"-force-copy"})
+	output := done(t)
+
+	// The heart of it: no state file, whatever the exit code was.
+	for _, name := range []string{
+		"terraform.tfstate",
+		"terraform.tfstate.backup",
+		filepath.Join("terraform.tfstate.d", "terraform.tfstate"),
+	} {
+		if _, err := os.Stat(name); err == nil {
+			body, _ := os.ReadFile(name)
+			t.Errorf("init wrote %s in a live directory:\n%s", name, body)
+		}
+	}
+
+	// The previous backend's state is left exactly where it was: init
+	// refusing to migrate must not be init destroying the thing it would
+	// have migrated.
+	if got, err := os.ReadFile("foo"); err != nil {
+		t.Errorf("the previous backend's state is gone: %s", err)
+	} else if string(got) != liveStateFixture {
+		t.Errorf("the previous backend's state was modified:\n%s", got)
+	}
+
+	// And it says so, rather than quietly doing something else than asked.
+	combined := output.Stdout() + output.Stderr()
+	if !strings.Contains(combined, "live") {
+		t.Errorf("init said nothing about the live block (exit %d):\n%s", code, combined)
+	}
+}
+
+// TestInit_liveWritesNoState is the plain case: a first init in a live
+// directory, no previous backend, no migration flags. It must leave no state
+// artifact behind either - the same claim the floci lifecycle test makes
+// against a real binary, made here where it runs on every "go test".
+func TestInit_liveWritesNoState(t *testing.T) {
+	td := t.TempDir()
+	t.Chdir(td)
+
+	const liveConfig = `terraform {
+  live {
+    estate = "my-estate"
+  }
+}
+`
+	if err := os.WriteFile("main.tf", []byte(liveConfig), 0o644); err != nil {
+		t.Fatalf("writing the live configuration: %s", err)
+	}
+
+	view, done := testView(t)
+	c := &InitCommand{
+		Meta: Meta{
+			WorkingDir:       workdir.NewDir("."),
+			testingOverrides: metaOverridesForProvider(testProvider()),
+			View:             view,
+		},
+	}
+	code := c.Run(nil)
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("init failed in a live directory:\n%s", output.Stderr())
+	}
+
+	for _, name := range []string{"terraform.tfstate", "terraform.tfstate.backup", ".terraform.lock.info"} {
+		if _, err := os.Stat(name); err == nil {
+			t.Errorf("init left %s behind in a live directory", name)
+		}
+	}
 }

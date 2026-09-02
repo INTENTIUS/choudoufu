@@ -15,19 +15,20 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/plans/objchange"
+	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/didyoumean"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/lang"
-	"github.com/opentofu/opentofu/internal/lang/marks"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/didyoumean"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Evaluator provides the necessary contextual data for evaluating expressions
@@ -1043,6 +1044,34 @@ func (d *evaluationStateData) GetTerraformAttr(_ context.Context, addr addrs.Ter
 	case "workspace":
 		workspaceName := d.Evaluator.Meta.Env
 		return cty.StringVal(workspaceName), diags
+
+	case markers.ModulePrefixAttr:
+		// This fork's one addition to the "terraform"/"tofu" object, and the
+		// only phase where it has a real answer: d.ModulePath is the module
+		// INSTANCE whose expressions are being evaluated, keys and all, which
+		// is precisely the segment a resource declared inside a keyed module
+		// call cannot name from its own configuration text. See
+		// [markers.ModulePrefixAttr] for what reads it and why.
+		//
+		// The root module refuses rather than answering "": an empty prefix
+		// would make internal/live/stamp's template render
+		// ".aws_x.y" - a silently wrong marker, which is the outcome
+		// HANDOFF.md's safety rule exists to prevent. Nothing this fork
+		// writes reaches here from the root (stamp uses the symbol only for a
+		// resource under a keyed module call), and lint refuses a
+		// configuration that names it by hand anywhere, so this branch is a
+		// backstop rather than a path a working run takes.
+		prefix, ok := markers.ModulePrefix(d.ModulePath)
+		if !ok {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid %q attribute", addr.Alias),
+				Detail:   fmt.Sprintf("%s.%s is the ownership marker prefix of the module instance being evaluated, and the root module has none. It is written by this fork into a resource's marker tags and is not an attribute to reference by hand.", addr.Alias, addr.Name),
+				Subject:  rng.ToHCL().Ptr(),
+			})
+			return cty.DynamicVal, diags
+		}
+		return cty.StringVal(prefix), diags
 
 	case "env":
 		// Prior to Terraform 0.12 there was an attribute "env", which was

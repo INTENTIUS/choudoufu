@@ -18,8 +18,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/spf13/afero"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/modsdir"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/modsdir"
 )
 
 // LoadConfigWithSnapshot is a variant of LoadConfig that also simultaneously
@@ -201,6 +201,17 @@ func (l *loader) addModuleToSnapshot(snap *Snapshot, key string, dir string, sou
 			continue
 		}
 		snapMod.Files[filepath.Clean(filename)] = src.Bytes
+	}
+
+	// The live sidecar file (GitHub issue #72) is not a .tf file, so
+	// ConfigDirFiles does not list it. When the module was loaded through
+	// this parser its sidecar is in the sources cache; carrying it into the
+	// snapshot means a configuration reloaded from a plan file sees the same
+	// live configuration - and hits the same backend-versus-live wall - as
+	// the directory it was snapshotted from.
+	sidecarPath := filepath.Join(dir, configs.LiveSidecarFilename)
+	if src, exists := sources[sidecarPath]; exists {
+		snapMod.Files[configs.LiveSidecarFilename] = src.Bytes
 	}
 
 	snap.Modules[key] = snapMod

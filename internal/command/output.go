@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // OutputCommand is a Command implementation that reads an output
@@ -114,7 +114,7 @@ func (c *OutputCommand) Outputs(ctx context.Context, statePath string, enc encry
 
 func (c *OutputCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] output [options] [NAME]
+Usage: choudoufu [global options] output [options] [NAME]
 
   Reads an output variable from a OpenTofu state file and prints
   the value. With no additional arguments, output will display all

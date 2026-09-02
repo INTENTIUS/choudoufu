@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	tfe "github.com/hashicorp/go-tfe"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 // A brief discourse on the theory of testing for this feature. Doing
@@ -41,7 +41,7 @@ func TestCloud_showMissingRun(t *testing.T) {
 
 	absentRunID := "run-WwwwXxxxYyyyZzzz"
 	_, err := b.ShowPlanForRun(context.Background(), absentRunID, tfeHost, true)
-	if !strings.Contains(err.Error(), "tofu login") {
+	if !strings.Contains(err.Error(), "choudoufu login") {
 		t.Fatalf("expected error message to suggest checking your login status, instead got: %s", err)
 	}
 }

@@ -13,17 +13,17 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/intentius/choudoufu/internal/configs/configload"
+	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/configs/configload"
-	"github.com/opentofu/opentofu/internal/tracing"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // ImportCommand is a cli.Command implementation that imports resources
@@ -69,6 +69,18 @@ func (c *ImportCommand) Run(rawArgs []string) int {
 	// operation, but there is no clear path to pass this value down, so we
 	// continue to mutate the Meta object state for now.
 	c.Meta.input = args.ViewOptions.InputEnabled
+
+	// Import's whole product is a new entry in a state file, so a stateless
+	// configuration is refused here, before a backend is prepared and before
+	// anything can reach a state manager. Stateless mode has its own way to
+	// take over an existing resource, and it is named in the diagnostic.
+	if guardDiags := c.statelessCommandGuard(ctx, "import"); len(guardDiags) > 0 {
+		diags = diags.Append(guardDiags)
+		if guardDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
 
 	// Parse the provided resource address.
 	traversalSrc := []byte(args.ResourceAddress)
@@ -329,7 +341,7 @@ func (c *ImportCommand) Run(rawArgs []string) int {
 
 func (c *ImportCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] import [options] ADDR ID
+Usage: choudoufu [global options] import [options] ADDR ID
 
   Import existing infrastructure into your OpenTofu state.
 

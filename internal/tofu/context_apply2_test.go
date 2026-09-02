@@ -24,19 +24,19 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/checks"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/lang/marks"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/version"
 )
 
 // Test that the PreApply hook is called with the correct deposed key
@@ -6283,7 +6283,7 @@ output "regular_optional" {
 			},
 			simulatePlanRoundtrip: true,
 			applyOpts:             nil,
-			expectedApplyErrors:   []string{"No value for required variable - Variable \"ephemeral_required\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`."},
+			expectedApplyErrors:   []string{"No value for required variable - Variable \"ephemeral_required\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`."},
 		},
 		"mutate plan to be similar with the one loaded from file and apply with opts containing the ephemeral_required": {
 			planSetVariables: map[string]*InputValue{
@@ -6577,7 +6577,7 @@ func TestMergePlanAndApplyVariables(t *testing.T) {
 			[]tfdiags.Description{
 				{
 					Summary: "No value for required variable",
-					Detail:  "Variable \"var1\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`.",
+					Detail:  "Variable \"var1\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`.",
 				},
 			},
 		},

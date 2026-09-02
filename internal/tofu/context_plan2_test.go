@@ -23,18 +23,18 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/checks"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/shared"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/shared"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/lang/marks"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 
 	regaddr "github.com/opentofu/registry-address/v2"
 )
@@ -2106,7 +2106,7 @@ func TestContext2Plan_movedResourceCollision(t *testing.T) {
 			`OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:
   - test_object.a[0] could not move to test_object.a
 
-OpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the "tofu state" subcommands and then create a new plan.`,
+OpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the "choudoufu state" subcommands and then create a new plan.`,
 		),
 	}.ForRPC()
 	if diff := cmp.Diff(wantDiags, gotDiags); diff != "" {
@@ -2221,7 +2221,7 @@ func TestContext2Plan_movedResourceCollisionDestroy(t *testing.T) {
 			`OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:
   - test_object.a[0] could not move to test_object.a
 
-OpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the "tofu state" subcommands and then create a new plan.`,
+OpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the "choudoufu state" subcommands and then create a new plan.`,
 		),
 	}.ForRPC()
 	if diff := cmp.Diff(wantDiags, gotDiags); diff != "" {
@@ -9505,7 +9505,7 @@ variable "ephemeral_var" {
 // This is to ensure that the panic encountered during closing ephemeral resources does not occur again.
 // panic: send on closed channel
 //
-//	github.com/opentofu/opentofu/internal/shared.OpenEphemeralResourceInstance.func2()
+//	github.com/intentius/choudoufu/internal/shared.OpenEphemeralResourceInstance.func2()
 //
 // Even with the current test setup, the error can be caught only intermittently, so if you want to
 // check it, you have to run it several times.

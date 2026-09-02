@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/command/workdir"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/states"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/states"
 )
 
 func TestStateReplaceProvider(t *testing.T) {
@@ -297,7 +297,7 @@ func TestStateReplaceProvider(t *testing.T) {
 func TestStateReplaceProvider_docs(t *testing.T) {
 	c := &StateReplaceProviderCommand{}
 
-	if got, want := c.Help(), "Usage: tofu [global options] state replace-provider"; !strings.Contains(got, want) {
+	if got, want := c.Help(), "Usage: choudoufu [global options] state replace-provider"; !strings.Contains(got, want) {
 		t.Fatalf("unexpected help text\nwant: %s\nfull output:\n%s", want, got)
 	}
 

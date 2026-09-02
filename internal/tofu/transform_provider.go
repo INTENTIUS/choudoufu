@@ -12,11 +12,11 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/dag"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/dag"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func transformProviders(concrete ConcreteProviderNodeFunc, config *configs.Config, walkOp walkOperation) GraphTransformer {
@@ -95,10 +95,46 @@ type ResolvedProvider struct {
 	// or returns nil and an error if the provider isn't initialized.
 	Instance func(addrs.InstanceKey) (providers.Configured, error)
 
+	// ConfigKnown reports whether the provider instance's own configuration
+	// was wholly known when it was built, or nil when the underlying
+	// [GraphNodeProvider] does not track that (a mock, a proxy): the same
+	// permissive default [NodeApplyableProvider.ConfigKnown] itself returns
+	// for a key it has no answer for, so a nil check at every call site is
+	// equivalent to "assume known" either way. See resource_identity.go and
+	// node_resource_plan_instance.go's plan-node-seam resolver call, the one
+	// caller today that needs this before attempting a LIVE call through a
+	// provider outside the ordinary schema-only PlanResourceChange path.
+	ConfigKnown func(addrs.InstanceKey) bool
+
 	// Test overrides
 	IsMocked          bool
 	MockResources     []*configs.MockResource
 	OverrideResources []*configs.OverrideResource
+}
+
+// configKnownProvider is an OPTIONAL capability a [GraphNodeProvider] may
+// implement, rather than an addition to that interface itself: widening
+// GraphNodeProvider would require every implementer (a mock, a proxy) to
+// answer a question only [NodeApplyableProvider] has - see that type's own
+// [NodeApplyableProvider.ConfigKnown] for what it tracks and why.
+type configKnownProvider interface {
+	ConfigKnown(addrs.InstanceKey) bool
+}
+
+// configKnownFuncFor returns target's ConfigKnown method as a
+// [ResolvedProvider.ConfigKnown] closure, or nil when target does not
+// implement [configKnownProvider] - a graphNodeProxyProvider's own target
+// (already unwrapped by both call sites before this runs) always does,
+// because every concrete provider node is a *NodeApplyableProvider; nil
+// here just means "this GraphNodeProvider predates the concept," and every
+// caller of [ResolvedProvider.ConfigKnown] treats a nil field as "assume
+// known," identical to what [NodeApplyableProvider.ConfigKnown] itself
+// answers for a key it has no record of.
+func configKnownFuncFor(target GraphNodeProvider) func(addrs.InstanceKey) bool {
+	if ckp, ok := target.(configKnownProvider); ok {
+		return ckp.ConfigKnown
+	}
+	return nil
 }
 
 // GraphNodeProviderConsumer is an interface that nodes that require
@@ -195,6 +231,7 @@ func (t *ProviderTransformer) Transform(_ context.Context, g *Graph) error {
 			resolved := ResolvedProvider{
 				ProviderConfig: target.ProviderAddr(),
 				Instance:       target.Instance,
+				ConfigKnown:    configKnownFuncFor(target),
 				// Pass through key data
 				KeyExpression: req.KeyExpression,
 				KeyModule:     req.KeyModule,
@@ -271,6 +308,7 @@ func (t *ProviderTransformer) Transform(_ context.Context, g *Graph) error {
 			}
 			resolved.ProviderConfig = target.ProviderAddr()
 			resolved.Instance = target.Instance
+			resolved.ConfigKnown = configKnownFuncFor(target)
 
 			// Include test mocking and override extensions
 			resolved.IsMocked, resolved.MockResources, resolved.OverrideResources = target.MocksAndOverrides()

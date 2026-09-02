@@ -11,22 +11,25 @@ import (
 	"log"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/genconfig"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/genconfig"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/noimporter"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // NodePlannableResourceInstance represents a _single_ resource
@@ -275,7 +278,7 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Import block target does not exist",
-				Detail:   "The target for the given import block does not exist. If you wish to automatically generate config for this resource, use the -generate-config-out option within tofu plan. Otherwise, make sure the target resource exists within your configuration. For example:\n\n  tofu plan -generate-config-out=generated.tf",
+				Detail:   "The target for the given import block does not exist. If you wish to automatically generate config for this resource, use the -generate-config-out option within choudoufu plan. Otherwise, make sure the target resource exists within your configuration. For example:\n\n  choudoufu plan -generate-config-out=generated.tf",
 				Subject:  n.importTarget.Config.DeclRange.Ptr(),
 			})
 		} else {
@@ -287,10 +290,96 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 		return diags
 	}
 
+	// The plan-node seam (the foundation-order ruling (#388), ruling
+	// 3): when nothing already targets this instance for import, and it
+	// has no prior state, ask a configured resolver whether it knows this
+	// instance's identity. resolver is nil by default, which makes this
+	// whole block inert and leaves importing/instanceRefreshState exactly
+	// as the pre-existing code above computed them.
+	var resolvedImport *providers.ImportTarget
+	if !importing && n.Config != nil {
+		if resolver := evalCtx.ResourceIdentityResolver(); resolver != nil {
+			// A RESOLVER-matched target, unlike an import block, is answered
+			// by n.importState making a REAL live call through n.provider -
+			// the same provider n.getProvider fetched above, ALREADY
+			// configured (or not) by the time this node runs. An ordinary
+			// plan/apply walk tolerates that provider being built from an
+			// unknown value (verifyConfigIsKnown is only true for
+			// walkImport, in NodeApplyableProvider.Execute), because
+			// vanilla core never attempts a LIVE call through it for a
+			// resource with no prior state and no import block - only this
+			// resolver hook does. corpus-eks-basic's own greenfield stage
+			// is what found this: provider.kubernetes's config depends on
+			// data.aws_eks_cluster.cluster, correctly deferred to apply
+			// (planDataSource's own "configuration not fully known yet, so
+			// deferring to apply phase"), which leaves provider.kubernetes
+			// itself built from an unknown value - and without this check,
+			// n.importState went ahead and read against it anyway,
+			// producing a live network call to whatever an unknown host
+			// decodes to (localhost, for the kubernetes SDK) instead of the
+			// plain "propose a create" a resolver that found nothing at all
+			// already falls through to below. Skipping the resolver here
+			// costs nothing a later run cannot recover: the object is
+			// re-verified, correctly, the moment its provider's real
+			// dependency becomes known (a later plan/apply, once the
+			// managed resource it needs exists).
+			configKnown := n.ResolvedProvider.ConfigKnown == nil || n.ResolvedProvider.ConfigKnown(n.ResolvedProviderKey)
+			if evalCtx.State().ResourceInstance(addr) == nil && configKnown {
+				configVal, resourceSchema, evalDiags := n.evaluateConfigForIdentity(ctx, evalCtx, providerSchema)
+				diags = diags.Append(evalDiags)
+				if diags.HasErrors() {
+					return diags
+				}
+				if configVal != cty.NilVal {
+					target, found, resolveDiags := resolver.ResolveResourceIdentity(ctx, addr, configVal, resourceSchema)
+					diags = diags.Append(resolveDiags)
+					if diags.HasErrors() {
+						return diags
+					}
+					if found {
+						resolvedImport = &target
+					}
+				}
+			}
+		}
+	}
+
 	// If the resource is to be imported, we now ask the provider for an Import
 	// and a Refresh, and save the resulting state to instanceRefreshState.
 	if importing {
 		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, providers.ImportTarget{ID: n.importTarget.ID, Identity: n.importTarget.Identity}, provider, providerSchema)
+	} else if resolvedImport != nil {
+		// Edge 2 of the plan-node seam (the foundation-order ruling (#388),
+		// ruling 3; issue #388): unlike an import block, which is the
+		// operator's own promise that the object exists, a RESOLVER-supplied
+		// target is this run's best guess at what a not-yet-applied
+		// instance's identity would be. n.importState's hard-fail-on-absence
+		// behavior is correct for the promise; it is wrong for the guess.
+		// When the provider reports absence, that just means there is
+		// nothing to import yet, so this falls through to the ordinary
+		// no-prior-state path - the same one a resolver that found nothing
+		// at all would take - instead of aborting the plan. A genuine
+		// provider error (credentials, a malformed request, an actual
+		// failure to answer) is not absence-shaped and stays fatal.
+		var importDiags tfdiags.Diagnostics
+		instanceRefreshState, importDiags = n.importState(ctx, evalCtx, addr, *resolvedImport, provider, providerSchema)
+		if importDiags.HasErrors() && resolverImportAbsentDiagnostics(importDiags) {
+			// Absent: this is no longer an import. Clear resolvedImport too
+			// (not just instanceRefreshState), since the later "if importing
+			// / else if resolvedImport != nil" block below - which sets
+			// change.Importing on the plan - reads resolvedImport again and
+			// would otherwise still record an import for an object that was
+			// just found not to exist.
+			resolvedImport = nil
+			var readDiags tfdiags.Diagnostics
+			instanceRefreshState, readDiags = n.readResourceInstanceState(ctx, evalCtx, addr)
+			diags = diags.Append(readDiags)
+			if diags.HasErrors() {
+				return diags
+			}
+		} else {
+			diags = importDiags
+		}
 	} else {
 		var readDiags tfdiags.Diagnostics
 		instanceRefreshState, readDiags = n.readResourceInstanceState(ctx, evalCtx, addr)
@@ -422,6 +511,11 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 				ID:       n.importTarget.ID,
 				Identity: n.importTarget.Identity,
 			}
+		} else if resolvedImport != nil {
+			change.Importing = &plans.Importing{
+				ID:       resolvedImport.ID,
+				Identity: resolvedImport.Identity,
+			}
 		}
 
 		// FIXME: here we update the change to reflect the reason for
@@ -535,6 +629,47 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 	return diags
 }
 
+// evaluateConfigForIdentity evaluates this instance's configuration for the
+// plan-node seam's ResourceIdentityResolver (see resource_identity.go), at a
+// point in managedResourceExecute that runs before n.plan.
+//
+// It repeats, ahead of time, exactly the evaluation
+// NodeAbstractResourceInstance.plan performs a few lines later into a local
+// it calls origConfigVal (node_resource_abstract_instance.go): call
+// evaluateForEachExpression over n.Config.ForEach to build keyData, then
+// evalCtx.EvaluateBlock over n.Config.Config and the resource's schema
+// block. managedResourceExecute has neither keyData nor origConfigVal in
+// scope yet at the point it needs to ask the resolver, so this duplicates
+// that call rather than restructuring plan() to return early; both calls
+// are the same deterministic HCL evaluation over the same inputs, so
+// n.plan's own evaluation and result are unaffected by this one running
+// first.
+//
+// Returns cty.NilVal (no error) if this resource type has no schema, which
+// callers must treat as "nothing to resolve against" rather than an error;
+// that case is already unreachable in practice because managedResourceExecute
+// has a provider and schema by the time it calls this, but a resolver must
+// never be handed a NilVal by mistake.
+func (n *NodePlannableResourceInstance) evaluateConfigForIdentity(ctx context.Context, evalCtx EvalContext, providerSchema providers.ProviderSchema) (cty.Value, providers.Schema, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	resourceSchema, _ := providerSchema.SchemaForResourceAddr(n.Addr.Resource.Resource)
+	if resourceSchema == nil {
+		return cty.NilVal, providers.Schema{}, diags
+	}
+
+	forEach, _ := evaluateForEachExpression(ctx, n.Config.ForEach, evalCtx, n.Addr)
+	keyData := EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
+
+	configVal, _, configDiags := evalCtx.EvaluateBlock(ctx, n.Config.Config, resourceSchema.Block, nil, keyData)
+	diags = diags.Append(configDiags.InConfigBody(n.Config.Config, n.Addr.String()))
+	if configDiags.HasErrors() {
+		return cty.NilVal, providers.Schema{}, diags
+	}
+
+	return configVal, *resourceSchema, diags
+}
+
 // replaceTriggered checks if this instance needs to be replace due to a change
 // in a replace_triggered_by reference. If replacement is required, the
 // instance address is added to forceReplace
@@ -568,6 +703,124 @@ func (n *NodePlannableResourceInstance) replaceTriggered(ctx context.Context, ev
 	return diags
 }
 
+// resolverImportAbsentSignals are substrings of a provider's own
+// ImportResourceState diagnostic that mean "no such object" rather than
+// "the provider failed to answer" - the same pair
+// internal/live/projection/build.go's notFoundDiagnostics checks for the
+// pre-walk projection path (aws_lambda_permission, issue #297, is the
+// confirmed instance: GetPolicy on the *function* returns
+// ResourceNotFoundException when the function itself does not exist
+// either). Duplicated here rather than imported: this package must never
+// import the fork's live-mode package (see ResourceIdentityResolver's doc
+// comment in resource_identity.go - the dependency runs the other way),
+// so the two lists are kept in sync by hand.
+var resolverImportAbsentSignals = []string{
+	"couldn't find resource",
+	"ResourceNotFoundException",
+}
+
+// resolverImportSyntheticAbsentSummaries are importState's OWN
+// diagnostics - not the provider's - that already mean "there is nothing
+// here": an empty ImportedResources list, an imported object with a null
+// value, or a post-import refresh that comes back null (the object
+// existed a moment ago as far as ImportResourceState was concerned, but is
+// gone by the time refresh asks again). Matched on Summary, since
+// importState constructs these itself with fixed text rather than
+// forwarding a provider's free-form diagnostic.
+var resolverImportSyntheticAbsentSummaries = map[string]bool{
+	"Import returned no resources":             true,
+	"Import returned null resource":            true,
+	"Cannot import non-existent remote object": true,
+}
+
+// resolverImportAbsentDiagnostics reports whether every error-severity
+// diagnostic in diags describes an ordinary absence - either one of
+// importState's own synthetic "there is nothing here" diagnostics or a
+// provider's not-found-shaped error - rather than a genuine failure to
+// answer. It is edge 2 of the plan-node seam
+// (the foundation-order ruling (#388), ruling 3; issue #388): a
+// resolver-supplied target is a guess, not a promise the way an import
+// block's is, so an absent object here means the guess was wrong about
+// there being anything to import, not a reason to abort the plan.
+//
+// A single diagnostic that does not match either shape - a credentials
+// problem, a malformed request, a genuine provider failure - makes this
+// report false, and the caller's existing hard stop applies untouched.
+// diags with no errors at all (only warnings, or empty) also reports
+// false, since the caller only consults this after confirming
+// HasErrors().
+func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
+	sawError := false
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		sawError = true
+		desc := d.Description()
+		if resolverImportSyntheticAbsentSummaries[desc.Summary] {
+			continue
+		}
+		matched := false
+		for _, signal := range resolverImportAbsentSignals {
+			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return sawError
+}
+
+// resolvedIdentityValues extracts a resolved providers.ImportTarget's own
+// identity object as one string per attribute, keyed by the provider's own
+// name for it - the shape [noimporter.SynthesizeStub] needs to place a
+// no-classic-Importer stub, and the same shape
+// internal/live/projection/build.go's own identityValues parameter to
+// importAndRead carries for the pre-walk projection path.
+//
+// Only IsIdentityBased reports anything: an ID-based-only target is an
+// opaque string with no attribute breakdown to recover one from, and
+// inventing an attribute name for it (an "id" attribute, say) would be a
+// guess this run has no basis for - HANDOFF's safety rule names exactly
+// this shape of fabrication as the one thing worse than a refusal.
+// [providers.ImportTarget.IsIdentityBased] is only ever true for an
+// object this run itself resolved - an import block's own literal
+// identity, or a resolver's answer built from a real record, marker or
+// evaluated configuration value (see internal/live/projection/
+// noderesolver.go's ResolveResourceIdentity) - never a default, so every
+// value this returns is one the resolution path already stands behind.
+//
+// A null, unknown or unconvertible attribute is silently skipped rather
+// than forced to a string: [noimporter.SynthesizeStub] already leaves an
+// unnamed attribute null on the stub, the same place ImportResourceState's
+// own stub would have left it, so skipping here is not a loss of
+// information, only a refusal to fabricate one.
+func resolvedIdentityValues(target providers.ImportTarget) map[string]string {
+	if !target.IsIdentityBased() {
+		return nil
+	}
+	ty := target.Identity.Type()
+	if !ty.IsObjectType() {
+		return nil
+	}
+	values := make(map[string]string, len(ty.AttributeTypes()))
+	for name := range ty.AttributeTypes() {
+		v := target.Identity.GetAttr(name)
+		if v.IsNull() || !v.IsKnown() {
+			continue
+		}
+		s, err := convert.Convert(v, cty.String)
+		if err != nil {
+			continue
+		}
+		values[name] = s.AsString()
+	}
+	return values
+}
+
 func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance, importTarget providers.ImportTarget, provider providers.Interface, providerSchema providers.ProviderSchema) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	absAddr := addr.Resource.Absolute(evalCtx.Path())
@@ -583,6 +836,51 @@ func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx
 		TypeName: addr.Resource.Resource.Type,
 		Target:   importTarget,
 	})
+	if resp.Diagnostics.HasErrors() {
+		if ok, detail := noimporter.Diagnostics(resp.Diagnostics); ok {
+			// Not the provider erroring - the opposite. It is correctly
+			// answering that ImportResourceState is not implemented for
+			// this type at all, a fact fixed in the provider's own Go code
+			// that no identity or retry changes - see noimporter.Diagnostics'
+			// own doc comment. internal/live/projection/build.go's
+			// importAndRead reaches the identical fact through the
+			// pre-walk projection path and, rather than stop there,
+			// builds the stub ImportResourceState itself would have
+			// returned from an identity this run already resolved. This
+			// mirrors that: a target with a resolved identity OBJECT
+			// (providers.ImportTarget.Identity, set only when this run
+			// resolved a real value, never a default) has real,
+			// attribute-named values to place; noimporter.SynthesizeStub
+			// places what it can and leaves the rest null, exactly as
+			// ImportResourceState's own stub would. A target carrying
+			// only an opaque ID string has no such breakdown - nothing
+			// here invents one - so the refusal below stands for it.
+			var stubbed bool
+			if resourceSchema, _ := providerSchema.SchemaForResourceAddr(addr.Resource.Resource); resourceSchema != nil {
+				if stub, stubOK := noimporter.SynthesizeStub(*resourceSchema, resolvedIdentityValues(importTarget)); stubOK {
+					log.Printf("[TRACE] importState: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", addr.Resource.Resource.Type)
+					resp = providers.ImportResourceStateResponse{
+						ImportedResources: []providers.ImportedResource{{
+							TypeName: addr.Resource.Resource.Type,
+							State:    stub,
+						}},
+					}
+					stubbed = true
+				}
+			}
+			if !stubbed {
+				diags = diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"Resource type has no classic Importer",
+					fmt.Sprintf(
+						"The %s with %s cannot be imported: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes.",
+						addr, importTarget.String(), detail,
+					),
+				))
+				return nil, diags
+			}
+		}
+	}
 	diags = diags.Append(resp.Diagnostics)
 	if diags.HasErrors() {
 		return nil, diags
@@ -669,7 +967,7 @@ func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx
 					"the provider detected that no object exists with the given id or identity. "+
 					"Only pre-existing objects can be imported; check that the id or identity "+
 					"is correct and that it is associated with the provider's "+
-					"configured region or endpoint, or use \"tofu apply\" to "+
+					"configured region or endpoint, or use \"choudoufu apply\" to "+
 					"create a new remote object for this resource.",
 				n.Addr,
 			),

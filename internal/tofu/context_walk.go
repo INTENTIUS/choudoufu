@@ -10,13 +10,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/checks"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/refactoring"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/refactoring"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // graphWalkOpts captures some transient values we use (and possibly mutate)
@@ -160,5 +160,8 @@ func (c *Context) graphWalker(operation walkOperation, opts *graphWalkOpts) *Con
 		PlanTimestamp:           opts.PlanTimeTimestamp,
 		Encryption:              c.encryption,
 		ProviderFunctionTracker: opts.ProviderFunctionTracker,
+
+		ResourceIdentityResolver: c.resourceIdentityResolver,
+		ConfigValueAdjuster:      c.configValueAdjuster,
 	}
 }

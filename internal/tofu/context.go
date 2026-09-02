@@ -14,13 +14,13 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/lang/eval"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // InputMode defines what sort of input will be asked for when Input
@@ -47,6 +47,14 @@ type ContextOpts struct {
 	Modules     eval.ExternalModules
 
 	UIInput UIInput
+
+	// ResourceIdentityResolver and ConfigValueAdjuster are the plan-node
+	// seam (the foundation-order ruling (#388), ruling 3): nil by
+	// default, in which case NodePlannableResourceInstance.managedResourceExecute
+	// and NodeAbstractResourceInstance.plan behave exactly as they do
+	// without this field existing. See resource_identity.go.
+	ResourceIdentityResolver ResourceIdentityResolver
+	ConfigValueAdjuster      ConfigValueAdjuster
 }
 
 // ContextMeta is metadata about the running context. This is information
@@ -94,6 +102,9 @@ type Context struct {
 	runContextCancel    context.CancelFunc
 
 	encryption encryption.Encryption
+
+	resourceIdentityResolver ResourceIdentityResolver
+	configValueAdjuster      ConfigValueAdjuster
 }
 
 // (additional methods on Context can be found in context_*.go files.)
@@ -152,6 +163,9 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 		sh:                  sh,
 
 		encryption: opts.Encryption,
+
+		resourceIdentityResolver: opts.ResourceIdentityResolver,
+		configValueAdjuster:      opts.ConfigValueAdjuster,
 	}, diags
 }
 
@@ -342,7 +356,7 @@ func (c *Context) checkConfigDependencies(config *configs.Config) tfdiags.Diagno
 					tfdiags.Error,
 					"Missing required provider",
 					fmt.Sprintf(
-						"This configuration requires provider %s, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
+						"This configuration requires provider %s, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
 						providerAddr,
 					),
 				))

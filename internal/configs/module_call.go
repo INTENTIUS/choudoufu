@@ -14,8 +14,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/getmodules"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/getmodules"
 )
 
 // ModuleCall represents a "module" block in a module or file.
@@ -284,9 +284,26 @@ func (mc *ModuleCall) decodeStaticVersion(ctx context.Context, eval *StaticEvalu
 }
 
 func (mc *ModuleCall) decodeStaticVariables(ctx context.Context, eval *StaticEvaluator) {
+	mc.Variables = mc.VariablesUsing(ctx, eval)
+}
+
+// VariablesUsing returns the [StaticModuleVariables] closure that evaluates
+// this module call's own variable-assignment expressions - the `X = <expr>`
+// arguments inside `module "name" { ... }` - through eval, the SAME
+// construction [ModuleCall.decodeStaticVariables] uses to freeze
+// mc.Variables once, when the module tree is first built.
+//
+// Exposed so a caller resolving a reference that reaches back into this
+// call's own module can rebuild the closure against an evaluator that
+// actually carries that module's own per-request coverage - a data lookup,
+// most concretely (issue #212) - rather than the frozen evaluator
+// decodeStaticVariables captured at load time, before any caller had a
+// chance to attach one. See [StaticEvaluator.WithVariables], the seam that
+// installs the result this method returns.
+func (mc *ModuleCall) VariablesUsing(ctx context.Context, eval *StaticEvaluator) StaticModuleVariables {
 	attr, _ := mc.Config.JustAttributes()
 
-	mc.Variables = func(variable *Variable) (cty.Value, hcl.Diagnostics) {
+	return func(variable *Variable) (cty.Value, hcl.Diagnostics) {
 		v, ok := attr[variable.Name]
 		if !ok {
 			if variable.Required() {
@@ -304,7 +321,24 @@ func (mc *ModuleCall) decodeStaticVariables(ctx context.Context, eval *StaticEva
 			Subject:   fmt.Sprintf("var.%s", variable.Name),
 			DeclRange: v.Range,
 		}
-		return eval.Evaluate(ctx, v.Expr, ident)
+		// EvaluateStructural, not Evaluate: v.Expr is this module-call
+		// argument's own literal, most often a list or object constructor
+		// (terraform-aws-modules' own "ingress_with_cidr_blocks = [{...}]"
+		// idiom is one of many). A single genuinely dynamic field nested
+		// inside it - a sibling attribute reading a DIFFERENT module's
+		// output, say - must not make every OTHER, statically-known part of
+		// this SAME value (another field, or simply the collection's own
+		// length) unrecoverable too. See EvaluateStructural's own doc for
+		// the full argument and GitHub issue #304 for the shape that
+		// surfaced it: Evaluate could not even learn how many elements a
+		// list had because one of them, elsewhere, read a live VPC's own
+		// CIDR block. Every caller that already gates on diags.HasErrors()
+		// before trusting the value - the convention this whole package
+		// uses - is unaffected: EvaluateStructural returns the identical
+		// (value, diagnostics) pair Evaluate would whenever any diagnostic
+		// is not classifiable as a refused reference, or the value it
+		// renders anyway is not wholly known.
+		return eval.EvaluateStructural(ctx, v.Expr, ident)
 	}
 }
 

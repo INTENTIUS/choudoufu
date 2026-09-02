@@ -12,21 +12,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/cloud"
-	"github.com/opentofu/opentofu/internal/cloud/cloudplan"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plans/planfile"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/cloud"
+	"github.com/intentius/choudoufu/internal/cloud/cloudplan"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans/planfile"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // Many of the methods we get data from can emit special error types if they're
@@ -122,7 +122,7 @@ func (c *ShowCommand) Run(rawArgs []string) int {
 
 func (c *ShowCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] show [target-selection-option] [other-options]
+Usage: choudoufu [global options] show [target-selection-option] [other-options]
 
   Reads and outputs a OpenTofu state or plan file in a human-readable
   form. If no path is specified, the current state will be shown.

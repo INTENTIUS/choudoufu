@@ -1,0 +1,616 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package harness
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
+)
+
+// Burndown is every quantity the project is driving somewhere, ordered by
+// ID. The entries are authored; every number in them except Bound comes
+// from the entry's own Measure at run time, and Bound is the one thing a
+// human is supposed to move deliberately.
+//
+// Migrated here on 2026-08-16 from three unrelated test files, which held
+// six hand-written consts between them:
+//
+//	live/admission_coverage_test.go        unreachedRatchetMax = 621
+//	live/admission_coverage_test.go        universeFloor = 1600
+//	live/admission_coverage_test.go        markerlessAdmittedOverlapMax = 0
+//	tools/mapping-gen/mapping_gen_test.go  unclassifiedRatchetMax = 13
+//	tools/row-gen/convergence_test.go      unannotatedMismatchRatchetMax = 0
+//	tools/row-gen/convergence_test.go      annotationCountRatchetMax = 95
+//
+// Five of those are bounds and are entries below. universeFloor is not a
+// bound at all - it is the anti-tamper leg of unreachedRatchetMax - and it
+// migrated into that entry's [Denominator], which is the shape every other
+// entry now has to answer for too. Working out what each of the other four
+// denominators was found two that had none recorded anywhere:
+// unclassifiedRatchetMax can be lowered by dropping rows from
+// live/mapping.json, and annotationCountRatchetMax by un-admitting the type
+// a ruling names.
+func Burndown() []Entry {
+	return []Entry{
+		mappingUnclassified(),
+		markerlessAdmittedOverlap(),
+		rowgenAnnotationRulings(),
+		rowgenUnannotatedMismatches(),
+		unreachedTypes(),
+	}
+}
+
+// providerRoster is the denominator shared by the two entries counted
+// against the pinned provider's own type list.
+func providerRoster(why string) *Denominator {
+	return &Denominator{
+		Name:  SurveyFullJSON + " counts.types",
+		Floor: 1600,
+		Why:   why,
+		Measure: func(r *Repo) (int, error) {
+			s, err := r.Survey()
+			if err != nil {
+				return 0, err
+			}
+			return s.Counts.Types, nil
+		},
+	}
+}
+
+func unreachedTypes() Entry {
+	return Entry{
+		ID:   "unreached-types",
+		Unit: "provider resource types",
+		Claim: "Every type the pinned provider serves is in one of three rosters - admitted by " +
+			"internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or " +
+			"vetoed by the derived markerless rule. This counts the ones in none of them, where naming " +
+			"the type in a configuration is a hard resolve error with no ledger entry saying why.",
+		Bound:     613,
+		Direction: AtMost,
+		Measured: "internal/live/identity.DefaultTable, tools/row-gen/rejected.json and " +
+			"internal/live/identity.MarkerlessTypes",
+		Against: SurveyFullJSON,
+		AgainstWhy: "tools/survey-gen writes it from the provider's own GetProviderSchema response, and " +
+			"none of the three rosters under test contributes a type to it. No edit to the admission " +
+			"table or either veto ledger can make this measurement agree with itself.",
+		Instrument: "the three rosters read in process (two Go maps and one committed JSON file) against " +
+			"the committed provider survey. No provider plugin, no network.",
+		BlindSpots: []string{
+			"It counts hard resolve errors only. internal/live/lint's schema fallback " +
+				"(identity.SynthesizeTypeIdentity) admits some of this population at run time when a real " +
+				"provider plugin is present - 60 of them when the count stood at 669 - and that rescue " +
+				"needs a plugin, so a ratchet that subtracted it could not run in the fast tier.",
+			"It describes one provider. A type from any other provider is outside both the roster and " +
+				"this number.",
+			"It says nothing about whether an admitted row is correct, only that the type was reached.",
+		},
+		Denominator: providerRoster(
+			"This count is a difference against the roster, so deleting rows from live/survey-full.json " +
+				"lowers it exactly as effectively as admitting a type does, and is the cheaper edit. " +
+				"hashicorp/aws has never lost a hundred resource types in a release."),
+		Tracker: "#245, #246",
+		History: []string{
+			"669 while the hand ledger stood at 949/81 and again at 944/86 - the batch that moved five " +
+				"types from the ledger into the table did not change this count at all, which is why it " +
+				"exists rather than a count of the ledger.",
+			"665 when the markerless rule landed (#249); 649 while that rule read only the " +
+				"CloudFormation registry's verdict.",
+			"621 once tools/importdocs-gen's soleid scrape settled 28 untaggable types the registry " +
+				"models nothing for.",
+			"615 on 2026-08-17, three of them from single ratifications rather than a batch. The last " +
+				"is aws_s3control_storage_lens_configuration, and it is the first row admitted with no " +
+				"annotation over a documented account-id slot: a composite proposal now reads the " +
+				"cloud_default the argument's own bullet states and renders the segment as a Cloud " +
+				"component, so the classifier reproduces the ratified row instead of needing a ruling " +
+				"for it.",
+			"613 on 2026-08-17: aws_iam_account_alias and aws_s3_account_public_access_block, two " +
+				"client-named single-argument rows the import grammar already pinned. The account " +
+				"public access block's account_id component carries the same documented cloud-id " +
+				"default as aws_s3control_storage_lens_configuration above; renderClientNamedEntry " +
+				"gained the fallback the composite path already had (#241) so the pasted row spells it " +
+				"rather than an empty identity.",
+		},
+		Measure: func(r *Repo) (Reading, error) {
+			universe, err := r.SurveyTypes()
+			if err != nil {
+				return Reading{}, err
+			}
+			rejected, err := r.Rejected()
+			if err != nil {
+				return Reading{}, err
+			}
+			admitted := map[string]bool{}
+			for _, t := range identity.AdmittedTypes() {
+				admitted[t] = true
+			}
+			var unreached []string
+			for t := range universe {
+				if admitted[t] {
+					continue
+				}
+				if _, ok := rejected.Rejected[t]; ok {
+					continue
+				}
+				if _, ok := identity.MarkerlessTypes[t]; ok {
+					continue
+				}
+				unreached = append(unreached, t)
+			}
+			sort.Strings(unreached)
+			return Reading{
+				Value:      len(unreached),
+				Population: unreached,
+				Note: fmt.Sprintf("%d admitted, %d hand-vetoed, %d markerless-vetoed, over a roster of %d",
+					len(admitted), len(rejected.Rejected), len(identity.MarkerlessTypes), len(universe)),
+			}, nil
+		},
+	}
+}
+
+func markerlessAdmittedOverlap() Entry {
+	return Entry{
+		ID:   "markerless-veto-admitted-overlap",
+		Unit: "types in both the admission table and the markerless veto",
+		Claim: "No row in internal/live/identity.DefaultTable names a type the derived markerless rule " +
+			"vetoes. A row for a vetoed type is the shipped table contradicting a derived veto, and it " +
+			"subtracts from unreached-types without anything supporting it.",
+		Bound:      0,
+		Direction:  AtMost,
+		Measured:   "internal/live/identity.DefaultTable",
+		Against:    "internal/live/identity.MarkerlessTypes, and through it " + SurveyFullJSON + "'s signals.taggable",
+		AgainstWhy: "The two rosters are different derivations from different evidence even though one -emit run writes both: the table's rows come from the ratified rows plus the import-doc grammar, the veto from the provider survey's own taggability signal. internal/live/stamp's TestPinnedTaggabilityMatchesTheSurvey ties that signal to the run-time marker writer, so the chain ends at the provider schema rather than at another row-gen output.",
+		Instrument: "two in-process Go maps intersected. No artifact, no provider, no network.",
+		BlindSpots: []string{
+			"It cannot see a type the rule should veto but does not - it bounds the contradiction, not " +
+				"the rule's recall.",
+			"A row pasted by hand for a vetoed type is what this catches; tools/row-gen's PROPOSE stage " +
+				"has never been able to offer one, so the generated path is not the risk.",
+		},
+		Denominator: &Denominator{
+			Name:  "internal/live/identity.MarkerlessTypes",
+			Floor: 100,
+			Why: "The overlap goes to zero two ways: by retracting the offending rows, which is the " +
+				"point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the " +
+				"pinned release and that population is a property of how many provider types have no " +
+				"tags argument, so a collapse to double digits is a rule change and not a provider one.",
+			Measure: func(*Repo) (int, error) { return len(identity.MarkerlessTypes), nil },
+		},
+		Tracker: "#249",
+		History: []string{
+			"77 for as long as the rule was applied only to what may be admitted next, while 77 rows an " +
+				"earlier batch let through stayed in the table.",
+			"0 on 2026-08-16, once -emit filtered the emitted rows by the same roster. Zero is the " +
+				"ceiling and the floor: a non-zero count means a row reached the table by a route -emit " +
+				"does not filter.",
+		},
+		Measure: func(*Repo) (Reading, error) {
+			var both []string
+			for t := range identity.MarkerlessTypes {
+				if _, ok := identity.DefaultTable[t]; ok {
+					both = append(both, t)
+				}
+			}
+			sort.Strings(both)
+			return Reading{
+				Value:      len(both),
+				Population: both,
+				Note:       "veto reason: " + identity.MarkerlessReason,
+			}, nil
+		},
+	}
+}
+
+func mappingUnclassified() Entry {
+	return Entry{
+		ID:   "mapping-unclassified",
+		Unit: "unclassified rows",
+		Claim: "No row in live/mapping.json is a shrug: a via:\"none\" row with only the generic " +
+			"unexplained note, meaning nobody has said either what CloudFormation type it corresponds to " +
+			"or why it corresponds to none.",
+		Bound:      13,
+		Direction:  AtMost,
+		Measured:   MappingJSON + " counts.unclassified",
+		Against:    "the artifact's own rows, and " + SurveyFullJSON + " for the roster size",
+		AgainstWhy: "The bound is checked against a count recomputed from the rows rather than against the summary field, so a summary that disagrees with its own body fails instead of passing. The denominator is pinned to the provider survey, which mapping-gen does not write.",
+		Instrument: "the committed mapping artifact read as JSON. Deliberately not a regeneration: " +
+			"tools/mapping-gen's TestMappingJSONMatchesCommittedInputs already ties the artifact to its " +
+			"inputs, and this ratchet stays independent of that test's shape.",
+		BlindSpots: []string{
+			"It counts rows nobody has classified, not rows classified wrongly. A row folded onto the " +
+				"wrong parent reads as classified here.",
+			"The taxonomy's three terminal buckets (tf-only, cfn-unmodeled, deprecated-service) are " +
+				"classifications, so moving a row into one of them lowers this count without teaching " +
+				"anything new about the type.",
+		},
+		Denominator: &Denominator{
+			Name:  MappingJSON + " row count",
+			Floor: 1600,
+			Why: "The unclassified count is a subset of the rows, so dropping TF types from the mapping " +
+				"roster lowers it without classifying anything. The row count must also equal the " +
+				"provider survey's own type count, which is what makes this floor external to " +
+				"mapping-gen rather than a second number mapping-gen writes.",
+			Measure: func(r *Repo) (int, error) {
+				m, err := r.Mapping()
+				if err != nil {
+					return 0, err
+				}
+				s, err := r.Survey()
+				if err != nil {
+					return 0, err
+				}
+				if len(m.Rows) != s.Counts.Types {
+					return 0, fmt.Errorf("%s has %d rows but %s serves %d types; the mapping no longer covers the provider roster one row per type",
+						MappingJSON, len(m.Rows), SurveyFullJSON, s.Counts.Types)
+				}
+				return len(m.Rows), nil
+			},
+		},
+		Tracker: "#53",
+		History: []string{
+			"754 via:\"none\" rows before the first classification pass, 713 after.",
+			"13 today, with the family sweeps landed and enforceNoBareNone on.",
+		},
+		Measure: func(r *Repo) (Reading, error) {
+			m, err := r.Mapping()
+			if err != nil {
+				return Reading{}, err
+			}
+			var unclassified []string
+			for _, row := range m.Rows {
+				if row.Via != "none" {
+					continue
+				}
+				unclassified = append(unclassified, row.TFType)
+			}
+			sort.Strings(unclassified)
+			if len(unclassified) != m.Counts.Unclassified {
+				return Reading{}, fmt.Errorf(
+					"%s has %d via:\"none\" rows but its own counts.unclassified says %d; the summary and "+
+						"the body disagree, so neither can be quoted",
+					MappingJSON, len(unclassified), m.Counts.Unclassified)
+			}
+			return Reading{
+				Value:      len(unclassified),
+				Population: unclassified,
+				Note:       fmt.Sprintf("recomputed from %d rows and it agrees with counts.unclassified", len(m.Rows)),
+			}, nil
+		},
+	}
+}
+
+func rowgenUnannotatedMismatches() Entry {
+	return Entry{
+		ID:   "rowgen-unannotated-mismatches",
+		Unit: "unruled mismatches",
+		Claim: "Every admitted row tools/row-gen's classifier fails to reproduce carries a ruling in " +
+			"tools/row-gen/annotations.json naming what a fuller extraction would have to capture. This " +
+			"counts the ones that do not.",
+		Bound:      0,
+		Direction:  AtMost,
+		Measured:   ConvergenceJSON + " summary.unannotated_mismatches",
+		Against:    AnnotationsJSON,
+		AgainstWhy: "The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.",
+		Instrument: "the committed convergence artifact plus the committed ledger, both read as JSON. " +
+			"Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift " +
+			"half.",
+		BlindSpots: []string{
+			"This is generator-autonomy debt and not user-visible coverage. tools/row-gen/emit.go:41 " +
+				"copies every field of a ratified row verbatim, so a mismatch changes nothing a user " +
+				"experiences. adopted_unchanged from the same artifact is not coverage either and must " +
+				"not be quoted as such.",
+			"It compares only the mapped set. The types in summary.not_in_mapped_set have no proposal " +
+				"to compare at all and are outside this number - the -emit gate holds them to the same " +
+				"bar separately.",
+		},
+		Denominator: &Denominator{
+			Name:  ConvergenceJSON + " summary.compared",
+			Floor: 800,
+			Why: "A mismatch count falls when the compared set shrinks. The compared set is the admitted " +
+				"types the mapping reaches, so a loadMapping filter or an un-admission lowers this " +
+				"count without any extractor improving.",
+			Measure: func(r *Repo) (int, error) {
+				c, err := r.Convergence()
+				if err != nil {
+					return 0, err
+				}
+				return c.Summary.Compared, nil
+			},
+		},
+		Tracker: "#132",
+		History: []string{
+			"241 after the ratify-remainder batch; 215 once importdocs-widen's parse and the " +
+				"import-precedence rules landed; 194 once the fold-row guard came out.",
+			"114 through issue #132's seven extractor commits, then 0 once every remaining mismatch was " +
+				"ruled and -emit began refusing an unruled one. It stays 0: a new unannotated mismatch " +
+				"is either a regression or an unruled admission.",
+		},
+		Measure: func(r *Repo) (Reading, error) {
+			c, err := r.Convergence()
+			if err != nil {
+				return Reading{}, err
+			}
+			a, err := r.Annotations()
+			if err != nil {
+				return Reading{}, err
+			}
+			// Recomputed from the rows, not read off the summary. A
+			// header that disagrees with its own body is the shape
+			// live/survey-full.json's counts.types check already guards
+			// against, and this artifact's summary is what the migrated
+			// const used to trust outright.
+			var unruled, mismatched []string
+			for _, t := range c.Types {
+				if t.Matched {
+					continue
+				}
+				mismatched = append(mismatched, t.TFType)
+				if _, ruled := a.Rulings[t.TFType]; !ruled || !t.Annotated {
+					unruled = append(unruled, t.TFType)
+				}
+			}
+			sort.Strings(unruled)
+			if len(mismatched) != c.Summary.GenuineMismatches {
+				return Reading{}, fmt.Errorf(
+					"%s has %d unmatched rows but its own summary.genuine_mismatches says %d; the header "+
+						"and the body disagree, so neither can be quoted",
+					ConvergenceJSON, len(mismatched), c.Summary.GenuineMismatches)
+			}
+			if len(unruled) != c.Summary.UnannotatedMismatches {
+				return Reading{}, fmt.Errorf(
+					"%s has %d unmatched rows with no ruling in %s but its own "+
+						"summary.unannotated_mismatches says %d; the artifact is counting rulings the "+
+						"ledger does not carry",
+					ConvergenceJSON, len(unruled), AnnotationsJSON, c.Summary.UnannotatedMismatches)
+			}
+			return Reading{
+				Value:      len(unruled),
+				Population: unruled,
+				Note: fmt.Sprintf("recomputed from %d compared rows: %d unmatched, every one of them named by one of the ledger's %d rulings",
+					len(c.Types), len(mismatched), len(a.Rulings)),
+			}, nil
+		},
+	}
+}
+
+func rowgenAnnotationRulings() Entry {
+	return Entry{
+		ID:   "rowgen-annotation-rulings",
+		Unit: "rulings",
+		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
+			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
+			"a ruling is always easier than fixing an extractor.",
+		Bound:      151,
+		Direction:  AtMost,
+		Measured:   AnnotationsJSON,
+		Against:    ConvergenceJSON,
+		AgainstWhy: "Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.",
+		Instrument: "the committed ledger read as JSON, cross-checked against the committed convergence " +
+			"artifact's type list.",
+		BlindSpots: []string{
+			"Size is not quality. A ruling whose Exit names no reachable fix counts the same as one that " +
+				"does; tools/row-gen's TestAnnotationsAgreeWithMismatches is what forbids a stale one.",
+			"Like the mismatch count, this is generator-autonomy debt. It ranks no user-visible work.",
+		},
+		Denominator: &Denominator{
+			Name:  ConvergenceJSON + " summary.admitted_total",
+			Floor: 850,
+			Why: "The cheapest way to delete a ruling is to un-admit the type it names, which moves the " +
+				"type into tools/row-gen/rejected.json and lowers this count while removing support. " +
+				"Pinning the admitted total makes that trade visible.",
+			Measure: func(r *Repo) (int, error) {
+				c, err := r.Convergence()
+				if err != nil {
+					return 0, err
+				}
+				return c.Summary.AdmittedTotal, nil
+			},
+		},
+		Tracker: "#132",
+		History: []string{
+			"128 at the ratchet's introduction: 107 genuine mismatches plus 21 types with no proposal to " +
+				"compare.",
+			"122, 119, 116 through 2026-08-15 and 16 as classifyUnmapped, tryDocumentedShorterForm and " +
+				"the plain-prose enumeration signal each retired a batch of rulings.",
+			"95 once the ten record-backed effects rows were derived inside -emit instead of carried as " +
+				"unreproduced table rows. That bump also recorded that the constant had already been " +
+				"stale by nine, which is the failure a ratchet is supposed to make visible.",
+			"93 on 2026-08-16 when this entry was migrated into the harness: the committed ledger was " +
+				"already two below its own const, so for the second time in two days the number was not " +
+				"bounding anything. Nothing was found to have deleted the two; the const was lowered to " +
+				"the measurement rather than the measurement explained.",
+			"92 the same day, and this one is accounted for. The cloud-singleton admission retired " +
+				"aws_arczonalshift_autoshift_observer_notification_status's ruling, whose own recorded " +
+				"exit condition was \"retire when the vocabulary covers an unschemed example that IS a " +
+				"cloud value\" - which is exactly the rule that landed. row-gen -convergence demanded " +
+				"the deletion rather than permitting it, and this entry reported the resulting slack " +
+				"within the hour. That is the first time this ledger has fallen for a reason its own " +
+				"annotation predicted.",
+			"93 on 2026-08-17: the reviewed upward bump this entry's own rule allows for a newly " +
+				"admitted type the classifier cannot reproduce. aws_iam_user_group_membership is " +
+				"the first row whose import ID has a variable number of segments - one per element " +
+				"of a set-typed argument - and every grammar rule in importprecedence.go compares a " +
+				"FIXED segment count against a fixed argument count. The ruling's exit names the " +
+				"missing evidence rather than the missing rule: importdocs-gen scrapes an " +
+				"argument's name and whether it is required, and nothing anywhere in the artifacts " +
+				"says the argument is a collection.",
+			"96 on 2026-08-17: the same reviewed upward bump, for three types issue #274's markerless-" +
+				"veto two-source exception admits. aws_cognito_risk_configuration, aws_detective_member " +
+				"and aws_lambda_function_event_invoke_config each have a composite CloudFormation " +
+				"primaryIdentifier with no read-only property AND an import-grammar row whose Import " +
+				"section names no server-provided segment - the two independent sources markerless.go " +
+				"now reads agree the identity is argument-built. All three are still classified server-" +
+				"assigned by tryOpaqueOverride: the scrape pinned only the FIRST of several documented " +
+				"import forms on each page, and that one form's example does not split against the " +
+				"registry's composite primaryIdentifier, which is exactly the shape tryOpaqueOverride " +
+				"reads as \"the doc shows one opaque value\". Each ruling's exit names the same missing " +
+				"capability: keeping every documented import form, not one pinned example, so a composite " +
+				"rule can test the registry's primaryIdentifier against whichever form demonstrates the " +
+				"split.",
+			"97 on 2026-08-17: the same reviewed upward bump, fixing a wrong-marker defect rather than " +
+				"admitting a new type. aws_lambda_permission's ratified row omitted the qualifier the " +
+				"provider's Import section documents as a second, optional form, so two declarations " +
+				"differing only in qualifier resolved to one identity and collided under the duplicate-" +
+				"identity guard. The corrected row adds a component that is present with its own ':' " +
+				"separator in one documented form and wholly absent (separator included) in the other - " +
+				"identity.Component.OmitIfAbsent, a new field, since the table had no way to express a " +
+				"segment that vanishes together with its own separator. classify.go still pins only the " +
+				"first documented example and has no rule for this shape, so the fresh proposal cannot " +
+				"reproduce the fix. The ruling's exit names the same missing capability the entries above " +
+				"already do: keep every documented import form, not one pinned example.",
+			"98 on 2026-08-17 (issue #286): the same reviewed upward bump, one more type. " +
+				"aws_lb_target_group_attachment, aws_alb_target_group_attachment and " +
+				"aws_route53_zone_association already carried fold-child rulings, so adding their " +
+				"OmitIfAbsent trailing segments (availability_zone, quic_server_id, vpc_region) moved no " +
+				"count - the rows were already unreproduced for an unrelated reason and remain so. " +
+				"aws_route53_record had none: its three-component row was reproduced exactly until this " +
+				"fix added a fourth, optional set_identifier segment the provider documents as a fourth " +
+				"'if the record also contains a set identifier, append it' form. Same missing capability " +
+				"as 97: classify.go pins one documented example and has no rule for a trailing segment " +
+				"present in a longer form and wholly absent in a shorter one.",
+			"122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward " +
+				"bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, " +
+				"which routes bucketNeedsHandSeparator and proposes no row regardless of what " +
+				"import-grammar.json knows - the classifier never reaches the composed_of_arguments rule " +
+				"for this bucket at all. live/import-grammar.json's own separator field independently " +
+				"confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or " +
+				"only partially resolved for every one of them: five are a mixed " +
+				"server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, " +
+				"aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, " +
+				"aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher " +
+				"cannot resolve because it names no real Argument Reference entry, or names an Optional " +
+				"auto-generated one the same way aws_lambda_permission's statement_id already does); ten " +
+				"have a registry that under-counts the doc's real argument count because it omits " +
+				"provider-defaulted arguments from primaryIdentifier (the eight QuickSight " +
+				"aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a " +
+				"registry field order or field set that plainly disagrees with the doc's own worked example " +
+				"(aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's " +
+				"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
+				"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
+				"catch-all. 98 + 24 = 122.",
+			"143 on 2026-08-18 (issue #245's 'fold-child' slice): the same reviewed upward bump, 21 " +
+				"newly admitted types (aws_app_cookie_stickiness_policy, " +
+				"aws_shield_protection_health_check_association and 19 others), each a property-child of " +
+				"an already-admitted CFN parent. bucketFoldChild never proposes Components at all - " +
+				"classify.go's own doc comment states the child's composite shape needs a human's " +
+				"separator and shape choice regardless of how clean the import-grammar evidence is - so " +
+				"every one of the 21 is unreproduced by construction, the same standing every other " +
+				"fold-child ruling in this ledger already carries. Two further fold-child candidates in " +
+				"the same unreached population (aws_cloudformation_stack_instances, " +
+				"aws_cloudformation_stack_set_instance) were left unratified because their CFN parent, " +
+				"aws_cloudformation_stack_set, is not itself admitted yet; three more " +
+				"(aws_autoscaling_group_tag, aws_autoscaling_traffic_source_attachment, " +
+				"aws_ssoadmin_customer_managed_policy_attachment) have their identity-bearing argument " +
+				"nested inside a sub-block Component.Attrs cannot read; one " +
+				"(aws_wafv2_web_acl_rule_group_association) has a conditional identity shape branching on " +
+				"which of two mutually exclusive nested blocks is populated; one " +
+				"(aws_lightsail_container_service_deployment_version) has a purely server-assigned, " +
+				"non-configurable differentiator (version); one (aws_ssm_default_patch_baseline) has an " +
+				"ambiguous identity where the doc's own alternate import forms suggest operating_system " +
+				"alone is the true key, not a fold of the parent baseline id; and 14 have no Import " +
+				"section in the provider's docs at all, so no separator has any evidenced source. None of " +
+				"those 22 were added to rejected.json: the parent-pending two are ratifiable once their " +
+				"parent is, and the rest are a generator/resolver capability gap, not a closed question. " +
+				"122 + 21 = 143.",
+			"146 on 2026-08-18 (issue #305): the same reviewed upward bump, three newly admitted " +
+				"types - aws_default_network_acl, aws_default_route_table, aws_default_security_group, " +
+				"terraform-aws-vpc's 'adopt the account's default object instead of creating one' idiom, " +
+				"hit by name in four separate real-estate crossings the same night (vpc-complete, " +
+				"rds-complete-postgres, security-group-complete, and reachable through ecs-fargate and " +
+				"autoscaling-complete's own vpc dependency). All three are live/mapping.json via=tf-only " +
+				"rows (no CloudFormation model of an 'adopt an existing default object' resource), so " +
+				"classifyUnmapped always proposes bucketEvidenceOnly for them regardless of their own " +
+				"import-grammar evidence; none of applyImportGrammarPrecedence's upgrade rules run " +
+				"against an evidence-only proposal for a shape this plain (no cloud/account singleton, no " +
+				"confirmed guess). All three are ratified server-assigned, the same shape as their non-" +
+				"default siblings aws_network_acl, aws_route_table and aws_security_group: taggable per " +
+				"live/survey-full.json, and AWS itself mints exactly one default of each per VPC, " +
+				"assigning its own id before the resource block first applies - the required " +
+				"default_network_acl_id/default_route_table_id argument and the optional vpc_id argument " +
+				"each name a parent, not a fresh identity this table derives. Each ruling's exit names " +
+				"the same missing capability: classifyUnmapped has no rule proposing bucketServerAssigned " +
+				"for a cfn-unmodeled type from import-grammar evidence (sole_id_part.source==own-id, or " +
+				"an import_id_example sharing a same-service sibling's id-prefix convention) at all. " +
+				"143 + 3 = 146.",
+			"147 on 2026-08-19 (issue #310): the same reviewed upward bump, one newly admitted type. " +
+				"aws_autoscaling_traffic_source_attachment's documented import ID " +
+				"(autoscaling_group_name,traffic_source_type,traffic_source_identifier) is fully " +
+				"client-specified, but its second and third components are the `type` and `identifier` " +
+				"attributes of a required, max_items:1 `traffic_source` nested block, not top-level " +
+				"arguments - the doc's own flattened segment names ('traffic_source_type', " +
+				"'traffic_source_identifier') are prose shorthand the scrape's argument match cannot " +
+				"resolve, so only the first segment lands in import-grammar.json's arguments list and " +
+				"the fresh proposal stays fold-child with no components. The filed issue's own " +
+				"hypothesis - that the provider identity schema's schema-fallback walk stops at " +
+				"top-level attributes - turned out not to be why: this type carries no identity schema " +
+				"at all in v6.59.0, so identity.Derivable never reaches it regardless of nesting. The " +
+				"real gap was narrower and new: identity.Component gained a Block field so a ratified " +
+				"row can read an identity component out of a named singular nested block, additive over " +
+				"every row before it (no existing row sets it, so no existing resolution changes), and " +
+				"this type's row is ratified using it. The ruling's exit names the same missing " +
+				"generator capability the field's own resolver-side counterpart does not close: " +
+				"resolveArgName matching a flattened prose segment against a nested block's own leaf " +
+				"attribute name, plus a fold-child composite rule proposing a Block-bearing Component. " +
+				"146 + 1 = 147.",
+			"151 on 2026-08-20 (issue #326): the same reviewed upward bump, four newly admitted types " +
+				"and the first non-AWS ones this ledger has ever carried. kubernetes_config_map, " +
+				"kubernetes_namespace, kubernetes_storage_class and kubernetes_cluster_role_binding are " +
+				"hand-ratified from the real, current hashicorp/kubernetes provider docs (the offline " +
+				"cache has no Kubernetes provider data), reusing the Block-field mechanism #310 built for " +
+				"aws_autoscaling_traffic_source_attachment to read metadata.name (all four) and " +
+				"metadata.namespace (kubernetes_config_map only) out of each type's required metadata " +
+				"block. This is not the ledger's usual shape: every prior ruling names a type classify.go " +
+				"reaches but disagrees with; these four have no fresh proposal to disagree with at all, " +
+				"because classifyAll only ever iterates live/mapping.json, which is entirely AWS's own " +
+				"CloudFormation-backed evidence and carries zero rows for any kubernetes_* type - a true " +
+				"not_in_mapped_set case, counted by row-gen -convergence's summary.not_in_mapped_set " +
+				"(15 to 19) rather than compared and mismatched. kubernetes_config_map is the type " +
+				"issue #326 named directly: corpus-eks-basic's test_plan stage was blocked because this " +
+				"type had no marker-carrying identity row, so its resources could never resolve an " +
+				"identity for the stamp layer to write to. Each ruling's exit names the same missing " +
+				"generator capability: classify.go has no second evidence source to propose a non-AWS " +
+				"provider type from at all, so the ruling retires only once row-gen gains one (a " +
+				"Kubernetes-provider import-grammar scrape analogous to importdocs-gen's AWS one). " +
+				"147 + 4 = 151.",
+		},
+		Measure: func(r *Repo) (Reading, error) {
+			a, err := r.Annotations()
+			if err != nil {
+				return Reading{}, err
+			}
+			c, err := r.Convergence()
+			if err != nil {
+				return Reading{}, err
+			}
+			known := make(map[string]bool, len(c.Types))
+			for _, t := range c.Types {
+				known[t.TFType] = true
+			}
+			delete(known, "")
+			var orphaned []string
+			for t := range a.Rulings {
+				if _, admitted := identity.DefaultTable[t]; !known[t] && !admitted {
+					orphaned = append(orphaned, t)
+				}
+			}
+			if len(orphaned) > 0 {
+				sort.Strings(orphaned)
+				return Reading{}, fmt.Errorf(
+					"%d ruling(s) in %s name a type neither %s compares nor the admission table carries, "+
+						"so nothing can ever retire them: %s",
+					len(orphaned), AnnotationsJSON, ConvergenceJSON, strings.Join(orphaned, " "))
+			}
+			return Reading{
+				Value:      len(a.Rulings),
+				Population: SortedKeys(a.Rulings),
+				Note: fmt.Sprintf("every ruling names one of the %d types the convergence artifact carries, over %d admitted types",
+					len(known), c.Summary.AdmittedTotal),
+			}, nil
+		},
+	}
+}

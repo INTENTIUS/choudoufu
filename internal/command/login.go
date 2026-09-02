@@ -22,21 +22,21 @@ import (
 	"sync"
 
 	tfe "github.com/hashicorp/go-tfe"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/tracing"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 	"github.com/opentofu/svchost/svcauth"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig"
-	"github.com/opentofu/opentofu/internal/command/format"
-	"github.com/opentofu/opentofu/internal/httpclient"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/command/cliconfig"
+	"github.com/intentius/choudoufu/internal/command/format"
+	"github.com/intentius/choudoufu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/version"
 
 	uuid "github.com/hashicorp/go-uuid"
 	"golang.org/x/oauth2"
@@ -90,7 +90,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Login is an interactive command",
-			"The \"tofu login\" command uses interactive prompts to obtain and record credentials, so it can't be run with input disabled.\n\nTo configure credentials in a non-interactive context, write existing credentials directly to a CLI configuration file.",
+			"The \"choudoufu login\" command uses interactive prompts to obtain and record credentials, so it can't be run with input disabled.\n\nTo configure credentials in a non-interactive context, write existing credentials directly to a CLI configuration file.",
 		))
 		view.Diagnostics(diags)
 		return 1
@@ -156,7 +156,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Host does not support OpenTofu login",
-			fmt.Sprintf("The given hostname %q cannot support \"tofu login\": %s.", dispHostname, err),
+			fmt.Sprintf("The given hostname %q cannot support \"choudoufu login\": %s.", dispHostname, err),
 		))
 	}
 
@@ -183,7 +183,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Host does not support OpenTofu tokens API",
-				fmt.Sprintf("The given hostname %q cannot support \"tofu login\": %s.", dispHostname, err),
+				fmt.Sprintf("The given hostname %q cannot support \"choudoufu login\": %s.", dispHostname, err),
 			))
 		}
 	}
@@ -192,7 +192,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			fmt.Sprintf("Credentials for %s are manually configured", dispHostname),
-			"The \"tofu login\" command cannot log in because credentials for this host are already configured in a CLI configuration file.\n\nTo log in, first revoke the existing credentials and remove that block from the CLI configuration.",
+			"The \"choudoufu login\" command cannot log in because credentials for this host are already configured in a CLI configuration file.\n\nTo log in, first revoke the existing credentials and remove that block from the CLI configuration.",
 		))
 	}
 
@@ -337,7 +337,7 @@ func (c *LoginCommand) Help() string {
 	defaultFile := c.credentialsFileForHelp()
 
 	helpText := fmt.Sprintf(`
-Usage: tofu [global options] login [hostname]
+Usage: choudoufu [global options] login [hostname]
 
   Retrieves an authentication token for the given hostname, if it supports
   automatic login, and saves it in a credentials file in your home directory.
@@ -517,9 +517,9 @@ func (c *LoginCommand) interactiveGetTokenByCode(ctx context.Context, hostname s
 				"Current command was aborted by the calling code.",
 			),
 		)
-    if err := server.Shutdown(ctx); err != nil {
-		log.Printf("[WARN] login: callback server shutdown failed: %s", err)
-	}
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("[WARN] login: callback server shutdown failed: %s", err)
+		}
 		wg.Wait()
 		close(codeCh)
 		return nil, diags
@@ -885,7 +885,7 @@ body {
 <body>
 
 <p>The login server has returned an authentication code to OpenTofu.</p>
-<p>Now close this page and return to the terminal where <tt>tofu login</tt>
+<p>Now close this page and return to the terminal where <tt>choudoufu login</tt>
 is running to see the result of the login process.</p>
 
 </body>

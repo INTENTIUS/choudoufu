@@ -15,14 +15,14 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -87,6 +87,14 @@ type Local struct {
 	//
 	// If this is nil, local performs normal state loading and storage.
 	Backend backend.Backend
+
+	// Stateless, if non-nil, puts this backend into the fork's stateless
+	// mode: the state manager persists no AUTHORITATIVE state (only the
+	// disposable cache, issue #685) and the prior state is a
+	// projection of the live system. See live.go. Nil - the case for
+	// every configuration without a "live" block - leaves every code
+	// path below exactly as it was.
+	Stateless StatelessRun
 
 	// opLock locks operations
 	opLock sync.Mutex
@@ -247,6 +255,13 @@ func (b *Local) DeleteWorkspace(ctx context.Context, name string, force bool) er
 }
 
 func (b *Local) StateMgr(ctx context.Context, name string) (statemgr.Full, error) {
+	// A stateless run has no state to store, so it never reaches a file
+	// path, a workspace directory or a backend. This is deliberately the
+	// first thing here: everything below creates something on disk.
+	if b.Stateless != nil {
+		return b.Stateless.StateMgr(), nil
+	}
+
 	// If we have a backend handling state, delegate to that.
 	if b.Backend != nil {
 		return b.Backend.StateMgr(ctx, name)
