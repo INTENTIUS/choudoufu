@@ -214,3 +214,65 @@ func knownTags(obj cty.Value) (map[string]string, bool) {
 	}
 	return markers.TagsOf(obj)
 }
+
+// Creation is one planned create whose configured tags already carry an
+// estate marker: the shape a mid-migration stock-mode plan takes when the
+// live block is not yet on (GitHub issue #716). Not dangerous by itself -
+// a greenfield bootstrap looks exactly like this - which is why it feeds
+// a warning where [Removal] feeds a refusal.
+type Creation struct {
+	Addr   addrs.AbsResourceInstance
+	Estate string
+}
+
+// ScanCreates reports the planned creates whose AFTER value carries a
+// non-empty tofu-estate tag. The same decode discipline as [Scan]: an
+// undecodable or unknown-tags change is skipped, never guessed at.
+func ScanCreates(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Creation {
+	var out []Creation
+	for _, src := range changes {
+		if src == nil || src.Action != plans.Create {
+			continue
+		}
+		if src.Addr.Resource.Resource.Mode != addrs.ManagedResourceMode {
+			continue
+		}
+		if !mightCarryEstate(src.After) {
+			continue
+		}
+		schema := schemaFor(src.ProviderAddr.Provider, src.Addr.Resource.Resource.Mode, src.Addr.Resource.Resource.Type)
+		if schema == nil {
+			continue
+		}
+		change, err := src.Decode(schema)
+		if err != nil {
+			continue
+		}
+		after, _ := change.After.UnmarkDeep()
+		afterTags, ok := knownTags(after)
+		if !ok {
+			continue
+		}
+		if estate := afterTags[markers.TagEstate]; estate != "" {
+			out = append(out, Creation{Addr: src.Addr, Estate: estate})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Addr.String() < out[j].Addr.String() })
+	return out
+}
+
+// CreationEstates is the sorted, deduplicated set of estate names the given
+// creations carry.
+func CreationEstates(creations []Creation) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, c := range creations {
+		if _, ok := seen[c.Estate]; ok {
+			continue
+		}
+		seen[c.Estate] = struct{}{}
+		out = append(out, c.Estate)
+	}
+	sort.Strings(out)
+	return out
+}

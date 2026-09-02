@@ -80,11 +80,74 @@ func statefulMarkerGuard() func(*plans.Plan, *tofu.Schemas) tfdiags.Diagnostics 
 			schema, _ := schemas.ResourceTypeConfig(provider, mode, typeName)
 			return schema
 		})
-		if len(removals) == 0 {
+		if len(removals) > 0 {
+			return unmigrateDiagnostics(removals, os.Getenv(UnmigrateEnvVar))
+		}
+		// GitHub issue #716's breadcrumb: a stock-mode plan building an
+		// estate FROM NOTHING whose configured tags already stamp
+		// ownership markers. Two situations look exactly like this - a
+		// greenfield bootstrap, and a mid-migration directory whose live
+		// block is not on yet - and only the second is a trap: applying
+		// it builds duplicates beside the live estate. A refusal would
+		// break the legitimate bootstrap, so this is a warning, and it
+		// fires only when the prior state holds no managed resources at
+		// all (adding one tagged resource to a working stock estate stays
+		// silent).
+		if priorStateHoldsManaged(plan) {
 			return diags
 		}
-		return unmigrateDiagnostics(removals, os.Getenv(UnmigrateEnvVar))
+		creations := markerstrip.ScanCreates(plan.Changes.Resources, func(provider addrs.Provider, mode addrs.ResourceMode, typeName string) *providers.Schema {
+			schema, _ := schemas.ResourceTypeConfig(provider, mode, typeName)
+			return schema
+		})
+		if len(creations) == 0 {
+			return diags
+		}
+		return stockCreateWarning(creations)
 	}
+}
+
+// priorStateHoldsManaged reports whether the plan's prior state contains any
+// managed resource instance - the signal that separates "adding resources to
+// a working stock estate" (silent) from "building an estate from nothing"
+// (the shape that earns [stockCreateWarning]).
+func priorStateHoldsManaged(plan *plans.Plan) bool {
+	if plan.PriorState == nil {
+		return false
+	}
+	for _, mod := range plan.PriorState.Modules {
+		for _, rsc := range mod.Resources {
+			if rsc.Addr.Resource.Mode == addrs.ManagedResourceMode && len(rsc.Instances) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// stockCreateWarning is issue #716's operator breadcrumb, one warning per
+// estate the planned creates stamp. Wording is a standalone function for the
+// same reason [unmigrateDiagnostics] is: testable without a plan, a backend
+// or a provider.
+func stockCreateWarning(creations []markerstrip.Creation) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	byEstate := make(map[string]int)
+	for _, c := range creations {
+		byEstate[c.Estate]++
+	}
+	for _, estate := range markerstrip.CreationEstates(creations) {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"This plan creates resources already stamped with ownership markers",
+			fmt.Sprintf(
+				"This configuration has no live block, so this is a stock-mode plan - and it proposes creating %s carrying estate %q's ownership markers, from an empty state.\n\n"+
+					"If that estate is already live, applying this builds duplicates beside it: the platform refuses the client-named ones, and any server-assigned duplicates surface as named collisions on the next live plan. Mid-migration, the fix is to turn the live block on and re-plan - the estate binds and the plan empties.\n\n"+
+					"If this is the estate's first bootstrap, proceed; this warning is a breadcrumb, not a refusal.",
+				instancePhrase(byEstate[estate]), estate,
+			),
+		))
+	}
+	return diags
 }
 
 // unmigrateDiagnostics turns a non-empty set of marker removals into what the

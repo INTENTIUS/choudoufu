@@ -238,7 +238,15 @@ instead.
    fill in the slot is correct.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
-6. **Delete the state file, if you want it gone.** Not before here, and not
+6. **Turn the live block on.** This is the migration's end state: with
+   the block in the configuration, the ordinary `choudoufu plan` and
+   `apply` run the live backend, and `live-plan` retires. Do it before
+   any plain plan or apply - without the block those are stock mode
+   (the fallback), and stock mode with no state file proposes
+   rebuilding the whole estate. A stock-mode plan that would create
+   marker-stamped resources from an empty state now warns and names
+   this exact situation.
+7. **Delete the state file, if you want it gone.** Not before here, and not
    required at all. Nothing reads or refuses the file itself, and nothing
    checks that you removed it, so this is housekeeping rather than a
    migration step. What IS refused is different and comes later: a run
