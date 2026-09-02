@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -423,6 +424,12 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 	seen := make(map[string]bool, len(req.EnvelopeVersions))
 
+	// unrecordableLogged makes issue #671's skip visible once per TYPE per
+	// write-back: a silently absent record is indistinguishable from a
+	// forgotten one, and the read half (superseded-claimant recovery, the
+	// envelope-vouching arm) now does real work from records.
+	unrecordableLogged := map[string]bool{}
+
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
 			if entry.DeposedKey != states.NotDeposed {
@@ -514,7 +521,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						// whatever is recorded alone rather than clearing
 						// it - a value written by an earlier apply or a
 						// live-import migration must not be erased just
-						// because THIS pass could not re-derive it.
+						// because THIS pass could not re-derive it. Said
+						// out loud once per type (issue #671): silent and
+						// deliberate must not look the same.
+						if !unrecordableLogged[typeName] {
+							unrecordableLogged[typeName] = true
+							log.Printf("[INFO] projection: no identity record can be derived for %s (e.g. %s); ownership stays marker-carried and any existing record is left alone", typeName, addr)
+						}
 					}
 				}
 			}
