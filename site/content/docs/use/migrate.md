@@ -239,12 +239,51 @@ instead.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
 6. **Delete the state file, if you want it gone.** Not before here, and not
-   required at all. Nothing reads or refuses it, and nothing checks that you
-   removed it, so this is housekeeping rather than a migration step.
+   required at all. Nothing reads or refuses the file itself, and nothing
+   checks that you removed it, so this is housekeeping rather than a
+   migration step. What IS refused is different and comes later: a run
+   without the live block whose plan would strip this estate's markers -
+   see [Leaving, and the guard](#leaving-and-the-guard-that-makes-it-deliberate).
 
 There is no `choudoufu adopt` command and no need for one. Two tags is the
 whole contract (`live/MARKERS.md`), so any tool that writes two tags can adopt
 a resource.
+
+## Leaving, and the guard that makes it deliberate
+
+Leaving is supported and cheap, and the smoke proves it: the
+[roundtrip claim]({{< relref "/docs/claims#claim-6-the-roundtrip---one-command-in-one-file-out" >}})
+adopts a stock estate, operates it, and hands it back. The exit is one
+file and one edit: the cache copied to `terraform.tfstate`, the live
+block removed. Stock's first plan back proposes exactly one kind of
+change, removing the two marker tags. Run that leg with stock OpenTofu
+and you are done.
+
+Run it with choudoufu instead and one guard stands in the way, on
+purpose. A choudoufu run WITHOUT a live block behaves as stock does,
+with a single measured exception: a plan that would strip a migrated
+estate's ownership markers is computed, rendered in full, and then
+refused with `Plan would remove this estate's ownership markers`. The
+refusal exists for the accidental case - a live block lost to a bad
+merge or a wrong directory reads on screen as routine tag drift, and
+applying it un-migrates the estate silently. A deliberate exit says
+which estate it means:
+
+```
+CHOUDOUFU_UNMIGRATE=my-estate choudoufu apply
+```
+
+The variable takes the estate's name (or several, comma-separated)
+rather than an on/off value, so a setting exported once in CI approves
+the estate the operator was looking at and nothing else. With it set,
+the same plan carries a warning headline instead of the refusal.
+
+That is the entire boundary. An unmigrated estate never meets the
+guard, which is what keeps the
+[stock-when-you-need-it claim]({{< relref "/docs/claims#claim-8-stock-when-you-need-it" >}})'s
+measured parity intact: no live block means stock behavior, and the one
+divergence is this refusal, on a migrated estate, guarding the
+migration you already performed.
 
 ## Client-named resources, and the `Unowned` section
 
