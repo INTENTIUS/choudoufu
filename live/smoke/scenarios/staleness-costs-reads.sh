@@ -139,7 +139,9 @@ grep "state cache supplied" "$LOGDIR/with.log" | sed 's/.*projection: //' | head
 echo "cache hits: $HITS_WITH with, $HITS_WITHOUT without; wire requests: $REQ_WITH with, $REQ_WITHOUT without" | evidence
 [ "$HITS_WITH" -gt 0 ] || fail "stale" "-refresh=false with a fresh, sweep-verified cache served nothing - the opt-in path is dead"
 [ "$HITS_WITHOUT" -eq 0 ] || fail "stale" "cache hits were reported with no cache file present - the counter is lying"
-proof "the opt-in path served $HITS_WITH instance(s) and losing the cache changed only work, never the answer. The honest footnote is that on this small estate the wire saving rounds to nothing ($REQ_WITH vs $REQ_WITHOUT requests) because the sweep currently vouches a narrow slice and other phases still read - widening that slice is tracked, open work (#692). The claim never promised big savings; it promised the price of staleness is only ever paid in work."
+[ "$REQ_WITH" -lt "$REQ_WITHOUT" ] \
+  || fail "stale" "the cache saved no wire requests ($REQ_WITH with vs $REQ_WITHOUT without) - served instances are supposed to skip their reads outright"
+proof "the opt-in path served $HITS_WITH instance(s) and losing the cache changed only work, never the answer. The work is measured: $REQ_WITH requests with the cache, $REQ_WITHOUT without - a real saving that scales with what the sweep can vouch, and record-envelope vouching (#692) widens it further where the estate keeps records."
 
 step "5. the same answer where values live in the record store"
 explain \

@@ -190,13 +190,22 @@ func statelessBegin(
 		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
 	}
 
+	// Issue #732's estate-level toggle, resolved before the runner
+	// captures its read flags. "full" makes every plan pay every read:
+	// -refresh=false stops serving anything, and the log line below says
+	// so once rather than leaving a flag user to wonder why nothing hit.
+	readsSelective := readsPolicyFor(settings.Reads) != "full"
+	if !readsSelective && !opReq.PlanRefresh {
+		log.Printf("[INFO] stateless: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
+	}
+
 	runner := &statelessRunner{
 		settings: settings,
 		// Issue #712: -refresh=false is the only door to cache-served
 		// reads; a default plan or apply (PlanRefresh true) reads every
 		// instance, so drift is always visible.
-		cacheServesReads: !opReq.PlanRefresh,
-		envelopeVouch:    !opReq.PlanRefresh && opReq.Type == backend.OperationTypePlan,
+		cacheServesReads: !opReq.PlanRefresh && readsSelective,
+		envelopeVouch:    !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
 		lib:              local.ContextOpts.Plugins,
 		mgr:              mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
@@ -1429,4 +1438,28 @@ func cacheVouchSightingsFrom(disco *discovery.Result, vouchTypes []string) map[s
 		out[u.TypeName][u.ImportID] = true
 	}
 	return out
+}
+
+// EnvReads overrides the live block's "reads" argument for one run:
+// "selective" or "full", any other value ignored with a warning. The
+// same layering [EnvStateCache] already has - the block sets estate
+// policy, the environment wins for the session running it.
+const EnvReads = "CHOUDOUFU_READS"
+
+// readsPolicyFor resolves issue #732's reads toggle: the environment
+// override first, then the live block's argument, then the default,
+// which is "selective" - the maintainer's ruling is that live-backend
+// behaviors default on, with this argument as the off switch.
+func readsPolicyFor(configured string) string {
+	switch v := os.Getenv(EnvReads); v {
+	case "selective", "full":
+		return v
+	case "":
+	default:
+		log.Printf("[WARN] stateless: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
+	}
+	if configured == "full" {
+		return "full"
+	}
+	return "selective"
 }

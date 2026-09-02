@@ -1101,6 +1101,14 @@ type TypeScan struct {
 	// Scope is how wide the list was.
 	Scope Scope
 
+	// CacheVouch marks a scan the cache-vouching pass made (issue #692:
+	// [Request.CacheVouchTypes]) rather than the config-driven scan or the
+	// sweep. Its sightings vouch cache entries; they are NOT a foreign-
+	// coverage statement, and the classifier skips these rows so a run's
+	// report reads identically whether or not a cache was present -
+	// "staleness costs reads, never results" includes the report.
+	CacheVouch bool
+
 	// Declared is the number of needs-discovery instances of this type in
 	// configuration.
 	Declared int
