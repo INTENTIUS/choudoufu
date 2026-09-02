@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -382,7 +383,29 @@ func recordIdentityMatches(importID string, components map[string]string, liveIm
 		// way to produce one. A marked component simply does not match -
 		// refused, never unmarked, since the alternative is letting a value
 		// nothing here proved safe flow into an identity comparison.
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != want {
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() {
+			return false
+		}
+		switch v.Type() {
+		case cty.String:
+			if v.AsString() != want {
+				return false
+			}
+		case cty.Number:
+			// Records render number components as plain decimal digits
+			// (identity's renderIntegralNumber; issue #742 made records of
+			// this shape real - an ECS task definition's revision), but a
+			// live identity object is typed by the provider's identity
+			// schema, so revision arrives here as a cty.Number. Compare
+			// through the same canonical conversion the writer used, or
+			// every record #742 writes is unmatchable by exactly the
+			// recovery machinery it exists to feed (review finding B1 on
+			// #742).
+			conv, err := convert.Convert(v, cty.String)
+			if err != nil || conv.AsString() != want {
+				return false
+			}
+		default:
 			return false
 		}
 	}

@@ -55,6 +55,15 @@ type Result struct {
 	// [Result.MarkerVerified].
 	VerifiedDeclared []addrs.AbsResourceInstance
 
+	// CacheVouchSightings is the vouch pass's second product (issue #692
+	// increment 2): for each [Request.CacheVouchTypes] type, the set of
+	// live import identities the listing returned WITHOUT a visible
+	// ownership marker - existence-and-identity evidence for the
+	// projection's record-envelope arm. Produced only by the sandboxed
+	// vouch pass; nothing else writes it, and it feeds nothing but
+	// [projection.Options.CacheVouchSightings].
+	CacheVouchSightings map[string]map[string]bool
+
 	// Unbound lists the declared needs-discovery instances that nothing
 	// claimed, in address order. Absence is not an error: the resource does
 	// not exist and the plan will propose creating it.
@@ -1103,10 +1112,13 @@ type TypeScan struct {
 
 	// CacheVouch marks a scan the cache-vouching pass made (issue #692:
 	// [Request.CacheVouchTypes]) rather than the config-driven scan or the
-	// sweep. Its sightings vouch cache entries; they are NOT a foreign-
-	// coverage statement, and the classifier skips these rows so a run's
-	// report reads identically whether or not a cache was present -
-	// "staleness costs reads, never results" includes the report.
+	// sweep. Since the pass went hermetic (review findings on #734/#737)
+	// it appends NO rows at all - its scans run against a sandbox Result -
+	// so no row in a real Result carries this flag today. The field and
+	// the foreign classifier's skips for it stay as defense: a future
+	// caller that surfaces vouch rows must not let them enter the
+	// foreign-coverage report, or the report text would depend on whether
+	// a cache file was present.
 	CacheVouch bool
 
 	// Declared is the number of needs-discovery instances of this type in
