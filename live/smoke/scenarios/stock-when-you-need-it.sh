@@ -1,5 +1,5 @@
-# stock-until-you-say-otherwise
-# CLAIM 8 - Stock until you say otherwise: no live block means stock behavior, measured; with one, the cost scales with your estate, not your account. ~3 min.
+# stock-when-you-need-it
+# CLAIM 8 - Stock when you need it: stock behavior is the fallback, whole and exact - measured, not promised - and the live backend prices by your estate, not your account. ~3 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/parity"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -24,12 +24,13 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "the claim"
 explain \
-  "Stock until you say otherwise. A configuration with no live block" \
-  "gets stock behavior - not promised, measured: a plan over the same" \
-  "estate and state file issues exactly the requests the pinned stock" \
-  "OpenTofu issues, and prints the same answer. And once you do" \
-  "say otherwise, what you pay scales with your estate, not with the" \
-  "account around it."
+  "Stock when you need it. Stock behavior is not a mode you leave" \
+  "behind - it is the fallback, whole and exact, one deleted live block" \
+  "away. That is measured, not promised: a plan over the same estate" \
+  "and state file issues exactly the requests the pinned stock OpenTofu" \
+  "issues, and prints the same answer. And when the live backend is on," \
+  "what you pay scales with your estate, not with the account around" \
+  "it."
 
 step "1. a stock estate, stood up by choudoufu with no live block"
 explain \
@@ -90,7 +91,7 @@ diff <(plan_body "$LOGDIR/chdf-plan.txt") <(plan_body "$LOGDIR/oracle-plan.txt")
 echo "choudoufu: $REQ_CHDF requests; stock oracle: $REQ_ORACLE. Plan texts equal, filtered of version cosmetics." | evidence
 proof "same answer, same wire traffic, measured against the pinned oracle. The hooks cost nothing until asked for."
 
-step "3. say otherwise - and pay for your estate, not your account"
+step "3. the live backend on - and you pay for your estate, not your account"
 explain \
   "The stock estate comes down and the live one goes up: same fixture," \
   "live block on, markers riding the creates. Then the account gets" \

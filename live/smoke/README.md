@@ -126,8 +126,9 @@ showing its own checks would have caught it.
   with a clean plan after, where stock demands state surgery. The BREAK
   control renames the code but skips the retag - the plan must propose
   stock's destroy-and-recreate, proving the tag is the identity.
-- **stock-until-you-say-otherwise** - *Claim 8: no live block, no
-  difference - and the cost scales with your estate, not your account.*
+- **stock-when-you-need-it** - *Claim 8: stock behavior is the
+  fallback, whole and exact - and the live backend's cost scales with
+  your estate, not your account.*
   Choudoufu with the live block removed plans a state-backed estate
   against the pinned stock oracle, both under TF_LOG: filtered plan
   texts equal, request counts identical. Then the live estate stands up
