@@ -614,10 +614,18 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	}
 	for _, name := range required {
 		a := schema.Block.Attributes[name]
-		if a == nil || a.Type != cty.String {
+		if a == nil || (a.Type != cty.String && a.Type != cty.Number) {
 			// A component the applied object does not carry as a top-level
-			// string cannot be read back out of it, so the record would be
-			// incomplete. Refusing is the whole point of this function.
+			// string or number cannot be read back out of it, so the record
+			// would be incomplete. Refusing is the whole point of this
+			// function. Numbers are admitted on the same terms the optional
+			// and documented-segment routes already admit them
+			// ([locatedAttrSegment], [renderIntegralNumber]): an ECS task
+			// definition's identity is family + revision, and revision is a
+			// number on the resource's own block - GitHub issue #671 found
+			// this loop refusing it (and the whole record with it) while
+			// the optional-component reader one branch over accepted the
+			// same shape. A fractional value still refuses, at read time.
 			return LocatedIdentityPlan{}, false
 		}
 	}
@@ -829,7 +837,11 @@ func LocatedIdentity(obj cty.Value, components []string) (map[string]string, boo
 	}
 	out := make(map[string]string, len(components))
 	for _, name := range components {
-		v, ok := locatedAttrString(obj, name)
+		// locatedAttrSegment, not locatedAttrString: the same guards plus
+		// the number rendering [LocatedIdentityPlanFor]'s component check
+		// now admits (issue #671 - an integral revision reads back as its
+		// plain decimal digits; a fractional value refuses here).
+		v, ok := locatedAttrSegment(obj, name)
 		if !ok {
 			return nil, false
 		}
