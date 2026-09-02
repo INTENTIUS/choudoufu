@@ -136,15 +136,16 @@ showing its own checks would have caught it.
   BREAK control runs the choudoufu leg with the live block on: the
   measurement must show the difference, or the parity comparison
   compares nothing.
-- **vouch-is-the-read** - *Claim 9: the vouch is the read.* A
-  record-backed resource's values ARE its record: a default plan
-  converges from the store's answer with nothing opted into; an
-  out-of-band edit of the record surfaces on the very next default plan
-  as a named in-place reconvergence; and the whole scenario runs with no
-  Docker, no emulator, and no credentials, because the class it covers
-  has no cloud. The BREAK control overwrites the record with garbage -
-  the run must refuse naming the exact address, never plan against
-  improvised values.
+- **unchanged-is-free** - *Claim 9: unchanged is free.* The same
+  -refresh=false plan runs under the default selective policy and under
+  the reads="full" off switch: selective serves the vouched instances
+  and measurably drops the request count, full serves nothing and pays
+  every read, and the two outputs are byte-identical - the toggle
+  prices the plan, never changes it. The record-backed half proves the
+  record is the attestation: an out-of-band edit surfaces on the next
+  default plan as a named reconvergence. The BREAK control overwrites
+  the record with garbage - the run must refuse naming the exact
+  address, never plan against improvised values.
 
 ## Knobs
 

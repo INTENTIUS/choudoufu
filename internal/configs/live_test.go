@@ -919,3 +919,38 @@ func TestModule_liveStrictMarkersRefused(t *testing.T) {
 		})
 	}
 }
+
+// TestModule_liveReads is issue #732's toggle: "reads" accepts the two
+// policy literals, defaults to unset (which the command layer reads as
+// "selective" - live-backend behaviors default on), and refuses anything
+// else with an error that names both accepted values.
+func TestModule_liveReads(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-reads")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if got, want := mod.Live.Reads, "full"; got != want {
+		t.Errorf("Reads is %q, want %q", got, want)
+	}
+
+	// A block that does not set the argument leaves it empty - "not set",
+	// which downstream resolves to the selective default.
+	mod, diags = testModuleFromDir("testdata/valid-modules/live")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if got := mod.Live.Reads; got != "" {
+		t.Errorf("Reads is %q for a block that never set it, want empty", got)
+	}
+
+	parser := NewParser(nil)
+	_, diags = parser.LoadConfigFile("testdata/invalid-files/live-reads-invalid.tf")
+	if !diags.HasErrors() {
+		t.Fatal("reads = \"sometimes\" loaded with no errors")
+	}
+	for _, want := range []string{"Invalid reads setting", `"selective"`, `"full"`} {
+		if !strings.Contains(diags.Error(), want) {
+			t.Errorf("the error does not mention %q:\n%s", want, diags.Error())
+		}
+	}
+}

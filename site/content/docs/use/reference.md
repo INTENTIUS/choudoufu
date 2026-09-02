@@ -145,6 +145,7 @@ any command runs.
 | Argument | Meaning |
 |---|---|
 | `estate` | The estate this configuration owns, the value the `tofu-estate` marker carries. Deliberately a literal string, because a name assembled from variables could differ between plan and apply, and the estate name is an identity rather than a computed value. Optional. Omitted, the name derives from the markers this configuration stamps. |
+| `reads` | `"selective"` (the default) or `"full"`. Selective lets a `-refresh=false` run serve vouched, unchanged instances from the state cache, skipping their wire reads outright; full makes every plan pay every read regardless of flags - the estate-level off switch. `CHOUDOUFU_READS` overrides per run. Default plans read fully either way: drift detection never depends on this setting. |
 
 `snapshots` and `snapshot_path` are tombstones. The observational-snapshot
 subsystem they configured was removed, and setting either errors with what

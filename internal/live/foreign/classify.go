@@ -264,6 +264,15 @@ func (c *classifier) sweepCoverage() {
 			// object of it, wherever CollectUnclaimed pushed the scan.
 			continue
 		}
+		if s.CacheVouch {
+			// Issue #692: this scan listed a type to vouch cache entries,
+			// not to classify its population - unmarked sightings from it
+			// were never offered to this report. Treating it as swept
+			// would overclaim ("every live resource carries a marker")
+			// over objects nobody classified, and would make the report
+			// text depend on whether a cache file was present.
+			continue
+		}
 		switch {
 		case c.problemFor(s.TypeName, discovery.ProblemTypeNotListable) != nil:
 			c.res.Unswept = append(c.res.Unswept, Unswept{
@@ -656,7 +665,12 @@ func (c *classifier) problemFor(typeName string, kind discovery.ProblemKind) *di
 // the removal report.
 func (c *classifier) hasScan(typeName string) bool {
 	for _, s := range c.req.Discovery.Scans {
-		if s.TypeName == typeName && !s.Sweep {
+		// A cache-vouching scan (issue #692) is not "listed on the
+		// configuration's behalf" for coverage purposes: its sightings
+		// vouch cache entries and were never classified here, and
+		// counting it would make this report differ between a run with a
+		// cache file and one without.
+		if s.TypeName == typeName && !s.Sweep && !s.CacheVouch {
 			return true
 		}
 	}

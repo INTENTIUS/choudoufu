@@ -479,7 +479,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		if decl.types[typeName] != nil || decl.all[typeName] == nil {
 			continue
 		}
+		before := len(res.Scans)
 		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, false, &typesScanned, &resourcesFound))
+		// Mark what this pass listed: its sightings vouch cache entries
+		// and must not enter the foreign-coverage report, or the report
+		// text would differ between a run with a cache and one without.
+		for i := before; i < len(res.Scans); i++ {
+			res.Scans[i].CacheVouch = true
+		}
 	}
 
 	// The sweep runs after the config-driven scan so that a type appearing
