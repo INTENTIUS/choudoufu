@@ -639,3 +639,28 @@ func assertSlotTable(t *testing.T, res *Result, want map[string]string) {
 		t.Errorf("slot table is %v, want %d entries", got, len(want))
 	}
 }
+
+// TestCountScaleDownSurplusIsHighestSlot is the #756 diagnostic: three live
+// members carrying slots {0, 2, 99} and accurate per-index addresses
+// {:0, :1, :2}, scaled to count 2. If binding is by slot (as the package
+// says), the surplus is the HIGHEST slot - 99 - and that member orphans,
+// whatever its address says. A floci observation while building the slots
+// claim appeared to orphan the :2-addressed member instead; this pins which
+// is correct.
+func TestCountScaleDownSurplusIsHighestSlot(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.slottedAt("eipalloc-idx0", "0", "aws_eip.pool:0")
+	cloud.slottedAt("eipalloc-idx1", "99", "aws_eip.pool:1")
+	cloud.slottedAt("eipalloc-idx2", "2", "aws_eip.pool:2")
+
+	res, diags := discoverCount(t, cloud, 2)
+	assertNoErrors(t, diags)
+
+	var surplusIDs []string
+	for _, b := range res.Surplus {
+		surplusIDs = append(surplusIDs, b.ImportID)
+	}
+	if len(surplusIDs) != 1 || surplusIDs[0] != "eipalloc-idx1" {
+		t.Errorf("surplus should be the highest-slot member eipalloc-idx1 (slot 99); got surplus %v", surplusIDs)
+	}
+}
