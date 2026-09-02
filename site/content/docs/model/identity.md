@@ -17,9 +17,20 @@ tofu-estate  = prod-networking
 tofu-address = aws_vpc.main
 ```
 
-That pair is the entire ownership contract. Any tool that can write two tags
-can adopt a resource. Any tool that can read them can tell you what an estate
-contains.
+That pair carries the ownership contract for any instance a name can
+identify. Any tool that can write two tags can adopt a resource. Any
+tool that can read them can tell you what an estate contains.
+
+One construct needs a third tag. A `count` address is a position, not a
+name - `aws_eip.pool[1]` says "the second one," and which live resource
+is second changes when the pool scales or reorders - so each member
+also carries `tofu-slot`, a stable identifier assigned once at creation
+and never reused. Slots bind; addresses follow: when slots exist, the
+address tag has no say in which object is which, and the plan rewrites
+addresses around the slots. (Two mechanical footnotes live in
+`live/MARKERS.md`: an address too long for one tag value continues into
+numbered continuation tags, and characters AWS tags cannot carry are
+escaped - both invisible in ordinary use.)
 
 ## Where the marker comes from
 

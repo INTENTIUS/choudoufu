@@ -55,11 +55,28 @@ when picking a backend, because it decides who ends up able to read them:
 [what the store may contain]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
 has the per-backend answer.
 
-## Why this stays small
+## What the store actually holds
 
 Identity is the part that has to be authoritative, and it lives on the
 resources. What reaches a record store is a handful of values for resources the
-cloud cannot see. Most estates never declare one.
+cloud cannot see - and four supporting records, each derived, none of
+them ever consulted for ownership:
+
+- an identity envelope per instance, written at apply, which is what
+  lets a `-refresh=false` run vouch for a cached instance without
+  re-reading it
+- the guided-discovery hint, a speed-up for the estate sweep
+- the evidence a plan narrows its sweep by: an estate whose store holds
+  keys skips the account-wide look its own records already answer
+- tombstone and deposed seeds, which keep a crash between destroy and
+  create recoverable
+
+Losing any of these costs a slower run, never a wrong one - the same
+contract as the state cache. And while most estates never write a
+`record_store` block, every live estate has a store: an undeclared one
+is implied as a local directory beside the module, provisioned at first
+use. Declaring the block chooses where the store lives, not whether it
+exists.
 
 A record store is also not where a receipt goes. A `key_prefix` starting with
 `tofu-receipts` is a configuration error.
