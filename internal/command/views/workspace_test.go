@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 func TestWorkspaceViews(t *testing.T) {
@@ -28,7 +28,7 @@ func TestWorkspaceViews(t *testing.T) {
 			wantJson: []map[string]any{
 				{
 					"@level":   "error",
-					"@message": `Workspace "test-workspace" already exists. Use "choudoufu workspace select test-workspace" to switch to it`,
+					"@message": `Workspace "test-workspace" already exists. Use "tofu workspace select test-workspace" to switch to it`,
 					"@module":  "tofu.ui",
 				},
 			},
@@ -36,7 +36,7 @@ func TestWorkspaceViews(t *testing.T) {
 Error: Workspace "test-workspace" already exists
 
 A workspace having the given name already exists.
-Use "choudoufu workspace select test-workspace" to switch to it.
+Use "tofu workspace select test-workspace" to switch to it.
 `,
 		},
 		"workspace_does_not_exist": {
@@ -111,11 +111,11 @@ URL safe characters, and no path separators.
 			wantJson: []map[string]any{
 				{
 					"@level":   "info",
-					"@message": `Created and switched to workspace "new-workspace". You're now on a new, empty workspace. Workspaces isolate their state, so if you run "choudoufu plan" OpenTofu will not see any existing state for this configuration`,
+					"@message": `Created and switched to workspace "new-workspace". You're now on a new, empty workspace. Workspaces isolate their state, so if you run "tofu plan" OpenTofu will not see any existing state for this configuration`,
 					"@module":  "tofu.ui",
 				},
 			},
-			wantStdout: withNewline("Created and switched to workspace \"new-workspace\"!\n\nYou're now on a new, empty workspace. Workspaces isolate their state,\nso if you run \"choudoufu plan\" OpenTofu will not see any existing state\nfor this configuration."),
+			wantStdout: withNewline("Created and switched to workspace \"new-workspace\"!\n\nYou're now on a new, empty workspace. Workspaces isolate their state,\nso if you run \"tofu plan\" OpenTofu will not see any existing state\nfor this configuration."),
 		},
 		"workspace_changed": {
 			viewCall: func(workspace Workspace) {
@@ -236,19 +236,19 @@ workspace and try again.
 			wantJson: []map[string]any{
 				{
 					"@level":   "warn",
-					"@message": `The "choudoufu env" family of commands is deprecated. Use "choudoufu workspace" instead`,
+					"@message": `The "tofu env" family of commands is deprecated. Use "tofu workspace" instead`,
 					"@module":  "tofu.ui",
 				},
 			},
 			wantStdout: `
-Warning: The "choudoufu env" family of commands is deprecated
+Warning: The "tofu env" family of commands is deprecated
 
 "Workspace" is now the preferred term for what earlier OpenTofu versions
 called "environment", to reduce ambiguity caused by the latter term colliding
 with other concepts.
 
-The "choudoufu workspace" commands should be used instead. "choudoufu env"
-will be removed in a future OpenTofu version.
+The "tofu workspace" commands should be used instead. "tofu env" will be
+removed in a future OpenTofu version.
 `,
 		},
 		"warn_when_used_as_env_cmd_false": {

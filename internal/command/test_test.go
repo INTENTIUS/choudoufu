@@ -13,15 +13,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/opentofu/opentofu/internal/command/workdir"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	testing_command "github.com/intentius/choudoufu/internal/command/testing"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/terminal"
+	"github.com/opentofu/opentofu/internal/addrs"
+	testing_command "github.com/opentofu/opentofu/internal/command/testing"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/terminal"
 )
 
 func TestTest(t *testing.T) {
@@ -1129,7 +1129,7 @@ The plan was created with the -target or the -exclude option in effect, so
 some changes requested in the configuration may have been ignored and the
 output values may not be fully updated. Run the following command to verify
 that no other changes are pending:
-    choudoufu plan
+    tofu plan
 	
 Note that the -target and -exclude options are not suitable for routine use,
 and are provided only for exceptional situations such as recovering from
@@ -1161,7 +1161,7 @@ The plan was created with the -target or the -exclude option in effect, so
 some changes requested in the configuration may have been ignored and the
 output values may not be fully updated. Run the following command to verify
 that no other changes are pending:
-    choudoufu plan
+    tofu plan
 	
 Note that the -target and -exclude options are not suitable for routine use,
 and are provided only for exceptional situations such as recovering from

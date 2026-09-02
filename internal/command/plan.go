@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs/configload"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs/configload"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // PlanCommand is a Command implementation that compares a OpenTofu
@@ -36,7 +36,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	defer closer()
 
 	c.View.SetShowSensitive(args.ShowSensitive)
-	c.View.SetVerbose(args.Verbose)
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -82,35 +81,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
-	// configuration, never by a flag, so that a run cannot fall back to
-	// writing a state file by forgetting one. Without the block this is nil
-	// and nothing below changes.
-	statelessCfg, statelessDiags := c.statelessSettings(ctx, false)
-	diags = diags.Append(statelessDiags)
-	if statelessDiags.HasErrors() {
-		view.Diagnostics(diags)
-		return 1
-	}
-
-	// GitHub issue #587: -adoption-only is a live-markers concept, so a
-	// state-backed plan refuses it rather than ignoring it. Checked here
-	// because statelessSettings, immediately above, is what says whether
-	// this run is a live one, and before the view is wrapped below.
-	if moreDiags := planRejectAdoptionOnly(args.AdoptionOnly, statelessCfg != nil); moreDiags.HasErrors() {
-		diags = diags.Append(moreDiags)
-		view.Diagnostics(diags)
-		return 1
-	}
-	// The resource diff is dropped for the whole run, from here on, by
-	// wrapping the view before anything is handed it - the backend, the
-	// operation request and the hooks all get the wrapper. See
-	// [views.AdoptionOnlyPlan] for what it drops and what it deliberately
-	// does not.
-	if args.AdoptionOnly {
-		view = views.NewAdoptionOnlyPlan(view, c.View)
-	}
-
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(ctx, args.State, view, enc)
 	diags = diags.Append(beDiags)
@@ -125,23 +95,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
-	}
-
-	if statelessCfg != nil {
-		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly,
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
-		diags = diags.Append(moreDiags)
-		if moreDiags.HasErrors() {
-			view.Diagnostics(diags)
-			return 1
-		}
-		diags = diags.Append(c.checkAWSProviderVersionSkew())
-	} else {
-		// GitHub issue #613. A state-backed run is the one that can propose
-		// stripping a migrated estate's ownership markers, because it is the
-		// one whose prior state has no record of them. See
-		// [statefulMarkerGuard].
-		opReq.PlanGuard = statefulMarkerGuard()
 	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics
@@ -226,7 +179,7 @@ func (c *PlanCommand) OperationRequest(
 
 func (c *PlanCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] plan [options]
+Usage: tofu [global options] plan [options]
 
   Generates a speculative execution plan, showing what actions OpenTofu would
   take to apply the current configuration. This command will not actually
@@ -238,7 +191,7 @@ Usage: choudoufu [global options] plan [options]
 Plan Customization Options:
 
   The following options customize how OpenTofu will produce its plan. You can
-  also use these options when you run "choudoufu apply" without passing it a saved
+  also use these options when you run "tofu apply" without passing it a saved
   plan, in order to plan and apply in a single command.
 
   -destroy                Select the "destroy" planning mode, which creates a
@@ -333,27 +286,6 @@ Other Options:
   -no-color                    Disable virtual terminal escape sequences.
 
   -concise                     Disable progress-related messages.
-
-  -verbose                     Print detail some commands summarize by
-                               default. Under live resource markers, prints
-                               every type the removal sweep could not cover
-                               by name instead of a one-line count.
-
-  -adoption-only               Under live resource markers only, print the
-                               adoption ledger and nothing else: what this
-                               estate can adopt, what it cannot, and why. The
-                               resource diff and the other live-markers
-                               sections are suppressed, and each warning is
-                               compacted to one line naming it - errors are
-                               never touched. It also asks the estate-wide
-                               sweep which live resources carry no ownership
-                               marker at all, which an ordinary plan does not:
-                               that question is bounded by the account rather
-                               than by the estate, and it is what this ledger
-                               is for. Set TOFU_LIVE_COLLECT_UNCLAIMED=1 to
-                               ask it on an ordinary plan, or 0 to skip it
-                               here. Refused on a state-backed plan, which has
-                               no adoption question.
 
   -out=path                    Write a plan file to the given path. This can be
                                used as input to the "apply" command.

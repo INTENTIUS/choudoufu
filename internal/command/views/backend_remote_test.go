@@ -65,7 +65,7 @@ func TestBackendRemoteViews(t *testing.T) {
 			viewCall: func(view BackendRemote) {
 				view.PreRefresh()
 			},
-			wantStdout: `Proceeding with 'choudoufu apply -refresh-only -auto-approve'.
+			wantStdout: `Proceeding with 'tofu apply -refresh-only -auto-approve'.
 
 `,
 		},

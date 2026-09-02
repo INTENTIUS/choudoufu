@@ -18,10 +18,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/e2e"
-	"github.com/intentius/choudoufu/internal/getproviders"
-	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -73,7 +73,7 @@ func TestPrimarySeparatePlan(t *testing.T) {
 	if !strings.Contains(stdout, "Saved the plan to: tfplan") {
 		t.Errorf("missing \"Saved the plan to...\" message in plan output\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "choudoufu apply \"tfplan\"") {
+	if !strings.Contains(stdout, "tofu apply \"tfplan\"") {
 		t.Errorf("missing next-step instruction in plan output\n%s", stdout)
 	}
 
@@ -182,7 +182,7 @@ func TestPrimaryChdirOption(t *testing.T) {
 	if !strings.Contains(stdout, "Saved the plan to: tfplan") {
 		t.Errorf("missing \"Saved the plan to...\" message in plan output\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "choudoufu apply \"tfplan\"") {
+	if !strings.Contains(stdout, "tofu apply \"tfplan\"") {
 		t.Errorf("missing next-step instruction in plan output\n%s", stdout)
 	}
 
@@ -386,7 +386,7 @@ Changes to Outputs:
 		}
 
 		{ // APPLY with no ephemeral variable value
-			expectedToContain := "╷ Error: No value for required variable    on main.tf line 15:   15: variable \"ephemeral_input\" {  Variable \"ephemeral_input\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`.╵"
+			expectedToContain := "╷ Error: No value for required variable    on main.tf line 15:   15: variable \"ephemeral_input\" {  Variable \"ephemeral_input\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`.╵"
 			expectedErr := fmt.Errorf("exit status 1")
 			_, stderr, err := tf.Run("apply", `-var=simple_input=plan_val`, "tfplan")
 			if err == nil {
@@ -694,7 +694,7 @@ func TestApplyPanic(t *testing.T) {
 		t.Skip("custom build required with additional LDFLAGS")
 	}
 
-	e2eTofuBin := e2e.GoBuild("github.com/intentius/choudoufu/cmd/choudoufu", "tofu_e2e", `-ldflags=-X 'main.e2eTestingFeatures=yes'`)
+	e2eTofuBin := e2e.GoBuild("github.com/opentofu/opentofu/cmd/tofu", "tofu_e2e", `-ldflags=-X 'main.e2eTestingFeatures=yes'`)
 	defer func() {
 		os.Remove(e2eTofuBin)
 	}()
@@ -775,7 +775,7 @@ func buildSimpleProvider(t *testing.T, version string, workdir string, buildOutN
 		providerBinFileName = buildOutName
 	}
 	providerBuildOutDir := filepath.Join(workdir, fmt.Sprintf("terraform-provider-%s", providerBinFileName))
-	providerTmpBinPath := e2e.GoBuild(fmt.Sprintf("github.com/intentius/choudoufu/internal/%s/main", implPkgName), providerBuildOutDir)
+	providerTmpBinPath := e2e.GoBuild(fmt.Sprintf("github.com/opentofu/opentofu/internal/%s/main", implPkgName), providerBuildOutDir)
 
 	extension := ""
 	if runtime.GOOS == "windows" {

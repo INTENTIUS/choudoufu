@@ -122,13 +122,6 @@ func (diags Diagnostics) ToHCL() hcl.Diagnostics {
 			Summary:  desc.Summary,
 			Detail:   desc.Detail,
 			Severity: severity.ToHCL(),
-			// Extra rides along so a round trip through this conversion -
-			// which internal/configs.StaticEvaluator.EvalContext does on
-			// every static evaluation - does not silently drop it. #178
-			// found this: a category attached at the raise site in
-			// internal/configs/static_scope.go was vanishing here before
-			// ever reaching a caller that reads ExtraInfo.
-			Extra: diag.ExtraInfo(),
 		}
 		if source.Subject != nil {
 			hclDiag.Subject = source.Subject.ToHCL().Ptr()

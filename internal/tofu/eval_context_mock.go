@@ -13,18 +13,18 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/checks"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/lang"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/plugins"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/refactoring"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/instances"
+	"github.com/opentofu/opentofu/internal/lang"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/refactoring"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // MockEvalContext is a mock version of EvalContext that can be used
@@ -128,9 +128,6 @@ type MockEvalContext struct {
 
 	InstanceExpanderCalled   bool
 	InstanceExpanderExpander *instances.Expander
-
-	ResourceIdentityResolverValue ResourceIdentityResolver
-	ConfigValueAdjusterValue      ConfigValueAdjuster
 }
 
 // MockEvalContext implements EvalContext
@@ -353,12 +350,4 @@ func (c *MockEvalContext) InstanceExpander() *instances.Expander {
 
 func (c *MockEvalContext) GetEncryption() encryption.Encryption {
 	return encryption.Disabled()
-}
-
-func (c *MockEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {
-	return c.ResourceIdentityResolverValue
-}
-
-func (c *MockEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
-	return c.ConfigValueAdjusterValue
 }

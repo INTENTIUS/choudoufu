@@ -14,13 +14,13 @@ import (
 
 	tfe "github.com/hashicorp/go-tfe"
 	version "github.com/hashicorp/go-version"
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	tfversion "github.com/intentius/choudoufu/version"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	tfversion "github.com/opentofu/opentofu/version"
 	"github.com/zclconf/go-cty/cty"
 
-	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
+	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
 )
 
 func TestCloud(t *testing.T) {
@@ -383,7 +383,7 @@ func TestCloud_config(t *testing.T) {
 					"project": cty.NullVal(cty.String),
 				}),
 			}),
-			confErr: "choudoufu login localhost",
+			confErr: "tofu login localhost",
 		},
 		"with_tags": {
 			config: cty.ObjectVal(map[string]cty.Value{

@@ -9,17 +9,17 @@ import (
 	"context"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs/configload"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/states/statefile"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofumigrate"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofumigrate"
 )
 
 // StateShowCommand is a Command implementation that shows a single resource.
@@ -54,12 +54,6 @@ func (c *StateShowCommand) Run(rawArgs []string) int {
 	c.View.SetShowSensitive(args.ShowSensitive)
 	c.Meta.variableArgs = args.Vars.All()
 	c.Meta.stateArgs = *args.State
-
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "show"); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
-	}
 
 	// Check for user-supplied plugin path
 	var err error
@@ -206,13 +200,13 @@ func (c *StateShowCommand) Run(rawArgs []string) int {
 
 func (c *StateShowCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] state show [options] ADDRESS
+Usage: tofu [global options] state show [options] ADDRESS
 
   Shows the attributes of a resource in the OpenTofu state.
 
   This command shows the attributes of a single resource in the OpenTofu
   state. The address argument must be used to specify a single resource.
-  You can view the list of available resources with "choudoufu state list".
+  You can view the list of available resources with "tofu state list".
 
 Options:
 

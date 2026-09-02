@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/opentofu/opentofu/internal/command/workdir"
 )
 
 func TestProviders(t *testing.T) {
@@ -114,7 +114,7 @@ func TestProviders_modules(t *testing.T) {
 	wantOutput := []string{
 		"provider[registry.opentofu.org/hashicorp/foo] 1.0.0", // from required_providers
 		"provider[registry.opentofu.org/hashicorp/bar] 2.0.0", // from provider config
-		"── module.kiddo",                               // tree node for child module
+		"── module.kiddo", // tree node for child module
 		"provider[registry.opentofu.org/hashicorp/baz]", // implied by a resource in the child module
 	}
 

@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/states"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/states"
 )
 
 // StateListCommand is a Command implementation that lists the resources
@@ -50,12 +50,6 @@ func (c *StateListCommand) Run(rawArgs []string) int {
 
 	if args.State.StatePath != "" {
 		c.Meta.stateArgs.StatePath = args.State.StatePath
-	}
-
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "list"); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
 	}
 
 	// Load the encryption configuration
@@ -131,7 +125,7 @@ func (c *StateListCommand) Run(rawArgs []string) int {
 
 func (c *StateListCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] state (list|ls) [options] [address...]
+Usage: tofu [global options] state (list|ls) [options] [address...]
 
   List resources in the OpenTofu state.
 

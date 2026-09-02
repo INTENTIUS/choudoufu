@@ -11,12 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // ValidateCommand is a Command implementation that validates the tofu files
@@ -157,7 +157,7 @@ func (c *ValidateCommand) Synopsis() string {
 
 func (c *ValidateCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] validate [options]
+Usage: tofu [global options] validate [options]
 
   Validate the configuration files in a directory, referring only to the
   configuration and not accessing any remote services such as remote state,
@@ -175,10 +175,10 @@ Usage: choudoufu [global options] validate [options]
   Validation requires an initialized working directory with any referenced
   plugins and modules installed. To initialize a working directory for
   validation without accessing any configured remote backend, use:
-      choudoufu init -backend=false
+      tofu init -backend=false
 
   To verify configuration in the context of a particular run (a particular
-  target workspace, input variable values, etc), use the 'choudoufu plan'
+  target workspace, input variable values, etc), use the 'tofu plan'
   command instead, which includes an implied validation check.
 
 Options:

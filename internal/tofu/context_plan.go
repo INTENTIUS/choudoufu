@@ -18,16 +18,16 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/lang/globalref"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/refactoring"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tracing"
-	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/instances"
+	"github.com/opentofu/opentofu/internal/lang/globalref"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/refactoring"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tracing"
+	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
 )
 
 // PlanOpts are the various options that affect the details of how OpenTofu
@@ -1133,7 +1133,7 @@ func blockedMovesWarningDiag(results refactoring.MoveResults) tfdiags.Diagnostic
 		tfdiags.Warning,
 		"Unresolved resource instance address changes",
 		fmt.Sprintf(
-			"OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:%s\n\nOpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the \"choudoufu state\" subcommands and then create a new plan.",
+			"OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:%s\n\nOpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the \"tofu state\" subcommands and then create a new plan.",
 			itemsBuf.String(),
 		),
 	)

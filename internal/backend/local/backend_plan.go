@@ -11,15 +11,15 @@ import (
 	"io"
 	"log"
 
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/genconfig"
-	"github.com/intentius/choudoufu/internal/logging"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/plans/planfile"
-	"github.com/intentius/choudoufu/internal/states/statefile"
-	"github.com/intentius/choudoufu/internal/states/statemgr"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/genconfig"
+	"github.com/opentofu/opentofu/internal/logging"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plans/planfile"
+	"github.com/opentofu/opentofu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 func (b *Local) opPlan(
@@ -213,12 +213,6 @@ func (b *Local) opPlan(
 
 	op.View.Plan(plan, schemas)
 
-	// Ask the guard about the finished plan, after it has been rendered.
-	// After, not before, so that an operator refused here has already seen
-	// the whole diff the refusal is about. See backend.Operation.PlanGuard.
-	guardDiags, guardRefused := askPlanGuard(op, plan, schemas)
-	diags = diags.Append(guardDiags)
-
 	// If we've accumulated any diagnostics along the way then we'll show them
 	// here just before we show the summary and next steps. This can potentially
 	// include errors, because we intentionally try to show a partial plan
@@ -226,9 +220,7 @@ func (b *Local) opPlan(
 	// creating it.
 	op.ReportResult(runningOp, diags)
 
-	// A refused plan gets no "run apply next" hint: the hint would name the
-	// one command the refusal exists to prevent.
-	if !runningOp.PlanEmpty && !guardRefused {
+	if !runningOp.PlanEmpty {
 		if wroteConfig {
 			op.View.PlanNextStep(op.PlanOutPath, op.GenerateConfigOut)
 		} else {

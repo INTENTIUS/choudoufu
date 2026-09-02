@@ -18,17 +18,17 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/engine/applying"
-	"github.com/intentius/choudoufu/internal/engine/planning"
-	"github.com/intentius/choudoufu/internal/engine/plugins"
-	"github.com/intentius/choudoufu/internal/lang/eval"
-	"github.com/intentius/choudoufu/internal/lang/exprs"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/shared"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/engine/applying"
+	"github.com/opentofu/opentofu/internal/engine/planning"
+	"github.com/opentofu/opentofu/internal/engine/plugins"
+	"github.com/opentofu/opentofu/internal/lang/eval"
+	"github.com/opentofu/opentofu/internal/lang/exprs"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/shared"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 /////////////////////////
@@ -56,7 +56,7 @@ import (
 // possible to accidentally enable this experimental functionality in normal
 // release builds.
 //
-// Refer to "cmd/choudoufu/experiments.go" for information on how to produce an
+// Refer to "cmd/tofu/experiments.go" for information on how to produce an
 // experiments-enabled build.
 func SetExperimentalRuntimeAllowed(allowed bool) {
 	experimentalRuntimeAllowed.Store(allowed)

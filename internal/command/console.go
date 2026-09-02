@@ -11,15 +11,15 @@ import (
 	"os"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs/configload"
-	"github.com/intentius/choudoufu/internal/repl"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs/configload"
+	"github.com/opentofu/opentofu/internal/repl"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // ConsoleCommand is a Command implementation that starts an interactive
@@ -227,7 +227,7 @@ func (c *ConsoleCommand) modePiped(session *repl.Session, view views.Console) in
 
 func (c *ConsoleCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] console [options]
+Usage: tofu [global options] console [options]
 
   Starts an interactive console for experimenting with OpenTofu
   interpolations.

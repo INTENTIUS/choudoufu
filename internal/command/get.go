@@ -9,11 +9,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tracing"
 )
 
 // GetCommand is a Command implementation that takes a OpenTofu
@@ -69,7 +69,7 @@ func (c *GetCommand) Run(rawArgs []string) int {
 
 func (c *GetCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] get [options]
+Usage: tofu [global options] get [options]
 
   Downloads and installs modules needed for the configuration in the 
   current working directory.
@@ -80,7 +80,7 @@ Usage: choudoufu [global options] get [options]
   unless the -update flag is specified.
 
   Module installation also happens automatically by default as part of
-  the "choudoufu init" command, so you should rarely need to run this
+  the "tofu init" command, so you should rarely need to run this
   command separately.
 
 Options:

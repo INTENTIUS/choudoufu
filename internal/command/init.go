@@ -14,29 +14,29 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/intentius/choudoufu/internal/command/flags"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/flags"
 	"github.com/opentofu/svchost"
 	"github.com/posener/complete"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/backend"
-	backendInit "github.com/intentius/choudoufu/internal/backend/init"
-	"github.com/intentius/choudoufu/internal/cloud"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/getproviders"
-	"github.com/intentius/choudoufu/internal/providercache"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofumigrate"
-	"github.com/intentius/choudoufu/internal/tracing"
-	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
-	tfversion "github.com/intentius/choudoufu/version"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/backend"
+	backendInit "github.com/opentofu/opentofu/internal/backend/init"
+	"github.com/opentofu/opentofu/internal/cloud"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/opentofu/opentofu/internal/providercache"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofumigrate"
+	"github.com/opentofu/opentofu/internal/tracing"
+	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	tfversion "github.com/opentofu/opentofu/version"
 )
 
 // InitCommand is a Command implementation that takes a Terraform
@@ -208,25 +208,6 @@ To initialize the configuration already in this working directory, omit the
 	var backendOutput bool
 
 	switch {
-	case rootModEarly.Live != nil:
-		// A live block means this configuration has no backend and no state
-		// file, so there is nothing here to initialize, migrate or read.
-		// Every other arm of this switch ends in a state manager: the two
-		// backend arms build one, and backendFromState reads the record of a
-		// backend this directory may have used before it was converted.
-		//
-		// Leaving back nil skips all of it, including the "use the state as
-		// a source of provider dependencies" step below - correct, because a
-		// stateless run derives every resource's provider from the
-		// configuration on each run, so there is no state-only provider for
-		// that step to find.
-		//
-		// The refusal for an operator who explicitly asked for a migration
-		// lives in Meta.liveBackendGuard rather than here, so that it is the
-		// same answer whichever command reaches the backend machinery. This
-		// arm calls it for the message, and for nothing else.
-		back = nil
-		_, backDiags = c.Meta.liveBackendGuard(ctx, nil)
 	case !args.FlagBackend && args.BackendFlagSet:
 		// The user explicitly passed -backend=false,
 		// so we must neither initialize a new backend nor load any
@@ -713,11 +694,11 @@ func (c *InitCommand) getProviders(ctx context.Context, config *configs.Config, 
 			case getproviders.ErrRegistryProviderNotKnown:
 				// We might be able to suggest an alternative provider to use
 				// instead of this one.
-				suggestion := fmt.Sprintf("\n\nAll modules should specify their required_providers so that external consumers will get the correct providers when using a module. To see which modules are currently depending on %s, run the following command:\n    choudoufu providers", provider.ForDisplay())
+				suggestion := fmt.Sprintf("\n\nAll modules should specify their required_providers so that external consumers will get the correct providers when using a module. To see which modules are currently depending on %s, run the following command:\n    tofu providers", provider.ForDisplay())
 				alternative := getproviders.MissingProviderSuggestion(ctx, provider, inst.ProviderSource(), reqs)
 				if alternative != provider {
 					suggestion = fmt.Sprintf(
-						"\n\nDid you intend to use %s? If so, you must specify that source address in each module which requires that provider. To see which modules are currently depending on %s, run the following command:\n    choudoufu providers",
+						"\n\nDid you intend to use %s? If so, you must specify that source address in each module which requires that provider. To see which modules are currently depending on %s, run the following command:\n    tofu providers",
 						alternative.ForDisplay(), provider.ForDisplay(),
 					)
 				}
@@ -999,7 +980,7 @@ func (c *InitCommand) getProviders(ctx context.Context, config *configs.Config, 
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					`Provider dependency changes detected`,
-					`Changes to the required provider dependencies were detected, but the lock file is read-only. To use and record these requirements, run "choudoufu init" without the "-lockfile=readonly" flag.`,
+					`Changes to the required provider dependencies were detected, but the lock file is read-only. To use and record these requirements, run "tofu init" without the "-lockfile=readonly" flag.`,
 				))
 				return true, true, diags
 			}
@@ -1009,7 +990,7 @@ func (c *InitCommand) getProviders(ctx context.Context, config *configs.Config, 
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
 				`Provider lock file not updated`,
-				`Changes to the provider selections were detected, but not saved in the .terraform.lock.hcl file. To record these selections, run "choudoufu init" without the "-lockfile=readonly" flag.`,
+				`Changes to the provider selections were detected, but not saved in the .terraform.lock.hcl file. To record these selections, run "tofu init" without the "-lockfile=readonly" flag.`,
 			))
 			return true, false, diags
 		}
@@ -1214,7 +1195,7 @@ func (c *InitCommand) AutocompleteFlags() complete.Flags {
 
 func (c *InitCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] init [options]
+Usage: tofu [global options] init [options]
 
   Initialize a new or existing OpenTofu working directory by creating
   initial files, loading any remote state, downloading modules, etc.
@@ -1371,7 +1352,7 @@ const incompleteLockFileInformationBody = `Due to your customized provider insta
 The current .terraform.lock.hcl file only includes checksums for %s, so OpenTofu running on another platform will fail to install these providers.
 
 To calculate additional checksums for another platform, run:
-  choudoufu providers lock -platform=linux_amd64
+  tofu providers lock -platform=linux_amd64
 (where linux_amd64 is the platform to generate)`
 
 const implicitProviderReferenceBody = `Due to the prefix of the resource type name OpenTofu guessed that you intended to associate %s with a provider whose local name is "%s", but that name is not declared in this module's required_providers block. OpenTofu therefore guessed that you intended to use %s, but that provider does not exist.

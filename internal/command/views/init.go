@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/initwd"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/initwd"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 type Init interface {
@@ -284,15 +284,15 @@ func (v *InitHuman) InitSuccess(cloud bool) {
 func (v *InitHuman) InitSuccessCLI(cloud bool) {
 	if cloud {
 		const outputInitSuccessCLICloud = `[reset][green]
-You may now begin working with cloud backend. Try running "choudoufu plan" to
+You may now begin working with cloud backend. Try running "tofu plan" to
 see any changes that are required for your infrastructure.
 
-If you ever set or change modules or OpenTofu Settings, run "choudoufu init"
+If you ever set or change modules or OpenTofu Settings, run "tofu init"
 again to reinitialize your working directory.`
 		_, _ = v.view.streams.Println(v.view.colorize.Color(outputInitSuccessCLICloud))
 	} else {
 		const outputInitSuccessCLI = `[reset][green]
-You may now begin working with OpenTofu. Try running "choudoufu plan" to see
+You may now begin working with OpenTofu. Try running "tofu plan" to see
 any changes that are required for your infrastructure. All OpenTofu commands
 should now work.
 
@@ -385,7 +385,7 @@ func (v *InitHuman) LockFileCreated() {
 OpenTofu has created a lock file [bold].terraform.lock.hcl[reset] to record the provider
 selections it made above. Include this file in your version control repository
 so that OpenTofu can guarantee to make the same selections by default when
-you run "choudoufu init" in the future.`))
+you run "tofu init" in the future.`))
 }
 
 func (v *InitHuman) LockFileChanged() {
@@ -445,10 +445,10 @@ func (v *InitJSON) InitSuccess(cloud bool) {
 
 func (v *InitJSON) InitSuccessCLI(cloud bool) {
 	if cloud {
-		const outputInitSuccessCLICloud = `You may now begin working with cloud backend. Try running "choudoufu plan" to see any changes that are required for your infrastructure. If you ever set or change modules or OpenTofu Settings, run "choudoufu init" again to reinitialize your working directory.`
+		const outputInitSuccessCLICloud = `You may now begin working with cloud backend. Try running "tofu plan" to see any changes that are required for your infrastructure. If you ever set or change modules or OpenTofu Settings, run "tofu init" again to reinitialize your working directory.`
 		v.view.Info(outputInitSuccessCLICloud)
 	} else {
-		const outputInitSuccessCLI = `You may now begin working with OpenTofu. Try running "choudoufu plan" to see any changes that are required for your infrastructure. All OpenTofu commands should now work. If you ever set or change modules or backend configuration for OpenTofu, rerun this command to reinitialize your working directory. If you forget, other commands will detect it and remind you to do so if necessary.`
+		const outputInitSuccessCLI = `You may now begin working with OpenTofu. Try running "tofu plan" to see any changes that are required for your infrastructure. All OpenTofu commands should now work. If you ever set or change modules or backend configuration for OpenTofu, rerun this command to reinitialize your working directory. If you forget, other commands will detect it and remind you to do so if necessary.`
 		v.view.Info(outputInitSuccessCLI)
 	}
 }
@@ -534,7 +534,7 @@ func (v *InitJSON) LockFileCreated() {
 	v.view.Info("OpenTofu has created a lock file .terraform.lock.hcl to record the provider " +
 		"selections it made above. Include this file in your version control repository " +
 		"so that OpenTofu can guarantee to make the same selections by default when " +
-		"you run \"choudoufu init\" in the future.")
+		"you run \"tofu init\" in the future.")
 }
 
 func (v *InitJSON) LockFileChanged() {

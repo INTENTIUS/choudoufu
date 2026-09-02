@@ -12,8 +12,8 @@ import (
 	version "github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/modsdir"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/modsdir"
 )
 
 // LoadConfig reads the OpenTofu module in the given directory and uses it as the
@@ -73,7 +73,7 @@ func (l *loader) ModuleLocalPath(_ context.Context, req *configs.ModuleRequest) 
 			{
 				Severity: hcl.DiagError,
 				Summary:  "Module not installed",
-				Detail:   "This module is not yet installed. Run \"choudoufu init\" to install all modules required by this configuration.",
+				Detail:   "This module is not yet installed. Run \"tofu init\" to install all modules required by this configuration.",
 				Subject:  &req.CallRange,
 			},
 		}
@@ -89,7 +89,7 @@ func (l *loader) ModuleLocalPath(_ context.Context, req *configs.ModuleRequest) 
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Module source has changed",
-			Detail:   fmt.Sprintf("The source address was changed from %q to %q since this module was installed. Run \"choudoufu init\" to install all modules required by this configuration.", record.SourceAddr, req.SourceAddr.String()),
+			Detail:   fmt.Sprintf("The source address was changed from %q to %q since this module was installed. Run \"tofu init\" to install all modules required by this configuration.", record.SourceAddr, req.SourceAddr.String()),
 			Subject:  &req.SourceAddrRange,
 		})
 	}
@@ -97,7 +97,7 @@ func (l *loader) ModuleLocalPath(_ context.Context, req *configs.ModuleRequest) 
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Module version requirements have changed",
-			Detail:   "The version requirements have changed since this module was installed and the installed version is no longer acceptable. Run \"choudoufu init\" to install all modules required by this configuration.",
+			Detail:   "The version requirements have changed since this module was installed and the installed version is no longer acceptable. Run \"tofu init\" to install all modules required by this configuration.",
 			Subject:  &req.SourceAddrRange,
 		})
 	}
@@ -106,7 +106,7 @@ func (l *loader) ModuleLocalPath(_ context.Context, req *configs.ModuleRequest) 
 			Severity: hcl.DiagError,
 			Summary:  "Module version requirements have changed",
 			Detail: fmt.Sprintf(
-				"The version requirements have changed since this module was installed and the installed version (%s) is no longer acceptable. Run \"choudoufu init\" to install all modules required by this configuration.",
+				"The version requirements have changed since this module was installed and the installed version (%s) is no longer acceptable. Run \"tofu init\" to install all modules required by this configuration.",
 				record.Version,
 			),
 			Subject: &req.SourceAddrRange,
@@ -135,7 +135,7 @@ func (l *loader) moduleWalkerLoad(ctx context.Context, req *configs.ModuleReques
 			{
 				Severity: hcl.DiagError,
 				Summary:  "Module not installed",
-				Detail:   fmt.Sprintf("This module's local cache directory %s could not be read. Run \"choudoufu init\" to install all modules required by this configuration.", record.Dir),
+				Detail:   fmt.Sprintf("This module's local cache directory %s could not be read. Run \"tofu init\" to install all modules required by this configuration.", record.Dir),
 				Subject:  &req.CallRange,
 			},
 		}

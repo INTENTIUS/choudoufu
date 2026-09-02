@@ -8,8 +8,8 @@ package arguments
 import (
 	"fmt"
 
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // Apply represents the command-line arguments for the apply command.
@@ -34,13 +34,6 @@ type Apply struct {
 	// SuppressForgetErrorsDuringDestroy suppresses the error that occurs when a
 	// destroy operation completes successfully but leaves forgotten instances behind.
 	SuppressForgetErrorsDuringDestroy bool
-
-	// Verbose asks a command to print detail it would otherwise summarize.
-	// See [Plan.Verbose] for what it is for and why it lives on Apply
-	// directly rather than behind a shared, every-command flag: "-verbose"
-	// already names an unrelated flag on "choudoufu test" and "choudoufu
-	// graph" parsed ahead of a shared flag set's own turn.
-	Verbose bool
 }
 
 // ParseApply processes CLI arguments, returning an Apply value, a closer function, and errors.
@@ -58,7 +51,6 @@ func ParseApply(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 	cmdFlags.BoolVar(&apply.AutoApprove, "auto-approve", false, "auto-approve")
 	cmdFlags.BoolVar(&apply.ShowSensitive, "show-sensitive", false, "displays sensitive values")
 	cmdFlags.BoolVar(&apply.SuppressForgetErrorsDuringDestroy, "suppress-forget-errors", false, "suppress errors in destroy mode due to resources being forgotten")
-	cmdFlags.BoolVar(&apply.Verbose, "verbose", false, "verbose")
 
 	apply.State.addFlags(cmdFlags, stateFlagAll)
 	apply.ViewOptions.AddFlags(cmdFlags, true)
@@ -125,13 +117,13 @@ func ParseApplyDestroy(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			"The -destroy option is not valid for \"choudoufu destroy\", because this command always runs in destroy mode.",
+			"The -destroy option is not valid for \"tofu destroy\", because this command always runs in destroy mode.",
 		))
 	case plans.RefreshOnlyMode:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			"The -refresh-only option is not valid for \"choudoufu destroy\".",
+			"The -refresh-only option is not valid for \"tofu destroy\".",
 		))
 	default:
 		// This is a non-ideal error message for if we forget to handle a
@@ -140,7 +132,7 @@ func ParseApplyDestroy(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			fmt.Sprintf("The \"choudoufu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
+			fmt.Sprintf("The \"tofu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
 		))
 	}
 

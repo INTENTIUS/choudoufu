@@ -15,17 +15,17 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/checks"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/lang"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/plugins"
-	"github.com/intentius/choudoufu/internal/refactoring"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/instances"
+	"github.com/opentofu/opentofu/internal/lang"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/refactoring"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // BuiltinEvalContext is an EvalContext implementation that is used by
@@ -77,12 +77,6 @@ type BuiltinEvalContext struct {
 	ImportResolverValue     *ImportResolver
 	Encryption              encryption.Encryption
 	ProviderFunctionTracker ProviderFunctionMapping
-
-	// ResourceIdentityResolverValue and ConfigValueAdjusterValue are the
-	// plan-node seam (see resource_identity.go); nil unless NewContext was
-	// given one in ContextOpts.
-	ResourceIdentityResolverValue ResourceIdentityResolver
-	ConfigValueAdjusterValue      ConfigValueAdjuster
 }
 
 // BuiltinEvalContext implements EvalContext
@@ -462,12 +456,4 @@ func (c *BuiltinEvalContext) ImportResolver() *ImportResolver {
 
 func (c *BuiltinEvalContext) GetEncryption() encryption.Encryption {
 	return c.Encryption
-}
-
-func (c *BuiltinEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {
-	return c.ResourceIdentityResolverValue
-}
-
-func (c *BuiltinEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
-	return c.ConfigValueAdjusterValue
 }

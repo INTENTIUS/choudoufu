@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/posener/complete"
 )
 
@@ -69,7 +69,7 @@ func (c *WorkspaceShowCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceShowCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] workspace show
+Usage: tofu [global options] workspace show
 
   Show the name of the current workspace.
 `

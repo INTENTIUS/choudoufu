@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/posener/complete"
 
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 type WorkspaceListCommand struct {
@@ -109,7 +109,7 @@ func (c *WorkspaceListCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceListCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] workspace list [options]
+Usage: tofu [global options] workspace list [options]
 
   List OpenTofu workspaces.
 

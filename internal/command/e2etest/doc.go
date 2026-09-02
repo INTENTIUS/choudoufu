@@ -16,7 +16,7 @@
 //
 // You can run these tests using "go test" as usual:
 //
-//	go test -v github.com/intentius/choudoufu/internal/command/e2etest
+//	go test -v github.com/opentofu/opentofu/internal/command/e2etest
 //
 // This will compile on the fly a OpenTofu binary and run the tests against
 // it.
@@ -124,7 +124,7 @@
 package e2etest
 
 import (
-	"github.com/intentius/choudoufu/internal/e2e"
+	"github.com/opentofu/opentofu/internal/e2e"
 )
 
 func _() {

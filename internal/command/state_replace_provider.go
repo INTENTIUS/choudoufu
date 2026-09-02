@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/clistate"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/clistate"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // StateReplaceProviderCommand is a Command implementation that allows users
@@ -54,12 +54,6 @@ func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
 	c.Meta.stateArgs = *args.State
 	c.Meta.variableArgs = args.Vars.All()
 	c.Meta.backendArgs = *args.Backend
-
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
-	}
 
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
@@ -216,7 +210,7 @@ func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
 
 func (c *StateReplaceProviderCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] state replace-provider [options] FROM_PROVIDER_FQN TO_PROVIDER_FQN
+Usage: tofu [global options] state replace-provider [options] FROM_PROVIDER_FQN TO_PROVIDER_FQN
 
   Replace provider for resources in the OpenTofu state.
 

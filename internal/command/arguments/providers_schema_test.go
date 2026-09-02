@@ -34,7 +34,7 @@ func TestParseProvidersSchema_basicValidation(t *testing.T) {
 			want:      providersSchemaArgsWithDefaults(nil),
 			wantContain: []string{
 				"Output only in json is allowed",
-				"The `choudoufu providers schema` command requires the `-json` flag.",
+				"The `tofu providers schema` command requires the `-json` flag.",
 			},
 		},
 		"one positional argument with json": {

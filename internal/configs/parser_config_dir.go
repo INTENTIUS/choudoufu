@@ -64,8 +64,6 @@ func (p *Parser) LoadConfigDirSelective(path string, call StaticModuleCall, load
 	diags = append(diags, fDiags...)
 	override, fDiags := p.loadFiles(overridePaths, true)
 	diags = append(diags, fDiags...)
-	primary, sDiags := p.appendLiveSidecar(path, primary)
-	diags = append(diags, sDiags...)
 
 	mod, modDiags := NewModule(primary, override, call, path, load)
 	diags = append(diags, modDiags...)
@@ -91,8 +89,6 @@ func (p *Parser) LoadConfigDirUneval(path string, load SelectiveLoader) (*Module
 	diags = append(diags, fDiags...)
 	override, fDiags := p.loadFiles(overridePaths, true)
 	diags = append(diags, fDiags...)
-	primary, sDiags := p.appendLiveSidecar(path, primary)
-	diags = append(diags, sDiags...)
 
 	mod, modDiags := NewModuleUneval(primary, override, path, load)
 	diags = append(diags, modDiags...)
@@ -115,8 +111,6 @@ func (p *Parser) LoadConfigDirWithTests(path string, testDirectory string, call 
 	diags = append(diags, fDiags...)
 	tests, fDiags := p.loadTestFiles(path, testPaths)
 	diags = append(diags, fDiags...)
-	primary, sDiags := p.appendLiveSidecar(path, primary)
-	diags = append(diags, sDiags...)
 
 	mod, modDiags := NewModuleWithTests(primary, override, tests, call, path)
 	diags = append(diags, modDiags...)

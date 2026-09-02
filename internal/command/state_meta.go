@@ -11,14 +11,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/states/statemgr"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 
-	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
+	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
 )
 
 // StateMeta is the meta struct that should be embedded in state subcommands.
@@ -133,7 +133,7 @@ func (c *StateMeta) lookupResourceInstanceAddr(state *states.State, allowMissing
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Unknown module",
-				fmt.Sprintf(`The current state contains no module at %s. If you've just added this module to the configuration, you must run "choudoufu apply" first to create the module's entry in the state.`, addr),
+				fmt.Sprintf(`The current state contains no module at %s. If you've just added this module to the configuration, you must run "tofu apply" first to create the module's entry in the state.`, addr),
 			))
 		}
 
@@ -145,7 +145,7 @@ func (c *StateMeta) lookupResourceInstanceAddr(state *states.State, allowMissing
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					"Unknown resource",
-					fmt.Sprintf(`The current state contains no resource %s. If you've just added this resource to the configuration, you must run "choudoufu apply" first to create the resource's entry in the state.`, addr),
+					fmt.Sprintf(`The current state contains no resource %s. If you've just added this resource to the configuration, you must run "tofu apply" first to create the resource's entry in the state.`, addr),
 				))
 			}
 			break
@@ -158,7 +158,7 @@ func (c *StateMeta) lookupResourceInstanceAddr(state *states.State, allowMissing
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					"Unknown resource instance",
-					fmt.Sprintf(`The current state contains no resource instance %s. If you've just added its resource to the configuration or have changed the count or for_each arguments, you must run "choudoufu apply" first to update the resource's entry in the state.`, addr),
+					fmt.Sprintf(`The current state contains no resource instance %s. If you've just added its resource to the configuration or have changed the count or for_each arguments, you must run "tofu apply" first to update the resource's entry in the state.`, addr),
 				))
 			}
 			break

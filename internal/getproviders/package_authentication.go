@@ -20,8 +20,8 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpErrors "github.com/ProtonMail/go-crypto/openpgp/errors"
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/collections"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/collections"
 )
 
 type packageAuthenticationResult int
@@ -413,9 +413,8 @@ type registryPackageAuthentication struct {
 // ReportedByRegistry. It should be combined with other authentications
 // to be useful.
 //
-// See upstream's corresponding design document,
-// https://github.com/opentofu/opentofu/blob/main/rfc/20251027-provider-registry-hashes.md,
-// for more information.
+// See the corresponding [RFC](rfc/20251027-provider-registry-hashes.md) for
+// more information.
 func NewRegistryPackageAuthentication(meta PackageMeta, sha256sum string, packageData map[Platform]RegistryPlatformData) PackageAuthentication {
 	return &registryPackageAuthentication{
 		Meta:        meta,

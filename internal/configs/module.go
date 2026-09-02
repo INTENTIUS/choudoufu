@@ -11,9 +11,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/encryption/config"
-	"github.com/intentius/choudoufu/internal/experiments"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/encryption/config"
+	"github.com/opentofu/opentofu/internal/experiments"
 )
 
 // Module is a container for a set of configuration constructs that are
@@ -33,7 +33,6 @@ type Module struct {
 
 	Backend              *Backend
 	CloudConfig          *CloudConfig
-	Live                 *Live
 	ProviderConfigs      map[string]*Provider
 	ProviderRequirements *RequiredProviders
 	ProviderLocalNames   map[addrs.Provider]string
@@ -92,7 +91,6 @@ func (m *Module) GetProviderConfig(name, alias string) (*Provider, bool) {
 type File struct {
 	Backends          []*Backend
 	CloudConfigs      []*CloudConfig
-	Lives             []*Live
 	ProviderConfigs   []*Provider
 	ProviderMetas     []*ProviderMeta
 	RequiredProviders []*RequiredProviders
@@ -141,11 +139,6 @@ func (s SelectiveLoader) filter(input []*File) []*File {
 		case SelectiveLoadBackend:
 			outFile.Backends = inFile.Backends
 			outFile.CloudConfigs = inFile.CloudConfigs
-			// The live block travels with the backend blocks because it
-			// answers the same question they do - where does prior state come
-			// from - and because it is mutually exclusive with them, which
-			// only a load that can see all three can check.
-			outFile.Lives = inFile.Lives
 		case SelectiveLoadEncryption:
 			outFile.Encryptions = inFile.Encryptions
 		}
@@ -349,59 +342,6 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 			Summary:  "Both a backend and a cloud configuration are present",
 			Detail:   fmt.Sprintf("A module may declare either one 'cloud' block configuring a cloud backend OR one 'backend' block configuring a state backend. A cloud backend is configured at %s; a backend is configured at %s. Remove the backend block to configure a cloud backend.", m.CloudConfig.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
-		})
-	}
-
-	for _, s := range file.Lives {
-		if m.Live != nil {
-			if s.Sidecar != m.Live.Sidecar {
-				// One source is the sidecar file and the other is a live
-				// block in a .tf file. That is not a duplicate block to
-				// deduplicate but two competing sources of truth, and the
-				// error names both places so the fix is deleting one file
-				// or one block, whichever the author meant less.
-				sidecar, block := s, m.Live
-				if !sidecar.Sidecar {
-					sidecar, block = block, sidecar
-				}
-				diags = append(diags, &hcl.Diagnostic{
-					Severity: hcl.DiagError,
-					Summary:  "Both a live sidecar file and a live block are present",
-					Detail:   fmt.Sprintf("A module's live configuration must have one source of truth: either the %s sidecar file or a 'live' block inside a terraform block, not both. The sidecar file is %s; the live block is at %s. Remove one of them.", LiveSidecarFilename, sidecar.DeclRange.Filename, block.DeclRange),
-					Subject:  &s.DeclRange,
-				})
-				continue
-			}
-			diags = append(diags, &hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Duplicate live configuration",
-				Detail:   fmt.Sprintf("A module may have only one 'live' block. Live resource markers were previously configured at %s.", m.Live.DeclRange),
-				Subject:  &s.DeclRange,
-			})
-			continue
-		}
-		m.Live = s
-	}
-
-	// Stateless mode and a state store are mutually exclusive by construction:
-	// a stateless run has no state to put anywhere, so a backend beside it is
-	// not a redundant setting but a contradiction about where the truth lives.
-	// Refusing it here, in the decoder, means no command can reach a state
-	// manager while believing it is in stateless mode.
-	if m.Live != nil && m.Backend != nil {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Both a backend and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'backend' block configuring where state is stored. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
-			Subject:  &m.Backend.DeclRange,
-		})
-	}
-	if m.Live != nil && m.CloudConfig != nil {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Both a cloud and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'cloud' block configuring a cloud backend. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
-			Subject:  &m.CloudConfig.DeclRange,
 		})
 	}
 

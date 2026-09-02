@@ -15,50 +15,22 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/didyoumean"
-	"github.com/intentius/choudoufu/internal/lang"
-	"github.com/intentius/choudoufu/internal/lang/marks"
-	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/didyoumean"
+	"github.com/opentofu/opentofu/internal/lang"
+	"github.com/opentofu/opentofu/internal/lang/marks"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // newStaticScope creates a lang.Scope that's backed by the static view of the module represented by the StaticEvaluator
 func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...StaticIdentifier) *lang.Scope {
 	return &lang.Scope{
-		Data:          staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
-		ParseRef:      addrs.ParseRef,
-		BaseDir:       eval.baseDir(),
-		PureOnly:      eval.pureOnly,
-		ConsoleMode:   false,
-		FuncOverrides: eval.funcOverrides,
+		Data:        staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
+		ParseRef:    addrs.ParseRef,
+		BaseDir:     ".", // Always current working directory for now. (same as Evaluator.Scope())
+		PureOnly:    false,
+		ConsoleMode: false,
 	}
-}
-
-// Pure returns a copy of the evaluator whose scopes evaluate uuid(),
-// timestamp() and bcrypt() to unknown values instead of calling them, the
-// same way the plan walk does outside of apply (see lang.Scope.PureOnly and
-// internal/tofu/evaluate.go).
-//
-// The default is impure because the original callers of the static evaluator
-// - module source, backend configuration, module call variables - all want
-// whatever the function returns and consume it once, immediately.
-//
-// A caller that is deriving a stable identity from configuration wants the
-// opposite. An impure function evaluated here produces a value that is real,
-// known, and different on the next run: for stateless mode's identity
-// resolution that means a fabricated import ID, a plan that proposes to
-// create something that already exists, and a leaked resource per run, with
-// no diagnostic anywhere because nothing about the value looks wrong. Such a
-// caller asks for a pure evaluator, and gets an unknown value it can refuse
-// on rather than a plausible one it cannot tell from a real answer.
-func (s *StaticEvaluator) Pure() *StaticEvaluator {
-	if s == nil || s.pureOnly {
-		return s
-	}
-	dup := *s
-	dup.pureOnly = true
-	return &dup
 }
 
 // This structure represents the data required to evaluate a specific identifier reference (top of the stack)
@@ -92,245 +64,20 @@ func (s staticScopeData) scope(ident StaticIdentifier) (*lang.Scope, tfdiags.Dia
 func (s staticScopeData) enhanceDiagnostics(ident StaticIdentifier, diags tfdiags.Diagnostics) tfdiags.Diagnostics {
 	if diags.HasErrors() {
 		top := s.stack[len(s.stack)-1]
-		d := &hcl.Diagnostic{
+		diags = diags.Append(&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Unable to compute static value",
 			Detail:   fmt.Sprintf("%s depends on %s which is not available", top, ident.String()),
 			Subject:  top.DeclRange.Ptr(),
-		}
-		if carried, ok := soleRefusedReference(diags); ok {
-			// Same reference, re-reported at this level of the chain: only
-			// NeededBy moves, because what needs it here is this frame's
-			// own identifier rather than the one the leader named.
-			carried.NeededBy = top.String()
-			d.Extra = carried
-		}
-		diags = diags.Append(d)
+		})
 	}
 	return diags
-}
-
-// soleRefusedReference reports the one [RefusedReference] that every error
-// in diags refused on, when there is exactly one.
-//
-// This is what lets the trailing "Unable to compute static value" be
-// classified rather than counted. The trailer is not a failure of its own:
-// enhanceDiagnostics only ever appends it on top of diagnostics that already
-// carry an error, so it always restates, at an outer frame, whatever refused
-// further in. A consumer that classifies by the structured extra - the
-// data-read phase's re-homing in internal/live/check, which turns a refusal
-// naming a data source the phase will read into "no configuration edit is
-// needed" - could see the leader and not the restatement, so one resource
-// whose identity argument reads a data source through a module variable was
-// reported as an eligible read at the module CALL and as a flat refusal at
-// the resource itself. Carrying the reference outward reports both the same
-// way.
-//
-// "Exactly one" is the whole safety condition, and it is why this returns a
-// single reference rather than a set. diags at this point is the accumulated
-// errors of a whole subtree, which may hold several independent refusals -
-// two different data sources, or a data source and a module output. The
-// trailer can carry only one extra, so carrying any of several would state
-// that the outer frame fails for that one reason when it in fact fails for
-// all of them, and a consumer that clears the carried one would clear the
-// trailer while the others still stand. Disagreement therefore carries
-// nothing, and the trailer stays exactly the opaque diagnostic it has always
-// been.
-//
-// A chain of trailers agrees with itself by construction: the innermost
-// trailer takes the leader's reference, so every frame above it sees one
-// reference repeated and keeps propagating.
-func soleRefusedReference(diags tfdiags.Diagnostics) (RefusedReference, bool) {
-	var found RefusedReference
-	for _, d := range diags {
-		if d.Severity() != tfdiags.Error {
-			continue
-		}
-		ref := tfdiags.ExtraInfo[RefusedReference](d)
-		if ref.Subject == nil {
-			// An error raised somewhere with no structured reference at
-			// all - an HCL evaluation error, a required variable not set.
-			// Nothing to carry, and carrying a sibling's reference past it
-			// would hide it.
-			return RefusedReference{}, false
-		}
-		if found.Subject == nil {
-			found = ref
-			continue
-		}
-		if !sameRefusedReference(found, ref) {
-			return RefusedReference{}, false
-		}
-	}
-	return found, found.Subject != nil
-}
-
-// sameRefusedReference reports whether two refusals name the same thing in
-// the same place. NeededBy is deliberately not compared: two frames of one
-// chain refuse the same reference and each names its own dependent.
-func sameRefusedReference(a, b RefusedReference) bool {
-	return a.Category == b.Category &&
-		a.Subject.String() == b.Subject.String() &&
-		a.Module.String() == b.Module.String()
-}
-
-// ReferenceCategory classifies the kind of object a reference site named,
-// derived structurally from ref.Subject's Go type at the point
-// StaticValidateReferences refused it - never by parsing a diagnostic's
-// rendered text. It rides in the diagnostic's Extra field (the same
-// mechanism tfdiags.ExtraInfo already exposes for other diagnostic
-// metadata), so a caller can recover it with
-// tfdiags.ExtraInfo[ReferenceCategory](diag) instead of re-deriving it.
-//
-// #178's scoping pass found the split between a same-stack data source and
-// a cross-stack one load-bearing for its design question: a same-stack
-// data source is an ordering problem this repo could plausibly solve with
-// a pre-resolution read phase against the live provider, while a
-// cross-stack one (terraform_remote_state, tfe_outputs) depends on a
-// second state backend this fork does not open, and needs its own design
-// call regardless of what the first gets.
-type ReferenceCategory string
-
-const (
-	CategoryManagedResource  ReferenceCategory = "managed_resource"
-	CategoryDataSource       ReferenceCategory = "data_source"
-	CategoryTfeOutputs       ReferenceCategory = "tfe_outputs"
-	CategoryRemoteState      ReferenceCategory = "remote_state"
-	CategoryModuleOutput     ReferenceCategory = "module_output"
-	CategoryProviderFunction ReferenceCategory = "provider_function"
-	CategoryOther            ReferenceCategory = "other"
-)
-
-// tfeOutputsType and remoteStateType are the two cross-stack data source
-// types: mechanically both are provider data sources, but each carries its
-// own auth surface and failure modes and lands as its own stage (issue
-// #179). This is the one place a type name IS the category definition -
-// every other rule in this file stays structural.
-const (
-	tfeOutputsType  = "tfe_outputs"
-	remoteStateType = "terraform_remote_state"
-)
-
-// crossStackDataSources are the data source types that read another
-// stack's recorded outputs rather than a live cloud resource.
-var crossStackDataSources = map[string]bool{
-	remoteStateType: true,
-	tfeOutputsType:  true,
-}
-
-// RefusedReference is the structured account of one reference
-// [staticScopeData.StaticValidateReferences] refused, carried in the
-// diagnostic's Extra field. It wraps the [ReferenceCategory] that has ridden
-// there since #178 - tfdiags.ExtraInfo[ReferenceCategory] still finds it,
-// through the unwrap chain - and adds the two facts a consumer needs to act
-// on the refusal rather than merely count it: which object was referenced
-// and in which module. The pre-resolution data-read phase
-// (internal/live/dataread) is the consumer: it derives which data sources
-// identity resolution demands from exactly these refusals.
-type RefusedReference struct {
-	// Category classifies the referenced object. See [ReferenceCategory].
-	Category ReferenceCategory
-
-	// Subject is the referenced object itself, module-relative, exactly as
-	// the reference parser produced it.
-	Subject addrs.Referenceable
-
-	// Module is the module the referencing expression belongs to: the
-	// evaluating module's call path, with no instance keys, because a static
-	// evaluator is shared by every instance of its module.
-	Module addrs.Module
-
-	// NeededBy names the static identifier whose evaluation needed the
-	// refused reference - the top of the evaluation stack, rendered the way
-	// the diagnostic's own text renders it.
-	NeededBy string
-}
-
-// UnwrapDiagnosticExtra keeps tfdiags.ExtraInfo[ReferenceCategory] working:
-// the category used to BE the Extra value, and every consumer of it reads
-// through the standard unwrap chain.
-func (r RefusedReference) UnwrapDiagnosticExtra() interface{} { return r.Category }
-
-// IsCrossStackDataSource reports whether typeName is one of the data source
-// types that read another stack's recorded outputs rather than a live cloud
-// resource - the union of [IsTfeOutputs] and [IsRemoteState]. Exported
-// because the data-read phase draws its coverage line exactly here: a
-// same-stack data source is an ordering problem the phase solves, a
-// cross-stack one carries its own auth surface and failure modes and stays
-// refused until its own stage ships (issue #179).
-func IsCrossStackDataSource(typeName string) bool {
-	return crossStackDataSources[typeName]
-}
-
-// IsTfeOutputs reports whether typeName is the tfe provider's cross-stack
-// output reader. Stage 2 of #179 gives it its own read pipeline; see
-// [IsRemoteState] for the flavor that stays refused until stage 3.
-func IsTfeOutputs(typeName string) bool {
-	return typeName == tfeOutputsType
-}
-
-// IsRemoteState reports whether typeName is the builtin
-// terraform_remote_state data source. It stays refused byte-for-byte until
-// #179's stage 3 gives it its own read pipeline.
-func IsRemoteState(typeName string) bool {
-	return typeName == remoteStateType
-}
-
-// categorizeReference derives subject's [ReferenceCategory] from its Go
-// type and, for a data resource, its type name - structural signals
-// available at the raise site, with nothing read from rendered text.
-func categorizeReference(subject addrs.Referenceable) ReferenceCategory {
-	switch s := subject.(type) {
-	case addrs.Resource:
-		return categorizeResourceMode(s.Mode, s.Type)
-	case addrs.ResourceInstance:
-		return categorizeResourceMode(s.Resource.Mode, s.Resource.Type)
-	case addrs.ModuleCallInstanceOutput:
-		return CategoryModuleOutput
-	case addrs.ModuleCall, addrs.ModuleCallInstance:
-		// module.foo (every output, unkeyed) and module.foo[0] (every
-		// output of one instance) name the whole module call rather than
-		// one named output, but need the same thing a named output needs:
-		// the module evaluated, which static evaluation never does. See
-		// the matching case in [staticScopeData.StaticValidateReferences].
-		return CategoryModuleOutput
-	case addrs.ProviderFunction:
-		return CategoryProviderFunction
-	default:
-		return CategoryOther
-	}
-}
-
-func categorizeResourceMode(mode addrs.ResourceMode, typeName string) ReferenceCategory {
-	switch mode {
-	case addrs.ManagedResourceMode:
-		return CategoryManagedResource
-	case addrs.DataResourceMode:
-		switch typeName {
-		case tfeOutputsType:
-			return CategoryTfeOutputs
-		case remoteStateType:
-			return CategoryRemoteState
-		default:
-			return CategoryDataSource
-		}
-	default:
-		return CategoryOther
-	}
 }
 
 // Early check to only allow references we expect in a static context
 func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*addrs.Reference, _ addrs.Referenceable, _ addrs.Referenceable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	top := s.stack[len(s.stack)-1]
-	refused := func(subject addrs.Referenceable) RefusedReference {
-		return RefusedReference{
-			Category: categorizeReference(subject),
-			Subject:  subject,
-			Module:   s.eval.call.addr,
-			NeededBy: top.String(),
-		}
-	}
 	for _, ref := range refs {
 		switch subject := ref.Subject.(type) {
 		case addrs.LocalValue:
@@ -341,41 +88,12 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			continue
 		case addrs.TerraformAttr:
 			continue
-		case addrs.ModuleCallInstanceOutput, addrs.ModuleCall, addrs.ModuleCallInstance:
-			// The named-output form (module.foo.bar) and the whole-module
-			// form (module.foo, or the keyed module.foo[0]) both refuse for
-			// the same reason: whatever they name is produced by evaluating
-			// the module, which has not happened yet. Splitting them into
-			// two diagnostics here would separate a user's "I referenced
-			// the whole module instead of one output" mistake from its own
-			// twin for no reason a reader could tell was intentional.
-			//
-			// A tolerant evaluator answers all three forms instead: by
-			// value where its module-output lookup covers the call, as an
-			// unknown where it does not. See
-			// [StaticEvaluator.WithUnknownForRefusedReferences] and
-			// [staticScopeData.GetModule].
-			if s.eval.unknownForRefused {
-				continue
-			}
-			// A caller that can evaluate the named call's own output
-			// expressions - never a guess, always a real evaluation of
-			// configuration this evaluator can reach - hands them in
-			// through [StaticEvaluator.WithModuleOutputResults]. Only a
-			// call the lookup actually covers passes; an evaluator with no
-			// lookup, or one that declines this specific call, refuses
-			// exactly as it always has. See [staticScopeData.GetModule].
-			if call, ok := moduleCallOf(subject); ok && s.eval.moduleOutputLookup != nil {
-				if _, covered := s.eval.moduleOutputLookup(call); covered {
-					continue
-				}
-			}
+		case addrs.ModuleCallInstanceOutput:
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Module output not supported in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    refused(subject),
 			})
 		case addrs.ProviderFunction:
 			diags = diags.Append(&hcl.Diagnostic{
@@ -383,238 +101,28 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Provider function in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    refused(subject),
-			})
-		case addrs.CountAttr, addrs.ForEachAttr:
-			// count.index, each.key and each.value are dynamic in the sense
-			// that plain static evaluation has no notion of a resource
-			// instance at all - but a caller resolving one specific
-			// instance's identity does, and hands the values in through
-			// [StaticEvaluator.WithRepetitionData]. Only the specific
-			// attribute that data covers passes; an evaluator with no
-			// repetition data, or one missing this particular attribute
-			// (each.value under a for_each whose values are not statically
-			// known, for instance), refuses exactly as it always has.
-			if _, ok := s.eval.repetitionAttr(subject); ok {
-				continue
-			}
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Dynamic value in static context",
-				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
-				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    refused(subject),
 			})
 		default:
-			// A data-resource reference the evaluator's data lookup covers
-			// is not dynamic anymore: a pre-resolution phase read the value
-			// from the provider itself, and [staticScopeData.GetResource]
-			// answers it below. Only covered references pass - everything
-			// the lookup does not carry keeps refusing, so an evaluator
-			// with no lookup behaves exactly as it always has.
-			if res, ok := anyResourceSubject(subject); ok && s.eval.dataLookup != nil {
-				if val, covered := s.eval.dataLookup(res); covered && lookupCoversTraversal(val, ref.Remaining) {
-					continue
-				}
-			}
-			// A tolerant evaluator answers an uncovered resource reference
-			// with an unknown rather than refusing it, so that the literals
-			// standing beside it in the same expression still have an
-			// answer. See [StaticEvaluator.WithUnknownForRefusedReferences]
-			// and [staticScopeData.GetResource].
-			if _, ok := anyResourceSubject(subject); ok && s.eval.unknownForRefused {
-				continue
-			}
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Dynamic value in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    refused(subject),
 			})
 		}
 	}
 	return diags
 }
 
-// lookupCoversTraversal reports whether the value a [StaticDataLookup]
-// answered with actually carries the attribute the reference goes on to
-// read. A lookup answering with an unknown value of unknown type - which is
-// what the data-read phase's coverage probe returns, since it needs
-// coverage rather than a value - carries everything, so this is only ever
-// restrictive for a lookup that answered with a concrete object type. It
-// exists so that a partially-covering answer refuses at the same place, and
-// in the same words, as no answer at all, instead of surfacing an HCL
-// "this object does not have an attribute named ..." error several layers
-// down.
-//
-// An instance index in the traversal is walked through rather than stopping
-// the check, so that a count- or for_each-expanded answer is checked for the
-// attribute on its ELEMENT. That matters for a partial answer such as a
-// managed resource's projection (internal/live/dataread's managedproj.go),
-// where an attribute the block does not set has to refuse at the same place
-// whether or not the reference goes through an instance key.
-func lookupCoversTraversal(val cty.Value, remaining hcl.Traversal) bool {
-	if val == cty.NilVal {
-		return true
-	}
-	ty := val.Type()
-	for _, step := range remaining {
-		switch ts := step.(type) {
-		case hcl.TraverseAttr:
-			if !ty.IsObjectType() {
-				// A collection standing in for a whole resource - the
-				// aggregate shape a count- or for_each-expanded resource's
-				// own reference carries, and what a legacy `resource.*.attr`
-				// splat's synthesized coverage traversal names its element
-				// attribute against with no explicit index step at all
-				// (see [lang.splatEachTraversals]) - is checked on its
-				// ELEMENT, exactly like an explicit TraverseIndex step
-				// already is below.
-				elem, ok := uniformElementType(ty)
-				if !ok || !elem.IsObjectType() {
-					// Not a shape this function can decide; the evaluator
-					// itself does, exactly as before.
-					return true
-				}
-				ty = elem
-			}
-			return ty.HasAttribute(ts.Name)
-		case hcl.TraverseIndex:
-			// An instance key: the element is what carries the attribute, so
-			// step into it and keep looking. Which element does not matter -
-			// uniformElementType only answers when every element has the same
-			// type - so the index value itself is never touched, and a marked
-			// or unknown key costs nothing here.
-			elem, ok := uniformElementType(ty)
-			if !ok {
-				return true
-			}
-			ty = elem
-		default:
-			return true
-		}
-	}
-	return true
-}
-
-// uniformElementType returns the type every element of ty has, when ty is a
-// collection and they all agree. A tuple or object whose elements differ has
-// no single answer, and neither does anything that is not a collection at
-// all; the caller then knows only that it cannot decide.
-func uniformElementType(ty cty.Type) (cty.Type, bool) {
-	switch {
-	case ty.IsListType(), ty.IsSetType(), ty.IsMapType():
-		return ty.ElementType(), true
-	case ty.IsTupleType():
-		etys := ty.TupleElementTypes()
-		if len(etys) == 0 {
-			return cty.NilType, false
-		}
-		for _, ety := range etys[1:] {
-			if !ety.Equals(etys[0]) {
-				return cty.NilType, false
-			}
-		}
-		return etys[0], true
-	case ty.IsObjectType():
-		var first cty.Type
-		seen := false
-		for _, aty := range ty.AttributeTypes() {
-			if !seen {
-				first, seen = aty, true
-				continue
-			}
-			if !aty.Equals(first) {
-				return cty.NilType, false
-			}
-		}
-		if !seen {
-			return cty.NilType, false
-		}
-		return first, true
-	}
-	return cty.NilType, false
-}
-
-// anyResourceSubject extracts the containing resource of EITHER mode from a
-// reference subject. The mode gate used to live here, refusing every managed
-// reference before the lookup could be asked; it now lives in the lookup
-// itself, which is the only place that knows whether it has an answer. A
-// lookup that answers nothing for managed mode - which is every lookup here
-// except internal/live/dataread's, and that one only for an argument the
-// block's own body sets - leaves behaviour identical.
-func anyResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
-	switch s := subject.(type) {
-	case addrs.Resource:
-		return s, true
-	case addrs.ResourceInstance:
-		return s.ContainingResource(), true
-	}
-	return addrs.Resource{}, false
-}
-
-// dataResourceSubject extracts the containing data-mode resource from a
-// reference subject, when it is one.
-func dataResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
-	switch s := subject.(type) {
-	case addrs.Resource:
-		if s.Mode == addrs.DataResourceMode {
-			return s, true
-		}
-	case addrs.ResourceInstance:
-		if s.Resource.Mode == addrs.DataResourceMode {
-			return s.ContainingResource(), true
-		}
-	}
-	return addrs.Resource{}, false
-}
-
-// GetCountAttr answers count.index from the evaluator's repetition data,
-// when it has one that covers it.
-// [staticScopeData.StaticValidateReferences] refuses every count.index
-// reference the repetition data does not cover before evaluation starts, so
-// the panic below is unreachable through this package's own scopes; it
-// stays as the same programming-error backstop the other unavailable
-// getters keep.
-func (s staticScopeData) GetCountAttr(_ context.Context, addr addrs.CountAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	if val, ok := s.eval.repetitionAttr(addr); ok {
-		return val, nil
-	}
+func (s staticScopeData) GetCountAttr(context.Context, addrs.CountAttr, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("Not Available in Static Context")
 }
 
-// GetForEachAttr answers each.key or each.value from the evaluator's
-// repetition data, when it has one that covers it. See
-// [staticScopeData.GetCountAttr] for why the panic below is unreachable
-// through this package's own scopes.
-func (s staticScopeData) GetForEachAttr(_ context.Context, addr addrs.ForEachAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	if val, ok := s.eval.repetitionAttr(addr); ok {
-		return val, nil
-	}
+func (s staticScopeData) GetForEachAttr(context.Context, addrs.ForEachAttr, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("Not Available in Static Context")
 }
 
-// GetResource answers a data-mode resource reference from the evaluator's
-// data lookup, when it has one that covers the address.
-// [staticScopeData.StaticValidateReferences] refuses every resource
-// reference the lookup does not cover before evaluation starts, so the
-// panic below is unreachable through this package's own scopes; it stays as
-// the same programming-error backstop the other unavailable getters keep.
-func (s staticScopeData) GetResource(_ context.Context, addr addrs.Resource, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	if s.eval.dataLookup != nil {
-		if val, ok := s.eval.dataLookup(addr); ok {
-			return val, nil
-		}
-	}
-	if s.eval.unknownForRefused {
-		// The tolerant counterpart of the refusal above: an unknown of
-		// unknown type, which attribute access and indexing both accept
-		// unconditionally, so a chain through it resolves to unknown
-		// instead of erring a second, unclassifiable way. See
-		// [StaticEvaluator.WithUnknownForRefusedReferences].
-		return cty.DynamicVal, nil
-	}
+func (s staticScopeData) GetResource(context.Context, addrs.Resource, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("Not Available in Static Context")
 }
 
@@ -647,48 +155,8 @@ func (s staticScopeData) GetLocalValue(ctx context.Context, ident addrs.LocalVal
 	return val, s.enhanceDiagnostics(id, diags.Append(valDiags))
 }
 
-// GetModule answers a module-call reference from
-// [StaticEvaluator.moduleOutputLookup] when it covers the call, else from
-// the evaluator's tolerant module-output lookup when it has one, else with
-// an unknown when a tolerant evaluator's lookup declines.
-// [staticScopeData.StaticValidateReferences] refuses every module reference
-// before evaluation starts unless one of those two seams covers it, so the
-// panic below is unreachable through this package's own scopes; it stays as
-// the same programming-error backstop the other unavailable getters keep.
-func (s staticScopeData) GetModule(_ context.Context, addr addrs.ModuleCall, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	if s.eval.moduleOutputLookup != nil {
-		if val, ok := s.eval.moduleOutputLookup(addr); ok {
-			return val, nil
-		}
-	}
-	if s.eval.unknownForRefused {
-		if val, ok := s.eval.moduleOutputsFor(addr); ok {
-			return val, nil
-		}
-		return cty.DynamicVal, nil
-	}
+func (s staticScopeData) GetModule(context.Context, addrs.ModuleCall, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("Not Available in Static Context")
-}
-
-// moduleCallOf normalizes any of the three referenceable shapes a module
-// reference can take - the whole call (module.foo), one instance of it
-// (module.foo[0]), or one named output of one instance
-// (module.foo[0].bar) - down to the bare, unkeyed [addrs.ModuleCall] both
-// [StaticEvaluator.moduleOutputLookup] and [staticScopeData.GetModule] key
-// on. This is the same normalization internal/lang/eval.go's
-// putValueBySubject already applies at the point a reference is actually
-// evaluated; StaticValidateReferences needs its own copy because it runs
-// its coverage check earlier, over the subject as written.
-func moduleCallOf(subject addrs.Referenceable) (addrs.ModuleCall, bool) {
-	switch s := subject.(type) {
-	case addrs.ModuleCall:
-		return s, true
-	case addrs.ModuleCallInstance:
-		return s.Call, true
-	case addrs.ModuleCallInstanceOutput:
-		return s.Call.Call, true
-	}
-	return addrs.ModuleCall{}, false
 }
 
 func (s staticScopeData) GetPathAttr(_ context.Context, addr addrs.PathAttr, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
@@ -720,10 +188,10 @@ func (s staticScopeData) GetPathAttr(_ context.Context, addr addrs.PathAttr, rng
 		return cty.StringVal(filepath.ToSlash(wd)), diags
 
 	case "module":
-		return cty.StringVal(s.eval.modulePath()), diags
+		return cty.StringVal(s.eval.cfg.SourceDir), diags
 
 	case "root":
-		return cty.StringVal(s.eval.rootDir()), diags
+		return cty.StringVal(s.eval.call.rootPath), diags
 
 	default:
 		suggestion := didyoumean.NameSuggestion(addr.Name, []string{"cwd", "module", "root"})
@@ -752,43 +220,6 @@ func (s staticScopeData) GetTerraformAttr(_ context.Context, addr addrs.Terrafor
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		return cty.DynamicVal, diags
-	case markers.ModulePrefixAttr:
-		// This fork's one addition to the "terraform"/"tofu" object, and the
-		// half of it that must fail closed. See [markers.ModulePrefixAttr]
-		// for what it means and [StaticEvaluator.WithModuleInstance] for who
-		// supplies the instance.
-		//
-		// Static evaluation has no notion of a module instance on its own: a
-		// StaticEvaluator belongs to a *Module, and every instance of a
-		// for_each'd or count'd call above it shares that one evaluator. So
-		// the ONLY honest answers here are "the instance a caller told me" and
-		// a refusal. Returning "" for the untold case - the obvious-looking
-		// default - would let internal/live/stamp's template render
-		// ".aws_x.y" and let a reader of an already-stamped configuration
-		// compare against that, either of which is a silently WRONG marker.
-		// HANDOFF.md's safety rule ranks a wrong marker strictly worse than a
-		// missing one, so this refuses.
-		if !s.eval.moduleInstanceSet {
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Marker module prefix in static context",
-				Detail:   fmt.Sprintf("%s is the ownership marker prefix of one module INSTANCE, and this evaluation was not told which instance it is for. Every instance of a module call shares one static evaluator, so answering here would answer for the wrong instance. This is not an attribute to reference by hand; it is written by this fork into a resource's marker tags.", markers.ModulePrefixRef),
-				Subject:  rng.ToHCL().Ptr(),
-			})
-			return cty.DynamicVal, diags
-		}
-		prefix, ok := markers.ModulePrefix(s.eval.moduleInstance)
-		if !ok {
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Marker module prefix in the root module",
-				Detail:   fmt.Sprintf("%s is the ownership marker prefix of the module instance being evaluated, and the root module has none.", markers.ModulePrefixRef),
-				Subject:  rng.ToHCL().Ptr(),
-			})
-			return cty.DynamicVal, diags
-		}
-		return cty.StringVal(prefix), diags
-
 	case "workspace":
 		workspaceName := s.eval.call.workspace
 		return cty.StringVal(workspaceName), diags
@@ -849,51 +280,8 @@ func (s staticScopeData) GetInputVariable(_ context.Context, ident addrs.InputVa
 	if valDiags.HasErrors() {
 		// If the variable value was too invalid to pass the initial request
 		// then we'll bail out immediately here since our other checks below
-		// - convert.Convert against the variable's own declared type
-		// constraint chief among them - are likely to produce redundant
-		// errors that would be confusing, AND (found empirically, not just
-		// in theory: reverting this bail regressed GitHub issue #304's own
-		// target case) are not reliably safe to run on a value that is only
-		// PARTIALLY unknown. convert.Convert's own unification across a
-		// tuple's heterogeneous element types has to settle on one
-		// definite result type, and an element carrying a genuinely unknown
-		// (cty.DynamicVal-typed) leaf can make that unification itself
-		// come back fully unknown - silently destroying more of the value
-		// than the one reference that actually failed did. So this keeps
-		// bailing, but keeps val's own TYPE rather than collapsing to
-		// cty.DynamicVal's type-erased unknown, matching the convention
-		// [normalizeRefValue] (internal/lang/eval.go) already uses for
-		// every other reference kind: a tuple literal's ELEMENT COUNT is a
-		// property of its type, not of any one element's contents, and
-		// survives this way where cty.DynamicVal (type-erased too) would
-		// have erased it. length(var.x) for a var.x whose declared value is
-		// [{a=1,b=SOMETHING_DYNAMIC}] still has a real answer purely from
-		// that preserved shape, which is what GitHub issue #304's actual
-		// site needed: a single-element ingress_with_cidr_blocks list whose
-		// one dynamic field never affects the resource's OWN count
-		// expression at all. Every ordinary caller is unaffected: it
-		// already stops at diags.HasErrors() before looking at the value at
-		// all (the standard pattern this whole package uses - see, for
-		// one, checkCountIndex's own [countIndexDomain.verdict]), so the
-		// value only ever reaches a caller built to look past that gate
-		// ([StaticEvaluator.EvaluateStructural]).
-		// The guard below tests val's TYPE rather than val itself, because
-		// the type is the property cty.UnknownVal actually requires: its
-		// argument must be a real type, and cty.NilType - the zero
-		// cty.Type, with a nil typeImpl - is not one.
-		// cty.UnknownVal(cty.NilType) produces a value that compares
-		// UNEQUAL to cty.NilVal (its interior is the unknown sentinel
-		// rather than nil) and then panics inside cty as soon as anything
-		// asks its type a question. An earlier `val == cty.NilVal` spelling
-		// of this guard therefore did not cover the case it was written
-		// for; see normalizeRefValue (internal/lang/eval.go) for the same
-		// hazard at the place a Data method's own cty.NilVal is turned into
-		// an unknown, which is where the crash this replaced actually
-		// originated.
-		if val.Type() == cty.NilType {
-			return cty.DynamicVal, s.enhanceDiagnostics(id, diags)
-		}
-		return cty.UnknownVal(val.Type()), s.enhanceDiagnostics(id, diags)
+		// are likely to produce redundant errors that would be confusing.
+		return cty.DynamicVal, s.enhanceDiagnostics(id, diags)
 	}
 
 	// "val" now contains the raw value passed by the caller. We need to prepare it

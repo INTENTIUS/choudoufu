@@ -6,8 +6,8 @@
 package command
 
 import (
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/cloud"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/cloud"
 )
 
 const failedToLoadSchemasMessage = `
@@ -23,7 +23,7 @@ This problem occurs when OpenTofu cannot read the schema for
 one or more of the providers used in the state. The next successful
 apply will correct the problem by re-generating the JSON description
 of the state:
-    choudoufu apply
+    tofu apply
 `
 
 func isCloudMode(b backend.Enhanced) bool {

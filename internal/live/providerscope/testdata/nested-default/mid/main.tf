@@ -1,3 +1,0 @@
-module "leaf" {
-  source = "./leaf"
-}

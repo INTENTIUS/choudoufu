@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs/configload"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/plans/planfile"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs/configload"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/plans/planfile"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // ApplyCommand is a Command implementation that applies a OpenTofu
@@ -49,7 +49,6 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	defer closer()
 
 	c.View.SetShowSensitive(args.ShowSensitive)
-	c.View.SetVerbose(args.Verbose)
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -85,29 +84,6 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
-	// configuration, never by a flag, so that a run cannot fall back to
-	// writing a state file by forgetting one. Without the block this is nil
-	// and nothing below changes.
-	//
-	// It is read before the plan file is loaded because the two are
-	// incompatible whatever the file turns out to contain, and a stateless
-	// configuration should hear why rather than hear that its plan file will
-	// not parse. For the same reason a working directory that will not load
-	// is tolerated when a plan file was named: the file carries its own
-	// configuration, so the directory is not evidence about this run.
-	statelessCfg, statelessDiags := c.statelessSettings(ctx, args.PlanPath != "")
-	diags = diags.Append(statelessDiags)
-	if statelessDiags.HasErrors() {
-		view.Diagnostics(diags)
-		return 1
-	}
-	if statelessCfg != nil && args.PlanPath != "" {
-		diags = diags.Append(statelessRejectPlanFile(args.PlanPath))
-		view.Diagnostics(diags)
-		return 1
-	}
-
 	// Attempt to load the plan file, if specified
 	planFile, diags := c.LoadPlanFile(args.PlanPath, enc)
 	if diags.HasErrors() {
@@ -135,23 +111,6 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(ctx, be, view, args, planFile, enc)
 	diags = diags.Append(opDiags)
-
-	if statelessCfg != nil && !diags.HasErrors() {
-		// Never adoption-only: GitHub issue #587's flag is a way of READING
-		// a plan, and there is no such thing as applying only the adoption
-		// question. arguments.Apply does not carry it and this passes false
-		// rather than plumbing one.
-		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
-		diags = diags.Append(c.checkAWSProviderVersionSkew())
-	} else if !diags.HasErrors() {
-		// GitHub issue #613. A state-backed run is the one that can propose
-		// stripping a migrated estate's ownership markers, because it is the
-		// one whose prior state has no record of them. Installed for a
-		// saved-plan apply too: the plan file was made by a run this one
-		// cannot see. See [statefulMarkerGuard].
-		opReq.PlanGuard = statefulMarkerGuard()
-	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics
 	// we've accumulated here, since the backend will start fresh with its own
@@ -226,7 +185,7 @@ func (c *ApplyCommand) LoadPlanFile(path string, enc encryption.Encryption) (*pl
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Destroy can't be called with a plan file",
-				fmt.Sprintf("If this plan was created using plan -destroy, apply it using:\n  choudoufu apply %q", path),
+				fmt.Sprintf("If this plan was created using plan -destroy, apply it using:\n  tofu apply %q", path),
 			))
 			return nil, diags
 		}
@@ -345,14 +304,14 @@ func (c *ApplyCommand) Synopsis() string {
 
 func (c *ApplyCommand) helpApply() string {
 	helpText := `
-Usage: choudoufu [global options] apply [options] [PLAN]
+Usage: tofu [global options] apply [options] [PLAN]
 
   Creates or updates infrastructure according to OpenTofu configuration
   files in the current directory.
 
   By default, OpenTofu will generate a new plan and present it for your
   approval before taking any action. You can optionally provide a plan
-  file created by a previous call to "choudoufu plan", in which case
+  file created by a previous call to "tofu plan", in which case
   OpenTofu will take the actions described in that plan without any
   confirmation prompt.
 
@@ -377,7 +336,7 @@ Options:
                                will be listed. Disabled by default.
 
   -destroy                     Destroy OpenTofu-managed infrastructure.
-                               The command "choudoufu destroy" is a convenience alias
+                               The command "tofu destroy" is a convenience alias
                                for this option.
 
   -lock=false                  Don't hold a state lock during the operation.
@@ -391,11 +350,6 @@ Options:
   -no-color                    If specified, output won't contain any color.
 
   -concise                     Disables progress-related messages in the output.
-
-  -verbose                     Print detail some commands summarize by
-                               default. Under live resource markers, prints
-                               every type the removal sweep could not cover
-                               by name instead of a one-line count.
 
   -parallelism=n               Limit the number of parallel resource operations.
                                Defaults to 10.
@@ -441,21 +395,21 @@ Options:
                                warnings will be dropped.
 
   If you don't provide a saved plan file then this command will also accept
-  all of the plan-customization options accepted by the choudoufu plan command.
+  all of the plan-customization options accepted by the tofu plan command.
   For more information on those options, run:
-      choudoufu plan -help
+      tofu plan -help
 `
 	return strings.TrimSpace(helpText)
 }
 
 func (c *ApplyCommand) helpDestroy() string {
 	helpText := `
-Usage: choudoufu [global options] destroy [options]
+Usage: tofu [global options] destroy [options]
 
   Destroy OpenTofu-managed infrastructure.
 
   This command is a convenience alias for:
-      choudoufu apply -destroy
+      tofu apply -destroy
 
 Options:
 
@@ -464,8 +418,8 @@ Options:
                                forgotten instances behind.
 
   This command also accepts many of the plan-customization options accepted by
-  the choudoufu plan command. For more information on those options, run:
-      choudoufu plan -help
+  the tofu plan command. For more information on those options, run:
+      tofu plan -help
 `
 	return strings.TrimSpace(helpText)
 }

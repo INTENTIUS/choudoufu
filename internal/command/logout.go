@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/tracing"
 	"github.com/opentofu/svchost"
 
-	"github.com/intentius/choudoufu/internal/command/cliconfig"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/command/cliconfig"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // LogoutCommand is a Command implementation which removes stored credentials
@@ -89,7 +89,7 @@ func (c *LogoutCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			fmt.Sprintf("Credentials for %s are manually configured", dispHostname),
-			"The \"choudoufu logout\" command cannot log out because credentials for this host are manually configured in a CLI configuration file.\n\nTo log out, revoke the existing credentials and remove that block from the CLI configuration.",
+			"The \"tofu logout\" command cannot log out because credentials for this host are manually configured in a CLI configuration file.\n\nTo log out, revoke the existing credentials and remove that block from the CLI configuration.",
 		))
 	}
 
@@ -141,7 +141,7 @@ func (c *LogoutCommand) Help() string {
 	}
 
 	helpText := fmt.Sprintf(`
-Usage: choudoufu [global options] logout [hostname]
+Usage: tofu [global options] logout [hostname]
 
   Removes locally-stored credentials for specified hostname.
 

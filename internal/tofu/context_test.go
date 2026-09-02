@@ -20,21 +20,21 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/configs/configload"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/plans/planfile"
-	"github.com/intentius/choudoufu/internal/plugins"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/provisioners"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/states/statefile"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/configs/configload"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plans/planfile"
+	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/provisioners"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tracing"
 )
 
 var (
@@ -101,17 +101,17 @@ resource "implicit_thing" "b" {
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider example.com/foo/beep, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
+					"This configuration requires provider example.com/foo/beep, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider registry.opentofu.org/hashicorp/implicit, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
+					"This configuration requires provider registry.opentofu.org/hashicorp/implicit, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider registry.opentofu.org/hashicorp/implicit2, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
+					"This configuration requires provider registry.opentofu.org/hashicorp/implicit2, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,
@@ -177,15 +177,15 @@ func TestContext_contextValuesPropagation(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	probe.ExpectReportsFrom(t,
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).GetProviderSchema",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ValidateProviderConfig",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ValidateDataResourceConfig",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ValidateResourceConfig",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ConfigureProvider",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ReadDataSource",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).PlanResourceChange",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).ApplyResourceChange",
-		"github.com/intentius/choudoufu/internal/tofu.(*MockProvider).Close",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).GetProviderSchema",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ValidateProviderConfig",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ValidateDataResourceConfig",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ValidateResourceConfig",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ConfigureProvider",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ReadDataSource",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).PlanResourceChange",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).ApplyResourceChange",
+		"github.com/opentofu/opentofu/internal/tofu.(*MockProvider).Close",
 	)
 }
 

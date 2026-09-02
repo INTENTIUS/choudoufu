@@ -16,14 +16,14 @@ import (
 
 	"github.com/apparentlymart/go-versions/versions"
 	"github.com/hashicorp/go-getter"
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
 
-	"github.com/intentius/choudoufu/internal/getproviders"
-	"github.com/intentius/choudoufu/internal/httpclient"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // ProvidersMirrorCommand is a Command implementation that implements the
@@ -108,7 +108,7 @@ func (c *ProvidersMirrorCommand) Run(rawArgs []string) int {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Inconsistent dependency lock file",
-				fmt.Sprintf("To update the locked dependency selections to match a changed configuration, run:\n  choudoufu init -upgrade\n got:%v", errs),
+				fmt.Sprintf("To update the locked dependency selections to match a changed configuration, run:\n  tofu init -upgrade\n got:%v", errs),
 			))
 		}
 	}
@@ -391,7 +391,7 @@ func (c *ProvidersMirrorCommand) Run(rawArgs []string) int {
 
 func (c *ProvidersMirrorCommand) Help() string {
 	return `
-Usage: choudoufu [global options] providers mirror [options] <target-dir>
+Usage: tofu [global options] providers mirror [options] <target-dir>
 
   Populates a local directory with copies of the provider plugins needed for
   the current configuration, so that the directory can be used either directly

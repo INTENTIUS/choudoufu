@@ -10,15 +10,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/jsonformat"
-	"github.com/intentius/choudoufu/internal/command/jsonprovider"
-	"github.com/intentius/choudoufu/internal/command/jsonstate"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/states/statefile"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/jsonformat"
+	"github.com/opentofu/opentofu/internal/command/jsonprovider"
+	"github.com/opentofu/opentofu/internal/command/jsonstate"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 type State interface {
@@ -452,7 +452,7 @@ func (v *StateJSON) MoveFinalStatus(moved int) {
 }
 
 func (v *StateJSON) PrintPulledState(_ string) {
-	v.view.Error("printing the pulled state is not available in the JSON view. The `choudoufu state pull` should not be configured with the `-json` flag")
+	v.view.Error("printing the pulled state is not available in the JSON view. The `tofu state pull` should not be configured with the `-json` flag")
 }
 
 func (v *StateJSON) NoMatchingResourcesForProviderReplacement() {
@@ -553,7 +553,7 @@ var (
 	diagErrNoInstanceFound = tfdiags.Sourceless(
 		tfdiags.Error,
 		"No instance found for the given address",
-		`This command requires that the address references one specific instance. To view the available instances, use "choudoufu state list". Please modify the address to reference a specific instance.`,
+		`This command requires that the address references one specific instance. To view the available instances, use "tofu state list". Please modify the address to reference a specific instance.`,
 	)
 )
 
@@ -573,5 +573,5 @@ Cause: %s`
 
 const (
 	errParsingAddressHeader      = `Error parsing instance address %q`
-	errParsingAddressDescription = `This command requires that the address references one specific instance. To view the available instances, use "choudoufu state list". Please modify the address to reference a specific instance.`
+	errParsingAddressDescription = `This command requires that the address references one specific instance. To view the available instances, use "tofu state list". Please modify the address to reference a specific instance.`
 )

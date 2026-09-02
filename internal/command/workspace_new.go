@@ -12,15 +12,15 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/posener/complete"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/clistate"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/clistate"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/states/statefile"
 )
 
 type WorkspaceNewCommand struct {
@@ -59,14 +59,6 @@ func (c *WorkspaceNewCommand) Run(rawArgs []string) int {
 	configPath := c.WorkingDir.NormalizePath(c.WorkingDir.RootModuleDir())
 
 	workspace := args.WorkspaceName
-
-	// A live block makes a new workspace both meaningless and harmful: see
-	// Meta.statelessWorkspaceGuard. Refused here, before a backend is
-	// prepared, so nothing is created and nothing is selected.
-	if guardDiags := c.statelessWorkspaceGuard(ctx, "new", workspace); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
-	}
 
 	if !validWorkspaceName(workspace) {
 		view.WorkspaceInvalidName(workspace)
@@ -235,7 +227,7 @@ func (c *WorkspaceNewCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceNewCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] workspace new [OPTIONS] NAME
+Usage: tofu [global options] workspace new [OPTIONS] NAME
 
   Create a new OpenTofu workspace.
 

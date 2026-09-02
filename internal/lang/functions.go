@@ -14,9 +14,9 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/experiments"
-	"github.com/intentius/choudoufu/internal/lang/funcs"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/experiments"
+	"github.com/opentofu/opentofu/internal/lang/funcs"
 )
 
 var impureFunctions = []string{
@@ -60,13 +60,6 @@ func (s *Scope) Functions() map[string]function.Function {
 		// Copy all stdlib funcs into core:: namespace
 		for _, name := range coreNames {
 			s.funcs[addrs.ParseFunction(name).FullyQualified().String()] = s.funcs[name]
-		}
-
-		// FuncOverrides applies last, so it wins over both the bare name and
-		// the core:: alias just built for it - see the field's own doc.
-		for name, f := range s.FuncOverrides {
-			s.funcs[name] = f
-			s.funcs[addrs.ParseFunction(name).FullyQualified().String()] = f
 		}
 	}
 	s.funcsLock.Unlock()

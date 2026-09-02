@@ -18,12 +18,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/intentius/choudoufu/internal/logging"
-	"github.com/intentius/choudoufu/internal/plugin/convert"
-	"github.com/intentius/choudoufu/internal/plugin/validation"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	proto "github.com/intentius/choudoufu/internal/tfplugin5"
+	"github.com/opentofu/opentofu/internal/logging"
+	"github.com/opentofu/opentofu/internal/plugin/convert"
+	"github.com/opentofu/opentofu/internal/plugin/validation"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	proto "github.com/opentofu/opentofu/internal/tfplugin5"
 )
 
 var logger = logging.HCLogger()
@@ -114,7 +114,6 @@ func (p *GRPCProvider) getProviderSchema(ctx context.Context) (resp providers.Ge
 	resp.DataSources = make(map[string]providers.Schema)
 	resp.EphemeralResources = make(map[string]providers.Schema)
 	resp.Functions = make(map[string]providers.FunctionSpec)
-	resp.ListResourceTypes = make(map[string]providers.Schema)
 
 	protoResp, err := p.getProtoProviderSchema(ctx)
 	if err != nil {
@@ -157,13 +156,6 @@ func (p *GRPCProvider) getProviderSchema(ctx context.Context) (resp providers.Ge
 
 	for name, fn := range protoResp.Functions {
 		resp.Functions[name] = convert.ProtoToFunctionSpec(fn)
-	}
-
-	// list_resource_schemas is absent for providers that do not implement
-	// the list protocol; an empty map is the correct result there, not an
-	// error.
-	for name, list := range protoResp.ListResourceSchemas {
-		resp.ListResourceTypes[name] = convert.ProtoToProviderSchema(list)
 	}
 
 	identitySchemas, idsDiags := p.getResourceIdentitySchemas(ctx)

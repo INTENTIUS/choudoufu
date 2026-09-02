@@ -8,8 +8,8 @@ package command
 import (
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 type PushCommand struct {
@@ -23,7 +23,7 @@ func (c *PushCommand) Run(rawArgs []string) int {
 	// give the user some next-steps after upgrading.
 	c.View.Diagnostics(tfdiags.Diagnostics{tfdiags.Sourceless(
 		tfdiags.Error,
-		"Command \"choudoufu push\" is no longer supported",
+		"Command \"tofu push\" is no longer supported",
 		"This command was used to push configuration to Terraform Enterprise legacy (v1), which has now reached end-of-life. To push configuration to a new cloud backend, use its REST API.",
 	)})
 	return 1
@@ -31,7 +31,7 @@ func (c *PushCommand) Run(rawArgs []string) int {
 
 func (c *PushCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] push [options] [DIR]
+Usage: tofu [global options] push [options] [DIR]
 
   This command was for the legacy version of Terraform Enterprise (v1), which
   has now reached end-of-life. Therefore this command is no longer supported.

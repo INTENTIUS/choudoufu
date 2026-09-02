@@ -6,7 +6,7 @@
 package arguments
 
 import (
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // MetadataFunctions represents the command-line arguments for the "metadata functions" command.
@@ -47,10 +47,10 @@ func ParseMetadataFunctions(args []string) (*MetadataFunctions, func(), tfdiags.
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid arguments",
-			"The `choudoufu metadata functions` command requires the `-json` flag.",
+			"The `tofu metadata functions` command requires the `-json` flag.",
 		))
 	}
 	arguments.ViewOptions.ViewType = ViewHuman
-
+	
 	return arguments, closer, diags
 }

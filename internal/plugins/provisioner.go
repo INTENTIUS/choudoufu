@@ -12,9 +12,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/provisioners"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/provisioners"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -52,7 +52,7 @@ type ProvisionerManager interface {
 	StopAll() error
 	// CloseAll forcefully closes all tracked provisioners.
 	// See [provisioners.Interface.Close] for more information.
-	// See cmd/choudoufu/main.go:plugin.CleanupClients for the fallback.
+	// See cmd/tofu/main.go:plugin.CleanupClients for the fallback.
 	CloseAll() error
 	// Shutdown locks the provisioner manager in a Shutdown state and calls CloseAll,
 	// preventing any further usage of this object.

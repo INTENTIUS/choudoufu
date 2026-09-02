@@ -23,21 +23,21 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/cloud"
-	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/intentius/choudoufu/internal/command/clistate"
-	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/states/statemgr"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
-	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/cloud"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/clistate"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/opentofu/opentofu/internal/tracing"
 
-	backendInit "github.com/intentius/choudoufu/internal/backend/init"
-	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
+	backendInit "github.com/opentofu/opentofu/internal/backend/init"
+	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
 )
 
 // BackendOpts are the options used to initialize a backend.Backend.
@@ -150,7 +150,7 @@ func (m *Meta) Backend(ctx context.Context, opts *BackendOpts, enc encryption.St
 				for addr, err := range errs {
 					fmt.Fprintf(&buf, "\n  - %s: %s", addr, err)
 				}
-				suggestion := "To download the plugins required for this configuration, run:\n  choudoufu init"
+				suggestion := "To download the plugins required for this configuration, run:\n  tofu init"
 				if m.SystemCfg.RunningInAutomation {
 					// Don't mention "tofu init" specifically if we're running in an automation wrapper
 					suggestion = "You must install the required plugins before running OpenTofu operations."
@@ -612,13 +612,6 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 		log.Printf("[TRACE] Meta.Backend: working directory was previously initialized but has no backend configuration")
 	}
 
-	// A live block ends the question here, before any of the scenarios
-	// below can be reached. See liveBackendGuard for why the answer is "no
-	// backend at all" rather than one of them.
-	if skip, liveDiags := m.liveBackendGuard(ctx, s.Backend); skip || liveDiags.HasErrors() {
-		return nil, diags.Append(liveDiags)
-	}
-
 	// if we want to force reconfiguration of the backend, we set the backend
 	// state to nil on this copy. This will direct us through the correct
 	// configuration path in the switch statement below.
@@ -651,7 +644,7 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 		if !opts.Init {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
-				"Backend initialization required, please run \"choudoufu init\"",
+				"Backend initialization required, please run \"tofu init\"",
 				fmt.Sprintf(strings.TrimSpace(errBackendInit), initReason),
 			))
 			return nil, diags
@@ -672,14 +665,14 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 				initReason := "Initial configuration of cloud backend"
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
-					"Cloud backend initialization required: please run \"choudoufu init\"",
+					"Cloud backend initialization required: please run \"tofu init\"",
 					fmt.Sprintf(strings.TrimSpace(errBackendInitCloud), initReason),
 				))
 			} else {
 				initReason := fmt.Sprintf("Initial configuration of the requested backend %q", c.Type)
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
-					"Backend initialization required, please run \"choudoufu init\"",
+					"Backend initialization required, please run \"tofu init\"",
 					fmt.Sprintf(strings.TrimSpace(errBackendInit), initReason),
 				))
 			}
@@ -766,78 +759,6 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 	}
 }
 
-// liveBackendGuard answers "does this working directory have a live block,
-// and if so what should the backend machinery do about it" - and the answer
-// is: nothing at all, or refuse.
-//
-// The audit's C5 finding is what this exists for. A project that had a
-// backend and then adopted a live block reached backendFromConfig's
-// "unsetting a backend" scenario, where "tofu init -migrate-state" (or
-// -force-copy, which implies it) copied the previous backend's state into
-// the working directory as a real v4 terraform.tfstate. Nothing afterwards
-// noticed: stateless mode's own guards all sit at plan and apply, and by
-// then the file was already on disk, in a directory whose configuration says
-// there is no state. Removing the live block later would have promoted it to
-// truth.
-//
-// The guard sits here rather than only in the init command because init is
-// not the only way in. Every command reaches Backend(), and a converted
-// directory still carries the old backend record in .terraform, which the
-// scenarios below would otherwise read as "the backend was unset, migration
-// required" on a plain "tofu plan" - refusing to run at all until an
-// operator ran the very migration that produces the leak.
-//
-// Two answers, and which one depends entirely on whether the operator asked
-// for something this configuration cannot do:
-//
-//   - Asked nothing (skip = true): there is no backend, no state record to
-//     read, and nothing to migrate. The leftover backend record in .terraform
-//     is left exactly where it is - not deleted, because a record of what the
-//     directory used to be is the operator's, and deleting it is not a cache's
-//     or a guard's business - and simply not read.
-//   - Asked for a migration or a reconfiguration explicitly (an error): those
-//     flags name an operation on a stored state, so answering them by quietly
-//     doing nothing would be worse than refusing. The message names the live
-//     block and says where the estate's ownership actually lives.
-//
-// prev is the backend recorded in .terraform, used only to make the refusal
-// concrete about what would have been migrated.
-func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState) (bool, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-
-	// Load errors are tolerated: a working directory that will not parse is
-	// not evidence about stateless mode, and whatever is wrong with it will
-	// be reported by the caller that can say something useful about it.
-	settings, _ := m.statelessSettings(ctx, true)
-	if settings == nil {
-		return false, nil
-	}
-
-	if !m.backendArgs.MigrateState && !m.backendArgs.Reconfigure {
-		log.Printf("[TRACE] Meta.Backend: the configuration has a live block, so no backend is initialized and no state is read")
-		return true, nil
-	}
-
-	flag := "-reconfigure"
-	if m.backendArgs.MigrateState {
-		flag = "-migrate-state"
-	}
-	from := "the previously configured backend"
-	if !prev.Empty() {
-		from = fmt.Sprintf("the previously configured %q backend", prev.Type)
-	}
-
-	return false, diags.Append(tfdiags.Sourceless(
-		tfdiags.Error,
-		"Backend migration is not available under live resource markers",
-		fmt.Sprintf(
-			"This configuration has a live block, so it has no backend and no authoritative state file, and %s cannot move state into it: there is nowhere with authority for the state to land. %s was asked for, which would have installed %s's state in this directory as the record of ownership - the one authority a live block exists to not have.\n\n"+
-				"Nothing has been migrated and nothing has been deleted. To convert an existing project, leave the old backend's state where it is and adopt the live resources by their ownership markers - see live/MARKERS.md - then run \"choudoufu init\" with no migration flags.",
-			flag, flag, from,
-		),
-	))
-}
-
 func (m *Meta) determineInitReason(previousBackendType string, currentBackendType string, cloudMode cloud.ConfigChangeMode) tfdiags.Diagnostics {
 	initReason := ""
 	switch cloudMode {
@@ -861,19 +782,19 @@ func (m *Meta) determineInitReason(previousBackendType string, currentBackendTyp
 	case cloud.ConfigChangeInPlace:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Cloud backend initialization required: please run \"choudoufu init\"",
+			"Cloud backend initialization required: please run \"tofu init\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInitCloud), initReason),
 		))
 	case cloud.ConfigMigrationIn:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Cloud backend initialization required: please run \"choudoufu init\"",
+			"Cloud backend initialization required: please run \"tofu init\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInitCloud), initReason),
 		))
 	default:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Backend initialization required: please run \"choudoufu init\"",
+			"Backend initialization required: please run \"tofu init\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInit), initReason),
 		))
 	}
@@ -937,7 +858,7 @@ func (m *Meta) backendFromState(ctx context.Context, enc encryption.StateEncrypt
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Failed to decode current backend config",
-			fmt.Sprintf("The backend configuration created by the most recent run of \"choudoufu init\" could not be decoded: %s. The configuration may have been initialized by an earlier version that used an incompatible configuration structure. Run \"choudoufu init -reconfigure\" to force re-initialization of the backend.", err),
+			fmt.Sprintf("The backend configuration created by the most recent run of \"tofu init\" could not be decoded: %s. The configuration may have been initialized by an earlier version that used an incompatible configuration structure. Run \"tofu init -reconfigure\" to force re-initialization of the backend.", err),
 		))
 		return nil, diags
 	}
@@ -1373,7 +1294,7 @@ func (m *Meta) savedBackend(ctx context.Context, sMgr *clistate.LocalState, enc 
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Failed to decode current backend config",
-			fmt.Sprintf("The backend configuration created by the most recent run of \"choudoufu init\" could not be decoded: %s. The configuration may have been initialized by an earlier version that used an incompatible configuration structure. Run \"choudoufu init -reconfigure\" to force re-initialization of the backend.", err),
+			fmt.Sprintf("The backend configuration created by the most recent run of \"tofu init\" could not be decoded: %s. The configuration may have been initialized by an earlier version that used an incompatible configuration structure. Run \"tofu init -reconfigure\" to force re-initialization of the backend.", err),
 		))
 		return nil, diags
 	}
@@ -1692,7 +1613,7 @@ error by removing the backend configuration from your configuration.
 const errBackendNoExistingWorkspaces = `
 No existing workspaces.
 
-Use the "choudoufu workspace" command to create and select a new workspace.
+Use the "tofu workspace" command to create and select a new workspace.
 If the backend already contains existing workspaces, you may need to update
 the backend configuration.
 `
@@ -1707,7 +1628,7 @@ used with this configuration. Please use the proper version of OpenTofu that
 contains support for this backend.
 
 If you'd like to force remove this backend, you must update your configuration
-to not use the backend and run "choudoufu init" (or any other command) again.
+to not use the backend and run "tofu init" (or any other command) again.
 `
 
 const errBackendClearSaved = `
@@ -1729,7 +1650,7 @@ the OpenTofu backend.
 
 Changes to backend configurations require reinitialization. This allows
 OpenTofu to set up the new configuration, copy existing state, etc. Please run
-"choudoufu init" with either the "-reconfigure" or "-migrate-state" flags to
+"tofu init" with either the "-reconfigure" or "-migrate-state" flags to
 use the current configuration.
 
 If the change reason above is incorrect, please verify your configuration
@@ -1743,7 +1664,7 @@ Reason: %s.
 Changes to the cloud backend configuration block require reinitialization, to discover any changes to the available workspaces.
 
 To re-initialize, run:
-  choudoufu init
+  tofu init
 
 OpenTofu has not yet made changes to your existing configuration or state.
 `
@@ -1770,5 +1691,5 @@ var migrateOrReconfigDiag = tfdiags.Sourceless(
 	tfdiags.Error,
 	"Backend configuration changed",
 	"A change in the backend configuration has been detected, which may require migrating existing state.\n\n"+
-		"If you wish to attempt automatic migration of the state, use \"choudoufu init -migrate-state\".\n"+
-		`If you wish to store the current configuration with no changes to the state, use "choudoufu init -reconfigure".`)
+		"If you wish to attempt automatic migration of the state, use \"tofu init -migrate-state\".\n"+
+		`If you wish to store the current configuration with no changes to the state, use "tofu init -reconfigure".`)

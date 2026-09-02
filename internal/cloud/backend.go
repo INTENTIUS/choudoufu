@@ -20,24 +20,24 @@ import (
 
 	tfe "github.com/hashicorp/go-tfe"
 	version "github.com/hashicorp/go-version"
-	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 	"github.com/opentofu/svchost/svcauth"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/intentius/choudoufu/internal/backend"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/httpclient"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/states/statemgr"
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/internal/tofu"
-	tfversion "github.com/intentius/choudoufu/version"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
+	tfversion "github.com/opentofu/opentofu/version"
 
-	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
+	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
 )
 
 const (
@@ -306,7 +306,7 @@ func (b *Cloud) Configure(ctx context.Context, obj cty.Value) tfdiags.Diagnostic
 			fmt.Sprintf(
 				"Run the following command to generate a token for %s:\n    %s",
 				b.hostname,
-				fmt.Sprintf("choudoufu login %s", b.hostname),
+				fmt.Sprintf("tofu login %s", b.hostname),
 			),
 		))
 		return diags
@@ -1277,7 +1277,7 @@ configuration to workspaces within a cloud backend organization. Two strategies 
 	schemaDescriptionOrganization = `The name of the organization containing the targeted workspace(s).`
 
 	schemaDescriptionToken = `The token used to authenticate with the cloud backend. Typically this argument should not
-be set, and 'choudoufu login' used instead; your credentials will then be fetched from your CLI
+be set, and 'tofu login' used instead; your credentials will then be fetched from your CLI
 configuration file or configured credential helper.`
 
 	schemaDescriptionTags = `A set of tags used to select remote cloud backend workspaces to be used for this single

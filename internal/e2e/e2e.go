@@ -15,11 +15,11 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/plans"
-	"github.com/intentius/choudoufu/internal/plans/planfile"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plans/planfile"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/states/statefile"
 )
 
 // Type binary represents the combination of a compiled binary
@@ -259,7 +259,7 @@ func GoBuild(pkgPath, tmpPrefix string, buildArgs ...string) string {
 	if len(os.Getenv("GOCOVERDIR")) != 0 {
 		args = append(args,
 			"-cover",
-			"-coverpkg=github.com/intentius/choudoufu/...",
+			"-coverpkg=github.com/opentofu/opentofu/...",
 		)
 	}
 

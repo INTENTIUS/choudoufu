@@ -1,3 +1,0 @@
-module "nested" {
-  source = "./nested"
-}

@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -283,7 +283,7 @@ func (n *graphNodeImportStateSub) Execute(ctx context.Context, evalCtx EvalConte
 					"the provider detected that no object exists with the given id or identity. "+
 					"Only pre-existing objects can be imported; check that the id or identity "+
 					"is correct and that it is associated with the provider's "+
-					"configured region or endpoint, or use \"choudoufu apply\" to "+
+					"configured region or endpoint, or use \"tofu apply\" to "+
 					"create a new remote object for this resource.",
 				n.TargetAddr,
 			),

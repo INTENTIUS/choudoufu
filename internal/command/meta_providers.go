@@ -18,15 +18,15 @@ import (
 
 	plugin "github.com/hashicorp/go-plugin"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	terraformProvider "github.com/intentius/choudoufu/internal/builtin/providers/tf"
-	"github.com/intentius/choudoufu/internal/getproviders"
-	"github.com/intentius/choudoufu/internal/logging"
-	tfplugin "github.com/intentius/choudoufu/internal/plugin"
-	tfplugin6 "github.com/intentius/choudoufu/internal/plugin6"
-	"github.com/intentius/choudoufu/internal/providercache"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/addrs"
+	terraformProvider "github.com/opentofu/opentofu/internal/builtin/providers/tf"
+	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/opentofu/opentofu/internal/logging"
+	tfplugin "github.com/opentofu/opentofu/internal/plugin"
+	tfplugin6 "github.com/opentofu/opentofu/internal/plugin6"
+	"github.com/opentofu/opentofu/internal/providercache"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 var errUnsupportedProtocolVersion = errors.New("unsupported protocol version")
@@ -164,7 +164,7 @@ func (m *Meta) providerDevOverrideInitWarnings() tfdiags.Diagnostics {
 	for addr, path := range m.ProviderDevOverrides {
 		detailMsg.WriteString(fmt.Sprintf(" - %s in %s\n", addr.ForDisplay(), path))
 	}
-	detailMsg.WriteString("\nSkip choudoufu init when using provider development overrides. It is not necessary and may error unexpectedly.")
+	detailMsg.WriteString("\nSkip tofu init when using provider development overrides. It is not necessary and may error unexpectedly.")
 	return tfdiags.Diagnostics{
 		tfdiags.Sourceless(
 			tfdiags.Warning,
@@ -295,7 +295,7 @@ func (m *Meta) providerFactories() (map[addrs.Provider]providers.Factory, error)
 				}
 				if !matched {
 					return fmt.Errorf(
-						"the cached package for %s %s (in %s) does not match any of the checksums recorded in the dependency lock file, run choudoufu init to ensure all providers are correctly installed",
+						"the cached package for %s %s (in %s) does not match any of the checksums recorded in the dependency lock file, run tofu init to ensure all providers are correctly installed",
 						provider, version, cacheDir.BasePath(),
 					)
 				}
