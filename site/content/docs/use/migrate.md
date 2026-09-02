@@ -343,7 +343,9 @@ three have nothing to edit: any tool that can write two tags does the work
 they existed for. Adopting is the marker stamp above, or `live-import` in
 bulk. Renaming is `choudoufu live-mv <old> <new>`,
 rewriting the `tofu-address` tag in place and leaving unadopted resources
-alone. `moved` blocks are refused by lint.
+alone. An honourable `moved` block is carried as an alias - the marker
+reads under both addresses and rewrites in place - and only the shapes
+that cannot alias are refused.
 
 Forgetting without destroying is the one inexact parallel. Deleting a resource
 block leaves its marker on the live object, and `undeclared_tagged` defaults to
