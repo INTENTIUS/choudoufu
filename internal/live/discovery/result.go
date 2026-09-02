@@ -22,10 +22,15 @@ import (
 //
 // Resolutions is the field the run needs; the rest is what an operator, and
 // the phases built on this one, need in order to explain it.
-type Result struct {
-	// Estate is the estate name that was searched for.
-	Estate string
-
+// Verdicts is the half of a discovery pass the ENGINE consumes: the
+// bindings, vouches and evidence that decide what a plan does. Issue
+// #751 (the 2026-09-02 architecture review's F4): verdict products and
+// report products used to share one struct, so machinery added for one
+// consumer class leaked to the other - which is exactly how the cache-
+// vouch pass's products reached the foreign report. The split makes the
+// leak unrepresentable: the foreign classifier and the renderer receive
+// [Report] and cannot reach anything here.
+type Verdicts struct {
 	// Resolutions is the caller's resolution list with every bound instance
 	// rewritten as [identity.ClassConcrete] carrying the live import ID,
 	// in address order. Instances that stayed unbound keep the class they
@@ -64,20 +69,6 @@ type Result struct {
 	// [projection.Options.CacheVouchSightings].
 	CacheVouchSightings map[string]map[string]bool
 
-	// Unbound lists the declared needs-discovery instances that nothing
-	// claimed, in address order. Absence is not an error: the resource does
-	// not exist and the plan will propose creating it.
-	Unbound []addrs.AbsResourceInstance
-
-	// Unclaimed lists the live resources of the scanned types that carry no
-	// tofu-estate tag at all, in type and identity order. This package
-	// draws no conclusion about them; P2.4 classifies them.
-	//
-	// It is empty unless [Request.CollectUnclaimed] was set, because the
-	// server-side estate filter hides them. Read [Result.ScanFor] to tell
-	// "none exist" from "nothing looked".
-	Unclaimed []UnclaimedResource
-
 	// Orphans lists live resources that carry this estate's tofu-estate tag
 	// and a well-formed tofu-address that no declared instance matches -
 	// the resource block was removed, or renamed without a marker rewrite.
@@ -93,22 +84,6 @@ type Result struct {
 	// classifier says otherwise, and turning that into a destroy and a
 	// create would replace a resource that only needed a new tag.
 	Orphans []OwnedResource
-
-	// SweepGaps lists the resource types the estate-wide sweep could not
-	// enumerate: types the provider cannot list, and types whose list call
-	// failed. An orphan of one of them is invisible to this run, so its
-	// resource block being deleted plans nothing. That is a hole in removal
-	// coverage and is reported as one rather than left to look like an empty
-	// result.
-	SweepGaps []SweepGap
-
-	// SweepCovered lists the resource types the estate-wide sweep did
-	// enumerate, sorted. It is the counterpart of SweepGaps: "these types
-	// were searched for resources this estate owns but no longer declares".
-	// It covers the sweep only, and is not the same list as
-	// [foreign.Result.Swept], which is about the types whose unclaimed
-	// population was enumerated.
-	SweepCovered []string
 
 	// Surplus lists the live members of a count set that are past its
 	// declared count: the highest slots, which a scale-down deletes.
@@ -126,6 +101,62 @@ type Result struct {
 	// to, or the slot minted for the create that will fill it. It is the
 	// input to marker stamping, which writes these values as tags.
 	Slots []SlotAssignment
+
+	// DeposedBindings is GitHub issue #361's crash-window recovery: every
+	// address whose collision (two-or-more claimants for one declared
+	// address - the shape a create-before-destroy crash produces while the
+	// new and old object both still carry the address's marker) was broken
+	// by matching exactly one claimant against a deposed object this
+	// estate's record names for that address ([Request.DeposedRecords]).
+	// The matched claimant is excluded from collision consideration
+	// entirely; the remaining single claimant is bound through the
+	// ordinary case-1 path and appears in [Result.Bindings], not here.
+	//
+	// [projection.BuildWith] folds each one into the constructed state's
+	// own Instances[key].Deposed[dk] - see [projection.DeposedBinding]'s
+	// own doc comment for what happens from there. Empty whenever
+	// [Request.DeposedRecords] is nil (every caller before this existed),
+	// or whenever it named a candidate that zero or two-or-more claimants
+	// matched: those cases still raise [ProblemCollision] exactly as
+	// before this existed - see bind()'s own collision-breaking code.
+	DeposedBindings []projection.DeposedBinding
+}
+
+// Report is the half an OPERATOR sees: scans, problems, coverage and
+// the unclaimed population the foreign classifier and the renderer are
+// built from. Nothing in here may influence a verdict, and a sandboxed
+// pass (the cache-vouch pass) that merges only [Verdicts] structurally
+// cannot contribute a line to any report.
+type Report struct {
+	// Unbound lists the declared needs-discovery instances that nothing
+	// claimed, in address order. Absence is not an error: the resource does
+	// not exist and the plan will propose creating it.
+	Unbound []addrs.AbsResourceInstance
+
+	// Unclaimed lists the live resources of the scanned types that carry no
+	// tofu-estate tag at all, in type and identity order. This package
+	// draws no conclusion about them; P2.4 classifies them.
+	//
+	// It is empty unless [Request.CollectUnclaimed] was set, because the
+	// server-side estate filter hides them. Read [Result.ScanFor] to tell
+	// "none exist" from "nothing looked".
+	Unclaimed []UnclaimedResource
+
+	// SweepGaps lists the resource types the estate-wide sweep could not
+	// enumerate: types the provider cannot list, and types whose list call
+	// failed. An orphan of one of them is invisible to this run, so its
+	// resource block being deleted plans nothing. That is a hole in removal
+	// coverage and is reported as one rather than left to look like an empty
+	// result.
+	SweepGaps []SweepGap
+
+	// SweepCovered lists the resource types the estate-wide sweep did
+	// enumerate, sorted. It is the counterpart of SweepGaps: "these types
+	// were searched for resources this estate owns but no longer declares".
+	// It covers the sweep only, and is not the same list as
+	// [foreign.Result.Swept], which is about the types whose unclaimed
+	// population was enumerated.
+	SweepCovered []string
 
 	// Problems are the named ambiguities: collisions, malformed markers,
 	// and the conditions this package refuses to guess through. Every
@@ -186,25 +217,19 @@ type Result struct {
 	// swept" learns that this run did not ask the account-wide question
 	// rather than that the question came back empty.
 	NativeSweepSkipped int
+}
 
-	// DeposedBindings is GitHub issue #361's crash-window recovery: every
-	// address whose collision (two-or-more claimants for one declared
-	// address - the shape a create-before-destroy crash produces while the
-	// new and old object both still carry the address's marker) was broken
-	// by matching exactly one claimant against a deposed object this
-	// estate's record names for that address ([Request.DeposedRecords]).
-	// The matched claimant is excluded from collision consideration
-	// entirely; the remaining single claimant is bound through the
-	// ordinary case-1 path and appears in [Result.Bindings], not here.
-	//
-	// [projection.BuildWith] folds each one into the constructed state's
-	// own Instances[key].Deposed[dk] - see [projection.DeposedBinding]'s
-	// own doc comment for what happens from there. Empty whenever
-	// [Request.DeposedRecords] is nil (every caller before this existed),
-	// or whenever it named a candidate that zero or two-or-more claimants
-	// matched: those cases still raise [ProblemCollision] exactly as
-	// before this existed - see bind()'s own collision-breaking code.
-	DeposedBindings []projection.DeposedBinding
+// Result is everything one discovery pass learned: the estate it
+// searched, the [Verdicts] the engine acts on, and the [Report] an
+// operator reads. Both halves' fields stay promoted, so writers inside
+// this package are unchanged; the boundary binds CONSUMERS, which
+// receive one half or the other.
+type Result struct {
+	// Estate is the estate name that was searched for.
+	Estate string
+
+	Verdicts
+	Report
 
 	// sweepPrefetchWasted and sweepPrefetchMismatched are GitHub issue #605's
 	// own self-check, and both are always zero.
@@ -1246,17 +1271,6 @@ func instanceIndex(addr addrs.AbsResourceInstance) int {
 		return int(k)
 	}
 	return -1
-}
-
-// SlotFor returns the slot assigned to one declared instance.
-func (r *Result) SlotFor(addr addrs.AbsResourceInstance) (SlotAssignment, bool) {
-	want := addr.String()
-	for _, s := range r.Slots {
-		if s.Addr.String() == want {
-			return s, true
-		}
-	}
-	return SlotAssignment{}, false
 }
 
 // ProblemsOfKind returns every problem of one kind, in the order found.

@@ -242,7 +242,7 @@ func mergedResultFixture(t *testing.T, aWithheld, bWithheld string) (resA, resB 
 			Removal:     withheld == "",
 			Withheld:    withheld,
 		}
-		res := &Result{Orphans: []OwnedResource{o}}
+		res := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{o}}}
 		if o.Removal {
 			// Mirrors classifyOrphans: a Resolution is only ever minted for
 			// an orphan this pass itself decided to remove.
@@ -455,14 +455,8 @@ func TestDiscoverScopeProviderLeavesAnotherProvidersDeclaredResourceAlone(t *tes
 // fields are internally consistent, so this is a fair test of Merge's own
 // dedup logic in isolation.
 func TestMergeDedupesSweepCoverage(t *testing.T) {
-	resA := &Result{
-		SweepGaps:    []SweepGap{{TypeName: "aws_db_instance", Reason: SweepGapNotListable, Detail: "not listable"}},
-		SweepCovered: []string{"aws_eip", "aws_vpc"},
-	}
-	resB := &Result{
-		SweepGaps:    []SweepGap{{TypeName: "aws_db_instance", Reason: SweepGapNotListable, Detail: "not listable"}},
-		SweepCovered: []string{"aws_eip", "aws_kms_key"},
-	}
+	resA := &Result{Report: Report{SweepGaps: []SweepGap{{TypeName: "aws_db_instance", Reason: SweepGapNotListable, Detail: "not listable"}}, SweepCovered: []string{"aws_eip", "aws_vpc"}}}
+	resB := &Result{Report: Report{SweepGaps: []SweepGap{{TypeName: "aws_db_instance", Reason: SweepGapNotListable, Detail: "not listable"}}, SweepCovered: []string{"aws_eip", "aws_kms_key"}}}
 
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: testProviderAddr(t, ""), Result: resA},

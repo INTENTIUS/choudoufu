@@ -31,11 +31,7 @@ func TestRemovalsAreReported(t *testing.T) {
 	o.Removal = true
 	o.Swept = true
 
-	res := classifyFixture(t, discovery.Result{
-		Scans:        []discovery.TypeScan{scan("aws_vpc", 1)},
-		Orphans:      []discovery.OwnedResource{o},
-		SweepCovered: []string{"aws_cloudwatch_log_group"},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1)}, SweepCovered: []string{"aws_cloudwatch_log_group"}}})
 
 	if len(res.Removals) != 1 {
 		t.Fatalf("want one removal, got:\n%s", res)
@@ -69,11 +65,7 @@ func TestWithheldOrphansAreNotRemovals(t *testing.T) {
 	o.Addr, o.Addressable = discovery.UnescapeAddress(o.Normalized)
 	o.Withheld = "a declared instance of aws_subnet.this is unclaimed"
 
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Removals) != 0 {
 		t.Errorf("a withheld orphan was reported as a removal:\n%s", res)
@@ -91,10 +83,7 @@ func TestRemovalOfALivingBlocksKey(t *testing.T) {
 	o.Addr, o.Addressable = discovery.UnescapeAddress(o.Normalized)
 	o.Removal = true
 
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}}})
 
 	if len(res.Removals) != 1 {
 		t.Fatalf("want one removal, got:\n%s", res)
@@ -111,14 +100,11 @@ func TestRemovalOfALivingBlocksKey(t *testing.T) {
 // the report, because an empty removal list is only meaningful beside the
 // list of types that were actually searched.
 func TestSweepGapsAreCarriedThrough(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_vpc", 0)},
-		SweepGaps: []discovery.SweepGap{{
-			TypeName: "aws_iam_role",
-			Reason:   discovery.SweepGapNotListable,
-			Detail:   "the provider cannot list it",
-		}},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 0)}, SweepGaps: []discovery.SweepGap{{
+		TypeName: "aws_iam_role",
+		Reason:   discovery.SweepGapNotListable,
+		Detail:   "the provider cannot list it",
+	}}}})
 
 	if len(res.SweepGaps) != 1 {
 		t.Fatalf("the sweep gap was dropped:\n%s", res)
@@ -140,9 +126,7 @@ func TestSweepRowsAreNotForeignCoverage(t *testing.T) {
 	sweepScan.Scope = discovery.ScopeEstate
 	sweepScan.Filtering = discovery.FilterServerSide
 
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_vpc", 1), sweepScan},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1), sweepScan}}})
 
 	for _, s := range res.Swept {
 		if s == "aws_iam_role" {
@@ -202,9 +186,9 @@ func classifyIn(t *testing.T, dir string, res discovery.Result) *Result {
 	t.Helper()
 
 	out, diags := Classify(context.Background(), Request{
-		Estate:    estateName,
-		Config:    loadConfig(t, dir),
-		Discovery: &res,
+		Estate: estateName,
+		Config: loadConfig(t, dir),
+		Report: &res.Report, Orphans: res.Orphans,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("classification failed:\n%s", renderDiags(diags))
@@ -234,11 +218,7 @@ func TestContentDoesNotCreateAPairing(t *testing.T) {
 	o := withObject(orphan("aws_security_group", "sg-1", "", "aws_security_group.other:a"),
 		map[string]string{"name": "fixed-name"})
 
-	res := classifyIn(t, dir, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyIn(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Errorf("content created a pairing across two resource blocks:\n%s", res)
@@ -255,11 +235,7 @@ func TestContentDisqualifiesAPairing(t *testing.T) {
 	o := withObject(orphan("aws_security_group", "sg-1", "", "aws_security_group.web:a"),
 		map[string]string{"name": "some-other-name"})
 
-	res := classifyIn(t, dir, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyIn(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Fatalf("a rename was offered for a resource whose content disagrees:\n%s", res)
@@ -281,11 +257,7 @@ func TestContentAgreeingLeavesTheBlockMatchAlone(t *testing.T) {
 	o := withObject(orphan("aws_security_group", "sg-1", "", "aws_security_group.web:a"),
 		map[string]string{"name": "fixed-name"})
 
-	res := classifyIn(t, dir, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyIn(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)}}})
 
 	if len(res.Renames) != 1 {
 		t.Fatalf("the agreeing pairing was not offered:\n%s", res)
@@ -309,11 +281,7 @@ func TestContentResolvesAnAmbiguity(t *testing.T) {
 	theirs := withObject(orphan("aws_security_group", "sg-theirs", "", "aws_security_group.web:b"),
 		map[string]string{"name": "something-else"})
 
-	res := classifyIn(t, dir, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)},
-		Orphans: []discovery.OwnedResource{ours, theirs},
-	})
+	res := classifyIn(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{ours, theirs}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_security_group.web["c"]`)}}})
 
 	if len(res.Renames) != 1 {
 		t.Fatalf("content did not resolve the ambiguity:\n%s", res)
@@ -328,14 +296,10 @@ func TestContentResolvesAnAmbiguity(t *testing.T) {
 // the survivor is right. With nothing readable to compare, an ambiguity stays
 // ambiguous.
 func TestContentDoesNotResolveAnAmbiguityWithoutEvidence(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{
-			orphan("aws_subnet", "subnet-1", "", "aws_subnet.this:a"),
-			orphan("aws_subnet", "subnet-2", "", "aws_subnet.this:b"),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+		orphan("aws_subnet", "subnet-1", "", "aws_subnet.this:a"),
+		orphan("aws_subnet", "subnet-2", "", "aws_subnet.this:b"),
+	}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Errorf("an unreadable ambiguity was resolved anyway:\n%s", res)

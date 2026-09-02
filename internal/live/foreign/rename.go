@@ -22,7 +22,7 @@ import (
 // configuration no longer declares with the declared instances of the same
 // resource block that nothing claimed.
 //
-// It reads [discovery.Result.Orphans] and [discovery.Result.Unbound] and
+// It reads [discovery.Verdicts.Orphans] and [discovery.Report.Unbound] and
 // changes neither. Both lists keep every member they arrived with: the plan
 // still proposes creating the declared instance, and the live resource is
 // still an owned resource with no declared address. What this adds is the
@@ -67,7 +67,7 @@ func (c *classifier) renames(ctx context.Context) {
 func (c *classifier) renameBlocks() map[string]*renameBlock {
 	blocks := make(map[string]*renameBlock)
 
-	for _, addr := range c.req.Discovery.Unbound {
+	for _, addr := range c.req.Report.Unbound {
 		if !addr.Module.IsRoot() {
 			// v0 declares no modules, and a module instance key would make
 			// "the same block" a question about two addresses rather than
@@ -98,8 +98,8 @@ func (c *classifier) renameBlocks() map[string]*renameBlock {
 
 	for name, b := range blocks {
 		prefix := discovery.EscapeAddress(name) + ":"
-		for i := range c.req.Discovery.Orphans {
-			o := &c.req.Discovery.Orphans[i]
+		for i := range c.req.Orphans {
+			o := &c.req.Orphans[i]
 			if o.TypeName != b.typeName || !strings.HasPrefix(o.Normalized, prefix) {
 				continue
 			}

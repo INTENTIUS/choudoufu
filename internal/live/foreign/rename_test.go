@@ -32,11 +32,7 @@ import (
 // claimed, same block - offered as a rename, with the command that performs
 // it.
 func TestRenameCandidate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "private-a", "aws_subnet.this:a")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "private-a", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 1 {
 		t.Fatalf("want exactly one rename candidate, got:\n%s", res)
@@ -78,11 +74,7 @@ func TestRenameCandidateFromAnUnescapedMarker(t *testing.T) {
 	o := orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")
 	o.Marker = `aws_subnet.this["a"]`
 
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{o},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{o}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 1 {
 		t.Fatalf("want one rename candidate, got:\n%s", res)
@@ -96,14 +88,10 @@ func TestRenameCandidateFromAnUnescapedMarker(t *testing.T) {
 // one declared instance waiting. Something moved; which one is not something
 // a marker says, so nothing is offered and no command is printed.
 func TestRenameAmbiguousTwoOrphans(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{
-			orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
-			orphan("aws_subnet", "subnet-abc", "", "aws_subnet.this:b"),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+		orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+		orphan("aws_subnet", "subnet-abc", "", "aws_subnet.this:b"),
+	}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Fatalf("a rename was offered with two live candidates for it:\n%s", res)
@@ -132,14 +120,10 @@ func TestRenameAmbiguousTwoOrphans(t *testing.T) {
 // TestRenameAmbiguousTwoUnbound is the same rule from the other side: one
 // orphan and two declared instances waiting is equally unanswerable.
 func TestRenameAmbiguousTwoUnbound(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{
-			mustAddr(t, `aws_subnet.this["c"]`),
-			mustAddr(t, `aws_subnet.this["d"]`),
-		},
-		Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{
+		mustAddr(t, `aws_subnet.this["c"]`),
+		mustAddr(t, `aws_subnet.this["d"]`),
+	}}})
 
 	if len(res.Renames) != 0 {
 		t.Fatalf("a rename was offered with two destinations for it:\n%s", res)
@@ -158,11 +142,7 @@ func TestRenameAmbiguousTwoUnbound(t *testing.T) {
 // entirely - pairs with nothing.
 func TestRenameNeverCrossesBlocks(t *testing.T) {
 	t.Run("another block", func(t *testing.T) {
-		res := classifyFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.other:a")},
-		})
+		res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.other:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("a marker naming another block was paired:\n%s", res)
 		}
@@ -172,11 +152,7 @@ func TestRenameNeverCrossesBlocks(t *testing.T) {
 		// A live resource of a different type carrying the subnet block's
 		// marker is a broken record, not a rename: the block match has to
 		// hold on the type as well as on the address.
-		res := classifyFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{orphan("aws_route_table", "rtb-xyz", "", "aws_subnet.this:a")},
-		})
+		res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_route_table", "rtb-xyz", "", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("a marker on a resource of another type was paired:\n%s", res)
 		}
@@ -188,11 +164,7 @@ func TestRenameNeverCrossesBlocks(t *testing.T) {
 // one would fight the scale-down rule, so the count block never appears here
 // - from either side.
 func TestRenameExcludesCount(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_eip", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_eip.pool[1]")},
-		Orphans: []discovery.OwnedResource{orphan("aws_eip", "eipalloc-c", "", "aws_eip.pool:7")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_eip", "eipalloc-c", "", "aws_eip.pool:7")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_eip", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_eip.pool[1]")}}})
 	if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 		t.Errorf("a count member was offered as a rename:\n%s", res)
 	}
@@ -203,27 +175,21 @@ func TestRenameExcludesCount(t *testing.T) {
 // ordinary create. Neither is a rename, and neither produces a line.
 func TestRenameNothingToPair(t *testing.T) {
 	t.Run("orphan only", func(t *testing.T) {
-		res := classifyFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")},
-		})
+		res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("an orphan with nothing to pair with produced a rename:\n%s", res)
 		}
 	})
 
 	t.Run("unbound only", func(t *testing.T) {
-		res := classifyFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 0)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		})
+		res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 0)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("an unbound instance with nothing to pair with produced a rename:\n%s", res)
 		}
 	})
 
 	t.Run("neither", func(t *testing.T) {
-		res := classifyFixture(t, discovery.Result{Scans: []discovery.TypeScan{scan("aws_subnet", 0)}})
+		res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 0)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("an empty discovery result produced a rename:\n%s", res)
 		}
@@ -234,11 +200,7 @@ func TestRenameNothingToPair(t *testing.T) {
 // had a key renamed. The unbound aws_vpc.main below is exactly the case the
 // bind-candidate path handles, and this pass leaves it alone.
 func TestRenameKeyedByNoKeyInstance(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_vpc", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_vpc.main")},
-		Orphans: []discovery.OwnedResource{orphan("aws_vpc", "vpc-old", "", "aws_vpc.retired")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_vpc", "vpc-old", "", "aws_vpc.retired")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_vpc.main")}}})
 	if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 		t.Errorf("an unkeyed instance produced a rename:\n%s", res)
 	}
@@ -250,11 +212,7 @@ func TestRenameKeyedByNoKeyInstance(t *testing.T) {
 // as ambiguous rather than silently skipped, because a resource that is there
 // and cannot be paired is exactly what the operator needs told.
 func TestRenameUnreadableKey(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a.b")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a.b")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Fatalf("an undecodable key was turned into a command anyway:\n%s", res)
@@ -273,11 +231,7 @@ func TestRenameUnreadableKey(t *testing.T) {
 // rewrote a marker underneath the run, and the answer is to say so rather
 // than to emit a rename from an address to itself.
 func TestRenameSameKeyIsNotOffered(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["a"]`)},
-		Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")},
-	})
+	res := classifyFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["a"]`)}}})
 	if len(res.Renames) != 0 {
 		t.Fatalf("a rename from an address to itself was offered:\n%s", res)
 	}
@@ -319,11 +273,7 @@ func TestRenameCommandQuoting(t *testing.T) {
 // agrees. Content absent is not content against.
 func TestRenameContentIsOptional(t *testing.T) {
 	t.Run("no object", func(t *testing.T) {
-		res := classifyContentFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 1 {
 			t.Fatalf("want one rename candidate with no content to compare, got:\n%s", res)
 		}
@@ -333,14 +283,10 @@ func TestRenameContentIsOptional(t *testing.T) {
 	})
 
 	t.Run("an agreeing object", func(t *testing.T) {
-		res := classifyContentFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{
-				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
-					map[string]string{"availability_zone": "us-east-1a"}),
-			},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+				map[string]string{"availability_zone": "us-east-1a"}),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 1 {
 			t.Fatalf("want one rename candidate, got:\n%s", res)
 		}
@@ -358,16 +304,12 @@ func TestRenameContentIsOptional(t *testing.T) {
 // zone and one does not, so a single pairing survives, agrees positively, and
 // is offered - with the argument it was decided on recorded on the candidate.
 func TestRenameContentResolvesAmbiguity(t *testing.T) {
-	res := classifyContentFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{
-			withContent(orphan("aws_subnet", "subnet-keep", "", "aws_subnet.this:a"),
-				map[string]string{"availability_zone": "us-east-1a"}),
-			withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
-				map[string]string{"availability_zone": "us-east-1b"}),
-		},
-	})
+	res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+		withContent(orphan("aws_subnet", "subnet-keep", "", "aws_subnet.this:a"),
+			map[string]string{"availability_zone": "us-east-1a"}),
+		withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
+			map[string]string{"availability_zone": "us-east-1b"}),
+	}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 1 {
 		t.Fatalf("content left one agreeing pairing standing and it was not offered:\n%s", res)
@@ -394,17 +336,13 @@ func TestRenameContentStaysAmbiguous(t *testing.T) {
 		// One orphan agreeing with the block's configuration says nothing
 		// about which of two unclaimed keys it became: a for_each block has
 		// one body, so content cannot tell c from d.
-		res := classifyContentFixture(t, discovery.Result{
-			Scans: []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{
-				mustAddr(t, `aws_subnet.this["c"]`),
-				mustAddr(t, `aws_subnet.this["d"]`),
-			},
-			Orphans: []discovery.OwnedResource{
-				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
-					map[string]string{"availability_zone": "us-east-1a"}),
-			},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+				map[string]string{"availability_zone": "us-east-1a"}),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{
+			mustAddr(t, `aws_subnet.this["c"]`),
+			mustAddr(t, `aws_subnet.this["d"]`),
+		}}})
 		if len(res.Renames) != 0 {
 			t.Fatalf("content picked one of two declared instances that share a body:\n%s", res)
 		}
@@ -417,15 +355,11 @@ func TestRenameContentStaysAmbiguous(t *testing.T) {
 		// Content ruled one orphan out, but the one left sent no object.
 		// "Everything else was ruled out" is not positive agreement, so
 		// nothing is offered.
-		res := classifyContentFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{
-				orphan("aws_subnet", "subnet-mute", "", "aws_subnet.this:a"),
-				withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
-					map[string]string{"availability_zone": "us-east-1b"}),
-			},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			orphan("aws_subnet", "subnet-mute", "", "aws_subnet.this:a"),
+			withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
+				map[string]string{"availability_zone": "us-east-1b"}),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 {
 			t.Fatalf("a pairing that could not be compared was offered on elimination alone:\n%s", res)
 		}
@@ -440,14 +374,10 @@ func TestRenameContentStaysAmbiguous(t *testing.T) {
 // identifying arguments disagree is not the declared instance under a new
 // key, so the pairing is removed and the report shows the comparison.
 func TestRenameContentRemovesTheOnlyPairing(t *testing.T) {
-	res := classifyContentFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-		Orphans: []discovery.OwnedResource{
-			withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
-				map[string]string{"availability_zone": "us-east-1b"}),
-		},
-	})
+	res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+		withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+			map[string]string{"availability_zone": "us-east-1b"}),
+	}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 
 	if len(res.Renames) != 0 {
 		t.Fatalf("a pairing content disqualified was offered anyway:\n%s", res)
@@ -470,26 +400,18 @@ func TestRenameContentNeverOverridesTheBlockMatch(t *testing.T) {
 	agreeing := map[string]string{"availability_zone": "us-east-1a"}
 
 	t.Run("another type", func(t *testing.T) {
-		res := classifyContentFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{
-				withContent(orphan("aws_route_table", "rtb-xyz", "", "aws_subnet.this:a"), agreeing),
-			},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_route_table", "rtb-xyz", "", "aws_subnet.this:a"), agreeing),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("agreeing content paired a resource of another type:\n%s", res)
 		}
 	})
 
 	t.Run("another block", func(t *testing.T) {
-		res := classifyContentFixture(t, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
-			Orphans: []discovery.OwnedResource{
-				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.other:a"), agreeing),
-			},
-		})
+		res := classifyContentFixture(t, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.other:a"), agreeing),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)}}})
 		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
 			t.Errorf("agreeing content paired a marker naming another block:\n%s", res)
 		}
@@ -516,9 +438,9 @@ func classifyContentFixture(t *testing.T, res discovery.Result) *Result {
 	}
 
 	out, diags := Classify(context.Background(), Request{
-		Estate:    estateName,
-		Config:    loadConfig(t, dir),
-		Discovery: &res,
+		Estate: estateName,
+		Config: loadConfig(t, dir),
+		Report: &res.Report, Orphans: res.Orphans,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("classification failed:\n%s", renderDiags(diags))

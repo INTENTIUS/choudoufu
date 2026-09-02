@@ -1129,9 +1129,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if disco != nil {
 		var foreignDiags tfdiags.Diagnostics
 		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
-			Estate:    disco.Estate,
-			Config:    config,
-			Discovery: disco,
+			Estate:  disco.Estate,
+			Config:  config,
+			Report:  &disco.Report,
+			Orphans: disco.Orphans,
 			// The adoption hint carries the region and endpoint the
 			// resources were listed through, so that pasting it talks to
 			// the same cloud the plan just read.
