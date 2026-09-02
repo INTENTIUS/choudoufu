@@ -226,11 +226,18 @@ guess.
 The sweep is the term that is genuinely ours. Stock has no equivalent, because
 a state file already answers the question the sweep asks.
 
-So the honest difference is not the size of the read pass. It is that stock
-can decline to refresh with `-refresh=false` and choudoufu cannot: the
-projection *is* the refresh, so `-refresh` is accepted and has no effect. What
-stock buys by skipping it is a plan against remembered state, and there is no
-remembered state here to plan against.
+So the honest difference is not the size of the read pass. On a default
+plan both tools refresh; the difference is what `-refresh=false` may
+skip. Stock skips everything and trusts its state file outright.
+Choudoufu skips only what the run can vouch for - an instance the sweep
+verified by marker, or one whose ownership the record store attests
+while the run's own listing proves it exists - and everything else still
+reads. The state cache supplies the attributes for what is vouched, the
+plan launcher never even plans those wire reads, and the estate-level
+`reads = "full"` setting turns the whole pass off. The
+[unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
+measures it, and default plans are untouched: the read is drift
+detection; no cache freshness excuses skipping it there.
 
 ### The native leg does not move
 
