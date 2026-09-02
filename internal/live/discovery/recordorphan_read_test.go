@@ -322,7 +322,7 @@ func TestRecordOrphanReadSweep_TargetGroupAttachmentAlreadyKnownIsNotDuplicated(
 	}
 
 	req := Request{Estate: estate, HintStore: raw}
-	res := &Result{Resolutions: []identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "already-found-elsewhere"}}}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "already-found-elsewhere"}}}}
 	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %s", diags.Err())
@@ -699,10 +699,10 @@ func TestDestroyParentDependency_Route53Record(t *testing.T) {
 	otherZoneAddr := mustAddr(t, "aws_route53_zone.other")
 
 	t.Run("finds the matching zone", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: zoneAddr, Class: identity.ClassConcrete, ImportID: "ZJB88OBW3J7TXGA"},
 			{Addr: otherZoneAddr, Class: identity.ClassConcrete, ImportID: "ZDIFFERENT"},
-		}}
+		}}}
 		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
 			"zone_id": "ZJB88OBW3J7TXGA",
 			"name":    "datacite.eu",
@@ -714,9 +714,9 @@ func TestDestroyParentDependency_Route53Record(t *testing.T) {
 	})
 
 	t.Run("no matching zone value returns nil", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: otherZoneAddr, Class: identity.ClassConcrete, ImportID: "ZDIFFERENT"},
-		}}
+		}}}
 		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
 			"zone_id": "ZJB88OBW3J7TXGA",
 			"name":    "datacite.eu",
@@ -728,9 +728,9 @@ func TestDestroyParentDependency_Route53Record(t *testing.T) {
 	})
 
 	t.Run("components map missing the linking attribute returns nil", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: zoneAddr, Class: identity.ClassConcrete, ImportID: "ZJB88OBW3J7TXGA"},
-		}}
+		}}}
 		got := destroyParentDependency(Request{}, destroyParentDependencySchemas(t), res, "aws_route53_record", map[string]string{
 			"name": "datacite.eu",
 			"type": "NS",
@@ -772,7 +772,7 @@ func TestRecordOrphanReadSweep_MovedAliasIsNotAnOrphan(t *testing.T) {
 	// leg runs (discovery.go's own comment above [known]'s construction):
 	// the NEW address is a declared block the caller's initial resolution
 	// list already carries, Undeclared left at its zero value (false).
-	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}}
 
 	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
 	if diags.HasErrors() {
@@ -817,7 +817,7 @@ func TestRecordOrphanReadSweep_NoMovedBlockStillOrphans(t *testing.T) {
 	}
 
 	req := Request{Estate: estate, HintStore: raw, Config: cfg}
-	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}}
 
 	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
 	if diags.HasErrors() {
@@ -872,7 +872,7 @@ func TestRecordOrphanReadSweep_MovedAliasDoesNotWidenToAnUnrelatedAddress(t *tes
 	}
 
 	req := Request{Estate: estate, HintStore: raw, Config: cfg}
-	res := &Result{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{{Addr: newAddr, Class: identity.ClassRecordLocated}}}}
 
 	diags := recordOrphanReadSweep(ctx, req, listclient.Schemas{}, res)
 	if diags.HasErrors() {

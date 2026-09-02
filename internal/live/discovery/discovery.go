@@ -397,10 +397,8 @@ type ProgressEvent struct {
 func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	res := &Result{
-		Estate:      req.Estate,
-		Resolutions: append([]identity.Resolution(nil), req.Resolutions...),
-	}
+	res := &Result{Estate: req.Estate}
+	res.Resolutions = append([]identity.Resolution(nil), req.Resolutions...)
 
 	switch {
 	case !ValidEstateName(req.Estate):

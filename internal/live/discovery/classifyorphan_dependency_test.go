@@ -60,10 +60,10 @@ func TestClassifyOrphanDestroyDependency_SecurityGroupRule(t *testing.T) {
 	req := Request{Roster: sgRuleRoster(t)}
 
 	t.Run("finds the matching security group via the object's own security_group_id", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: sgAddr, Class: identity.ClassConcrete, ImportID: "sg-0123"},
 			{Addr: otherSGAddr, Class: identity.ClassConcrete, ImportID: "sg-9999"},
-		}}
+		}}}
 		resource := cty.ObjectVal(map[string]cty.Value{
 			"id":                cty.StringVal("sgr-abcd"),
 			"security_group_id": cty.StringVal("sg-0123"),
@@ -75,9 +75,9 @@ func TestClassifyOrphanDestroyDependency_SecurityGroupRule(t *testing.T) {
 	})
 
 	t.Run("no matching security_group_id value returns nil", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: otherSGAddr, Class: identity.ClassConcrete, ImportID: "sg-9999"},
-		}}
+		}}}
 		resource := cty.ObjectVal(map[string]cty.Value{
 			"id":                cty.StringVal("sgr-abcd"),
 			"security_group_id": cty.StringVal("sg-0123"),
@@ -89,9 +89,9 @@ func TestClassifyOrphanDestroyDependency_SecurityGroupRule(t *testing.T) {
 	})
 
 	t.Run("resource with no parent-shaped attribute returns nil", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: sgAddr, Class: identity.ClassConcrete, ImportID: "sg-0123"},
-		}}
+		}}}
 		resource := cty.ObjectVal(map[string]cty.Value{
 			"id": cty.StringVal("sgr-abcd"),
 		})
@@ -102,9 +102,9 @@ func TestClassifyOrphanDestroyDependency_SecurityGroupRule(t *testing.T) {
 	})
 
 	t.Run("cty.NilVal resource (no listed object) returns nil", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: sgAddr, Class: identity.ClassConcrete, ImportID: "sg-0123"},
-		}}
+		}}}
 		got := classifyOrphanDestroyDependency(req, schemas, res, "aws_vpc_security_group_egress_rule", cty.NilVal)
 		if got != nil {
 			t.Errorf("got %v, want nil - fileTaggingCandidate and scanTypeCloudControl's own orphans never carry a Resource", got)
@@ -112,9 +112,9 @@ func TestClassifyOrphanDestroyDependency_SecurityGroupRule(t *testing.T) {
 	})
 
 	t.Run("a marked attribute is refused, never unmarked and read", func(t *testing.T) {
-		res := &Result{Resolutions: []identity.Resolution{
+		res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
 			{Addr: sgAddr, Class: identity.ClassConcrete, ImportID: "sg-0123"},
-		}}
+		}}}
 		resource := cty.ObjectVal(map[string]cty.Value{
 			"id":                cty.StringVal("sgr-abcd"),
 			"security_group_id": cty.StringVal("sg-0123").Mark("sensitive"),
@@ -139,28 +139,26 @@ func TestClassifyOrphans_UndeclaredSiblingsGetOrderedDestroy(t *testing.T) {
 		t.Fatalf("building schemas from the fake cloud: %s", diags.Err())
 	}
 
-	res := &Result{
-		Orphans: []OwnedResource{
-			{
-				TypeName:   "aws_security_group",
-				ImportID:   "sg-0123",
-				Marker:     `module.x.aws_security_group.this`,
-				Normalized: `module.x.aws_security_group.this`,
-				Swept:      true,
-			},
-			{
-				TypeName:   "aws_vpc_security_group_egress_rule",
-				ImportID:   "sgr-abcd",
-				Marker:     `module.x.aws_vpc_security_group_egress_rule.this:all`,
-				Normalized: `module.x.aws_vpc_security_group_egress_rule.this:all`,
-				Swept:      true,
-				Resource: cty.ObjectVal(map[string]cty.Value{
-					"id":                cty.StringVal("sgr-abcd"),
-					"security_group_id": cty.StringVal("sg-0123"),
-				}),
-			},
+	res := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{
+		{
+			TypeName:   "aws_security_group",
+			ImportID:   "sg-0123",
+			Marker:     `module.x.aws_security_group.this`,
+			Normalized: `module.x.aws_security_group.this`,
+			Swept:      true,
 		},
-	}
+		{
+			TypeName:   "aws_vpc_security_group_egress_rule",
+			ImportID:   "sgr-abcd",
+			Marker:     `module.x.aws_vpc_security_group_egress_rule.this:all`,
+			Normalized: `module.x.aws_vpc_security_group_egress_rule.this:all`,
+			Swept:      true,
+			Resource: cty.ObjectVal(map[string]cty.Value{
+				"id":                cty.StringVal("sgr-abcd"),
+				"security_group_id": cty.StringVal("sg-0123"),
+			}),
+		},
+	}}}
 
 	diags = classifyOrphans(t.Context(), Request{Estate: "sg-rule-order", Roster: sgRuleRoster(t)}, schemas, res)
 	if diags.HasErrors() {

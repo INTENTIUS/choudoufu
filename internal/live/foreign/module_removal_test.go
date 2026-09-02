@@ -105,9 +105,9 @@ func classifyModuleFixture(t *testing.T, dir string, res discovery.Result) *Resu
 	t.Helper()
 
 	out, diags := Classify(context.Background(), Request{
-		Estate:    estateName,
-		Config:    loadModuleConfig(t, dir),
-		Discovery: &res,
+		Estate: estateName,
+		Config: loadModuleConfig(t, dir),
+		Report: &res.Report, Orphans: res.Orphans,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("classification failed:\n%s", renderDiags(diags))
@@ -143,10 +143,7 @@ func TestBlockGoneIsReadFromTheOrphansOwnModule(t *testing.T) {
 	t.Run("block still declared in the child module", func(t *testing.T) {
 		// module.net's aws_subnet.this block is still there; only the key "c"
 		// is gone. The root module has no aws_subnet.this at all.
-		res := classifyModuleFixture(t, dir, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_subnet", "subnet-c", "module.net.aws_subnet.this:c")},
-		})
+		res := classifyModuleFixture(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_subnet", "subnet-c", "module.net.aws_subnet.this:c")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}}})
 
 		if len(res.Removals) != 1 {
 			t.Fatalf("want one removal, got:\n%s", res)
@@ -161,10 +158,7 @@ func TestBlockGoneIsReadFromTheOrphansOwnModule(t *testing.T) {
 	t.Run("block declared only at the root", func(t *testing.T) {
 		// The mirror image: aws_vpc.main exists at the root and NOT in the
 		// child, so an orphan of module.net.aws_vpc.main is a deleted block.
-		res := classifyModuleFixture(t, dir, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_vpc", 1)},
-			Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_vpc", "vpc-1", "module.net.aws_vpc.main")},
-		})
+		res := classifyModuleFixture(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_vpc", "vpc-1", "module.net.aws_vpc.main")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1)}}})
 
 		if len(res.Removals) != 1 {
 			t.Fatalf("want one removal, got:\n%s", res)
@@ -179,10 +173,7 @@ func TestBlockGoneIsReadFromTheOrphansOwnModule(t *testing.T) {
 	t.Run("module call itself gone", func(t *testing.T) {
 		// A module the configuration no longer calls at all. There is no
 		// module config to consult, so the block is gone by construction.
-		res := classifyModuleFixture(t, dir, discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
-			Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_subnet", "subnet-x", "module.deleted.aws_subnet.this:b")},
-		})
+		res := classifyModuleFixture(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{removalOrphan(t, "aws_subnet", "subnet-x", "module.deleted.aws_subnet.this:b")}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 1)}}})
 
 		if len(res.Removals) != 1 {
 			t.Fatalf("want one removal, got:\n%s", res)
@@ -194,13 +185,10 @@ func TestBlockGoneIsReadFromTheOrphansOwnModule(t *testing.T) {
 	})
 
 	t.Run("root orphans are unchanged", func(t *testing.T) {
-		res := classifyModuleFixture(t, dir, discovery.Result{
-			Scans: []discovery.TypeScan{scan("aws_vpc", 1), scan("aws_subnet", 1)},
-			Orphans: []discovery.OwnedResource{
-				removalOrphan(t, "aws_vpc", "vpc-root", "aws_vpc.main"),
-				removalOrphan(t, "aws_subnet", "subnet-root", "aws_subnet.this:c"),
-			},
-		})
+		res := classifyModuleFixture(t, dir, discovery.Result{Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{
+			removalOrphan(t, "aws_vpc", "vpc-root", "aws_vpc.main"),
+			removalOrphan(t, "aws_subnet", "subnet-root", "aws_subnet.this:c"),
+		}}, Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1), scan("aws_subnet", 1)}}})
 
 		if len(res.Removals) != 2 {
 			t.Fatalf("want two removals, got:\n%s", res)

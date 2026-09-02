@@ -323,7 +323,7 @@ func TestParentReadSweepIssuesNoCallWithNoParent(t *testing.T) {
 			t.Fatalf("ListSchemas: %s", diags.Err())
 		}
 		cfg := loadConfig(t, dir)
-		res := &Result{Resolutions: resolveOrFail(t, cfg).All()}
+		res := &Result{Verdicts: Verdicts{Resolutions: resolveOrFail(t, cfg).All()}}
 		req := Request{Estate: estateName, Config: cfg, Provider: cloud, Sweep: true}
 		if diags := parentReadSweep(t.Context(), req, schemas, res); diags.HasErrors() {
 			t.Fatalf("parentReadSweep: %s", diags.Err())

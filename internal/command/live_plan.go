@@ -654,9 +654,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	var foreignReq foreign.Request
 	if disco != nil {
 		foreignReq = foreign.Request{
-			Estate:    disco.Estate,
-			Config:    config,
-			Discovery: disco,
+			Estate:  disco.Estate,
+			Config:  config,
+			Report:  &disco.Report,
+			Orphans: disco.Orphans,
 			// The adoption hint carries the region and endpoint the
 			// resources were listed through, so that pasting it talks to
 			// the same cloud the plan just read. discoProvider is the

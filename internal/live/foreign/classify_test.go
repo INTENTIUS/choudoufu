@@ -41,14 +41,11 @@ func estateDir(t *testing.T) string {
 // carrying no marker, matching nothing, reported and classified foreign with
 // everything an operator needs to go look at it.
 func TestClassifyForeign(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-foreign", "someone-elses-sg",
-				map[string]string{"Name": "someone-elses-sg", "team": "payments"},
-				map[string]string{"name": "someone-elses-sg"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-foreign", "someone-elses-sg",
+			map[string]string{"Name": "someone-elses-sg", "team": "payments"},
+			map[string]string{"name": "someone-elses-sg"}),
+	}}})
 
 	if len(res.Foreign) != 1 {
 		t.Fatalf("want exactly one foreign resource, got:\n%s", res)
@@ -77,12 +74,9 @@ func TestClassifyForeign(t *testing.T) {
 // TestClassifyForeignWithoutIdentity: a provider that sends no identity does
 // not get to make a resource disappear from the report.
 func TestClassifyForeignWithoutIdentity(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_route_table", 1)},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_route_table", "", "rtb-nameless", nil, nil),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 1)}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_route_table", "", "rtb-nameless", nil, nil),
+	}}})
 
 	if len(res.Foreign) != 1 {
 		t.Fatalf("want one foreign resource, got:\n%s", res)
@@ -101,11 +95,7 @@ func TestClassifyForeignWithoutIdentity(t *testing.T) {
 func TestClassifyTypesWithNoDistinguishingArguments(t *testing.T) {
 	for _, typeName := range []string{"aws_route_table", "aws_internet_gateway", "aws_eip"} {
 		t.Run(typeName, func(t *testing.T) {
-			res := classifyFixture(t, discovery.Result{
-				Scans:     []discovery.TypeScan{scan(typeName, 1)},
-				Unbound:   []addrs.AbsResourceInstance{mustAddr(t, unboundAddrFor(typeName))},
-				Unclaimed: []discovery.UnclaimedResource{live(typeName, "id-1", "", nil, nil)},
-			})
+			res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan(typeName, 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, unboundAddrFor(typeName))}, Unclaimed: []discovery.UnclaimedResource{live(typeName, "id-1", "", nil, nil)}}})
 			if len(res.Candidates) != 0 {
 				t.Fatalf("%s was offered for adoption:\n%s", typeName, res)
 			}
@@ -127,15 +117,11 @@ func TestClassifyTypesWithNoDistinguishingArguments(t *testing.T) {
 // the declared one's is offered for adoption, with the marker pair to stamp -
 // and is not bound, which is the part the marker spec insists on.
 func TestClassifyBindCandidate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-				map[string]string{"Name": "stateless-e2e-main"},
-				map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-0abc", "stateless-e2e-main",
+			map[string]string{"Name": "stateless-e2e-main"},
+			map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
+	}}})
 
 	if len(res.Candidates) != 1 {
 		t.Fatalf("want exactly one bind candidate, got:\n%s", res)
@@ -169,21 +155,17 @@ func TestClassifyBindCandidate(t *testing.T) {
 // itself to. When the request carries neither, neither flag appears.
 func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 	disco := func() *discovery.Result {
-		return &discovery.Result{
-			Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-			Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-			Unclaimed: []discovery.UnclaimedResource{
-				live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-					nil, map[string]string{"name": "stateless-e2e-main"}),
-			},
-		}
+		return &discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+			live("aws_security_group", "sg-0abc", "stateless-e2e-main",
+				nil, map[string]string{"name": "stateless-e2e-main"}),
+		}}}
 	}
 
 	t.Run("with a region and an endpoint", func(t *testing.T) {
 		res, diags := Classify(context.Background(), Request{
-			Estate:      estateName,
-			Config:      loadConfig(t, estateDir(t)),
-			Discovery:   disco(),
+			Estate: estateName,
+			Config: loadConfig(t, estateDir(t)),
+			Report: &disco().Report, Orphans: disco().Orphans,
 			Region:      "eu-west-1",
 			EndpointURL: "http://localhost:4600",
 		})
@@ -203,9 +185,9 @@ func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 
 	t.Run("with neither", func(t *testing.T) {
 		res, diags := Classify(context.Background(), Request{
-			Estate:    estateName,
-			Config:    loadConfig(t, estateDir(t)),
-			Discovery: disco(),
+			Estate: estateName,
+			Config: loadConfig(t, estateDir(t)),
+			Report: &disco().Report, Orphans: disco().Orphans,
 		})
 		if diags.HasErrors() {
 			t.Fatalf("classification failed:\n%s", renderDiags(diags))
@@ -290,13 +272,9 @@ func TestTagPairsSplitsOverlongAddressAcrossContinuationTags(t *testing.T) {
 // TestClassifyVPCBindCandidate matches on a literal CIDR rather than a name,
 // which is the other shape of identity-bearing argument in the table.
 func TestClassifyVPCBindCandidate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_vpc", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_vpc.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_vpc", "vpc-0abc", "", nil, map[string]string{"cidr_block": "10.42.0.0/16"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_vpc.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_vpc", "vpc-0abc", "", nil, map[string]string{"cidr_block": "10.42.0.0/16"}),
+	}}})
 
 	c, ok := res.CandidateFor(mustAddr(t, "aws_vpc.main"))
 	if !ok {
@@ -320,11 +298,7 @@ func TestClassifyNearMissStaysForeign(t *testing.T) {
 			nil, map[string]string{"description": "estate fixture security group"}),
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := classifyFixture(t, discovery.Result{
-				Scans:     []discovery.TypeScan{scan("aws_security_group", 1)},
-				Unbound:   []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-				Unclaimed: []discovery.UnclaimedResource{obj},
-			})
+			res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{obj}}})
 			if len(res.Candidates) != 0 {
 				t.Fatalf("a near miss was offered for adoption:\n%s", res)
 			}
@@ -372,18 +346,14 @@ func TestClassifyPartialMatchStaysForeign(t *testing.T) {
 // are phase 3's set matcher's business, and content matching them here would
 // attach a plan to an arbitrary member of a set.
 func TestClassifyKeyedInstancesAreNeverCandidates(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_subnet", 2)},
-		Unbound: []addrs.AbsResourceInstance{
-			mustAddr(t, `aws_subnet.this["a"]`),
-			mustAddr(t, `aws_subnet.this["b"]`),
-		},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_subnet", "subnet-a", "", nil, map[string]string{
-				"cidr_block": "10.42.1.0/24", "availability_zone": "us-east-1a",
-			}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_subnet", 2)}, Unbound: []addrs.AbsResourceInstance{
+		mustAddr(t, `aws_subnet.this["a"]`),
+		mustAddr(t, `aws_subnet.this["b"]`),
+	}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_subnet", "subnet-a", "", nil, map[string]string{
+			"cidr_block": "10.42.1.0/24", "availability_zone": "us-east-1a",
+		}),
+	}}})
 
 	if len(res.Candidates) != 0 {
 		t.Fatalf("a for_each member was offered for adoption:\n%s", res)
@@ -400,14 +370,10 @@ func TestClassifyKeyedInstancesAreNeverCandidates(t *testing.T) {
 // resources that match one declared instance equally well are both foreign,
 // and the report names the other one so an operator can tell them apart.
 func TestClassifyAmbiguousMatchStaysForeign(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-			live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+	}}})
 
 	if len(res.Candidates) != 0 {
 		t.Fatalf("one of two identical-looking resources was picked:\n%s", res)
@@ -427,19 +393,16 @@ func TestClassifyAmbiguousMatchStaysForeign(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestClassifyOtherEstate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{
-			{TypeName: "aws_vpc", Scope: discovery.ScopeAll, Listed: 3, OtherEstate: 1},
-			{TypeName: "aws_security_group", Scope: discovery.ScopeAll, Listed: 2},
-		},
-		Unclaimed: []discovery.UnclaimedResource{
-			// Discovery itself never routes another estate's resource here,
-			// but classification answers "whose is it" from the tags, so a
-			// tagged resource that does arrive is counted, not itemized.
-			live("aws_security_group", "sg-theirs", "",
-				map[string]string{discovery.TagEstate: "other-estate", discovery.TagAddress: "aws_security_group.web"}, nil),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{
+		{TypeName: "aws_vpc", Scope: discovery.ScopeAll, Listed: 3, OtherEstate: 1},
+		{TypeName: "aws_security_group", Scope: discovery.ScopeAll, Listed: 2},
+	}, Unclaimed: []discovery.UnclaimedResource{
+		// Discovery itself never routes another estate's resource here,
+		// but classification answers "whose is it" from the tags, so a
+		// tagged resource that does arrive is counted, not itemized.
+		live("aws_security_group", "sg-theirs", "",
+			map[string]string{discovery.TagEstate: "other-estate", discovery.TagAddress: "aws_security_group.web"}, nil),
+	}}})
 
 	if len(res.Foreign) != 0 {
 		t.Errorf("another estate's resource was reported as foreign:\n%s", res)
@@ -472,13 +435,10 @@ func TestClassifyOtherEstate(t *testing.T) {
 // is discovery's business, not this package's, and is never reclassified as
 // foreign.
 func TestClassifyIgnoresOwnEstate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_vpc", 1)},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_vpc", "vpc-ours", "",
-				map[string]string{discovery.TagEstate: estateName, discovery.TagAddress: "aws_vpc.main"}, nil),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_vpc", 1)}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_vpc", "vpc-ours", "",
+			map[string]string{discovery.TagEstate: estateName, discovery.TagAddress: "aws_vpc.main"}, nil),
+	}}})
 	if !res.Empty() {
 		t.Errorf("this estate's own resource was classified:\n%s", res)
 	}
@@ -495,18 +455,15 @@ func TestClassifyIgnoresOwnEstate(t *testing.T) {
 // classification is reported as its own kind, because "nobody looked" must
 // never read as "there are none".
 func TestClassifyUnsweptTypes(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{
-			{TypeName: "aws_vpc", Scope: discovery.ScopeAll},
-			{TypeName: "aws_subnet", Scope: discovery.ScopeEstate},
-			{TypeName: "aws_eip"},
-			{TypeName: "aws_route_table"},
-		},
-		Problems: []discovery.Problem{
-			{Kind: discovery.ProblemTypeNotListable, TypeName: "aws_eip", Detail: "cannot list"},
-			{Kind: discovery.ProblemListFailed, TypeName: "aws_route_table", Detail: "list blew up"},
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{
+		{TypeName: "aws_vpc", Scope: discovery.ScopeAll},
+		{TypeName: "aws_subnet", Scope: discovery.ScopeEstate},
+		{TypeName: "aws_eip"},
+		{TypeName: "aws_route_table"},
+	}, Problems: []discovery.Problem{
+		{Kind: discovery.ProblemTypeNotListable, TypeName: "aws_eip", Detail: "cannot list"},
+		{Kind: discovery.ProblemListFailed, TypeName: "aws_route_table", Detail: "list blew up"},
+	}}})
 
 	want := map[string]UnsweptReason{
 		"aws_subnet":                     UnsweptEstateScoped,
@@ -557,9 +514,7 @@ func TestClassifyNobodyLooked(t *testing.T) {
 	}
 
 	// The same emptiness, with a type actually swept: now it means something.
-	clean := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_security_group", 4)},
-	})
+	clean := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 4)}}})
 	if !clean.SweptClean() {
 		t.Errorf("a swept type with no unclaimed resources is not reported as swept clean:\n%s", clean)
 	}
@@ -572,11 +527,9 @@ func TestClassifyNobodyLooked(t *testing.T) {
 // filter on, Unclaimed is empty because nothing looked. The result must not
 // present that as a clean sweep.
 func TestClassifyEstateScopedScanFindsNothing(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{
-			{TypeName: "aws_security_group", Scope: discovery.ScopeEstate, Listed: 1},
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{
+		{TypeName: "aws_security_group", Scope: discovery.ScopeEstate, Listed: 1},
+	}}})
 	if res.SweptClean() {
 		t.Errorf("an estate-filtered scan claims to be a clean sweep:\n%s", res)
 	}
@@ -594,7 +547,7 @@ func TestClassifyRejectsMissingInputs(t *testing.T) {
 	if _, diags := Classify(context.Background(), Request{Estate: estateName, Config: loadConfig(t, estateDir(t))}); !diags.HasErrors() {
 		t.Error("classifying with no discovery result did not error")
 	}
-	if _, diags := Classify(context.Background(), Request{Estate: estateName, Discovery: &discovery.Result{}}); !diags.HasErrors() {
+	if _, diags := Classify(context.Background(), Request{Estate: estateName, Report: &discovery.Report{}}); !diags.HasErrors() {
 		t.Error("classifying with no configuration did not error")
 	}
 }
@@ -607,9 +560,9 @@ func classifyFixture(t *testing.T, res discovery.Result) *Result {
 	t.Helper()
 
 	out, diags := Classify(context.Background(), Request{
-		Estate:    estateName,
-		Config:    loadConfig(t, estateDir(t)),
-		Discovery: &res,
+		Estate: estateName,
+		Config: loadConfig(t, estateDir(t)),
+		Report: &res.Report, Orphans: res.Orphans,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("classification failed:\n%s", renderDiags(diags))

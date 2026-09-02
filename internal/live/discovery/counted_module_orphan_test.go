@@ -83,15 +83,13 @@ func TestClassifyOrphans_countedModuleStepKeepsItsIndex(t *testing.T) {
 	}.Instance(addrs.NoKey).Absolute(modInst)
 	marker := EscapeAddress(gone.String())
 
-	result := &Result{
-		Orphans: []OwnedResource{{
-			TypeName:   "aws_vpc",
-			ImportID:   "vpc-0deadbeef",
-			Marker:     marker,
-			Normalized: marker,
-			Swept:      true,
-		}},
-	}
+	result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{{
+		TypeName:   "aws_vpc",
+		ImportID:   "vpc-0deadbeef",
+		Marker:     marker,
+		Normalized: marker,
+		Swept:      true,
+	}}}}
 
 	req := Request{Estate: "counted-orphan", Config: cfg}
 	if d := classifyOrphans(t.Context(), req, listclient.Schemas{}, result); d.HasErrors() {

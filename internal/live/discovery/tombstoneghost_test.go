@@ -45,12 +45,10 @@ func TestClassifyOrphans_TombstoneGhostExcludedLeavesSoleSurvivor(t *testing.T) 
 		t.Fatalf("seeding the tombstone: %s", err)
 	}
 
-	result := &Result{
-		Orphans: []OwnedResource{
-			{TypeName: "aws_instance", ImportID: "i-terminated-ghost", Marker: marker, Normalized: marker, Swept: true},
-			{TypeName: "aws_instance", ImportID: "i-genuinely-live", Marker: marker, Normalized: marker, Swept: true},
-		},
-	}
+	result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{
+		{TypeName: "aws_instance", ImportID: "i-terminated-ghost", Marker: marker, Normalized: marker, Swept: true},
+		{TypeName: "aws_instance", ImportID: "i-genuinely-live", Marker: marker, Normalized: marker, Swept: true},
+	}}}
 
 	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, listclient.Schemas{}, result)
 	assertNoErrors(t, diags)
@@ -106,12 +104,10 @@ func TestClassifyOrphans_AllTombstonedClaimantsProposeNothing(t *testing.T) {
 		t.Fatalf("seeding the second tombstone: %s", err)
 	}
 
-	result := &Result{
-		Orphans: []OwnedResource{
-			{TypeName: "aws_instance", ImportID: "i-old-replaced-away", Marker: marker, Normalized: marker, Swept: true},
-			{TypeName: "aws_instance", ImportID: "i-new-then-removed", Marker: marker, Normalized: marker, Swept: true},
-		},
-	}
+	result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{
+		{TypeName: "aws_instance", ImportID: "i-old-replaced-away", Marker: marker, Normalized: marker, Swept: true},
+		{TypeName: "aws_instance", ImportID: "i-new-then-removed", Marker: marker, Normalized: marker, Swept: true},
+	}}}
 
 	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, listclient.Schemas{}, result)
 	assertNoErrors(t, diags)
@@ -144,12 +140,10 @@ func TestClassifyOrphans_TombstoneMatchesNeitherFallsBackToCollision(t *testing.
 		t.Fatalf("seeding the tombstone: %s", err)
 	}
 
-	result := &Result{
-		Orphans: []OwnedResource{
-			{TypeName: "aws_instance", ImportID: "i-one", Marker: marker, Normalized: marker, Swept: true},
-			{TypeName: "aws_instance", ImportID: "i-two", Marker: marker, Normalized: marker, Swept: true},
-		},
-	}
+	result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{
+		{TypeName: "aws_instance", ImportID: "i-one", Marker: marker, Normalized: marker, Swept: true},
+		{TypeName: "aws_instance", ImportID: "i-two", Marker: marker, Normalized: marker, Swept: true},
+	}}}
 
 	diags := classifyOrphans(context.Background(), Request{Estate: estateName, HintStore: rawStore}, listclient.Schemas{}, result)
 	if !diags.HasErrors() {
