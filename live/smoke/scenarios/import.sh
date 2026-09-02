@@ -108,15 +108,36 @@ for i in 0 1 2; do
 done
 proof "$SLOTS slot markers written. The migration is complete, and every write in it was a tag."
 
+step "3d. turn the live block on - the migration's end state"
+explain \
+  "Until now every live command named itself (live-plan). The end state" \
+  "of a migration is the live block in the configuration, after which" \
+  "the ORDINARY commands run the live backend. A plain plan before this" \
+  "point is stock mode - the fallback - and stock mode with no state" \
+  "file proposes rebuilding the whole estate" \
+  "(issue #716 found exactly that; a stock-mode plan that stamps" \
+  "markers from an empty state now carries a warning saying so)."
+cmd "add the live block to versions.tf"
+cat >> "$SMOKE_WORK/versions.tf" <<'TFEOF'
+terraform {
+  live {
+    estate = "stateless-e2e"
+  }
+}
+TFEOF
+proof "one block, and the special command retires - the rest of this scenario is plain choudoufu."
+
 step "4. the adopted estate plans empty, from markers alone"
 explain \
   "The claim this whole scenario exists for: 43 resources, created by" \
   "stock, state file gone - and the plan must be empty, because every" \
   "identity is recoverable from the resources themselves. Anything wrong" \
-  "in the binding shows up here as a create or a destroy."
-cmd "choudoufu live-plan"
-POUT="$(cd "$SMOKE_WORK" && chdf live-plan -input=false -no-color 2>&1)" \
-  || fail "import" "live-plan failed: $POUT"
+  "in the binding shows up here as a create or a destroy. And this is" \
+  "the PLAIN command now, running the live backend because the block" \
+  "asks it to."
+cmd "choudoufu plan"
+POUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "import" "the plain plan failed: $POUT"
 grep -E 'No changes\.' <<< "$POUT" | head -1 | evidence
 grep -q "No changes." <<< "$POUT" || fail "import" "the adopted estate does not plan empty: $POUT"
 proof "migration from a stock state file, lossless, and the file was never converted - it was deleted."
