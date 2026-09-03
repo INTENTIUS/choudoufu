@@ -63,7 +63,8 @@ def _(mo, pathlib, stage):
     _fixtures = {p.name: str(p) for p in sorted(pathlib.Path("tests/fixtures").glob("*-run")) if (p / "events.jsonl").exists()}
     run_id = mo.ui.text(value=stage.new_run_id(), label="run id")
     replay = mo.ui.dropdown({"(live run above)": "", **{f"replay {k}": v for k, v in _fixtures.items()}, **{f"replay runs/{k}": f"runs/{k}" for k in reversed(_existing)}}, value="(live run above)", label="or replay")
-    tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "off"], label="redraw")
+    # Durations only: marimo's refresh has no "off"; 10m is the quiet setting.
+    tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw")
     mo.hstack([run_id, replay, tick], justify="start", gap=2)
     return replay, run_id, tick
 
