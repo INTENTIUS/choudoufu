@@ -341,8 +341,8 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
                       "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
         "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "move": ("Move", "retags the resources into their estates: one tag write each",
-                 "The boundary moves by tag: team-a's resources are retagged into team-b, one tag write per resource, and the untaggable children follow their parent without a write. Today Move makes the demo's retag directly; once the executor lands it runs exactly the plan Preview dry-ran, move by move."),
+        "move": ("Move", "executes carve.json: one live-mv per move, one tag write each",
+                 "The executor runs the plan Preview dry-ran: one live-mv per move in carve.json, one tag write per resource, and the untaggable children follow their parent without a write. In the demo it then dissolves team-a into team-b, moving that block into team-b's config first, to show a cross-team carve. No state file is split."),
         "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
                       "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
         "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
@@ -352,7 +352,7 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
         "receipt": ("The account's own record", "reads this run's own tag writes back from CloudTrail; writes nothing",
                     "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This phase reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so it waits. A state edit has no such record; no account logs a file changing."),
         "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
-                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Only the demo seed is torn down; an adopted estate is never destroyed from here."),
+                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Teardown refuses a non-demo run by design: an adopted estate is yours to manage, so its teardown button fails the cell on purpose rather than destroying resources you brought."),
     }
 
     def verb_block(name, button="own", label=True):
@@ -543,7 +543,7 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _saved = f"on disk: `{carve.path(run_dir)}` with {len(_on_disk.get('moves', []))} moves" + ("" if _on_disk.get("moves") == plan_doc["moves"] else " (the table has changed since; save again)")
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
-    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs. Today the Move phase makes the demo's retag directly; once the executor lands (37's next change) it reads this plan. **In the demo you can leave this alone:** the box below is ticked, so the plan holds the demo's move, each team split into its own estate, which the demo seed already staged a config for, so Preview dry-runs it clean. Untick it, or add rules, to plan your own. (Dissolving one team into another, team-a into team-b, is the advanced case: the destination's config must first declare the incoming resources, so Preview reports it as a refusal until the block is moved.)")]
+    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs and the Move phase then runs through the executor, one `live-mv` per move. **In the demo you can leave this alone:** the box below is ticked, so the plan holds the demo's move, each team split into its own estate, which the demo seed already staged a config for, so Preview dry-runs it clean. Untick it, or add rules, to plan your own. (Dissolving one team into another, team-a into team-b, is the advanced case: the destination's config must first declare the incoming resources, so Preview reports it as a refusal until the block is moved.)")]
     if is_demo:
         _parts.append(demo_move)
     _parts += [
@@ -561,10 +561,10 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _hint = "*Every row keeps its estate, so `carve.json` has no moves. That is a fine place to stand: nothing will move. "
         if is_demo:
             _hint += f"To plan the demo's move, tick the box above, or add the rule `name team_a -> {run_prefix}-team-b`. "
-        _hint += "You can still go to Move: for the demo, the Move phase makes its own retag; the executor that reads this file is the next CLI change.*"
+        _hint += "You can still go to Move: the executor makes no move from an empty plan, and in the demo Move still runs its own team-a into team-b carve.*"
         _parts.append(mo.md(_hint))
     elif plan_rows:
-        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move. Today Move makes the demo's retag; once the executor lands it runs exactly these. You can go forward."))
+        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move; Move runs exactly these through the executor, one `live-mv` each. You can go forward."))
     _parts.append(mo.hstack([save_btn, rows_btn, mo.md(_saved)], justify="start", gap=1))
     _parts.append(mo.accordion({"carve.json as it would be saved": mo.ui.code_editor(__import__("json").dumps(plan_doc, indent=2), language="json", disabled=True, max_height=300)}))
     section("plan", _parts)
