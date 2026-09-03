@@ -40,7 +40,7 @@ import shlex
 import subprocess
 import time
 
-from . import config, ui
+from . import config, events, ui
 
 
 class GuardError(Exception):
@@ -92,12 +92,17 @@ def _run(
         text=True,
         env=env,
     )
+    seconds = time.monotonic() - started
+    # One structured event per command, for the visualization's write ledger.
+    # Captured stdout is filed under runs/<id>/cmd/ and referenced by path so
+    # a plan's text is available without bloating the feed.
+    events.cmd(cfg, argv, cwd, proc.returncode, seconds, stdout=proc.stdout if capture else None)
     return Result(
         argv=argv,
         returncode=proc.returncode,
         stdout=proc.stdout or "" if capture else "",
         stderr=proc.stderr or "" if capture else "",
-        seconds=time.monotonic() - started,
+        seconds=seconds,
     )
 
 
