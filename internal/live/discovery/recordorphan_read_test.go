@@ -612,7 +612,18 @@ func TestRecordOrphanReadSweep_DeclaredRoute53RecordIsLeftAlone(t *testing.T) {
 // dependency at all - not a guessed one, not a zero-value address. This is
 // the SAME "no computed dependency set" cost every other undeclared
 // instance already accepts, not a regression this fix introduces.
-func TestRecordOrphanReadSweep_Route53RecordNoParentResolutionGetsNoDependency(t *testing.T) {
+// TestRecordOrphanReadSweep_Route53RecordWithNoParentHeldIsNotProposed:
+// the SAME record as the two tests above, in a pass that resolves no zone
+// at all. Until the maintainer ruling of 2026-09-03 this leg still proposed
+// the record's destroy (and this test pinned that, as "no parent to depend
+// on"). The ruling reverses it: an untaggable child's ownership is its
+// parent's, so a parent this pass does not hold - its live tag names
+// another estate, or it is gone, or it could not be read - means the child
+// is not this estate's to remove. The carve-by-retag claim found the
+// case: live-mv -from-estate moves a role out and the source's next plan
+// proposed destroying the role's inline policy and attachments from their
+// left-behind records.
+func TestRecordOrphanReadSweep_Route53RecordWithNoParentHeldIsNotProposed(t *testing.T) {
 	dir := t.TempDir()
 	const src = `
 terraform {
@@ -657,18 +668,10 @@ terraform {
 	})
 	assertNoErrors(t, diags)
 
-	var found bool
 	for _, r := range res.Resolutions {
-		if r.Addr.String() != recordAddr.String() {
-			continue
+		if r.Addr.String() == recordAddr.String() {
+			t.Fatalf("a resolution was produced for %s although nothing in this pass holds its zone: %+v", recordAddr, r)
 		}
-		found = true
-		if len(r.DestroyDependsOn) != 0 {
-			t.Errorf("resolution for %s got a destroy dependency with no parent ever resolved: %+v", recordAddr, r.DestroyDependsOn)
-		}
-	}
-	if !found {
-		t.Fatalf("no resolution produced for %s at all - this leg must still find it even with no parent to depend on", recordAddr)
 	}
 }
 

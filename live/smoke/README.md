@@ -156,6 +156,19 @@ showing its own checks would have caught it.
   and the serving is existence-vouched: the BREAK control deletes a
   resource out of band and the plan surfaces it, never serving a gone
   object from cache.
+- **carve-by-retag** - *Claim 12: carve by retag.* Needs Go. The pinned
+  stock oracle stands up terralith-gen's scale-1 terralith (79 resources,
+  one state file, no markers); live-import adopts it and the file is
+  deleted; then a team of six leaves for its own estate through three
+  runs of `live-mv -from-estate`, one tag write each, with its inline
+  policy and two attachments following their parent unwritten; the ECS
+  execution role leaves for an IAM estate while the task definition that
+  stays reads it through a data source; every side plans clean, the
+  carved estate plans for a fraction of the monolith's requests, and each
+  estate is torn down by its own destroy. The BREAK control moves the six
+  blocks and skips the retag: the monolith must propose destroying the
+  leavers and the new estate must propose building them again, stock's
+  two-ledger window made visible.
 
 ## Knobs
 

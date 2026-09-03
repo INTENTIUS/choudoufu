@@ -878,3 +878,133 @@ func mvObject(schema providers.Schema, attrs, tags map[string]string) cty.Value 
 	}
 	return cty.ObjectVal(vals)
 }
+
+// TestLiveMv_movesAcrossEstates is the split, on the client-named path: the
+// live bucket carries another estate's tag, this configuration declares the
+// same address, and -from-estate moves it here. The address is unchanged;
+// the estate tag is what was written.
+func TestLiveMv_movesAcrossEstates(t *testing.T) {
+	cloud := mvUnrenamedFixture(t)
+	cloud.tags["aws_s3_bucket/tofu-mv-unit-data"]["tofu-estate"] = "monolith"
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-from-estate=monolith", "aws_s3_bucket.data", "aws_s3_bucket.data"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	if got := cloud.tagsOf("aws_s3_bucket", "tofu-mv-unit-data")["tofu-estate"]; got != "stateless-unit" {
+		t.Errorf("the live bucket carries tofu-estate = %q, want stateless-unit", got)
+	}
+	if got := cloud.tagsOf("aws_s3_bucket", "tofu-mv-unit-data")["tofu-address"]; got != "aws_s3_bucket.data" {
+		t.Errorf("the address moved too: tofu-address = %q", got)
+	}
+	if len(cloud.applied) != 1 || cloud.applied[0] != "aws_s3_bucket/tofu-mv-unit-data" {
+		t.Errorf("expected exactly one apply against the moved resource, got %v", cloud.applied)
+	}
+
+	report := output.Stdout()
+	for _, want := range []string{
+		"Moved one live resource into this estate. This was a cloud write.",
+		`"monolith" -> "stateless-unit"`,
+		"tofu-mv-unit-data",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("the report does not mention %q:\n%s", want, report)
+		}
+	}
+
+	// Run again: the resource now carries this estate, so the source has
+	// nothing at the old address and the message says the move already ran.
+	c2, done2 := newLiveMvCommand(t, cloud)
+	code2 := c2.Run([]string{"-no-color", "-from-estate=monolith", "aws_s3_bucket.data", "aws_s3_bucket.data"})
+	second := done2(t)
+	if code2 != 1 {
+		t.Fatalf("the second move exited %d, want 1\nstdout:\n%s", code2, second.Stdout())
+	}
+	if !strings.Contains(second.Stderr(), "already run") {
+		t.Errorf("the second run does not recognize a move that already happened:\n%s", second.Stderr())
+	}
+	if len(cloud.applied) != 1 {
+		t.Errorf("the second run wrote again: %v", cloud.applied)
+	}
+}
+
+// TestLiveMv_movesAcrossEstatesByList is the same move on the list path,
+// combined with a rename: the security group is found by sweeping the
+// SOURCE estate for the old address, the destination address is checked
+// free in the DESTINATION estate, and a same-address neighbour in a third
+// estate is never picked.
+func TestLiveMv_movesAcrossEstatesByList(t *testing.T) {
+	cloud := mvRenamedFixture(t)
+	cloud.tags["aws_security_group/sg-owned"]["tofu-estate"] = "monolith"
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-from-estate=monolith", "aws_security_group.main", "aws_security_group.renamed"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-estate"]; got != "stateless-unit" {
+		t.Errorf("the live security group carries tofu-estate = %q, want stateless-unit", got)
+	}
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.renamed" {
+		t.Errorf("the live security group carries tofu-address = %q, want aws_security_group.renamed", got)
+	}
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["Name"]; got != "keep-me" {
+		t.Errorf("a tag that is not a marker was disturbed: Name = %q", got)
+	}
+	if got := cloud.tagsOf("aws_security_group", "sg-elsewhere")["tofu-estate"]; got != "other-estate" {
+		t.Errorf("the third estate's same-address neighbour was touched: tofu-estate = %q", got)
+	}
+	if len(cloud.applied) != 1 || cloud.applied[0] != "aws_security_group/sg-owned" {
+		t.Errorf("expected exactly one apply against the moved resource, got %v", cloud.applied)
+	}
+}
+
+// TestLiveMv_fromEstateSameAsDestination: naming this configuration's own
+// estate as the source describes no boundary, and is refused before any
+// read.
+func TestLiveMv_fromEstateSameAsDestination(t *testing.T) {
+	cloud := mvUnrenamedFixture(t)
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-from-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.data"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
+	}
+	if !strings.Contains(output.Stderr(), "Source and destination estates are the same") {
+		t.Errorf("wrong diagnostic:\n%s", output.Stderr())
+	}
+	if len(cloud.applied) != 0 {
+		t.Errorf("a refused move still wrote: %v", cloud.applied)
+	}
+}
+
+// TestLiveMv_crossEstateWrongSource: the resource carries a third estate's
+// tag, so neither the source named nor this estate owns it. Refused, naming
+// both estates.
+func TestLiveMv_crossEstateWrongSource(t *testing.T) {
+	cloud := mvUnrenamedFixture(t)
+	cloud.tags["aws_s3_bucket/tofu-mv-unit-data"]["tofu-estate"] = "somebody-else"
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-from-estate=monolith", "aws_s3_bucket.data", "aws_s3_bucket.data"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
+	}
+	stderr := output.Stderr()
+	if !strings.Contains(stderr, "Live resource owned by another estate") {
+		t.Errorf("wrong diagnostic:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "somebody-else") || !strings.Contains(stderr, "monolith") {
+		t.Errorf("the refusal does not name both estates:\n%s", stderr)
+	}
+	if len(cloud.applied) != 0 {
+		t.Errorf("a refused move still wrote: %v", cloud.applied)
+	}
+}

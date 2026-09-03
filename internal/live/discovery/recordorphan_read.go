@@ -45,6 +45,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -314,6 +315,21 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			}
 		}
 
+		// The live tag decides (maintainer ruling 2026-09-03, found by the
+		// carve-by-retag claim): an untaggable child's ownership is its
+		// parent's, so a record of one whose parent this estate no longer
+		// holds is not this estate's orphan, whatever the left-behind
+		// record says. live-mv -from-estate moves a role to another estate
+		// and leaves the source store's records for the role's inline
+		// policy and attachments behind; without this the next plan here
+		// proposed destroying three resources another estate now owns.
+		if link, parentValue, linked := recordParentValue(req, schemas, typeName, rec, importID); linked && !parentHeldByThisPass(res, link.Parent, parentValue) {
+			log.Printf("[INFO] discovery: %s follows its parent %s %q, which this pass did not resolve as estate %q's own (not declared, and not swept carrying this estate's marker); not proposed for removal", addr, link.Parent, parentValue, req.Estate)
+			known[addr.String()] = true
+			known[resolvedAddr.String()] = true
+			continue
+		}
+
 		var dependsOn []addrs.AbsResourceInstance
 		if len(rec.Components) > 0 {
 			// Only when this record's own Components map is in hand - the
@@ -493,4 +509,113 @@ func providerSchemaFor(schemas listclient.Schemas, typeName string) (providers.S
 		s.IdentitySchemaVersion = ts.IdentityVersion
 	}
 	return s, true
+}
+
+// recordParentValue finds the taggable parent an undeclared record's own
+// identity composes from, and the parent's identity value as the record
+// carries it - from the record's Components map when the write path kept
+// one, and otherwise by splitting the flat import ID along the ratified
+// row's own separators ([splitImportIDByComponents]). The same
+// [identity.ParentOf] derivation [parentReadSweep] and
+// [destroyParentDependency] rely on, never a type-specific rule. linked is
+// false when the type has no derivable taggable parent, or the parent's
+// value cannot be recovered from what the record holds - either way the
+// leg proceeds exactly as it did before this check existed.
+func recordParentValue(req Request, schemas listclient.Schemas, typeName string, rec projection.LocatedRecord, importID string) (identity.ParentLink, string, bool) {
+	links := identity.ParentOf(typeName, taggableAdmittedTypes(schemas), rosterServiceOf(req.Roster))
+	if len(links) == 0 {
+		return identity.ParentLink{}, "", false
+	}
+	var parts map[string]string
+	if len(rec.Components) > 0 {
+		parts = rec.Components
+	} else if entry, ok := identity.LookupType(typeName); ok {
+		parts, _ = splitImportIDByComponents(entry, importID)
+	}
+	for _, link := range links {
+		if v := parts[link.Attr]; v != "" {
+			return link, v, true
+		}
+	}
+	return identity.ParentLink{}, "", false
+}
+
+// parentHeldByThisPass reports whether some resolution this pass already
+// produced names the parent's live object: a declared instance bound by
+// identity or by marker, or an owned-and-undeclared one the tag sweep
+// appended. Both are this estate's. A parent named by neither has left the
+// estate (its live marker names another one, so the sweep skipped it), is
+// gone, or could not be read - and in every one of those cases proposing
+// its children for removal is the wrong direction, so the answer is the
+// same. When [Result.OtherEstateHeld] lands (issue #692's parent-list
+// leg records the live tag scanType saw), it becomes the primary signal
+// here and this check the fallback for a parent whose tag was unreadable.
+func parentHeldByThisPass(res *Result, parentType, parentValue string) bool {
+	for _, r := range res.Resolutions {
+		if r.Type() == parentType && r.ImportID != "" && r.ImportID == parentValue {
+			return true
+		}
+	}
+	return false
+}
+
+// splitImportIDByComponents is the inverse of [composeImportIDFromComponents]
+// for a flat import ID: it walks the ratified row's Components in order,
+// consuming each literal-only component as a fixed separator and reading
+// each attribute component's value up to the next component's literal (or
+// to the end of the string for the last one). aws_iam_role_policy's
+// "ROLENAME:POLICYNAME" splits at the first ":" and
+// aws_iam_role_policy_attachment's "ROLENAME/POLICYARN" at the first "/",
+// which is unambiguous because neither a role name nor a policy name may
+// contain its own separator, while the ARN that follows may contain
+// anything. Refuses, rather than guesses, the shapes it cannot split
+// soundly: two adjacent attribute components with no literal between them,
+// a nested Block or a Default substitute, and a string the row does not
+// account for end to end.
+func splitImportIDByComponents(entry identity.TypeIdentity, importID string) (map[string]string, bool) {
+	out := make(map[string]string)
+	rest := importID
+	comps := entry.Components
+	for i, c := range comps {
+		if c.Block != "" || c.Default != "" {
+			return nil, false
+		}
+		if len(c.Attrs) == 0 {
+			if !strings.HasPrefix(rest, c.Literal) {
+				return nil, false
+			}
+			rest = rest[len(c.Literal):]
+			continue
+		}
+		if c.Literal != "" {
+			if !strings.HasPrefix(rest, c.Literal) {
+				if c.OmitIfAbsent {
+					continue
+				}
+				return nil, false
+			}
+			rest = rest[len(c.Literal):]
+		}
+		end := len(rest)
+		if i+1 < len(comps) {
+			next := comps[i+1]
+			if next.Literal == "" {
+				return nil, false
+			}
+			if j := strings.Index(rest, next.Literal); j >= 0 {
+				end = j
+			} else if !next.OmitIfAbsent {
+				return nil, false
+			}
+		}
+		if end == 0 {
+			return nil, false
+		}
+		out[c.Attrs[0]] = rest[:end]
+		rest = rest[end:]
+	}
+	if rest != "" {
+		return nil, false
+	}
+	return out, true
 }

@@ -74,6 +74,20 @@
 // proposes more than the marker, the operator hears about it instead of
 // getting it silently.
 //
+// # Moving across estates
+//
+// The same write, one tag over, is a transfer of ownership: live/MARKERS.md's
+// "Splitting an estate" says a split is a tag rewrite, and [Request.FromEstate]
+// is that rewrite performed here. The live resource is found under the
+// source estate's tag and the old address, and rewritten to carry the
+// destination estate's tag and the new address - the same address, in the
+// ordinary case of a resource block that moved between two configurations
+// unchanged. Every refusal above still applies, with the destination check
+// made against the destination estate rather than the source. What does not
+// travel is the source's record for the resource, which lives in a store
+// belonging to a configuration this run cannot see; the destination's first
+// apply records the instance afresh.
+//
 // # What this package does not do
 //
 // It does not touch configuration. Renaming the resource block is the

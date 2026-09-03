@@ -93,6 +93,7 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 		old:          oldAddr,
 		new:          newAddr,
 		estate:       args.Estate,
+		fromEstate:   args.FromEstate,
 		dryRun:       args.DryRun,
 		allowMissing: args.AllowMissingConfig,
 	})
@@ -111,6 +112,7 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 type liveMvArgs struct {
 	old, new     addrs.AbsResourceInstance
 	estate       string
+	fromEstate   string
 	dryRun       bool
 	allowMissing bool
 }
@@ -263,6 +265,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 
 	res, moveDiags := mv.Move(ctx, mv.Request{
 		Estate:             estate,
+		FromEstate:         args.fromEstate,
 		Old:                args.old,
 		New:                args.new,
 		Config:             config,
@@ -377,6 +380,7 @@ func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config
 func liveMvReport(res *mv.Result) views.StatelessMvReport {
 	return views.StatelessMvReport{
 		Estate:      res.Estate,
+		FromEstate:  res.FromEstate,
 		TypeName:    res.TypeName,
 		LiveID:      res.LiveID,
 		DisplayName: res.DisplayName,
@@ -428,6 +432,15 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
   resource, or that would change anything other than its tags, is refused
   rather than applied.
 
+  With -from-estate the same write moves a resource into this estate from
+  another one: the live resource is found under the source estate's tag and
+  the old address, and rewritten to carry this configuration's estate and
+  the new address, which may be the same address. That is how an estate is
+  split - move the resource block into the new estate's configuration, then
+  run this there. The destination's configuration must declare the address,
+  nothing in the destination estate may already carry it, and the source's
+  record for the resource stays behind: the first apply here records it.
+
   This command reads and writes the live system. It never reads or writes a
   state file, and it does not run a plan over the rest of the configuration.
 
@@ -439,6 +452,10 @@ Options:
                           stamps in its tofu-estate tags, when every resource
                           that stamps one agrees. Unlike live-plan, this
                           command cannot run without one.
+
+  -from-estate=name       Move the resource into this estate from the named
+                          one, rewriting tofu-estate along with tofu-address.
+                          Run in the destination's configuration directory.
 
   -dry-run                Find the resource and make every check, then stop
                           before writing. Reports what would be rewritten.

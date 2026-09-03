@@ -242,7 +242,11 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 
 	tags, taggable := tagsFromObject(m.schema, newState)
 	raw, corrupt := discovery.GatherAddress(tags)
-	if got := discovery.EscapeAddress(raw); taggable && !corrupt && got == m.res.NewMarker {
+	// A cross-estate move is verified on both tags: the address alone
+	// would read as verified on a move that kept its address and changed
+	// nothing.
+	estateOK := m.req.FromEstate == "" || tags[discovery.TagEstate] == m.req.Estate
+	if got := discovery.EscapeAddress(raw); taggable && !corrupt && got == m.res.NewMarker && estateOK {
 		m.res.Verified = true
 		return diags
 	}
