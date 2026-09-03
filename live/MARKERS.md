@@ -666,7 +666,9 @@ get-resources --tag-filters Key=tofu-estate,Values=prod-networking` and no
 **Splitting an estate is a tag rewrite, then two policies.** Rewrite
 `tofu-estate` on the resources that are leaving, and the same statement with
 the new estate name governs them. The split is a tag write and a policy
-copy, and neither half moves.
+copy, and neither half moves. `choudoufu live-mv -from-estate` performs the
+rewrite, one resource per call, with the rename's own refusals in front of
+the write.
 
 ### Which services this actually reaches
 
