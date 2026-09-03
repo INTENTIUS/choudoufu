@@ -39,9 +39,9 @@ def _():
 
     import marimo as mo
 
-    from tlmig import config, stage, viz
+    from tlmig import config, stage, tips, viz
 
-    return config, mo, os, pathlib, stage, viz
+    return config, mo, os, pathlib, stage, tips, viz
 
 
 @app.cell
@@ -111,8 +111,9 @@ def _(config, mo):
 @app.cell
 def _(config, mo):
     _live = f"live: run each phase for real, against AWS account ...{config.ACCOUNT_ID[-4:]} (writes, then tears down)"
+    _bid = "bid: preview only, nothing written; every planned move as a dry run, projected on the map"
     _replay = "replay: watch a recording of a past run; no account needed"
-    mode = mo.ui.radio(options={_live: "live", _replay: "replay"}, value=_replay, label="")
+    mode = mo.ui.radio(options={_live: "live", _bid: "bid", _replay: "replay"}, value=_replay, label="")
     pin = mo.ui.dropdown({f"release {config.CHOUDOUFU_VERSION}": "", "local build of this checkout": "local"}, value=f"release {config.CHOUDOUFU_VERSION}", label="pin")
     tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw every")
     return mode, pin, tick
@@ -123,7 +124,8 @@ def _(mo, pathlib, stage):
     _existing = [p.name for p in sorted(pathlib.Path("runs").glob("*")) if (p / "events.jsonl").exists()]
     _fixtures = {p.name: str(p) for p in sorted(pathlib.Path("tests/fixtures").glob("*-run")) if (p / "events.jsonl").exists()}
     run_id = mo.ui.text(value=stage.new_run_id(), label="run id")
-    _names = {"sample-run": "sample run: a synthetic walk of every phase", "emitter-run": "emitter run: written by the real emitters, cloud faked"}
+    _names = {"sample-run": "sample run: a synthetic walk of every phase", "emitter-run": "emitter run: written by the real emitters, cloud faked",
+              "preview-run": "preview run: a planned carve as dry runs judged it, two passed and one refused"}
     _choices = {**{_names.get(k, k): v for k, v in _fixtures.items()}, **{f"your run {k}": f"runs/{k}" for k in reversed(_existing)}}
     recording = mo.ui.dropdown(_choices, value=next(iter(_choices), None), label="recording")
     return recording, run_id
@@ -146,7 +148,13 @@ def _(binary, mo, mode, pin, recording, run_id):
     # touches are folded away. This cell must not reference the redraw timer:
     # a cell that does re-runs every tick, and everything downstream with it.
     live = mode.value == "live"
-    if live:
+    bid = mode.value == "bid"
+    if bid:
+        _controls = mo.vstack([
+            mo.md("Bid mode writes nothing. Preflight and the surveys run as reads; every planned move runs as `live-mv -dry-run` and the page draws the map as it would stand afterwards, beside the map as it stands now. The buttons that write are off. The two numbers a dry run cannot give, the plan cost after the split and the guard's clean plans, are shown from the demo seed and labelled as the demo's."),
+            mo.accordion({"run settings (run id, pin, binary)": mo.vstack([mo.hstack([run_id, pin], justify="start", gap=2), binary])}),
+        ])
+    elif live:
         _controls = mo.vstack([
             mo.md("Press each phase's button below, in story order, and talk over it; one phase at a time. The picture follows the run as it writes its own event log. Live needs credentials for the pinned account; without them, preflight refuses and nothing else runs. To continue an earlier run after a restart, put its id in the run settings: finished phases are read back from its log."),
             mo.accordion({"run settings (run id, pin, binary)": mo.vstack([mo.hstack([run_id, pin], justify="start", gap=2), binary])}),
@@ -157,14 +165,14 @@ def _(binary, mo, mode, pin, recording, run_id):
             mo.md("A recording plays back: the buttons are off, and each beat below shows the picture as that phase left it."),
         ])
     mo.vstack([mode, _controls])
-    return (live,)
+    return bid, live
 
 
 @app.cell
-def _(binary, live, pin, recording, run_id, stage):
+def _(bid, binary, live, pin, recording, run_id, stage):
     # One Stage per run id: the buttons below start phases through it, with
     # the chosen binary as CHOUDOUFU_BIN and the pin as CHOUDOUFU_VERSION.
-    run_dir = f"runs/{run_id.value}" if live else (recording.value or "")
+    run_dir = f"runs/{run_id.value}" if (live or bid) else (recording.value or "")
     # stage.for_run keeps one Stage per run id across cell re-runs, so the
     # phases it started are never forgotten and a click is served once.
     st = stage.for_run(run_id.value, binary=binary.value, env={"CHOUDOUFU_VERSION": pin.value} if pin.value else {})
@@ -233,11 +241,14 @@ def _(ORDER, before_state, boundaries, live, mo, run_dir, st, viz):
 
 
 @app.cell
-def _(live, mo):
+def _(bid, live, mo):
     # The buttons. Globals, created here where nothing depends on the timer,
     # so a redraw never rebuilds them. Each counts its clicks.
+    WRITES = {"setup", "decompose", "carve", "teardown"}
+
     def _btn(name):
-        return mo.ui.button(label=f"run {name}", value=0, on_click=lambda v: v + 1, disabled=not live)
+        off = (not live and not bid) or (bid and name in WRITES)
+        return mo.ui.button(label=f"run {name}", value=0, on_click=lambda v: v + 1, disabled=off)
 
     preflight_btn = _btn("preflight")
     setup_btn = _btn("setup")
@@ -248,11 +259,11 @@ def _(live, mo):
     guard_btn = _btn("guard")
     receipt_btn = _btn("receipt")
     teardown_btn = _btn("teardown")
-    return (carve_btn, decompose_btn, fast_btn, guard_btn, preflight_btn, receipt_btn, setup_btn, slow_btn, teardown_btn)
+    return (WRITES, carve_btn, decompose_btn, fast_btn, guard_btn, preflight_btn, receipt_btn, setup_btn, slow_btn, teardown_btn)
 
 
 @app.cell
-def _(before_state, boundaries, live, mo, run_dir, st, viz):
+def _(WRITES, before_state, bid, boundaries, live, mo, run_dir, st, tips, viz):
     STORY = {
         "preflight": ("Which account, which binary", "checks, writes nothing",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
@@ -280,12 +291,18 @@ def _(before_state, boundaries, live, mo, run_dir, st, viz):
         left it. Re-runs on every tick; the button itself is a global made
         elsewhere, so it survives the redraw, and the click is served once."""
         title, does, words = STORY[name]
-        if live:
+        if live or (bid and name not in WRITES):
             st.click(name, button.value)
-        status = st.status(name) if live else ("recorded" if name in boundaries else "not in this recording")
+        if live or bid:
+            status = st.status(name)
+            if bid and name in WRITES:
+                status = "off in bid mode: this beat writes"
+        else:
+            status = "recorded" if name in boundaries else "not in this recording"
         if live and st.refused and st.refused[0] == name:
             status += f" · not started: {st.refused[1]} is still running, click again when it ends"
         parts = [mo.md(f"## {title}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{name} · {does}</span>\n\n{words}"),
+                 mo.accordion({"for a beginner": mo.md(tips.tip(name, "beginner")), "for an OpenTofu hand": mo.md(tips.tip(name, "expert"))}),
                  mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
         said = st.notes(name)
         if said:
@@ -363,6 +380,19 @@ def _(fast_btn, phase):
 @app.cell
 def _(carve_btn, phase):
     phase("carve", carve_btn)
+    return
+
+
+@app.cell
+def _(mo, run_dir, tick, viz):
+    tick.value
+    _state = viz.load_run(run_dir)
+    _table = viz.render_previews(_state)
+    if _table:
+        mo.vstack([mo.md("## What is about to happen\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>preview · every planned move as a dry run; nothing written</span>\n\nEach row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
+                   mo.Html(_table), mo.Html(viz.render_projection(_state, map_width=560))]).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "color-mix(in srgb, currentColor 5%, transparent)"})
+    else:
+        mo.md("")
     return
 
 
