@@ -15,17 +15,43 @@ class Feed(unittest.TestCase):
     def test_every_line_carries_the_envelope_and_the_phase(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = _cfg(d)
-            events.phase(cfg, "setup", "start", title="stand the monolith up")
-            events.note(cfg, "hello")
-            events.cmd(cfg, ["aws", "sts", "get-caller-identity"], None, 0, 0.12345, stdout="123\n")
-            events.phase(cfg, "setup", "end")
+            with events.phase(cfg, "setup", title="stand the monolith up"):
+                events.note(cfg, "hello")
+                events.cmd(cfg, ["aws", "sts", "get-caller-identity"], None, 0, 0.12345, stdout="123\n")
             events.note(cfg, "between beats")
             lines = events.read(cfg)
+            same = events.read(cfg.run_dir / "events.jsonl")
+        self.assertEqual(lines, same)
         self.assertEqual([l["kind"] for l in lines], ["phase", "note", "cmd", "phase", "note"])
         self.assertTrue(all(l["run_id"] == "ev01" and l["ts"].endswith("+00:00") for l in lines))
         self.assertEqual([l["phase"] for l in lines], ["setup", "setup", "setup", "setup", None])
+        self.assertEqual((lines[0]["status"], lines[3]["status"]), ("start", "end"))
+        self.assertIn("seconds", lines[3])
         self.assertEqual(lines[2]["seconds"], 0.123)
         self.assertTrue(lines[2]["stdout_path"].endswith("cmd/0001.out"))
+        self.assertEqual(lines[2]["label"], "")
+
+    def test_a_beat_that_dies_still_closes_in_the_feed(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _cfg(d)
+            with self.assertRaises(RuntimeError):
+                with events.phase(cfg, "carve"):
+                    raise RuntimeError("boom")
+            events.note(cfg, "after")
+            lines = events.read(cfg)
+        self.assertEqual([(l["kind"], l.get("status")) for l in lines][:2], [("phase", "start"), ("phase", "end")])
+        self.assertIsNone(lines[2]["phase"])
+
+    def test_verdict_carries_ok_and_lines_and_fact_is_placeable(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _cfg(d)
+            events.fact(cfg, "role:r", "team-b")
+            events.verdict(cfg, "carve:r", {"x": 1}, ok=True, lines=["a: b"])
+            events.measure(cfg, requests=39, label="team-b plan", reference={"emulator": 39})
+            lines = events.read(cfg)
+        self.assertEqual((lines[0]["label"], lines[0]["value"]), ("role:r", "team-b"))
+        self.assertEqual((lines[1]["ok"], lines[1]["lines"], lines[1]["verdict"]), (True, ["a: b"], {"x": 1}))
+        self.assertEqual((lines[2]["requests"], lines[2]["reference"]), (39, {"emulator": 39}))
 
     def test_captured_stdout_lands_in_a_file_not_the_feed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -44,11 +70,6 @@ class Feed(unittest.TestCase):
             first = (cfg.run_dir / "events.jsonl").read_text()
             events.note(cfg, "two")
             self.assertTrue((cfg.run_dir / "events.jsonl").read_text().startswith(first))
-
-    def test_bad_phase_status_is_refused(self):
-        with tempfile.TemporaryDirectory() as d:
-            with self.assertRaises(ValueError):
-                events.phase(_cfg(d), "x", "middle")
 
     def test_dataclasses_serialize(self):
         with tempfile.TemporaryDirectory() as d:

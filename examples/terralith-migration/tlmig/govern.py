@@ -75,7 +75,15 @@ def read_carve(
     ui.kv(f"{source_estate} plan", source.describe(), source.clean and source.leaves_nothing_behind)
     ui.kv(f"{dest_estate} plan", destination.describe(), destination.clean)
 
-    events.verdict(cfg, f"carve:{role}", verdict)
+    shown = [f"{label}: {value}" for label, value, _ in (
+        (f"{role} tofu-estate", tags["tofu-estate"] or "(none)", None),
+        (f"{role} inline policies", ", ".join(inline) or "none", None),
+        (f"{role} attachments", str(len(attached)), None),
+        (f"{source_estate} plan", source.describe(), None),
+        (f"{dest_estate} plan", destination.describe(), None),
+    )]
+    events.fact(cfg, f"role:{role}", tags["tofu-estate"] or None)
+    events.verdict(cfg, f"carve:{role}", verdict, ok=verdict.ok and children_ok, lines=shown)
     if verdict.ok and children_ok:
         ui.ok("nothing left behind: the tag moved, the children followed, both estates plan clean")
     else:
