@@ -49,17 +49,39 @@ def _demo_carve_doc(cfg: config.Config) -> dict:
     return {"from": cfg.monolith_estate, "estates": estates, "moves": moves, "rules": []}
 
 
-def seed(cfg: config.Config) -> None:
-    """Stand the demo's terralith monolith up, prepare each team's estate
-    config so a move has a destination working directory to dry-run and execute
-    in, and write the carve plan. Nothing is moved or applied into a team
-    estate yet - that is `move`."""
+def seed(cfg: config.Config, *, demo: bool = False, config_dir: str | None = None,
+         estate: str | None = None, state: str | None = None, approve: bool = False) -> None:
+    """Seed the run. With --demo (or no --config), stand up the built-in
+    terralith. With --config/--estate, adopt an existing estate: verify-only,
+    or with --approve stamp its markers (see :mod:`adopt`). An adopted estate
+    is the user's own; teardown never touches it."""
+    if config_dir:
+        with events.phase(cfg, "seed", title=f"adopt {estate} onto live markers"):
+            if not estate:
+                raise guard.GuardError("seed --config requires --estate")
+            if state:
+                from . import adopt
+                adopt.seed_adopt(cfg, config_dir, estate, state, approve)
+            else:
+                # No state given: write the config as a live estate and plan it,
+                # so the report is the config's own view against the live system.
+                import pathlib
+                workdir = cfg.workdir(estate)
+                workdir.mkdir(parents=True, exist_ok=True)
+                from . import adopt
+                for f in sorted(pathlib.Path(config_dir).glob("*.tf")):
+                    text = f.read_text()
+                    (workdir / f.name).write_text(adopt.to_live_hcl(text, estate) if "terraform" in text else text)
+                env.init(cfg, estate)
+                env.plan(cfg, estate, capture=False)
+            govern.read_inventory(cfg, estate)
+        return
     with events.phase(cfg, "seed", title="stand up the terralith monolith (demo seed)"):
         env.setup(cfg)
         for team in config.TEAMS:
-            estate = cfg.estate(team)
-            env.write_config(cfg, estate, fixture.team_hcl(cfg, team))
-            env.init(cfg, estate)
+            est = cfg.estate(team)
+            env.write_config(cfg, est, fixture.team_hcl(cfg, team))
+            env.init(cfg, est)
         carve.save(cfg.run_dir, _demo_carve_doc(cfg))
         govern.read_inventory(cfg, cfg.monolith_estate)
         ui.ok(f"demo seed up; carve plan at {carve.path(cfg.run_dir)}")
