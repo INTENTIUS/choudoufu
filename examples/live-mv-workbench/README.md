@@ -1,4 +1,4 @@
-# terralith-migration
+# live-mv workbench
 
 An org's own terralith, one estate with everything in it, split into per-team
 estates by retagging, on a real AWS account, with the account's own log as
@@ -29,10 +29,10 @@ it goes wherever the resources are today.
 Hand this to an assistant and let it walk you through:
 
 ```text
-Clone https://github.com/INTENTIUS/choudoufu and cd examples/terralith-migration.
+Clone https://github.com/INTENTIUS/choudoufu and cd examples/live-mv-workbench.
 Confirm uv is installed (uv --version). Run:
 
-  uv run --extra viz marimo run migration.py
+  uv run --extra viz marimo run workbench.py
 
 A browser page opens on a recording in replay mode. Walk me through it
 beat by beat: for each of the nine beats, read me its action line and its
@@ -80,8 +80,8 @@ top redraws on a timer, so the map moves while you are still talking.
 
 ```
 uv sync --extra viz
-uv run --extra viz marimo run migration.py     # the stage, in a browser
-uv run --extra viz marimo edit migration.py    # the same file, as a notebook
+uv run --extra viz marimo run workbench.py     # the stage, in a browser
+uv run --extra viz marimo edit workbench.py    # the same file, as a notebook
 ```
 
 The buttons run the same CLI a terminal would, one phase at a time

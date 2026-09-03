@@ -6,6 +6,11 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 ## choudoufu v0.12.0 (Unreleased)
 
+- **The example moves to `examples/live-mv-workbench`**, named for the tool it
+  is becoming: a phased live-mv workflow with the terralith as its demo seed.
+  The page is `workbench.py`; the package stays `tlmig` for now. Paths in
+  the v0.11.0 entry below are as shipped.
+
 Nothing recorded yet.
 
 ## choudoufu v0.11.0 (2026-09-03)

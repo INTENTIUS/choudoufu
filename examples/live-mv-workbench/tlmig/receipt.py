@@ -31,7 +31,7 @@ import time
 
 from . import config, events, ui, guard
 
-# tlmig/receipt.py -> tlmig -> terralith-migration -> examples -> repo root
+# tlmig/receipt.py -> tlmig -> live-mv-workbench -> examples -> repo root
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 CLOUDTRAIL_EVIDENCE = REPO_ROOT / "live" / "smoke" / "evidence" / "the-tag-is-the-boundary.cloudtrail.json"
 

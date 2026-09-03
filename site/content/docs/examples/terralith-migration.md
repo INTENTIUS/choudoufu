@@ -20,7 +20,7 @@ plan. It runs against a real AWS account, with a live governance check at the
 end proving the handover left nothing behind.
 
 The code is a `uv` project under
-[`examples/terralith-migration/`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/terralith-migration).
+[`examples/live-mv-workbench/`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/live-mv-workbench).
 
 ## What it stands up
 
@@ -58,7 +58,7 @@ Each phase is a separate command that reuses a run directory, so you can run
 them one at a time and narrate between them:
 
 ```text
-cd examples/terralith-migration
+cd examples/live-mv-workbench
 uv run tlmig setup                 # prints a new run id
 uv run tlmig slow-plan --run <id>
 uv run tlmig decompose --run <id>
