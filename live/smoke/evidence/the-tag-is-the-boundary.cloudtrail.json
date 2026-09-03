@@ -1,0 +1,82 @@
+{
+  "claim": "the-tag-is-the-boundary",
+  "captured": "2026-09-03",
+  "account": "354867293429",
+  "region": "us-east-2",
+  "query": "aws cloudtrail lookup-events --region us-east-2 --lookup-attributes AttributeKey=EventName,AttributeValue=CreateTags --start-time 2026-09-03T04:38:29Z",
+  "roles": [
+    "chdf-boundary-alice",
+    "chdf-boundary-bob"
+  ],
+  "estates": [
+    "boundary-app",
+    "boundary-data"
+  ],
+  "events": [
+    {
+      "eventTime": "2026-09-03T04:39:31Z",
+      "eventName": "CreateTags",
+      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "resources": [
+        "i-01e1006285c2b37b3"
+      ],
+      "tags": {
+        "Name": "database-v2"
+      },
+      "errorCode": null,
+      "eventID": "9dacd363-cb4f-41db-b0ac-c27c1bebe1c5"
+    },
+    {
+      "eventTime": "2026-09-03T04:39:47Z",
+      "eventName": "CreateTags",
+      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "resources": [
+        "i-0d3d2031d0b946a23"
+      ],
+      "tags": {
+        "Name": "gateway-v2"
+      },
+      "errorCode": "Client.UnauthorizedOperation",
+      "eventID": "9b41e16d-eab0-437c-b8ca-fdad6febd7bf"
+    },
+    {
+      "eventTime": "2026-09-03T04:40:02Z",
+      "eventName": "CreateTags",
+      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
+      "resources": [
+        "i-0d3d2031d0b946a23"
+      ],
+      "tags": {
+        "Name": "gateway-v2"
+      },
+      "errorCode": null,
+      "eventID": "59ba36dc-afa8-4555-9379-3cf25bd20750"
+    },
+    {
+      "eventTime": "2026-09-03T04:40:32Z",
+      "eventName": "CreateTags",
+      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
+      "resources": [
+        "i-01e1006285c2b37b3"
+      ],
+      "tags": {
+        "tofu-estate": "boundary-data"
+      },
+      "errorCode": "Client.UnauthorizedOperation",
+      "eventID": "a1b6081b-dfa7-4a85-8b30-35f865e0136e"
+    },
+    {
+      "eventTime": "2026-09-03T04:40:40Z",
+      "eventName": "CreateTags",
+      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "resources": [
+        "i-01e1006285c2b37b3"
+      ],
+      "tags": {
+        "tofu-estate": "boundary-data"
+      },
+      "errorCode": null,
+      "eventID": "7f358813-3821-40c9-819f-64ac88c1b152"
+    }
+  ]
+}
