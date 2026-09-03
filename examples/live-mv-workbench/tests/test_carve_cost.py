@@ -25,8 +25,8 @@ class CarveCost(unittest.TestCase):
         self.cfg = config.Config(run_id="cc01", run_dir=pathlib.Path(self.tmp.name) / "run", binary="choudoufu")
         self.carve = pathlib.Path(self.tmp.name) / "carve.json"
         self.carve.write_text(json.dumps({"moves": [
-            {"address": "aws_iam_role.team_a", "from_estate": "mono", "to_estate": "team-a"},
-            {"address": "aws_iam_role.team_b", "from_estate": "mono", "to_estate": "team-b"},
+            {"address": "aws_iam_role.team_a", "from": "mono", "to": "team-a"},
+            {"address": "aws_iam_role.team_b", "from": "mono", "to": "team-b"},
         ]}))
 
     def _chdf_writing(self, requests_by_estate: dict[str, int]):

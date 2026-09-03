@@ -41,9 +41,9 @@ class CarveSetHarness(unittest.TestCase):
         self.cfg = config.Config(run_id="cs01", run_dir=pathlib.Path(self.tmp.name) / "run", binary="choudoufu")
         self.carve = pathlib.Path(self.tmp.name) / "carve.json"
         self.carve.write_text(json.dumps({"moves": [
-            {"address": "aws_iam_role.team_a", "from_estate": "mono", "to_estate": "team-a",
+            {"address": "aws_iam_role.team_a", "from": "mono", "to": "team-a",
              "children": ["aws_iam_role_policy.team_a_inline"]},
-            {"address": "aws_iam_policy.team_a", "from_estate": "mono", "to_estate": "team-a"},
+            {"address": "aws_iam_policy.team_a", "from": "mono", "to": "team-a"},
         ]}))
 
     def _index_aws(self, present: dict[str, str]):

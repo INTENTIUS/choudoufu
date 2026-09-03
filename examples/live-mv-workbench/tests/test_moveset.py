@@ -46,9 +46,9 @@ REFUSAL = (
 class LoadCarve(unittest.TestCase):
     def test_reads_the_move_set_and_ignores_extra_fields(self):
         doc = {"moves": [
-            {"address": "aws_iam_role.team_a", "from_estate": "tl-mono", "to_estate": "tl-team-a",
+            {"address": "aws_iam_role.team_a", "from": "tl-mono", "to": "tl-team-a",
              "children": ["aws_iam_role_policy.team_a_inline"], "module": "teams", "rule": "by-prefix"},
-            {"address": "aws_iam_policy.team_a", "from_estate": "tl-mono", "to_estate": "tl-team-a"},
+            {"address": "aws_iam_policy.team_a", "from": "tl-mono", "to": "tl-team-a"},
         ]}
         cs = moveset.load_carve(json.dumps(doc))
         self.assertEqual(len(cs.moves), 2)
@@ -60,23 +60,34 @@ class LoadCarve(unittest.TestCase):
 
     def test_estates_dedup_across_a_multi_hop_carve(self):
         doc = {"moves": [
-            {"address": "a", "from_estate": "mono", "to_estate": "team-a"},
-            {"address": "b", "from_estate": "mono", "to_estate": "team-b"},
-            {"address": "c", "from_estate": "team-a", "to_estate": "team-b"},
+            {"address": "a", "from": "mono", "to": "team-a"},
+            {"address": "b", "from": "mono", "to": "team-b"},
+            {"address": "c", "from": "team-a", "to": "team-b"},
         ]}
         cs = moveset.load_carve(json.dumps(doc))
         self.assertEqual(set(cs.estates), {"mono", "team-a", "team-b"})
         self.assertEqual(len(cs.estates), 3)
         self.assertEqual({m.address for m in cs.moves_to("team-b")}, {"b", "c"})
 
+    def test_a_rename_carries_new_address(self):
+        doc = {"from": "mono", "estates": ["team-a"], "moves": [
+            {"address": "aws_iam_role.old", "from": "mono", "to": "team-a", "new_address": "aws_iam_role.new"}]}
+        cs = moveset.load_carve(json.dumps(doc))
+        self.assertEqual(cs.moves[0].address, "aws_iam_role.old")
+        self.assertEqual(cs.moves[0].new_address, "aws_iam_role.new")
+        self.assertEqual(cs.moves[0].target, "aws_iam_role.new")
+        # a pure retag: target falls back to the address
+        pure = moveset.load_carve(json.dumps({"moves": [{"address": "a", "from": "x", "to": "y"}]}))
+        self.assertEqual(pure.moves[0].target, "a")
+
     def test_malformed_is_refused_not_guessed(self):
         for bad, why in [
             ("not json", "invalid JSON"),
             ('{"moves": {}}', "moves array"),
             ('{"moves": []}', "no moves"),
-            ('{"moves": [{"address": "a", "from_estate": "x"}]}', "missing to_estate"),
-            ('{"moves": [{"address": "a", "from_estate": "x", "to_estate": "x"}]}', "same estate"),
-            ('{"moves": [{"address": "", "from_estate": "x", "to_estate": "y"}]}', "empty address"),
+            ('{"moves": [{"address": "a", "from": "x"}]}', "missing to"),
+            ('{"moves": [{"address": "a", "from": "x", "to": "x"}]}', "same estate"),
+            ('{"moves": [{"address": "", "from": "x", "to": "y"}]}', "empty address"),
         ]:
             with self.assertRaises(ValueError, msg=why):
                 moveset.load_carve(bad)
@@ -84,7 +95,7 @@ class LoadCarve(unittest.TestCase):
 
 class ParseDryRun(unittest.TestCase):
     def test_the_two_tag_writes_and_the_fields(self):
-        move = moveset.CarveMove("aws_iam_policy.team_a", "tl-mono", "tl-team-a", ("aws_iam_role_policy.team_a_inline",))
+        move = moveset.CarveMove("aws_iam_policy.team_a", "tl-mono", "tl-team-a", children=("aws_iam_role_policy.team_a_inline",))
         pv = moveset.parse_dry_run(dry_run_block("tl-mono", "tl-team-a", "aws_iam_policy.team_a"), move=move)
         self.assertTrue(pv.ok)
         self.assertFalse(pv.written)
@@ -122,8 +133,8 @@ class ParseDryRun(unittest.TestCase):
 
 class SetVerdict(unittest.TestCase):
     CS = moveset.load_carve(json.dumps({"moves": [
-        {"address": "aws_iam_role.team_a", "from_estate": "mono", "to_estate": "team-a"},
-        {"address": "aws_iam_policy.team_a", "from_estate": "mono", "to_estate": "team-a"},
+        {"address": "aws_iam_role.team_a", "from": "mono", "to": "team-a"},
+        {"address": "aws_iam_policy.team_a", "from": "mono", "to": "team-a"},
     ]}))
 
     def _clean(self):

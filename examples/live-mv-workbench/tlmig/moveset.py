@@ -44,7 +44,14 @@ class CarveMove:
     address: str
     from_estate: str
     to_estate: str
+    new_address: str = ""          # the post-move address; == address for a pure retag
     children: tuple[str, ...] = ()
+
+    @property
+    def target(self) -> str:
+        """The address the resource carries after the move: new_address when
+        the block was also renamed, otherwise the address it moved under."""
+        return self.new_address or self.address
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,17 +100,20 @@ def load_carve(text: str) -> CarveSet:
         if not isinstance(m, dict):
             raise ValueError(f"move {i} is not an object")
         try:
-            addr, frm, to = m["address"], m["from_estate"], m["to_estate"]
+            addr, frm, to = m["address"], m["from"], m["to"]
         except KeyError as e:
             raise ValueError(f"move {i} is missing {e}") from e
         if not (isinstance(addr, str) and isinstance(frm, str) and isinstance(to, str) and addr and frm and to):
-            raise ValueError(f"move {i}: address, from_estate and to_estate must be non-empty strings")
+            raise ValueError(f"move {i}: address, from and to must be non-empty strings")
         if frm == to:
-            raise ValueError(f"move {i} ({addr}): from_estate and to_estate are the same estate {to!r}")
+            raise ValueError(f"move {i} ({addr}): from and to are the same estate {to!r}")
+        new_addr = m.get("new_address", "") or ""
+        if not isinstance(new_addr, str):
+            raise ValueError(f"move {i} ({addr}): new_address must be a string")
         children = m.get("children", [])
         if not isinstance(children, list) or not all(isinstance(c, str) for c in children):
             raise ValueError(f"move {i} ({addr}): children must be a list of strings")
-        moves.append(CarveMove(address=addr, from_estate=frm, to_estate=to, children=tuple(children)))
+        moves.append(CarveMove(address=addr, from_estate=frm, to_estate=to, new_address=new_addr, children=tuple(children)))
     if not moves:
         raise ValueError("carve.json declares no moves")
     return CarveSet(moves=tuple(moves))
@@ -306,9 +316,9 @@ def compose(cs: CarveSet, per_estate: dict[str, verify.PlanVerdict], landed: dic
     tofu-estate the index reports)). Pure: :mod:`govern` gathers the inputs."""
     results = []
     for m in cs.moves:
-        present, live = landed.get(m.address, (False, None))
+        present, live = landed.get(m.target, (False, None))
         results.append(MoveResult(
-            address=m.address,
+            address=m.target,
             from_estate=m.from_estate,
             to_estate=m.to_estate,
             landed=present,

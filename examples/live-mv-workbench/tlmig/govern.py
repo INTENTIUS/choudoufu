@@ -108,7 +108,7 @@ def read_carve_set(cfg: config.Config, carve_path: str | pathlib.Path) -> movese
     for e in cs.dest_estates:
         index = {i["address"]: i["tags"].get("tofu-estate") for i in read_inventory(cfg, e)}
         for m in cs.moves_to(e):
-            landed[m.address] = (m.address in index, index.get(m.address))
+            landed[m.target] = (m.target in index, index.get(m.target))
 
     verdict = moveset.compose(cs, per_estate, landed)
 
@@ -137,7 +137,7 @@ def preview_carve(cfg: config.Config, carve_path: str | pathlib.Path) -> list[mo
     for m in cs.moves:
         res = guard.chdf(
             cfg, "live-mv", "-dry-run", "-no-color",
-            "-from-estate", m.from_estate, m.address, m.address,
+            "-from-estate", m.from_estate, m.address, m.target,
             cwd=str(cfg.workdir(m.to_estate)), capture=True, check=False,
         )
         pv = moveset.parse_dry_run(res.stdout + ("\n" + res.stderr if res.stderr else ""), move=m)
