@@ -80,7 +80,7 @@ def fast_plan(cfg: config.Config) -> None:
 
 
 def carve(cfg: config.Config) -> None:
-    with events.phase(cfg, "carve", title="team-a dissolves; its role lives on under team-b"):
+    with events.phase(cfg, "carve", title="team-a dissolves; its resources live on under team-b"):
         ui.rule("the carve: retag one estate's resources into another")
         src, dst = config.SOURCE_TEAM, config.DEST_TEAM
         src_estate, dst_estate = cfg.estate(src), cfg.estate(dst)
