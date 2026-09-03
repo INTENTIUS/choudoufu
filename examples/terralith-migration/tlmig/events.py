@@ -6,28 +6,36 @@ Every line carries ``ts`` (ISO 8601, UTC), ``run_id``, ``phase`` (the beat
 the CLI is in, set by :func:`phase`) and ``kind``. The kinds, agreed with
 the visuals side:
 
-- ``phase``: ``status`` start or end, ``title``.
+- ``phase``: ``status`` start or end, ``name``, ``title``, and ``seconds``
+  on the end line; written by the :func:`phase` context manager.
 - ``cmd``: from the guarded executor; ``argv``, ``cwd``, ``returncode``,
   ``seconds``, and ``stdout_path`` when the output was captured (the text
   lands in a file under ``runs/<id>/cmd/``, never inline).
 - ``inventory``: ``estate`` and ``items``, each ``{id, type, address, tags}``,
   from the reads in :mod:`govern`; emitted after setup, after each carve and
   after teardown, since those three diffs are the whole picture.
-- ``verdict``: ``name`` and the verdict dataclass as a dict.
-- ``measure``: ``estate``, ``requests``, ``refresh`` and any reference numbers.
+- ``fact``: ``label`` and ``value``, one thing the map can place, such as a
+  role's estate after a move.
+- ``verdict``: ``name``, ``ok``, ``lines`` (what the terminal showed) and
+  ``verdict``, the dataclass as a dict.
+- ``measure``: ``label``, ``estate``, ``requests``, ``cache_hits``,
+  ``refresh``, ``seconds`` and ``reference``, the emulator's numbers beside.
 - ``receipt``: the reproducible receipt as :mod:`receipt` writes it.
 - ``note``: ``text`` the visual should echo.
 
-Only writes live here. Readers (the visual, the tests) use :func:`read`.
+Only writes live here; :func:`emit` is the one writer and every kind above
+is a thin wrapper on it. Readers (the visual, the tests) use :func:`read`.
 """
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime
 import json
 import pathlib
-from typing import Any
+import time
+from typing import Any, Iterator
 
 from . import config
 
@@ -42,7 +50,8 @@ def _now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
 
-def _emit(cfg: config.Config, kind: str, **fields: Any) -> dict[str, Any]:
+def emit(cfg: config.Config, kind: str, **fields: Any) -> dict[str, Any]:
+    """Append one line. Every wrapper below is this with a fixed kind."""
     cfg.run_dir.mkdir(parents=True, exist_ok=True)
     line = {"ts": _now(), "run_id": cfg.run_id, "phase": _current_phase, "kind": kind, **fields}
     with path(cfg).open("a") as fh:
@@ -64,17 +73,28 @@ def _jsonable(obj: Any) -> Any:
 # The kinds
 # --------------------------------------------------------------------------
 
-def phase(cfg: config.Config, name: str, status: str, title: str = "") -> None:
-    """Mark a beat's start or end. Every line emitted between a start and
-    its end carries the beat's name in ``phase``."""
+@contextlib.contextmanager
+def phase(cfg: config.Config, name: str, title: str = "") -> Iterator[None]:
+    """A beat. ``with events.phase(cfg, "carve"):`` writes the start line,
+    tags every line emitted inside with the beat's name, and writes the end
+    line with the elapsed seconds, on exceptions too, so a beat that dies
+    still closes in the feed."""
     global _current_phase
-    if status not in ("start", "end"):
-        raise ValueError(f"phase status must be start or end, not {status!r}")
-    if status == "start":
-        _current_phase = name
-    _emit(cfg, "phase", name=name, status=status, title=title)
-    if status == "end":
-        _current_phase = None
+    previous = _current_phase
+    _current_phase = name
+    emit(cfg, "phase", name=name, status="start", title=title)
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        emit(cfg, "phase", name=name, status="end", title=title, seconds=round(time.monotonic() - started, 3))
+        _current_phase = previous
+
+
+def fact(cfg: config.Config, label: str, value: Any) -> None:
+    """One placeable fact, such as ``fact(cfg, "role:tlmig-1-team-a-role",
+    "tlmig-1-team-b")`` after a move."""
+    emit(cfg, "fact", label=label, value=value)
 
 
 def cmd(
@@ -96,35 +116,58 @@ def cmd(
         p = d / f"{n:04d}.out"
         p.write_text(stdout)
         stdout_path = str(p)
-    _emit(cfg, "cmd", argv=list(argv), cwd=cwd, returncode=returncode, seconds=round(seconds, 3), stdout_path=stdout_path)
+    emit(cfg, "cmd", argv=list(argv), cwd=cwd, returncode=returncode, seconds=round(seconds, 3), stdout_path=stdout_path)
 
 
 def inventory(cfg: config.Config, estate: str, items: list[dict[str, Any]]) -> None:
-    _emit(cfg, "inventory", estate=estate, items=items)
+    emit(cfg, "inventory", estate=estate, items=items)
 
 
-def verdict(cfg: config.Config, name: str, obj: Any) -> None:
-    _emit(cfg, "verdict", name=name, verdict=obj)
+def verdict(cfg: config.Config, name: str, obj: Any, ok: bool | None = None, lines: list[str] | None = None) -> None:
+    """A verdict: ``ok`` and ``lines`` are what the terminal showed, and
+    ``verdict`` is the dataclass (or dict) behind them for anything the
+    visual wants to drill into."""
+    if ok is None and hasattr(obj, "ok"):
+        ok = bool(obj.ok)
+    emit(cfg, "verdict", name=name, ok=ok, lines=list(lines or []), verdict=obj)
 
 
-def measure(cfg: config.Config, estate: str, requests: int, refresh: bool, reference: dict[str, Any] | None = None) -> None:
-    _emit(cfg, "measure", estate=estate, requests=requests, refresh=refresh, reference=reference or {})
+def measure(
+    cfg: config.Config,
+    *,
+    requests: int,
+    label: str = "",
+    estate: str = "",
+    cache_hits: int | None = None,
+    refresh: bool | None = None,
+    seconds: float | None = None,
+    reference: dict[str, Any] | None = None,
+) -> None:
+    """One measured plan: what it cost, and the emulator's reference numbers
+    beside it so the two are never conflated."""
+    emit(
+        cfg, "measure", label=label, estate=estate, requests=requests,
+        cache_hits=cache_hits, refresh=refresh,
+        seconds=None if seconds is None else round(seconds, 3),
+        reference=reference or {},
+    )
 
 
 def receipt(cfg: config.Config, obj: Any) -> None:
-    _emit(cfg, "receipt", receipt=obj)
+    emit(cfg, "receipt", receipt=obj)
 
 
 def note(cfg: config.Config, text: str) -> None:
-    _emit(cfg, "note", text=text)
+    emit(cfg, "note", text=text)
 
 
 # --------------------------------------------------------------------------
 # Reading back
 # --------------------------------------------------------------------------
 
-def read(cfg: config.Config) -> list[dict[str, Any]]:
-    p = path(cfg)
+def read(cfg_or_path: config.Config | pathlib.Path | str) -> list[dict[str, Any]]:
+    """The feed as a list of dicts, from a Config or a path to events.jsonl."""
+    p = path(cfg_or_path) if isinstance(cfg_or_path, config.Config) else pathlib.Path(cfg_or_path)
     if not p.exists():
         return []
     return [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
