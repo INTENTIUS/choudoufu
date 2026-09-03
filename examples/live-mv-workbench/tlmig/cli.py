@@ -40,6 +40,10 @@ def main(argv: list[str] | None = None) -> int:
     # seed accepts --demo (the built-in terralith seed). The general seed
     # flags (--config/--estate/--state/--approve) arrive with the seed verb.
     parser.add_argument("--demo", action="store_true", help="seed: use the built-in terralith demo")
+    parser.add_argument("--config", metavar="DIR", help="seed: adopt the config in this directory")
+    parser.add_argument("--estate", metavar="NAME", help="seed: the estate to adopt into")
+    parser.add_argument("--state", metavar="FILE", help="seed: the tfstate to verify against (live-import)")
+    parser.add_argument("--approve", action="store_true", help="seed: stamp the markers (default is verify-only)")
     args = parser.parse_args(argv)
 
     if args.auto:
@@ -60,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
             env.status(cfg)
         elif args.phase == "reset":
             env.reset(cfg)
+        elif args.phase == "seed":
+            beats.seed(cfg, demo=args.demo, config_dir=args.config, estate=args.estate, state=args.state, approve=args.approve)
         else:
             beats.PHASES[args.phase](cfg)
     except KeyboardInterrupt:
