@@ -18,9 +18,8 @@ way a monolith is run before anyone splits it. The IAM on the map is the
 estate's own resources (a role, an inline policy and a managed policy per
 team); the operator's permission is the account's, all or nothing. If your
 org is not there, the first step differs. Many states already: each one is
-adopted as its own estate with `live-import`, and you begin at the carve
-beat. Per-team operator permissions already: the governance you have is by
-state file, and the carve and guard beats show the tag-scoped grant that
+adopted as its own estate with `live-import`, and you begin at plan. Per-team operator permissions already: the governance you have is by
+state file, and the move and verify phases show the tag-scoped grant that
 replaces it. Centralizing first is not required; the boundary is a tag, so
 it goes wherever the resources are today.
 
@@ -35,37 +34,42 @@ Confirm uv is installed (uv --version). Run:
   uv run --extra viz marimo run workbench.py
 
 A browser page opens on a recording in replay mode. Walk me through it
-beat by beat: for each of the nine beats, read me its action line and its
+phase by phase: for each of the eight phases, read me what it does and its
 payoff line, and explain what the map or the cost bars changed. If I have
 AWS credentials for the account the page names, switch the page to live
-and run the beats in order with the buttons, one at a time, waiting for
+and run the phases in order with the buttons, one at a time, waiting for
 each to finish; explain each payoff as it appears, and finish with
 teardown. If preflight refuses, tell me why from the reason under its
 button and stay in replay.
 ```
 
-## The beats
+## The workflow
 
-Each beat is a setup and a payoff. The page says what the beat does before
-you press it, and after it ran, one sentence built from the run's own log
-says what it proved.
+The page is eight phases, top to bottom. Each runs one or more verbs of the
+`tlmig` CLI; the verbs are the demo's beat names today and the page reads
+the installed CLI's verbs from its `--help`, so a rename needs no page
+change.
 
-| # | beat | it does | it proves |
-|---|---|---|---|
-| 1 | preflight | checks the account and the binary, writes nothing | the fences hold before anything is touched |
-| 2 | setup | applies the monolith: 21 resources in one estate | every taggable resource carries `tofu-estate` and `tofu-address`, stamped, not hand-written |
-| 3 | slow-plan | plans the whole monolith, changes nothing, counts requests | what a terralith pays for every plan |
-| 4 | decompose | applies three team configs: retags, creates nothing | three boundaries where there was one, no state file split |
-| 5 | fast-plan | plans one team's estate from its cache, counts requests | a plan costs what its estate costs, not what the account costs |
-| 6 | carve | retags team-a's resources into team-b, one tag write each | ownership moved by tag write; untaggable children followed unwritten |
-| 7 | guard | reads the role's tag, its children, then two plans: the source estate's and the destination's | both sides agree at once: the source does not want to destroy or rebuild what left, the destination does not want to create what arrived |
-| 8 | receipt | reads this run's own tag writes back from CloudTrail, waiting for event history to catch up | the account's own log holds every ownership move, naming who made it; no state file could produce that |
-| 9 | teardown | destroys every estate this run made, then lists the account | nothing carrying the run's prefix remains |
+| # | phase | verbs today | what it does |
+|---|-------|-------------|--------------|
+| 1 | seed | `preflight`, `setup` (`seed` when the CLI has it) | the account check, then the demo apply or your own config adopted; two tags per resource |
+| 2 | survey | `slow-plan` | a plan of the whole estate, counted: the number the split brings down |
+| 3 | plan | none; the page writes `carve.json` | which address goes to which estate, as a table filled by rules |
+| 4 | preview | `preview` (when the CLI has it) | every planned move as a dry run, and the map as it would stand |
+| 5 | move | `decompose`, `carve` (`move` when the CLI has it) | the boundary moves: one tag write per resource, no state split |
+| 6 | verify | `fast-plan`, `guard` (`verify` when the CLI has it) | plan cost after the split, and both sides plan clean at once |
+| 7 | receipt | `receipt` | this run's tag writes read back from CloudTrail |
+| 8 | teardown | `teardown` | demo seeds only: every estate destroyed, then the account listed |
+
+Under each phase the demo's own words stay with its verb: the terralith is
+"the villain" the survey measures, and the payoff is the fast plan against
+it. `tlmig/stage.py` holds the mapping (`WORKFLOW`, `verbs_for`), and the
+terminal runs the same verbs in the same order.
 
 ## The first minute
 
 Two ways to watch it. **Replay** needs nothing but this checkout: the
-notebook opens on a recording, and every beat shows the picture as that
+notebook opens on a recording, and every phase shows the picture as that
 phase left it. **Live** runs each phase for real against the one account
 the example is fenced to, so it needs that account's credentials; without
 them, preflight refuses and nothing else runs. Pick the mode at the top of
@@ -73,7 +77,7 @@ the page.
 
 ## What you run
 
-The stage is a marimo notebook. Each phase is a cell: the story beat as
+The stage is a marimo notebook. Each phase is a cell: what it does, in two registers, as
 narration, a button that runs the phase, the words the run itself says while
 it happens, and the picture as the phase leaves it. A live picture near the
 top redraws on a timer, so the map moves while you are still talking.
@@ -88,7 +92,7 @@ The buttons run the same CLI a terminal would, one phase at a time
 (`tlmig/stage.py` holds the one command template), so a phase clicked in
 the notebook and a phase typed at a prompt leave the same trail under
 `runs/<id>/`, and the picture cannot tell them apart. `--auto` drops the
-keypress between beats because the stage supplies the pacing.
+keypress between verbs because the stage supplies the pacing.
 
 The phases, in story order:
 
