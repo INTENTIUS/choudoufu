@@ -104,7 +104,7 @@ def _(binary, mo, mode, pin, recording, run_id):
     live = mode.value == "live"
     if live:
         _controls = mo.vstack([
-            mo.md("Press each phase's button below, in story order, and talk over it. The picture follows the run as it writes its own event log. Live needs credentials for the pinned account; without them, preflight refuses and nothing else runs."),
+            mo.md("Press each phase's button below, in story order, and talk over it; one phase at a time. The picture follows the run as it writes its own event log. Live needs credentials for the pinned account; without them, preflight refuses and nothing else runs. To continue an earlier run after a restart, put its id in the run settings: finished phases are read back from its log."),
             mo.accordion({"run settings (run id, pin, binary)": mo.vstack([mo.hstack([run_id, pin], justify="start", gap=2), binary])}),
         ])
     else:
@@ -205,6 +205,8 @@ def _(boundaries, live, mo, run_dir, st, viz):
         if live:
             st.click(name, button.value)
         status = st.status(name) if live else ("recorded" if name in boundaries else "not in this recording")
+        if live and st.refused and st.refused[0] == name:
+            status += f" · not started: {st.refused[1]} is still running, click again when it ends"
         parts = [mo.md(f"## {title}\n\n{words}"), mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
         said = st.notes(name)
         if said:

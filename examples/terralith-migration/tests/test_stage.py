@@ -82,3 +82,15 @@ class Registry(unittest.TestCase):
         self.assertIs(b.click("setup", 1).proc, rec.proc)
         self.assertEqual(b.env["CHOUDOUFU_BIN"], "/x/choudoufu")
         stage.wait(rec, timeout=30)
+
+
+class OneAtATime(unittest.TestCase):
+    def test_a_click_during_another_phase_is_refused_and_forgotten(self):
+        st = stage.Stage("busy11", cli=[sys.executable, "-c", "import time; time.sleep(1.5)", "{phase}", "{run_id}"])
+        a = st.click("setup", 1)
+        self.assertIsNone(st.click("slow-plan", 1))
+        self.assertEqual(st.refused, ("slow-plan", "setup"))
+        self.assertNotIn("slow-plan", st.phases)
+        stage.wait(a, timeout=30)
+        self.assertIsNotNone(st.click("slow-plan", 2))     # the next click, once setup ended, starts it
+        stage.wait(st.phases["slow-plan"], timeout=30)

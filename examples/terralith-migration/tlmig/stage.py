@@ -104,15 +104,31 @@ class Stage:
         # use and caches it beside the example.
         self.phases: dict[str, PhaseRun] = {}
         self.handled: dict[str, int] = {}
+        self.refused: tuple[str, str] | None = None   # (phase asked for, phase that was running)
         self._lock = threading.Lock()
+
+    def running(self) -> str | None:
+        """The name of the phase this stage is running right now, if any."""
+        for name, rec in self.phases.items():
+            if rec.returncode is None:
+                return name
+        return None
 
     def click(self, phase: str, clicks: int) -> PhaseRun | None:
         """Start a phase once per button click. ``clicks`` is the button's
         running count; a redraw that re-runs the cell with the same count
         starts nothing, which is what keeps a timer from re-running a
-        phase against the account."""
+        phase against the account. A click while another phase is still
+        running is not served: two phases on one run directory would race
+        each other's cache and record store. The click is forgotten, so
+        the presenter clicks again once the running phase ends."""
         if clicks <= self.handled.get(phase, 0):
             return self.phases.get(phase)
+        busy = self.running()
+        if busy and busy != phase:
+            self.handled[phase] = clicks
+            self.refused = (phase, busy)
+            return None
         self.handled[phase] = clicks
         return self.start(phase)
 
