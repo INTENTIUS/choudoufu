@@ -323,11 +323,30 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 		// and leaves the source store's records for the role's inline
 		// policy and attachments behind; without this the next plan here
 		// proposed destroying three resources another estate now owns.
-		if link, parentValue, linked := recordParentValue(req, schemas, typeName, rec, importID); linked && !parentHeldByThisPass(res, link.Parent, parentValue) {
-			log.Printf("[INFO] discovery: %s follows its parent %s %q, which this pass did not resolve as estate %q's own (not declared, and not swept carrying this estate's marker); not proposed for removal", addr, link.Parent, parentValue, req.Estate)
-			known[addr.String()] = true
-			known[resolvedAddr.String()] = true
-			continue
+		if link, parentValue, linked := recordParentValue(req, schemas, typeName, rec, importID); linked {
+			// Two signals, strongest first. [parentHeldByOtherEstate] is
+			// the live tag itself: the sweep listed the parent and read
+			// another estate's tofu-estate off it, which is the ruling's
+			// own evidence and outranks anything a resolution says.
+			// [parentHeldByThisPass] is the safe-side fallback for the
+			// parent whose tag the sweep could not read at all
+			// (iam:ListRoles serves no tags, and the tagging index does
+			// not cover IAM on a real account): an absent map entry is
+			// not "owned here", so the child is still skipped unless
+			// something in this pass holds its parent.
+			var why string
+			switch {
+			case parentHeldByOtherEstate(res, link.Parent, parentValue):
+				why = "which the sweep saw carrying another estate's marker"
+			case !parentHeldByThisPass(res, link.Parent, parentValue):
+				why = fmt.Sprintf("which this pass did not resolve as estate %q's own (not declared, and not swept carrying this estate's marker)", req.Estate)
+			}
+			if why != "" {
+				log.Printf("[INFO] discovery: %s follows its parent %s %q, %s; not proposed for removal", addr, link.Parent, parentValue, why)
+				known[addr.String()] = true
+				known[resolvedAddr.String()] = true
+				continue
+			}
 		}
 
 		var dependsOn []addrs.AbsResourceInstance
@@ -547,9 +566,9 @@ func recordParentValue(req Request, schemas listclient.Schemas, typeName string,
 // estate (its live marker names another one, so the sweep skipped it), is
 // gone, or could not be read - and in every one of those cases proposing
 // its children for removal is the wrong direction, so the answer is the
-// same. When [Result.OtherEstateHeld] lands (issue #692's parent-list
-// leg records the live tag scanType saw), it becomes the primary signal
-// here and this check the fallback for a parent whose tag was unreadable.
+// same. [Result.OtherEstateHeld], the live tag scanType saw, is the
+// primary signal at the call site; this check is the fallback for a parent
+// whose tag was never read.
 func parentHeldByThisPass(res *Result, parentType, parentValue string) bool {
 	for _, r := range res.Resolutions {
 		if r.Type() == parentType && r.ImportID != "" && r.ImportID == parentValue {

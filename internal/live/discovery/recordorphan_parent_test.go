@@ -8,7 +8,10 @@ package discovery
 import (
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
 // The record-orphan leg's parent rule (maintainer ruling 2026-09-03, found
@@ -111,5 +114,86 @@ func TestParentHeldByThisPass(t *testing.T) {
 	}
 	if parentHeldByThisPass(res, "aws_iam_user", "kept-role") {
 		t.Error("a parent of another type matched on value alone")
+	}
+}
+
+// The two signals at the call site, run through the leg itself on the one
+// parent-linked shape the package's fake cloud can make taggable: a Route 53
+// record whose zone is its parent. Each test seeds the same undeclared
+// record and varies only what the pass knows about the zone.
+func seedOrphanRecord(t *testing.T, estate string) (staterecord.Store, addrs.AbsResourceInstance) {
+	t.Helper()
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix(estate))
+	addr := mustAddr(t, "aws_route53_record.moved")
+	if _, err := projection.SeedLocatedForInstance(t.Context(), store, addr, addrs.AbsProviderConfig{}, projection.LocatedRecord{
+		Components: map[string]string{"zone_id": "ZMOVED", "name": "moved.example", "type": "A"},
+	}); err != nil {
+		t.Fatalf("seeding: %s", err)
+	}
+	return raw, addr
+}
+
+func orphanAppended(res *Result, addr addrs.AbsResourceInstance) bool {
+	for _, r := range res.Resolutions {
+		if r.Addr.String() == addr.String() {
+			return true
+		}
+	}
+	return false
+}
+
+// The live tag wins: the sweep saw the zone carrying another estate's
+// marker, so the record is not proposed even though a resolution in the pass
+// still names that zone as this estate's.
+func TestRecordOrphanReadSweep_ParentHeldByOtherEstateWinsOverAResolution(t *testing.T) {
+	const estate = "test-estate"
+	raw, addr := seedOrphanRecord(t, estate)
+	res := &Result{}
+	res.Resolutions = []identity.Resolution{{Addr: mustAddr(t, "aws_route53_zone.stale"), Class: identity.ClassConcrete, ImportID: "ZMOVED"}}
+	res.OtherEstateHeld = map[string]map[string]bool{"aws_route53_zone": {"ZMOVED": true}}
+
+	diags := recordOrphanReadSweep(t.Context(), Request{Estate: estate, HintStore: raw}, destroyParentDependencySchemas(t), res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if orphanAppended(res, addr) {
+		t.Fatalf("%s was proposed although the sweep saw its zone held by another estate", addr)
+	}
+}
+
+// The fallback: nothing recorded the zone's tag and nothing in the pass holds
+// it, so the child is skipped on the safe side.
+func TestRecordOrphanReadSweep_ParentUnheldIsSkipped(t *testing.T) {
+	const estate = "test-estate"
+	raw, addr := seedOrphanRecord(t, estate)
+	res := &Result{}
+
+	diags := recordOrphanReadSweep(t.Context(), Request{Estate: estate, HintStore: raw}, destroyParentDependencySchemas(t), res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if orphanAppended(res, addr) {
+		t.Fatalf("%s was proposed although nothing in the pass holds its zone", addr)
+	}
+}
+
+// The positive control: the pass holds the zone and the map says nothing,
+// so the record is proposed as this estate's orphan, exactly as before.
+func TestRecordOrphanReadSweep_ParentHeldByThisPassIsProposed(t *testing.T) {
+	const estate = "test-estate"
+	raw, addr := seedOrphanRecord(t, estate)
+	res := &Result{}
+	res.Resolutions = []identity.Resolution{{Addr: mustAddr(t, "aws_route53_zone.kept"), Class: identity.ClassConcrete, ImportID: "ZMOVED"}}
+
+	diags := recordOrphanReadSweep(t.Context(), Request{Estate: estate, HintStore: raw}, destroyParentDependencySchemas(t), res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if !orphanAppended(res, addr) {
+		t.Fatalf("%s was not proposed although the pass holds its zone", addr)
 	}
 }
