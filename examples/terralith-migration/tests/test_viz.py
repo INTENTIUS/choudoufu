@@ -165,3 +165,14 @@ class TheEmitterRun(unittest.TestCase):
         self.assertEqual([v["name"] for v in state.verdicts], ["carve:tlmig-a1b2c3-team-a-role", "teardown"])
         page = viz.render_html(state)
         self.assertIn("nothing left", page)
+
+
+class CompactPicture(unittest.TestCase):
+    def test_is_map_measures_and_verdict_only_or_nothing(self):
+        b = viz.phase_boundaries(FIXTURE)
+        full = viz.render_html(viz.load_run(FIXTURE, upto=b["carve"]), compact=True)
+        self.assertIn("<svg", full)
+        self.assertNotIn("class='strip'", full)
+        self.assertNotIn("class='ledger'", full)
+        self.assertEqual(viz.render_html(viz.load_run(FIXTURE, upto=0), compact=True), "")
+        self.assertIn("requests per plan", viz.render_html(viz.load_run(FIXTURE), compact=True))

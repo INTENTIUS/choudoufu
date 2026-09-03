@@ -688,10 +688,25 @@ CSS = """
 """
 
 
-def render_html(state: RunState, *, stack: bool = True, ledger_rows: int = 40, map_width: int = 620) -> str:
+def render_html(state: RunState, *, stack: bool = True, ledger_rows: int = 40, map_width: int = 620, compact: bool = False) -> str:
     """The whole picture: header, phase strip, the map at full width, the
     ledger under it in a bounded scrolling box (newest first), then measures
-    and verdicts. ``stack=False`` puts the ledger beside the map instead."""
+    and verdicts. ``stack=False`` puts the ledger beside the map instead.
+    ``compact`` is the picture as one phase left it: the map, measures and
+    verdict only, no header, strip or ledger (the live view above has them),
+    and nothing at all when the phase left no resources on the map."""
+    if compact:
+        parts = [f"<style>{CSS}</style><div class='tlmig'>"]
+        if any(not r.gone for r in state.resources.values()):
+            parts.append(f"<div class='wrap'>{render_map_svg(state, map_width)}</div>")
+        m = render_measures(state, map_width)
+        if m:
+            parts.append(f"<h2>plan cost · requests per plan</h2><div class='wrap'>{m}</div>")
+        v = render_verdicts(state)
+        if v:
+            parts.append(f"<h2>guard</h2>{v}")
+        parts.append("</div>")
+        return "".join(parts) if len(parts) > 2 else ""
     active = state.active_phase
     note = next((t for p, t in reversed(state.notes) if not active or p == active.name), None)
     parts = [f"<style>{CSS}</style><div class='tlmig'>",

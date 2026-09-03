@@ -154,7 +154,9 @@ def _(boundaries, mo, replay, run_dir, st, viz):
             parts.append(mo.ui.code_editor(tail, language="text", disabled=True, max_height=180))
         upto = boundaries.get(name)
         if upto is not None:
-            parts.append(mo.Html(viz.render_html(viz.load_run(run_dir, upto=upto), ledger_rows=10, map_width=760)))
+            picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)
+            if picture:
+                parts.append(mo.Html(picture))
         return mo.vstack(parts)
 
     return STORY, phase
