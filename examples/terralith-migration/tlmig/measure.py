@@ -47,6 +47,9 @@ def measure_plan(cfg: config.Config, estate: str, *extra: str, refresh: bool, la
     workdir = cfg.workdir(estate)
     logpath = cfg.run_dir / "measure" / f"{estate}-{'refresh' if refresh else 'norefresh'}.log"
     logpath.parent.mkdir(parents=True, exist_ok=True)
+    # OpenTofu appends to TF_LOG_PATH, so a re-run of this phase would count
+    # both plans. Start each measurement from an empty log.
+    logpath.unlink(missing_ok=True)
 
     ui.say(
         f"planning {estate} "
