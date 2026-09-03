@@ -1,23 +1,28 @@
-"""The demo, one function per phase.
+"""The workflow, one function per phase.
 
-Each phase is a self-contained beat: it reuses the run directory, does its
-work through the guarded verbs, and wraps itself in an events.phase so every
-command and fact in between carries the beat's name for the visualization.
-Because each is standalone and reads its inputs from the run directory rather
-than from the previous call's memory, the notebook can run them one cell at a
-time, and a rehearsal can run them in sequence.
+The verbs are the workbench's: seed, survey, preview, move, verify, plus
+preflight, receipt and teardown. The terralith demo is these verbs run over a
+seeded monolith - seed stands it up, survey plans the whole thing, preview
+dry-runs the carve plan write-free, move retags the resources into their
+estates, verify plans one estate fast and proves the handover clean.
 
-The story: a monolith one estate owns; the slow plan that refreshes all of
-it; the decomposition that retags each team's resources into its own estate,
-no state surgery; the fast plan of one estate served from cache; team-a
-dissolving, its role carved into team-b; and the governance guard proving the
-carve left nothing behind.
+Each phase is a self-contained beat: it reuses the run directory, works through
+the guarded verbs, and wraps itself in one events.phase so every command and
+fact in between carries the beat's name for the visualization. The phase
+bodies are factored into `_`-prefixed helpers so a compound verb (move,
+verify) wraps them once, and the pre-workbench names (setup, slow-plan,
+decompose, carve, fast-plan, guard) stay callable as aliases for one release
+so recorded runs and the smoke keep working.
 """
 
 from __future__ import annotations
 
-from . import config, env, events, fixture, govern, guard, measure, receipt, ui
+from . import carve, config, env, events, fixture, govern, guard, measure, receipt, ui
 
+
+# --------------------------------------------------------------------------
+# preflight / receipt / teardown - unchanged verbs
+# --------------------------------------------------------------------------
 
 def preflight(cfg: config.Config) -> None:
     with events.phase(cfg, "preflight", title="check the account and the pinned binary"):
@@ -25,106 +30,181 @@ def preflight(cfg: config.Config) -> None:
         guard.preflight(cfg)
 
 
-def setup(cfg: config.Config) -> None:
-    with events.phase(cfg, "setup", title="stand up the terralith monolith"):
+# --------------------------------------------------------------------------
+# seed - stand up (or adopt) the estates the plan will move between
+# --------------------------------------------------------------------------
+
+def _demo_carve_doc(cfg: config.Config) -> dict:
+    """The demo's carve plan: every team's taggable resource leaves the
+    monolith for that team's estate. It is the decompose move set, and it is
+    previewable straight after seed because the resources are all still in the
+    monolith and each team's destination config is written by seed."""
+    moves, estates = [], []
+    for team in config.TEAMS:
+        dest = cfg.estate(team)
+        for addr in fixture.taggable_addresses(team):
+            moves.append({"address": addr, "from": cfg.monolith_estate, "to": dest})
+        if dest not in estates:
+            estates.append(dest)
+    return {"from": cfg.monolith_estate, "estates": estates, "moves": moves, "rules": []}
+
+
+def seed(cfg: config.Config) -> None:
+    """Stand the demo's terralith monolith up, prepare each team's estate
+    config so a move has a destination working directory to dry-run and execute
+    in, and write the carve plan. Nothing is moved or applied into a team
+    estate yet - that is `move`."""
+    with events.phase(cfg, "seed", title="stand up the terralith monolith (demo seed)"):
         env.setup(cfg)
-        govern.read_inventory(cfg, cfg.monolith_estate)
-
-
-def slow_plan(cfg: config.Config) -> None:
-    with events.phase(cfg, "slow-plan", title="plan the whole monolith — the villain"):
-        ui.rule("the slow plan: the whole monolith, refreshed")
-        ui.say(
-            "Stock's plan refreshes every resource in the estate. On a real "
-            "terralith that is the whole org. Here it is one estate holding "
-            "every team — watch the request count."
-        )
-        measure.measure_plan(cfg, cfg.monolith_estate, refresh=True, label="whole monolith")
-
-
-def decompose(cfg: config.Config) -> None:
-    with events.phase(cfg, "decompose", title="split the monolith into per-team estates by retag"):
-        ui.rule("decompose: adoption by tag, no state surgery")
-        ui.say(
-            "Each team gets its own estate. Its resources move by rewriting one "
-            "ownership tag — no state file is edited, no moved block is authored, "
-            "and the untaggable children follow their parent role."
-        )
         for team in config.TEAMS:
             estate = cfg.estate(team)
             env.write_config(cfg, estate, fixture.team_hcl(cfg, team))
             env.init(cfg, estate)
-            for addr in fixture.taggable_addresses(team):
-                guard.chdf(
-                    cfg, "live-mv", "-from-estate", cfg.monolith_estate, addr, addr,
-                    cwd=str(cfg.workdir(estate)), destructive=True, capture=True, check=False,
-                    label=f"retag {addr} into {team}",
-                )
-            env.apply(cfg, estate)  # the recording apply: binds the adopted resources into this estate's store
-            govern.read_inventory(cfg, estate)
-            ui.ok(f"{team} decomposed into {estate}")
-        # The monolith no longer declares the moved teams, so its own plan stays
-        # clean and teardown's monolith destroy proposes nothing.
-        env.write_config(cfg, cfg.monolith_estate, fixture.monolith_hcl(cfg, teams=()))
+        carve.save(cfg.run_dir, _demo_carve_doc(cfg))
         govern.read_inventory(cfg, cfg.monolith_estate)
+        ui.ok(f"demo seed up; carve plan at {carve.path(cfg.run_dir)}")
 
 
-def fast_plan(cfg: config.Config) -> None:
-    with events.phase(cfg, "fast-plan", title="plan one estate at cache speed"):
-        ui.rule("the fast plan: one estate, served from cache")
-        estate = cfg.estate(config.SOURCE_TEAM)
-        # Let the tagging index catch up with the decompose's retags first, so
-        # the sweep vouches from the index instead of reading live and the
-        # measured number reflects the cache, not eventual consistency.
-        env.settle(cfg, estate)
-        fast = measure.measure_plan(cfg, estate, "-refresh=false", refresh=False, label="one estate")
-        slow = _last_measure(cfg, refresh=True)
-        if slow is not None:
-            measure.contrast(slow, fast)
+# --------------------------------------------------------------------------
+# survey - plan the whole estate as it is
+# --------------------------------------------------------------------------
+
+def _survey(cfg: config.Config) -> None:
+    ui.rule("survey: the whole monolith, refreshed")
+    ui.say(
+        "Stock's plan refreshes every resource in the estate. On a real "
+        "terralith that is the whole org. Here it is one estate holding every "
+        "team - watch the request count."
+    )
+    measure.measure_plan(cfg, cfg.monolith_estate, refresh=True, label="whole monolith")
 
 
-def carve(cfg: config.Config) -> None:
-    with events.phase(cfg, "carve", title="team-a dissolves; its resources live on under team-b"):
-        ui.rule("the carve: retag one estate's resources into another")
-        src, dst = config.SOURCE_TEAM, config.DEST_TEAM
-        src_estate, dst_estate = cfg.estate(src), cfg.estate(dst)
+def survey(cfg: config.Config) -> None:
+    with events.phase(cfg, "survey", title="plan the whole monolith - the villain"):
+        _survey(cfg)
+
+
+# --------------------------------------------------------------------------
+# preview - dry-run the carve plan, write-free
+# --------------------------------------------------------------------------
+
+def preview(cfg: config.Config) -> None:
+    """The write-free preview: dry-run every move in the carve plan, emitting
+    one preview event per move with the tag writes it would make or the refusal
+    it raised. Nothing is written."""
+    with events.phase(cfg, "preview", title="dry-run the carve plan - nothing written"):
         ui.say(
-            f"{src} is dissolving. Its resources have to live on under {dst}, "
-            f"with no downtime and no state surgery. Move the blocks into "
-            f"{dst}'s configuration, then retag each one across the estate line."
+            "Every move is checked and reported without a single write: "
+            "live-mv -dry-run finds the resource, makes every check, and stops "
+            "before touching a tag. This is what a bid can show a client."
         )
-        # The destination's config now declares its own resources and the source's.
-        env.write_config(cfg, dst_estate, fixture.team_hcl(cfg, dst, also=(src,)))
-        env.init(cfg, dst_estate)
-        for addr in fixture.taggable_addresses(src):
+        govern.preview_carve(cfg, carve.path(cfg.run_dir))
+
+
+# --------------------------------------------------------------------------
+# move - retag the resources into their estates
+# --------------------------------------------------------------------------
+
+def _decompose(cfg: config.Config) -> None:
+    ui.rule("decompose: adoption by tag, no state surgery")
+    ui.say(
+        "Each team gets its own estate. Its resources move by rewriting one "
+        "ownership tag - no state file is edited, no moved block is authored, "
+        "and the untaggable children follow their parent role."
+    )
+    for team in config.TEAMS:
+        estate = cfg.estate(team)
+        # Idempotent: seed writes and inits these, but decompose stays
+        # self-sufficient so its alias runs standalone too.
+        env.write_config(cfg, estate, fixture.team_hcl(cfg, team))
+        env.init(cfg, estate)
+        for addr in fixture.taggable_addresses(team):
             guard.chdf(
-                cfg, "live-mv", "-from-estate", src_estate, addr, addr,
-                cwd=str(cfg.workdir(dst_estate)), destructive=True, capture=True, check=False,
-                label=f"carve {addr} from {src} to {dst}",
+                cfg, "live-mv", "-from-estate", cfg.monolith_estate, addr, addr,
+                cwd=str(cfg.workdir(estate)), destructive=True, capture=True, check=False,
+                label=f"retag {addr} into {team}",
             )
-        env.apply(cfg, dst_estate)  # record the carried resources under the destination
-        # The source dissolves: its config declares nothing now.
-        env.write_config(cfg, src_estate, fixture.empty_hcl(cfg, src_estate))
-        env.init(cfg, src_estate)
-        govern.read_inventory(cfg, dst_estate)
-        govern.read_inventory(cfg, src_estate)
-        ui.ok(f"{src}'s resources now carry {dst}'s estate; {src} owns nothing")
+        env.apply(cfg, estate)  # the recording apply: binds the adopted resources into this estate's store
+        govern.read_inventory(cfg, estate)
+        ui.ok(f"{team} decomposed into {estate}")
+    env.write_config(cfg, cfg.monolith_estate, fixture.monolith_hcl(cfg, teams=()))
+    govern.read_inventory(cfg, cfg.monolith_estate)
 
 
-def guard_phase(cfg: config.Config) -> None:
-    with events.phase(cfg, "guard", title="prove the carve left nothing behind"):
-        ui.rule("the governance guard: nothing left behind")
-        role = fixture.role_name(cfg, config.SOURCE_TEAM)
-        verdict = govern.read_carve(
-            cfg, role, cfg.estate(config.SOURCE_TEAM), cfg.estate(config.DEST_TEAM),
+def _carve(cfg: config.Config) -> None:
+    ui.rule("carve: retag one estate's resources into another")
+    src, dst = config.SOURCE_TEAM, config.DEST_TEAM
+    src_estate, dst_estate = cfg.estate(src), cfg.estate(dst)
+    ui.say(
+        f"{src} is dissolving. Its resources have to live on under {dst}, with "
+        f"no downtime and no state surgery. Move the blocks into {dst}'s "
+        f"configuration, then retag each one across the estate line."
+    )
+    env.write_config(cfg, dst_estate, fixture.team_hcl(cfg, dst, also=(src,)))
+    env.init(cfg, dst_estate)
+    for addr in fixture.taggable_addresses(src):
+        guard.chdf(
+            cfg, "live-mv", "-from-estate", src_estate, addr, addr,
+            cwd=str(cfg.workdir(dst_estate)), destructive=True, capture=True, check=False,
+            label=f"carve {addr} from {src} to {dst}",
         )
-        for line in verdict.lines():
-            (ui.ok if verdict.ok else ui.warn)(line)
-        if verdict.ok:
-            ui.ok("handover clean: the source leaves nothing behind, the destination owns it all")
-        else:
-            ui.err("the carve did NOT leave a clean handover — see the lines above")
+    env.apply(cfg, dst_estate)
+    env.write_config(cfg, src_estate, fixture.empty_hcl(cfg, src_estate))
+    env.init(cfg, src_estate)
+    govern.read_inventory(cfg, dst_estate)
+    govern.read_inventory(cfg, src_estate)
+    ui.ok(f"{src}'s resources now carry {dst}'s estate; {src} owns nothing")
 
+
+def move(cfg: config.Config) -> None:
+    """Execute the migration: decompose the monolith into per-team estates by
+    retag, then carve team-a into team-b. The general carve.json executor lands
+    in a later change; this runs the demo's move set."""
+    with events.phase(cfg, "move", title="retag the resources into their estates"):
+        _decompose(cfg)
+        _carve(cfg)
+
+
+# --------------------------------------------------------------------------
+# verify - plan one estate fast, prove the handover clean
+# --------------------------------------------------------------------------
+
+def _fast_plan(cfg: config.Config) -> None:
+    ui.rule("the fast plan: one estate, served from cache")
+    estate = cfg.estate(config.SOURCE_TEAM)
+    # Let the tagging index catch up with the retags first, so the sweep
+    # vouches from the index instead of reading live and the number reflects
+    # the cache, not eventual consistency.
+    env.settle(cfg, estate)
+    fast = measure.measure_plan(cfg, estate, "-refresh=false", refresh=False, label="one estate")
+    slow = _last_measure(cfg, refresh=True)
+    if slow is not None:
+        measure.contrast(slow, fast)
+
+
+def _guard(cfg: config.Config) -> None:
+    ui.rule("the governance guard: nothing left behind")
+    role = fixture.role_name(cfg, config.SOURCE_TEAM)
+    verdict = govern.read_carve(cfg, role, cfg.estate(config.SOURCE_TEAM), cfg.estate(config.DEST_TEAM))
+    for line in verdict.lines():
+        (ui.ok if verdict.ok else ui.warn)(line)
+    if verdict.ok:
+        ui.ok("handover clean: the source leaves nothing behind, the destination owns it all")
+    else:
+        ui.err("the carve did NOT leave a clean handover - see the lines above")
+
+
+def verify(cfg: config.Config) -> None:
+    """Prove the moves: one estate plans at cache speed, and the carve left
+    nothing behind."""
+    with events.phase(cfg, "verify", title="plan one estate fast, prove the handover clean"):
+        _fast_plan(cfg)
+        _guard(cfg)
+
+
+# --------------------------------------------------------------------------
+# receipt - the account's own record of this run's writes (unchanged)
+# --------------------------------------------------------------------------
 
 def receipt_phase(cfg: config.Config) -> None:
     with events.phase(cfg, "receipt", title="the account's own record of this run's writes"):
@@ -146,17 +226,15 @@ def receipt_phase(cfg: config.Config) -> None:
                     "run `tlmig receipt` again in a minute and the record appears")
             ui.warn(warn)
             events.note(cfg, warn)
-        carve = None
+        carve_receipt = None
         saved = cfg.run_dir / "receipts" / "carve-by-retag.log"
         if saved.exists():
-            # The reproducible figures from the claim smoke on the emulator,
-            # when someone captured them: labelled as such, never as live.
             try:
-                carve = receipt.parse_carve(saved.read_text())
-                ui.kv("emulator receipt", f"carve-by-retag {'PASS' if carve.passed else 'no PASS line'}: monolith {carve.monolith_plan_requests} requests, carved estate {carve.carved_plan_requests}", carve.passed)
+                carve_receipt = receipt.parse_carve(saved.read_text())
+                ui.kv("emulator receipt", f"carve-by-retag {'PASS' if carve_receipt.passed else 'no PASS line'}: monolith {carve_receipt.monolith_plan_requests} requests, carved estate {carve_receipt.carved_plan_requests}", carve_receipt.passed)
             except Exception as exc:  # noqa: BLE001 - a bad capture must not stop the demo
                 ui.warn(f"saved emulator receipt unreadable: {exc}")
-        events.receipt(cfg, {"carve": carve, "cloudtrail": ct, "source": f"cloudtrail lookup-events since {receipt.run_started(cfg).isoformat()}"})
+        events.receipt(cfg, {"carve": carve_receipt, "cloudtrail": ct, "source": f"cloudtrail lookup-events since {receipt.run_started(cfg).isoformat()}"})
 
 
 def teardown(cfg: config.Config) -> None:
@@ -164,6 +242,41 @@ def teardown(cfg: config.Config) -> None:
         env.teardown(cfg)
         for estate in [cfg.monolith_estate, *(cfg.estate(t) for t in config.TEAMS)]:
             govern.read_inventory(cfg, estate)
+
+
+# --------------------------------------------------------------------------
+# Aliases: the pre-workbench verb names, kept working for one release
+# --------------------------------------------------------------------------
+
+def setup(cfg: config.Config) -> None:
+    with events.phase(cfg, "setup", title="stand up the terralith monolith"):
+        env.setup(cfg)
+        govern.read_inventory(cfg, cfg.monolith_estate)
+
+
+def slow_plan(cfg: config.Config) -> None:
+    with events.phase(cfg, "slow-plan", title="plan the whole monolith - the villain"):
+        _survey(cfg)
+
+
+def decompose(cfg: config.Config) -> None:
+    with events.phase(cfg, "decompose", title="split the monolith into per-team estates by retag"):
+        _decompose(cfg)
+
+
+def carve_phase(cfg: config.Config) -> None:
+    with events.phase(cfg, "carve", title="team-a dissolves; its resources live on under team-b"):
+        _carve(cfg)
+
+
+def fast_plan(cfg: config.Config) -> None:
+    with events.phase(cfg, "fast-plan", title="plan one estate at cache speed"):
+        _fast_plan(cfg)
+
+
+def guard_phase(cfg: config.Config) -> None:
+    with events.phase(cfg, "guard", title="prove the carve left nothing behind"):
+        _guard(cfg)
 
 
 def _last_measure(cfg: config.Config, *, refresh: bool):
@@ -182,15 +295,22 @@ def _last_measure(cfg: config.Config, *, refresh: bool):
     )
 
 
-# The phase registry the CLI dispatches on. Order is the demo's order.
+# The phase registry the CLI dispatches on. Workflow verbs first, in order;
+# the pre-workbench names follow as aliases.
 PHASES = {
     "preflight": preflight,
+    "seed": seed,
+    "survey": survey,
+    "preview": preview,
+    "move": move,
+    "verify": verify,
+    "receipt": receipt_phase,
+    "teardown": teardown,
+    # aliases (one release): recorded runs and the smoke keep working
     "setup": setup,
     "slow-plan": slow_plan,
     "decompose": decompose,
+    "carve": carve_phase,
     "fast-plan": fast_plan,
-    "carve": carve,
     "guard": guard_phase,
-    "receipt": receipt_phase,
-    "teardown": teardown,
 }
