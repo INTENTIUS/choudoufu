@@ -180,3 +180,12 @@ class CompactPicture(unittest.TestCase):
         self.assertIn("<svg", viz.render_html(viz.load_run(FIXTURE, upto=0), compact=True))
         self.assertEqual(viz.render_html(viz.load_run(EMITTER, upto=0), compact=True), "")
         self.assertIn("requests per plan", viz.render_html(viz.load_run(FIXTURE), compact=True))
+
+
+class PhaseLedger(unittest.TestCase):
+    def test_one_phase_rows_only(self):
+        state = viz.load_run(FIXTURE)
+        html = viz.render_phase_ledger(state, "carve")
+        self.assertIn("role into team-b", html)        # the apostrophe in the label is HTML-escaped
+        self.assertNotIn("stand the monolith up", html)
+        self.assertEqual(viz.render_phase_ledger(state, "nope"), "")

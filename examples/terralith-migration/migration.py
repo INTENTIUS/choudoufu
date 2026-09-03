@@ -211,11 +211,17 @@ def _(boundaries, live, mo, run_dir, st, viz):
         said = st.notes(name)
         if said:
             parts.append(mo.md("\n".join(f"> {s}" for s in said)))
+        # The beat's own ledger rows, live while it runs and kept after: what
+        # ran, who ran it, what the platform answered. The raw log stays
+        # folded away, and is opened for the reader only when the phase failed.
+        _now = viz.load_run(run_dir)
+        rows = viz.render_phase_ledger(_now, name)
+        if rows:
+            parts.append(mo.Html(rows))
         tail = st.tail(name)
-        if tail and (status == "running" or status.startswith("failed")):
-            # While it runs, the beat's own narration; when it failed, the
-            # reason, which is usually the guard's refusal panel.
-            parts.append(mo.ui.code_editor(tail, language="text", disabled=True, max_height=220))
+        if tail:
+            parts.append(mo.accordion({"raw log": mo.ui.code_editor(tail, language="text", disabled=True, max_height=260)}, lazy=False, multiple=False) if not status.startswith("failed")
+                         else mo.vstack([mo.md("**Why it failed**"), mo.ui.code_editor(tail, language="text", disabled=True, max_height=260)]))
         upto = boundaries.get(name)
         if upto is not None:
             picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)

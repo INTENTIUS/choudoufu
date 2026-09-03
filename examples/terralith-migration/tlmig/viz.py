@@ -592,6 +592,20 @@ def render_ledger(state: RunState, limit: int = 40, newest_first: bool = True) -
     return "<table class='ledger'><thead><tr><th>time</th><th>phase</th><th>who</th><th>action</th><th>target</th><th>answer</th></tr></thead><tbody>" + "".join(trs) + "</tbody></table>"
 
 
+def render_phase_ledger(state: RunState, phase: str, limit: int = 30) -> str:
+    """One phase's rows of the ledger, in order, the way a presenter reads a
+    beat: what ran, who ran it, what the platform answered."""
+    rows = [r for r in state.ledger if r.phase == phase][-limit:]
+    if not rows:
+        return ""
+    trs = []
+    for r in rows:
+        t = r.ts.strftime("%H:%M:%S") if r.ts else ""
+        cls = "ok" if r.ok else "bad" if r.ok is False else ""
+        trs.append(f"<tr class='{'write' if r.write else 'read'}'><td class='t'>{_esc(t)}</td><td>{_esc(r.actor)}</td><td>{_esc(r.action)}</td><td class='tg'>{_esc(r.target)}</td><td class='{cls}'>{_esc(r.answer)}</td></tr>")
+    return f"<style>{CSS}</style><div class='tlmig'><table class='ledger'><thead><tr><th>time</th><th>who</th><th>action</th><th>target</th><th>answer</th></tr></thead><tbody>" + "".join(trs) + "</tbody></table></div>"
+
+
 def render_measures(state: RunState, width: int = 640) -> str:
     if not state.measures:
         return ""
