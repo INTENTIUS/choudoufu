@@ -8,9 +8,10 @@ the visuals side:
 
 - ``phase``: ``status`` start or end, ``name``, ``title``, and ``seconds``
   on the end line; written by the :func:`phase` context manager.
-- ``cmd``: from the guarded executor; ``argv``, ``cwd``, ``returncode``,
-  ``seconds``, and ``stdout_path`` when the output was captured (the text
-  lands in a file under ``runs/<id>/cmd/``, never inline).
+- ``cmd``: from the guarded executor; ``label`` (the beat's short phrase
+  for it, may be empty), ``argv``, ``cwd``, ``returncode``, ``seconds``, and
+  ``stdout_path`` when the output was captured (the text lands in a file
+  under ``runs/<id>/cmd/``, never inline).
 - ``inventory``: ``estate`` and ``items``, each ``{id, type, address, tags}``,
   from the reads in :mod:`govern`; emitted after setup, after each carve and
   after teardown, since those three diffs are the whole picture.
@@ -104,10 +105,13 @@ def cmd(
     returncode: int,
     seconds: float,
     stdout: str | None = None,
+    label: str = "",
 ) -> None:
     """One executed command. Captured stdout is written to
     ``runs/<id>/cmd/<n>.out`` and referenced by path, so a plan's text is
-    available to the visual without bloating the feed."""
+    available to the visual without bloating the feed. ``label`` is the
+    short human phrase a beat gives the command ("adopt team-b"); the
+    ledger prefers it over summarising argv, and empty is fine."""
     stdout_path: str | None = None
     if stdout is not None:
         d = cfg.run_dir / "cmd"
@@ -116,7 +120,7 @@ def cmd(
         p = d / f"{n:04d}.out"
         p.write_text(stdout)
         stdout_path = str(p)
-    emit(cfg, "cmd", argv=list(argv), cwd=cwd, returncode=returncode, seconds=round(seconds, 3), stdout_path=stdout_path)
+    emit(cfg, "cmd", label=label, argv=list(argv), cwd=cwd, returncode=returncode, seconds=round(seconds, 3), stdout_path=stdout_path)
 
 
 def inventory(cfg: config.Config, estate: str, items: list[dict[str, Any]]) -> None:

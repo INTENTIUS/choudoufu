@@ -29,6 +29,7 @@ class Feed(unittest.TestCase):
         self.assertIn("seconds", lines[3])
         self.assertEqual(lines[2]["seconds"], 0.123)
         self.assertTrue(lines[2]["stdout_path"].endswith("cmd/0001.out"))
+        self.assertEqual(lines[2]["label"], "")
 
     def test_a_beat_that_dies_still_closes_in_the_feed(self):
         with tempfile.TemporaryDirectory() as d:
