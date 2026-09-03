@@ -5,6 +5,11 @@ description = "choudoufu example: migrating a terralith monolith into per-team e
 requires-python = ">=3.11"
 dependencies = ["rich>=13"]
 
+[project.optional-dependencies]
+# The visual aid: a marimo notebook over tlmig.viz (stdlib). Optional so the
+# CLI itself stays rich-only.
+viz = ["marimo>=0.9"]
+
 [project.scripts]
 tlmig = "tlmig.cli:main"
 
