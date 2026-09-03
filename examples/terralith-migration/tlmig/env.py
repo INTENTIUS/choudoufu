@@ -142,6 +142,32 @@ def _verify_gone(cfg: config.Config) -> None:
     ui.ok("nothing with this run's prefix remains - clean")
 
 
+def settle(cfg: config.Config, estate: str, timeout: int = 60) -> None:
+    """Wait for the tagging index to catch up with an estate's live tags before
+    a measured plan. After a decompose's retags, resourcegroupstaggingapi lags:
+    a sweep that would vouch a resource from the tag index reads it live
+    instead, inflating the plan's request count until the index settles. Poll
+    the estate's indexed count until it is stable across two reads, or give up
+    after timeout and measure anyway (a slower number is honest, not wrong)."""
+    last = -1
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        res = guard.aws(
+            cfg, "resourcegroupstaggingapi", "get-resources",
+            "--region", cfg.region,
+            "--tag-filters", f"Key=tofu-estate,Values={estate}",
+            "--query", "length(ResourceTagMappingList)", "--output", "text",
+            check=False,
+        )
+        count = int(res.stdout.strip()) if res.ok and res.stdout.strip().lstrip("-").isdigit() else -1
+        if count >= 0 and count == last:
+            ui.ok(f"tag index settled: {count} resource(s) indexed under {estate}")
+            return
+        last = count
+        time.sleep(3)
+    ui.warn(f"tag index did not settle within {timeout}s (last count {last}); measuring anyway")
+
+
 def status(cfg: config.Config) -> None:
     """What the run has applied and what is live now, read straight off AWS so
     the presenter always knows the ground truth before a beat."""
