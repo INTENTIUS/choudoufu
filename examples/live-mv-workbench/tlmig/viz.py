@@ -147,6 +147,20 @@ class RunState:
                 return p
         return None
 
+    def live_estate_of(self, key: str) -> str | None:
+        """The estate a resource's LIVE tofu-estate tag names, no fallback to
+        the config that declares it. None = not yet placed, so the map draws
+        it neutral. Untaggable children take their parent's live answer."""
+        r = self.resources.get(key) or self.by_address.get(key)
+        if r is None or r.gone:
+            return None
+        if r.taggable:
+            return r.estate
+        parent = self.by_address.get(r.parent) if r.parent else None
+        if parent is not None:
+            return None if parent.gone else self.live_estate_of(parent.key)
+        return r.estate
+
     def estate_of(self, key: str) -> str | None:
         """The estate a resource sits in right now, by key (id, else
         address). Untaggable children take their parent's answer."""
@@ -560,7 +574,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         run_start, run_estate = x, None
         boxes: list[tuple[int, int, str]] = []
         for i, r in enumerate(rs):
-            e = state.estate_of(r.key)
+            e = state.live_estate_of(r.key)
             if e != run_estate:
                 if run_estate is not None:
                     boxes.append((run_start, x - gap, run_estate))
@@ -574,14 +588,15 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         x = left
         positions: dict[str, int] = {}
         for r in rs:
-            e = state.estate_of(r.key)
-            gone = r.gone or e is None
-            c = "#9ca3af" if gone else colours.get(e or "", "#9ca3af")
+            e = state.live_estate_of(r.key)
+            unseen = e is None
+            c = "#9ca3af" if (r.gone or unseen) else colours.get(e or "", "#9ca3af")
             positions[r.address] = x
-            dash = ' stroke-dasharray="4 3"' if (not r.taggable or gone) else ""
-            title = f"{r.address} · {'gone' if gone else e}"
-            out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{0.06 if gone else 0.35 if r.taggable else 0.18}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
-            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="{0.4 if gone else 1}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
+            dash = ' stroke-dasharray="4 3"' if (not r.taggable or r.gone) else ""
+            title = f"{r.address} · {'gone' if r.gone else (e or 'not yet placed')}"
+            op = 0.06 if r.gone else 0.18 if (unseen or not r.taggable) else 0.35
+            out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{op}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
+            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="{0.4 if r.gone else 1}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
             x += cell + gap
         for r in rs:
             if r.parent and r.parent in positions and r.address in positions:
@@ -590,9 +605,10 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         y += rowh
     # legend
     lx = pad
-    for e in state.estates:
+    _live = [e for e in state.estates if any(state.live_estate_of(r.key) == e for r in state.resources.values())]
+    for e in _live:
         c = colours.get(e, "#9ca3af")
-        n = sum(1 for r in state.resources.values() if state.estate_of(r.key) == e)
+        n = sum(1 for r in state.resources.values() if state.live_estate_of(r.key) == e)
         out.append(f'<rect x="{lx}" y="{y + 6}" width="12" height="12" rx="3" fill="{c}"/>')
         label = f"{_short_estate(state, e)} · {n}"
         out.append(f'<text x="{lx + 18}" y="{y + 16}" font-size="12" fill="currentColor" fill-opacity="0.75">{_esc(label)}</text>')
@@ -933,6 +949,7 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
     """What one beat proved, in a sentence built from the run's own numbers,
     so the presenter's payoff line is never a claim the log cannot back.
     Empty when the beat left nothing to say yet."""
+    name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve"}.get(name, name)
     counts = _counts(after)
     mono = next((e for e in after.estates if e.endswith("-monolith")), None)
     teams = [e for e in after.estates if e != mono]

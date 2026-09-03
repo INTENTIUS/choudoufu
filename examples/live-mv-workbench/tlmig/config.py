@@ -153,7 +153,13 @@ def load(run_id: str | None = None) -> Config:
         build = f"local {localbuild.describe(root)}" if root else "local"
         binary = binary or localbuild.ensure(root)
     binary = binary or _find_binary(version)
-    return Config(run_id=run_id, run_dir=run_dir, binary=binary, version=version, build=build)
+    # The account and region a run is fenced to. Defaults are the demo's real
+    # account; a floci run sets TLMIG_ACCOUNT=000000000000 (floci's account)
+    # and AWS_REGION, so the same preflight fence passes against the emulator.
+    account_id = os.environ.get("TLMIG_ACCOUNT", ACCOUNT_ID)
+    region = os.environ.get("AWS_REGION", REGION)
+    return Config(run_id=run_id, run_dir=run_dir, binary=binary, version=version, build=build,
+                  account_id=account_id, region=region)
 
 
 def _find_binary(version: str = CHOUDOUFU_VERSION) -> str:
