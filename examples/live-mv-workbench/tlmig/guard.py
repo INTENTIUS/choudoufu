@@ -119,11 +119,16 @@ def preflight(cfg: config.Config) -> None:
     if not who.ok:
         raise GuardError(f"could not read the AWS caller identity; are credentials configured?\n{who.stderr.strip()}")
     account = who.stdout.strip()
-    if account != cfg.account_id:
+    # When config pins an account (the demo does), it is a fence. When it is
+    # empty (the workbench on a user's own estate), the account is whatever the
+    # seed's credentials resolve to - preflight reports it rather than fencing
+    # to a constant, and the carve plan is the fence instead.
+    if cfg.account_id and account != cfg.account_id:
         raise GuardError(
-            f"credentials resolve to account {account}, but this example is fenced to {cfg.account_id}. "
-            f"Set the right AWS_PROFILE and try again."
+            f"credentials resolve to account {account}, but this run is fenced to {cfg.account_id}. "
+            f"Set the right AWS_PROFILE, or clear config.ACCOUNT_ID to run the workbench on this account."
         )
+    events.fact(cfg, "account", account)
 
     ver = _run(cfg, [cfg.binary, "version"], capture=True)
     if not ver.ok:

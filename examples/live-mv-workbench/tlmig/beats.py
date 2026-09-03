@@ -17,7 +17,7 @@ so recorded runs and the smoke keep working.
 
 from __future__ import annotations
 
-from . import carve, config, env, events, fixture, govern, guard, measure, receipt, ui
+from . import carve, config, env, events, fixture, govern, guard, measure, mover, receipt, ui
 
 
 # --------------------------------------------------------------------------
@@ -134,21 +134,16 @@ def _decompose(cfg: config.Config) -> None:
         "ownership tag - no state file is edited, no moved block is authored, "
         "and the untaggable children follow their parent role."
     )
+    # Ensure each destination config and the carve plan exist (seed writes
+    # them; this keeps the decompose alias self-sufficient), then run the plan
+    # through the executor - the same carve.json the preview dry-ran.
     for team in config.TEAMS:
-        estate = cfg.estate(team)
-        # Idempotent: seed writes and inits these, but decompose stays
-        # self-sufficient so its alias runs standalone too.
-        env.write_config(cfg, estate, fixture.team_hcl(cfg, team))
-        env.init(cfg, estate)
-        for addr in fixture.taggable_addresses(team):
-            guard.chdf(
-                cfg, "live-mv", "-from-estate", cfg.monolith_estate, addr, addr,
-                cwd=str(cfg.workdir(estate)), destructive=True, capture=True, check=False,
-                label=f"retag {addr} into {team}",
-            )
-        env.apply(cfg, estate)  # the recording apply: binds the adopted resources into this estate's store
-        govern.read_inventory(cfg, estate)
-        ui.ok(f"{team} decomposed into {estate}")
+        env.write_config(cfg, cfg.estate(team), fixture.team_hcl(cfg, team))
+        env.init(cfg, cfg.estate(team))
+    cp = carve.path(cfg.run_dir)
+    if not cp.exists():
+        carve.save(cfg.run_dir, _demo_carve_doc(cfg))
+    mover.execute_carve(cfg, cp)
     env.write_config(cfg, cfg.monolith_estate, fixture.monolith_hcl(cfg, teams=()))
     govern.read_inventory(cfg, cfg.monolith_estate)
 
