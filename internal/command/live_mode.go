@@ -205,9 +205,16 @@ func statelessBegin(
 		// reads; a default plan or apply (PlanRefresh true) reads every
 		// instance, so drift is always visible.
 		cacheServesReads: !opReq.PlanRefresh && readsSelective,
-		envelopeVouch:    !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
-		lib:              local.ContextOpts.Plugins,
-		mgr:              mgr,
+		// #692 increment 3: -refresh=false keeps the full sweep whatever the
+		// reads policy, so a reads="selective" run and a reads="full" run
+		// discover identically and only their SERVING differs - which is
+		// what unchanged-is-free's "the toggle prices the plan, never
+		// changes it" requires. Keyed on the refresh flag, not on
+		// cacheServesReads (which also folds in the reads policy).
+		refreshFalse:  !opReq.PlanRefresh,
+		envelopeVouch: !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
+		lib:           local.ContextOpts.Plugins,
+		mgr:           mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
@@ -609,6 +616,11 @@ type statelessRunner struct {
 	// again - the same reason targets and excludes below are copied.
 	cacheServesReads bool
 
+	// refreshFalse is true whenever the operation skips the refresh
+	// (-refresh=false), independent of the reads policy. #692 increment 3
+	// uses it to keep the marker sweep unshrunk on that path.
+	refreshFalse bool
+
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
 	// [statelessBegin] because the runner never sees it again. Both empty
@@ -955,6 +967,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	var recordShrinkStore *projection.RecordStore
 	if r.nodeResolve {
 		recordShrinkStore = r.recordStore
+	}
+	// #692 increment 3: the sweep-shrink (#388) excludes recorded
+	// needs-discovery instances from the marker sweep, which is the right
+	// call on a default plan (it reads them anyway) but robs -refresh=false
+	// of the sweep-verification cacheHit needs to serve them from cache. On
+	// the -refresh=false path, keep the full sweep - one estate-wide tagging
+	// call, flat - so every recorded needs-discovery instance is verified
+	// and served from cache, and the per-instance reads it would otherwise
+	// pay are skipped. The trade is a flat cost for a per-instance saving,
+	// which only grows as the estate does.
+	if r.refreshFalse {
+		recordShrinkStore = nil
 	}
 	// GitHub issue #361's crash-window recovery: read from r.recordStore -
 	// the same unconditionally-open store just above, never
