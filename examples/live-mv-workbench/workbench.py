@@ -340,8 +340,8 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
                       "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
         "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "move": ("Move", "runs carve.json: one live-mv per move, one tag write each",
-                 "Every move the plan names, made with live-mv: one tag write per resource, children following their parent without a write, and the engine's own refusal on anything the preview would have refused."),
+        "move": ("Move", "retags the resources into their estates: one tag write each",
+                 "The boundary moves by tag: team-a's resources are retagged into team-b, one tag write per resource, and the untaggable children follow their parent without a write. Today Move makes the demo's retag directly; once the executor lands it runs exactly the plan Preview dry-ran, move by move."),
         "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
                       "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
         "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
@@ -540,7 +540,7 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _saved = f"on disk: `{carve.path(run_dir)}` with {len(_on_disk.get('moves', []))} moves" + ("" if _on_disk.get("moves") == plan_doc["moves"] else " (the table has changed since; save again)")
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
-    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, and the Move phase reads it. **In the demo you can leave this alone:** the box below is ticked, so the plan already holds the demo's move, team-a into team-b, and the Move phase makes that move whether or not you touch this panel. Untick it, or add rules, to plan your own.")]
+    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs. Today the Move phase makes the demo's retag directly; once the executor lands (37's next change) it reads this plan. **In the demo you can leave this alone:** the box below is ticked, so the plan already holds the demo's move, team-a into team-b, and Move makes that move whether or not you touch this panel. Untick it, or add rules, to plan your own.")]
     if is_demo:
         _parts.append(demo_move)
     _parts += [
@@ -561,7 +561,7 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _hint += "You can still go to Move: for the demo, the Move phase makes its own retag; the executor that reads this file is the next CLI change.*"
         _parts.append(mo.md(_hint))
     elif plan_rows:
-        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move; Move makes them. You can go forward."))
+        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move. Today Move makes the demo's retag; once the executor lands it runs exactly these. You can go forward."))
     _parts.append(mo.hstack([save_btn, rows_btn, mo.md(_saved)], justify="start", gap=1))
     _parts.append(mo.accordion({"carve.json as it would be saved": mo.ui.code_editor(__import__("json").dumps(plan_doc, indent=2), language="json", disabled=True, max_height=300)}))
     section("plan", _parts)
