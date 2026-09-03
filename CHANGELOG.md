@@ -4,9 +4,86 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.11.0 (Unreleased)
+## choudoufu v0.12.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.11.0 (2026-09-03)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.11.0.json`](live/history/v0.11.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.10.1.json live/history/v0.11.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The engine is unchanged since v0.10.1. This release adds the
+terralith-migration example; the board was last measured at
+`bb45512c9b` (2026-08-31) and was not re-run.
+
+FORK WORK:
+
+- **The terralith-migration example** (PR #770): `examples/terralith-migration`,
+  a uv project whose package `tlmig` runs the blog's decomposition story
+  against a real account, nine phases behind one command
+  (`uv run tlmig <phase> --run <id>`, or `all`): `preflight`, `setup`,
+  `slow-plan`, `decompose`, `fast-plan`, `carve`, `guard`, `receipt`,
+  `teardown`, plus `status` and `reset`. The story is a monolith one
+  estate owns; the slow plan that refreshes all of it; the decomposition
+  that retags each team's resources into its own estate with
+  `live-mv -from-estate`, no state surgery; the fast plan of one estate
+  served from cache; a team dissolving, its role carved into another; and
+  a governance guard proving the carve left nothing behind. Every phase is
+  a standalone beat that reads its inputs from the run directory, so the
+  notebook can run them one cell at a time and a rehearsal can run them
+  in sequence.
+
+- **Fenced execution** (`tlmig/guard.py`). Every command the example runs
+  goes through one place: preflight asserts the caller's account and the
+  pinned binary before anything is touched; a destructive `choudoufu`
+  call must run inside the run's own tree and a raw `aws` delete must name
+  a resource carrying the run's prefix; a human confirms every
+  destructive call unless `--auto`. The fences decide what can be
+  destroyed, and the confirmation is only the last stop. Teardown works
+  from the manifest setup wrote and refuses to call the run clean while
+  anything carrying the run's prefix or estate tags remains.
+
+- **The event feed and the receipt** (`tlmig/events.py`, `tlmig/receipt.py`,
+  `tlmig/measure.py`, `tlmig/govern.py`). Every command, phase, inventory
+  read, measurement, fact and verdict lands in `runs/<id>/events.jsonl`,
+  append-only, with captured output filed beside it. Plan cost is measured
+  live under `TF_LOG=debug` by counting provider requests and state-cache
+  hits, and shown beside the claim smoke's reproducible receipt as a
+  separately labelled panel, never dressed up as the same measurement. The
+  governance guard reads the moved role's tags, inline policies and
+  attachments through the plain CLI and grades both estates' plans by
+  their text.
+
+- **The stage and the renderer** (`migration.py`, `tlmig/stage.py`,
+  `tlmig/viz.py`). The marimo notebook is the stage
+  (`uv run --extra viz marimo run migration.py`): a cell per phase carries
+  the beat's narration and a button that runs
+  `python -m tlmig.cli <phase> --run <id> --auto` as a background
+  subprocess, one phase at a time, with the phase's own ledger rows and
+  its picture as the phase left it; a live picture at the top follows
+  `events.jsonl` on a timer. Replay mode plays a recorded run with no
+  account. The renderer, stdlib only, draws a run directory as one
+  picture: a phase strip, an estate-ownership map with every resource as
+  a cell keyed by ARN and coloured by the estate its live `tofu-estate`
+  tag names, untaggable children coloured by their parent role's tag, a
+  ledger of every command and the platform's answer, and the plan-cost
+  bars beside the receipt. Two recorded runs ship under `tests/fixtures`,
+  one a synthetic walk of every phase and one written by the real
+  emitters.
+
+- **The pin.** The example pins `CHOUDOUFU_VERSION` to the release its
+  numbers were measured against and refuses a drifted binary at
+  preflight. A pinned release that is not cached is fetched the way the
+  smoke harness fetches it, and `CHOUDOUFU_VERSION=local` builds the
+  checkout's own binary, stamped with its git describe, when the release
+  lags the engine.
 
 ## choudoufu v0.10.1 (2026-09-03)
 
