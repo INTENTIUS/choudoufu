@@ -90,7 +90,18 @@ class Stage:
         self.env = dict(env or {})
         self.env.setdefault("CHOUDOUFU_BIN", self.binary)
         self.phases: dict[str, PhaseRun] = {}
+        self.handled: dict[str, int] = {}
         self._lock = threading.Lock()
+
+    def click(self, phase: str, clicks: int) -> PhaseRun | None:
+        """Start a phase once per button click. ``clicks`` is the button's
+        running count; a redraw that re-runs the cell with the same count
+        starts nothing, which is what keeps a timer from re-running a
+        phase against the account."""
+        if clicks <= self.handled.get(phase, 0):
+            return self.phases.get(phase)
+        self.handled[phase] = clicks
+        return self.start(phase)
 
     # -- starting ---------------------------------------------------------
     def argv(self, phase: str) -> list[str]:

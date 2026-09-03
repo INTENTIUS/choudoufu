@@ -505,7 +505,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
     colours = _colours(state)
     teams = sorted({r.team for r in state.resources.values()})
     if not teams:
-        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="#6b7280" font-family="ui-monospace, monospace" font-size="13">no estate configs yet</text></svg>'
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="currentColor" fill-opacity="0.5" font-family="ui-monospace, monospace" font-size="13">no estate configs yet</text></svg>'
     cell, gap, pad, rowh, left = 64, 8, 14, 74, 96
     ncols = max(len([r for r in state.resources.values() if r.team == t]) for t in teams)
     height = pad * 2 + rowh * len(teams) + 26
@@ -516,7 +516,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
     for team in teams:
         rs = [r for r in state.resources.values() if r.team == team]
         rs.sort(key=lambda r: (COLUMNS.index(r.type) if r.type in COLUMNS else len(COLUMNS), r.name))
-        out.append(f'<text x="{pad}" y="{y + 40}" font-size="13" fill="#374151">{_esc(team)}</text>')
+        out.append(f'<text x="{pad}" y="{y + 40}" font-size="13" fill="currentColor" fill-opacity="0.75">{_esc(team)}</text>')
         # outlines around runs of one estate
         x = left
         run_start, run_estate = x, None
@@ -543,7 +543,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
             dash = ' stroke-dasharray="4 3"' if (not r.taggable or gone) else ""
             title = f"{r.address} · {'gone' if gone else e}"
             out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{0.06 if gone else 0.35 if r.taggable else 0.18}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
-            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="{"#9ca3af" if gone else "#111827"}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
+            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="{0.4 if gone else 1}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
             x += cell + gap
         for r in rs:
             if r.parent and r.parent in positions and r.address in positions:
@@ -557,7 +557,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         n = sum(1 for r in state.resources.values() if state.estate_of(r.key) == e)
         out.append(f'<rect x="{lx}" y="{y + 6}" width="12" height="12" rx="3" fill="{c}"/>')
         label = f"{_short_estate(state, e)} · {n}"
-        out.append(f'<text x="{lx + 18}" y="{y + 16}" font-size="12" fill="#374151">{_esc(label)}</text>')
+        out.append(f'<text x="{lx + 18}" y="{y + 16}" font-size="12" fill="currentColor" fill-opacity="0.75">{_esc(label)}</text>')
         lx += 18 + 8 * len(label) + 18
     out.append("</svg>")
     return "".join(out)
@@ -612,10 +612,10 @@ def render_measures(state: RunState, width: int = 640) -> str:
     for label, v, ref, hits in bars:
         bw = max(2, int((width - lw - 70) * v / mx))
         fill = "#d1d5db" if ref else "#2563eb"
-        out.append(f'<text x="0" y="{y + 15}" fill="#374151">{_esc(label[:38])}</text>')
+        out.append(f'<text x="0" y="{y + 15}" fill="currentColor" fill-opacity="0.75">{_esc(label[:38])}</text>')
         out.append(f'<rect x="{lw}" y="{y + 4}" width="{bw}" height="14" rx="3" fill="{fill}"/>')
         txt = f"{v} requests" + (f" · {hits} cache hits" if hits else "")
-        out.append(f'<text x="{lw + bw + 8}" y="{y + 15}" fill="#111827">{_esc(txt)}</text>')
+        out.append(f'<text x="{lw + bw + 8}" y="{y + 15}" fill="currentColor">{_esc(txt)}</text>')
         y += rowh
     out.append("</svg>")
     return "".join(out)
@@ -655,16 +655,16 @@ def render_verdicts(state: RunState) -> str:
 
 
 CSS = """
-:root { --ink:#111827; --soft:#374151; --faint:#6b7280; --rule:#e5e7eb; --paper:#ffffff; --ok:#059669; --bad:#dc2626; --accent:#2563eb; }
-.tlmig { font-family: ui-sans-serif, -apple-system, system-ui, sans-serif; color: var(--ink); background: var(--paper); }
-.tlmig h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 14px 0 6px; font-weight: 600; }
+.tlmig { --ink: currentColor; --soft: color-mix(in srgb, currentColor 72%, transparent); --faint: color-mix(in srgb, currentColor 50%, transparent); --rule: color-mix(in srgb, currentColor 18%, transparent); --ok:#16a34a; --bad:#dc2626; --accent:#2563eb; --wash: color-mix(in srgb, currentColor 6%, transparent);
+  font-family: ui-sans-serif, -apple-system, system-ui, sans-serif; color: inherit; background: transparent; }
+.tlmig h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 14px 0 6px; font-weight: 600; }
 .tlmig .head { display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--rule); padding-bottom:6px; }
 .tlmig .head b { font-size: 16px; }
 .tlmig .head span { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--faint); }
 .tlmig .strip { display:flex; gap:6px; flex-wrap:wrap; margin: 10px 0; }
 .tlmig .ph { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--rule); color: var(--faint); }
-.tlmig .ph.done { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
-.tlmig .ph.active { background:#eff6ff; border-color:var(--accent); color:#1e3a8a; font-weight:600; }
+.tlmig .ph.done { border-color: var(--ok); color: var(--ok); }
+.tlmig .ph.active { border-color: var(--accent); color: var(--accent); font-weight:600; background: var(--wash); }
 .tlmig .ph .t { opacity:.7; margin-left:4px; }
 .tlmig .cols { display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
 .tlmig .cols.stack { grid-template-columns: minmax(0, 1fr); }
@@ -678,13 +678,13 @@ CSS = """
 .tlmig .empty { color: var(--faint); font-size: 13px; }
 .tlmig .note { font-size: 14px; color: var(--soft); border-left: 3px solid var(--accent); padding: 4px 10px; margin: 8px 0; }
 .tlmig .verdict { display:flex; align-items:center; gap:8px; margin-top:6px; font-size:13px; }
-.tlmig .light { width:12px; height:12px; border-radius:50%; background:#d1d5db; display:inline-block; }
-.tlmig .light.on { background: var(--ok); box-shadow: 0 0 0 3px #d1fae5; }
-.tlmig .light.off { background: var(--bad); box-shadow: 0 0 0 3px #fee2e2; }
+.tlmig .light { width:12px; height:12px; border-radius:50%; background: var(--rule); display:inline-block; }
+.tlmig .light.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.tlmig .light.off { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent); }
 .tlmig .vline { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--soft); margin-left: 20px; }
 .tlmig .wrap { overflow-x: auto; }
 .tlmig .ledgerwrap { max-height: 300px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 6px; padding: 0 8px; }
-.tlmig .ledgerwrap thead th { position: sticky; top: 0; background: var(--paper); }
+.tlmig .ledgerwrap thead th { position: sticky; top: 0; background: inherit; }
 """
 
 
