@@ -57,9 +57,11 @@ FORK WORK:
   live under `TF_LOG=debug` by counting provider requests and state-cache
   hits, and shown beside the claim smoke's reproducible receipt as a
   separately labelled panel, never dressed up as the same measurement. The
-  governance guard reads the moved role's tags, inline policies and
-  attachments through the plain CLI and grades both estates' plans by
-  their text.
+  payoff beat settles the tagging index before it measures the fast plan,
+  and a repeated measurement no longer double-counts, because the log it
+  counts is unlinked before each plan (PR #772). The governance guard
+  reads the moved role's tags, inline policies and attachments through the
+  plain CLI and grades both estates' plans by their text.
 
 - **The stage and the renderer** (`migration.py`, `tlmig/stage.py`,
   `tlmig/viz.py`). The marimo notebook is the stage
