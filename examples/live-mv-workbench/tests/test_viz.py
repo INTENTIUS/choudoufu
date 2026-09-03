@@ -114,6 +114,36 @@ class Rendering(unittest.TestCase):
         self.assertIn("the map fills in when setup runs", page)
         self.assertIn("nothing has run yet", page)
 
+    def test_receipt_record_store_is_read_per_estate_and_reruns_overwrite(self):
+        # 37's final contract: events.receipt is {carve, cloudtrail,
+        # record_store: {estate: [address,...]}, source}; record_store is {}
+        # when no store exists, and a rerun of receipt overwrites it.
+        def run_with(receipts):
+            evs = [{"kind": "phase", "name": "receipt", "status": "start"}]
+            for r in receipts:
+                evs.append({"kind": "receipt", "phase": "receipt", "receipt": r})
+            evs.append({"kind": "phase", "name": "receipt", "status": "end"})
+            with tempfile.TemporaryDirectory() as d:
+                (pathlib.Path(d) / "manifest.json").write_text(json.dumps({"run_id": "x", "prefix": "tlmig-x", "region": "us-east-1", "estates": []}))
+                (pathlib.Path(d) / "events.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n")
+                return viz.load_run(d)
+
+        store = {"tlmig-x-team-a": ["aws_iam_role.team_a", "aws_iam_role_policy.team_a_inline"], "tlmig-x-monolith": []}
+        state = run_with([{"cloudtrail": {"events": []}, "record_store": store, "source": "s"}])
+        self.assertEqual(state.record_store, store)
+        html = viz.render_record_store(state)
+        self.assertIn("aws_iam_role.team_a", html)
+        self.assertIn(".tofu-records", html)
+
+        # {} means no store: no panel, no crash.
+        empty = run_with([{"cloudtrail": {"events": []}, "record_store": {}, "source": "s"}])
+        self.assertEqual(empty.record_store, {})
+        self.assertEqual(viz.render_record_store(empty), "")
+
+        # a rerun overwrites with the fresh read.
+        two = run_with([{"record_store": {"tlmig-x-team-a": ["old"]}}, {"record_store": {"tlmig-x-team-a": ["new"]}}])
+        self.assertEqual(two.record_store, {"tlmig-x-team-a": ["new"]})
+
     def test_the_other_event_spelling_is_accepted(self):
         for spelling in (
             {"kind": "phase_start", "phase": "setup"},
