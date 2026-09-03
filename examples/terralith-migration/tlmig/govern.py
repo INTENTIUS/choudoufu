@@ -139,5 +139,5 @@ def read_inventory(cfg: config.Config, estate: str) -> list[dict]:
 
     items.sort(key=lambda i: (i["type"], i["address"], i["id"]))
     events.inventory(cfg, estate, items)
-    ui.kv(f"{estate} inventory", f"{len(items)} resource(s)", None)
+    ui.inventory(estate, items)
     return items

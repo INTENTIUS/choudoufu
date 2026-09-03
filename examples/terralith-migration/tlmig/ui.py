@@ -9,8 +9,10 @@ what lets the same beats run unattended in a rehearsal or under CI.
 
 from __future__ import annotations
 
+import collections
 import os
 import sys
+from typing import Iterable
 
 from rich.console import Console
 from rich.panel import Panel
@@ -46,6 +48,36 @@ def kv(label: str, value: str, good: bool | None = None) -> None:
     good side of the comparison when that is known."""
     style = "green" if good else "yellow" if good is False else "white"
     console.print(f"  [dim]{label}[/] [bold {style}]{value}[/]")
+
+
+def evidence(lines: Iterable[str], *, limit: int = 12) -> None:
+    """Verbatim lines from a read or a plan, indented the way the smoke's
+    evidence is, so the log shows what was seen and not only what we say
+    about it. Long output is cut, with a count of what was left out, so a
+    plan never floods the beat."""
+    shown = list(lines)
+    omitted = max(len(shown) - limit, 0)
+    for line in shown[:limit]:
+        console.print(Text(f"      {line}", style="dim"))
+    if omitted:
+        console.print(Text(f"      ... {omitted} more line(s) not shown", style="dim"))
+
+
+def proof(text: str) -> None:
+    """The one sentence the evidence above supports, in the smoke's voice."""
+    console.print(f"  [bold]->[/] {text}")
+
+
+def inventory(estate: str, items: list[dict], *, limit: int = 8) -> None:
+    """What one estate holds right now: the count, the shape by type, then
+    the addresses, so a viewer sees a role and three log groups rather than
+    a wall of ARNs."""
+    kv(f"{estate} inventory", f"{len(items)} resource(s)", None)
+    if not items:
+        return
+    by_type = collections.Counter(i.get("type") or "?" for i in items)
+    console.print("    [dim]" + ", ".join(f"{n} {t}" for t, n in sorted(by_type.items())) + "[/]")
+    evidence((f"{i.get('address') or '(no address)'}  {i.get('id', '')}" for i in items), limit=limit)
 
 
 def ok(text: str) -> None:
