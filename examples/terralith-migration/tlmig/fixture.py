@@ -22,7 +22,7 @@ from . import config
 # Three teams keeps the monolith visibly bigger than one estate while staying
 # quick to stand up. team-a is the source of the live carve, team-b its
 # destination; the third is just population so the contrast is not two-way.
-FIXTURE_TEAMS = ("team-a", "team-b", "team-c")
+FIXTURE_TEAMS = config.TEAMS  # single source of truth: config.TEAMS
 
 # Log groups per team — the cheap, taggable bulk. Enough that refreshing all
 # of them across three teams is the slow whole-monolith plan the demo opens

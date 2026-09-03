@@ -43,7 +43,7 @@ RESOURCE_PREFIX = "tlmig"
 # live carve moves; the second receives it.
 SOURCE_TEAM = "team-a"
 DEST_TEAM = "team-b"
-TEAMS = (SOURCE_TEAM, DEST_TEAM)
+TEAMS = (SOURCE_TEAM, DEST_TEAM, "team-c")
 
 
 @dataclasses.dataclass(frozen=True)
