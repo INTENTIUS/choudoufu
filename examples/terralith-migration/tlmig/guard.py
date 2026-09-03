@@ -34,12 +34,13 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import os
 import pathlib
 import shlex
 import subprocess
 import time
 
-from . import config, ui
+from . import config, events, ui
 
 
 class GuardError(Exception):
@@ -78,6 +79,7 @@ def _run(
     cwd: str | None = None,
     capture: bool = False,
     env: dict | None = None,
+    label: str = "",
 ) -> Result:
     """The one place a subprocess is spawned. Always an argument list, never a
     shell string, so a resource name with a space or a glob character is data,
@@ -91,12 +93,17 @@ def _run(
         text=True,
         env=env,
     )
+    seconds = time.monotonic() - started
+    # One structured event per command, for the visualization's write ledger.
+    # Captured stdout is filed under runs/<id>/cmd/ and referenced by path so
+    # a plan's text is available without bloating the feed.
+    events.cmd(cfg, argv, cwd, proc.returncode, seconds, stdout=proc.stdout if capture else None, label=label)
     return Result(
         argv=argv,
         returncode=proc.returncode,
         stdout=proc.stdout or "" if capture else "",
         stderr=proc.stderr or "" if capture else "",
-        seconds=time.monotonic() - started,
+        seconds=seconds,
     )
 
 
@@ -170,11 +177,15 @@ def chdf(
     destructive: bool = False,
     capture: bool = False,
     check: bool = True,
+    env: dict | None = None,
+    label: str = "",
 ) -> Result:
     """Run the pinned choudoufu binary. A plan is a read; an apply, destroy or
     move is destructive and must name a cwd inside this run and clear a
     confirmation. Set check=False to inspect a nonzero result instead of
-    raising (the guard reads plan output that way)."""
+    raising (the guard reads plan output that way). env passes extra
+    environment for a measured run (measure.py sets TF_LOG there); it is
+    merged over the process environment, not a replacement."""
     argv = [cfg.binary, *args]
     if destructive:
         _assert_in_run(cfg, cwd)
@@ -183,7 +194,8 @@ def chdf(
             raise GuardError("declined at the confirmation prompt")
     else:
         ui.cmd(f"choudoufu {' '.join(args)}")
-    res = _run(cfg, argv, cwd=cwd, capture=capture)
+    merged_env = {**os.environ, **env} if env else None
+    res = _run(cfg, argv, cwd=cwd, capture=capture, env=merged_env, label=label)
     if check and not res.ok:
         raise GuardError(f"`choudoufu {' '.join(args)}` failed (exit {res.returncode})\n{res.stderr.strip()}")
     return res
@@ -196,6 +208,7 @@ def aws(
     owned_name: str | None = None,
     capture: bool = True,
     check: bool = True,
+    label: str = "",
 ) -> Result:
     """Run the AWS CLI. Reads (the guard's neutral facts, teardown's
     verification) are unfenced. A destructive call must pass owned_name and it
@@ -208,7 +221,7 @@ def aws(
         ui.cmd(f"aws {' '.join(args)}")
         if not ui.confirm(f"delete {owned_name} in account {cfg.account_id}?"):
             raise GuardError("declined at the confirmation prompt")
-    res = _run(cfg, argv, capture=capture)
+    res = _run(cfg, argv, capture=capture, label=label)
     if check and not res.ok:
         raise GuardError(f"`aws {' '.join(args)}` failed (exit {res.returncode})\n{res.stderr.strip()}")
     return res

@@ -28,7 +28,7 @@ import re
 import shlex
 import subprocess
 
-from . import config, ui
+from . import config, events, ui
 
 # tlmig/receipt.py -> tlmig -> terralith-migration -> examples -> repo root
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -204,6 +204,7 @@ def read_receipt(cfg: config.Config, log: pathlib.Path | None = None) -> Receipt
         "cloudtrail": dataclasses.asdict(ct) if ct else None,
         "source": str(log),
     }, indent=2, default=str))
+    events.receipt(cfg, {"carve": carve, "cloudtrail": ct, "source": str(log)})
     for label, value, good in receipt.lines():
         ui.kv(label, value, good)
     return receipt

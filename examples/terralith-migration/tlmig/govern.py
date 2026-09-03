@@ -13,7 +13,7 @@ them. The source estate's plan, which must be "No changes." with no
 
 from __future__ import annotations
 
-from . import config, guard, ui, verify
+from . import config, events, guard, ui, verify
 
 
 def plan_verdict(cfg: config.Config, estate: str) -> verify.PlanVerdict:
@@ -75,8 +75,69 @@ def read_carve(
     ui.kv(f"{source_estate} plan", source.describe(), source.clean and source.leaves_nothing_behind)
     ui.kv(f"{dest_estate} plan", destination.describe(), destination.clean)
 
+    shown = [f"{label}: {value}" for label, value, _ in (
+        (f"{role} tofu-estate", tags["tofu-estate"] or "(none)", None),
+        (f"{role} inline policies", ", ".join(inline) or "none", None),
+        (f"{role} attachments", str(len(attached)), None),
+        (f"{source_estate} plan", source.describe(), None),
+        (f"{dest_estate} plan", destination.describe(), None),
+    )]
+    events.fact(cfg, f"role:{role}", tags["tofu-estate"] or None)
+    events.verdict(cfg, f"carve:{role}", verdict, ok=verdict.ok and children_ok, lines=shown)
     if verdict.ok and children_ok:
         ui.ok("nothing left behind: the tag moved, the children followed, both estates plan clean")
     else:
         ui.err("the carve left something behind; see the reads above")
     return verdict
+
+
+# --------------------------------------------------------------------------
+# The inventory an estate map diffs
+# --------------------------------------------------------------------------
+
+def _arn_type(arn: str) -> str:
+    """"aws_iam_role"-style type from an ARN's service and resource
+    segments, close enough for a map legend: iam role -> iam:role."""
+    parts = arn.split(":", 5)
+    if len(parts) < 6:
+        return "unknown"
+    service, resource = parts[2], parts[5]
+    return f"{service}:{resource.split('/')[0].split(':')[0]}"
+
+
+def read_inventory(cfg: config.Config, estate: str) -> list[dict]:
+    """Everything the account holds under one estate, as items the visual
+    diffs: {id, type, address, tags}. Two reads, because the tagging index
+    does not cover IAM on a real account: get-resources by estate for
+    everything it does index, then the run's roles by prefix with each
+    role's own tags, kept when the role's tofu-estate is this estate. The
+    result is emitted as an inventory event and returned."""
+    items: list[dict] = []
+    seen: set[str] = set()
+
+    tagged = guard.aws(
+        cfg, "resourcegroupstaggingapi", "get-resources", "--region", cfg.region,
+        "--tag-filters", f"Key=tofu-estate,Values={estate}", "--output", "json",
+    ).stdout
+    import json as _json
+    for m in _json.loads(tagged).get("ResourceTagMappingList", []):
+        arn = m.get("ResourceARN", "")
+        tags = {t["Key"]: t.get("Value", "") for t in m.get("Tags", [])}
+        items.append({"id": arn, "type": _arn_type(arn), "address": tags.get("tofu-address", ""), "tags": tags})
+        seen.add(arn)
+
+    roles = _json.loads(guard.aws(cfg, "iam", "list-roles", "--output", "json").stdout).get("Roles", [])
+    for r in roles:
+        name = r.get("RoleName", "")
+        if not name.startswith(cfg.prefix) or r.get("Arn", "") in seen:
+            continue
+        tags_json = guard.aws(cfg, "iam", "list-role-tags", "--role-name", name, "--output", "json").stdout
+        tags = {t["Key"]: t.get("Value", "") for t in _json.loads(tags_json).get("Tags", [])}
+        if tags.get("tofu-estate") != estate:
+            continue
+        items.append({"id": r.get("Arn", name), "type": "iam:role", "address": tags.get("tofu-address", ""), "tags": tags})
+
+    items.sort(key=lambda i: (i["type"], i["address"], i["id"]))
+    events.inventory(cfg, estate, items)
+    ui.inventory(estate, items)
+    return items
