@@ -1,0 +1,1 @@
+Synthetic. The sample run cut after decompose, plus a preview phase of a planned carve as events.preview pins it (e9, 2026-09-03): two moves that pass their checks and one the dry run refuses because the destination does not declare the address.
