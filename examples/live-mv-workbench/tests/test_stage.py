@@ -94,3 +94,53 @@ class OneAtATime(unittest.TestCase):
         stage.wait(a, timeout=30)
         self.assertIsNotNone(st.click("slow-plan", 2))     # the next click, once setup ended, starts it
         stage.wait(st.phases["slow-plan"], timeout=30)
+
+
+class ExtraArgsAndPhases(unittest.TestCase):
+    def test_extra_arguments_follow_the_cli_grammar(self):
+        st = stage.Stage("x1", cli=[sys.executable, "-c", "import sys; print(sys.argv)", "{phase}", "{run_id}"])
+        import os, tempfile
+        cwd = pathlib.Path.cwd()
+        with tempfile.TemporaryDirectory() as d:
+            os.chdir(d)
+            try:
+                rec = st.start("seed", extra=["--config", "/x", "--estate", "e"])
+                stage.wait(rec, timeout=30)
+                self.assertIn("'--estate', 'e'", rec.tail())
+            finally:
+                os.chdir(cwd)
+
+    def test_available_phases_reads_the_cli_help(self):
+        fake = [sys.executable, "-c", "print('usage: tlmig [-h] {preflight,setup,seed,preview}')", "{phase}", "--run", "{run_id}", "--auto"]
+        self.assertEqual(stage.available_phases(fake), {"preflight", "setup", "seed", "preview"})
+        self.assertEqual(stage.available_phases([sys.executable, "-c", "print('no braces')"]), set())
+
+
+class KeysAndOnce(unittest.TestCase):
+    def test_two_buttons_on_one_verb_keep_separate_records(self):
+        st = stage.Stage("k1", cli=[sys.executable, "-c", "import sys, time; time.sleep(0.3); print(sys.argv)", "{phase}", "{run_id}"])
+        import os, tempfile
+        cwd = pathlib.Path.cwd()
+        with tempfile.TemporaryDirectory() as d:
+            os.chdir(d)
+            try:
+                a = st.click("seed", 1, extra=["--config", "/x"], key="seed:verify")
+                self.assertEqual(st.running(), "seed:verify")
+                self.assertIsNone(st.click("seed", 1, extra=["--approve"], key="seed:adopt"))   # refused: busy
+                self.assertEqual(st.refused, ("seed:adopt", "seed:verify"))
+                stage.wait(a, timeout=30)
+                b = st.click("seed", 2, extra=["--approve"], key="seed:adopt")
+                stage.wait(b, timeout=30)
+                self.assertEqual(st.status("seed:verify"), "done")
+                self.assertEqual(st.status("seed:adopt"), "done")
+                self.assertIn("'--approve'", b.tail())
+                self.assertTrue(b.log.name.startswith("seed-adopt"))
+            finally:
+                os.chdir(cwd)
+
+    def test_once_serves_each_click_count_one_time(self):
+        st = stage.Stage("k2", cli=["true", "{phase}"])
+        self.assertFalse(st.once("carve.json", 0))
+        self.assertTrue(st.once("carve.json", 1))
+        self.assertFalse(st.once("carve.json", 1))
+        self.assertTrue(st.once("carve.json", 2))

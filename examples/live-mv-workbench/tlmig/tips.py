@@ -19,6 +19,18 @@ STATE_WENT = (
 )
 
 TIPS: dict[str, dict[str, str]] = {
+    "seed": {
+        "beginner": "Seeding is how resources come to carry the two identity tags, tofu-estate and tofu-address. The demo seed applies a config that was written for choudoufu, so the tags arrive with the apply. Adopting your own config does the same for resources that already exist: verify first, which reads every resource your state names and refuses anything it cannot match, and only then adopt, which writes the two tags and nothing else. Your state file is read, never changed.",
+        "expert": "Adopt runs live-import: without -approve it is verify-only (no writes, exit non-zero on any unmatched address); with -approve it writes tofu-estate and tofu-address on each taggable resource and leaves untaggable ones to follow their parent. Nothing else about the resource changes and the tfstate you pointed at is not rewritten. The estate name you give here becomes the value every plan filters on, so pick the name you will govern by (an IAM condition on aws:ResourceTag/tofu-estate).",
+    },
+    "plan": {
+        "beginner": "The plan is a table: one row per resource, with the estate it is in and the estate it should go to. Rules fill the destination column in bulk (everything under one module, everything of one type, every address with a name in it) and any single row can be overridden by hand. Rows that stay put are not moves. Saving writes the plan beside the run; nothing in the cloud changes until the move phase.",
+        "expert": "Later rules win over earlier ones and a per-row edit wins over rules. Only taggable resources are rows; untaggable children (inline policies, attachments) follow their parent's tag and are shown as a count. The file is runs/<id>/carve.json: from, estates, moves[{address,to}], rules. The executor iterates moves and runs live-mv per address; the rules are recorded so the plan explains itself later.",
+    },
+    "preview": {
+        "beginner": "Preview runs every planned move as a dry run and reports what each would do: which tags it would write and which children would follow, or why it refuses. The map on the right is the estate as it would stand afterwards, drawn from those reports. It is safe to run as often as you like, and it is the thing to show before anyone agrees to a move.",
+        "expert": "Each row is one `live-mv -dry-run -from-estate=<src> <addr> <addr>` in the destination's directory: the refusals are live-mv's own (address not found under the source tag, destination already claims it, an untaggable type named directly), so what preview refuses, move refuses. The projection is the page's arithmetic over the passed rows, not a choudoufu feature; the plan-cost bars per destination estate come from the verify phase, not from here.",
+    },
     "preflight": {
         "beginner": "Nothing touches the cloud yet. The run reads which account your credentials resolve to and which "
                     "choudoufu binary will run, and refuses to continue if either is not what the run was set up for.",

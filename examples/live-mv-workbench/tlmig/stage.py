@@ -114,7 +114,16 @@ class Stage:
                 return name
         return None
 
-    def click(self, phase: str, clicks: int) -> PhaseRun | None:
+    def once(self, key: str, clicks: int) -> bool:
+        """True exactly once per new click count for ``key``: the guard a
+        cell uses around a write of its own (saving carve.json) so a redraw
+        with the same count never repeats it."""
+        if clicks <= self.handled.get(key, 0):
+            return False
+        self.handled[key] = clicks
+        return True
+
+    def click(self, phase: str, clicks: int, extra: list[str] | None = None, key: str | None = None) -> PhaseRun | None:
         """Start a phase once per button click. ``clicks`` is the button's
         running count; a redraw that re-runs the cell with the same count
         starts nothing, which is what keeps a timer from re-running a
@@ -122,15 +131,16 @@ class Stage:
         running is not served: two phases on one run directory would race
         each other's cache and record store. The click is forgotten, so
         the presenter clicks again once the running phase ends."""
-        if clicks <= self.handled.get(phase, 0):
-            return self.phases.get(phase)
+        key = key or phase
+        if clicks <= self.handled.get(key, 0):
+            return self.phases.get(key)
         busy = self.running()
-        if busy and busy != phase:
-            self.handled[phase] = clicks
-            self.refused = (phase, busy)
+        if busy and busy != key:
+            self.handled[key] = clicks
+            self.refused = (key, busy)
             return None
-        self.handled[phase] = clicks
-        return self.start(phase)
+        self.handled[key] = clicks
+        return self.start(phase, extra, key)
 
     # -- starting ---------------------------------------------------------
     def argv(self, phase: str) -> list[str]:
@@ -138,19 +148,23 @@ class Stage:
         # braces of its own (a python -c body, a JMESPath query) survives.
         return [a.replace("{phase}", phase).replace("{run_id}", self.run_id) for a in self.cli]
 
-    def start(self, phase: str) -> PhaseRun:
-        """Start a phase unless it is already running. Returns its record."""
+    def start(self, phase: str, extra: list[str] | None = None, key: str | None = None) -> PhaseRun:
+        """Start a phase unless it is already running. Returns its record.
+        ``extra`` arguments follow the CLI's own (a seed's --config, --estate);
+        ``key`` names the record when one verb is run in more than one way
+        (seed:verify and seed:adopt both run the seed verb)."""
+        key = key or phase
         with self._lock:
-            current = self.phases.get(phase)
+            current = self.phases.get(key)
             if current is not None and current.returncode is None:
                 return current
             (self.run_dir / "stage").mkdir(parents=True, exist_ok=True)
-            log = self.run_dir / "stage" / f"{phase}.log"
+            log = self.run_dir / "stage" / f"{key.replace(':', '-')}.log"
             env = dict(os.environ, TLMIG_AUTO="1", PYTHONUNBUFFERED="1", **(self.env or {}))
             fh = open(log, "w")
-            proc = subprocess.Popen(self.argv(phase), stdout=fh, stderr=subprocess.STDOUT, env=env, cwd=os.getcwd())
-            rec = PhaseRun(phase, self.run_id, log, datetime.now(timezone.utc), proc)
-            self.phases[phase] = rec
+            proc = subprocess.Popen(self.argv(phase) + list(extra or []), stdout=fh, stderr=subprocess.STDOUT, env=env, cwd=os.getcwd())
+            rec = PhaseRun(key, self.run_id, log, datetime.now(timezone.utc), proc)
+            self.phases[key] = rec
             threading.Thread(target=self._reap, args=(rec, fh), daemon=True).start()
             return rec
 
@@ -232,3 +246,16 @@ def wait(rec: PhaseRun, timeout: float = 600) -> int | None:
     while rec.returncode is None and time.monotonic() < deadline:
         time.sleep(0.2)
     return rec.returncode
+
+
+def available_phases(cli: list[str] | None = None) -> set[str]:
+    """The phase names the CLI knows, read from its own --help, so the page
+    can offer a seed or a preview only once the CLI has them."""
+    import re
+    argv = [a for a in (cli or CLI) if a not in ("{phase}", "--run", "{run_id}", "--auto")] + ["--help"]
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    m = re.search(r"\{([a-z0-9,\-]+)\}", out)
+    return set(m.group(1).split(",")) if m else set()
