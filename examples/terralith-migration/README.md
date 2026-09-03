@@ -5,9 +5,10 @@ estates by retagging, on a real AWS account, with the account's own log as
 the receipt. This is the demo behind the "tag is the boundary" story, and the
 example choudoufu users copy when their monolith is the one to split.
 
-Pinned to choudoufu `v0.10.0` and to one account (`tlmig/config.py`); every
-resource a run creates carries the run's prefix, and nothing destructive runs
-outside it.
+Pinned to one choudoufu release and one account, both named in
+`tlmig/config.py` and asserted by preflight before a single call reaches AWS;
+every resource a run creates carries the run's prefix, and nothing
+destructive runs outside it.
 
 ## What you run
 
