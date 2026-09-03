@@ -242,15 +242,17 @@ def _parse_trail_event(raw: dict) -> CloudTrailEvent | None:
     )
 
 
-def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None = None, max_wait: int = 240,
+def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None = None, max_wait: int = 120,
                           poll: int = 20, min_events: int = 1) -> CloudTrailReceipt:
     """This run's own tag writes, read back from the account's CloudTrail
     event history: every TagRole, TagPolicy, TagResource and kin since the
     run began whose record names something carrying the run's prefix. Event
     history lags a write by a minute or so, so this polls, up to max_wait
-    seconds, until at least min_events retags are visible; a lookup that
-    finds nothing in time returns an empty receipt rather than failing, so
-    the beat can say so."""
+    seconds, until at least min_events retags are visible. The retags this
+    beat reads happened minutes earlier (decompose, then carve), so in
+    practice the first lookup finds them; the cap is two minutes so a beat
+    never holds a room, and a lookup that finds nothing in time returns an
+    empty receipt rather than failing, so the beat can say so."""
     since = since or run_started(cfg)
     start = (since - datetime.timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     deadline = time.monotonic() + max_wait
