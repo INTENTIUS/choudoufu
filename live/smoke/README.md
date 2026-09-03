@@ -157,6 +157,15 @@ showing its own checks would have caught it.
   resource out of band and the plan surfaces it, never serving a gone
   object from cache.
 
+- **count-is-a-fungible-set** - *Claim 11: a count pool is a fungible
+  set.* A `count` block's members are interchangeable, so each one is
+  named by a `tofu-slot` marker rather than by its index. Scaling a pool
+  of three down to two removes exactly one member and creates nothing.
+  The middle survivor stays the same live object, where stock would
+  renumber and rebuild the tail. The BREAK control deletes the local
+  record, then strips one member's slot, and the plan must refuse the
+  half-slotted set by name rather than bind the odd member by a guess.
+
 ## Knobs
 
 | Variable | Effect |

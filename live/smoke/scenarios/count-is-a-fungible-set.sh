@@ -1,5 +1,5 @@
-# CLAIMNAME-PENDING
-# CLAIM 10 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing - and stripping the slots makes the run refuse rather than guess. ~2 min.
+# count-is-a-fungible-set
+# CLAIM 11 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing - and stripping the slots makes the run refuse rather than guess. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/count"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -27,16 +27,16 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "the claim"
 explain \
-  "A count pool is a fungible SET. Its members are interchangeable -" \
-  "the lint boundary forbids any argument from reading count.index, so" \
-  "nothing about instance 2 distinguishes it from instance 0 - and the" \
+  "A count pool is a fungible SET. Its members are interchangeable: the" \
+  "lint boundary forbids any argument from reading count.index, so" \
+  "nothing about instance 2 distinguishes it from instance 0. The" \
   "positional index aws_eip.pool[1] is where a member sits, not what it" \
   "is. What it is, is a tofu-slot marker: a stable id minted once and" \
-  "never reused. The slot is what holds the set together across a scale" \
-  "change, so shrinking the pool removes one member and rebuilds" \
-  "nothing, where stock renumbers and recreates the tail. Strip the" \
-  "slots and the set has no name for its members - and the run refuses" \
-  "rather than guess."
+  "never reused. The slot holds the set together across a scale change." \
+  "Shrinking the pool therefore removes one member and rebuilds nothing," \
+  "where stock renumbers and recreates the tail. Strip a slot where no" \
+  "local record vouches for the member, and the set has two rules for" \
+  "naming its members, so the run refuses rather than guess."
 
 step "1. stand up a pool of three"
 cmd "choudoufu apply -auto-approve"
@@ -48,27 +48,39 @@ pool | evidence
 proof "three interchangeable members, three distinct slots. The slot is the name; the index is just today's seat."
 
 if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - strip one member's slot; the set loses its name"
+  step "BREAK control - lose the local record, strip one member's slot; the set loses its name"
   explain \
-    "Delete the tofu-slot tag from one member. Now the set is half" \
-    "slotted: two members answer 'which instance am I?' by slot, one has" \
-    "no answer at all. That is two rules for one set, and the run must" \
-    "REFUSE naming the disagreement rather than bind the odd member by a" \
-    "guess. A clean plan here would mean the slot was never what bound" \
-    "the set."
-  VICTIM="$(pool | awk 'NR==2{print $1}')"
+    "Beside a configuration that has applied, a missing slot is a repair," \
+    "not a guess: the local record already names every member, so the" \
+    "plan re-stamps the slot from it. The stock condition is the one" \
+    "where nothing but the tags names a member. To manufacture it, delete" \
+    "the local files, cache and record store both, which the storage page" \
+    "calls churn and never a lost estate, then delete the tofu-slot tag" \
+    "from one member. Now two members answer 'which" \
+    "instance am I?' by slot and one has no answer at all. That is two" \
+    "rules for one set, and the run must REFUSE naming the disagreement" \
+    "rather than bind the odd member by a guess. A clean plan here would" \
+    "mean the slot was never what bound the set."
+  cmd "rm -rf .terraform* terraform.tfstate* .tofu-records ; choudoufu init ; aws ec2 delete-tags --tags Key=tofu-slot ; choudoufu plan"
+  [ -d "$SMOKE_WORK/.tofu-records" ] || fail "count" "BREAK: expected the record store beside the module before the wipe"
+  rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate* "$SMOKE_WORK"/.tofu-records
+  ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "count" "BREAK: init after the wipe failed"
+  VICTIM="$(pool | awk 'NR==2{print $1}')"; VSLOT="$(pool | awk 'NR==2{print $2}')"
   awsl ec2 delete-tags --resources "$VICTIM" --tags Key=tofu-slot >/dev/null 2>&1 || fail "count" "BREAK: could not strip a slot"
-  # settle: wait until the stripped object no longer shows a slot in the sweep's index
-  for i in $(seq 1 20); do
-    SLOTS_NOW="$(pool | awk '{print $2}' | grep -c '^[0-9]')"
+  # settle: the sweep reads the tagging index, which lags a raw delete-tags
+  # (the #756 lesson), so wait until the index shows two slots, not three.
+  for i in $(seq 1 30); do
+    SLOTS_NOW="$(awsl resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=stateless-e2e-block \
+      --query 'length(ResourceTagMappingList[].Tags[?Key==`tofu-slot`][])' --output text 2>/dev/null || echo 3)"
     [ "$SLOTS_NOW" = "2" ] && break; sleep 1
   done
   BP="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
-  if ! grep -qiE "slot marker|disagree about slot" <<< "$BP"; then
+  if ! grep -qiE "partial slot markers|disagree about slot" <<< "$BP"; then
     fail "count" "BREAK: the plan did not refuse the half-slotted set by name: $BP"
   fi
-  grep -iE "disagree about slot|slot marker" <<< "$BP" | head -1 | evidence
-  proof "caught - a set that carries slots on some members and not others has two answers, and the run stops. Slots are what bind the set."
+  grep -iE "partial slot markers|disagree about slot" <<< "$BP" | head -1 | evidence
+  proof "caught - with no record to vouch for it, a set that carries slots on some members and not others has two answers, and the run stops. Slots are what bind the set."
+  awsl ec2 create-tags --resources "$VICTIM" --tags "Key=tofu-slot,Value=$VSLOT" >/dev/null 2>&1 || true
   ( cd "$SMOKE_WORK" && sed -i '' 's/count  = 3/count  = 0/' pool.tf; chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
 fi
