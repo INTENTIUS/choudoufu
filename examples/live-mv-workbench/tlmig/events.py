@@ -22,6 +22,9 @@ the visuals side:
 - ``measure``: ``label``, ``estate``, ``requests``, ``cache_hits``,
   ``refresh``, ``seconds`` and ``reference``, the emulator's numbers beside.
 - ``receipt``: the reproducible receipt as :mod:`receipt` writes it.
+- ``preview``: one planned move as ``live-mv -dry-run`` reported it, from
+  :mod:`moveset`: the tag writes, the children that follow and any refusal,
+  so the page draws the map as it would stand without parsing the terminal.
 - ``note``: ``text`` the visual should echo.
 
 Only writes live here; :func:`emit` is the one writer and every kind above
@@ -159,6 +162,14 @@ def measure(
 
 def receipt(cfg: config.Config, obj: Any) -> None:
     emit(cfg, "receipt", receipt=obj)
+
+
+def preview(cfg: config.Config, obj: Any) -> dict[str, Any]:
+    """One planned move, write-free. ``obj`` is a :class:`moveset.MovePreview`;
+    its ``as_event`` flattens to the accepted shape (``from``/``to`` on each
+    tag write, ``refusal`` null or an object), which a dataclass field could
+    not spell because ``from`` is reserved."""
+    return emit(cfg, "preview", **obj.as_event())
 
 
 def note(cfg: config.Config, text: str) -> None:
