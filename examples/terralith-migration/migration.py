@@ -49,18 +49,29 @@ def _(mo):
         """
     # The tag is the boundary
 
+    This is the terralith-migration example: one monolith estate, split into
+    per-team estates by retagging, on a real AWS account, with the account's
+    own log as the receipt.
+
     An org's own terralith: one estate, everything in it, one all-or-nothing
     permission boundary. The team wants per-team ownership without the
     state-split engagement. Under choudoufu, ownership is two tags on the
     resource, and a plan reads only its own estate. So the decomposition
     stops being a project and becomes a metadata edit, and every step of it
     is an API call the account can refuse and does record.
-
-    Below, the story in phases. Each button runs one phase for real; the
-    picture follows the run's own event log.
     """
     )
     return
+
+
+@app.cell
+def _(config, mo):
+    _live = f"live: run each phase for real, against AWS account ...{config.ACCOUNT_ID[-4:]} (writes, then tears down)"
+    _replay = "replay: watch a recording of a past run; no account needed"
+    mode = mo.ui.radio(options={_live: "live", _replay: "replay"}, value=_replay, label="")
+    pin = mo.ui.dropdown({f"release {config.CHOUDOUFU_VERSION}": "", "local build of this checkout": "local"}, value=f"release {config.CHOUDOUFU_VERSION}", label="pin")
+    tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw every")
+    return mode, pin, tick
 
 
 @app.cell
@@ -68,15 +79,10 @@ def _(mo, pathlib, stage):
     _existing = [p.name for p in sorted(pathlib.Path("runs").glob("*")) if (p / "events.jsonl").exists()]
     _fixtures = {p.name: str(p) for p in sorted(pathlib.Path("tests/fixtures").glob("*-run")) if (p / "events.jsonl").exists()}
     run_id = mo.ui.text(value=stage.new_run_id(), label="run id")
-    # The pin: the release config names, or a build of this checkout
-    # (CHOUDOUFU_VERSION=local), which the CLI builds on first use and caches
-    # beside the example, labelled by git describe.
-    pin = mo.ui.dropdown({f"release {config.CHOUDOUFU_VERSION}": "", "local build of this checkout": "local"}, value=f"release {config.CHOUDOUFU_VERSION}", label="pin")
-    replay = mo.ui.dropdown({"(live run above)": "", **{f"replay {k}": v for k, v in _fixtures.items()}, **{f"replay runs/{k}": f"runs/{k}" for k in reversed(_existing)}}, value="(live run above)", label="or replay")
-    # Durations only: marimo's refresh has no "off"; 10m is the quiet setting.
-    tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw")
-    mo.hstack([run_id, pin, replay, tick], justify="start", gap=2)
-    return pin, replay, run_id, tick
+    _names = {"sample-run": "sample run: a synthetic walk of every phase", "emitter-run": "emitter run: written by the real emitters, cloud faked"}
+    _choices = {**{_names.get(k, k): v for k, v in _fixtures.items()}, **{f"your run {k}": f"runs/{k}" for k in reversed(_existing)}}
+    recording = mo.ui.dropdown(_choices, value=next(iter(_choices), None), label="recording")
+    return recording, run_id
 
 
 @app.cell
@@ -87,35 +93,73 @@ def _(mo, os, pin, stage):
     if not pin.value:
         os.environ.pop("CHOUDOUFU_VERSION", None)
     binary = mo.ui.text(value=stage.find_binary(), label="choudoufu binary" + (" (built from this checkout on the first phase when empty)" if pin.value else ""), full_width=True)
-    binary
     return (binary,)
 
 
 @app.cell
-def _(binary, pin, replay, run_id, stage):
+def _(binary, mo, mode, pin, recording, run_id):
+    # Each mode shows only its own controls; the knobs a presenter rarely
+    # touches are folded away. This cell must not reference the redraw timer:
+    # a cell that does re-runs every tick, and everything downstream with it.
+    live = mode.value == "live"
+    if live:
+        _controls = mo.vstack([
+            mo.md("Press each phase's button below, in story order, and talk over it. The picture follows the run as it writes its own event log. Live needs credentials for the pinned account; without them, preflight refuses and nothing else runs."),
+            mo.accordion({"run settings (run id, pin, binary)": mo.vstack([mo.hstack([run_id, pin], justify="start", gap=2), binary])}),
+        ])
+    else:
+        _controls = mo.vstack([
+            recording,
+            mo.md("A recording plays back: the buttons are off, and each beat below shows the picture as that phase left it."),
+        ])
+    mo.vstack([mode, _controls])
+    return (live,)
+
+
+@app.cell
+def _(binary, live, pin, recording, run_id, stage):
     # One Stage per run id: the buttons below start phases through it, with
-    # the chosen binary as CHOUDOUFU_BIN and the pin as CHOUDOUFU_VERSION. A
-    # replay picks a recorded directory and disables the buttons.
-    run_dir = replay.value or f"runs/{run_id.value}"
-    st = stage.Stage(run_id.value, binary=binary.value, env={"CHOUDOUFU_VERSION": pin.value} if pin.value else {})
+    # the chosen binary as CHOUDOUFU_BIN and the pin as CHOUDOUFU_VERSION.
+    run_dir = f"runs/{run_id.value}" if live else (recording.value or "")
+    # stage.for_run keeps one Stage per run id across cell re-runs, so the
+    # phases it started are never forgotten and a click is served once.
+    st = stage.for_run(run_id.value, binary=binary.value, env={"CHOUDOUFU_VERSION": pin.value} if pin.value else {})
     return run_dir, st
 
 
 @app.cell
-def _(mo, run_dir, tick, viz):
+def _(live, mo, run_dir, tick, viz):
     tick.value  # redraw on every tick
     _state = viz.load_run(run_dir)
     boundaries = viz.phase_boundaries(run_dir)
-    mo.Html(viz.render_html(_state, ledger_rows=30, map_width=760))
+    _done = [p.name for p in _state.phases if p.status == "done"]
+    _active = _state.active_phase
+    _order = list(viz.PHASES)
+    if not live:
+        # A finished recording ends empty (teardown), which is the wrong first
+        # picture; open on the run as it stood before teardown and say so.
+        _before = [n for n in _done if n != "teardown"]
+        if "teardown" in _done and _before:
+            _state = viz.load_run(run_dir, upto=boundaries[_before[-1]])
+        _hint = f"Replaying `{run_dir}`: {len(_done)} phases recorded" + (", shown here as it stood after **" + _before[-1] + "**, before teardown emptied the account" if "teardown" in _done and _before else "") + ". Scroll down; each beat shows its picture."
+    elif _active:
+        _hint = f"Running **{_active.name}**. Keep talking; the picture follows."
+    elif not _done:
+        _hint = "Nothing has run yet. Start with **run preflight** below."
+    else:
+        _last = _done[-1]
+        _next = _order[_order.index(_last) + 1] if _last in _order and _order.index(_last) + 1 < len(_order) else None
+        _hint = f"**{_last}** finished. Next: **run {_next}**." if _next else f"**{_last}** finished. That was the last phase."
+    mo.vstack([mo.hstack([mo.md(_hint), tick], justify="space-between"), mo.Html(viz.render_html(_state, ledger_rows=30, map_width=760))])
     return (boundaries,)
 
 
 @app.cell
-def _(mo, replay):
+def _(live, mo):
     # The buttons. Globals, created here where nothing depends on the timer,
     # so a redraw never rebuilds them. Each counts its clicks.
     def _btn(name):
-        return mo.ui.button(label=f"run {name}", value=0, on_click=lambda v: v + 1, disabled=bool(replay.value))
+        return mo.ui.button(label=f"run {name}", value=0, on_click=lambda v: v + 1, disabled=not live)
 
     preflight_btn = _btn("preflight")
     setup_btn = _btn("setup")
@@ -130,7 +174,7 @@ def _(mo, replay):
 
 
 @app.cell
-def _(boundaries, mo, replay, run_dir, st, viz):
+def _(boundaries, live, mo, run_dir, st, viz):
     STORY = {
         "preflight": ("Which account, which binary",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
@@ -158,16 +202,18 @@ def _(boundaries, mo, replay, run_dir, st, viz):
         left it. Re-runs on every tick; the button itself is a global made
         elsewhere, so it survives the redraw, and the click is served once."""
         title, words = STORY[name]
-        if not replay.value:
+        if live:
             st.click(name, button.value)
-        status = st.status(name) if not replay.value else ("done" if name in boundaries else "not in this replay")
+        status = st.status(name) if live else ("recorded" if name in boundaries else "not in this recording")
         parts = [mo.md(f"## {title}\n\n{words}"), mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
         said = st.notes(name)
         if said:
             parts.append(mo.md("\n".join(f"> {s}" for s in said)))
         tail = st.tail(name)
-        if tail and status == "running":
-            parts.append(mo.ui.code_editor(tail, language="text", disabled=True, max_height=180))
+        if tail and (status == "running" or status.startswith("failed")):
+            # While it runs, the beat's own narration; when it failed, the
+            # reason, which is usually the guard's refusal panel.
+            parts.append(mo.ui.code_editor(tail, language="text", disabled=True, max_height=220))
         upto = boundaries.get(name)
         if upto is not None:
             picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)

@@ -56,6 +56,12 @@ def find_binary() -> str:
     cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / version / "choudoufu"
     if version and cached.exists():
         return str(cached)
+    if version:
+        try:
+            from . import localbuild
+            return localbuild.fetch_release(version)
+        except Exception:  # noqa: BLE001 - the CLI's preflight will say what is wrong
+            pass
     return "choudoufu"
 
 
@@ -177,6 +183,26 @@ class Stage:
     def tail(self, phase: str, lines: int = 12) -> str:
         rec = self.phases.get(phase)
         return rec.tail(lines) if rec else ""
+
+
+_STAGES: dict[str, "Stage"] = {}
+
+
+def for_run(run_id: str, **kw) -> "Stage":
+    """The one Stage for a run id, however many times a notebook cell asks.
+    A Stage holds the records of phases it started; a fresh object per cell
+    re-run would forget them and, worse, serve a button's click again."""
+    st = _STAGES.get(run_id)
+    if st is None:
+        st = _STAGES[run_id] = Stage(run_id, **kw)
+    else:
+        for k, v in kw.items():
+            if k == "binary" and v is not None:
+                st.binary = v
+                st.env["CHOUDOUFU_BIN"] = v if v else st.env.get("CHOUDOUFU_BIN", "")
+            elif k == "env" and v:
+                st.env.update(v)
+    return st
 
 
 def new_run_id() -> str:

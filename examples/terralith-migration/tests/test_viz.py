@@ -57,6 +57,7 @@ class Phases(unittest.TestCase):
         self.assertEqual(by["setup"].status, "done")
         self.assertEqual(by["setup"].seconds, 31.0)
         self.assertEqual(by["teardown"].status, "pending")
+        self.assertEqual([p.name for p in state.phases][:2], ["setup", "slow-plan"])   # the sample run's own order first
         mid = viz.load_run(FIXTURE, upto=viz.phase_boundaries(FIXTURE)["setup"] + 1)
         self.assertIsNotNone(mid.active_phase)
         self.assertEqual(mid.active_phase.name, "slow-plan")
@@ -110,8 +111,8 @@ class Rendering(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             (pathlib.Path(d) / "manifest.json").write_text(json.dumps({"run_id": "x", "prefix": "tlmig-x", "region": "us-east-1", "estates": []}))
             page = viz.render_html(viz.load_run(d))
-        self.assertIn("no estate configs yet", page)
-        self.assertIn("no commands yet", page)
+        self.assertIn("the map fills in when setup runs", page)
+        self.assertIn("nothing has run yet", page)
 
     def test_the_other_event_spelling_is_accepted(self):
         for spelling in (

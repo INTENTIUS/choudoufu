@@ -133,3 +133,21 @@ class PreflightLocal(unittest.TestCase):
             with mock.patch.object(guard.subprocess, "run", side_effect=lambda *a, **k: next(answers)), \
                  self.assertRaises(guard.GuardError):
                 guard.preflight(cfg)
+
+
+class FetchRelease(unittest.TestCase):
+    def test_cached_release_is_returned_without_a_download(self):
+        with tempfile.TemporaryDirectory() as d:
+            binary = pathlib.Path(d) / "v9.9.9" / "choudoufu"; binary.parent.mkdir(); binary.write_text("bin")
+            with mock.patch.object(localbuild, "release_cache", return_value=binary), \
+                 mock.patch.object(localbuild.subprocess, "run", side_effect=AssertionError("must not download")):
+                self.assertEqual(localbuild.fetch_release("v9.9.9", log=lambda m: None), str(binary))
+
+    def test_a_download_that_fails_says_why(self):
+        with tempfile.TemporaryDirectory() as d:
+            binary = pathlib.Path(d) / "v9.9.9" / "choudoufu"
+            with mock.patch.object(localbuild, "release_cache", return_value=binary), \
+                 mock.patch.object(localbuild.subprocess, "run", return_value=FakeProc(1, "", "release not found")), \
+                 self.assertRaises(RuntimeError) as cm:
+                localbuild.fetch_release("v9.9.9", log=lambda m: None)
+            self.assertIn("release not found", str(cm.exception))

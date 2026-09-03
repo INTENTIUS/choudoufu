@@ -89,5 +89,38 @@ def ensure(root: pathlib.Path | None = None, *, log=print) -> str:
     return str(binary)
 
 
+def release_cache(version: str) -> pathlib.Path:
+    """Where the smoke harness caches a release: ~/.cache/choudoufu-smoke/<version>/choudoufu."""
+    return pathlib.Path.home() / ".cache" / "choudoufu-smoke" / version / "choudoufu"
+
+
+def fetch_release(version: str, *, log=print) -> str:
+    """Download the pinned release for this platform into the smoke cache,
+    the same way live/smoke/lib.sh does (gh release download, tar xzf), and
+    return the binary's path. A cached copy is returned without a download."""
+    import platform
+    import tarfile
+
+    binary = release_cache(version)
+    if binary.exists():
+        return str(binary)
+    system = platform.system().lower()
+    machine = platform.machine().lower().replace("x86_64", "amd64").replace("aarch64", "arm64")
+    binary.parent.mkdir(parents=True, exist_ok=True)
+    pattern = f"*_{system}_{machine}.tar.gz"
+    log(f"downloading choudoufu {version} ({system}/{machine}) into {binary.parent} ...")
+    proc = subprocess.run(["gh", "release", "download", version, "-R", "INTENTIUS/choudoufu", "--pattern", pattern, "--clobber"],
+                          cwd=str(binary.parent), capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(f"could not download release {version} for {system}/{machine}: {proc.stderr.strip()[-800:]}")
+    for archive in binary.parent.glob(f"choudoufu_*_{system}_{machine}.tar.gz"):
+        with tarfile.open(archive) as tf:
+            tf.extractall(binary.parent)
+    if not binary.exists():
+        raise RuntimeError(f"release {version} downloaded but {binary} is not in the archive")
+    binary.chmod(0o755)
+    return str(binary)
+
+
 if __name__ == "__main__":
     print(ensure(log=lambda m: print(m, file=sys.stderr)))

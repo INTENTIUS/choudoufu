@@ -30,7 +30,7 @@ ACCOUNT_ID = "354867293429"
 # `choudoufu version` reports exactly this fork tag: a drifted binary would
 # quietly change the measured numbers, which for a demo is worse than an
 # error, so it is treated as one.
-CHOUDOUFU_VERSION = "v0.10.0"
+CHOUDOUFU_VERSION = "v0.10.1"
 
 REGION = "us-east-1"
 
@@ -164,4 +164,12 @@ def _find_binary(version: str = CHOUDOUFU_VERSION) -> str:
     cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / version / "choudoufu"
     if cached.exists():
         return str(cached)
-    return "choudoufu"
+    # Not cached: fetch the pinned release the way the smoke harness does, so
+    # a fresh machine needs no manual step. A download that fails leaves the
+    # bare name for preflight to refuse with a clear message.
+    try:
+        from . import localbuild
+        return localbuild.fetch_release(version)
+    except Exception as exc:  # noqa: BLE001 - preflight reports the consequence
+        print(f"  could not fetch choudoufu {version}: {exc}")
+        return "choudoufu"

@@ -61,3 +61,24 @@ class Running(unittest.TestCase):
     def test_argv_fills_the_template(self):
         st = stage.Stage("abc123")
         self.assertEqual(st.argv("carve")[-4:], ["carve", "--run", "abc123", "--auto"])
+
+
+class Registry(unittest.TestCase):
+    def setUp(self):
+        import os
+        self.tmp = tempfile.TemporaryDirectory(); self.cwd = pathlib.Path.cwd(); os.chdir(self.tmp.name)
+
+    def tearDown(self):
+        import os
+        os.chdir(self.cwd); self.tmp.cleanup()
+
+    def test_for_run_returns_the_same_stage_and_keeps_its_phases(self):
+        a = stage.for_run("reg111", cli=[sys.executable, "-c", "import time; time.sleep(0.3)", "{phase}", "{run_id}"])
+        rec = a.click("setup", 1)
+        b = stage.for_run("reg111", binary="/x/choudoufu")
+        self.assertIs(a, b)
+        self.assertIs(b.phases["setup"], rec)
+        self.assertIs(b.click("setup", 1), rec)        # the same click count starts nothing new
+        self.assertIs(b.click("setup", 1).proc, rec.proc)
+        self.assertEqual(b.env["CHOUDOUFU_BIN"], "/x/choudoufu")
+        stage.wait(rec, timeout=30)

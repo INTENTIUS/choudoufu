@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 # Model
 # ----------------------------------------------------------------------------
 
-PHASES = ("setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "teardown")
+PHASES = ("preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "receipt", "teardown")
 
 # Types that carry no tags of their own; drawn attached to the parent whose
 # live tag names their estate.
@@ -505,7 +505,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
     colours = _colours(state)
     teams = sorted({r.team for r in state.resources.values()})
     if not teams:
-        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="currentColor" fill-opacity="0.5" font-family="ui-monospace, monospace" font-size="13">no estate configs yet</text></svg>'
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="currentColor" fill-opacity="0.5" font-family="ui-monospace, monospace" font-size="13">the map fills in when setup runs</text></svg>'
     cell, gap, pad, rowh, left = 64, 8, 14, 74, 96
     ncols = max(len([r for r in state.resources.values() if r.team == t]) for t in teams)
     height = pad * 2 + rowh * len(teams) + 26
@@ -580,7 +580,7 @@ def render_phase_strip(state: RunState) -> str:
 def render_ledger(state: RunState, limit: int = 40, newest_first: bool = True) -> str:
     rows = state.ledger[-limit:]
     if not rows:
-        return "<div class='empty'>no commands yet</div>"
+        return "<div class='empty'>nothing has run yet</div>"
     if newest_first:
         rows = list(reversed(rows))
     trs = []

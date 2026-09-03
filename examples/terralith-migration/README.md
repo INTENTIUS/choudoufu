@@ -10,6 +10,15 @@ Pinned to one choudoufu release and one account, both named in
 every resource a run creates carries the run's prefix, and nothing
 destructive runs outside it.
 
+## The first minute
+
+Two ways to watch it. **Replay** needs nothing but this checkout: the
+notebook opens on a recording, and every beat shows the picture as that
+phase left it. **Live** runs each phase for real against the one account
+the example is fenced to, so it needs that account's credentials; without
+them, preflight refuses and nothing else runs. Pick the mode at the top of
+the page.
+
 ## What you run
 
 The stage is a marimo notebook. Each phase is a cell: the story beat as
