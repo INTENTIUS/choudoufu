@@ -73,6 +73,10 @@ def fast_plan(cfg: config.Config) -> None:
     with events.phase(cfg, "fast-plan", title="plan one estate at cache speed"):
         ui.rule("the fast plan: one estate, served from cache")
         estate = cfg.estate(config.SOURCE_TEAM)
+        # Let the tagging index catch up with the decompose's retags first, so
+        # the sweep vouches from the index instead of reading live and the
+        # measured number reflects the cache, not eventual consistency.
+        env.settle(cfg, estate)
         fast = measure.measure_plan(cfg, estate, "-refresh=false", refresh=False, label="one estate")
         slow = _last_measure(cfg, refresh=True)
         if slow is not None:
