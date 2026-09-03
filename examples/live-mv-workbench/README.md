@@ -129,6 +129,42 @@ estate's `main.tf`. `viz.load_run(run_dir, upto=N)` replays the first N
 events, and `viz.phase_boundaries(run_dir)` gives the index at each phase's
 end, which is how the notebook shows a finished run one phase per cell.
 
+## Seed and plan
+
+The notebook opens with a seed panel and, ahead of the move, a planner.
+Both work on any estate, not only the demo's.
+
+Seeding is how resources come to carry `tofu-estate` and `tofu-address`.
+The demo button applies the terralith config, which was written for
+choudoufu, so the tags arrive with the apply. The adopt form takes a config
+directory, an optional state file and an estate name, and runs `tlmig seed`
+on them: verify first, which is `live-import` without `-approve` (reads every
+resource the state names, refuses anything it cannot match, writes nothing),
+then adopt, which writes the two tags and nothing else. The state file is
+read, never rewritten. The buttons stay off until the installed `tlmig`
+has the `seed` verb; the page reads the verbs from `tlmig --help`.
+
+The planner is a table with one row per taggable resource: address, type,
+the estate its live tag names, and `to`. Rules fill `to` in bulk, one per
+line, `module|prefix|type|name <value> -> <estate>`, later rules winning;
+any row can be edited by hand, and `keep` means it stays. Untaggable
+children are a count on their parent's row and follow it. Saving writes
+`runs/<id>/carve.json`:
+
+```json
+{"from": "tlmig-3f9a2c-monolith", "estates": ["team-b"],
+ "moves": [{"address": "aws_iam_role.team_a", "from": "tlmig-3f9a2c-monolith", "to": "team-b"}],
+ "rules": [{"match": "name", "value": "team_a", "to": "team-b"}]}
+```
+
+The move phase reads `moves`; `rules` records how the rows were filled.
+The preview button runs every move as `live-mv -dry-run` and the page draws
+the map as it would stand once the passed moves are written. The projection
+is the page's arithmetic over the dry-run reports, not a choudoufu feature.
+`tlmig/carve.py` holds the rules and the file format; `tests/test_carve.py`
+proves later rules win, an override wins over rules, and a row already in
+its destination is not a move.
+
 ## What the receipt proves
 
 In stock Terraform and OpenTofu, who owns a resource is a line in a state
