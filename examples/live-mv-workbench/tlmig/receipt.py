@@ -19,6 +19,7 @@ with the exact lines the smoke printed, so a moved line fails there first.
 
 from __future__ import annotations
 
+import base64
 import dataclasses
 import datetime
 import json
@@ -315,3 +316,34 @@ def read_receipt(cfg: config.Config, log: pathlib.Path | None = None) -> Receipt
     for label, value, good in receipt.lines():
         ui.kv(label, value, good)
     return receipt
+
+
+def read_record_store(cfg: config.Config) -> dict[str, list[str]]:
+    """choudoufu's own record of what each estate owns, read straight from the
+    on-disk record store (``.tofu-records``). Each recorded resource is a file
+    whose name is the base64 of its address, so this returns
+    ``{estate: [address, ...]}``.
+
+    This is the tool's own record; CloudTrail is the account's independent one.
+    The receipt shows both so a viewer can see two parties recording the same
+    moves and agreeing - the store says which estate each resource now belongs
+    to, the log says the tag writes that put it there."""
+    out: dict[str, list[str]] = {}
+    est_root = cfg.run_dir / "estates"
+    if not est_root.is_dir():
+        return out
+    for workdir in sorted(est_root.iterdir()):
+        store = workdir / ".tofu-records" / "tofu-records"
+        if not store.is_dir():
+            continue
+        addrs: set[str] = set()
+        for f in store.rglob("*"):
+            if not f.is_file() or f.name.startswith("."):
+                continue  # skip the .store-sentinel and any dotfile
+            try:
+                addrs.add(base64.b64decode(f.name + "=" * (-len(f.name) % 4)).decode())
+            except Exception:  # noqa: BLE001 - an unreadable record name is skipped, never fatal
+                continue
+        if addrs:
+            out[workdir.name] = sorted(addrs)
+    return out
