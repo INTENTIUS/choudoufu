@@ -742,6 +742,38 @@ def render_html(state: RunState, *, stack: bool = True, ledger_rows: int = 40, m
     return "".join(parts)
 
 
+def map_signature(state: RunState) -> tuple:
+    """What the map shows: each resource's key and the estate it sits in."""
+    return tuple(sorted((r.key, state.estate_of(r.key)) for r in state.resources.values()))
+
+
+def render_delta(after: RunState, before: RunState | None, *, map_width: int = 620) -> str:
+    """The picture of what one phase changed: the map only when a resource's
+    estate moved or appeared, the measures and verdicts only those the phase
+    added. A phase that changed nothing visible renders as empty, so a cell
+    can say so in words instead."""
+    parts = [f"<style>{CSS}</style><div class='tlmig'>"]
+    if before is None or map_signature(after) != map_signature(before):
+        if any(not r.gone for r in after.resources.values()):
+            parts.append(f"<h2>who owns what, after this beat</h2><div class='wrap'>{render_map_svg(after, map_width)}</div>")
+        elif before is not None and any(not r.gone for r in before.resources.values()):
+            parts.append("<h2>who owns what, after this beat</h2><div class='empty'>nothing: every resource this run made is gone</div>")
+    n_m = len(before.measures) if before else 0
+    if len(after.measures) > n_m:
+        sliced = dataclasses.replace(after, measures=after.measures[n_m:])
+        m = render_measures(sliced, map_width)
+        if m:
+            parts.append(f"<h2>plan cost · requests per plan</h2><div class='wrap'>{m}</div>")
+    n_v = len(before.verdicts) if before else 0
+    if len(after.verdicts) > n_v:
+        sliced = dataclasses.replace(after, verdicts=after.verdicts[n_v:])
+        v = render_verdicts(sliced)
+        if v:
+            parts.append(f"<h2>guard</h2>{v}")
+    parts.append("</div>")
+    return "".join(parts) if len(parts) > 2 else ""
+
+
 def render_page(run_dir: str | pathlib.Path, *, refresh_seconds: int | None = 2, **kw) -> str:
     """A standalone HTML document for a browser tab, re-fetching itself on a
     timer so a projected page follows the run."""

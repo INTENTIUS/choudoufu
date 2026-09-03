@@ -176,23 +176,23 @@ def _(live, mo):
 @app.cell
 def _(boundaries, live, mo, run_dir, st, viz):
     STORY = {
-        "preflight": ("Which account, which binary",
+        "preflight": ("Which account, which binary", "checks, writes nothing",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
-        "setup": ("The terralith",
-                  "One config, one estate, three teams' worth of IAM and log groups. The account stands it up, and every taggable resource comes back carrying two tags: which estate owns it, and which address it answers to. Nobody wrote a tag by hand."),
-        "slow-plan": ("The villain",
-                      "A plan of the whole monolith. It re-reads everything the estate owns, every time, and the request count is the number the split is meant to bring down."),
-        "decompose": ("The split, by retag",
-                      "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
-        "fast-plan": ("The payoff",
-                      "One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
-        "carve": ("The boundary moves",
+        "setup": ("Build the terralith", "applies: creates 21 resources in one estate",
+                  "One config, one estate, three teams' worth of IAM and log groups. The account applies it and the map fills in: every taggable resource comes back carrying two tags, which estate owns it and which address it answers to. Nobody wrote a tag by hand."),
+        "slow-plan": ("Measure the villain", "plans the whole monolith, changes nothing, counts requests",
+                      "Nothing is built here. A plan of the monolith re-reads everything the estate owns, every time, and the number to watch is how many requests that costs. It is the number the split is meant to bring down."),
+        "decompose": ("Split it, by retag", "applies three team configs: retags, creates nothing",
+                      "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
+        "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
+                      "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
+        "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "guard": ("Four reads, one verdict",
+        "guard": ("Four reads, one verdict", "reads: the role's tag, its children, two plans",
                   "The role's live tag, its kept children, and both estates planning clean. A state mv has no such moment; nothing evaluates it and nothing records it. Here the account did both."),
-        "receipt": ("The account's own record",
+        "receipt": ("The account's own record", "reads the emulator receipt and the CloudTrail evidence",
                     "The same carve, run on the real account: every governed write in CloudTrail within a minute, the refusals as Client.UnauthorizedOperation against the session that was refused. No state file could have produced that record."),
-        "teardown": ("Nothing left behind",
+        "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
                      "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains."),
     }
 
@@ -201,13 +201,14 @@ def _(boundaries, live, mo, run_dir, st, viz):
         run said, the log tail while it runs, and the picture as the phase
         left it. Re-runs on every tick; the button itself is a global made
         elsewhere, so it survives the redraw, and the click is served once."""
-        title, words = STORY[name]
+        title, does, words = STORY[name]
         if live:
             st.click(name, button.value)
         status = st.status(name) if live else ("recorded" if name in boundaries else "not in this recording")
         if live and st.refused and st.refused[0] == name:
             status += f" · not started: {st.refused[1]} is still running, click again when it ends"
-        parts = [mo.md(f"## {title}\n\n{words}"), mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
+        parts = [mo.md(f"## {title}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{name} · {does}</span>\n\n{words}"),
+                 mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
         said = st.notes(name)
         if said:
             parts.append(mo.md("\n".join(f"> {s}" for s in said)))
@@ -224,9 +225,14 @@ def _(boundaries, live, mo, run_dir, st, viz):
                          else mo.vstack([mo.md("**Why it failed**"), mo.ui.code_editor(tail, language="text", disabled=True, max_height=260)]))
         upto = boundaries.get(name)
         if upto is not None:
-            picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)
-            if picture:
-                parts.append(mo.Html(picture))
+            # The picture of what THIS beat changed: the map when ownership
+            # moved, the cost bars when a plan was measured, the verdict when
+            # the guard ran. The previous beat's end is the "before".
+            _order = list(STORY)
+            _prev = _order[_order.index(name) - 1] if _order.index(name) > 0 else None
+            _before = viz.load_run(run_dir, upto=boundaries[_prev]) if _prev in boundaries else viz.load_run(run_dir, upto=0)
+            picture = viz.render_delta(viz.load_run(run_dir, upto=upto), _before, map_width=760)
+            parts.append(mo.Html(picture) if picture else mo.md("*Nothing on the map changed in this beat.*"))
         # Each beat in its own box, tints alternating, so the sections read as
         # sections instead of running together. Colours mix from the page's
         # own text colour, so the boxes hold on the light and dark themes.
