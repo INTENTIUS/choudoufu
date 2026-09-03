@@ -156,6 +156,15 @@ showing its own checks would have caught it.
   and the serving is existence-vouched: the BREAK control deletes a
   resource out of band and the plan surfaces it, never serving a gone
   object from cache.
+- **count-is-a-fungible-set** - *Claim 11: a count pool is a fungible
+  set.* A `count` block's members are interchangeable, so each one is
+  named by a `tofu-slot` marker rather than by its index. Scaling a pool
+  of three down to two removes exactly one member and creates nothing.
+  The middle survivor stays the same live object, where stock would
+  renumber and rebuild the tail. The BREAK control deletes the local
+  record, then strips one member's slot, and the plan must refuse the
+  half-slotted set by name rather than bind the odd member by a guess.
+
 - **carve-by-retag** - *Claim 12: carve by retag.* Needs Go. The pinned
   stock oracle stands up terralith-gen's scale-1 terralith (79 resources,
   one state file, no markers); live-import adopts it and the file is
@@ -169,15 +178,6 @@ showing its own checks would have caught it.
   blocks and skips the retag: the monolith must propose destroying the
   leavers and the new estate must propose building them again, stock's
   two-ledger window made visible.
-
-- **count-is-a-fungible-set** - *Claim 11: a count pool is a fungible
-  set.* A `count` block's members are interchangeable, so each one is
-  named by a `tofu-slot` marker rather than by its index. Scaling a pool
-  of three down to two removes exactly one member and creates nothing.
-  The middle survivor stays the same live object, where stock would
-  renumber and rebuild the tail. The BREAK control deletes the local
-  record, then strips one member's slot, and the plan must refuse the
-  half-slotted set by name rather than bind the odd member by a guess.
 
 - **the-tag-is-the-boundary** - *Claim 13: the tag is the boundary.*
   Ownership is a tag, so the cloud's own policy engine governs who may
