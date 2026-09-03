@@ -38,6 +38,19 @@ class Ec2AndTagging(unittest.TestCase):
         self.assertEqual([i.name for i in found], ["arn:aws:iam::1:role/tlmig-9f3a1c-x"])
 
 
+class LogGroups(unittest.TestCase):
+    def test_only_groups_under_the_run_prefix_count(self):
+        doc = ('{"logGroups":[{"logGroupName":"/tlmig-9f3a1c/team-a/svc-1"},'
+               '{"logGroupName":"/tlmig-9f3a1c/team-c/svc-3"},'
+               '{"logGroupName":"/tlmig-9f3a1cX/other"},'
+               '{"logGroupName":"/aws/lambda/prod"}]}')
+        found = verify.log_group_leftovers(PREFIX, doc)
+        self.assertEqual([i.name for i in found], ["/tlmig-9f3a1c/team-a/svc-1", "/tlmig-9f3a1c/team-c/svc-3"])
+
+    def test_no_groups_is_clean(self):
+        self.assertEqual(verify.log_group_leftovers(PREFIX, '{"logGroups":[]}'), [])
+
+
 class LeftoversError(unittest.TestCase):
     def test_message_lists_every_item(self):
         err = verify.Leftovers([verify.Leftover("iam role", "a"), verify.Leftover("ec2 instance", "i-1", "e")])
