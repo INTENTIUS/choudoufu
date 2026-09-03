@@ -138,14 +138,9 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 	// parent-readable type is already sitting in res.Resolutions with its
 	// composed identity by the time this leg runs. See the package doc for
 	// why this is checked per value rather than by excluding the whole
-	// type the way [sweepTypes] does.
-	declared := make(map[string]bool)
-	for _, r := range res.Resolutions {
-		if r.Type() != typeName || r.Class != identity.ClassConcrete {
-			continue
-		}
-		declared[r.ImportID] = true
-	}
+	// type the way [sweepTypes] does, and [declaredChildImportIDs] for why
+	// the identity is composed rather than read off ImportID.
+	declared := declaredChildImportIDs(typeName, res)
 
 	// The parents this leg would actually read a child for, settled BEFORE
 	// any call is made. Both paths below consult exactly this list, so an
@@ -397,13 +392,10 @@ func parentListChildSweepType(ctx context.Context, req Request, schemas listclie
 		return diags
 	}
 
-	declared := make(map[string]bool)
-	for _, r := range res.Resolutions {
-		if r.Type() != typeName || r.Class != identity.ClassConcrete {
-			continue
-		}
-		declared[r.ImportID] = true
-	}
+	// Keyed by composed identity, not by ImportID: see
+	// [declaredChildImportIDs] for the plan that reported every declared
+	// inline policy as a removal until it was.
+	declared := declaredChildImportIDs(typeName, res)
 
 	for _, r := range res.Resolutions {
 		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
