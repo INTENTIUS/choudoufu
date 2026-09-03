@@ -122,6 +122,17 @@ stock() {
 
 awsl() { aws --endpoint-url "$SMOKE_ENDPOINT" "$@"; }
 
+# sed_i edits a file in place portably: BSD sed wants `-i ''` and GNU sed
+# reads that empty string as the script, so neither spelling runs on the
+# other platform, and a paste-and-go scenario has to run on both. A temp
+# file and a rename is the crossing scripts' own idiom. $1 is the file, the
+# rest is passed to sed as written.
+sed_i() {
+  local f="$1" t; shift
+  t="$(mktemp)"
+  sed "$@" "$f" > "$t" && mv "$t" "$f"
+}
+
 # chdf runs the binary under test. Under SMOKE_INSTRUMENT=1 every call's
 # TF_LOG=debug stream lands in its own file so the summary can count what
 # actually went over the wire - choudoufu's own client requests included,
