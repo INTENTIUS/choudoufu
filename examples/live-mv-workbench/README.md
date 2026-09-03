@@ -56,7 +56,7 @@ change.
 | 2 | survey | `slow-plan` | a plan of the whole estate, counted: the number the split brings down |
 | 3 | plan | none; the page writes `carve.json` | which address goes to which estate, as a table filled by rules |
 | 4 | preview | `preview` (when the CLI has it) | every planned move as a dry run, and the map as it would stand |
-| 5 | move | `decompose`, `carve` (`move` when the CLI has it) | the boundary moves: one tag write per resource, no state split |
+| 5 | move | `move` (was `decompose`+`carve`) | the boundary moves by retag: one tag write per resource, no state split; reads `carve.json` once the executor lands |
 | 6 | verify | `fast-plan`, `guard` (`verify` when the CLI has it) | plan cost after the split, and both sides plan clean at once |
 | 7 | receipt | `receipt` | this run's tag writes read back from CloudTrail |
 | 8 | teardown | `teardown` | demo seeds only: every estate destroyed, then the account listed |
