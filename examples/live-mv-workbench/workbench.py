@@ -182,6 +182,16 @@ def _(bid, binary, live, pin, recording, run_id, stage):
 
 
 @app.cell
+def _(mo):
+    # The run's inventory signature as marimo state. The picture cell sets it
+    # only when the resources or phases change, so the planner's rows follow
+    # a live seed without the redraw timer rebuilding the table every tick.
+    get_inventory, set_inventory = mo.state(None)
+    INVENTORY_SEEN = {"sig": None}
+    return INVENTORY_SEEN, get_inventory, set_inventory
+
+
+@app.cell
 def _(PHASES, stage):
     # The workflow and the verbs each phase runs on this build's CLI.
     WORKFLOW = stage.WORKFLOW
@@ -192,10 +202,14 @@ def _(PHASES, stage):
 
 
 @app.cell
-def _(ORDER, VERBS, WORKFLOW, bid, live, mo, run_dir, stage, tick, viz):
+def _(INVENTORY_SEEN, ORDER, VERBS, WORKFLOW, bid, live, mo, run_dir, set_inventory, stage, tick, viz):
     tick.value  # redraw on every tick
     _state = viz.load_run(run_dir)
     boundaries = viz.phase_boundaries(run_dir)
+    _sig = (run_dir, len(_state.resources), len(_state.phases))
+    if _sig != INVENTORY_SEEN["sig"]:
+        INVENTORY_SEEN["sig"] = _sig
+        set_inventory(_sig)
     _done = [p.name for p in _state.phases if p.status == "done"]
     _active = _state.active_phase
     if not (live or bid):
@@ -467,16 +481,19 @@ def _(VERBS, section, tick, verb_block):
 def _(mo):
     rules_ta = mo.ui.text_area(value="", rows=4, full_width=True, label="rules, one per line: `module|prefix|type|name <value> -> <estate>`; later rules win",
                                placeholder="module data -> team-data\nprefix aws_iam_ -> iam\ntype aws_cloudwatch_log_group -> logs\nname team_a -> team-b")
-    return (rules_ta,)
+    demo_move = mo.ui.checkbox(value=True, label="plan the demo's move: team-a into team-b")
+    return demo_move, rules_ta
 
 
 @app.cell
-def _(bid, carve, live, mo, rows_btn, rules_ta, run_dir, viz):
+def _(bid, carve, demo_move, get_inventory, live, mo, rows_btn, rules_ta, run_dir, viz):
     # The table rows: every taggable resource the run has seen, with the
     # estate its live tag names and the destination the rules give it. Rows
-    # reload on the button, not the timer, so an edit in the table survives
+    # reload when the run's inventory changes (a seed landing, a move made)
+    # or on the button, never on the timer, so an edit in the table survives
     # the redraw. Untaggable children are a count: they follow their parent.
     rows_btn.value
+    get_inventory()
     _upto = None
     if not (live or bid):
         # A finished recording ends empty; plan over the run as it stood
@@ -487,6 +504,14 @@ def _(bid, carve, live, mo, rows_btn, rules_ta, run_dir, viz):
             _upto = _b[_before[-1]]
     _state = viz.load_run(run_dir, upto=_upto)
     rules, rule_problems = carve.parse_rules(rules_ta.value)
+    run_prefix = _state.prefix or ""
+    # The demo's own move, offered as a checkbox so the panel is never empty
+    # for a demo user: team-a's resources into team-b. Only added when the run
+    # is the demo terralith (a monolith estate holding a team_a resource), so
+    # on an adopted estate it matches nothing and changes nothing.
+    is_demo = any(r.estate and r.estate.endswith("-monolith") and ".team_a" in r.address for r in _state.resources.values())
+    if demo_move.value and is_demo and run_prefix:
+        rules = rules + [carve.Rule("name", "team_a", f"{run_prefix}-team-b")]
     _children = {}
     for _r in _state.resources.values():
         if _r.parent:
@@ -494,11 +519,11 @@ def _(bid, carve, live, mo, rows_btn, rules_ta, run_dir, viz):
     plan_rows = [{"address": _r.address, "type": _r.type, "estate": _r.estate, "to": carve.destination(_r.address, _r.type, rules), "children": _children.get(_r.address, 0)}
                  for _r in sorted((x for x in _state.resources.values() if x.parent is None and not x.gone and x.estate), key=lambda x: (x.estate, x.address))]
     editor = mo.ui.data_editor(plan_rows, editable_columns=["to"], pagination=False) if plan_rows else None
-    return editor, plan_rows, rule_problems, rules
+    return editor, is_demo, plan_rows, rule_problems, rules, run_prefix
 
 
 @app.cell
-def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, save_btn, section, st):
+def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, run_prefix, save_btn, section, st):
     # The plan as the table stands: rows whose destination differs from
     # their estate are the moves; "keep" or the same estate is not a move.
     _edited = editor.value if editor is not None else []
@@ -515,17 +540,28 @@ def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, r
         _saved = f"on disk: `{carve.path(run_dir)}` with {len(_on_disk.get('moves', []))} moves" + ("" if _on_disk.get("moves") == plan_doc["moves"] else " (the table has changed since; save again)")
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
-    _parts = [
-        mo.md("One row per taggable resource. Rules fill the `to` column; edit any row by hand. A row whose `to` is `keep`, or its own estate, is not a move. In the demo, the move phase retags team-a into team-b, which is the plan below once its rows are filled: `name team_a -> <team-b estate>`."),
+    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, and the Move phase reads it. **In the demo you can leave this alone:** the box below is ticked, so the plan already holds the demo's move, team-a into team-b, and the Move phase makes that move whether or not you touch this panel. Untick it, or add rules, to plan your own.")]
+    if is_demo:
+        _parts.append(demo_move)
+    _parts += [
+        mo.md("One row per taggable resource. A rule fills the `to` column in bulk; edit any single row by hand. A row whose `to` is `keep`, or its own estate, is not a move, so an all-`keep` plan is a valid, empty plan, not a broken one."),
         rules_ta,
     ]
     if rule_problems:
         _parts.append(mo.md("\n".join(f"- ⚠ {_x}" for _x in rule_problems)))
     if editor is None:
-        _parts.append(mo.md("*No resources yet: seed first, or pick a recording. Then reload the rows.*"))
+        _parts.append(mo.hstack([mo.md("*No resources in this run yet. The rows fill in when the seed's inventory lands; if it has and they did not, reload.*"), rows_btn], justify="start", gap=1))
     else:
         _parts.append(editor)
     _parts.append(mo.md("\n".join(f"- {_line}" for _line in carve.describe(plan_doc))))
+    if plan_rows and not plan_doc["moves"]:
+        _hint = "*Every row keeps its estate, so `carve.json` has no moves. That is a fine place to stand: nothing will move. "
+        if is_demo:
+            _hint += f"To plan the demo's move, tick the box above, or add the rule `name team_a -> {run_prefix}-team-b`. "
+        _hint += "You can still go to Move: for the demo, the Move phase makes its own retag; the executor that reads this file is the next CLI change.*"
+        _parts.append(mo.md(_hint))
+    elif plan_rows:
+        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move; Move makes them. You can go forward."))
     _parts.append(mo.hstack([save_btn, rows_btn, mo.md(_saved)], justify="start", gap=1))
     _parts.append(mo.accordion({"carve.json as it would be saved": mo.ui.code_editor(__import__("json").dumps(plan_doc, indent=2), language="json", disabled=True, max_height=300)}))
     section("plan", _parts)
