@@ -147,6 +147,15 @@ showing its own checks would have caught it.
   default plan as a named reconvergence. The BREAK control overwrites
   the record with garbage - the run must refuse naming the exact
   address, never plan against improvised values.
+- **cache-serves-the-whole-estate** - *Claim 10: the cache serves the
+  whole estate.* On -refresh=false every converged instance is served
+  from the state cache - server-assigned needs-discovery resources
+  (VPCs, subnets, security groups) included, not just the schema-admitted
+  slice - so one estate of a terralith plans without re-reading the
+  cloud. A default plan still refreshes (the read is drift detection),
+  and the serving is existence-vouched: the BREAK control deletes a
+  resource out of band and the plan surfaces it, never serving a gone
+  object from cache.
 
 ## Knobs
 
