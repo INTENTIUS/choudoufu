@@ -127,20 +127,36 @@ def guard_phase(cfg: config.Config) -> None:
 
 
 def receipt_phase(cfg: config.Config) -> None:
-    with events.phase(cfg, "receipt", title="the reproducible emulator receipt"):
-        ui.rule("the reproducible receipt (emulator)")
-        ui.say(
-            "The live numbers above are real and vary run to run. These are the "
-            "reproducible figures the write-up quotes, from the claim smokes on "
-            "the emulator — anyone can rerun them. Shown as a receipt, never "
-            "dressed up as the live measurement."
-        )
-        try:
-            rec = receipt.read_receipt(cfg)
-            for line in getattr(rec, "lines", lambda: [str(rec)])():
-                ui.kv("receipt", line)
-        except Exception as exc:  # a missing receipt should not stop the demo
-            ui.warn(f"no receipt captured yet ({exc}); run `tlmig receipt` after capturing the smokes")
+    with events.phase(cfg, "receipt", title="the account's own record of this run's writes"):
+        ui.rule("the account's own record")
+        text = ("Every ownership move this run made was a tag write, and a tag write is an API call the "
+                "account logs. This reads them back from CloudTrail: who wrote which tag on what, and when. "
+                "A state edit has no such record; no account logs a file changing.")
+        ui.say(text)
+        events.note(cfg, text)
+        ui.cmd("aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=TagRole ...   # since this run began, filtered to its prefix")
+        ct = receipt.lookup_run_cloudtrail(cfg)
+        retags = [e for e in ct.events if "tofu-estate" in e.tags]
+        if ct.events:
+            for e in ct.events:
+                ui.kv(e.time, f"{e.role}  {e.resource}  {', '.join(f'{k}={v}' for k, v in e.tags.items())}" + (f"  {e.error}" if e.error else ""), not e.error)
+            ui.ok(f"{len(ct.events)} of this run's writes are in the account's log, {len(retags)} of them ownership moves")
+        else:
+            warn = ("CloudTrail event history has not surfaced this run's writes yet (it can lag a few minutes); "
+                    "run `tlmig receipt` again in a minute and the record appears")
+            ui.warn(warn)
+            events.note(cfg, warn)
+        carve = None
+        saved = cfg.run_dir / "receipts" / "carve-by-retag.log"
+        if saved.exists():
+            # The reproducible figures from the claim smoke on the emulator,
+            # when someone captured them: labelled as such, never as live.
+            try:
+                carve = receipt.parse_carve(saved.read_text())
+                ui.kv("emulator receipt", f"carve-by-retag {'PASS' if carve.passed else 'no PASS line'}: monolith {carve.monolith_plan_requests} requests, carved estate {carve.carved_plan_requests}", carve.passed)
+            except Exception as exc:  # noqa: BLE001 - a bad capture must not stop the demo
+                ui.warn(f"saved emulator receipt unreadable: {exc}")
+        events.receipt(cfg, {"carve": carve, "cloudtrail": ct, "source": f"cloudtrail lookup-events since {receipt.run_started(cfg).isoformat()}"})
 
 
 def teardown(cfg: config.Config) -> None:

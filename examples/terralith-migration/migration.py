@@ -59,8 +59,50 @@ def _(mo):
     resource, and a plan reads only its own estate. So the decomposition
     stops being a project and becomes a metadata edit, and every step of it
     is an API call the account can refuse and does record.
+
+    **Where this starts.** The stage assumes a terralith: one configuration
+    and one state own everything, applied by one principal whose permission
+    covers it all, the way a monolith is run before anyone splits it. The
+    IAM you will see on the map is the estate's own resources (a role, an
+    inline policy and a managed policy per team); the operator's permission
+    is the account's, all or nothing. If your org is not there, the first
+    step differs. Many states already: each one is adopted as its own estate
+    with `live-import` (the roundtrip claim), and you begin at the carve
+    beat. Per-team operator permissions already: the governance you have is
+    by state file, and the carve and guard beats show the tag-scoped grant
+    that replaces it. Centralizing first is not required; the boundary is a
+    tag, so it goes wherever the resources are today.
+
+    This page is an example and a tutorial at once. Read it top to bottom:
+    the index below tracks the nine beats, and every beat carries what it
+    does, a button that runs it, and the payoff it proved, computed from the
+    run's own log.
     """
     )
+    return
+
+
+@app.cell
+def _(config, mo):
+    mo.accordion({"Paste-and-go prompt: let an assistant walk you through this demo": mo.md(
+        f"""
+    ```text
+    Clone https://github.com/INTENTIUS/choudoufu and cd examples/terralith-migration.
+    Confirm uv is installed (uv --version). Run:
+
+      uv run --extra viz marimo run migration.py
+
+    A browser page opens on a recording in replay mode. Walk me through it
+    beat by beat: for each of the nine beats, read me its action line and
+    its payoff line, and explain what the map or the cost bars changed.
+    If I have AWS credentials for account {config.ACCOUNT_ID}, switch the
+    page to live and run the beats in order with the buttons, one at a
+    time, waiting for each to finish; explain each payoff as it appears,
+    and finish with teardown. If preflight refuses, tell me why from the
+    reason under its button and stay in replay.
+    ```
+    """
+    )})
     return
 
 
@@ -155,6 +197,40 @@ def _(live, mo, run_dir, tick, viz):
 
 
 @app.cell
+def _(boundaries, run_dir, viz):
+    ORDER = ["preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "receipt", "teardown"]
+
+    def before_state(name):
+        """The run as it stood when the nearest recorded beat before this one
+        ended; the empty run when none did. A recording may skip beats."""
+        for prev in reversed(ORDER[:ORDER.index(name)]):
+            if prev in boundaries:
+                return viz.load_run(run_dir, upto=boundaries[prev])
+        return viz.load_run(run_dir, upto=0)
+
+    return ORDER, before_state
+
+
+@app.cell
+def _(ORDER, before_state, boundaries, live, mo, run_dir, st, viz):
+    # The index: every beat with its standing and, once it ran, its payoff.
+    _order = ORDER
+    _titles = {"preflight": "Which account, which binary", "setup": "Build the terralith", "slow-plan": "Measure the villain",
+               "decompose": "Split it, by retag", "fast-plan": "Measure the payoff", "carve": "Move the boundary",
+               "guard": "Four reads, one verdict", "receipt": "The account's own record", "teardown": "Nothing left behind"}
+    _rows = []
+    for _i, _n in enumerate(_order, start=1):
+        _status = st.status(_n) if live else ("recorded" if _n in boundaries else "not in this recording")
+        _mark = {"done": "✓", "recorded": "✓", "running": "▶"}.get(_status, "✗" if _status.startswith("failed") else "·")
+        _pay = viz.payoff(_n, viz.load_run(run_dir, upto=boundaries[_n]), before_state(_n)) if _n in boundaries else ""
+        _rows.append(f"<tr><td>{_mark}</td><td>{_i}</td><td><b>{_titles[_n]}</b> <code>{_n}</code></td><td>{_status}</td><td>{_pay}</td></tr>")
+    mo.vstack([mo.md("### The beats"), mo.Html(
+        "<style>.beats{border-collapse:collapse;width:100%;font-size:14px}.beats th{text-align:left;font-weight:600;opacity:.6;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px 6px 0;border-bottom:1px solid color-mix(in srgb, currentColor 20%, transparent)}.beats td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid color-mix(in srgb, currentColor 12%, transparent)}.beats td:first-child{width:1.4em}.beats td:nth-child(2){opacity:.6}.beats code{font-size:12px;opacity:.75}</style>"
+        "<table class='beats'><thead><tr><th></th><th>#</th><th>beat</th><th>status</th><th>payoff</th></tr></thead><tbody>" + "".join(_rows) + "</tbody></table>")])
+    return
+
+
+@app.cell
 def _(live, mo):
     # The buttons. Globals, created here where nothing depends on the timer,
     # so a redraw never rebuilds them. Each counts its clicks.
@@ -174,25 +250,25 @@ def _(live, mo):
 
 
 @app.cell
-def _(boundaries, live, mo, run_dir, st, viz):
+def _(before_state, boundaries, live, mo, run_dir, st, viz):
     STORY = {
-        "preflight": ("Which account, which binary",
+        "preflight": ("Which account, which binary", "checks, writes nothing",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
-        "setup": ("The terralith",
-                  "One config, one estate, three teams' worth of IAM and log groups. The account stands it up, and every taggable resource comes back carrying two tags: which estate owns it, and which address it answers to. Nobody wrote a tag by hand."),
-        "slow-plan": ("The villain",
-                      "A plan of the whole monolith. It re-reads everything the estate owns, every time, and the request count is the number the split is meant to bring down."),
-        "decompose": ("The split, by retag",
-                      "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
-        "fast-plan": ("The payoff",
-                      "One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
-        "carve": ("The boundary moves",
+        "setup": ("Build the terralith", "applies: creates 21 resources in one estate",
+                  "One config, one estate, three teams' worth of IAM and log groups. The account applies it and the map fills in: every taggable resource comes back carrying two tags, which estate owns it and which address it answers to. Nobody wrote a tag by hand."),
+        "slow-plan": ("Measure the villain", "plans the whole monolith, changes nothing, counts requests",
+                      "Nothing is built here. A plan of the monolith re-reads everything the estate owns, every time, and the number to watch is how many requests that costs. It is the number the split is meant to bring down."),
+        "decompose": ("Split it, by retag", "applies three team configs: retags, creates nothing",
+                      "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
+        "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
+                      "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
+        "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "guard": ("Four reads, one verdict",
-                  "The role's live tag, its kept children, and both estates planning clean. A state mv has no such moment; nothing evaluates it and nothing records it. Here the account did both."),
-        "receipt": ("The account's own record",
-                    "The same carve, run on the real account: every governed write in CloudTrail within a minute, the refusals as Client.UnauthorizedOperation against the session that was refused. No state file could have produced that record."),
-        "teardown": ("Nothing left behind",
+        "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
+                  "Four reads and no writes. First the role's live tag, which must name its new estate, and its inline policy and attachment, which must still be with it. Then two plans, one per estate, each targeted at its own resources, because a carve is only clean when both sides agree at the same moment: the source estate must not want to destroy or rebuild what left, and the destination must not want to create what arrived. Terraform's carve has a window where one side wants to destroy and the other to create; here both plan clean at once, because each estate reads only what carries its tag."),
+        "receipt": ("The account's own record", "reads this run's own tag writes back from CloudTrail; writes nothing",
+                    "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This beat reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so the beat waits for it. A state edit has no such record; no account logs a file changing. The governed refusals, an IAM condition on the tag saying no, are claim 13's smoke on the emulator and its own CloudTrail receipt."),
+        "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
                      "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains."),
     }
 
@@ -201,13 +277,14 @@ def _(boundaries, live, mo, run_dir, st, viz):
         run said, the log tail while it runs, and the picture as the phase
         left it. Re-runs on every tick; the button itself is a global made
         elsewhere, so it survives the redraw, and the click is served once."""
-        title, words = STORY[name]
+        title, does, words = STORY[name]
         if live:
             st.click(name, button.value)
         status = st.status(name) if live else ("recorded" if name in boundaries else "not in this recording")
         if live and st.refused and st.refused[0] == name:
             status += f" · not started: {st.refused[1]} is still running, click again when it ends"
-        parts = [mo.md(f"## {title}\n\n{words}"), mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
+        parts = [mo.md(f"## {title}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{name} · {does}</span>\n\n{words}"),
+                 mo.hstack([button, mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
         said = st.notes(name)
         if said:
             parts.append(mo.md("\n".join(f"> {s}" for s in said)))
@@ -224,10 +301,29 @@ def _(boundaries, live, mo, run_dir, st, viz):
                          else mo.vstack([mo.md("**Why it failed**"), mo.ui.code_editor(tail, language="text", disabled=True, max_height=260)]))
         upto = boundaries.get(name)
         if upto is not None:
-            picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)
-            if picture:
-                parts.append(mo.Html(picture))
-        return mo.vstack(parts)
+            # The picture of what THIS beat changed: the map when ownership
+            # moved, the cost bars when a plan was measured, the verdict when
+            # the guard ran. The previous beat's end is the "before".
+            _before = before_state(name)
+            _after = viz.load_run(run_dir, upto=upto)
+            picture = viz.render_delta(_after, _before, map_width=760)
+            parts.append(mo.Html(picture) if picture else mo.md("*Nothing on the map changed in this beat.*"))
+            _pay = viz.payoff(name, _after, _before)
+            if _pay:
+                parts.append(mo.md(f"**Payoff.** {_pay}"))
+        # Each beat in its own box, tints alternating, so the sections read as
+        # sections instead of running together. Colours mix from the page's
+        # own text colour, so the boxes hold on the light and dark themes.
+        index = list(STORY).index(name)
+        tint = "color-mix(in srgb, currentColor 5%, transparent)" if index % 2 == 0 else "transparent"
+        return mo.vstack(parts).style({
+            "border": "1px solid color-mix(in srgb, currentColor 18%, transparent)",
+            "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)",
+            "border-radius": "10px",
+            "padding": "18px 22px 20px",
+            "margin": "10px 0 18px",
+            "background": tint,
+        })
 
     return STORY, phase
 

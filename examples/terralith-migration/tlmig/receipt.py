@@ -27,8 +27,9 @@ import pathlib
 import re
 import shlex
 import subprocess
+import time
 
-from . import config, events, ui
+from . import config, events, ui, guard
 
 # tlmig/receipt.py -> tlmig -> terralith-migration -> examples -> repo root
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -100,6 +101,7 @@ class CloudTrailEvent:
     resource: str
     tags: dict[str, str]
     error: str | None
+    event: str = ""      # the API call as CloudTrail names it: TagRole, TagResource, CreateTags
 
     @property
     def denied(self) -> bool:
@@ -187,6 +189,111 @@ def capture(cfg: config.Config, scenario: str = "carve-by-retag") -> pathlib.Pat
         raise RuntimeError(f"smoke scenario {scenario} exited {proc.returncode}; output in {out}")
     ui.ok(f"{scenario} passed on the emulator; output saved to {out}")
     return out
+
+
+# The write calls a retag makes on this example's resource types, as
+# CloudTrail names them. Ownership moves are tag writes and nothing else.
+TAG_WRITE_EVENTS = ("TagRole", "UntagRole", "TagPolicy", "UntagPolicy", "TagResource", "UntagResource",
+                    "TagLogGroup", "UntagLogGroup", "CreateTags", "DeleteTags")
+
+
+def run_started(cfg: config.Config) -> datetime.datetime:
+    """When this run began, from its own event feed; an hour ago if the feed
+    is empty, so a lookup never misses the run by a narrow window."""
+    try:
+        lines = events.read(cfg)
+        first = lines[0]["ts"]
+        return datetime.datetime.fromisoformat(first.replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001 - no feed yet
+        return datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+
+
+def _principal(arn: str) -> str:
+    if "assumed-role/" in arn:
+        return arn.split("assumed-role/")[-1]
+    if ":user/" in arn:
+        return "user " + arn.split(":user/")[-1]
+    return arn.rsplit(":", 1)[-1] or arn
+
+
+def _parse_trail_event(raw: dict) -> CloudTrailEvent | None:
+    try:
+        ev = json.loads(raw["CloudTrailEvent"])
+    except (KeyError, ValueError):
+        return None
+    rp = ev.get("requestParameters") or {}
+    tags = {}
+    for t in (rp.get("tags") or []):
+        if isinstance(t, dict):
+            k, v = t.get("key", t.get("Key")), t.get("value", t.get("Value"))
+            if k is not None:
+                tags[str(k)] = str(v)
+    if isinstance(rp.get("tags"), dict):
+        tags = {str(k): str(v) for k, v in rp["tags"].items()}
+    resource = (rp.get("roleName") or rp.get("policyArn") or rp.get("resourceArn") or rp.get("logGroupName")
+                or (raw.get("Resources") or [{}])[0].get("ResourceName") or "")
+    return CloudTrailEvent(
+        time=str(ev.get("eventTime") or raw.get("EventTime") or ""),
+        role=_principal(str((ev.get("userIdentity") or {}).get("arn") or "")),
+        resource=str(resource),
+        tags=tags,
+        error=ev.get("errorCode"),
+        event=str(ev.get("eventName") or raw.get("EventName") or ""),
+    )
+
+
+def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None = None, max_wait: int = 120,
+                          poll: int = 20, min_events: int = 1) -> CloudTrailReceipt:
+    """This run's own tag writes, read back from the account's CloudTrail
+    event history: every TagRole, TagPolicy, TagResource and kin since the
+    run began whose record names something carrying the run's prefix. Event
+    history lags a write by a minute or so, so this polls, up to max_wait
+    seconds, until at least min_events retags are visible. The retags this
+    beat reads happened minutes earlier (decompose, then carve), so in
+    practice the first lookup finds them; the cap is two minutes so a beat
+    never holds a room, and a lookup that finds nothing in time returns an
+    empty receipt rather than failing, so the beat can say so."""
+    since = since or run_started(cfg)
+    start = (since - datetime.timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    deadline = time.monotonic() + max_wait
+    found: dict[str, CloudTrailEvent] = {}
+    while True:
+        for name in TAG_WRITE_EVENTS:
+            token = None
+            for _page in range(10):
+                # Event history is regional and IAM's global events land in
+                # us-east-1, which is this example's region; name it, because
+                # the CLI's default region is whatever the profile says.
+                argv = ["cloudtrail", "lookup-events", "--region", cfg.region,
+                        "--lookup-attributes", f"AttributeKey=EventName,AttributeValue={name}",
+                        "--start-time", start, "--max-results", "50", "--output", "json"]
+                if token:
+                    argv += ["--next-token", token]
+                res = guard.aws(cfg, *argv, check=False)
+                if not res.ok or not res.stdout.strip():
+                    break
+                try:
+                    doc = json.loads(res.stdout)
+                except ValueError:
+                    break
+                for raw in doc.get("Events") or []:
+                    if cfg.prefix not in raw.get("CloudTrailEvent", ""):
+                        continue
+                    ev = _parse_trail_event(raw)
+                    if ev is not None:
+                        found[raw.get("EventId") or f"{ev.time}/{ev.resource}"] = ev
+                token = doc.get("NextToken")
+                if not token:
+                    break
+        retags = [e for e in found.values() if "tofu-estate" in e.tags]
+        if len(retags) >= min_events or time.monotonic() >= deadline:
+            break
+        ui.kv("CloudTrail", f"{len(found)} of this run's writes visible so far; event history lags, waiting {poll}s", None)
+        time.sleep(poll)
+    ordered = sorted(found.values(), key=lambda e: e.time)
+    return CloudTrailReceipt(account=cfg.account_id, region=cfg.region,
+                            captured=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            events=tuple(ordered))
 
 
 def read_receipt(cfg: config.Config, log: pathlib.Path | None = None) -> Receipt:

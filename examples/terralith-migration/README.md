@@ -10,6 +10,58 @@ Pinned to one choudoufu release and one account, both named in
 every resource a run creates carries the run's prefix, and nothing
 destructive runs outside it.
 
+## Where this starts
+
+The stage assumes a terralith: one configuration and one state own
+everything, applied by one principal whose permission covers it all, the
+way a monolith is run before anyone splits it. The IAM on the map is the
+estate's own resources (a role, an inline policy and a managed policy per
+team); the operator's permission is the account's, all or nothing. If your
+org is not there, the first step differs. Many states already: each one is
+adopted as its own estate with `live-import`, and you begin at the carve
+beat. Per-team operator permissions already: the governance you have is by
+state file, and the carve and guard beats show the tag-scoped grant that
+replaces it. Centralizing first is not required; the boundary is a tag, so
+it goes wherever the resources are today.
+
+## Paste-and-go
+
+Hand this to an assistant and let it walk you through:
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu and cd examples/terralith-migration.
+Confirm uv is installed (uv --version). Run:
+
+  uv run --extra viz marimo run migration.py
+
+A browser page opens on a recording in replay mode. Walk me through it
+beat by beat: for each of the nine beats, read me its action line and its
+payoff line, and explain what the map or the cost bars changed. If I have
+AWS credentials for the account the page names, switch the page to live
+and run the beats in order with the buttons, one at a time, waiting for
+each to finish; explain each payoff as it appears, and finish with
+teardown. If preflight refuses, tell me why from the reason under its
+button and stay in replay.
+```
+
+## The beats
+
+Each beat is a setup and a payoff. The page says what the beat does before
+you press it, and after it ran, one sentence built from the run's own log
+says what it proved.
+
+| # | beat | it does | it proves |
+|---|---|---|---|
+| 1 | preflight | checks the account and the binary, writes nothing | the fences hold before anything is touched |
+| 2 | setup | applies the monolith: 21 resources in one estate | every taggable resource carries `tofu-estate` and `tofu-address`, stamped, not hand-written |
+| 3 | slow-plan | plans the whole monolith, changes nothing, counts requests | what a terralith pays for every plan |
+| 4 | decompose | applies three team configs: retags, creates nothing | three boundaries where there was one, no state file split |
+| 5 | fast-plan | plans one team's estate from its cache, counts requests | a plan costs what its estate costs, not what the account costs |
+| 6 | carve | retags team-a's resources into team-b, one tag write each | ownership moved by tag write; untaggable children followed unwritten |
+| 7 | guard | reads the role's tag, its children, then two plans: the source estate's and the destination's | both sides agree at once: the source does not want to destroy or rebuild what left, the destination does not want to create what arrived |
+| 8 | receipt | reads this run's own tag writes back from CloudTrail, waiting for event history to catch up | the account's own log holds every ownership move, naming who made it; no state file could produce that |
+| 9 | teardown | destroys every estate this run made, then lists the account | nothing carrying the run's prefix remains |
+
 ## The first minute
 
 Two ways to watch it. **Replay** needs nothing but this checkout: the
