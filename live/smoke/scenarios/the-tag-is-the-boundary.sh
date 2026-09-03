@@ -66,7 +66,7 @@ stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
-ACCT="$(awsl sts get-caller-identity --query Account --output text)"
+ACCT="$(awsl sts get-caller-identity --query Account --output text)" || fail "boundary" "the emulator did not answer sts get-caller-identity"
 TRUST="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCT:root\"},\"Action\":\"sts:AssumeRole\"}]}"
 
 # grant is the two-statement grant live/MARKERS.md publishes under "Granting
@@ -94,7 +94,7 @@ ungoverned() { echo '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Act
 as_role() {
   local role="$1" c; shift
   c="$(awsl sts assume-role --role-arn "arn:aws:iam::$ACCT:role/$role" --role-session-name "$role" \
-        --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)" || fail "boundary" "could not assume $role"
+        --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)" || { echo "  could not assume $role" >&2; return 1; }
   ( export AWS_ACCESS_KEY_ID="$(cut -f1 <<< "$c")" AWS_SECRET_ACCESS_KEY="$(cut -f2 <<< "$c")" AWS_SESSION_TOKEN="$(cut -f3 <<< "$c")"
     "$@" )
 }
@@ -111,13 +111,18 @@ settle() { local i; for i in $(seq 1 30); do
   if awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$1" \
        --query 'ResourceTagMappingList[].Tags[?Key==`tofu-address`].Value' --output text 2>/dev/null | grep -qF "$2"; then return 0; fi
   sleep 1; done; return 0; }
+# rename_tag rewrites one Name tag value in a module file without sed -i,
+# whose in-place flag differs between BSD and GNU sed.
+rename_tag() { local f="$1" from="$2" to="$3" t; t="$(mktemp)"
+  sed "s/Name = \"$from\"/Name = \"$to\"/" "$f" > "$t" && mv "$t" "$f" || fail "boundary" "could not rewrite $f"
+  grep -qF "Name = \"$to\"" "$f" || fail "boundary" "the rename $from -> $to did not land in $f"; }
 # denied fails the scenario unless $1 (a captured command output) carries the
 # platform's own refusal. The tool never says no here; AWS does. Real EC2
 # answers UnauthorizedOperation; the emulator answers 403 with a body the EC2
 # SDK cannot parse (lex00/floci: EC2 deny envelope), which the provider
 # reports as a bare 403 (lex00/floci#189).
 denied() { grep -qE 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' <<< "$1"; }
-refusal_line() { sed 's/\x1b\[[0-9;]*m//g' <<< "$1" | grep -E 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' | head -1 | sed -e 's/^[[:space:]]*//' -e 's/^[^A-Za-z]*//' -e 's/, RequestID: [0-9a-f-]*//'; }
+refusal_line() { { sed 's/\x1b\[[0-9;]*m//g' <<< "$1" | grep -E 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' || true; } | head -1 | sed -e 's/^[[:space:]]*//' -e 's/^[^A-Za-z]*//' -e 's/, RequestID: [0-9a-f-]*//'; }
 
 step "the claim"
 explain \
@@ -143,7 +148,8 @@ cmd "choudoufu apply -auto-approve   # in app/, as the account"
 ( cd "$APP" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in app"
 ( cd "$APP" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "apply failed in app"
 settle app "module.data.aws_instance.database"
-{ tags_of "module.net.aws_instance.gateway"; tags_of "module.data.aws_instance.database"; } | evidence
+TAGS="$(tags_of "module.net.aws_instance.gateway"; tags_of "module.data.aws_instance.database")" || fail "boundary" "could not read the instances' tags"
+printf '%s\n' "$TAGS" | evidence
 [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $2}')" = "app" ] || fail "boundary" "the database does not carry tofu-estate=app"
 [ "$(tags_of 'module.net.aws_instance.gateway' | awk '{print $2}')" = "app" ] || fail "boundary" "the gateway does not carry tofu-estate=app"
 proof "two instances in one estate, and the ownership address on each names its half, module.net.* or module.data.*."
@@ -161,8 +167,10 @@ awsl iam create-role --role-name alice --assume-role-policy-document "$TRUST" >/
 awsl iam create-role --role-name bob   --assume-role-policy-document "$TRUST" >/dev/null || fail "boundary" "could not create bob"
 awsl iam put-role-policy --role-name alice --policy-name estate --policy-document "$(grant 'module.data.*' data)" || fail "boundary" "could not grant alice"
 awsl iam put-role-policy --role-name bob   --policy-name estate --policy-document "$(grant 'module.net.*'  net)"  || fail "boundary" "could not grant bob"
-awsl iam get-role-policy --role-name alice --policy-name estate --query 'PolicyDocument.Statement[1:].Condition' --output json | tr -d ' \n' | evidence
-as_role alice awsl sts get-caller-identity --query Arn --output text | evidence
+COND="$(awsl iam get-role-policy --role-name alice --policy-name estate --query 'PolicyDocument.Statement[1:].Condition' --output json)" || fail "boundary" "could not read alice's grant back"
+tr -d ' \n' <<< "$COND" | evidence
+WHO="$(as_role alice awsl sts get-caller-identity --query Arn --output text)" || fail "boundary" "alice's session cannot identify itself"
+echo "$WHO" | evidence
 proof "two roles hold two halves of one estate, and the fence is a condition on the tag this tool wrote."
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -175,7 +183,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "must succeed."
   cmd "aws iam put-role-policy bob (no Condition) ; sed Name=database-v2 ; choudoufu apply -auto-approve   # in app/, as bob"
   awsl iam put-role-policy --role-name bob --policy-name estate --policy-document "$(ungoverned)" || fail "boundary" "BREAK: could not rewrite bob's grant"
-  sed -i '' 's/Name = "database"/Name = "database-v2"/' "$MODS/data/main.tf"
+  rename_tag "$MODS/data/main.tf" database database-v2
   OUT="$(cd "$APP" && as_role bob chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "BREAK: with no condition, Bob's write on Alice's half was still refused: $(grep -E 'AccessDenied|not authorized|Error' <<< "$OUT" | head -3)"
   denied "$OUT" && fail "boundary" "BREAK: the apply succeeded but the output still carries a refusal: $OUT"
   tags_of "module.data.aws_instance.database" | evidence
@@ -191,7 +199,7 @@ explain \
   "provider's CreateTags carries the resource's ownership address, the" \
   "policy engine matches module.data.*, and the write goes through."
 cmd "sed Name=database-v2 ; choudoufu apply -auto-approve   # in app/, as alice"
-sed -i '' 's/Name = "database"/Name = "database-v2"/' "$MODS/data/main.tf"
+rename_tag "$MODS/data/main.tf" database database-v2
 OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "Alice's apply on her own half failed: $(grep -E 'Error|AccessDenied|not authorized' <<< "$OUT" | head -3)"
 tags_of "module.data.aws_instance.database" | evidence
 [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $1}')" = "database-v2" ] || fail "boundary" "Alice's write did not land"
@@ -205,7 +213,7 @@ explain \
   "choudoufu surfaces the refusal and changes nothing. In stock the" \
   "equivalent move is a state edit, and there is no API call to refuse."
 cmd "sed Name=gateway-v2 ; choudoufu apply -auto-approve   # in app/, as alice"
-sed -i '' 's/Name = "gateway"/Name = "gateway-v2"/' "$MODS/net/main.tf"
+rename_tag "$MODS/net/main.tf" gateway gateway-v2
 OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-color 2>&1 || true)"
 printf '%s\n' "$OUT" > "$LOGS/alice-denied.apply"
 denied "$OUT" || fail "boundary" "Alice's write on Bob's half was not refused by the platform (full output in $LOGS/alice-denied.apply): $(grep -E '^Plan:|Apply complete|Error' <<< "$OUT" | head -3)"
@@ -232,12 +240,13 @@ explain \
   "rather than data, and may act on module.net.* rather than the" \
   "database, so the platform refuses the retag before anything moves."
 cmd "mv module \"data\" from app/main.tf to data/main.tf ; choudoufu live-mv -from-estate=app module.data.aws_instance.database module.data.aws_instance.database   # in data/, as bob"
-python3 - "$APP/main.tf" "$DATA/main.tf" <<'PYEOF'
+python3 - "$APP/main.tf" "$DATA/main.tf" <<'PYEOF' || fail "boundary" "the data module block did not move from app to data"
 import sys
 a, d = sys.argv[1], sys.argv[2]
 s = open(a).read()
 blk = 'module "data" { source = "../modules/data" }\n'
-assert blk in s, "no data module block in app"
+if blk not in s:
+    raise SystemExit(1)
 open(a, 'w').write(s.replace(blk, '').rstrip() + '\n')
 open(d, 'w').write(blk)
 PYEOF
@@ -267,8 +276,8 @@ explain \
   "finds nothing to do. The record app kept for the database is not" \
   "consulted, because its live tag now names another estate."
 cmd "choudoufu plan   # in data/ as alice, then in app/ as bob"
-for pair in "alice:$DATA:data" "bob:$APP:app"; do
-  role="${pair%%:*}"; rest="${pair#*:}"; dir="${rest%%:*}"; label="${rest#*:}"
+for spec in "alice $DATA data" "bob $APP app"; do
+  read -r role dir label <<< "$spec"
   OUT="$(cd "$dir" && as_role "$role" chdf plan -input=false -no-color 2>&1)" || fail "boundary" "$label does not plan under $role: $(grep -E 'Error|AccessDenied|not authorized' <<< "$OUT" | head -3)"
   printf '%s\n' "$OUT" > "$LOGS/$label.plan"
   grep -q "No changes." <<< "$OUT" || fail "boundary" "$label does not plan clean under $role (full plan in $LOGS/$label.plan): $(grep -E '^Plan:|will be|Owned and undeclared|UNOWNED' <<< "$OUT" | head -4)"
