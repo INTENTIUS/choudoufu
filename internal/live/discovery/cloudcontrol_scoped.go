@@ -125,13 +125,9 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 		}))
 	}
 
-	declared := make(map[string]bool)
-	for _, r := range res.Resolutions {
-		if r.Type() != spec.TypeName || r.Class != identity.ClassConcrete {
-			continue
-		}
-		declared[r.ImportID] = true
-	}
+	// Composed identity, not ImportID: the same declared set the parent-read
+	// legs use ([declaredChildImportIDs]).
+	declared := declaredChildImportIDs(spec.TypeName, res)
 
 	var callFailures []string
 	for _, r := range res.Resolutions {

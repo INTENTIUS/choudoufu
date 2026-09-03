@@ -8,6 +8,43 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 Nothing recorded yet.
 
+## choudoufu v0.10.1 (2026-09-03)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.10.1.json`](live/history/v0.10.1.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.10.0.json live/history/v0.10.1.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board was last measured at `bb45512c9b` (2026-08-31) and was not
+re-run for this release; the fix below is proven by its own unit tests,
+by the two claim smokes whose subject it touches, and by a binary rerun
+of the plan that showed the defect.
+
+FORK WORK:
+
+- **A declared inline policy is no longer reported as a removal** (PR
+  #768). Every plan of an estate with a declared `aws_iam_role_policy`
+  printed `[WILL BE DESTROYED]` for that policy in the parent-read
+  section under a `No changes.` summary, with a `[SUPERSEDED]` entry at
+  an address minted from the policy's name. Moved or not, `-refresh=false`
+  or not. The parent-list leg keyed its declared set on
+  `Resolution.ImportID`, which the schema-aware resolver leaves empty on
+  purpose for an identity-object-only type (several identity attributes,
+  no documented separator): with the provider's identity schema in hand,
+  which is every plan the command runs, `aws_iam_role_policy` is such a
+  type, its identity lives in `IdentityValues`, and the declared set read
+  as one empty string nothing could match. The three parent-read legs now
+  key declared children by the same composed identity a list result's
+  attributes compose to (`declaredChildImportIDs`), so the two sides agree
+  by construction. The unit harness had never seen the shape because it
+  resolves without schemas; the fake cloud can now serve a provider
+  identity schema, and the new tests prove the plan's shape red then
+  green with the stray policy still found.
+
 ## choudoufu v0.10.0 (2026-09-03)
 
 Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.10.0.json`](live/history/v0.10.0.json).
