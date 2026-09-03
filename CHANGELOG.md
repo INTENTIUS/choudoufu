@@ -60,9 +60,15 @@ FORK WORK:
   to halves of one estate by a condition on the ownership tag, denied by
   the platform when they reach across, and the carve itself refused for
   the role that may not make it; BREAK drops the condition and the
-  denial vanishes). The smoke stack gains a switch that turns the
-  emulator's IAM enforcement on for a scenario, and a portable `sed_i`
-  helper after the BSD-only form died on Linux.
+  denial vanishes). The smoke stack gains `FLOCI_IAM_ENFORCEMENT=true`,
+  which a scenario exports before `stack_up` to turn the emulator's IAM
+  enforcement on for its run, and a portable `sed_i` helper after the
+  BSD-only form died on Linux. Claim 13 also carries a real-account
+  receipt (PR #765): the same carve run in us-east-2 under two assumed
+  roles, with all five `CreateTags` calls read back from CloudTrail event
+  history, two of them `Client.UnauthorizedOperation` naming the role
+  session and the instance, recorded on the claims page and in
+  `live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json`.
 
 - **The cache serves the whole estate** (#692 increment 3; PR #758).
   On `-refresh=false` every converged instance is served from the state
