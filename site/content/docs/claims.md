@@ -33,6 +33,7 @@ fail proves nothing, so every claim ships with its failure demonstrated.
 | The cache serves the whole estate | `just smoke cache-serves-the-whole-estate` | 2 min |
 | A count pool is a fungible set | `just smoke count-is-a-fungible-set` | 2 min |
 | Carve by retag | `just smoke carve-by-retag` (needs Go) | 6 min |
+| The tag is the boundary | `just smoke the-tag-is-the-boundary` | 4 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
@@ -581,6 +582,69 @@ those records and proposed destroying them. The live tag decides. A
 parent whose marker names another estate never anchors a child for this
 one, whatever a left-behind record says, and that rule is why step 4
 plans clean.
+
+## Claim 13: the tag is the boundary
+
+In stock Terraform and OpenTofu, who owns a resource is a line in a state
+file. Changing that line is state surgery: no IAM policy can gate it,
+because the cloud never sees it, and nothing in the account records it.
+Under choudoufu ownership is a tag on the resource, and a tag write is an
+API call the cloud's own policy engine evaluates per resource. A role can
+be fenced to half an estate by a condition on the ownership tag, with the
+grant `live/MARKERS.md` publishes under "Granting an estate". A carve, one
+half moving into an estate of its own, is then a governed write the
+platform can refuse. The scenario turns the emulator's IAM enforcement on
+for its run; the harness's own key stays privileged, and only the two
+roles the scenario creates and assumes are governed.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info) and the AWS CLI is installed. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
+https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+
+  just smoke the-tag-is-the-boundary
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke the-tag-is-the-boundary and report the "caught"
+line: it drops the conditions from Bob's grant, and Bob's write on
+Alice's half must go through, which proves the condition and not the
+credentials was the boundary.
+```
+
+The steps as they print:
+
+1. `the platform stands one estate up, two halves in it` - two instances
+   in estate app, one under module.net and one under module.data, with
+   markers stamped by the account.
+2. `two roles, two halves, one grant shape` - Alice may act on
+   module.data.* and create into data; Bob may act on module.net.* and
+   create into net. The evidence line prints the conditions.
+3. `Alice converges her half` - a tag change on the database, applied
+   under Alice's session.
+4. `Alice is denied on Bob's half - by AWS, not by this tool` - the same
+   kind of change on the gateway. The provider's CreateTags comes back
+   403 and the gateway is untouched.
+5. `Bob converges the same change` - his session, his half.
+6. `the carve begins with a git move, and Bob's attempt at the retag is
+   denied` - the data module moves to a new root, and Bob's
+   `live-mv -from-estate=app` is refused by the platform before anything
+   moves.
+7. `Alice completes the carve: one governed tag write` - the same
+   command under Alice's session, and tofu-estate becomes data.
+8. `both estates plan clean, each under its own role` - No changes in
+   data under Alice and in app under Bob.
+9. `teardown - each estate by its own destroy`.
+
+The `BREAK=1` run replaces Bob's grant with the same reach and no
+conditions, then has Bob change a tag on Alice's half. The write must go
+through. If the platform still refused, something other than the
+condition was the boundary and the claim would prove nothing.
+
+One emulator note. Real EC2 refuses with `UnauthorizedOperation`; the
+emulator refuses with a 403 whose body the EC2 SDK cannot parse, so the
+provider prints `api error UnknownError`. The scenario matches both, and
+the gap is filed as lex00/floci#189.
 
 ## Reading a run
 

@@ -179,6 +179,17 @@ showing its own checks would have caught it.
   leavers and the new estate must propose building them again, stock's
   two-ledger window made visible.
 
+- **the-tag-is-the-boundary** - *Claim 13: the tag is the boundary.*
+  Ownership is a tag, so the cloud's own policy engine governs who may
+  act on what, per resource. Two roles share one estate, each fenced to
+  its half by a condition on the ownership tag; each converges its half
+  and is refused on the other's by AWS. Then one role carves her half
+  into a new estate with a single `live-mv -from-estate` tag write, the
+  other role's attempt at the same move is refused, and both estates
+  plan clean under their own roles. Runs with the emulator's IAM
+  enforcement on. The BREAK control drops the conditions from one role's
+  grant, and the cross-half refusal must vanish.
+
 ## Knobs
 
 | Variable | Effect |

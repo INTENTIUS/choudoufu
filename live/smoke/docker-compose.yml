@@ -11,6 +11,12 @@
 services:
   floci:
     image: ${FLOCI_IMAGE:?smoke.sh exports this from live/floci-image}
+    environment:
+      # Off by default, matching the emulator. A scenario that proves an IAM
+      # denial exports FLOCI_IAM_ENFORCEMENT=true before stack_up; the "test"
+      # key the harness signs with keeps bypassing the check either way, so
+      # only principals a scenario creates and assumes are governed.
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: ${FLOCI_IAM_ENFORCEMENT:-false}
     ports:
       - "127.0.0.1:${FLOCI_PORT:-4650}:4566"
     networks:
