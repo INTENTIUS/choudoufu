@@ -120,7 +120,21 @@ def preview(cfg: config.Config) -> None:
             "live-mv -dry-run finds the resource, makes every check, and stops "
             "before touching a tag. This is what a bid can show a client."
         )
-        govern.preview_carve(cfg, carve.path(cfg.run_dir))
+        # A move whose destination config does not yet declare the address would
+        # refuse the dry-run. Carry the movable blocks into their destinations so
+        # the dry-run can resolve them, then restore every config on the way out:
+        # a preview leaves nothing changed, not the cloud and not the local
+        # files. Blocks that cannot be carried stay for the operator, and the
+        # dry-run refuses them, which is the right check.
+        cp = carve.path(cfg.run_dir)
+        with mover.staged_for_preview(cfg, cp) as rep:
+            if rep.staged:
+                ui.say("staged so the dry-run can resolve them, restored after (no write, cloud or local): "
+                       + ", ".join(f"{a} -> {e}" for a, e in rep.staged))
+            if rep.manual:
+                ui.warn("left for you to move by hand (indexed, nested, or renamed); the dry-run refuses them until moved: "
+                        + ", ".join(a for a, _ in rep.manual))
+            govern.preview_carve(cfg, cp)
 
 
 # --------------------------------------------------------------------------
@@ -243,6 +257,23 @@ def receipt_phase(cfg: config.Config) -> None:
                     "run `tlmig receipt` again in a minute and the record appears")
             ui.warn(warn)
             events.note(cfg, warn)
+        # The tool's own record, beside the account's. CloudTrail is the
+        # account's independent log of the writes; this is choudoufu's own
+        # record store - what each estate records as its own after the moves.
+        # Two parties, one set of moves; the receipt shows they agree.
+        store = receipt.read_record_store(cfg)
+        if store:
+            ui.rule("the tool's own record (.tofu-records)")
+            ui.say(
+                "Beside the account's log, this is choudoufu's own record store: what each "
+                "estate records as belonging to it now. The log is the account's record of the "
+                "writes; the store is the tool's record of the result. They describe the same moves."
+            )
+            for est, addrs in store.items():
+                shown = ", ".join(addrs[:4]) + (f", +{len(addrs) - 4} more" if len(addrs) > 4 else "")
+                ui.kv(f"  {est}", f"{len(addrs)} recorded: {shown}", True)
+            ui.ok(f"choudoufu's own record store lists each estate's resources above; "
+                  f"the account's log records the {len(retags)} ownership write(s) that moved them")
         carve_receipt = None
         saved = cfg.run_dir / "receipts" / "carve-by-retag.log"
         if saved.exists():
@@ -251,7 +282,7 @@ def receipt_phase(cfg: config.Config) -> None:
                 ui.kv("emulator receipt", f"carve-by-retag {'PASS' if carve_receipt.passed else 'no PASS line'}: monolith {carve_receipt.monolith_plan_requests} requests, carved estate {carve_receipt.carved_plan_requests}", carve_receipt.passed)
             except Exception as exc:  # noqa: BLE001 - a bad capture must not stop the demo
                 ui.warn(f"saved emulator receipt unreadable: {exc}")
-        events.receipt(cfg, {"carve": carve_receipt, "cloudtrail": ct, "source": f"cloudtrail lookup-events since {receipt.run_started(cfg).isoformat()}"})
+        events.receipt(cfg, {"carve": carve_receipt, "cloudtrail": ct, "record_store": store, "source": f"cloudtrail lookup-events since {receipt.run_started(cfg).isoformat()}"})
 
 
 def teardown(cfg: config.Config) -> None:

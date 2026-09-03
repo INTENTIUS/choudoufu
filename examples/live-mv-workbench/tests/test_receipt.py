@@ -85,5 +85,41 @@ class CloudTrail(unittest.TestCase):
         self.assertEqual(len(ct.denied), 2)
 
 
+
+class RecordStore(unittest.TestCase):
+    """read_record_store decodes the on-disk .tofu-records into {estate: addrs}
+    - the tool's own record, shown beside the account's CloudTrail log."""
+
+    def _store(self, run_dir, estate, addrs):
+        import base64
+        root = run_dir / "estates" / estate / ".tofu-records" / "tofu-records" / estate
+        for addr in addrs:
+            rtype = addr.split(".", 1)[0]
+            d = root / rtype; d.mkdir(parents=True, exist_ok=True)
+            name = base64.b64encode(addr.encode()).decode().rstrip("=")
+            (d / name).write_text("x")
+        (root / ".store-sentinel").write_text("sentinel")  # must be ignored
+
+    def test_reads_addresses_per_estate_and_skips_the_sentinel(self):
+        from tlmig import config
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = pathlib.Path(tmp) / "run"
+            cfg = config.Config(run_id="rs01", run_dir=rd, binary="choudoufu")
+            self._store(rd, "team-a", ["aws_iam_role.team_a", "aws_cloudwatch_log_group.team_a_0"])
+            self._store(rd, "team-b", ["aws_iam_role.team_b"])
+            store = receipt.read_record_store(cfg)
+            self.assertEqual(set(store), {"team-a", "team-b"})
+            self.assertEqual(store["team-a"], ["aws_cloudwatch_log_group.team_a_0", "aws_iam_role.team_a"])
+            self.assertEqual(store["team-b"], ["aws_iam_role.team_b"])
+            # the .store-sentinel is not a resource
+            self.assertNotIn("sentinel", " ".join(a for v in store.values() for a in v))
+
+    def test_no_store_is_empty_not_an_error(self):
+        from tlmig import config
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = config.Config(run_id="rs02", run_dir=pathlib.Path(tmp) / "run", binary="choudoufu")
+            self.assertEqual(receipt.read_record_store(cfg), {})
+
+
 if __name__ == "__main__":
     unittest.main()
