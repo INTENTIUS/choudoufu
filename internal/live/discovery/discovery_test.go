@@ -311,6 +311,12 @@ func TestDiscoverWrongEstateIgnored(t *testing.T) {
 	if scan.OtherEstate != 1 {
 		t.Errorf("the scan does not record the ignored resource: %s", scan)
 	}
+	// The ignored resource's import ID is recorded in OtherEstateHeld so a
+	// parent-read or record-orphan leg refuses to anchor on it (2026-09-03
+	// ruling; the live tag decides ownership).
+	if !res.OtherEstateHeld["aws_vpc"]["vpc-other"] {
+		t.Errorf("another estate's resource was not recorded in OtherEstateHeld: %+v", res.OtherEstateHeld)
+	}
 	if !containsAddr(res.Unbound, `aws_vpc.main`) {
 		t.Errorf("aws_vpc.main should be unbound:\n%s", res)
 	}

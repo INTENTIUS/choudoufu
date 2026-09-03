@@ -85,6 +85,21 @@ type Verdicts struct {
 	// create would replace a resource that only needed a new tag.
 	Orphans []OwnedResource
 
+	// OtherEstateHeld records the live resources the sweep saw carrying a
+	// tofu-estate tag that names a DIFFERENT estate than the one searched
+	// for, keyed by type name then by import ID. It is the ruling of
+	// 2026-09-03 made queryable: the live tag decides ownership, so a
+	// resource another estate holds must never anchor a cross-estate action
+	// here. Both parent-read legs consult it to refuse anchoring a child
+	// read on a parent another estate owns, and the record-orphan leg
+	// (recordorphan_read.go) consults it as the primary signal that an
+	// undeclared record's parent has moved away. Empty for a type the sweep
+	// could not read a tag for at all - notably IAM on a real account, whose
+	// list call carries no tags and whose tagging-API join does not index it
+	// - which is why each consumer keeps its own safe-side fallback rather
+	// than reading an absent entry as "owned here".
+	OtherEstateHeld map[string]map[string]bool
+
 	// Surplus lists the live members of a count set that are past its
 	// declared count: the highest slots, which a scale-down deletes.
 	//

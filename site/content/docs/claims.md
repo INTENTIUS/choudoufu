@@ -31,6 +31,7 @@ fail proves nothing, so every claim ships with its failure demonstrated.
 | Stock when you need it | `just smoke stock-when-you-need-it` | 3 min |
 | Unchanged is free | `just smoke unchanged-is-free` | 3 min |
 | The cache serves the whole estate | `just smoke cache-serves-the-whole-estate` | 2 min |
+| A count pool is a fungible set | `just smoke count-is-a-fungible-set` | 2 min |
 | Carve by retag | `just smoke carve-by-retag` (needs Go) | 6 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
@@ -469,6 +470,32 @@ The `BREAK=1` run deletes a resource out of band. The sweep no longer
 vouches it, so it is not served from cache and the plan surfaces it -
 losing an object costs a read, never a wrong plan.
 
+## Claim 11: a count pool is a fungible set
+
+A `count` block declares a set, and stock tools treat it as a list:
+instance 2 is whatever sits at index 2. Shrinking the count renumbers
+the tail and rebuilds it. Choudoufu names each member with a `tofu-slot`
+marker instead, a stable id minted once and never reused. The lint
+boundary forbids any argument from reading `count.index`. The index is where a
+member sits today; the slot is what it is. So a pool of three scales to
+two by removing exactly one member and rebuilding nothing, and the
+survivors keep their live ids. Strip the slot from one member where no
+local record names it, and the set has two rules for naming its members,
+so the run refuses rather than guess.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info) and the AWS CLI is installed. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
+https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+
+  just smoke count-is-a-fungible-set
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke count-is-a-fungible-set and report the "caught"
+line: it deletes the local record, strips the slot marker from one
+member, and the plan must refuse the half-slotted set by name rather
+than bind the odd member by a guess.
 
 ## Claim 12: carve by retag
 
@@ -496,6 +523,22 @@ destroying the leavers while the new estate proposes building them.
 
 The steps as they print:
 
+1. `stand up a pool of three` - three elastic IPs, three distinct slots.
+2. `capture the survivor at the middle seat` - the allocation id that
+   holds slot 1 is written down.
+3. `scale to two - one removed, nothing rebuilt` - count drops to 2; the
+   plan shows one destroy and zero creates, then applies.
+4. `the middle survivor is the same live object` - the id from step 2 is
+   still allocated. Its seat moved and its identity did not.
+5. `teardown` - the pool is destroyed.
+
+The `BREAK=1` run deletes the local files, cache and record store both,
+so nothing but the tags names a member, then deletes the `tofu-slot` tag
+from one of them. Two members now answer by slot and one has no answer,
+so the plan refuses the half-slotted set and names the slot disagreement
+rather than binding the odd member by position. Beside an intact record
+the same strip is a repair, not a guess: the record names the member and
+the plan re-stamps its slot.
 1. `stock stands the terralith up` - the pinned stock OpenTofu applies
    the generated terralith the ordinary way. It is 79 resources. Most of
    them are IAM. A small ECS layer and a Route 53 fan-out sit beside them.
