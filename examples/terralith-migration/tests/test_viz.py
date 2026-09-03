@@ -174,5 +174,8 @@ class CompactPicture(unittest.TestCase):
         self.assertIn("<svg", full)
         self.assertNotIn("class='strip'", full)
         self.assertNotIn("class='ledger'", full)
-        self.assertEqual(viz.render_html(viz.load_run(FIXTURE, upto=0), compact=True), "")
+        # With configs on disk the map has cells before any event; with none
+        # (the emitter run) and no inventory yet, the compact picture is empty.
+        self.assertIn("<svg", viz.render_html(viz.load_run(FIXTURE, upto=0), compact=True))
+        self.assertEqual(viz.render_html(viz.load_run(EMITTER, upto=0), compact=True), "")
         self.assertIn("requests per plan", viz.render_html(viz.load_run(FIXTURE), compact=True))
