@@ -4,9 +4,87 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.10.0 (Unreleased)
+## choudoufu v0.11.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.10.0 (2026-09-03)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.10.0.json`](live/history/v0.10.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.9.0.json live/history/v0.10.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board was last measured at `bb45512c9b` (2026-08-31) and was not
+re-run for this release; the engine changes below are proven by their own
+claim smokes and unit tests, not by a fresh gauntlet pass.
+
+FORK WORK:
+
+- **A cross-estate move: `live-mv -from-estate`** (PR #760). The rename
+  verb finds a resource by (estate, old address) and writes (estate, new
+  address). With `-from-estate` it finds by (source estate, old address)
+  and writes (this estate, new address), which may be the same address:
+  the split `live/MARKERS.md` describes as a tag rewrite, performed
+  through the same tags-only provider apply with the same refusals. It
+  runs in the destination's configuration after the block moves there,
+  one resource per call; the source's record for the resource stays
+  behind. Refusals added: an invalid or same-as-destination source
+  estate, a resource owned by a third estate, and a move that already
+  ran.
+
+- **The live tag decides** (maintainer ruling 2026-09-03; PRs #759, #760,
+  #763). A parent whose live `tofu-estate` names another estate never
+  anchors a child read for this one, whatever a left-behind record says.
+  The parent-read legs record the tag the sweep saw and skip such a
+  parent (#759, which also adds parent-list-recovered orphan recovery
+  for inline IAM policies); the record-orphan leg reads that same map
+  first and, for a parent whose tag was never read, skips the child
+  unless something in the pass holds the parent (#760, #763). Found by
+  the carve claim: after a role moved estates, the source's next plan
+  proposed destroying the role's inline policy and attachments.
+
+- **Claims 11, 12 and 13** (PRs #761, #760, #762; #764). Three more
+  narrated smoke scenarios with BREAK controls proven to catch:
+  `count-is-a-fungible-set` (a pool scales down by slot and rebuilds
+  nothing; BREAK strips a slot and the run refuses by name),
+  `carve-by-retag` (a stock terralith is adopted with one command, then
+  carved into estates by tag writes, every side plans clean, and the
+  six-resource team estate plans for 39 requests against the monolith's
+  166; BREAK moves the blocks and skips the retag, and both sides show
+  the two-ledger window), and `the-tag-is-the-boundary` (two roles fenced
+  to halves of one estate by a condition on the ownership tag, denied by
+  the platform when they reach across, and the carve itself refused for
+  the role that may not make it; BREAK drops the condition and the
+  denial vanishes). The smoke stack gains `FLOCI_IAM_ENFORCEMENT=true`,
+  which a scenario exports before `stack_up` to turn the emulator's IAM
+  enforcement on for its run, and a portable `sed_i` helper after the
+  BSD-only form died on Linux. Claim 13 also carries a real-account
+  receipt (PR #765): the same carve run in us-east-2 under two assumed
+  roles, with all five `CreateTags` calls read back from CloudTrail event
+  history, two of them `Client.UnauthorizedOperation` naming the role
+  session and the instance, recorded on the claims page and in
+  `live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json`.
+
+- **The cache serves the whole estate** (#692 increment 3; PR #758).
+  On `-refresh=false` every converged instance is served from the state
+  cache, server-assigned needs-discovery types included, so one estate
+  of a terralith plans without re-reading the cloud; claim 10 pins it,
+  and its BREAK deletes a resource out of band and the plan must surface
+  it rather than serve a gone object.
+
+- **Count scale-down surplus rule pinned** (#756; PR #757): the highest
+  slot orphans, whatever its address says.
+
+- **Discovery splits verdicts from reports** (#751; PR #754), and the
+  dead surface goes with it. **The model docs tell the whole truth**
+  (#752; PR #753): the slot marker, the record store's four jobs, and a
+  page for the disposable cache. The architecture review's three
+  verified falsehoods are corrected in docs and comments (PR #749).
 
 ## choudoufu v0.9.0 (2026-09-02)
 

@@ -105,3 +105,9 @@ The receiving team can list what it inherited before running anything.
 Rewrite `tofu-estate` on the resources that are leaving, then copy
 the policy with the new estate name. The split is a tag write and a policy
 copy. Neither half moves.
+
+`choudoufu live-mv -from-estate=<old> <address> <address>`, run in the new
+estate's configuration after the block moves there, makes that tag write
+one resource at a time; the policy copy is yours.
+[How to rename a resource]({{< relref "/docs/use/rename-a-resource#moving-a-resource-to-another-estate" >}})
+has the command's refusals.
