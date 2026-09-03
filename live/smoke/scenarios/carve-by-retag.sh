@@ -169,11 +169,11 @@ if [ "${BREAK:-0}" = "1" ]; then
   explain \
     "The claim rests on the tag write being the move. So defeat it. Move" \
     "the six blocks to a new root and rewrite no tag. That is the" \
-    "two-ledger window stock lives" \
-    "in, manufactured. The monolith must propose destroying what it still" \
-    "owns and no longer declares, and the new estate must propose creating" \
-    "what it declares and does not own. A clean plan on either side would" \
-    "mean the retag never mattered."
+    "two-ledger window stock lives in, manufactured. The monolith must" \
+    "propose destroying what it still owns and no longer declares, and" \
+    "the new estate must propose creating what it declares and does not" \
+    "own. A clean plan on either side would mean the retag never" \
+    "mattered."
   cmd "move six blocks into team1/ ; choudoufu plan   # in both, no live-mv"
   carve_team_config
   BM="$(cd "$MONO" && chdf plan -input=false -no-color 2>&1 || true)"
