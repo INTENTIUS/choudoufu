@@ -461,8 +461,10 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             # preview of the same address replaces an earlier one.
             body = {k: v for k, v in ev.items() if k not in ("ts", "run_id", "kind")}
             body["phase"] = phase_name
-            key = body.get("address") or body.get("old_address") or ""
-            previews[:] = [p for p in previews if (p.get("address") or p.get("old_address")) != key]
+            # e9's shape: address is the destination's, old_address the
+            # source's; equal for a plain change of owner.
+            key = body.get("old_address") or body.get("address") or ""
+            previews[:] = [p for p in previews if (p.get("old_address") or p.get("address")) != key]
             previews.append(body)
 
     # The strip follows the run: phases in the order they started, then the
@@ -843,16 +845,18 @@ def project(state: RunState) -> RunState:
     for pv in state.previews:
         if pv.get("refusal"):
             continue
-        addr = pv.get("address") or pv.get("old_address")
+        old_addr = pv.get("old_address") or pv.get("address")
+        new_addr = pv.get("address") or old_addr
         dest = pv.get("to_estate")
-        r = after.by_address.get(addr) if addr else None
-        if r is None and pv.get("id"):
-            r = after.resources.get(pv["id"])
+        r = after.by_address.get(old_addr) if old_addr else None
+        if r is None:
+            lid = pv.get("live_id") or pv.get("id")
+            r = after.resources.get(lid) if lid else None
         if r is not None and dest:
             r.estate = dest
             r.gone = False
-            if pv.get("new_address"):
-                r.address = pv["new_address"]
+            if new_addr:
+                r.address = new_addr
     return after
 
 
@@ -865,7 +869,9 @@ def render_previews(state: RunState) -> str:
     short = lambda e: _short_estate(state, e) if e else "?"
     rows = []
     for pv in state.previews:
-        addr = pv.get("address") or pv.get("old_address") or "?"
+        addr = pv.get("old_address") or pv.get("address") or "?"
+        if pv.get("address") and pv.get("old_address") and pv["address"] != pv["old_address"]:
+            addr = f"{pv['old_address']} → {pv['address']}"
         writes = "; ".join(f"{w.get('key')}: {w.get('from')} → {w.get('to')}" for w in (pv.get("tag_writes") or []))
         kids = ", ".join(str(c) for c in (pv.get("children") or []))
         ref = pv.get("refusal")

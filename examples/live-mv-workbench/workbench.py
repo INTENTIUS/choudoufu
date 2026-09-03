@@ -388,11 +388,11 @@ def _(mo, run_dir, tick, viz):
     tick.value
     _state = viz.load_run(run_dir)
     _table = viz.render_previews(_state)
-    if _table:
-        mo.vstack([mo.md("## What is about to happen\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>preview · every planned move as a dry run; nothing written</span>\n\nEach row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
-                   mo.Html(_table), mo.Html(viz.render_projection(_state, map_width=560))]).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "color-mix(in srgb, currentColor 5%, transparent)"})
-    else:
-        mo.md("")
+    # marimo shows a cell's last top-level expression, so the branch is a
+    # value, not a statement.
+    _out = mo.vstack([mo.md("## What is about to happen\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>preview · every planned move as a dry run; nothing written</span>\n\nEach row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
+                      mo.Html(_table), mo.Html(viz.render_projection(_state, map_width=560))]).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "color-mix(in srgb, currentColor 5%, transparent)"}) if _table else mo.md("")
+    _out
     return
 
 
