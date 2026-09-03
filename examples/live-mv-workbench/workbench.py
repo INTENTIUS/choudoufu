@@ -543,7 +543,7 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _saved = f"on disk: `{carve.path(run_dir)}` with {len(_on_disk.get('moves', []))} moves" + ("" if _on_disk.get("moves") == plan_doc["moves"] else " (the table has changed since; save again)")
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
-    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs and the Move phase then runs through the executor, one `live-mv` per move. **In the demo you can leave this alone:** the box below is ticked, so the plan holds the demo's move, each team split into its own estate, which the demo seed already staged a config for, so Preview dry-runs it clean. Untick it, or add rules, to plan your own. (Dissolving one team into another, team-a into team-b, is the advanced case: the destination's config must first declare the incoming resources, so Preview reports it as a refusal until the block is moved.)")]
+    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs and the Move phase then runs through the executor, one `live-mv` per move. **In the demo you can leave this alone:** the box below is ticked, so the plan holds the demo's move, each team split into its own estate, which the demo seed already staged a config for, so Preview dry-runs it clean. Untick it, or add rules, to plan your own. (Dissolving one team into another, team-a into team-b, is the advanced case: Preview stages the movable blocks into the destination's config, dry-runs, and restores every file, so it previews clean and writes nothing at all; a block it cannot move for you, an indexed or renamed one, it flags for a hand move.)")]
     if is_demo:
         _parts.append(demo_move)
     _parts += [
@@ -592,7 +592,7 @@ def _(PHASES, bid, carve, live, mo, preview_btn, run_dir, section, st, tick, viz
         _status = f"running — {_done} of {_planned} moves dry-run so far" if _planned else f"running — {_done} dry-run so far"
     _table = viz.render_previews(_state)
     _parts = [
-        mo.md("Each row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. A refusal is a finding, not a crash: the move is telling you the destination is not ready for it. Below, the map as it stands and the map as it would stand once the passed moves are written."),
+        mo.md("Each row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. For a cross-estate move, Preview stages the movable block into the destination's config, dry-runs, and restores every file, so it writes nothing, to the cloud or on disk. A refusal is a finding, not a crash: a block Preview cannot stage for you is telling you it needs a hand move. Below, the map as it stands and the map as it would stand once the passed moves are written."),
         mo.hstack([preview_btn, mo.md(f"`preview` · {_status}")], justify="start", gap=1),
     ]
     if _running:
