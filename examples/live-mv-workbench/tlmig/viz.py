@@ -137,6 +137,7 @@ class RunState:
     notes: list[tuple[str, str]]           # (phase, text)
     events_seen: int
     last_ts: datetime | None
+    previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
 
     @property
     def active_phase(self) -> Phase | None:
@@ -289,6 +290,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     measures: list[Measure] = []
     verdicts: list[dict] = []
     notes: list[tuple[str, str]] = []
+    previews: list[dict] = []
     seen = 0
     last_ts = None
     current_phase = ""
@@ -453,6 +455,17 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                                         err or "recorded", not err, True))
         elif kind == "note":
             notes.append((phase_name, str(ev.get("text", ""))))
+        elif kind == "preview":
+            # A planned move as live-mv -dry-run judged it: the tag writes it
+            # would make, the children that follow, and any refusal. A later
+            # preview of the same address replaces an earlier one.
+            body = {k: v for k, v in ev.items() if k not in ("ts", "run_id", "kind")}
+            body["phase"] = phase_name
+            # e9's shape: address is the destination's, old_address the
+            # source's; equal for a plain change of owner.
+            key = body.get("old_address") or body.get("address") or ""
+            previews[:] = [p for p in previews if (p.get("old_address") or p.get("address")) != key]
+            previews.append(body)
 
     # The strip follows the run: phases in the order they started, then the
     # expected ones not yet seen. When the run uses names outside the
@@ -464,7 +477,11 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         ordered += [phases[n] for n in expected_phases if n not in seen_order]
     run_id = run_id or run_dir.name
     prefix = prefix or f"tlmig-{run_id}"
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts)
+    for pv in previews:
+        for e in (pv.get("from_estate"), pv.get("to_estate")):
+            if e and e not in estates:
+                estates.append(e)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews)
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
@@ -816,6 +833,69 @@ def render_delta(after: RunState, before: RunState | None, *, map_width: int = 6
             parts.append(f"<h2>guard</h2>{v}")
     parts.append("</div>")
     return "".join(parts) if len(parts) > 2 else ""
+
+
+def project(state: RunState) -> RunState:
+    """The run as it would stand after every previewed move that passed its
+    checks: a copy of the state with each moved resource's estate set to the
+    preview's destination. Refused moves change nothing. Untaggable children
+    follow through estate_of as they do live."""
+    import copy
+    after = copy.deepcopy(state)
+    for pv in state.previews:
+        if pv.get("refusal"):
+            continue
+        old_addr = pv.get("old_address") or pv.get("address")
+        new_addr = pv.get("address") or old_addr
+        dest = pv.get("to_estate")
+        r = after.by_address.get(old_addr) if old_addr else None
+        if r is None:
+            lid = pv.get("live_id") or pv.get("id")
+            r = after.resources.get(lid) if lid else None
+        if r is not None and dest:
+            r.estate = dest
+            r.gone = False
+            if new_addr:
+                r.address = new_addr
+    return after
+
+
+def render_previews(state: RunState) -> str:
+    """What is about to happen: one row per planned move with the tag writes
+    it makes, the children that follow, and the refusal if the dry run said
+    no. Empty when nothing has been previewed."""
+    if not state.previews:
+        return ""
+    short = lambda e: _short_estate(state, e) if e else "?"
+    rows = []
+    for pv in state.previews:
+        addr = pv.get("old_address") or pv.get("address") or "?"
+        if pv.get("address") and pv.get("old_address") and pv["address"] != pv["old_address"]:
+            addr = f"{pv['old_address']} → {pv['address']}"
+        writes = "; ".join(f"{w.get('key')}: {w.get('from')} → {w.get('to')}" for w in (pv.get("tag_writes") or []))
+        kids = ", ".join(str(c) for c in (pv.get("children") or []))
+        ref = pv.get("refusal")
+        if ref:
+            answer, cls = (ref.get("summary") if isinstance(ref, dict) else str(ref)), "bad"
+        else:
+            answer, cls = ("written" if pv.get("written") else "would write"), ("ok" if pv.get("written") else "")
+        rows.append(f"<tr class='write'><td>{_esc(addr)}</td><td>{_esc(short(pv.get('from_estate')))} → {_esc(short(pv.get('to_estate')))}</td><td class='tg'>{_esc(writes)}</td><td class='tg'>{_esc(kids)}</td><td class='{cls}'>{_esc(answer)}</td></tr>")
+    refused = sum(1 for pv in state.previews if pv.get("refusal"))
+    head = f"{len(state.previews)} planned moves, {refused} refused" if refused else f"{len(state.previews)} planned moves, every check passed"
+    return (f"<style>{CSS}</style><div class='tlmig'><h2>what is about to happen · {_esc(head)}</h2>"
+            "<table class='ledger'><thead><tr><th>resource</th><th>owner</th><th>tag writes</th><th>children that follow</th><th>dry run</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>")
+
+
+def render_projection(state: RunState, map_width: int = 620) -> str:
+    """The map now beside the map as it would stand after the planned moves."""
+    if not state.previews:
+        return ""
+    after = project(state)
+    return (f"<style>{CSS}</style><div class='tlmig'><div class='cols'>"
+            f"<div><h2>who owns what · now</h2><div class='wrap'>{render_map_svg(state, map_width)}</div></div>"
+            f"<div><h2>who owns what · after the planned moves</h2><div class='wrap'>{render_map_svg(after, map_width)}</div></div>"
+            "</div></div>")
 
 
 def _counts(state: RunState) -> dict[str, int]:

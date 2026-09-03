@@ -1,0 +1,23 @@
+{
+  "run_id": "sample",
+  "prefix": "tlmig-sample",
+  "region": "us-east-1",
+  "estates": [
+    {
+      "estate": "tlmig-sample-monolith",
+      "workdir": "tests/fixtures/sample-run/estates/tlmig-sample-monolith"
+    },
+    {
+      "estate": "tlmig-sample-team-a",
+      "workdir": "tests/fixtures/sample-run/estates/tlmig-sample-team-a"
+    },
+    {
+      "estate": "tlmig-sample-team-b",
+      "workdir": "tests/fixtures/sample-run/estates/tlmig-sample-team-b"
+    },
+    {
+      "estate": "tlmig-sample-team-c",
+      "workdir": "tests/fixtures/sample-run/estates/tlmig-sample-team-c"
+    }
+  ]
+}

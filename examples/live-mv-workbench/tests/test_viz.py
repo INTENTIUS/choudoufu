@@ -251,3 +251,43 @@ class VerdictEstatesFromLines(unittest.TestCase):
         v = next(v for v in state.verdicts if v["name"].startswith("carve"))
         self.assertEqual(viz._short_estate(state, v["source_estate"]), "monolith")
         self.assertEqual(viz._short_estate(state, v["destination_estate"]), "team-a")
+
+
+class Tips(unittest.TestCase):
+    def test_every_phase_has_both_registers(self):
+        from tlmig import tips
+        for phase in viz.PHASES:
+            self.assertTrue(tips.tip(phase, "beginner"), phase)
+            self.assertTrue(tips.tip(phase, "expert"), phase)
+        self.assertEqual(tips.tip("nope", "beginner"), "")
+
+
+PREVIEW = pathlib.Path(__file__).parent / "fixtures" / "preview-run"
+
+
+class Projection(unittest.TestCase):
+    def test_previews_are_read_and_a_later_one_replaces_an_earlier(self):
+        state = viz.load_run(PREVIEW)
+        self.assertEqual([p["address"] for p in state.previews], ["aws_iam_role.team_a", "aws_iam_policy.team_a", "aws_cloudwatch_log_group.team_a_0"])
+        self.assertTrue(state.previews[2]["refusal"])
+
+    def test_the_projection_moves_passed_moves_and_their_children_only(self):
+        state = viz.load_run(PREVIEW)
+        after = viz.project(state)
+        self.assertEqual(short(state, "aws_iam_role.team_a"), "team-a")
+        self.assertEqual(short(after, "aws_iam_role.team_a"), "team-b")
+        self.assertEqual(short(after, "aws_iam_role_policy.team_a_inline"), "team-b")     # follows the parent
+        self.assertEqual(short(after, "aws_iam_policy.team_a"), "team-b")
+        self.assertEqual(short(after, "aws_cloudwatch_log_group.team_a_0"), "team-a")     # refused: unchanged
+        self.assertEqual(short(after, "aws_cloudwatch_log_group.team_a_1"), "team-a")
+        self.assertEqual(short(state, "aws_iam_role.team_a"), "team-a")                    # the original is untouched
+
+    def test_rendering(self):
+        state = viz.load_run(PREVIEW)
+        table = viz.render_previews(state)
+        self.assertIn("3 planned moves, 1 refused", table)
+        self.assertIn("the destination does not declare", table)
+        self.assertIn("would write", table)
+        both = viz.render_projection(state)
+        self.assertEqual(both.count("<svg"), 2)
+        self.assertEqual(viz.render_previews(viz.load_run(FIXTURE)), "")
