@@ -2044,8 +2044,20 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		case estate != req.Estate:
 			// Another estate's resource. Not ours, not foreign, not
 			// reported: ignored entirely, which is the whole point of the
-			// estate being the ownership boundary.
+			// estate being the ownership boundary. Its import ID is recorded
+			// so a parent-read or record-orphan leg refuses to anchor a
+			// cross-estate action on it (2026-09-03 ruling; see
+			// [Result.OtherEstateHeld]).
 			scan.OtherEstate++
+			if importID != "" {
+				if res.OtherEstateHeld == nil {
+					res.OtherEstateHeld = map[string]map[string]bool{}
+				}
+				if res.OtherEstateHeld[typeName] == nil {
+					res.OtherEstateHeld[typeName] = map[string]bool{}
+				}
+				res.OtherEstateHeld[typeName][importID] = true
+			}
 			continue
 		}
 

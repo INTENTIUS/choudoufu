@@ -30,6 +30,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -58,15 +59,20 @@ func parentReadSweep(ctx context.Context, req Request, schemas listclient.Schema
 			// already covers it and this leg has nothing to add.
 			continue
 		}
-		link, ok := identity.SingleParentComponent(typeName, eligibleParents, rosterServiceOf(req.Roster))
-		if !ok {
-			// Either not parent-readable at all, or parent-readable in a
-			// shape this pass does not yet act on (a second free-standing
-			// argument the parent alone does not supply) - see
-			// live/LIMITATIONS.md's parent-read table.
+		if link, ok := identity.SingleParentComponent(typeName, eligibleParents, rosterServiceOf(req.Roster)); ok {
+			diags = diags.Append(parentReadSweepType(ctx, req, schemas, typeName, link, res))
 			continue
 		}
-		diags = diags.Append(parentReadSweepType(ctx, req, schemas, typeName, link, res))
+		if link, ok := identity.ParentListRecovered(typeName, eligibleParents, rosterServiceOf(req.Roster)); ok {
+			// The multi-component shape SingleParentComponent excludes: a
+			// second, free-standing identity component the parent does not
+			// supply, but a parent-scoped list returns for every live child
+			// (issue #692's parent-keyed IAM orphan-recovery tail).
+			diags = diags.Append(parentListChildSweepType(ctx, req, schemas, typeName, link, res))
+			continue
+		}
+		// Either not parent-readable at all, or parent-readable in a shape
+		// no leg acts on yet - see live/LIMITATIONS.md's parent-read table.
 	}
 	return diags
 }
@@ -185,6 +191,9 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 				continue
 			}
 		}
+		if parentHeldByOtherEstate(res, link.Parent, r.ImportID) {
+			continue
+		}
 		if declared[r.ImportID] {
 			continue
 		}
@@ -265,6 +274,278 @@ func readParentChildScoped(ctx context.Context, req Request, ts listclient.TypeS
 		break
 	}
 	return diags
+}
+
+// parentHeldByOtherEstate reports whether the sweep saw the live object at
+// (parentType, importID) carrying a tofu-estate tag naming a different
+// estate than this run's. The 2026-09-03 ruling is that the live tag
+// decides: a parent another estate holds never anchors a child read for
+// this one, whatever a left-behind record says. A nil map or a missing
+// entry reads false, which is the safe reading here BECAUSE the only
+// candidates reaching this check are already ClassConcrete resolutions this
+// estate's own configuration declares - a parent an operator asserts is
+// theirs - so "the sweep never saw it held elsewhere" leaves that assertion
+// standing rather than inventing a cross-estate move from an absent tag.
+func parentHeldByOtherEstate(res *Result, parentType, importID string) bool {
+	return res.OtherEstateHeld[parentType][importID]
+}
+
+// childImportID recovers a parent-list-recovered child's whole import
+// identity from one list result. It first tries the ordinary single-attr
+// read ([importIdentity]); when that finds nothing - a composite type whose
+// provider identity schema carries its parts separately (role and name for
+// aws_iam_role_policy) rather than a pre-composed id - it renders the import
+// string from the identity table's own Components, reading each
+// argument-supplying component's identity attribute and gluing the literals
+// (the ":" between role and policy name) between them. The result equals
+// what the resolver composes for the same instance from configuration, so a
+// declared child of this parent is recognised and skipped.
+func childImportID(typeName string, r listclient.Result) (string, bool) {
+	if id, _, ok := importIdentity(typeName, r); ok {
+		return id, true
+	}
+	ti, ok := identity.LookupType(typeName)
+	if !ok || len(ti.Components) == 0 {
+		return "", false
+	}
+	var b strings.Builder
+	for _, c := range ti.Components {
+		b.WriteString(c.Literal)
+		if len(c.Attrs) == 0 {
+			continue
+		}
+		got := false
+		for _, argName := range c.Attrs {
+			idAttr := c.IdentityAttr
+			if idAttr == identity.SameNameIdentity {
+				idAttr = argName
+			}
+			if idAttr == "" {
+				continue
+			}
+			if v, ok := r.IdentityAttr(idAttr); ok && v != "" {
+				b.WriteString(v)
+				got = true
+				break
+			}
+		}
+		if !got {
+			return "", false
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "", false
+	}
+	return out, true
+}
+
+// listScopeAttr picks the child list configuration's argument that carries
+// the parent value. It prefers the identity component's own name (link.Attr,
+// what [readParentChildScoped]'s single-component path always uses), and
+// falls back to the list resource's sole non-region attribute when the two
+// differ: aws_iam_role_policy's identity component is "role" but its list
+// resource scopes on "role_name", the same value under another name. An
+// empty return means the list cannot be scoped to a parent at all.
+func listScopeAttr(ts listclient.TypeSchema, linkAttr string) string {
+	if hasAttr(ts.Config, linkAttr) {
+		return linkAttr
+	}
+	if ts.Config == nil {
+		return ""
+	}
+	var sole string
+	for name := range ts.Config.Attributes {
+		if name == "region" {
+			continue
+		}
+		if sole != "" {
+			// More than one candidate: too ambiguous to guess which is the
+			// parent scope, so this leg does not act (report-only stays the
+			// safe default for an unrecognised list shape).
+			return ""
+		}
+		sole = name
+	}
+	return sole
+}
+
+// parentListChildSweepType runs the parent-list-recovered leg for one
+// multi-component untaggable child (issue #692): every bound parent
+// instance this pass resolved, its children enumerated by a parent-scoped
+// list, and every child not already declared recorded as an orphan. Unlike
+// [parentReadSweepType] it never skips a parent that declares SOME child of
+// this type, because a role may declare one inline policy and own another
+// it no longer declares - the declared/undeclared judgment is made per
+// child identity, not per parent.
+func parentListChildSweepType(ctx context.Context, req Request, schemas listclient.Schemas, typeName string, link identity.ParentLink, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	ts, ok := schemas.Get(typeName)
+	if !ok {
+		return diags
+	}
+	scopeAttr := listScopeAttr(ts, link.Attr)
+	if scopeAttr == "" {
+		// This shape recovers children only through a list scoped to one
+		// parent. When the child's list configuration exposes no argument
+		// to carry the parent value - the identity component's own name
+		// (link.Attr) nor a sole non-region attribute standing in for it -
+		// there is nothing to scope by, and the unscoped list of these
+		// types (IAM/ListRolePolicies with no role) is an error, not an
+		// enumeration. Nothing to do rather than a failed call every plan.
+		return diags
+	}
+
+	declared := make(map[string]bool)
+	for _, r := range res.Resolutions {
+		if r.Type() != typeName || r.Class != identity.ClassConcrete {
+			continue
+		}
+		declared[r.ImportID] = true
+	}
+
+	for _, r := range res.Resolutions {
+		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
+			continue
+		}
+		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, modCfg) {
+				// Issue #69's multi-provider sweep: a parent belonging to a
+				// different provider configuration is read by that pass, not
+				// this one.
+				continue
+			}
+		}
+		if parentHeldByOtherEstate(res, link.Parent, r.ImportID) {
+			continue
+		}
+		diags = diags.Append(readParentListChildren(ctx, req, ts, typeName, link, scopeAttr, r.Addr, r.ImportID, declared, res))
+	}
+	return diags
+}
+
+// readParentListChildren lists one parent's children with a call scoped
+// server-side to parentValue and records every undeclared child as a
+// removal finding. Every result of a parent-scoped list belongs to that
+// parent, so - unlike [readParentChildScoped]'s named-singleton match -
+// each result's WHOLE identity is taken as the child's, and there is no
+// single-child break: a parent may own many.
+func readParentListChildren(ctx context.Context, req Request, ts listclient.TypeSchema, typeName string, link identity.ParentLink, scopeAttr string, parentAddr addrs.AbsResourceInstance, parentValue string, declared map[string]bool, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	vals := map[string]cty.Value{scopeAttr: cty.StringVal(parentValue)}
+	if hasAttr(ts.Config, "region") && req.Region != "" {
+		vals["region"] = cty.StringVal(req.Region)
+	}
+	config, cfgDiags := ts.BuildConfig(vals)
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		return diags
+	}
+
+	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
+	if listDiags.HasErrors() {
+		// The same restraint the rest of this leg shows: a provider hiccup
+		// on a type the configuration may not even mention must not fail
+		// the run.
+		return diags
+	}
+	diags = diags.Append(listDiags)
+
+	for _, r := range results {
+		importID, ok := childImportID(typeName, r)
+		if !ok || declared[importID] {
+			continue
+		}
+		recordListRecoveredFinding(typeName, link, parentAddr, parentValue, importID, r, res)
+	}
+	return diags
+}
+
+// recordListRecoveredFinding turns one undeclared parent-list-recovered
+// child into a [ParentReadFinding] and, for a removable type, an undeclared
+// [identity.Resolution] the plan destroys - the multi-component analogue of
+// [recordParentReadFinding]. The synthetic address carries the child's own
+// recovered name rather than the parent's, since one parent may own several.
+func recordListRecoveredFinding(typeName string, link identity.ParentLink, parentAddr addrs.AbsResourceInstance, parentValue, importID string, r listclient.Result, res *Result) {
+	_, idAttr, _ := importIdentity(typeName, r)
+	finding := ParentReadFinding{
+		TypeName:     typeName,
+		Parent:       link.Parent,
+		ParentAddr:   parentAddr,
+		ParentValue:  parentValue,
+		ImportID:     importID,
+		IdentityAttr: idAttr,
+		Identity:     r.Identity,
+		DisplayName:  r.DisplayName,
+	}
+
+	if identity.ParentReadRemovable(typeName) {
+		finding.Removal = true
+		res.Resolutions = append(res.Resolutions, identity.Resolution{
+			Addr:       listRecoveredChildAddr(typeName, parentAddr, parentValue, importID),
+			Class:      identity.ClassConcrete,
+			ImportID:   importID,
+			Identity:   r.Identity,
+			Undeclared: true,
+		})
+	} else {
+		finding.Withheld = fmt.Sprintf(
+			"%s is parent-list-recoverable via %s but not wired for removal; see live/LIMITATIONS.md",
+			typeName, link.Parent)
+	}
+	res.ParentReads = append(res.ParentReads, finding)
+}
+
+// listRecoveredChildAddr is the address a removable list-recovered finding
+// enters the prior state at. A parent-list-recovered child has no marker
+// and no declared block to read a name from - the block was deleted - so
+// the label is the child's own recovered name (the identity segment past
+// the parent's value: an inline policy's own policy name), best effort, the
+// same status [syntheticChildAddr]'s doc gives its parent-named label. The
+// destroy still targets the right live object; only the printed address may
+// not match the deleted block's original name. It cannot collide with a
+// declared instance, because this leg reaches here only for a child no
+// declared resolution's identity claims.
+func listRecoveredChildAddr(childType string, parentAddr addrs.AbsResourceInstance, parentValue, importID string) addrs.AbsResourceInstance {
+	name := strings.TrimPrefix(importID, parentValue)
+	name = strings.TrimLeft(name, ":/-")
+	name = sanitizeAddrName(name)
+	if name == "" {
+		name = parentAddr.Resource.Resource.Name
+	}
+	return addrs.AbsResourceInstance{
+		Module: parentAddr.Module,
+		Resource: addrs.ResourceInstance{
+			Resource: addrs.Resource{
+				Mode: addrs.ManagedResourceMode,
+				Type: childType,
+				Name: name,
+			},
+		},
+	}
+}
+
+// sanitizeAddrName reduces a recovered identity segment to a valid resource
+// instance name: letters, digits, underscore and hyphen kept, everything
+// else folded to underscore, and a leading digit prefixed so the label
+// parses. It is a display label only - see [listRecoveredChildAddr].
+func sanitizeAddrName(in string) string {
+	var b strings.Builder
+	for _, r := range in {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	out := b.String()
+	if out != "" && out[0] >= '0' && out[0] <= '9' {
+		out = "_" + out
+	}
+	return out
 }
 
 // listUnscopedChildren runs the one list call a type whose list
