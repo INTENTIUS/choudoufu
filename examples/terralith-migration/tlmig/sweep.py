@@ -1,13 +1,15 @@
 """Teardown sweep: after the manifest-driven destroy, read the account
 back and refuse if anything of this run is still there.
 
-Two lists, because each one misses something the other sees. The tagging
+Three lists, because each one misses something the others see. The tagging
 index answers by estate tag across every service it indexes, but it lags
 behind terminations and does not index IAM on a real account. IAM is read
 directly by name prefix (roles, customer-managed policies, instance
 profiles), which is exact and immediate. EC2 instances are read directly
 too, because the tagging index keeps a terminated instance's ARN for a while
-after it is gone, and a terminated instance is not a leftover.
+after it is gone, and a terminated instance is not a leftover. CloudWatch log
+groups, the bulk of the fixture, are read directly by name prefix as well,
+so a lagging tagging index cannot let one survive teardown unnoticed.
 
 Nothing here writes. ``assert_torn_down`` raises ``Leftovers`` (a
 ``guard.GuardError``) naming every item found, so a teardown that missed
@@ -71,6 +73,18 @@ def ec2_leftovers(estate: str, describe_instances_json: str) -> list[Leftover]:
     return out
 
 
+def log_group_leftovers(prefix: str, describe_log_groups_json: str) -> list[Leftover]:
+    """Every log group under /<prefix>/, off `aws logs describe-log-groups
+    --log-group-name-prefix`. The fixture names them /<prefix>/<team>/svc-N,
+    so anything the read returns is this run's."""
+    out: list[Leftover] = []
+    for g in json.loads(describe_log_groups_json).get("logGroups", []):
+        name = g.get("logGroupName", "")
+        if name.startswith(f"/{prefix}/"):
+            out.append(Leftover("log group", name))
+    return out
+
+
 def tagged_leftovers(estate: str, get_resources_json: str) -> list[Leftover]:
     """Everything the tagging index still lists under the estate, minus EC2
     instances, which ec2_leftovers judges by live state instead."""
@@ -102,6 +116,12 @@ def find_leftovers(cfg: config.Config) -> list[Leftover]:
     profiles = guard.aws(cfg, "iam", "list-instance-profiles", "--output", "json").stdout
     found.extend(iam_leftovers(cfg.prefix, roles, policies, profiles))
 
+    groups = guard.aws(
+        cfg, "logs", "describe-log-groups", "--region", cfg.region,
+        "--log-group-name-prefix", f"/{cfg.prefix}/", "--output", "json",
+    ).stdout
+    found.extend(log_group_leftovers(cfg.prefix, groups))
+
     for estate in run_estates(cfg):
         inst = guard.aws(
             cfg, "ec2", "describe-instances", "--region", cfg.region,
@@ -126,4 +146,4 @@ def assert_torn_down(cfg: config.Config) -> None:
         for item in found:
             ui.err(str(item))
         raise Leftovers(found)
-    ui.ok(f"nothing carrying prefix {cfg.prefix} in IAM, and nothing live under {', '.join(run_estates(cfg))}")
+    ui.ok(f"nothing carrying prefix {cfg.prefix} in IAM or under /{cfg.prefix}/ in CloudWatch Logs, and nothing live under {', '.join(run_estates(cfg))}")
