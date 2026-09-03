@@ -31,6 +31,30 @@ CLI: list[str] = [sys.executable, "-m", "tlmig.cli", "{phase}", "--run", "{run_i
 RUNS = pathlib.Path("runs")
 
 
+def find_binary() -> str:
+    """The choudoufu binary a phase should run: CHOUDOUFU_BIN if set, else
+    one on PATH, else the pinned release the smoke harness caches under
+    ~/.cache/choudoufu-smoke/<version>/choudoufu, else a bare name the CLI
+    will refuse in preflight."""
+    import shutil
+
+    env = os.environ.get("CHOUDOUFU_BIN")
+    if env:
+        return env
+    on_path = shutil.which("choudoufu")
+    if on_path:
+        return on_path
+    try:
+        from . import config
+        version = config.CHOUDOUFU_VERSION
+    except Exception:  # pragma: no cover - config is 37's; stage must not depend on it
+        version = ""
+    cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / version / "choudoufu"
+    if version and cached.exists():
+        return str(cached)
+    return "choudoufu"
+
+
 @dataclasses.dataclass
 class PhaseRun:
     phase: str
@@ -58,11 +82,13 @@ class PhaseRun:
 class Stage:
     """One run's phases, started from buttons, tracked by name."""
 
-    def __init__(self, run_id: str, runs: pathlib.Path = RUNS, cli: list[str] | None = None, env: dict | None = None):
+    def __init__(self, run_id: str, runs: pathlib.Path = RUNS, cli: list[str] | None = None, env: dict | None = None, binary: str | None = None):
         self.run_id = run_id
         self.run_dir = runs / run_id
         self.cli = cli or CLI
-        self.env = env
+        self.binary = binary or find_binary()
+        self.env = dict(env or {})
+        self.env.setdefault("CHOUDOUFU_BIN", self.binary)
         self.phases: dict[str, PhaseRun] = {}
         self._lock = threading.Lock()
 

@@ -509,7 +509,9 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
     cell, gap, pad, rowh, left = 64, 8, 14, 74, 96
     ncols = max(len([r for r in state.resources.values() if r.team == t]) for t in teams)
     height = pad * 2 + rowh * len(teams) + 26
-    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {max(width, left + ncols * (cell + gap) + pad)} {height}" font-family="ui-monospace, Menlo, monospace">']
+    vb_w = max(width, left + ncols * (cell + gap) + pad)
+    # width=100% with a viewBox: the map fits its container, never scrolls sideways.
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 {vb_w} {height}" style="max-width:{vb_w}px;display:block" font-family="ui-monospace, Menlo, monospace">']
     y = pad
     for team in teams:
         rs = [r for r in state.resources.values() if r.team == team]
@@ -575,10 +577,12 @@ def render_phase_strip(state: RunState) -> str:
     return "<div class='strip'>" + "".join(parts) + "</div>"
 
 
-def render_ledger(state: RunState, limit: int = 40) -> str:
+def render_ledger(state: RunState, limit: int = 40, newest_first: bool = True) -> str:
     rows = state.ledger[-limit:]
     if not rows:
         return "<div class='empty'>no commands yet</div>"
+    if newest_first:
+        rows = list(reversed(rows))
     trs = []
     for r in rows:
         t = r.ts.strftime("%H:%M:%S") if r.ts else ""
@@ -679,13 +683,15 @@ CSS = """
 .tlmig .light.off { background: var(--bad); box-shadow: 0 0 0 3px #fee2e2; }
 .tlmig .vline { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--soft); margin-left: 20px; }
 .tlmig .wrap { overflow-x: auto; }
+.tlmig .ledgerwrap { max-height: 300px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 6px; padding: 0 8px; }
+.tlmig .ledgerwrap thead th { position: sticky; top: 0; background: var(--paper); }
 """
 
 
-def render_html(state: RunState, *, stack: bool = False, ledger_rows: int = 40, map_width: int = 620) -> str:
-    """The whole picture: header, phase strip, map beside ledger, then
-    measures and verdicts. ``stack`` puts the ledger under the map for a
-    narrow (half-screen) stage."""
+def render_html(state: RunState, *, stack: bool = True, ledger_rows: int = 40, map_width: int = 620) -> str:
+    """The whole picture: header, phase strip, the map at full width, the
+    ledger under it in a bounded scrolling box (newest first), then measures
+    and verdicts. ``stack=False`` puts the ledger beside the map instead."""
     active = state.active_phase
     note = next((t for p, t in reversed(state.notes) if not active or p == active.name), None)
     parts = [f"<style>{CSS}</style><div class='tlmig'>",
@@ -695,7 +701,7 @@ def render_html(state: RunState, *, stack: bool = False, ledger_rows: int = 40, 
         parts.append(f"<div class='note'>{_esc(note)}</div>")
     parts.append(f"<div class='cols{' stack' if stack else ''}'>")
     parts.append(f"<div><h2>estates · who owns what</h2><div class='wrap'>{render_map_svg(state, map_width)}</div></div>")
-    parts.append(f"<div><h2>ledger · every write and the platform's answer</h2><div class='wrap'>{render_ledger(state, ledger_rows)}</div></div>")
+    parts.append(f"<div><h2>ledger · every write and the platform's answer, newest first</h2><div class='ledgerwrap'>{render_ledger(state, ledger_rows)}</div></div>")
     parts.append("</div>")
     m = render_measures(state, map_width)
     if m:

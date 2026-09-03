@@ -62,20 +62,22 @@ def _(mo, pathlib, stage):
     _existing = [p.name for p in sorted(pathlib.Path("runs").glob("*")) if (p / "events.jsonl").exists()]
     _fixtures = {p.name: str(p) for p in sorted(pathlib.Path("tests/fixtures").glob("*-run")) if (p / "events.jsonl").exists()}
     run_id = mo.ui.text(value=stage.new_run_id(), label="run id")
+    binary = mo.ui.text(value=stage.find_binary(), label="choudoufu binary", full_width=True)
     replay = mo.ui.dropdown({"(live run above)": "", **{f"replay {k}": v for k, v in _fixtures.items()}, **{f"replay runs/{k}": f"runs/{k}" for k in reversed(_existing)}}, value="(live run above)", label="or replay")
     # Durations only: marimo's refresh has no "off"; 10m is the quiet setting.
     tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw")
-    mo.hstack([run_id, replay, tick], justify="start", gap=2)
-    return replay, run_id, tick
+    mo.vstack([mo.hstack([run_id, replay, tick], justify="start", gap=2), binary])
+    return binary, replay, run_id, tick
 
 
 @app.cell
-def _(replay, run_id, stage):
-    # One Stage per run id: the buttons below start phases through it. A
-    # replay picks a recorded directory and disables the buttons.
+def _(binary, replay, run_id, stage):
+    # One Stage per run id: the buttons below start phases through it, with
+    # the chosen binary as CHOUDOUFU_BIN. A replay picks a recorded directory
+    # and disables the buttons.
     live_dir = f"runs/{run_id.value}"
     run_dir = replay.value or live_dir
-    st = stage.Stage(run_id.value)
+    st = stage.Stage(run_id.value, binary=binary.value)
     return live_dir, run_dir, st
 
 
@@ -84,7 +86,7 @@ def _(mo, run_dir, tick, viz):
     tick.value  # redraw on every tick
     _state = viz.load_run(run_dir)
     boundaries = viz.phase_boundaries(run_dir)
-    mo.Html(viz.render_html(_state, stack=False, ledger_rows=12, map_width=620))
+    mo.Html(viz.render_html(_state, ledger_rows=30, map_width=760))
     return (boundaries,)
 
 
@@ -135,7 +137,7 @@ def _(boundaries, mo, run_dir, st, viz):
         upto = boundaries.get(name)
         if upto is not None:
             _s = viz.load_run(run_dir, upto=upto)
-            parts.append(mo.Html(viz.render_html(_s, stack=False, ledger_rows=8, map_width=560)))
+            parts.append(mo.Html(viz.render_html(_s, ledger_rows=10, map_width=760)))
         return mo.vstack(parts) if parts else mo.md("")
 
     return (after,)
