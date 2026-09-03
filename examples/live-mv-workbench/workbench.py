@@ -54,35 +54,33 @@ def _(mo):
         """
     # The live-mv workbench
 
-    A phased workflow for splitting a terralith by retagging, on a real AWS
-    account, with the account's own log as the receipt. Today it runs the
-    demo seed, a three-team monolith; the seed panel for your own estate is
-    next.
+    A phased workflow for moving ownership of cloud resources between
+    estates by retagging, on a real AWS account, with the account's own log
+    as the receipt. Eight phases, top to bottom: seed, survey, plan,
+    preview, move, verify, receipt, teardown. Each has a button, the words
+    the run says while it happens, and the picture as it leaves it. The demo
+    seed is a three-team terralith; the adopt form takes your own config.
 
-    An org's own terralith: one estate, everything in it, one all-or-nothing
-    permission boundary. The team wants per-team ownership without the
-    state-split engagement. Under choudoufu, ownership is two tags on the
-    resource, and a plan reads only its own estate. So the decomposition
-    stops being a project and becomes a metadata edit, and every step of it
-    is an API call the account can refuse and does record.
+    Under choudoufu, ownership is two tags on the resource, and a plan reads
+    only its own estate. So splitting a terralith stops being a state-file
+    project and becomes a metadata edit, and every step of it is an API call
+    the account can refuse and does record.
 
-    **Where this starts.** The stage assumes a terralith: one configuration
-    and one state own everything, applied by one principal whose permission
-    covers it all, the way a monolith is run before anyone splits it. The
-    IAM you will see on the map is the estate's own resources (a role, an
-    inline policy and a managed policy per team); the operator's permission
-    is the account's, all or nothing. If your org is not there, the first
-    step differs. Many states already: each one is adopted as its own estate
-    with `live-import` (the roundtrip claim), and you begin at the carve
-    beat. Per-team operator permissions already: the governance you have is
-    by state file, and the carve and guard beats show the tag-scoped grant
-    that replaces it. Centralizing first is not required; the boundary is a
-    tag, so it goes wherever the resources are today.
+    **Where this starts.** The workbench assumes a terralith: one
+    configuration and one state own everything, applied by one principal
+    whose permission covers it all. The IAM on the map is the estate's own
+    resources (a role, an inline policy and a managed policy per team); the
+    operator's permission is the account's, all or nothing. If your org is
+    not there, the first step differs. Many states already: adopt each as its
+    own estate in the seed phase and begin at plan. Per-team operator
+    permissions already: the governance you have is by state file, and the
+    move and verify phases show the tag-scoped grant that replaces it.
+    Centralizing first is not required; the boundary is a tag, so it goes
+    wherever the resources are today.
 
-    This page is an example and a tutorial at once. Read it top to bottom:
-    the index below tracks the nine beats, and every beat carries what it
-    does, a button that runs it, and the payoff it proved, computed from the
-    run's own log.
+    This page is a tool and a tutorial at once. The index below tracks the
+    eight phases; each phase says what it does, in two registers, and shows
+    the payoff it proved, computed from the run's own log.
     """
     )
     return
@@ -90,7 +88,7 @@ def _(mo):
 
 @app.cell
 def _(config, mo):
-    mo.accordion({"Paste-and-go prompt: let an assistant walk you through this demo": mo.md(
+    mo.accordion({"Paste-and-go prompt: let an assistant walk you through this workbench": mo.md(
         f"""
     ```text
     Clone https://github.com/INTENTIUS/choudoufu and cd examples/live-mv-workbench.
@@ -99,13 +97,13 @@ def _(config, mo):
       uv run --extra viz marimo run workbench.py
 
     A browser page opens on a recording in replay mode. Walk me through it
-    beat by beat: for each of the nine beats, read me its action line and
-    its payoff line, and explain what the map or the cost bars changed.
+    phase by phase, seed to teardown: for each phase read me what it does
+    and its payoff line, and explain what the map or the cost bars changed.
     If I have AWS credentials for account {config.ACCOUNT_ID}, switch the
-    page to live and run the beats in order with the buttons, one at a
+    page to live and run the phases in order with the buttons, one at a
     time, waiting for each to finish; explain each payoff as it appears,
-    and finish with teardown. If preflight refuses, tell me why from the
-    reason under its button and stay in replay.
+    and finish with teardown. If the account check refuses, tell me why
+    from the reason under its button and stay in replay.
     ```
     """
     )})
@@ -166,7 +164,7 @@ def _(binary, mo, mode, pin, recording, run_id):
     else:
         _controls = mo.vstack([
             recording,
-            mo.md("A recording plays back: the buttons are off, and each beat below shows the picture as that phase left it."),
+            mo.md("A recording plays back: the buttons are off, and each phase below shows the picture as it left it."),
         ])
     mo.vstack([mode, _controls])
     return bid, live
@@ -184,138 +182,120 @@ def _(bid, binary, live, pin, recording, run_id, stage):
 
 
 @app.cell
-def _(mo):
-    # The adopt form's fields. Globals, made where nothing depends on the
-    # timer, so what a user typed survives every redraw.
-    seed_config = mo.ui.text(placeholder="/path/to/the/config", label="config directory", full_width=True)
-    seed_state = mo.ui.text(placeholder="/path/to/terraform.tfstate, or empty for the config's own backend", label="state file", full_width=True)
-    seed_estate = mo.ui.text(placeholder="prod-network", label="estate name")
-    return seed_config, seed_estate, seed_state
+def _(PHASES, stage):
+    # The workflow and the verbs each phase runs on this build's CLI.
+    WORKFLOW = stage.WORKFLOW
+    VERBS = {p: stage.verbs_for(p, PHASES) for p in WORKFLOW}
+    ORDER = [v for p in WORKFLOW for v in VERBS[p]]
+    WRITES = stage.WRITES
+    return ORDER, VERBS, WORKFLOW, WRITES
 
 
 @app.cell
-def _(PHASES, bid, live, mo, seed_adopt_btn, seed_config, seed_demo_btn, seed_estate, seed_state, seed_verify_btn, shlex, st, tick, tips):
-    # Seeding: how resources come to carry the two identity tags. The demo
-    # applies a config written for choudoufu; adopting runs live-import on a
-    # config and state that already exist, verify first, then approve.
-    tick.value
-    _has_seed = "seed" in PHASES
-    _demo_phase = "seed" if _has_seed else "setup"
-    if live:
-        st.click(_demo_phase, seed_demo_btn.value, extra=["--demo"] if _has_seed else None)
-    _adopt_args = ["--config", seed_config.value, "--estate", seed_estate.value] + (["--state", seed_state.value] if seed_state.value else [])
-    _adopt_ready = _has_seed and bool(seed_config.value) and bool(seed_estate.value)
-    if _adopt_ready and (live or bid):
-        st.click("seed", seed_verify_btn.value, extra=_adopt_args, key="seed:verify")
-    if _adopt_ready and live:
-        st.click("seed", seed_adopt_btn.value, extra=_adopt_args + ["--approve"], key="seed:adopt")
-    _demo = mo.vstack([
-        mo.md("**The demo terralith.** One config, one estate, 21 IAM and log-group resources for three teams, applied into the pinned account under this run's prefix. It is the estate the beats below were written against, and the only seed teardown removes."),
-        mo.hstack([seed_demo_btn, mo.md(f"`{_demo_phase}` · {st.status(_demo_phase)}")], justify="start", gap=1),
-    ])
-    _cmd = "tlmig seed --run " + st.run_id + " " + (shlex.join(_adopt_args) if _adopt_ready else "--config <dir> --estate <name> [--state <file>]")
-    _adopt_parts = [
-        mo.md("**Your own estate.** Point at a config and its state. Verify reads every resource the state names and refuses anything it cannot match in the account; it writes nothing. Adopt writes the two tags, `tofu-estate` and `tofu-address`, on each taggable resource and nothing else. The state file is read, never rewritten."),
-        seed_config, seed_state,
-        mo.hstack([seed_estate, seed_verify_btn, seed_adopt_btn], justify="start", gap=1, align="end"),
-    ]
-    if not _has_seed:
-        _adopt_parts.append(mo.md("*This build's `tlmig` has no `seed` verb yet, so the adopt buttons do nothing. The verb is the next PR; the command it will accept is below, and the demo button runs today's `setup`.*"))
-    elif not _adopt_ready:
-        _adopt_parts.append(mo.md("*Fill in the config directory and an estate name to enable verify and adopt.*"))
-    _adopt_parts.append(mo.md(f"runs `{_cmd}`" + ("" if not _adopt_ready else f"; adopt adds `--approve`") + f"\n\nverify · {st.status('seed:verify')} · adopt · {st.status('seed:adopt')}"))
-    for _k in ("seed:verify", "seed:adopt"):
-        _t = st.tail(_k)
-        if _t:
-            _adopt_parts.append(mo.accordion({f"{_k} log": mo.ui.code_editor(_t, language="text", disabled=True, max_height=220)}, lazy=False))
-    mo.vstack([
-        mo.md("## Seed\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>seed · the demo applies; adopt verifies, then writes two tags per resource</span>"),
-        mo.accordion({"for a beginner": mo.md(tips.tip("seed", "beginner")), "for an OpenTofu hand": mo.md(tips.tip("seed", "expert"))}),
-        mo.hstack([_demo, mo.vstack(_adopt_parts)], widths=[1, 2], gap=2, align="start"),
-    ]).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "color-mix(in srgb, currentColor 5%, transparent)"})
-    return
-
-
-@app.cell
-def _(bid, live, mo, run_dir, tick, viz):
+def _(ORDER, VERBS, WORKFLOW, bid, live, mo, run_dir, stage, tick, viz):
     tick.value  # redraw on every tick
     _state = viz.load_run(run_dir)
     boundaries = viz.phase_boundaries(run_dir)
     _done = [p.name for p in _state.phases if p.status == "done"]
     _active = _state.active_phase
-    _order = list(viz.PHASES)
     if not (live or bid):
         # A finished recording ends empty (teardown), which is the wrong first
         # picture; open on the run as it stood before teardown and say so.
         _before = [n for n in _done if n != "teardown"]
         if "teardown" in _done and _before:
             _state = viz.load_run(run_dir, upto=boundaries[_before[-1]])
-        _hint = f"Replaying `{run_dir}`: {len(_done)} phases recorded" + (", shown here as it stood after **" + _before[-1] + "**, before teardown emptied the account" if "teardown" in _done and _before else "") + ". Scroll down; each beat shows its picture."
+        _hint = f"Replaying `{run_dir}`: {len(_done)} phases recorded" + (", shown here as it stood after **" + _before[-1] + "**, before teardown emptied the account" if "teardown" in _done and _before else "") + ". Scroll down; each phase shows its picture."
     elif _active:
-        _hint = f"Running **{_active.name}**. Keep talking; the picture follows."
+        _hint = f"Running **{_active.name}** ({stage.phase_of(_active.name, set(ORDER)) or 'a phase'}). Keep talking; the picture follows."
     elif not _done:
-        _hint = "Nothing has run yet. Start with **run preflight** below." + (" In bid mode the reads run and the writes stay off." if bid else "")
+        _hint = "Nothing has run yet. Start in **Seed** below with the account check." + (" In bid mode the reads run and the writes stay off." if bid else "")
     else:
         _last = _done[-1]
-        _next = _order[_order.index(_last) + 1] if _last in _order and _order.index(_last) + 1 < len(_order) else None
-        _hint = f"**{_last}** finished. Next: **run {_next}**." if _next else f"**{_last}** finished. That was the last phase."
+        _next = ORDER[ORDER.index(_last) + 1] if _last in ORDER and ORDER.index(_last) + 1 < len(ORDER) else None
+        _where = stage.phase_of(_next, set(ORDER)) if _next else None
+        if _next and _where and VERBS.get("plan") == [] and _last in VERBS["survey"]:
+            _hint = f"**{_last}** finished. Next: **Plan** the carve, then preview it, then **run {_next}** under Move."
+        else:
+            _hint = f"**{_last}** finished. Next: **run {_next}** under {_where.capitalize()}." if _next else f"**{_last}** finished. That was the last phase."
     mo.vstack([mo.hstack([mo.md(_hint), tick], justify="space-between"), mo.Html(viz.render_html(_state, ledger_rows=30, map_width=760))])
     return (boundaries,)
 
 
 @app.cell
-def _(boundaries, run_dir, viz):
-    ORDER = ["preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "receipt", "teardown"]
-
+def _(ORDER, boundaries, run_dir, viz):
     def before_state(name):
-        """The run as it stood when the nearest recorded beat before this one
-        ended; the empty run when none did. A recording may skip beats."""
+        """The run as it stood when the nearest recorded verb before this one
+        ended; the empty run when none did. A recording may skip verbs."""
         for prev in reversed(ORDER[:ORDER.index(name)]):
             if prev in boundaries:
                 return viz.load_run(run_dir, upto=boundaries[prev])
         return viz.load_run(run_dir, upto=0)
 
-    return ORDER, before_state
+    return (before_state,)
 
 
 @app.cell
-def _(ORDER, before_state, boundaries, live, mo, run_dir, st, viz):
-    # The index: every beat with its standing and, once it ran, its payoff.
-    _order = ORDER
-    _titles = {"preflight": "Which account, which binary", "setup": "Build the terralith", "slow-plan": "Measure the villain",
-               "decompose": "Split it, by retag", "fast-plan": "Measure the payoff", "carve": "Move the boundary",
-               "guard": "Four reads, one verdict", "receipt": "The account's own record", "teardown": "Nothing left behind"}
+def _(VERBS, WORKFLOW, before_state, bid, boundaries, carve, live, mo, run_dir, st, viz):
+    # The index: every phase with its standing and, once it ran, its payoff.
+    PHASE_TITLES = {"seed": "Seed", "survey": "Survey", "plan": "Plan", "preview": "Preview", "move": "Move", "verify": "Verify", "receipt": "Receipt", "teardown": "Teardown"}
+    PHASE_DOES = {"seed": "the account check, then the demo apply or your own config adopted; two tags per resource",
+                  "survey": "a plan of the whole estate, counted: the number the split brings down",
+                  "plan": "which address goes to which estate, as a table; saved as carve.json",
+                  "preview": "every planned move as a dry run, and the map as it would stand",
+                  "move": "the boundary moves: one tag write per resource, no state split",
+                  "verify": "plan cost after the split, and both sides plan clean at once",
+                  "receipt": "this run's tag writes read back from CloudTrail",
+                  "teardown": "demo seeds only: every estate destroyed, then the account listed"}
+
+    def verb_status(v):
+        if live or bid:
+            s = st.status(v)
+            return "off in bid mode: this verb writes" if (bid and s == "not started" and v in {"setup", "seed", "decompose", "carve", "move", "teardown"}) else s
+        return "recorded" if v in boundaries else "not in this recording"
+
+    def phase_status(p):
+        verbs = VERBS[p]
+        if p == "plan":
+            if not (live or bid):
+                return "shown from the recording"
+            return "saved" if carve.load(run_dir) is not None else "not saved"
+        if p == "preview" and not verbs:
+            return "recorded" if viz.load_run(run_dir).previews else "needs the preview verb"
+        ss = [verb_status(v) for v in verbs]
+        if any(s == "running" for s in ss):
+            return "running " + verbs[ss.index("running")]
+        if any(s.startswith("failed") for s in ss):
+            return "failed: " + verbs[[s.startswith("failed") for s in ss].index(True)]
+        if all(s in ("done", "recorded") for s in ss):
+            return "done" if (live or bid) else "recorded"
+        if any(s in ("done", "recorded") for s in ss):
+            return "partly: " + ", ".join(f"{v} {s}" for v, s in zip(verbs, ss))
+        return ss[0] if len(set(ss)) == 1 else ", ".join(f"{v} {s}" for v, s in zip(verbs, ss))
+
     _rows = []
-    for _i, _n in enumerate(_order, start=1):
-        _status = st.status(_n) if live else ("recorded" if _n in boundaries else "not in this recording")
-        _mark = {"done": "✓", "recorded": "✓", "running": "▶"}.get(_status, "✗" if _status.startswith("failed") else "·")
-        _pay = viz.payoff(_n, viz.load_run(run_dir, upto=boundaries[_n]), before_state(_n)) if _n in boundaries else ""
-        _rows.append(f"<tr><td>{_mark}</td><td>{_i}</td><td><b>{_titles[_n]}</b> <code>{_n}</code></td><td>{_status}</td><td>{_pay}</td></tr>")
-    mo.vstack([mo.md("### The beats"), mo.Html(
-        "<style>.beats{border-collapse:collapse;width:100%;font-size:14px}.beats th{text-align:left;font-weight:600;opacity:.6;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px 6px 0;border-bottom:1px solid color-mix(in srgb, currentColor 20%, transparent)}.beats td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid color-mix(in srgb, currentColor 12%, transparent)}.beats td:first-child{width:1.4em}.beats td:nth-child(2){opacity:.6}.beats code{font-size:12px;opacity:.75}</style>"
-        "<table class='beats'><thead><tr><th></th><th>#</th><th>beat</th><th>status</th><th>payoff</th></tr></thead><tbody>" + "".join(_rows) + "</tbody></table>")])
-    return
+    for _i, _p in enumerate(WORKFLOW, start=1):
+        _status = phase_status(_p)
+        _mark = "▶" if _status.startswith("running") else ("✗" if _status.startswith("failed") else ("✓" if _status in ("done", "recorded", "saved") else "·"))
+        _pay = " ".join(viz.payoff(_v, viz.load_run(run_dir, upto=boundaries[_v]), before_state(_v)) for _v in VERBS[_p] if _v in boundaries).strip()
+        _verbs = " ".join(f"<code>{_v}</code>" for _v in VERBS[_p]) or ("<code>carve.json</code>" if _p == "plan" else "")
+        _rows.append(f"<tr><td>{_mark}</td><td>{_i}</td><td><b>{PHASE_TITLES[_p]}</b> {_verbs}</td><td>{PHASE_DOES[_p]}</td><td>{_status}</td><td>{_pay}</td></tr>")
+    mo.vstack([mo.md("### The workflow"), mo.Html(
+        "<style>.beats{border-collapse:collapse;width:100%;font-size:14px}.beats th{text-align:left;font-weight:600;opacity:.6;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px 6px 0;border-bottom:1px solid color-mix(in srgb, currentColor 20%, transparent)}.beats td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid color-mix(in srgb, currentColor 12%, transparent)}.beats td:first-child{width:1.4em}.beats td:nth-child(2){opacity:.6}.beats td:nth-child(4){opacity:.8}.beats code{font-size:12px;opacity:.75}</style>"
+        "<table class='beats'><thead><tr><th></th><th>#</th><th>phase</th><th>what it does</th><th>status</th><th>payoff</th></tr></thead><tbody>" + "".join(_rows) + "</tbody></table>")])
+    return PHASE_DOES, PHASE_TITLES, verb_status
 
 
 @app.cell
-def _(PHASES, bid, live, mo):
+def _(ORDER, PHASES, WRITES, bid, live, mo):
     # The buttons. Globals, created here where nothing depends on the timer,
     # so a redraw never rebuilds them. Each counts its clicks. A button for a
     # verb this build's CLI lacks stays off, and its panel says why.
-    WRITES = {"setup", "decompose", "carve", "teardown"}
-
-    def _btn(name):
+    def _btn(name, label=None):
         off = (not live and not bid) or (bid and name in WRITES)
-        return mo.ui.button(label=f"run {name}", value=0, on_click=lambda v: v + 1, disabled=off)
+        return mo.ui.button(label=label or f"run {name}", value=0, on_click=lambda v: v + 1, disabled=off)
 
-    preflight_btn = _btn("preflight")
-    slow_btn = _btn("slow-plan")
-    decompose_btn = _btn("decompose")
-    fast_btn = _btn("fast-plan")
-    carve_btn = _btn("carve")
-    guard_btn = _btn("guard")
-    receipt_btn = _btn("receipt")
-    teardown_btn = _btn("teardown")
+    BTN = {v: _btn(v) for v in ORDER if v not in ("preflight", "setup", "seed")}
+    BTN["preflight"] = _btn("preflight", "check the account and binary")
     # The seed panel's buttons and the planner's. Verify reads, adopt and the
     # demo seed write, save writes a file beside the run, preview dry-runs.
     seed_demo_btn = mo.ui.button(label="seed the demo terralith", value=0, on_click=lambda v: v + 1, disabled=not live)
@@ -324,57 +304,62 @@ def _(PHASES, bid, live, mo):
     rows_btn = mo.ui.button(label="reload rows from the run", value=0, on_click=lambda v: v + 1)
     save_btn = mo.ui.button(label="save carve.json", value=0, on_click=lambda v: v + 1, disabled=not (live or bid))
     preview_btn = mo.ui.button(label="run preview (dry runs)", value=0, on_click=lambda v: v + 1, disabled=not (live or bid) or "preview" not in PHASES)
-    return (WRITES, carve_btn, decompose_btn, fast_btn, guard_btn, preflight_btn, preview_btn, receipt_btn, rows_btn, save_btn, seed_adopt_btn, seed_demo_btn, seed_verify_btn, slow_btn, teardown_btn)
+    return BTN, preview_btn, rows_btn, save_btn, seed_adopt_btn, seed_demo_btn, seed_verify_btn
 
 
 @app.cell
-def _(WRITES, before_state, bid, boundaries, live, mo, run_dir, st, tips, viz):
+def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid, boundaries, live, mo, run_dir, st, tips, verb_status, viz):
+    # What each verb does in the demo, under its phase. The title is the
+    # demo's beat name, kept as the label of the verb's block.
     STORY = {
         "preflight": ("Which account, which binary", "checks, writes nothing",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
         "setup": ("Build the terralith", "applies: creates 21 resources in one estate",
                   "One config, one estate, three teams' worth of IAM and log groups. The account applies it and the map fills in: every taggable resource comes back carrying two tags, which estate owns it and which address it answers to. Nobody wrote a tag by hand."),
+        "seed": ("Seed", "applies the demo, or adopts your config",
+                 "The resources come to carry the two tags: with the apply for the demo, with live-import for a config that already exists."),
         "slow-plan": ("Measure the villain", "plans the whole monolith, changes nothing, counts requests",
                       "Nothing is built here. A plan of the monolith re-reads everything the estate owns, every time, and the number to watch is how many requests that costs. It is the number the split is meant to bring down."),
+        "survey": ("Survey", "plans the whole estate, changes nothing, counts requests",
+                   "A plan of the estate as it stands, and the number of requests it costs. It is the number the split is meant to bring down."),
         "decompose": ("Split it, by retag", "applies three team configs: retags, creates nothing",
                       "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
-        "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
-                      "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
         "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
+        "move": ("Move", "runs carve.json: one live-mv per move, one tag write each",
+                 "Every move the plan names, made with live-mv: one tag write per resource, children following their parent without a write, and the engine's own refusal on anything the preview would have refused."),
+        "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
+                      "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
         "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
                   "Four reads and no writes. First the role's live tag, which must name its new estate, and its inline policy and attachment, which must still be with it. Then two plans, one per estate, each targeted at its own resources, because a carve is only clean when both sides agree at the same moment: the source estate must not want to destroy or rebuild what left, and the destination must not want to create what arrived. Terraform's carve has a window where one side wants to destroy and the other to create; here both plan clean at once, because each estate reads only what carries its tag."),
+        "verify": ("Verify", "reads only: each moved resource's tag and children, then a plan per estate",
+                   "Every moved resource's live tag must name its new estate and its children must still be with it; then one plan per estate, each targeted at its own resources, and both must be clean at once."),
         "receipt": ("The account's own record", "reads this run's own tag writes back from CloudTrail; writes nothing",
-                    "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This beat reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so the beat waits for it. A state edit has no such record; no account logs a file changing. The governed refusals, an IAM condition on the tag saying no, are claim 13's smoke on the emulator and its own CloudTrail receipt."),
+                    "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This phase reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so it waits. A state edit has no such record; no account logs a file changing."),
         "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
-                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains."),
+                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Only the demo seed is torn down; an adopted estate is never destroyed from here."),
     }
 
-    def phase(name, button):
-        """One phase's cell: narration, the button, its standing, what the
-        run said, the log tail while it runs, and the picture as the phase
-        left it. Re-runs on every tick; the button itself is a global made
-        elsewhere, so it survives the redraw, and the click is served once."""
-        title, does, words = STORY[name]
+    def verb_block(name, button="own", label=True):
+        """One verb inside a phase: its demo label and words, the button,
+        its standing, what the run said, the ledger rows it made, the log
+        (folded, opened on failure), the picture it changed and its payoff.
+        ``button=None`` shows the standing without a button, for a verb
+        another panel starts (the demo seed)."""
+        title, does, words = STORY.get(name, (name, "", ""))
+        button = BTN.get(name) if button == "own" else button
         if button is not None and (live or (bid and name not in WRITES)):
             st.click(name, button.value)
-        if live or bid:
-            status = st.status(name)
-            if bid and name in WRITES:
-                status = "off in bid mode: this beat writes"
-        else:
-            status = "recorded" if name in boundaries else "not in this recording"
+        status = verb_status(name)
         if live and st.refused and st.refused[0] == name:
             status += f" · not started: {st.refused[1]} is still running, click again when it ends"
-        parts = [mo.md(f"## {title}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{name} · {does}</span>\n\n{words}"),
-                 mo.accordion({"for a beginner": mo.md(tips.tip(name, "beginner")), "for an OpenTofu hand": mo.md(tips.tip(name, "expert"))}),
-                 mo.hstack([button if button is not None else mo.md("*started from the seed panel above*"), mo.md(f"`{name}` · {status}")], justify="start", gap=1)]
+        parts = []
+        if label:
+            parts.append(mo.md(f"**{title}** <span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{name} · {does}</span>\n\n{words}"))
+        parts.append(mo.hstack(([button] if button is not None else []) + [mo.md(f"`{name}` · {status}")], justify="start", gap=1))
         said = st.notes(name)
         if said:
             parts.append(mo.md("\n".join(f"> {s}" for s in said)))
-        # The beat's own ledger rows, live while it runs and kept after: what
-        # ran, who ran it, what the platform answered. The raw log stays
-        # folded away, and is opened for the reader only when the phase failed.
         _now = viz.load_run(run_dir)
         rows = viz.render_phase_ledger(_now, name)
         if rows:
@@ -385,60 +370,96 @@ def _(WRITES, before_state, bid, boundaries, live, mo, run_dir, st, tips, viz):
                          else mo.vstack([mo.md("**Why it failed**"), mo.ui.code_editor(tail, language="text", disabled=True, max_height=260)]))
         upto = boundaries.get(name)
         if upto is not None:
-            # The picture of what THIS beat changed: the map when ownership
-            # moved, the cost bars when a plan was measured, the verdict when
-            # the guard ran. The previous beat's end is the "before".
             _before = before_state(name)
             _after = viz.load_run(run_dir, upto=upto)
             picture = viz.render_delta(_after, _before, map_width=760)
-            parts.append(mo.Html(picture) if picture else mo.md("*Nothing on the map changed in this beat.*"))
+            parts.append(mo.Html(picture) if picture else mo.md("*Nothing on the map changed in this step.*"))
             _pay = viz.payoff(name, _after, _before)
             if _pay:
                 parts.append(mo.md(f"**Payoff.** {_pay}"))
-        # Each beat in its own box, tints alternating, so the sections read as
-        # sections instead of running together. Colours mix from the page's
-        # own text colour, so the boxes hold on the light and dark themes.
-        index = list(STORY).index(name)
+        return mo.vstack(parts)
+
+    def tip_for(phase, register):
+        own = tips.tip(phase, register)
+        if own:
+            return own
+        return "\n\n".join(t for t in (tips.tip(v, register) for v in VERBS[phase]) if t)
+
+    def section(phase, body):
+        """One phase's box: number and title, what it does, the tips in two
+        registers, then the body (verb blocks, or the phase's own panel).
+        Tints alternate so the phases read as sections."""
+        index = WORKFLOW.index(phase)
         tint = "color-mix(in srgb, currentColor 5%, transparent)" if index % 2 == 0 else "transparent"
-        return mo.vstack(parts).style({
-            "border": "1px solid color-mix(in srgb, currentColor 18%, transparent)",
-            "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)",
-            "border-radius": "10px",
-            "padding": "18px 22px 20px",
-            "margin": "10px 0 18px",
-            "background": tint,
-        })
+        parts = [mo.md(f"## {index + 1}. {PHASE_TITLES[phase]}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{phase} · {PHASE_DOES[phase]}</span>")]
+        b, e = tip_for(phase, "beginner"), tip_for(phase, "expert")
+        if b or e:
+            parts.append(mo.accordion({"for a beginner": mo.md(b), "for an OpenTofu hand": mo.md(e)}))
+        parts += body if isinstance(body, list) else [body]
+        return mo.vstack(parts).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": tint})
 
-    return STORY, phase
+    return section, verb_block
 
 
 @app.cell
-def _(phase, preflight_btn):
-    phase("preflight", preflight_btn)
+def _(mo):
+    # The adopt form's fields. Globals, made where nothing depends on the
+    # timer, so what a user typed survives every redraw.
+    seed_config = mo.ui.text(placeholder="/path/to/the/config", label="config directory", full_width=True)
+    seed_state = mo.ui.text(placeholder="/path/to/terraform.tfstate, or empty for the config's own backend", label="state file", full_width=True)
+    seed_estate = mo.ui.text(placeholder="prod-network", label="estate name")
+    return seed_config, seed_estate, seed_state
+
+
+@app.cell
+def _(BTN, PHASES, VERBS, bid, live, mo, section, seed_adopt_btn, seed_config, seed_demo_btn, seed_estate, seed_state, seed_verify_btn, shlex, st, tick, verb_block):
+    # Seed: the account check first, then how resources come to carry the two
+    # identity tags. The demo applies a config written for choudoufu;
+    # adopting runs live-import on a config and state that already exist,
+    # verify first, then approve.
+    tick.value
+    _has_seed = "seed" in PHASES
+    _demo_verb = VERBS["seed"][-1]     # seed once the CLI has it, setup until then
+    if live:
+        st.click(_demo_verb, seed_demo_btn.value, extra=["--demo"] if _has_seed else None)
+    _adopt_args = ["--config", seed_config.value, "--estate", seed_estate.value] + (["--state", seed_state.value] if seed_state.value else [])
+    _adopt_ready = _has_seed and bool(seed_config.value) and bool(seed_estate.value)
+    if _adopt_ready and (live or bid):
+        st.click("seed", seed_verify_btn.value, extra=_adopt_args, key="seed:verify")
+    if _adopt_ready and live:
+        st.click("seed", seed_adopt_btn.value, extra=_adopt_args + ["--approve"], key="seed:adopt")
+    _demo = mo.vstack([
+        mo.md("**The demo terralith.** One config, one estate, 21 IAM and log-group resources for three teams, applied into the pinned account under this run's prefix. It is the estate the demo words below were written against, and the only seed teardown removes."),
+        seed_demo_btn,
+    ])
+    _cmd = "tlmig seed --run " + st.run_id + " " + (shlex.join(_adopt_args) if _adopt_ready else "--config <dir> --estate <name> [--state <file>]")
+    _adopt_parts = [
+        mo.md("**Your own estate.** Point at a config and its state. Verify reads every resource the state names and refuses anything it cannot match in the account; it writes nothing. Adopt writes the two tags, `tofu-estate` and `tofu-address`, on each taggable resource and nothing else. The state file is read, never rewritten."),
+        seed_config, seed_state,
+        mo.hstack([seed_estate, seed_verify_btn, seed_adopt_btn], justify="start", gap=1, align="end"),
+    ]
+    if not _has_seed:
+        _adopt_parts.append(mo.md("*This build's `tlmig` has no `seed` verb yet, so the adopt buttons are off. The verb is the next CLI change; the command it will accept is below, and the demo button runs today's `setup`.*"))
+    elif not _adopt_ready:
+        _adopt_parts.append(mo.md("*Fill in the config directory and an estate name to enable verify and adopt.*"))
+    _adopt_parts.append(mo.md(f"runs `{_cmd}`" + ("" if not _adopt_ready else "; adopt adds `--approve`") + f"\n\nverify · {st.status('seed:verify')} · adopt · {st.status('seed:adopt')}"))
+    for _k in ("seed:verify", "seed:adopt"):
+        _t = st.tail(_k)
+        if _t:
+            _adopt_parts.append(mo.accordion({f"{_k} log": mo.ui.code_editor(_t, language="text", disabled=True, max_height=220)}, lazy=False))
+    section("seed", [
+        verb_block("preflight", BTN["preflight"]),
+        mo.md("---"),
+        mo.hstack([_demo, mo.vstack(_adopt_parts)], widths=[1, 2], gap=2, align="start"),
+        verb_block(_demo_verb, None, label=False),
+    ])
     return
 
 
 @app.cell
-def _(phase):
-    phase("setup", None)
-    return
-
-
-@app.cell
-def _(phase, slow_btn):
-    phase("slow-plan", slow_btn)
-    return
-
-
-@app.cell
-def _(decompose_btn, phase):
-    phase("decompose", decompose_btn)
-    return
-
-
-@app.cell
-def _(fast_btn, phase):
-    phase("fast-plan", fast_btn)
+def _(VERBS, section, tick, verb_block):
+    tick.value
+    section("survey", [verb_block(v) for v in VERBS["survey"]])
     return
 
 
@@ -477,7 +498,7 @@ def _(bid, carve, live, mo, rows_btn, rules_ta, run_dir, viz):
 
 
 @app.cell
-def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, save_btn, st, tips):
+def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, save_btn, section, st):
     # The plan as the table stands: rows whose destination differs from
     # their estate are the moves; "keep" or the same estate is not a move.
     _edited = editor.value if editor is not None else []
@@ -495,8 +516,7 @@ def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, r
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
     _parts = [
-        mo.md("## Plan the carve\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>plan · writes carve.json beside the run; nothing in the account changes</span>\n\nOne row per taggable resource. Rules fill the `to` column; edit any row by hand. A row whose `to` is `keep`, or its own estate, is not a move."),
-        mo.accordion({"for a beginner": mo.md(tips.tip("plan", "beginner")), "for an OpenTofu hand": mo.md(tips.tip("plan", "expert"))}),
+        mo.md("One row per taggable resource. Rules fill the `to` column; edit any row by hand. A row whose `to` is `keep`, or its own estate, is not a move. In the demo, the move phase retags team-a into team-b, which is the plan below once its rows are filled: `name team_a -> <team-b estate>`."),
         rules_ta,
     ]
     if rule_problems:
@@ -508,12 +528,12 @@ def _(bid, carve, editor, live, mo, plan_rows, rows_btn, rule_problems, rules, r
     _parts.append(mo.md("\n".join(f"- {_line}" for _line in carve.describe(plan_doc))))
     _parts.append(mo.hstack([save_btn, rows_btn, mo.md(_saved)], justify="start", gap=1))
     _parts.append(mo.accordion({"carve.json as it would be saved": mo.ui.code_editor(__import__("json").dumps(plan_doc, indent=2), language="json", disabled=True, max_height=300)}))
-    mo.vstack(_parts).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "transparent"})
+    section("plan", _parts)
     return (plan_doc,)
 
 
 @app.cell
-def _(PHASES, bid, live, mo, preview_btn, run_dir, st, tick, tips, viz):
+def _(PHASES, bid, live, mo, preview_btn, run_dir, section, st, tick, viz):
     # Preview: every planned move as a dry run, and the map as it would stand.
     tick.value
     _has_preview = "preview" in PHASES
@@ -521,12 +541,11 @@ def _(PHASES, bid, live, mo, preview_btn, run_dir, st, tick, tips, viz):
         st.click("preview", preview_btn.value)
     _status = st.status("preview") if (live or bid) else ("recorded" if viz.load_run(run_dir).previews else "not in this recording")
     if not _has_preview and (live or bid):
-        _status = "this build's tlmig has no preview verb yet; the next PR adds it"
+        _status = "this build's tlmig has no preview verb yet; the next CLI change adds it"
     _state = viz.load_run(run_dir)
     _table = viz.render_previews(_state)
     _parts = [
-        mo.md("## What is about to happen\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>preview · every planned move as a dry run; nothing written</span>\n\nEach row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
-        mo.accordion({"for a beginner": mo.md(tips.tip("preview", "beginner")), "for an OpenTofu hand": mo.md(tips.tip("preview", "expert"))}),
+        mo.md("Each row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
         mo.hstack([preview_btn, mo.md(f"`preview` · {_status}")], justify="start", gap=1),
     ]
     _tail = st.tail("preview")
@@ -536,31 +555,36 @@ def _(PHASES, bid, live, mo, preview_btn, run_dir, st, tick, tips, viz):
         _parts += [mo.Html(_table), mo.Html(viz.render_projection(_state, map_width=560))]
     else:
         _parts.append(mo.md("*No previews yet. Save a plan, then run preview; in a recording, this shows what the recording holds.*"))
-    mo.vstack(_parts).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": "color-mix(in srgb, currentColor 5%, transparent)"})
+    section("preview", _parts)
     return
 
 
 @app.cell
-def _(carve_btn, phase):
-    phase("carve", carve_btn)
+def _(VERBS, mo, section, tick, verb_block):
+    tick.value
+    _note = mo.md("*In the demo the move is two verbs: `decompose` applies three team configs, which retags each team's resources into its own estate; `carve` then moves team-a into team-b with `live-mv`. Once the CLI has the `move` verb, one button runs carve.json.*") if VERBS["move"] != ["move"] else mo.md("")
+    section("move", [_note] + [verb_block(v) for v in VERBS["move"]])
     return
 
 
 @app.cell
-def _(guard_btn, phase):
-    phase("guard", guard_btn)
+def _(VERBS, section, tick, verb_block):
+    tick.value
+    section("verify", [verb_block(v) for v in VERBS["verify"]])
     return
 
 
 @app.cell
-def _(phase, receipt_btn):
-    phase("receipt", receipt_btn)
+def _(VERBS, section, tick, verb_block):
+    tick.value
+    section("receipt", [verb_block(v) for v in VERBS["receipt"]])
     return
 
 
 @app.cell
-def _(phase, teardown_btn):
-    phase("teardown", teardown_btn)
+def _(VERBS, section, tick, verb_block):
+    tick.value
+    section("teardown", [verb_block(v) for v in VERBS["teardown"]])
     return
 
 
