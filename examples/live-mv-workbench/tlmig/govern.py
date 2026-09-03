@@ -13,7 +13,9 @@ them. The source estate's plan, which must be "No changes." with no
 
 from __future__ import annotations
 
-from . import config, events, guard, ui, verify
+import pathlib
+
+from . import config, events, guard, moveset, ui, verify
 
 
 def plan_verdict(cfg: config.Config, estate: str) -> verify.PlanVerdict:
@@ -89,6 +91,64 @@ def read_carve(
     else:
         ui.err("the carve left something behind; see the reads above")
     return verdict
+
+
+def read_carve_set(cfg: config.Config, carve_path: str | pathlib.Path) -> moveset.CarveSetVerdict:
+    """The guard over an arbitrary carve. Reads carve.json, plans every estate
+    the set touches once, reads each destination's tag index to see which
+    moved addresses landed, and returns the set verdict. Emits one verdict
+    per moved resource and one for the set, so the page grades a move at a
+    time and the run has a single headline. The per-estate plan cost is
+    measure.py's job (one measure per destination); this is the guard."""
+    cs = moveset.load_carve(pathlib.Path(carve_path).read_text())
+    ui.rule(f"governance guard: {len(cs.moves)} move(s) across {len(cs.estates)} estate(s)")
+
+    per_estate = {e: plan_verdict(cfg, e) for e in cs.estates}
+    landed: dict[str, tuple[bool, str | None]] = {}
+    for e in cs.dest_estates:
+        index = {i["address"]: i["tags"].get("tofu-estate") for i in read_inventory(cfg, e)}
+        for m in cs.moves_to(e):
+            landed[m.address] = (m.address in index, index.get(m.address))
+
+    verdict = moveset.compose(cs, per_estate, landed)
+
+    for e, v in per_estate.items():
+        ui.kv(f"{e} plan", v.describe(), v.clean)
+    for mr in verdict.per_move:
+        ui.kv(f"move {mr.address}", mr.line(), mr.ok)
+        events.verdict(cfg, f"carve:{mr.address}", mr, ok=mr.ok, lines=[mr.line()])
+    events.verdict(cfg, "carve-set", verdict, ok=verdict.ok, lines=verdict.lines())
+    if verdict.ok:
+        ui.ok("every estate plans clean and every moved address landed under its destination")
+    else:
+        ui.err("the carve left something behind; see the reads above")
+    return verdict
+
+
+def preview_carve(cfg: config.Config, carve_path: str | pathlib.Path) -> list[moveset.MovePreview]:
+    """The write-free preview: run ``live-mv -dry-run`` for every move in the
+    set, in its destination working directory, and emit one preview event per
+    move carrying the tag writes it would make and any refusal it raised.
+    Nothing is written; -dry-run makes every check and stops. check=False so a
+    refusal's nonzero exit is read as the diagnostic it is, not raised."""
+    cs = moveset.load_carve(pathlib.Path(carve_path).read_text())
+    ui.rule(f"preview: {len(cs.moves)} move(s), nothing written")
+    previews = []
+    for m in cs.moves:
+        res = guard.chdf(
+            cfg, "live-mv", "-dry-run", "-no-color",
+            "-from-estate", m.from_estate, m.address, m.address,
+            cwd=str(cfg.workdir(m.to_estate)), capture=True, check=False,
+        )
+        pv = moveset.parse_dry_run(res.stdout + ("\n" + res.stderr if res.stderr else ""), move=m)
+        if pv.refusal is not None:
+            ui.kv(f"preview {m.address}", f"REFUSED: {pv.refusal.summary}", False)
+        else:
+            writes = "; ".join(f"{t.key} {t.frm}->{t.to}" for t in pv.tag_writes)
+            ui.kv(f"preview {m.address}", writes or "no tag write reported", True)
+        events.preview(cfg, pv)
+        previews.append(pv)
+    return previews
 
 
 # --------------------------------------------------------------------------
