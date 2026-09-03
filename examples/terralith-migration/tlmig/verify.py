@@ -47,6 +47,20 @@ class PlanVerdict:
         nothing this estate still claims without declaring."""
         return self.destroy == 0 and self.owned_undeclared == 0 and not self.destroys
 
+    def describe(self) -> str:
+        """One line for a panel: the Plan: summary plus whatever the
+        ownership sections said."""
+        if self.clean:
+            return "No changes."
+        parts = [f"{self.add} to add, {self.change} to change, {self.destroy} to destroy"]
+        if self.owned_undeclared:
+            parts.append(f"owned and undeclared: {self.owned_undeclared}")
+        if self.unowned:
+            parts.append("unowned: " + ", ".join(self.unowned))
+        if self.absent:
+            parts.append("absent: " + ", ".join(self.absent))
+        return "; ".join(parts)
+
     @property
     def owns_everything_it_declares(self) -> bool:
         """The destination side after the retag: nothing unowned, nothing
@@ -123,9 +137,18 @@ class CarveVerdict:
 
     @property
     def ok(self) -> bool:
+        """A correct carve prints "No changes." on BOTH sides. Requiring
+        the destination to be clean, not merely to own what it declares,
+        is what catches a child dropped from both configurations: it
+        orphans under the estate that now owns its parent, the destination,
+        and surfaces there as a destroy header, which owns_everything_it_
+        declares alone would have let through."""
         return (
-            self.source.leaves_nothing_behind
+            self.source.clean
+            and self.source.leaves_nothing_behind
+            and self.destination.clean
             and self.destination.owns_everything_it_declares
+            and bool(self.moved_estates)
             and all(e == self.expected_estate for e in self.moved_estates.values())
         )
 
