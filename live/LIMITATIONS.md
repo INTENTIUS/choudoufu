@@ -4441,7 +4441,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
 | `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
 | `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
-| `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
+| `aws_iam_role_policy` | `aws_iam_role` | yes |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_group_membership` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_login_profile` | `aws_iam_user` | no (report-only) |
@@ -4567,14 +4567,24 @@ removal, because S3's `GetBucketPolicy` returns a clean "not found" when a bucke
 carries none, so a parent read gives the sweep the same yes/no answer a
 marker would have, and the bucket name is the whole of the policy's
 identity end to end (`internal/live/discovery`'s gated e2e exercises this
-against floci). Everything else in the table stays report-only: a plan
-still names it, under "Not swept for removal", but does not propose
-destroying it. `aws_iam_role_policy` and `aws_iam_role_policy_attachment`
-each carry a second, free-standing argument the parent alone does not
-supply (the inline policy's own name, the attached policy's ARN).
-`aws_route`, `aws_route53_record`, `aws_route_table_association` and
-`aws_lb_target_group_attachment` are the same, one component short of
-what the parent alone determines. The S3 siblings besides the policy,
+against floci). A second type is wired this pass by a different route.
+`aws_iam_role_policy` carries a second, free-standing argument the parent
+alone does not supply, the inline policy's own name, which is what kept
+it report-only before. A role-scoped `ListRolePolicies` returns that name
+for every policy the role holds, so a parent-list-recovered leg
+(`internal/live/discovery`'s `parentListChildSweep`, issue #692) reads
+each child's whole identity from the list rather than guessing it, and
+`GetRolePolicy` gives the same clean "not found" once a policy is deleted
+while its role remains (verified against a real account and the gated
+floci e2e). `aws_iam_role_policy_attachment` looks alike but stays
+report-only for a different reason: it is admitted by the provider's own
+identity schema rather than this fork's table, so the sweep's type
+universe never lists it at all. `aws_route`, `aws_route53_record`,
+`aws_route_table_association` and `aws_lb_target_group_attachment` are
+one component short of what the parent alone determines; the
+parent-list-recovered route could reach the ones whose scoped list
+returns the missing component, once each is checked the way these two
+were. The S3 siblings besides the policy,
 and the SNS/SQS policy pair, are structurally named-singleton children
 that would let a future pass wire them the same way `aws_s3_bucket_policy`
 was wired here, once each one's own "found vs. not found" provider

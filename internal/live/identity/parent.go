@@ -258,6 +258,18 @@ func SingleParentComponent(typeName string, parents map[string]bool, service Ser
 // [SingleParentComponent] allows.
 var parentReadRemovable = map[string]bool{
 	"aws_s3_bucket_policy": true,
+
+	// aws_iam_role_policy is the parent-LIST-recovered shape's first entry
+	// (see [parentListRecovered] and internal/live/discovery's
+	// parentListChildSweep). An inline role policy carries no tag, so the
+	// marker sweep cannot find an orphaned one; a role-scoped
+	// IAM/ListRolePolicies returns each live policy's name, and
+	// IAM/GetRolePolicy answers a clean NoSuchEntity once a policy is
+	// deleted while its role remains - the exists/not-exists distinction
+	// this map requires, verified against real AWS (account 354867293429,
+	// 2026-09-02): GetRolePolicy returned the policy while present and
+	// "The role policy with name inline1 cannot be found" once deleted.
+	"aws_iam_role_policy": true,
 }
 
 // ParentReadRemovable reports whether a parent read for typeName may also
@@ -267,6 +279,41 @@ var parentReadRemovable = map[string]bool{
 // necessary for removal and is not, on its own, sufficient.
 func ParentReadRemovable(typeName string) bool {
 	return parentReadRemovable[typeName]
+}
+
+// parentListRecovered is the multi-component analogue of
+// [SingleParentComponent]: a child whose identity carries a parent-linking
+// component AND a second, free-standing component the parent alone does not
+// supply - the shape SingleParentComponent's doc names and excludes
+// (aws_iam_role_policy's own policy name) - but whose second component a
+// parent-SCOPED list returns for every live child, so a read of the parent
+// still recovers each child's whole identity with nothing to guess. The one
+// hand-curated fact this leg allows itself, held to the same discipline as
+// [parentReadRemovable]: a type belongs here only once someone has checked
+// that its list, scoped to one parent, enumerates that parent's children
+// and hands back each child's full identity. aws_iam_role_policy is the
+// first entry - IAM/ListRolePolicies, scoped by role, returns each inline
+// policy's name; broadening this map is follow-on work, one type at a time.
+var parentListRecovered = map[string]bool{
+	"aws_iam_role_policy": true,
+}
+
+// ParentListRecovered reports the single parent link for a curated
+// parent-list-recovered child (the [parentListRecovered] map), or false for
+// every other type. Unlike [SingleParentComponent] it does not reject a
+// second attribute component, because the parent-scoped list recovers it;
+// the read leg (internal/live/discovery's parentListChildSweep) is
+// responsible for taking each result's whole identity rather than assuming
+// it equals the parent's.
+func ParentListRecovered(typeName string, parents map[string]bool, service ServiceOf) (ParentLink, bool) {
+	if !parentListRecovered[typeName] {
+		return ParentLink{}, false
+	}
+	links := ParentOf(typeName, parents, service)
+	if len(links) != 1 {
+		return ParentLink{}, false
+	}
+	return links[0], true
 }
 
 // foldParentTypes is issue #68's fold-child extension: a declared
