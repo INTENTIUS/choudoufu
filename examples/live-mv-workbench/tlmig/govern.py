@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pathlib
 
-from . import config, events, guard, moveset, ui, verify
+from . import config, events, guard, measure, moveset, ui, verify
 
 
 def plan_verdict(cfg: config.Config, estate: str) -> verify.PlanVerdict:
@@ -149,6 +149,21 @@ def preview_carve(cfg: config.Config, carve_path: str | pathlib.Path) -> list[mo
         events.preview(cfg, pv)
         previews.append(pv)
     return previews
+
+
+def read_carve_cost(cfg: config.Config, carve_path: str | pathlib.Path, *, refresh: bool = False) -> list[measure.PlanMeasurement]:
+    """Plan cost per destination estate, one measure event each, so the page
+    draws one cost bar per new estate. The default is the workbench's
+    headline, the fast plan a carved estate serves from cache (-refresh=false);
+    pass refresh=True for the full-refresh number the monolith pays. Reads the
+    destination estates straight from the carve set, so the bars match the
+    moves the guard graded."""
+    cs = moveset.load_carve(pathlib.Path(carve_path).read_text())
+    out = []
+    for estate in cs.dest_estates:
+        extra = () if refresh else ("-refresh=false",)
+        out.append(measure.measure_plan(cfg, estate, *extra, refresh=refresh, label=f"{estate} plan"))
+    return out
 
 
 # --------------------------------------------------------------------------
