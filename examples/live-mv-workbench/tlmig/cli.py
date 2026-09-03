@@ -27,7 +27,7 @@ _ALL = ["preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "g
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="tlmig", description="choudoufu terralith-migration example")
+    parser = argparse.ArgumentParser(prog="tlmig", description="choudoufu live-mv workbench (terralith migration)")
     parser.add_argument(
         "phase",
         choices=[*beats.PHASES, "status", "reset", "all"],

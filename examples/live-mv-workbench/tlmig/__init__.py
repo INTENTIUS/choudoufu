@@ -1,4 +1,4 @@
-"""tlmig: the choudoufu terralith-migration example.
+"""tlmig: the choudoufu live-mv workbench, grown from the terralith-migration example.
 
 The package is both the runnable base (its ``tlmig`` CLI drives the demo) and
 a small library the \"scripts you could write\" import: the guarded wrappers,

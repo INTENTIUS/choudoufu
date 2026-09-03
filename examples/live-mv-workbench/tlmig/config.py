@@ -1,4 +1,4 @@
-"""Configuration for the terralith-migration example.
+"""Configuration for the live-mv workbench (the terralith-migration example).
 
 One place holds every value a run depends on, so a reader sees the whole
 surface at a glance and `guard.preflight` can assert the dangerous ones

@@ -1,13 +1,14 @@
-"""The migration, told.
+"""The live-mv workbench.
 
-A marimo notebook that is the stage for the terralith-migration demo. The
+A marimo notebook that is the stage for a terralith migration: today the demo
+seed, the terralith fixture; next, any estate through the seed panel. The
 story runs top to bottom, one phase per cell: each cell carries the beat's
 narration, a button that runs that phase, the words the run itself says while
 it happens, and the picture as the phase leaves it. A live picture near the
 top redraws on a timer, so the map moves while the presenter is still talking.
 
-    uv run --extra viz marimo run migration.py      # the stage, in a browser
-    uv run --extra viz marimo edit migration.py     # the same, as a notebook
+    uv run --extra viz marimo run workbench.py      # the stage, in a browser
+    uv run --extra viz marimo edit workbench.py     # the same, as a notebook
 
 Phases run as subprocesses of the tlmig CLI (tlmig.stage.CLI is the grammar),
 so a phase clicked here and a phase typed in a terminal leave the same trail
@@ -28,7 +29,7 @@ module, so the hint is expected here.
 import marimo
 
 __generated_with = "0.16.0"
-app = marimo.App(width="full", app_title="The migration, told")
+app = marimo.App(width="full", app_title="The live-mv workbench")
 
 
 @app.cell
@@ -47,11 +48,12 @@ def _():
 def _(mo):
     mo.md(
         """
-    # The tag is the boundary
+    # The live-mv workbench
 
-    This is the terralith-migration example: one monolith estate, split into
-    per-team estates by retagging, on a real AWS account, with the account's
-    own log as the receipt.
+    A phased workflow for splitting a terralith by retagging, on a real AWS
+    account, with the account's own log as the receipt. Today it runs the
+    demo seed, a three-team monolith; the seed panel for your own estate is
+    next.
 
     An org's own terralith: one estate, everything in it, one all-or-nothing
     permission boundary. The team wants per-team ownership without the
@@ -87,10 +89,10 @@ def _(config, mo):
     mo.accordion({"Paste-and-go prompt: let an assistant walk you through this demo": mo.md(
         f"""
     ```text
-    Clone https://github.com/INTENTIUS/choudoufu and cd examples/terralith-migration.
+    Clone https://github.com/INTENTIUS/choudoufu and cd examples/live-mv-workbench.
     Confirm uv is installed (uv --version). Run:
 
-      uv run --extra viz marimo run migration.py
+      uv run --extra viz marimo run workbench.py
 
     A browser page opens on a recording in replay mode. Walk me through it
     beat by beat: for each of the nine beats, read me its action line and
