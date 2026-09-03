@@ -227,7 +227,19 @@ def _(boundaries, live, mo, run_dir, st, viz):
             picture = viz.render_html(viz.load_run(run_dir, upto=upto), map_width=760, compact=True)
             if picture:
                 parts.append(mo.Html(picture))
-        return mo.vstack(parts)
+        # Each beat in its own box, tints alternating, so the sections read as
+        # sections instead of running together. Colours mix from the page's
+        # own text colour, so the boxes hold on the light and dark themes.
+        index = list(STORY).index(name)
+        tint = "color-mix(in srgb, currentColor 5%, transparent)" if index % 2 == 0 else "transparent"
+        return mo.vstack(parts).style({
+            "border": "1px solid color-mix(in srgb, currentColor 18%, transparent)",
+            "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)",
+            "border-radius": "10px",
+            "padding": "18px 22px 20px",
+            "margin": "10px 0 18px",
+            "background": tint,
+        })
 
     return STORY, phase
 
