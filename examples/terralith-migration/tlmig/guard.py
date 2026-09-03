@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import os
 import pathlib
 import shlex
 import subprocess
@@ -170,11 +171,14 @@ def chdf(
     destructive: bool = False,
     capture: bool = False,
     check: bool = True,
+    env: dict | None = None,
 ) -> Result:
     """Run the pinned choudoufu binary. A plan is a read; an apply, destroy or
     move is destructive and must name a cwd inside this run and clear a
     confirmation. Set check=False to inspect a nonzero result instead of
-    raising (the guard reads plan output that way)."""
+    raising (the guard reads plan output that way). env passes extra
+    environment for a measured run (measure.py sets TF_LOG there); it is
+    merged over the process environment, not a replacement."""
     argv = [cfg.binary, *args]
     if destructive:
         _assert_in_run(cfg, cwd)
@@ -183,7 +187,8 @@ def chdf(
             raise GuardError("declined at the confirmation prompt")
     else:
         ui.cmd(f"choudoufu {' '.join(args)}")
-    res = _run(cfg, argv, cwd=cwd, capture=capture)
+    merged_env = {**os.environ, **env} if env else None
+    res = _run(cfg, argv, cwd=cwd, capture=capture, env=merged_env)
     if check and not res.ok:
         raise GuardError(f"`choudoufu {' '.join(args)}` failed (exit {res.returncode})\n{res.stderr.strip()}")
     return res
