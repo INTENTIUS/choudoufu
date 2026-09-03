@@ -257,5 +257,7 @@ def available_phases(cli: list[str] | None = None) -> set[str]:
         out = subprocess.run(argv, capture_output=True, text=True, timeout=30).stdout
     except (OSError, subprocess.TimeoutExpired):
         return set()
-    m = re.search(r"\{([a-z0-9,\-]+)\}", out)
-    return set(m.group(1).split(",")) if m else set()
+    # argparse wraps a long choices list across lines, so whitespace inside
+    # the braces is allowed and stripped from each name.
+    m = re.search(r"\{([a-z0-9,\-\s]+)\}", out)
+    return {n.strip() for n in m.group(1).split(",") if n.strip()} if m else set()

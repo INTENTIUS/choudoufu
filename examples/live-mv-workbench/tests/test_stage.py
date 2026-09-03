@@ -114,6 +114,8 @@ class ExtraArgsAndPhases(unittest.TestCase):
         fake = [sys.executable, "-c", "print('usage: tlmig [-h] {preflight,setup,seed,preview}')", "{phase}", "--run", "{run_id}", "--auto"]
         self.assertEqual(stage.available_phases(fake), {"preflight", "setup", "seed", "preview"})
         self.assertEqual(stage.available_phases([sys.executable, "-c", "print('no braces')"]), set())
+        wrapped = [sys.executable, "-c", "print('usage: tlmig [-h]\\n  {preflight,setup,seed,\\n   preview,move}')"]
+        self.assertEqual(stage.available_phases(wrapped), {"preflight", "setup", "seed", "preview", "move"})
 
 
 class KeysAndOnce(unittest.TestCase):
