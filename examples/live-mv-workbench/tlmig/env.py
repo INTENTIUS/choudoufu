@@ -29,7 +29,7 @@ from . import config, fixture, guard, sweep, ui
 def _read_manifest(cfg: config.Config) -> dict:
     if cfg.manifest_path.exists():
         return json.loads(cfg.manifest_path.read_text())
-    return {"run_id": cfg.run_id, "prefix": cfg.prefix, "region": cfg.region, "estates": []}
+    return {"run_id": cfg.run_id, "prefix": cfg.prefix, "region": cfg.region, "estates": [], "demo": False}
 
 
 def _write_manifest(cfg: config.Config, manifest: dict) -> None:
@@ -101,6 +101,7 @@ def setup(cfg: config.Config) -> None:
     state an org's terralith starts in. Asserts the account and binary first,
     so a mis-set profile stops here rather than half-applying."""
     guard.preflight(cfg)
+    manifest = _read_manifest(cfg); manifest["demo"] = True; _write_manifest(cfg, manifest)
     ui.rule("setup: standing up the terralith monolith")
     workdir = write_config(cfg, cfg.monolith_estate, fixture.monolith_hcl(cfg))
     ui.say(
@@ -119,6 +120,11 @@ def teardown(cfg: config.Config) -> None:
     the safety net you reach for if a beat crashes mid-demo."""
     ui.rule("teardown: destroying this run")
     manifest = _read_manifest(cfg)
+    if not manifest.get("demo"):
+        raise guard.GuardError(
+            "teardown destroys only the demo seed's own resources. This run adopted an existing "
+            "estate, whose resources are yours to manage; the workbench never destroys them."
+        )
     # Destroy in reverse apply order so a resource carved into a later estate
     # is released before the estate it came from is torn down.
     for entry in reversed(manifest.get("estates", [])):
