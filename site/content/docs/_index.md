@@ -24,11 +24,13 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
    PASS or FAIL line.
 ```
 
-Or by hand: `just smoke` lists the scenarios. `import` is the migration
+By hand, `just smoke` lists the scenarios. `import` is the migration
 path - stock OpenTofu stands an estate up, the state file is deleted, and
 the estate plans empty from its markers alone. `greenfield` is a new
 estate from nothing, markers riding the create calls. `BREAK=1` corrupts
 one expected fact mid-run and the scenario passes only by catching it.
+[The claims]({{< relref "/docs/claims" >}}) walks all four claim
+scenarios phase by phase, with a paste-and-go prompt for each.
 [The harness's own page](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/README.md)
 has every knob, including pinning both the emulator and the choudoufu
 version, and the optional request-count instrumentation.
@@ -40,11 +42,11 @@ OpenTofu, unmodified. On top of that base it adds a set of hooks that put a
 resource's identity on the resource itself, as AWS tags, so that a state file
 becomes a cache rather than the record of what you own.
 
-The promise this buys: **if OpenTofu runs an estate, choudoufu runs it too.**
-Migration from a stock state file is lossless, a greenfield apply is
-equivalent, and day-2 operations behave the way stock's do. That promise is
-measured, continuously, against real Terraform and OpenTofu configurations
-run side by side with stock OpenTofu - not argued. This page names every
+The promise this buys is that **if OpenTofu runs an estate, choudoufu runs it too.**
+Migration from a stock state file is lossless and a greenfield apply is
+equivalent. Day-2 operations behave the way stock's do. That promise is
+measured continuously by running real Terraform and OpenTofu configurations
+side by side with stock OpenTofu. This page names every
 place that measurement lives, so nothing below is a claim you have to take on
 faith.
 
@@ -172,8 +174,8 @@ way stock keeps them in a state file.
 See it working end to end in a real estate's "Greenfield apply" row, for
 example
 [corpus-ec2-instance-complete]({{< relref "/docs/progress/corpus-ec2-instance-complete" >}}):
-every instance, taggable and not, lands in the local record store, and the
-next plan reads it back empty.
+every instance lands in the local record store, whether taggable or not, and
+the next plan reads it back empty.
 
 ### `live-import`, `live-mv`, `live-plan`: the commands that use them
 
@@ -205,10 +207,10 @@ other estate on [the progress page]({{< relref "/docs/progress" >}}).
 
 Out of the box, choudoufu behaves like stock plus markers: nothing extra
 refused, nothing extra required. The `strict` block is where you trade that
-convenience for a tighter default, one toggle at a time, each with its own
+convenience for a tighter default, one toggle at a time. Each toggle has a
 fixture proving it refuses exactly what it names and nothing else - see
 [the strict block reference]({{< relref "/docs/use/reference#strict-block" >}})
-for the full table. Today that is:
+for the full table. Today the toggles are
 `marker_repair` (stop repairing a tag something else owns), `secrets` (refuse
 a secret-generating type outright, and never record a sensitive argument -
 `aws_iam_access_key` is stored by default and refused once this is set), and
@@ -247,12 +249,11 @@ read off which one applies, and why, for anything short of usable today.
 ## What's refused
 
 Turning markers on does not relax what a configuration may express. Every
-construct this fork bounds or refuses outright - a specific HCL shape, a
-specific argument, a specific type combination - is written down in
+construct this fork bounds or refuses outright is written down in
 [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md),
-one entry per rule, each naming the lint rule that enforces it and the
+one entry per rule. Each entry names the lint rule that enforces it and the
 fixture that proves it refuses exactly that and nothing else. Read it before
-assuming a refusal is a bug: it very often is the documented boundary working
+assuming a refusal is a bug: it is often the documented boundary working
 as designed, and the message it prints names the remedy.
 
 ## Read next

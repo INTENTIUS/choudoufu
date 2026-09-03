@@ -18,15 +18,11 @@ import (
 // the declared one, offered for adoption by Classify, is what the guard
 // warns about when that same address is actually about to be created.
 func TestLookalikesMatchTableCandidate(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-				map[string]string{"Name": "stateless-e2e-main"},
-				map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-0abc", "stateless-e2e-main",
+			map[string]string{"Name": "stateless-e2e-main"},
+			map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
+	}}})
 
 	warnings := Lookalikes(Request{Estate: estateName}, res, []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")})
 	if len(warnings) != 1 {
@@ -54,13 +50,9 @@ func TestLookalikesMatchTableCandidate(t *testing.T) {
 // near-miss live resource (or none at all) gets no warning. A guess here
 // would point an operator at the wrong resource.
 func TestLookalikesMatchTableNoConfirmedMatch(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-old", "", nil, map[string]string{"name": "stateless-e2e-main-old"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-old", "", nil, map[string]string{"name": "stateless-e2e-main-old"}),
+	}}})
 	if len(res.Candidates) != 0 {
 		t.Fatalf("test fixture unexpectedly produced a candidate: %v", res.Candidates)
 	}
@@ -75,14 +67,10 @@ func TestLookalikesMatchTableNoConfirmedMatch(t *testing.T) {
 // the one-to-one rule's territory, and the guard defers to it rather than
 // picking one.
 func TestLookalikesMatchTableAmbiguousStaysSilent(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_security_group", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-			live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+	}}})
 
 	warnings := Lookalikes(Request{Estate: estateName}, res, []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")})
 	if len(warnings) != 0 {
@@ -96,11 +84,7 @@ func TestLookalikesMatchTableAmbiguousStaysSilent(t *testing.T) {
 // still worth naming generically when the create is about to happen beside
 // it.
 func TestLookalikesGenericSingleUnowned(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:     []discovery.TypeScan{scan("aws_route_table", 1)},
-		Unbound:   []addrs.AbsResourceInstance{mustAddr(t, "aws_route_table.main")},
-		Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_route_table.main")}, Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)}}})
 	if len(res.Foreign) != 1 {
 		t.Fatalf("test fixture did not produce exactly one foreign resource: %v", res.Foreign)
 	}
@@ -127,14 +111,10 @@ func TestLookalikesGenericSingleUnowned(t *testing.T) {
 // TestLookalikesGenericAmbiguousStaysSilent: two unowned route tables is not
 // a hint, it is a guess, and the guard says nothing rather than pick one.
 func TestLookalikesGenericAmbiguousStaysSilent(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:   []discovery.TypeScan{scan("aws_route_table", 2)},
-		Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_route_table.main")},
-		Unclaimed: []discovery.UnclaimedResource{
-			live("aws_route_table", "rtb-one", "", nil, nil),
-			live("aws_route_table", "rtb-two", "", nil, nil),
-		},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_route_table.main")}, Unclaimed: []discovery.UnclaimedResource{
+		live("aws_route_table", "rtb-one", "", nil, nil),
+		live("aws_route_table", "rtb-two", "", nil, nil),
+	}}})
 	if len(res.Foreign) != 2 {
 		t.Fatalf("test fixture did not produce two foreign resources: %v", res.Foreign)
 	}
@@ -148,9 +128,7 @@ func TestLookalikesGenericAmbiguousStaysSilent(t *testing.T) {
 // TestLookalikesGenericNoneStaysSilent: nothing unowned of the type exists,
 // so there is nothing to warn about - an ordinary create.
 func TestLookalikesGenericNoneStaysSilent(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans: []discovery.TypeScan{scan("aws_route_table", 0)},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 0)}}})
 
 	warnings := Lookalikes(Request{Estate: estateName}, res, []addrs.AbsResourceInstance{mustAddr(t, "aws_route_table.main")})
 	if len(warnings) != 0 {
@@ -162,10 +140,7 @@ func TestLookalikesGenericNoneStaysSilent(t *testing.T) {
 // outright in the generic path, because cardinality alone cannot tell a
 // stripped marker apart from legitimate scale-out.
 func TestLookalikesSkipsKeyedInstances(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:     []discovery.TypeScan{scan("aws_route_table", 1)},
-		Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 1)}, Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)}}})
 	if len(res.Foreign) != 1 {
 		t.Fatalf("test fixture did not produce exactly one foreign resource: %v", res.Foreign)
 	}
@@ -187,10 +162,7 @@ func TestLookalikesNilResult(t *testing.T) {
 // TestLookalikesNoCreates: nothing being created means nothing to warn
 // about, even with unowned resources sitting in the classification.
 func TestLookalikesNoCreates(t *testing.T) {
-	res := classifyFixture(t, discovery.Result{
-		Scans:     []discovery.TypeScan{scan("aws_route_table", 1)},
-		Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)},
-	})
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_route_table", 1)}, Unclaimed: []discovery.UnclaimedResource{live("aws_route_table", "rtb-stripped", "", nil, nil)}}})
 	if got := Lookalikes(Request{Estate: estateName}, res, nil); len(got) != 0 {
 		t.Errorf("no creates were given, but warnings were produced: %v", got)
 	}

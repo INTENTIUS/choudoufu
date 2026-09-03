@@ -65,6 +65,18 @@ type Live struct {
 	// the whole block, which is what DeclRange gives.
 	EstateRange hcl.Range
 
+	// Reads is issue #732's toggle on the selective read pass: "selective"
+	// (the default, also what an absent argument means) lets a run serve
+	// vouched, unchanged instances from the state cache where the rulings
+	// allow it; "full" makes every plan pay every read regardless of
+	// flags, the estate-level opt-out the maintainer ruled must exist.
+	// The empty string is "not set". CHOUDOUFU_READS overrides per run.
+	Reads string
+
+	// ReadsRange is where the "reads" argument was written, for
+	// diagnostics; the zero value when the block does not set it.
+	ReadsRange hcl.Range
+
 	// DeclRange is the "live" block's own header, which is what a diagnostic
 	// about the block as a whole points at - a backend beside it, or a
 	// stateless refusal that has no more specific argument to name. For a
@@ -454,6 +466,7 @@ var livePolicySchema = &hcl.BodySchema{
 var liveBlockSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
 		{Name: "estate"},
+		{Name: "reads"},
 		// "snapshots" and "snapshot_path" are tombstones: the observational
 		// snapshot subsystem they configured was removed by issue #109, and
 		// the two names stay in the schema solely so that a configuration
@@ -540,6 +553,34 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		default:
 			s.Estate = val.AsString()
 			s.EstateSet = true
+		}
+	}
+
+	if attr, exists := content.Attributes["reads"]; exists {
+		s.ReadsRange = attr.Range
+		val, valDiags := attr.Expr.Value(nil)
+		diags = append(diags, valDiags...)
+		switch {
+		case valDiags.HasErrors():
+			// Constant-expression rule, same as "estate" above.
+		case val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.String:
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid reads setting",
+				Detail:   "The \"reads\" argument must be the literal string \"selective\" or \"full\".",
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		case val.AsString() != "selective" && val.AsString() != "full":
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid reads setting",
+				Detail: fmt.Sprintf(
+					"The \"reads\" argument was set to %q. It accepts \"selective\" (the default: a run may serve vouched, unchanged instances from the state cache where the rulings allow) or \"full\" (every plan pays every read, regardless of flags).",
+					val.AsString()),
+				Subject: attr.Expr.Range().Ptr(),
+			})
+		default:
+			s.Reads = val.AsString()
 		}
 	}
 

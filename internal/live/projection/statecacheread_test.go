@@ -174,3 +174,127 @@ func TestStateCacheOffMeansEveryInstanceReads(t *testing.T) {
 		t.Errorf("CacheHits = %d with no cache supplied, want 0", got)
 	}
 }
+
+// TestEnvelopeVouchServesTheRead is issue #692 increment 2's arm, green:
+// an instance the tag index could NOT vouch (Verified empty - the
+// tagging API does not serve its type) is still answered from the cache,
+// because the run's listing pass sighted its exact identity live
+// (existence and identity) and the record envelope attests this estate
+// owns that identity (ownership, per the maintainer ruling recorded on
+// #692, 2026-09-01). The read count is the assertion, as in every test
+// in this file.
+func TestEnvelopeVouchServesTheRead(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+	const addr = `aws_cloudwatch_log_group.app`
+	const id = "/app/logs"
+	ctx := context.Background()
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", id, map[string]string{
+		"id": id, "name": id,
+	}, map[string]string{"tofu-estate": ownershipEstate, "tofu-address": addr})
+
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix(ownershipEstate))
+	if _, err := store.mergeEnvelope(ctx, mustAddr(t, addr), "", func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: id}
+	}); err != nil {
+		t.Fatalf("seeding the identity record: %s", err)
+	}
+
+	res, diags := BuildWith(ctx, cfg, []identity.Resolution{
+		{Addr: mustAddr(t, addr), Class: identity.ClassConcrete, ImportID: id},
+	}, cloud.providers(t), Options{
+		Ownership:        &Ownership{Estate: ownershipEstate, Verified: map[string]bool{}},
+		StateCache:       cachedStateFor(t, addr, id),
+		CacheServesReads: true,
+		RecordStore:      store,
+		CacheVouchSightings: map[string]map[string]bool{
+			"aws_cloudwatch_log_group": {id: true},
+		},
+		EnvelopeVouchServes: true,
+	})
+	assertNoErrors(t, diags)
+	if got := res.CacheHits(); got != 1 {
+		t.Errorf("CacheHits = %d, want 1; sighting + record envelope did not vouch the cached entry", got)
+	}
+	if !res.Has(mustAddr(t, addr)) {
+		t.Error("the instance is missing from the projection")
+	}
+}
+
+// TestEnvelopeVouchFailsTowardReading proves every leg of the second arm
+// red, one at a time: remove any single piece of evidence - the
+// plan-shape gate (the maintainer ruling's mutation bound: an apply
+// rebuilds with EnvelopeVouchServes off), the sighting, the record, or
+// the record's agreement with the identity - and the instance takes the
+// ordinary read. The last case re-pins #712 with every envelope field
+// set: a default plan never serves, whatever else vouches.
+func TestEnvelopeVouchFailsTowardReading(t *testing.T) {
+	const addr = `aws_cloudwatch_log_group.app`
+	const id = "/app/logs"
+
+	cases := map[string]func(t *testing.T, o *Options, store *RecordStore){
+		"apply-shaped operation refuses the arm": func(t *testing.T, o *Options, store *RecordStore) {
+			o.EnvelopeVouchServes = false
+		},
+		"no sighting, no existence evidence": func(t *testing.T, o *Options, store *RecordStore) {
+			o.CacheVouchSightings = nil
+		},
+		"no record, no ownership evidence": func(t *testing.T, o *Options, store *RecordStore) {
+			o.RecordStore = NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix(ownershipEstate))
+		},
+		"record attests a different object": func(t *testing.T, o *Options, store *RecordStore) {
+			fresh := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix(ownershipEstate))
+			if _, err := fresh.mergeEnvelope(context.Background(), mustAddr(t, addr), "", func(env *recordEnvelope) {
+				env.Identity = &identityPayload{ImportID: "/somebody/elses/logs"}
+			}); err != nil {
+				t.Fatalf("seeding the mismatched record: %s", err)
+			}
+			o.RecordStore = fresh
+		},
+		"a default plan never serves, whatever vouches": func(t *testing.T, o *Options, store *RecordStore) {
+			o.CacheServesReads = false
+		},
+	}
+
+	for name, corrupt := range cases {
+		t.Run(name, func(t *testing.T) {
+			cfg := loadConfig(t, "testdata/named")
+			ctx := context.Background()
+			cloud := newFakeCloud()
+			cloud.putTagged("aws_cloudwatch_log_group", id, map[string]string{
+				"id": id, "name": id,
+			}, map[string]string{"tofu-estate": ownershipEstate, "tofu-address": addr})
+
+			store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix(ownershipEstate))
+			if _, err := store.mergeEnvelope(ctx, mustAddr(t, addr), "", func(env *recordEnvelope) {
+				env.Identity = &identityPayload{ImportID: id}
+			}); err != nil {
+				t.Fatalf("seeding the identity record: %s", err)
+			}
+
+			opts := Options{
+				Ownership:        &Ownership{Estate: ownershipEstate, Verified: map[string]bool{}},
+				StateCache:       cachedStateFor(t, addr, id),
+				CacheServesReads: true,
+				RecordStore:      store,
+				CacheVouchSightings: map[string]map[string]bool{
+					"aws_cloudwatch_log_group": {id: true},
+				},
+				EnvelopeVouchServes: true,
+			}
+			corrupt(t, &opts, store)
+
+			res, diags := BuildWith(ctx, cfg, []identity.Resolution{
+				{Addr: mustAddr(t, addr), Class: identity.ClassConcrete, ImportID: id},
+			}, cloud.providers(t), opts)
+			assertNoErrors(t, diags)
+			if got := res.CacheHits(); got != 0 {
+				t.Errorf("CacheHits = %d, want 0; the corrupted arm still served, so it was not checking this leg", got)
+			}
+			if !res.Has(mustAddr(t, addr)) {
+				t.Error("the instance is missing from the projection; the fallback read did not happen")
+			}
+		})
+	}
+}

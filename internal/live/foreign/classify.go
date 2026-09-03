@@ -35,11 +35,21 @@ type Request struct {
 	// read from.
 	Config *configs.Config
 
-	// Discovery is the result of one discovery pass. It must have been
+	// Report is the report half of one discovery pass. It must have been
 	// gathered with [discovery.Request.CollectUnclaimed] set, or there is
 	// nothing to classify - and the scan rows will say so, which is what
-	// [Result.Unswept] reports.
-	Discovery *discovery.Result
+	// [Result.Unswept] reports. Issue #751: this classifier builds what an
+	// operator reads, so it receives [discovery.Report] and structurally
+	// cannot reach the engine's [discovery.Verdicts] - the boundary that
+	// makes a vouch-pass-style leak unrepresentable rather than merely
+	// fixed once.
+	Report *discovery.Report
+
+	// Orphans is the one verdict product this classifier legitimately
+	// reads - owned-but-undeclared resources appear in the operator's
+	// report too - passed explicitly so the exception is visible at the
+	// call site instead of hiding behind a whole-Result reference.
+	Orphans []discovery.OwnedResource
 
 	// Region is the region the discovery pass listed in, as the provider
 	// configuration knows it - the same value handed to
@@ -156,7 +166,7 @@ func Classify(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	res := &Result{Estate: req.Estate}
 
 	switch {
-	case req.Discovery == nil:
+	case req.Report == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No discovery result to classify",
@@ -246,7 +256,7 @@ func (c *classifier) sweepCoverage() {
 		declaredTypes[rc.Type] = true
 	}
 
-	for _, s := range c.req.Discovery.Scans {
+	for _, s := range c.req.Report.Scans {
 		if s.Sweep && !(declaredTypes[s.TypeName] && s.Scope == discovery.ScopeAll) {
 			// A sweep row ordinarily lists a type the configuration does
 			// not declare, made to find resources this estate owns and no
@@ -262,6 +272,15 @@ func (c *classifier) sweepCoverage() {
 			// signal that this particular call widened past a server-side
 			// estate filter and so genuinely could have seen an unclaimed
 			// object of it, wherever CollectUnclaimed pushed the scan.
+			continue
+		}
+		if s.CacheVouch {
+			// Issue #692: this scan listed a type to vouch cache entries,
+			// not to classify its population - unmarked sightings from it
+			// were never offered to this report. Treating it as swept
+			// would overclaim ("every live resource carries a marker")
+			// over objects nobody classified, and would make the report
+			// text depend on whether a cache file was present.
 			continue
 		}
 		switch {
@@ -323,7 +342,7 @@ func (c *classifier) buildSlots(ctx context.Context) {
 	c.slots = make(map[string][]*slot)
 	c.unmatchable = make(map[string]string)
 
-	for _, addr := range c.req.Discovery.Unbound {
+	for _, addr := range c.req.Report.Unbound {
 		typeName := addr.Resource.Resource.Type
 
 		attrs, ok := matchTable[typeName]
@@ -367,8 +386,8 @@ func (c *classifier) classify() {
 	byEstate := make(map[string]*EstateCount)
 	typesSeen := make(map[string]map[string]bool)
 
-	for i := range c.req.Discovery.Unclaimed {
-		u := &c.req.Discovery.Unclaimed[i]
+	for i := range c.req.Report.Unclaimed {
+		u := &c.req.Report.Unclaimed[i]
 
 		// Discovery only ever puts resources with no tofu-estate tag in this
 		// list, but classification is the place where "whose is it" is
@@ -406,10 +425,10 @@ func (c *classifier) classify() {
 
 	// The per-type tally discovery keeps for resources it filtered out
 	// without recording their estate. Those resources never reach
-	// [discovery.Result.Unclaimed], so this count is the only trace of them,
+	// [discovery.Report.Unclaimed], so this count is the only trace of them,
 	// and dropping it would under-report how crowded the account is.
 	unnamed := &EstateCount{}
-	for _, s := range c.req.Discovery.Scans {
+	for _, s := range c.req.Report.Scans {
 		// Sweep rows are excluded for the same reason they are excluded from
 		// the coverage report above: this section is about the types the
 		// configuration declares, and a count that appeared or vanished
@@ -447,8 +466,8 @@ func (c *classifier) finish() {
 
 	adopted := make(map[string]Candidate)
 
-	for i := range c.req.Discovery.Unclaimed {
-		u := &c.req.Discovery.Unclaimed[i]
+	for i := range c.req.Report.Unclaimed {
+		u := &c.req.Report.Unclaimed[i]
 		if estate := u.Tags[discovery.TagEstate]; estate != "" {
 			continue
 		}
@@ -521,7 +540,7 @@ func (c *classifier) finish() {
 // cannot become a destroy. This pass reads that decision and writes the
 // section an operator reads it in.
 func (c *classifier) removals() {
-	for _, o := range c.req.Discovery.Orphans {
+	for _, o := range c.req.Orphans {
 		if !o.Removal {
 			continue
 		}
@@ -553,16 +572,16 @@ func (c *classifier) removals() {
 		return c.res.Removals[i].Addr.String() < c.res.Removals[j].Addr.String()
 	})
 
-	for _, g := range c.req.Discovery.SweepGaps {
+	for _, g := range c.req.Report.SweepGaps {
 		c.res.SweepGaps = append(c.res.SweepGaps, SweepGap{
 			TypeName: g.TypeName,
 			Reason:   SweepGapReason(g.Reason),
 			Detail:   g.Detail,
 		})
 	}
-	c.res.SweepCovered = append(c.res.SweepCovered, c.req.Discovery.SweepCovered...)
+	c.res.SweepCovered = append(c.res.SweepCovered, c.req.Report.SweepCovered...)
 
-	for _, f := range c.req.Discovery.ParentReads {
+	for _, f := range c.req.Report.ParentReads {
 		c.res.ParentReads = append(c.res.ParentReads, ParentReadFinding{
 			TypeName:    f.TypeName,
 			Parent:      f.Parent,
@@ -642,9 +661,9 @@ func (c *classifier) resource(u *discovery.UnclaimedResource, why string) Resour
 }
 
 func (c *classifier) problemFor(typeName string, kind discovery.ProblemKind) *discovery.Problem {
-	for i, p := range c.req.Discovery.Problems {
+	for i, p := range c.req.Report.Problems {
 		if p.Kind == kind && p.TypeName == typeName {
-			return &c.req.Discovery.Problems[i]
+			return &c.req.Report.Problems[i]
 		}
 	}
 	return nil
@@ -655,8 +674,13 @@ func (c *classifier) problemFor(typeName string, kind discovery.ProblemKind) *di
 // this type enumerated for the foreign report", and a sweep enumerates for
 // the removal report.
 func (c *classifier) hasScan(typeName string) bool {
-	for _, s := range c.req.Discovery.Scans {
-		if s.TypeName == typeName && !s.Sweep {
+	for _, s := range c.req.Report.Scans {
+		// A cache-vouching scan (issue #692) is not "listed on the
+		// configuration's behalf" for coverage purposes: its sightings
+		// vouch cache entries and were never classified here, and
+		// counting it would make this report differ between a run with a
+		// cache file and one without.
+		if s.TypeName == typeName && !s.Sweep && !s.CacheVouch {
 			return true
 		}
 	}

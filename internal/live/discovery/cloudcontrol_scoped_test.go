@@ -146,11 +146,9 @@ func scopedRoster(t *testing.T, tfType, cfnType string, primaryIdentifier, requi
 // reads from res.Resolutions.
 func scopedResult(t *testing.T, parentType, parentAddr, parentImportID string) *Result {
 	t.Helper()
-	return &Result{
-		Resolutions: []identity.Resolution{
-			{Addr: mustAddr(t, parentAddr), Class: identity.ClassConcrete, ImportID: parentImportID},
-		},
-	}
+	return &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
+		{Addr: mustAddr(t, parentAddr), Class: identity.ClassConcrete, ImportID: parentImportID},
+	}}}
 }
 
 // TestParentScopedCloudControlSweepTypeFindsChildrenAcrossMultipleParents is
@@ -237,12 +235,10 @@ func TestParentScopedCloudControlSweepTypeDefendsAgainstAnUnscopedBackend(t *tes
 		Roster: scopedRoster(t, "aws_test_scoped_child", "AWS::Test::ScopedChild",
 			[]string{"ParentId", "ChildId"}, []string{"ParentId"}, false),
 	}
-	res := &Result{
-		Resolutions: []identity.Resolution{
-			{Addr: mustAddr(t, "aws_test_parent.a"), Class: identity.ClassConcrete, ImportID: "api-1"},
-			{Addr: mustAddr(t, "aws_test_parent.b"), Class: identity.ClassConcrete, ImportID: "api-2"},
-		},
-	}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
+		{Addr: mustAddr(t, "aws_test_parent.a"), Class: identity.ClassConcrete, ImportID: "api-1"},
+		{Addr: mustAddr(t, "aws_test_parent.b"), Class: identity.ClassConcrete, ImportID: "api-2"},
+	}}}
 	spec := ParentScopedChildSpec{TypeName: "aws_test_scoped_child", Parent: "aws_test_parent", CFNScopeProperty: "ParentId"}
 
 	// Diagnostics are not asserted error-free here: composing "ParentId|ChildId"
@@ -300,13 +296,11 @@ func TestParentScopedCloudControlSweepTypeSkipsAnUnresolvedParent(t *testing.T) 
 		Roster: scopedRoster(t, "aws_test_scoped_child", "AWS::Test::ScopedChild",
 			[]string{"ChildId"}, []string{"ChildId"}, false),
 	}
-	res := &Result{
-		Resolutions: []identity.Resolution{
-			// Needs discovery, not concrete: the parent itself has not been
-			// resolved to a live value this pass.
-			{Addr: mustAddr(t, "aws_test_parent.x"), Class: identity.ClassNeedsDiscovery},
-		},
-	}
+	res := &Result{Verdicts: Verdicts{Resolutions: []identity.Resolution{
+		// Needs discovery, not concrete: the parent itself has not been
+		// resolved to a live value this pass.
+		{Addr: mustAddr(t, "aws_test_parent.x"), Class: identity.ClassNeedsDiscovery},
+	}}}
 	spec := ParentScopedChildSpec{TypeName: "aws_test_scoped_child", Parent: "aws_test_parent", CFNScopeProperty: "ChildId"}
 
 	diags := parentScopedCloudControlSweepType(context.Background(), req, spec, res)

@@ -4,9 +4,89 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.9.0 (Unreleased)
+## choudoufu v0.10.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.9.0 (2026-09-02)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.9.0.json`](live/history/v0.9.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.8.0.json live/history/v0.9.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+FORK WORK:
+
+- **The claim smokes: nine runnable claims, and the docs lead with them**
+  (#713, #727, #732; PRs #718-#726, #729-#731, #733, #735, #737, #739).
+  Every promise the fork makes is now a narrated smoke scenario with a
+  BREAK control proven to catch the corruption it guards against:
+  no-silent-orphans, no-self-managed-locks, staleness-costs-reads,
+  backend-sets-itself-up, recovery-is-a-rerun, roundtrip,
+  identity-is-a-tag, stock-when-you-need-it, and unchanged-is-free (the
+  last needs no Docker, no emulator, and no credentials). The docs site
+  gains a claims page walking each one phase by phase with a
+  paste-and-go agent prompt, and the smoke harness gains per-run
+  isolation, scenario listing, and narration throughout. Building claim
+  2 surfaced and fixed a gap: `force-unlock` now refuses with the true
+  reason - there is no lock to force open.
+
+- **Record-envelope vouching, and reads that actually vanish** (#692
+  increment 2; PRs #734, #744). On the `-refresh=false` path,
+  record-attested ownership may stand in for the per-instance tags read
+  when existence and identity are proven by the same run's listing pass
+  (maintainer ruling on #692), and the prefetch launcher now skips
+  planning wire reads for cache-served instances - a hit used to leave
+  its read in flight anyway. Measured on real AWS where the tagging API
+  does not index IAM: `plan -refresh=false` fell from 13 requests and 0
+  hits to 5 requests with all 3 instances served; the staleness smoke's
+  own fixture fell from 45 requests to 33. An adversarial review of the
+  new surface then made the vouch pass hermetic: its failures degrade
+  to reading instead of aborting the plan, and none of its products can
+  make a run's output depend on whether a cache file was present.
+
+- **The reads toggle** (#732; PR #737). The live block accepts
+  `reads = "selective"` (the default) or `"full"`, with
+  `CHOUDOUFU_READS` as the per-run override: full makes every plan pay
+  every read regardless of flags. The toggle prices the plan and never
+  changes it - the unchanged-is-free smoke asserts the outputs are
+  byte-identical under both policies. Default plans read fully either
+  way; drift detection never depends on this setting.
+
+- **Migration gets its end state, and the trap before it a breadcrumb**
+  (#716; PR #741). The documented migration now ends by turning the
+  live block on, after which the ordinary commands run the live backend
+  - and a stock-mode plan that would create marker-stamped resources
+  from an empty state warns, naming the estate and both readings
+  (bootstrap: proceed; mid-migration: turn the block on). A warning and
+  never a refusal, silent whenever the prior state holds any managed
+  resource. Guard warnings now print BEFORE the apply acts, including
+  under -auto-approve and saved plans.
+
+- **Number identity components record, and their records match** (#671;
+  PRs #742, #744). An identity component the resource block carries as
+  a number - an ECS task definition's revision - no longer skips the
+  instance's record silently (the terralith's 78-of-79), and the
+  superseded-claimant, tombstone and deposed matchers now compare
+  number attributes through the same canonical rendering the writer
+  uses. Write-back's unrecordable branch says so out loud once per
+  type, because silent and deliberate must never look the same.
+
+- **Leaving is documented, and the guard that makes it deliberate**
+  (#659; PR #740). migrate.md now carries the deliberate exit (the
+  roundtrip: one file, one edit, stock strips the markers) beside the
+  unmigrate guard's exact boundary and its `CHOUDOUFU_UNMIGRATE`
+  override - an unmigrated estate never meets the guard, which is what
+  keeps the stock-parity claim's measurement intact.
+
+- **The doc site's prose passed its own linter** (PR #728). Every
+  hand-written page linted with the `sentences` trope linter and
+  reworked: 332 findings down to 195 with genuine tropes at zero, and
+  every claim scenario's narration held to score ~0 since.
 
 ## choudoufu v0.8.0 (2026-09-01)
 

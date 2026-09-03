@@ -201,6 +201,17 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
 		res.Unbound = append(res.Unbound, p.Result.Unbound...)
 		res.Unclaimed = append(res.Unclaimed, p.Result.Unclaimed...)
+		for typeName, ids := range p.Result.CacheVouchSightings {
+			if res.CacheVouchSightings == nil {
+				res.CacheVouchSightings = map[string]map[string]bool{}
+			}
+			if res.CacheVouchSightings[typeName] == nil {
+				res.CacheVouchSightings[typeName] = map[string]bool{}
+			}
+			for id := range ids {
+				res.CacheVouchSightings[typeName][id] = true
+			}
+		}
 		res.Orphans = append(res.Orphans, p.Result.Orphans...)
 		for _, g := range p.Result.SweepGaps {
 			key := g.TypeName + "\x00" + string(g.Reason)

@@ -614,10 +614,18 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	}
 	for _, name := range required {
 		a := schema.Block.Attributes[name]
-		if a == nil || a.Type != cty.String {
+		if a == nil || (a.Type != cty.String && a.Type != cty.Number) {
 			// A component the applied object does not carry as a top-level
-			// string cannot be read back out of it, so the record would be
-			// incomplete. Refusing is the whole point of this function.
+			// string or number cannot be read back out of it, so the record
+			// would be incomplete. Refusing is the whole point of this
+			// function. Numbers are admitted on the same terms the optional
+			// and documented-segment routes already admit them
+			// ([locatedAttrSegment], [renderIntegralNumber]): an ECS task
+			// definition's identity is family + revision, and revision is a
+			// number on the resource's own block - GitHub issue #671 found
+			// this loop refusing it (and the whole record with it) while
+			// the optional-component reader one branch over accepted the
+			// same shape. A fractional value still refuses, at read time.
 			return LocatedIdentityPlan{}, false
 		}
 	}
@@ -829,7 +837,11 @@ func LocatedIdentity(obj cty.Value, components []string) (map[string]string, boo
 	}
 	out := make(map[string]string, len(components))
 	for _, name := range components {
-		v, ok := locatedAttrString(obj, name)
+		// locatedAttrSegment, not locatedAttrString: the same guards plus
+		// the number rendering [LocatedIdentityPlanFor]'s component check
+		// now admits (issue #671 - an integral revision reads back as its
+		// plain decimal digits; a fractional value refuses here).
+		v, ok := locatedAttrSegment(obj, name)
 		if !ok {
 			return nil, false
 		}
@@ -911,10 +923,10 @@ func locatedAttrString(obj cty.Value, name string) (string, bool) {
 // locatedAttrSegment reads one top-level DOCUMENTED IMPORT-STRING SEGMENT
 // off an applied object - [locatedAttrString]'s guards for a string
 // attribute, or a number attribute rendered into the plain decimal form the
-// provider's own import strings use, for [LocatedComposedImportID]. It is
-// not used by the wire-identity Components branch ([LocatedIdentity]),
-// which is a different mechanism the provider's own identity schema already
-// requires to be a top-level string.
+// provider's own import strings use, for [LocatedComposedImportID]. Since
+// issue #742 it is also the wire-identity Components branch's reader
+// ([LocatedIdentity]), so both record-writing routes share one rendering
+// and one refusal set.
 //
 // [attrsByDocName] is what let a number attribute reach here in the first
 // place - see its doc comment for why aws_security_group_rule's

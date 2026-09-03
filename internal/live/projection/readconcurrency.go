@@ -196,7 +196,19 @@ func (b *builder) startReadPrefetch(ctx context.Context, ws []wanted) *readPrefe
 			// loop does not depend on that staying true.
 			continue
 		}
-		e := &readFetch{done: make(chan struct{}), want: w, prep: b.prepareRead(ctx, w)}
+		prep := b.prepareRead(ctx, w)
+		if prep.terminal == nil && b.cacheWouldServe(ctx, w, prep) {
+			// Issue #692 increment 2's other half: the consumer's
+			// [builder.cacheHit] is going to answer this instance from the
+			// cache, and a wire read planned here anyway would spend the
+			// whole saving - a hit that still pays for its read is
+			// bookkeeping, not an optimisation. No entry is registered, so
+			// if the consumer's own check ever disagreed (it cannot: both
+			// evaluate the same pure inputs) the instance reads inline
+			// through [builder.readFor]'s fallback, exactly as before.
+			continue
+		}
+		e := &readFetch{done: make(chan struct{}), want: w, prep: prep}
 		pf.entries[key] = e
 		pf.order = append(pf.order, key)
 		planned = append(planned, e)
@@ -302,7 +314,7 @@ func (b *builder) readFor(ctx context.Context, w wanted) *readFetch {
 	// through here and is saved outright.
 	prep := b.prepareRead(ctx, w)
 	if prep.terminal == nil {
-		if hit := b.cacheHit(w, prep); hit != nil {
+		if hit := b.cacheHit(ctx, w, prep); hit != nil {
 			return hit
 		}
 	}
@@ -328,6 +340,10 @@ func (b *builder) readFor(ctx context.Context, w wanted) *readFetch {
 //     live object carrying this instance's own tofu-address marker, in this
 //     run, moments ago.
 //
+// A second arm (issue #692 increment 2) serves when the tag index could
+// not answer: the run's listing pass proves existence and identity, and
+// the record envelope attests ownership - see [builder.envelopeVouched].
+//
 // So a cached entry is a CANDIDATE and the tag index is the oracle. The cache
 // is never trusted on its own: it supplies attributes for an object the cloud
 // has just confirmed exists and is ours. That is why staleness costs reads
@@ -338,7 +354,7 @@ func (b *builder) readFor(ctx context.Context, w wanted) *readFetch {
 // What this does NOT do is skip the read for anything the sweep did not
 // verify: an untaggable instance, an instance whose marker is gone, an
 // instance the cache has never seen. Those all fall through and read.
-func (b *builder) cacheHit(w wanted, prep readPrep) *readFetch {
+func (b *builder) cacheHit(ctx context.Context, w wanted, prep readPrep) *readFetch {
 	if b.opts.StateCache == nil {
 		return nil
 	}
@@ -349,30 +365,110 @@ func (b *builder) cacheHit(w wanted, prep readPrep) *readFetch {
 	if !b.opts.CacheServesReads {
 		return nil
 	}
-	// Verified is the tag index's own answer. Without it there is nothing to
-	// check the cache against, so there is no hit.
-	if !b.opts.Ownership.verified(w.addr) {
+	// Verified is the tag index's own answer. Without it, the second arm
+	// (issue #692 increment 2) may still vouch: the listing pass proves
+	// existence and identity, the record envelope attests ownership. No
+	// arm vouches, no hit.
+	obj, ok := b.cacheCandidate(w, prep)
+	if !ok {
 		return nil
+	}
+	vouch := "marker verified by the estate sweep"
+	if !b.opts.Ownership.verified(w.addr) {
+		if !b.envelopeVouched(ctx, w, prep) {
+			return nil
+		}
+		vouch = "listed live this run, ownership record-attested"
+		if b.envelopeAdmitted == nil {
+			b.envelopeAdmitted = map[string]bool{}
+		}
+		b.envelopeAdmitted[w.addr.String()] = true
+	}
+	b.cacheHits++
+	log.Printf("[DEBUG] projection: state cache hit for %s, %s; no provider read", w.addr, vouch)
+	return &readFetch{want: w, prep: prep, obj: obj, status: statusMaterialized}
+}
+
+// cacheCandidate is the evidence-free half of the hit rule: the gates and
+// the cache's own entry, decoded. Everything here is pure - options,
+// cache bytes, schema - which is what lets [builder.cacheWouldServe]
+// evaluate it on the planning goroutine and trust the consumer to reach
+// the same answer.
+func (b *builder) cacheCandidate(w wanted, prep readPrep) (*states.ResourceInstanceObject, bool) {
+	if b.opts.StateCache == nil || !b.opts.CacheServesReads {
+		return nil, false
 	}
 	ms := b.opts.StateCache.Module(w.addr.Module)
 	if ms == nil {
-		return nil
+		return nil, false
 	}
 	is := ms.ResourceInstance(w.addr.Resource)
 	if is == nil || !is.HasCurrent() {
-		return nil
+		return nil, false
 	}
 	obj, err := is.Current.Decode(prep.schema.Block.ImpliedType())
 	if err != nil {
 		// A cache we cannot decode is a cache we ignore. It is not an error:
 		// the file may have been written by another version, and the read
-		// path below is always correct.
+		// path is always correct.
 		log.Printf("[DEBUG] projection: state cache holds %s but it did not decode (%s); reading instead", w.addr, err)
-		return nil
+		return nil, false
 	}
-	b.cacheHits++
-	log.Printf("[DEBUG] projection: state cache hit for %s, marker verified by the estate sweep; no provider read", w.addr)
-	return &readFetch{want: w, prep: prep, obj: obj, status: statusMaterialized}
+	return obj, true
+}
+
+// cacheWouldServe answers, on the prefetch launcher's planning pass, the
+// question [builder.cacheHit] will answer for the consumer: is this
+// instance served from the cache? Both read the same pure inputs, so the
+// launcher may skip planning the wire read outright (issue #692
+// increment 2's request-count half). The one side effect - registering an
+// envelope admission - stays with cacheHit, which always runs.
+func (b *builder) cacheWouldServe(ctx context.Context, w wanted, prep readPrep) bool {
+	if _, ok := b.cacheCandidate(w, prep); !ok {
+		return false
+	}
+	if b.opts.Ownership.verified(w.addr) {
+		return true
+	}
+	return b.envelopeVouched(ctx, w, prep)
+}
+
+// envelopeVouched is issue #692 increment 2's second eligibility arm: the
+// evidence a full read provides - existence, identity, ownership -
+// assembled from cheaper sources for an instance the tag index could not
+// vouch (a type the tagging API does not serve, listed by a call that
+// returns no tags).
+//
+//   - Existence and identity: [Options.CacheVouchSightings] holds the
+//     identities this run's listing pass saw live. For a client-named
+//     type, the listed name is the import identity, so a sighting of
+//     prep's own target identity is a sighting of this instance.
+//   - Ownership: the record envelope, already bulk-loaded through
+//     [Options.RecordStore]'s run cache at zero additional calls, is
+//     authoritative for which object an address owns (issue #364). It
+//     must name exactly the identity the read would have fetched.
+//
+// Every leg fails toward reading: no sightings, a multi-component
+// identity (ImportID empty), a missing or mismatched record, a store
+// error - all return false and the instance takes the ordinary read.
+// [Options.EnvelopeVouchServes] carries the maintainer ruling's bound:
+// plan-shaped operations only.
+func (b *builder) envelopeVouched(ctx context.Context, w wanted, prep readPrep) bool {
+	if !b.opts.EnvelopeVouchServes || b.opts.RecordStore == nil {
+		return false
+	}
+	if prep.target.ID == "" {
+		return false
+	}
+	typeName := w.addr.Resource.Resource.Type
+	if !b.opts.CacheVouchSightings[typeName][prep.target.ID] {
+		return false
+	}
+	rec, _, _, identityFound, _, err := b.locatedIdentityWithAliases(ctx, w.addr)
+	if err != nil || !identityFound {
+		return false
+	}
+	return rec.ImportID == prep.target.ID
 }
 
 // take is the prefetched answer for w, or nil for a caller to read inline.

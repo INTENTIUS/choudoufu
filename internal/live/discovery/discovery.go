@@ -126,12 +126,18 @@ type Request struct {
 	// its verification has to come from somewhere else, and one list call
 	// per type vouching every instance at once is the cheap somewhere
 	// (issue #692: on the terralith, one iam:ListRoles-shaped call stands
-	// in for ~30 per-role reads). Each listed type's sightings flow
-	// through the ordinary classifiers, whose declared branch feeds
-	// [Result.VerifiedDeclared]; a type that cannot be listed simply
-	// yields no vouches, and those instances fall back to the read path
-	// exactly as if there were no cache. Empty means what it always
-	// meant: no extra listing.
+	// in for ~30 per-role reads). The pass is HERMETIC: each scan runs
+	// against a sandbox Result and exactly two products survive - marked
+	// sightings feed [Result.VerifiedDeclared] through the ordinary
+	// declared-branch classifier, unmarked ones become
+	// [Result.CacheVouchSightings] - and everything else a scan can
+	// produce (foreign items, problems, scan rows, other-estate tallies)
+	// is dropped, so a run's output and verdict never depend on whether a
+	// cache file was present. A type that cannot be listed yields no
+	// vouches and a log line; its instances fall back to the read path
+	// exactly as if there were no cache, and a listing failure never
+	// aborts a plan the cacheless run would complete. Empty means what it
+	// always meant: no extra listing.
 	CacheVouchTypes []string
 
 	// Sweep asks for the estate-wide sweep as well as the config-driven
@@ -391,10 +397,8 @@ type ProgressEvent struct {
 func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	res := &Result{
-		Estate:      req.Estate,
-		Resolutions: append([]identity.Resolution(nil), req.Resolutions...),
-	}
+	res := &Result{Estate: req.Estate}
+	res.Resolutions = append([]identity.Resolution(nil), req.Resolutions...)
 
 	switch {
 	case !ValidEstateName(req.Estate):
@@ -430,10 +434,13 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep {
-		// Nothing waits on discovery and no sweep was asked for, which is a
-		// legitimate configuration: every instance was named by static
-		// analysis, and without a sweep there is nothing else to look at.
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 {
+		// Nothing waits on discovery, no sweep was asked for and no cache
+		// vouching either, which is a legitimate configuration: every
+		// instance was named by static analysis, and without a sweep or a
+		// vouch request there is nothing else to look at. A vouch request
+		// counts as a reason to proceed (issue #692): its listing pass is
+		// this function's, even when nothing needs discovering.
 		res.sortEverything()
 		return res, diags
 	}
@@ -479,7 +486,41 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		if decl.types[typeName] != nil || decl.all[typeName] == nil {
 			continue
 		}
-		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, false, &typesScanned, &resourcesFound))
+		// The vouch pass is HERMETIC (review findings on #734/#737): a run
+		// with a cache file must produce byte-identical output and verdicts
+		// to the same run without one, so this scan runs against a sandbox
+		// Result and exactly two products survive into the real one - the
+		// vouching evidence. Everything else a scan can produce (Foreign
+		// items and adoption candidates from unmarked sightings, other-
+		// estate tallies, problems at config-scan severity, scan rows) is
+		// dropped, and a failure to list is a log line and zero vouches:
+		// every instance the pass cannot vouch falls back to reading,
+		// exactly as if there were no cache. In particular a list failure
+		// here must never abort a plan the cacheless run would complete.
+		vres := &Result{Estate: res.Estate}
+		unscannedBefore := decl.unscanned[typeName]
+		vdiags := scanTypeReporting(ctx, req, schemas, decl, typeName, vres, false, false, &typesScanned, &resourcesFound)
+		if !unscannedBefore && decl.unscanned[typeName] {
+			// A failed vouch scan must not mark the type unscanned for the
+			// rest of the run - a cacheless run never scanned it at all.
+			delete(decl.unscanned, typeName)
+		}
+		if vdiags.HasErrors() || len(vres.Problems) > 0 {
+			log.Printf("[INFO] stateless/discovery: cache-vouch listing for %s produced %d problem(s) and error=%v; dropped - no vouches for the type, its instances read as if there were no cache", typeName, len(vres.Problems), vdiags.HasErrors())
+		}
+		res.VerifiedDeclared = append(res.VerifiedDeclared, vres.VerifiedDeclared...)
+		for _, u := range vres.Unclaimed {
+			if u.TypeName == "" || u.ImportID == "" {
+				continue
+			}
+			if res.CacheVouchSightings == nil {
+				res.CacheVouchSightings = map[string]map[string]bool{}
+			}
+			if res.CacheVouchSightings[u.TypeName] == nil {
+				res.CacheVouchSightings[u.TypeName] = map[string]bool{}
+			}
+			res.CacheVouchSightings[u.TypeName][u.ImportID] = true
+		}
 	}
 
 	// The sweep runs after the config-driven scan so that a type appearing

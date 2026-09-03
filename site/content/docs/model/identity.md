@@ -17,9 +17,20 @@ tofu-estate  = prod-networking
 tofu-address = aws_vpc.main
 ```
 
-That pair is the entire ownership contract. Any tool that can write two tags
-can adopt a resource. Any tool that can read them can tell you what an estate
-contains.
+That pair carries the ownership contract for any instance a name can
+identify. Any tool that can write two tags can adopt a resource. Any
+tool that can read them can tell you what an estate contains.
+
+One construct needs a third tag. A `count` address is a position, not a
+name - `aws_eip.pool[1]` says "the second one," and which live resource
+is second changes when the pool scales or reorders - so each member
+also carries `tofu-slot`, a stable identifier assigned once at creation
+and never reused. Slots bind; addresses follow: when slots exist, the
+address tag has no say in which object is which, and the plan rewrites
+addresses around the slots. (Two mechanical footnotes live in
+`live/MARKERS.md`: an address too long for one tag value continues into
+numbered continuation tags, and characters AWS tags cannot carry are
+escaped - both invisible in ordinary use.)
 
 ## Where the marker comes from
 
@@ -106,9 +117,9 @@ the [declaration-carried tier]({{< relref "/docs/use/resource-tiers" >}})
 names.
 
 They are not a rounding error. On a generated estate shaped like one that had
-grown organically, the untaggable share of *instances* was 41 of 79, 164 of
-301 and 410 of 745 at three sizes: 52%, 54% and 55%, all three of them made
-up entirely of the types named above. A realistic estate is roughly half
+grown organically, the untaggable share of *instances* at three sizes was 41
+of 79 (52%), 164 of 301 (54%) and 410 of 745 (55%), all three made up
+entirely of the types named above. A realistic estate is roughly half
 resources that hold a marker and half resources that derive their identity
 from one.
 
@@ -136,8 +147,12 @@ Rename the block, then rewrite the tag.
 choudoufu live-mv aws_vpc.old aws_vpc.new
 ```
 
-The tag write is the move. `moved` blocks have nothing to act on and are
-refused.
+The tag write is the move. An honourable `moved` block is carried the
+same way: discovery reads the marker under both of its addresses, and
+the ordinary tags diff rewrites it to the new one in place - which is
+what keeps the migration blocks published modules ship working. The
+shapes that cannot be aliased are refused loudly, by the one predicate
+lint and discovery share.
 
 ## Stripping a marker
 
@@ -146,5 +161,5 @@ account's access controls protect them. A stripped marker hides the resource
 from the next plan, which proposes a replacement beside it.
 
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-is the normative spec. It covers the escaping rule, continuation tags, the
-rename rule, and which protections were tested rather than assumed.
+is the normative spec. It covers the escaping rule, continuation tags and the
+rename rule, and says which protections were tested rather than assumed.

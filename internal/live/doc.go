@@ -38,16 +38,19 @@
 // A resource type with none of these three paths is out of the stateless
 // subset and is rejected by lint before a projection is ever built.
 //
-// There used to be a fourth, "list and content match: the provider's list
-// protocol enumerates candidates and binding proceeds by content". No such
-// path exists. Nothing in internal/live/discovery binds by content: the Cloud
-// Control leg lists an object, refines it with GetResource, and DISCARDS it
-// when neither carried tags (cloudcontrol.go's ProblemNoTags, an error). The
-// paragraph on foreign resources below says the same thing in the opposite
-// direction - a content match is "surfaced for explicit adoption and never
-// bound automatically" - and the two sat twenty lines apart contradicting
-// each other, with the promise also reaching a user through lint's
-// unadmitted-type refusal.
+// A fourth exists, narrowly: "list and content match" (issue #272,
+// discovery/contentmatch.go). It applies only to the handful of types in
+// identity.ContentMatchTypes - types with no tags argument at all, admitted
+// on a two-source uniqueness proof - and it binds a SINGLE listed candidate
+// whose content matches the declared instance, refusing ambiguity. For
+// every other type the old statement still holds: the Cloud Control leg
+// lists an object, refines it with GetResource, and DISCARDS it when
+// neither carried tags (cloudcontrol.go's ProblemNoTags, an error), and the
+// foreign-resources paragraph below - a content match "surfaced for
+// explicit adoption and never bound automatically" - describes that general
+// case, not the ContentMatchTypes carve-out. (An earlier revision of this
+// comment denied the path outright while its own subpackage implemented it;
+// the 2026-09-02 architecture review caught the contradiction.)
 //
 // Enumerability is still a real and separately useful fact about a type: it
 // is what a sweep needs to notice an undeclared object at all. It is not an

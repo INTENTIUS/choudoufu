@@ -228,6 +228,19 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			}
 		}
 		return ownershipOK
+	case b.envelopeAdmitted[addr.String()]:
+		// The cache-hit rule's second arm vouched this instance (issue
+		// #692 increment 2, maintainer ruling 2026-09-01 on that issue):
+		// the listing pass saw its identity live and the record envelope
+		// attests this estate owns it. The object being inspected here is
+		// the cache-served one, whose tags are whatever the cache
+		// remembered - reading ownership off it would trust exactly the
+		// file the stale-state ruling forbids trusting. The record is the
+		// ownership proof, on the same reasoning as the located branch
+		// above; the known bound (an out-of-band marker strip stays
+		// invisible until the next full read) is priced by the
+		// -refresh=false contract this arm only ever runs under.
+		return ownershipOK
 	case !markerCapable(schema.Block):
 		return ownershipOK
 	}

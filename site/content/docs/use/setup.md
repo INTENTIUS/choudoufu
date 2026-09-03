@@ -8,8 +8,8 @@ weight: 2
 An evaluation asks this early: before any of this works, what has to exist
 that choudoufu will not create?
 
-The short answer is credentials, a region, and — on one of the three record
-store backends — a bucket. Everything else is a line of configuration, a tag
+The short answer is credentials, a region, and - on one of the three record
+store backends - a bucket. Everything else is a line of configuration, a tag
 write you run on purpose, or something the first run creates for you.
 
 Every row below was stood up from an empty directory against the pinned
@@ -67,8 +67,8 @@ before the plan graph is walked.
 ### A pinned provider version
 
 Not required, but the first plan says something about it if you skip it.
-Admission evidence — which types are accepted, what their import IDs look
-like, how identity resolves — is measured against one provider version.
+Admission evidence - which types are accepted, what their import IDs look
+like, how identity resolves - is measured against one provider version.
 Resolving a different one prints:
 
 ```
@@ -82,7 +82,7 @@ continues.
 
 ## The estate declaration
 
-One file, or one block, and it is what turns marker mode on.
+One file or one block turns marker mode on.
 
 ```hcl
 # estate.chdf.hcl
@@ -91,7 +91,7 @@ estate = "my-estate"
 
 Until this exists, the binary behaves as stock OpenTofu: no discovery pass, no
 markers stamped, no record directory created. That is verifiable rather than
-promised — a configuration with no declaration plans and applies through the
+promised - a configuration with no declaration plans and applies through the
 ordinary state-file path and leaves nothing behind.
 
 Two refusals guard the edges, both at `init`, before any command runs.
@@ -110,17 +110,17 @@ why the sidecar is the leading one.
 keep the state file until the migration is done, and makes deleting it an
 optional last step. Nothing checks that you did either one.
 
-A leftover `terraform.tfstate` is not read, not refused, and not mentioned. A
-plan run beside one proposes creating every resource the file names, exactly
-as if the file were not there, because prior state now comes from markers and
-the markers are not on those resources yet. The file's presence is not the
+A leftover `terraform.tfstate` is ignored rather than refused. A plan run
+beside one proposes creating every resource the file names, exactly as if the
+file were not there. Prior state now comes from markers, and the markers are
+not on those resources yet. The file's presence is not the
 hazard. Believing it still counts for something is.
 
 That harmlessness is why the ordering is safe to get right: **`choudoufu
 live-import` reads that state file**, and it is the command's only input. If
 your estate uses `count` or `for_each`, that command is the path you want, and
 deleting the state file first throws its input away. Run `live-import` before
-the deletion, not after.
+the deletion.
 
 ## The record store
 
@@ -156,8 +156,8 @@ produced four parameters and needed no preparation of any kind:
 /tofu-records/<estate>/tofu-records/<estate>/aws_vpc/<encoded address>
 ```
 
-No path had to be created, no KMS key was chosen, and no parameter tier was
-selected. The parameters come back as `Type: String` with a null `KeyId`.
+No path had to be created, and no KMS key or parameter tier was chosen. The
+parameters come back as `Type: String` with a null `KeyId`.
 
 Two bounds on that, since the emulator is not a quota authority. Real
 Parameter Store applies a default per-account parameter limit and a Standard
@@ -189,10 +189,9 @@ not work, and stock's chicken-and-egg comes back in full: the plan aborts
 before it can propose creating the bucket, so the estate can never stand up
 its own store.
 
-What it is not is silent. What it also is not is explained. The error is the
-same `NoSuchBucket` text as a typo'd bucket name, with nothing naming the
-cycle. If you see that error and the bucket is one your own configuration
-declares, this is why.
+The failure is loud but unexplained: the error is the same `NoSuchBucket`
+text as a typo'd bucket name, with nothing naming the cycle. If you see that
+error and the bucket is one your own configuration declares, this is why.
 
 Create the bucket outside the estate, the way a stock bootstrap configuration
 would, or use `ssm`, which has no such cycle.
@@ -226,8 +225,9 @@ That covers what the plan can recognise. It does not cover a `count` or
 `for_each` instance, which content matching never offers, and it is not the
 path to reach for on an estate that still has its state file.
 [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has the whole
-loop, the blind spot demonstrated, and `choudoufu live-import`, which takes
-its addresses from the state file and so pays nothing for expansion.
+loop and the blind spot demonstrated, and it covers `choudoufu live-import`.
+That command takes its addresses from the state file and so pays nothing for
+expansion.
 
 ## Permissions
 
@@ -237,7 +237,7 @@ per stage and per record store backend. Two things about them are easier to
 measure than to read.
 
 **A plan writes nothing.** Every AWS call a plan made against a two-resource
-estate with an `ssm` record store was a read. Not one create, put, delete or
+estate with an `ssm` record store was a read - not one create, put, delete or
 tag action appeared, on the record store or anywhere else. A prospect can run
 a plan against a real account with a read-only role and see the real answer
 before granting any write permission. The record store is included in that:
@@ -253,7 +253,7 @@ list a type.
 
 For the marker write itself, a create needs no separate permission, since the
 tags ride the create call. Adopting an existing resource needs that service's
-own tagging action — `ec2:CreateTags` for the EC2 family, and the
+own tagging action - `ec2:CreateTags` for the EC2 family, and the
 [per-service verb]({{< relref "/docs/use/reference#marker-stamping" >}}) for
 everything else.
 
@@ -264,17 +264,17 @@ forms its impression.
 
 The estate-wide sweep walks every admitted type, not only the ones you
 declared. Against a fresh emulator account holding nothing but AWS-managed
-defaults, a two-resource estate's first plan scanned 761 types, ran to 1105
-lines, and carried 43 warnings. `Plan: 2 to add` sat at line 601 with several
-hundred lines of sweep reporting after it.
+defaults, a two-resource estate's first plan scanned 761 types. The output
+ran to 1105 lines and carried 43 warnings. `Plan: 2 to add` sat at line 601
+with several hundred lines of sweep reporting after it.
 
 Most of that volume is the emulator's, not your account's: a type the sweep
 cannot list produces a warning, and the emulator does not implement many of
 the services it is asked about. A real account will not reproduce the count.
-It will reproduce the shape — an `Incomplete sweep` warning for each type the
+It will reproduce the shape - an `Incomplete sweep` warning for each type the
 sweep could not read, and a `Not swept for removal` section listing them.
 
-Those warnings are load-bearing rather than noise. An empty removal list is a
+Those warnings are part of the answer, not noise. An empty removal list is a
 statement about the types that were swept and about nothing else, which is
 what the section says. The plan is deliberate about not claiming more than it
 measured.
@@ -291,36 +291,38 @@ Every claim above came from standing estates up from empty directories against
 `ghcr.io/lex00/floci`, the emulator pinned in `live/floci-image`, with the AWS
 provider pinned to `live/survey.json`'s measured version. The account was a
 freshly started container each time, holding what an AWS account holds before
-anyone touches it: one default VPC, three subnets, one default security group
-and one route table.
+anyone touches it: one default VPC with its three subnets, one default
+security group and one route table.
 
 What that does not cover, and where the real answer has to come from
 elsewhere:
 
-- **IAM enforcement.** The emulator authorizes everything. What was measured
-  is which calls each stage makes, not which denial an under-scoped policy
-  produces. The permission tables in
+- **IAM enforcement** went untested. The emulator authorizes everything, so
+  what was measured is which calls each stage makes, not which denial an
+  under-scoped policy produces. The permission tables in
   [Reference]({{< relref "/docs/use/reference#permissions-a-run-needs" >}}) are
   the authority on the actions; nothing here tested a policy that refuses one.
-- **Parameter Store quotas and tiers.** No estate here approached the
-  per-account parameter limit or the Standard tier value ceiling.
-- **Scale.** These estates were two to five resources. Migration cost is
-  linear in resources stamped;
+- **Parameter Store quotas and tiers** went unexercised. No estate here
+  approached the per-account parameter limit or the Standard tier value
+  ceiling.
+- **Scale** stayed small. These estates were two to five resources.
+  Migration cost is linear in resources stamped;
   [Migrate an existing estate]({{< relref "/docs/use/migrate#moving-a-large-estate-in-one-go" >}})
   carries the measured rate and its bounds.
-- **The `s3` backend's own durability settings.** Versioning and lifecycle
-  rules on the record bucket are yours to configure and were not exercised.
-- **Anything the emulator answers differently from AWS.**
+- **The `s3` backend's own durability settings** were not exercised.
+  Versioning and lifecycle rules on the record bucket are yours to configure.
+- **A real account** settles anything the emulator answers differently from
+  AWS.
   [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
   names the questions an emulator-backed run cannot answer at any scale.
 
 ## Next
 
-- [Start a new estate]({{< relref "/docs/use/start" >}}) for an estate with
-  nothing in it yet.
-- [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) if AWS
-  already holds resources this configuration should manage.
-- [How to check a configuration before migrating]({{< relref "/docs/use/check-a-config" >}})
-  to find the refusals before standing anything up.
-- [Where things are stored]({{< relref "/docs/use/storage" >}}) for the
-  per-backend trade-offs behind the record store choice.
+- The [Start a new estate]({{< relref "/docs/use/start" >}}) page covers an
+  estate with nothing in it yet.
+- The [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) page
+  covers an account that already holds the resources.
+- The refusals can be found before anything stands up with
+  [How to check a configuration before migrating]({{< relref "/docs/use/check-a-config" >}}).
+- The per-backend trade-offs behind the record store choice are in
+  [Where things are stored]({{< relref "/docs/use/storage" >}}).

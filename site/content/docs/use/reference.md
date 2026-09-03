@@ -28,7 +28,7 @@ estate running, use the path pages.
 | [`live/SURVEY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SURVEY.md) | How admission is decided per type, the method, and the raw signals behind it. |
 | [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md) | What the pinned AWS emulator can and cannot show. Four questions no emulator-backed run answers at any scale, and where each one's real answer comes from instead. |
 
-## The demo, which is also the test suite
+## The demo that is also the test suite
 
 [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md)
 documents the harness, what each step proves, the environment knobs, and each
@@ -50,6 +50,7 @@ commands follow.
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
 | `choudoufu live-plan` | The live plan, invoked directly. |
 | `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
+| `choudoufu force-unlock` | Refused, with the true reason: there is no lock to force open. Contention settles at the platform API, never in a lock this tool holds - the no-self-managed-locks claim demonstrates it. |
 
 ### `-adoption-only`
 
@@ -58,7 +59,7 @@ claim. A plan answers it, but in pieces, spread across three sections that
 are each about something else and surrounded by a report whose size is set by
 the provider's type count rather than by the estate. Measured on a generated
 55-resource terralith, the sections carrying an adoption path were 5.6% of
-2,885 lines; at 205 resources, 5.5% of 7,649.
+2,885 lines; at 205 resources they were 5.5% of 7,649.
 
 `choudoufu plan -adoption-only` (or `choudoufu live-plan -adoption-only`)
 prints that question and nothing else. Every declared instance lands in one
@@ -78,9 +79,9 @@ of two halves:
   another estate holds.
 
 Warnings are compacted rather than dropped: each is printed as one line, its
-summary with a count when the same summary recurs, under a heading saying how
-many there were and that the same command without `-adoption-only` shows them
-in full. Errors are never touched. This is most of what the mode removes -
+summary with a count when the same summary recurs. A heading says how many
+there were and that the same command without `-adoption-only` shows them in
+full. Errors are never touched. This is most of what the mode removes -
 against `live/e2e/estate-block` plus an IAM role and its inline policy on the
 pinned emulator, a plain plan is 926 lines, of which 470 are the bodies of 36
 "Incomplete sweep for undeclared resources" warnings, one per provider type
@@ -114,8 +115,8 @@ resolved at the same graph node stock plans a resource at. `CHOUDOUFU_NODE_RESOL
 in the environment that runs a plan or apply opts back out to the older
 pre-walk static evaluator and HCL-rewriting stamp, which choudoufu still
 ships and still runs the full estate suite against; that path is scheduled
-for retirement, not removed, so the variable is an escape hatch for an
-estate the node path does not yet handle, not a supported long-term choice.
+for retirement, not removed, so the variable exists for an estate the node
+path does not yet handle, not as a supported long-term choice.
 This is a build-migration switch, not a per-estate setting, so it belongs in
 the environment that invokes the binary, never in a `live` block.
 
@@ -123,8 +124,8 @@ the environment that invokes the binary, never in a `live` block.
 
 Two places to write it, one dialect. The leading form is the sidecar
 `estate.chdf.hcl` at the configuration root. Its body is the live configuration
-itself, and since the extension is not `.tf`, stock OpenTofu, Terraform, fmt
-and linters never parse it.
+itself, and since the extension is not `.tf`, stock tooling never parses it:
+OpenTofu and Terraform skip it, and so do fmt and linters.
 
 ```hcl
 # estate.chdf.hcl
@@ -145,6 +146,7 @@ any command runs.
 | Argument | Meaning |
 |---|---|
 | `estate` | The estate this configuration owns, the value the `tofu-estate` marker carries. Deliberately a literal string, because a name assembled from variables could differ between plan and apply, and the estate name is an identity rather than a computed value. Optional. Omitted, the name derives from the markers this configuration stamps. |
+| `reads` | `"selective"` (the default) or `"full"`. Selective lets a `-refresh=false` run serve vouched, unchanged instances from the state cache, skipping their wire reads outright; full makes every plan pay every read regardless of flags - the estate-level off switch. `CHOUDOUFU_READS` overrides per run. Default plans read fully either way: drift detection never depends on this setting. |
 
 `snapshots` and `snapshot_path` are tombstones. The observational-snapshot
 subsystem they configured was removed, and setting either errors with what
@@ -221,9 +223,9 @@ reason in the `strict-marker-repair` entry in
 [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-marker-repair):
 marker repair is not a switch anywhere. Markers are repaired by the plan's
 ordinary tags diff, and suppressing that per key is what
-`lifecycle { ignore_changes }` does — which is refused, because a resource
-whose identity is only its marker and whose marker write is discarded can
-never be found again. `"never"` therefore needs a resource to have somewhere
+`lifecycle { ignore_changes }` does - which is refused: a resource whose
+identity is only its marker and whose marker write is discarded can never be
+found again. `"never"` therefore needs a resource to have somewhere
 else to hold its identity, which is the next block.
 
 #### Pinning `secrets` and `no_source_create` from the environment
@@ -234,14 +236,14 @@ else to hold its identity, which is the next block.
 a `strict` block that sets either of them to anything else is refused, at
 the offending argument's own line, naming the environment variable and the
 value it forces. An omitted argument resolves to the pinned setting
-silently, with no refusal — pinning changes what "nothing here" means, it
+silently, with no refusal - pinning changes what "nothing here" means, it
 does not require every configuration to say so out loud.
 
 This is the mechanism a platform team uses to require a behavior a
 configuration author cannot switch off in the same commit that would relax
-it: the pin lives in the process that runs the plan, not in anything a pull
-request touches, so relaxing a toggle and approving that relaxation can
-never be the same change. `marker_repair` is not pinnable this way — its
+it: the pin lives in the process that runs the plan rather than in anything a
+pull request touches. Relaxing a toggle and approving that relaxation can
+never be the same change. `marker_repair` is not pinnable this way - its
 three settings are not a single safety axis the way the other two are (see
 the table above), so there is no one setting "pinning the profile" could
 force it to.
@@ -252,7 +254,7 @@ The default is `"store"`, and that is the compatibility half: a stock
 OpenTofu state file holds `random_password.result` in clear, so a
 configuration that generates a password runs here with a `live` block added
 and nothing else. What a state file would hold, the estate's record store
-holds — namespaced per estate, under IAM, written with compare-and-swap,
+holds - namespaced per estate, under IAM, written with compare-and-swap,
 with the sensitivity marks travelling beside the value. A secret-generating
 type still needs a `record_store` declared, exactly as every other logical
 type does.
@@ -261,12 +263,12 @@ type does.
 
 - a **secret-generating logical type** (`random_password`, `tls_private_key`,
   `local_sensitive_file` and their measured siblings) is refused at lint,
-  naming the setting — and again at the two other layers that could write
-  such a record without lint having run: identity resolution, and
+  naming the setting. It is refused again at the two other layers that could
+  write such a record without lint having run: identity resolution, and
   `choudoufu live-import`, which seeds records straight from a stock state
   file;
 - a **sensitive settable argument** on an ordinary cloud resource is never
-  recorded as residue — the argument values this fork remembers because the
+  recorded as residue - the argument values this fork remembers because the
   provider's own read never gives them back.
 
 ```hcl
@@ -287,7 +289,7 @@ thing:
 
 - **Write-only attributes**, ever. The plugin protocol forbids a provider
   returning one, so a recorded value could never be checked against the
-  object it describes — and stock does not keep one either, nulling them out
+  object it describes - and stock does not keep one either, nulling them out
   before the state is written. This is not a stricter or laxer choice.
 - **Effect receipt values.** A receipt is a published breadcrumb whose whole
   purpose is that other tools can read it, which is the opposite of a record
@@ -303,7 +305,7 @@ thing:
 
 A **markerless type whose schema carries credential material** is also
 outside this setting's reach today, and that is a deliberate bound rather
-than an omission — see
+than an omission - see
 [`strict-secrets`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-secrets)
 for the two measurements behind it.
 
@@ -313,8 +315,8 @@ A nested block inside `strict`, naming the resources that hold their
 identity in the estate's record store instead of in a `tofu-address` tag. No
 ownership marker is written for them at all. It is the tag-budget and
 tag-policy toggle: you buy a tag back and pay for it in governability, since
-an `aws:ResourceTag` condition, a cost report and any other tool that lists
-by tag can no longer see the resource as this estate's.
+an `aws:ResourceTag` condition or a cost report can no longer see the
+resource as this estate's, and neither can any other tool that lists by tag.
 
 ```hcl
 terraform {
@@ -345,15 +347,15 @@ withhold a marker from resources nobody named.
 
 Three things it requires, each a lint refusal when missing:
 
-- **A `record_store`.** That is where the identity goes. A selection with
-  nowhere to put one leaves the resource with neither a marker nor a record.
-- **Whole resources in `addresses`, not instances.** `aws_instance.web[0]`
+- **The identity goes to a `record_store`.** A selection with nowhere to
+  put one leaves the resource with neither a marker nor a record.
+- **Whole resources go in `addresses`, not instances.** `aws_instance.web[0]`
   is refused. One configuration body serves every instance a `count` or
   `for_each` expands to and the marker written into it is a template over
   the instance key, so a marker cannot be withheld from one instance and
   written for its siblings. Split the instance you mean into its own
   resource block.
-- **A type whose identity a record can hold.** The provider has to import
+- **The type's identity must be recordable.** The provider has to import
   the type back, its exported `id` has to be provably the whole of its
   import string, and the attribute the record would hold must not be one the
   provider marks sensitive. See
@@ -362,7 +364,7 @@ Three things it requires, each a lint refusal when missing:
   a *wrong* identity, which no later run can detect.
 
 Pairing the selection with `marker_repair = "never"` is what makes
-`lifecycle { ignore_changes }` over the marker tags stop being refused — for
+`lifecycle { ignore_changes }` over the marker tags stop being refused - for
 the selected resources only. A resource the selection does not cover still
 gets its marker and still refuses `ignore_changes = [tags]`, so an
 estate-wide `"never"` meets its limit loudly rather than silently.
@@ -422,5 +424,5 @@ statement of absence.
 
 ## Everything else is OpenTofu
 
-The language, CLI, providers and backends are unmodified. Use
+The language and CLI are unmodified, and so are providers and backends. Use
 [opentofu.org/docs](https://opentofu.org/docs/).

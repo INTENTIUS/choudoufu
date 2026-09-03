@@ -356,3 +356,92 @@ func TestApply_statefulDestroyOfAStampedResourceIsNotRefused(t *testing.T) {
 		t.Errorf("destroy was refused\n\n%s", output.All())
 	}
 }
+
+// TestPlan_stockModeCreateFromNothingWarns is GitHub issue #716's breadcrumb:
+// a stock-mode plan (no live block) that builds marker-stamped resources
+// from an EMPTY state gets one warning per estate - the shape that is either
+// a greenfield bootstrap (fine, proceed) or a mid-migration directory whose
+// live block is not on yet (the duplicate-building trap). The plan itself
+// must succeed: this is a warning, never a refusal, because refusing would
+// break the legitimate bootstrap.
+func TestPlan_stockModeCreateFromNothingWarns(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("plan-marker-create"), td)
+	t.Chdir(td)
+	p := markerStripProvider(false)
+	view, done := testView(t)
+	c := &PlanCommand{Meta: Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(p),
+		View:             view,
+	}}
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit status %d, want 0 (a warning, never a refusal)\n\n%s", code, output.All())
+	}
+	all := output.All()
+	for _, want := range []string{
+		"This plan creates resources already stamped with ownership markers",
+		`"team-estate"`,
+		"turn the live block on",
+		"first bootstrap, proceed",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("output does not contain %q\n\n%s", want, all)
+		}
+	}
+}
+
+// TestPlan_stockModeCreateWithWorkingStateStaysSilent is the control that
+// keeps #716's warning from nagging: the same marker-stamped create, planned
+// in a directory whose state already holds a managed resource. Adding a
+// tagged resource to a working stock estate is routine and says nothing
+// about migration, so the warning must not fire.
+func TestPlan_stockModeCreateWithWorkingStateStaysSilent(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("plan-marker-create"), td)
+	t.Chdir(td)
+	statePath := testStateFile(t, markerStripState())
+	p := markerStripProvider(false)
+	view, done := testView(t)
+	c := &PlanCommand{Meta: Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(p),
+		View:             view,
+	}}
+
+	code := c.Run([]string{"-state", statePath, "-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
+	}
+	if strings.Contains(output.All(), "already stamped with ownership markers") {
+		t.Errorf("the warning fired with a working state present\n\n%s", output.All())
+	}
+}
+
+// TestPlan_stockModeCreateWithoutMarkersStaysSilent: creates that stamp no
+// estate tag never warn, whatever the state looks like.
+func TestPlan_stockModeCreateWithoutMarkersStaysSilent(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("plan-marker-strip"), td)
+	t.Chdir(td)
+	p := markerStripProvider(false)
+	view, done := testView(t)
+	c := &PlanCommand{Meta: Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(p),
+		View:             view,
+	}}
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
+	}
+	if strings.Contains(output.All(), "already stamped with ownership markers") {
+		t.Errorf("the warning fired for creates that stamp nothing\n\n%s", output.All())
+	}
+}

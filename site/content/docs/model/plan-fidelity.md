@@ -70,11 +70,11 @@ A stage that always passes proves nothing. Every stage in
 that runs choudoufu at all carries a `BREAK=1` control: set it, and the
 crossing script deliberately introduces the exact defect the stage exists to
 catch: a corrupted identity string, a second object mutated where only one
-should be, a stale planfile applied instead of refused. The stage must fail
-when that happens. A check that cannot be made to fail this way is not
+should be, a stale planfile applied instead of refused. When that happens,
+the stage must fail. A check that cannot be made to fail this way is not
 evidence for this contract, whatever verdict it reports on an ordinary run.
 
-One stage is exempt, and its own Break line says why. Stage 1, `cold_deploy`,
+The exemption is stage 1, `cold_deploy`, and its own Break line says why. It
 is the stock binary applying the unmodified configuration with no `live`
 block: "Not applicable; this stage has nothing of choudoufu's to break." A
 failure there is stock failing, which the gauntlet records as such rather

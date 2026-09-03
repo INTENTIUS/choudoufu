@@ -101,16 +101,13 @@ func TestClassifyOrphans_renameIsWithheldAtEveryModulePath(t *testing.T) {
 
 	for _, c := range []*renameCase{root, static, counted} {
 		t.Run(c.label, func(t *testing.T) {
-			result := &Result{
-				Unbound: declared,
-				Orphans: []OwnedResource{{
-					TypeName:   "aws_subnet",
-					ImportID:   "subnet-0deadbeef",
-					Marker:     c.marker,
-					Normalized: c.marker,
-					Swept:      true,
-				}},
-			}
+			result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{{
+				TypeName:   "aws_subnet",
+				ImportID:   "subnet-0deadbeef",
+				Marker:     c.marker,
+				Normalized: c.marker,
+				Swept:      true,
+			}}}, Report: Report{Unbound: declared}}
 
 			diags := classifyOrphans(t.Context(), Request{Estate: "rename-withhold", Config: nil}, listclient.Schemas{}, result)
 
@@ -154,16 +151,13 @@ func TestClassifyOrphans_anUndecodableMarkerStillReachesTheGuard(t *testing.T) {
 		t.Fatalf("%q decodes to an address, so this test is not exercising the fallback at all", corrupt)
 	}
 
-	result := &Result{
-		Unbound: []addrs.AbsResourceInstance{root.declared},
-		Orphans: []OwnedResource{{
-			TypeName:   "aws_subnet",
-			ImportID:   "subnet-0deadbeef",
-			Marker:     corrupt,
-			Normalized: corrupt,
-			Swept:      true,
-		}},
-	}
+	result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{{
+		TypeName:   "aws_subnet",
+		ImportID:   "subnet-0deadbeef",
+		Marker:     corrupt,
+		Normalized: corrupt,
+		Swept:      true,
+	}}}, Report: Report{Unbound: []addrs.AbsResourceInstance{root.declared}}}
 
 	diags := classifyOrphans(t.Context(), Request{Estate: "rename-withhold"}, listclient.Schemas{}, result)
 
@@ -203,18 +197,17 @@ func TestClassifyOrphans_aBlockMovedAcrossModulesStaysWithheld(t *testing.T) {
 		{"module block moved to the root", static, root},
 	} {
 		t.Run(tc.label, func(t *testing.T) {
+			// Only the destination is unbound: the orphan's own block
+			// is gone from the module path its marker names.
 			result := &Result{
-				// Only the destination is unclaimed: the orphan's own block
-				// is gone from the module path its marker names.
-				Unbound: []addrs.AbsResourceInstance{tc.moved.declared},
-				Orphans: []OwnedResource{{
+				Report: Report{Unbound: []addrs.AbsResourceInstance{tc.moved.declared}},
+				Verdicts: Verdicts{Orphans: []OwnedResource{{
 					TypeName:   "aws_subnet",
 					ImportID:   "subnet-0deadbeef",
 					Marker:     tc.orphan.marker,
 					Normalized: tc.orphan.marker,
 					Swept:      true,
-				}},
-			}
+				}}}}
 
 			if diags := classifyOrphans(t.Context(), Request{Estate: "rename-withhold"}, listclient.Schemas{}, result); diags.HasErrors() {
 				t.Fatalf("classifying a moved-block orphan reported errors: %s", diags.Err())
@@ -247,16 +240,13 @@ func TestClassifyOrphans_deletedBlockInAModuleIsStillARemoval(t *testing.T) {
 			}.Instance(addrs.StringKey("a")).Absolute(c.declared.Module)
 			marker := EscapeAddress(gone.String())
 
-			result := &Result{
-				Unbound: declared,
-				Orphans: []OwnedResource{{
-					TypeName:   "aws_subnet",
-					ImportID:   "subnet-0deadbeef",
-					Marker:     marker,
-					Normalized: marker,
-					Swept:      true,
-				}},
-			}
+			result := &Result{Verdicts: Verdicts{Orphans: []OwnedResource{{
+				TypeName:   "aws_subnet",
+				ImportID:   "subnet-0deadbeef",
+				Marker:     marker,
+				Normalized: marker,
+				Swept:      true,
+			}}}, Report: Report{Unbound: declared}}
 
 			if diags := classifyOrphans(t.Context(), Request{Estate: "rename-withhold"}, listclient.Schemas{}, result); diags.HasErrors() {
 				t.Fatalf("classifying a deleted-block orphan reported errors: %s", diags.Err())

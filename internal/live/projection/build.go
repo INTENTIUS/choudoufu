@@ -208,6 +208,34 @@ type Options struct {
 	// ago, where stock's -refresh=false verifies nothing.
 	CacheServesReads bool
 
+	// CacheVouchSightings is issue #692 increment 2's existence-and-identity
+	// evidence: for each resource type discovery listed on the cache's
+	// behalf ([discovery.Request.CacheVouchTypes]), the set of live
+	// identities the list call returned without a visible ownership marker.
+	// A listing names the object as it exists right now - for a
+	// client-named type the listed name IS the import identity - so a
+	// sighting proves existence and identity for one instance at zero
+	// per-instance cost. It proves nothing about ownership; that is
+	// [EnvelopeVouchServes]'s half. Nil or empty means no listing pass
+	// ran, and the envelope arm never fires.
+	CacheVouchSightings map[string]map[string]bool
+
+	// EnvelopeVouchServes gates the cache-hit rule's second eligibility
+	// arm (issue #692 increment 2, maintainer ruling 2026-09-01 recorded
+	// on that issue): on the -refresh=false path, record-attested
+	// ownership may stand in for the per-instance C1 tags read when
+	// existence and identity are proven by the same run's listing pass.
+	// Only a plan-shaped operation sets this: an apply rebuilds its
+	// projection with it off, so no mutation ever acts on record-vouched
+	// ownership - the full read, and its tags check, runs first. The
+	// known window this arm accepts, priced by the same bounded-staleness
+	// contract -refresh=false already sells: an out-of-band strip of the
+	// marker tags is invisible until the next full read or record write.
+	// A handover TO another estate is not in the window - a sighting
+	// carrying another estate's marker never reaches
+	// [CacheVouchSightings], so those instances fall through and read.
+	EnvelopeVouchServes bool
+
 	// ReadParallelism is how many of the read pass's per-instance provider
 	// round trips - one ImportResourceState plus one ReadResource each -
 	// this projection has in flight at once. Zero, the zero value, means
@@ -463,6 +491,16 @@ type builder struct {
 	// provider read. Reported so a run can PROVE the cache was used rather
 	// than merely configured.
 	cacheHits int
+
+	// envelopeAdmitted names the instances the cache-hit rule's second arm
+	// vouched this run (issue #692 increment 2): existence and identity
+	// from the listing pass, ownership from the record envelope. A
+	// cache-served object skipped the read whose tags [builder.checkOwnership]
+	// would have inspected, so admission consults this set the same way it
+	// already trusts a located record's identity - the record was written
+	// by this estate's own apply, keyed by this exact address. Written and
+	// read only on the sequential materialize goroutine, like cacheHits.
+	envelopeAdmitted map[string]bool
 
 	diags tfdiags.Diagnostics
 }

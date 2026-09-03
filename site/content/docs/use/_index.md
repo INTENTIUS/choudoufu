@@ -8,8 +8,8 @@ bookCollapseSection: true
 
 The pages a reader needs once they are past the model and the policies: what
 a real config runs into, how to bring an existing estate in or start a new
-one, day-to-day operation, where things are stored, and the fork's own
-surface.
+one, and day-to-day operation. Where things are stored and the fork's own
+surface are here too.
 
 | Page | Question it answers |
 |------|---------------------|

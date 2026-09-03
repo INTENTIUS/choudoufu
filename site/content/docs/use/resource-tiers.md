@@ -10,7 +10,7 @@ nothing about how an admitted type's identity survives the loss of anything -
 a record store, a state file, the tool itself. "100% coverage for AWS" is a
 claim people will eventually make about this fork, and this page is the
 answer to what that claim actually covers: every one of the provider's
-resource types, assigned exactly one of four readiness tiers, by what
+resource types gets exactly one of four readiness tiers, assigned by what
 recovers its identity and at what cost when the strongest recovery path is
 gone.
 
@@ -78,12 +78,12 @@ issues did before it was caught. Recount either at any commit:
 `live/readiness.json`'s `facts.markerless` and `tier` fields give the 158 and
 the 471, and the map literal in `markerless_generated.go` gives the 159. The
 counts named in this section were taken at commit `cfd0dc58d4` against
-provider `hashicorp/aws` 6.59.0.
+provider `hashicorp/aws` `6.59.0`.
 
 ### Excluded by design
 
-Three types today — `aws_appstream_directory_config`,
-`aws_ivs_playback_key_pair` and `aws_wafv2_api_key` — ruled out ahead of
+Three types today - `aws_appstream_directory_config`,
+`aws_ivs_playback_key_pair` and `aws_wafv2_api_key` - ruled out ahead of
 whatever tier their own schema would otherwise assign: admitting them would
 force this fork to persist plaintext credential material it can never read
 back and verify again, independent of how recoverable the identity itself is.

@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
@@ -189,14 +190,31 @@ func statelessBegin(
 		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
 	}
 
+	// Issue #732's estate-level toggle, resolved before the runner
+	// captures its read flags. "full" makes every plan pay every read:
+	// -refresh=false stops serving anything, and the log line below says
+	// so once rather than leaving a flag user to wonder why nothing hit.
+	readsSelective := readsPolicyFor(settings.Reads) != "full"
+	if !readsSelective && !opReq.PlanRefresh {
+		log.Printf("[INFO] stateless: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
+	}
+
 	runner := &statelessRunner{
 		settings: settings,
 		// Issue #712: -refresh=false is the only door to cache-served
 		// reads; a default plan or apply (PlanRefresh true) reads every
 		// instance, so drift is always visible.
-		cacheServesReads: !opReq.PlanRefresh,
-		lib:              local.ContextOpts.Plugins,
-		mgr:              mgr,
+		cacheServesReads: !opReq.PlanRefresh && readsSelective,
+		// #692 increment 3: -refresh=false keeps the full sweep whatever the
+		// reads policy, so a reads="selective" run and a reads="full" run
+		// discover identically and only their SERVING differs - which is
+		// what unchanged-is-free's "the toggle prices the plan, never
+		// changes it" requires. Keyed on the refresh flag, not on
+		// cacheServesReads (which also folds in the reads policy).
+		refreshFalse:  !opReq.PlanRefresh,
+		envelopeVouch: !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
+		lib:           local.ContextOpts.Plugins,
+		mgr:           mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
@@ -579,6 +597,17 @@ type statelessRunner struct {
 	// which this is the default argument to.
 	adoptionOnly bool
 
+	// envelopeVouch is issue #692 increment 2's capture of the operation
+	// SHAPE, alongside cacheServesReads' capture of its refresh setting:
+	// the maintainer ruling (recorded on #692, 2026-09-01) admits
+	// record-attested ownership in place of the C1 tags read only on the
+	// -refresh=false path, and bounds it so no mutation ever acts on
+	// record-vouched ownership. A plan-shaped operation may serve the
+	// envelope arm; an apply rebuilds its projection with it off, so
+	// every instance an apply touches took the full read, tags check
+	// included.
+	envelopeVouch bool
+
 	// cacheServesReads is issue #712's capture of the operation's refresh
 	// setting: true only when the user passed -refresh=false, which is the
 	// sole condition under which the state cache may stand in for a
@@ -586,6 +615,11 @@ type statelessRunner struct {
 	// from opReq.PlanRefresh because the runner never sees the operation
 	// again - the same reason targets and excludes below are copied.
 	cacheServesReads bool
+
+	// refreshFalse is true whenever the operation skips the refresh
+	// (-refresh=false), independent of the reads policy. #692 increment 3
+	// uses it to keep the marker sweep unshrunk on that path.
+	refreshFalse bool
 
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
@@ -934,6 +968,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if r.nodeResolve {
 		recordShrinkStore = r.recordStore
 	}
+	// #692 increment 3: the sweep-shrink (#388) excludes recorded
+	// needs-discovery instances from the marker sweep, which is the right
+	// call on a default plan (it reads them anyway) but robs -refresh=false
+	// of the sweep-verification cacheHit needs to serve them from cache. On
+	// the -refresh=false path, keep the full sweep - one estate-wide tagging
+	// call, flat - so every recorded needs-discovery instance is verified
+	// and served from cache, and the per-instance reads it would otherwise
+	// pay are skipped. The trade is a flat cost for a per-instance saving,
+	// which only grows as the estate does.
+	if r.refreshFalse {
+		recordShrinkStore = nil
+	}
 	// GitHub issue #361's crash-window recovery: read from r.recordStore -
 	// the same unconditionally-open store just above, never
 	// recordShrinkStore, which stays gated on r.nodeResolve for edge 3's
@@ -942,7 +988,22 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// the "plain choudoufu plan/apply" path the comment two paragraphs up
 	// already says carries the record store for real.
 	deposedRecords := collectDeposedRecords(ctx, r.recordStore, resolutions.NeedsDiscovery())
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, r.adoptionOnly)
+	// Issue #685's cache, loaded once: BuildWith consumes it below, and
+	// issue #692's vouch-listing pass needs to know, before discovery
+	// runs, which concrete-declared types it holds candidates for. Nil
+	// when no cache loads, and everything downstream degrades to reading.
+	stateCache := loadStateCache()
+	var cacheVouchTypes []string
+	if r.envelopeVouch {
+		// Gated on the envelope arm, not merely on cacheServesReads
+		// (review finding on #734): the listing's unmarked sightings feed
+		// ONLY that arm, so an apply-shaped -refresh=false run - which
+		// rebuilds with the arm off by the maintainer ruling's bound -
+		// would pay one list per type for evidence nothing consumes, and
+		// would inherit the listing's failure modes with no benefit.
+		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
+	}
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -1019,13 +1080,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
 		// a cache is an optimisation, so every failure to load one is a
 		// missing optimisation and never a failed run.
-		StateCache: loadStateCache(),
+		StateCache: stateCache,
 		// Issue #712: only -refresh=false lets the cache stand in for
 		// the per-instance reads; a default plan reads, so drift on a
 		// verified instance is always visible. opReq.PlanRefresh is
 		// captured at statelessBegin.
 		CacheServesReads: r.cacheServesReads,
-		RecordStore:      r.recordStore,
+		// Issue #692 increment 2: the listing pass's unmarked sightings
+		// of the cache-vouch types, and the plan-shaped-operation gate
+		// the maintainer ruling requires. See both fields' doc comments.
+		CacheVouchSightings: cacheVouchSightings(disco),
+		EnvelopeVouchServes: r.envelopeVouch,
+		RecordStore:         r.recordStore,
 		// dataResults (statelessDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the
@@ -1087,9 +1153,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if disco != nil {
 		var foreignDiags tfdiags.Diagnostics
 		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
-			Estate:    disco.Estate,
-			Config:    config,
-			Discovery: disco,
+			Estate:  disco.Estate,
+			Config:  config,
+			Report:  &disco.Report,
+			Orphans: disco.Orphans,
 			// The adoption hint carries the region and endpoint the
 			// resources were listed through, so that pasting it talks to
 			// the same cloud the plan just read.
@@ -1340,4 +1407,73 @@ func joinAnd(names []string) string {
 		out += n
 	}
 	return out + " and " + names[len(names)-1]
+}
+
+// cacheVouchTypesFor is issue #692's answer to "which types should the
+// listing pass vouch for": the resource types the state cache holds
+// instances of AND the run's resolutions make concrete - the client-named
+// majority whose per-instance reads a cache hit wants to skip. Sorted so
+// the discovery request is deterministic; nil when there is no cache,
+// which is also the request field's "no extra listing" value.
+func cacheVouchTypesFor(cache *states.State, resolutions []identity.Resolution) []string {
+	if cache == nil {
+		return nil
+	}
+	cached := map[string]bool{}
+	for _, mod := range cache.Modules {
+		for _, rsc := range mod.Resources {
+			cached[rsc.Addr.Resource.Type] = true
+		}
+	}
+	types := map[string]bool{}
+	for _, res := range resolutions {
+		if res.Class != identity.ClassConcrete {
+			continue
+		}
+		if t := res.Addr.Resource.Resource.Type; cached[t] {
+			types[t] = true
+		}
+	}
+	out := make([]string, 0, len(types))
+	for t := range types {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// cacheVouchSightings hands the sandboxed vouch pass's own product
+// ([discovery.Result.CacheVouchSightings]) to the projection, nil-safely.
+// The pass is hermetic - the sightings never ride through Unclaimed, which
+// also holds a CollectUnclaimed account sweep's population and everything
+// the foreign report renders (review findings on #734/#737).
+func cacheVouchSightings(disco *discovery.Result) map[string]map[string]bool {
+	if disco == nil {
+		return nil
+	}
+	return disco.CacheVouchSightings
+}
+
+// EnvReads overrides the live block's "reads" argument for one run:
+// "selective" or "full", any other value ignored with a warning. The
+// same layering [EnvStateCache] already has - the block sets estate
+// policy, the environment wins for the session running it.
+const EnvReads = "CHOUDOUFU_READS"
+
+// readsPolicyFor resolves issue #732's reads toggle: the environment
+// override first, then the live block's argument, then the default,
+// which is "selective" - the maintainer's ruling is that live-backend
+// behaviors default on, with this argument as the off switch.
+func readsPolicyFor(configured string) string {
+	switch v := os.Getenv(EnvReads); v {
+	case "selective", "full":
+		return v
+	case "":
+	default:
+		log.Printf("[WARN] stateless: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
+	}
+	if configured == "full" {
+		return "full"
+	}
+	return "selective"
 }

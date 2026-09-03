@@ -38,8 +38,8 @@ resources in your account rather than anywhere choudoufu keeps.
 `live/MARKERS.md` is the normative spec and the surface external tooling can
 rely on.
 
-Nothing else on this page is required. An estate of ordinary cloud resources
-needs markers and nothing more.
+An estate of ordinary cloud resources needs markers and nothing more; the
+rest of this page is optional.
 
 ## The record store
 
@@ -50,10 +50,10 @@ name, so no marker can recover them.
 Those persist as **micro-state**, one small record each. Every estate has a
 store for them: a `live` block that names no `record_store` gets a local one,
 a `.tofu-records` directory beside the module, the way stock OpenTofu implies
-a local state file. Nothing to turn on.
+a local state file.
 
-Gitignore that directory before the first apply. Nothing generates the line for
-you, and [what the store may contain](#what-the-store-may-contain-and-who-can-read-it)
+Gitignore that directory before the first apply. No tool generates the line
+for you, and [what the store may contain](#what-the-store-may-contain-and-who-can-read-it)
 below is why it matters.
 
 ```
@@ -87,13 +87,13 @@ the backend.
 Three things to know first, and then the one that decides where the store
 should live.
 
-**You are not meant to read it.** The payload is a self-describing ctyjson
+**You are not meant to read it**: the payload is a self-describing ctyjson
 envelope for this fork's own code. Not an operator-facing artifact, and its
 format is not a contract.
 
 **Writes are conditional.** A record is written only if it still carries the
-version the writer read. A losing writer gets a named failure, not a blocking
-wait and not a silent overwrite.
+version the writer read. A losing writer gets a named failure rather than a
+blocking wait or a silent overwrite.
 
 **Losing a record is churn, not a lost estate.** The effect re-runs or its
 value regenerates, and anything reading it plans as a change. It cannot cost
@@ -108,7 +108,7 @@ able to read your estate's generated values.
 **The record store may hold any value the state file would have held,
 including secrets, unless you set `strict { secrets = "refuse" }`.** The
 default is `strict { secrets = "store" }`, which keeps what a stock state file
-keeps, so `random_password`, `random_bytes` and the `tls_*` types are admitted
+keeps: `random_password`, `random_bytes` and the `tls_*` types are admitted
 and their generated values are recorded in clear.
 
 That much is the ordinary bargain of a state-bearing tool. A
@@ -138,7 +138,7 @@ live account, and removing it is yours to do.
 
 `strict { secrets = "refuse" }` is the other setting, and it is the principle
 this design exists for: those types are refused rather than recorded, so
-nothing the run keeps holds key material. It is a stronger answer than
+nothing the run keeps holds key material. That is a stronger answer than
 encrypting the store, because there is nothing in the store to decrypt. The
 [`strict` block]({{< relref "/docs/use/reference" >}}) covers both settings and
 the environment pin that stops a configuration relaxing this on its own.
@@ -147,16 +147,15 @@ the environment pin that stops a configuration relaxing this on its own.
 
 A receipt records whether an external effect ran, and with what input.
 
-It is not choudoufu storage. It is an ordinary resource you declare, by
+It is not choudoufu storage but an ordinary resource you declare, by
 convention an SSM parameter at `/tofu-receipts/<estate>/<effect>` holding a
-hash. It goes through the ordinary plan and apply cycle, and its diff appearing
-in a plan tells a reviewer or a CI gate that this apply will trigger something
-outside the resources being managed.
+hash. A receipt goes through the ordinary plan and apply cycle, and its diff
+appearing in a plan tells a reviewer or a CI gate that this apply will
+trigger something outside the resources being managed.
 
-choudoufu does not write receipts. It lints them, enforcing that the value is a
-hash or constant and never a `SecureString`, that nothing references a
-receipt's attributes, and that inputs name secrets by pointer rather than by
-value.
+choudoufu does not write receipts but lints them: the value must be a hash
+or constant and never a `SecureString`; nothing may reference a receipt's
+attributes; and inputs must name secrets by pointer rather than by value.
 
 `live/RECEIPTS.md` has the pattern and the reasoning behind each guard.
 
@@ -179,8 +178,8 @@ tool's own store instead of a declared resource, and collapses a receipt into
 "did an input change", with no existence flavour, no hash flavour, and no
 naming convention the lint rules recognise.
 
-`terraform_data` is for the graph, ordering an apply, feeding
-`replace_triggered_by`, or standing in for a resource that does nothing.
+`terraform_data` is for the graph - ordering an apply, feeding
+`replace_triggered_by`, standing in for a resource that does nothing.
 Receipts are for external effects. Keep them apart.
 
 ## Choosing a record store backend
@@ -202,7 +201,7 @@ neither.
 The `ssm` store writes `Type: String` parameters and does not choose a KMS key.
 That default is deliberate and the reasoning is written down, along with what
 `SecureString` would buy and cost, in
-[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/blob/main/the SSM parameter-type ruling (#600)).
+[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/issues/600).
 
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
 backend needs to exist before the first plan, and the failure mode when it
