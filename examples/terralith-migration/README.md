@@ -58,8 +58,8 @@ says what it proved.
 | 4 | decompose | applies three team configs: retags, creates nothing | three boundaries where there was one, no state file split |
 | 5 | fast-plan | plans one team's estate from its cache, counts requests | a plan costs what its estate costs, not what the account costs |
 | 6 | carve | retags team-a's resources into team-b, one tag write each | ownership moved by tag write; untaggable children followed unwritten |
-| 7 | guard | reads the role's tag, its children, and both plans | the carve left nothing behind, on the account's own evidence |
-| 8 | receipt | reads the emulator receipt and the CloudTrail evidence | the account's log recorded the governed writes and the refusals |
+| 7 | guard | reads the role's tag, its children, then two plans: the source estate's and the destination's | both sides agree at once: the source does not want to destroy or rebuild what left, the destination does not want to create what arrived |
+| 8 | receipt | reads this run's own tag writes back from CloudTrail, waiting for event history to catch up | the account's own log holds every ownership move, naming who made it; no state file could produce that |
 | 9 | teardown | destroys every estate this run made, then lists the account | nothing carrying the run's prefix remains |
 
 ## The first minute

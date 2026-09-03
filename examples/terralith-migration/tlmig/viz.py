@@ -411,7 +411,20 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                 body.setdefault("ok", ev.get("ok"))
                 if "lines" in ev and "lines" not in body:
                     body["lines"] = ev["lines"]
-            verdicts.append({"name": name, "phase": phase_name, "ts": ts, **(body if isinstance(body, dict) else {"value": body})})
+            entry = {"name": name, "phase": phase_name, "ts": ts, **(body if isinstance(body, dict) else {"value": body})}
+            if str(name).startswith("carve") and isinstance(body, dict):
+                # The two plans the guard ran, source first, then destination:
+                # their targets name the estates the verdict does not carry.
+                planned = [r.target for r in ledger if r.phase == phase_name and "plan" in r.action and r.target]
+                if not planned:
+                    # A recording without the plan commands: the verdict's own
+                    # lines name the estates ("<estate> plan: No changes.").
+                    planned = [m.group(1) for ln in (entry.get("lines") or []) for m in [re.match(r"^(\S+) plan:", str(ln))] if m]
+                dest = body.get("expected_estate") or (list(body.get("moved_estates", {}).values()) or [None])[0]
+                src = next((t for t in planned if t != dest), planned[0] if planned else None)
+                entry.setdefault("source_estate", src)
+                entry.setdefault("destination_estate", dest or (planned[1] if len(planned) > 1 else None))
+            verdicts.append(entry)
             ok = body.get("ok") if isinstance(body, dict) else None
             if ok is None and isinstance(body, dict):
                 ok = body.get("clean")
@@ -427,13 +440,16 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             rec = ev.get("receipt") or {}
             ct = rec.get("cloudtrail") or {}
             for e in ct.get("events") or []:
-                who = (e.get("role") or e.get("userIdentity.arn") or "").split("assumed-role/")[-1].split("/")[0] or "?"
+                _arn = e.get("role") or e.get("userIdentity.arn") or ""
+                who = (_arn.split("assumed-role/")[-1].split("/")[0] if "assumed-role/" in _arn
+                       else "user " + _arn.split(":user/")[-1] if ":user/" in _arn else _arn.split("/")[-1] or "?")
                 tags = e.get("tags") or {}
                 tagtxt = ", ".join(f"{k}={v}" for k, v in tags.items()) if isinstance(tags, dict) else str(tags)
                 err = e.get("error") or e.get("errorCode")
                 target = e.get("resource") or ", ".join(e.get("resources") or [])
+                call = e.get("event") or e.get("eventName") or "tag write"
                 ledger.append(LedgerRow(_parse_ts(e.get("time") or e.get("eventTime")), phase_name, who,
-                                        f"CloudTrail {e.get('eventName', 'CreateTags')} {tagtxt}", target,
+                                        f"CloudTrail {call} {tagtxt}", target,
                                         err or "recorded", not err, True))
         elif kind == "note":
             notes.append((phase_name, str(ev.get("text", ""))))
@@ -635,25 +651,47 @@ def render_measures(state: RunState, width: int = 640) -> str:
     return "".join(out)
 
 
+def _plan_panel(side: str, estate: str | None, pv: dict, short) -> str:
+    """One of the guard's two plans as a panel: which estate, what this plan
+    had to prove, the counts, and the checks."""
+    if side == "source":
+        must = "What left must not be destroyed or rebuilt: the estate no longer sees the role, and its plan proposes nothing."
+    else:
+        must = "What arrived must already be its own: the estate sees the role under its tag, and its plan proposes nothing."
+    clean = pv.get("clean")
+    light = "on" if clean else "off" if clean is False else "dim"
+    counts = f"add {pv.get('add', '?')} · change {pv.get('change', '?')} · destroy {pv.get('destroy', '?')}"
+    checks = []
+    for k, label in (("owned_undeclared", "owned but undeclared"), ("unowned", "unowned"), ("absent", "absent")):
+        if k in pv:
+            val = pv[k]
+            checks.append(f"{label} {len(val) if isinstance(val, list) else val}")
+    verdict_word = "clean" if clean else "NOT clean" if clean is False else "unread"
+    return (f"<div class='plan'><div class='plan-h'><span class='light {light}'></span>"
+            f"<span class='plan-side'>plan of the {side} estate</span> <code>{_esc(short(estate) if estate else '?')}</code></div>"
+            f"<div class='plan-must'>{_esc(must)}</div>"
+            f"<div class='vline'>{_esc(counts)}</div>"
+            + (f"<div class='vline'>{_esc(' · '.join(checks))}</div>" if checks else "")
+            + f"<div class='vline'><b>{verdict_word}</b></div></div>")
+
+
 def render_verdicts(state: RunState) -> str:
     if not state.verdicts:
         return ""
     items = []
+    short = lambda e: _short_estate(state, e)
     for v in state.verdicts:
         name = v.get("name", "")
         ok = v.get("ok", v.get("clean"))
         light = "on" if ok else "off" if ok is False else "dim"
-        items.append(f"<div class='verdict'><span class='light {light}'></span><b>{_esc(name)}</b></div>")
         src, dst = v.get("source"), v.get("destination")
-        for side, pv in (("source", src), ("destination", dst)):
-            if isinstance(pv, dict):
-                summary = f"{side}: add {pv.get('add', '?')} change {pv.get('change', '?')} destroy {pv.get('destroy', '?')}"
-                extra = []
-                for k in ("owned_undeclared", "unowned", "absent"):
-                    if k in pv:
-                        val = pv[k]
-                        extra.append(f"{k.replace('_', ' ')} {len(val) if isinstance(val, list) else val}")
-                items.append(f"<div class='vline'>{_esc(summary)}{(' · ' + _esc(' · '.join(extra))) if extra else ''}</div>")
+        if isinstance(src, dict) and isinstance(dst, dict):
+            role = str(name).split(":", 1)[-1]
+            items.append(f"<div class='verdict'><span class='light {light}'></span><b>{_esc(role)}</b> moved: two plans, one per estate, each targeted at its own resources</div>")
+            items.append("<div class='vline'>A carve is clean only when both sides agree at the same moment. Terraform's carve leaves a window where the source wants to destroy what left and the destination wants to create what arrived; here both plan clean at once, because the tag is the boundary and each estate reads only its own.</div>")
+            items.append("<div class='plans'>" + _plan_panel("source", v.get("source_estate"), src, short) + _plan_panel("destination", v.get("destination_estate"), dst, short) + "</div>")
+        else:
+            items.append(f"<div class='verdict'><span class='light {light}'></span><b>{_esc(name)}</b></div>")
         kept = v.get("children_kept")
         if isinstance(kept, dict):
             for role, names in kept.items():
@@ -696,6 +734,12 @@ CSS = """
 .tlmig .light.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
 .tlmig .light.off { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent); }
 .tlmig .vline { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--soft); margin-left: 20px; }
+.tlmig .plans { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 10px 0 6px 20px; }
+.tlmig .plan { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+.tlmig .plan-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.tlmig .plan-side { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--faint); }
+.tlmig .plan-must { font-size: 13px; color: var(--soft); margin: 6px 0; }
+.tlmig .plan .vline { margin-left: 0; }
 .tlmig .wrap { overflow-x: auto; }
 .tlmig .ledgerwrap { max-height: 300px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 6px; padding: 0 8px; }
 .tlmig .ledgerwrap thead th { position: sticky; top: 0; background: inherit; }
@@ -841,7 +885,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
         rows = [r for r in after.ledger if r.action.startswith("CloudTrail")]
         if rows:
             refused = sum(1 for r in rows if r.ok is False)
-            return f"{len(rows)} governed writes in the account's own log, {refused} of them refused with the session named. No state file could produce that record."
+            return (f"{len(rows)} writes in the account's own log, each naming who made it"
+                    + (f", {refused} refused with the session named" if refused else "") + ". No state file could produce that record.")
         return ""
     if name == "teardown":
         v = next((v for v in reversed(after.verdicts) if v.get("name") == "teardown"), None)
