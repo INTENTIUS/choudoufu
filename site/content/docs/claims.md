@@ -646,6 +646,27 @@ emulator refuses with a 403 whose body the EC2 SDK cannot parse, so the
 provider prints `api error UnknownError`. The scenario matches both, and
 the gap is filed as lex00/floci#189.
 
+On the real account, the same carve ran in us-east-2 on 2026-09-03 with
+the roles assumed through STS. Every governed write was in the account's
+own CloudTrail event history within a minute. The two refusals
+carry the code real EC2 uses, and each record names the session that was
+refused:
+
+```text
+04:39:31Z  alice  OK                            Name=database-v2           i-01e1006285c2b37b3
+04:39:47Z  alice  Client.UnauthorizedOperation  Name=gateway-v2            i-0d3d2031d0b946a23
+04:40:02Z  bob    OK                            Name=gateway-v2            i-0d3d2031d0b946a23
+04:40:32Z  bob    Client.UnauthorizedOperation  tofu-estate=boundary-data  i-01e1006285c2b37b3
+04:40:40Z  alice  OK                            tofu-estate=boundary-data  i-01e1006285c2b37b3
+```
+
+Each line is one `ec2:CreateTags` event, and
+`live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json` holds the
+five with their event IDs and the lookup that returned them. No state
+file could have produced that record, because a state edit is not an API
+call. The estate was torn down afterwards and the account listed back to
+baseline.
+
 ## Reading a run
 
 Every scenario narrates each step the same way: first why the step
