@@ -21,7 +21,7 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from . import config, guard, ui
+from . import config, events, guard, ui
 
 
 @dataclasses.dataclass(frozen=True)
@@ -142,6 +142,7 @@ def assert_torn_down(cfg: config.Config) -> None:
     named reads rather than an absence of errors."""
     ui.rule(f"teardown check: run {cfg.run_id} in account {cfg.account_id}")
     found = find_leftovers(cfg)
+    events.verdict(cfg, "teardown", {"clean": not found, "leftovers": [dataclasses.asdict(i) for i in found]})
     if found:
         for item in found:
             ui.err(str(item))
