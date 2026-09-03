@@ -75,3 +75,30 @@ class Carve(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Tightening(unittest.TestCase):
+    """37's finding: a child dropped from both configurations orphans under
+    the destination and shows there as a destroy; .ok must not read true."""
+
+    DEST_DESTROY = """  # aws_iam_role_policy.team_0001_inline will be destroyed
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+"""
+
+    def test_a_destroy_on_the_destination_fails_the_carve(self):
+        v = verify.CarveVerdict(
+            source=verify.parse_plan(CLEAN), destination=verify.parse_plan(self.DEST_DESTROY),
+            moved_estates={"r": "tl-team-1"}, children_kept={"r": ()}, expected_estate="tl-team-1")
+        self.assertTrue(v.destination.owns_everything_it_declares, "the old check alone would have passed this")
+        self.assertFalse(v.ok)
+
+    def test_no_moved_resources_is_not_a_carve(self):
+        v = verify.CarveVerdict(
+            source=verify.parse_plan(CLEAN), destination=verify.parse_plan(CLEAN),
+            moved_estates={}, children_kept={}, expected_estate="tl-team-1")
+        self.assertFalse(v.ok)
+
+    def test_describe(self):
+        self.assertEqual(verify.parse_plan(CLEAN).describe(), "No changes.")
+        self.assertIn("owned and undeclared: 2", verify.parse_plan(BREAK_SOURCE).describe())
