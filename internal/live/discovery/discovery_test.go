@@ -1002,6 +1002,8 @@ type fakeObject struct {
 	// [providers.ListResourceEvent.Diagnostics]'s own doc comment - which is
 	// what tells this apart from noObject (the provider sent nothing at all).
 	resultError bool
+	// identity, when set, is the listed identity object in place of {id, ...}.
+	identity map[string]string
 }
 
 // fakeCloud is a listclient.Lister backed by canned objects. It serves the
@@ -1017,7 +1019,19 @@ type fakeCloud struct {
 	missing   map[string]bool
 	untagged  map[string]bool
 	extraAttr map[string]map[string]bool
-	accountID string
+	// extraListAttr is a plain optional string attribute on a type's LIST
+	// config block, beyond region and the filter block every type here has:
+	// the argument a parent-scoped list (issue #692's parent-list leg) carries
+	// the parent value in, "role" for aws_iam_role_policy.
+	extraListAttr map[string]map[string]bool
+	// requiredAttr is a required string argument on a type's resource schema,
+	// and identityAttrs the attributes of its identity schema (all required
+	// for import) when a test wants the provider's own identity shape rather
+	// than the {id, region, account_id} default - what lets the schema-aware
+	// resolver synthesize an identity-object-only entry for the type.
+	requiredAttr  map[string]map[string]bool
+	identityAttrs map[string][]string
+	accountID     string
 
 	// mu guards requests only. See ListResourceStream.
 	mu       sync.Mutex
@@ -1026,8 +1040,11 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		extraAttr: make(map[string]map[string]bool),
-		objects:   make(map[string][]*fakeObject),
+		extraAttr:     make(map[string]map[string]bool),
+		extraListAttr: make(map[string]map[string]bool),
+		requiredAttr:  make(map[string]map[string]bool),
+		identityAttrs: make(map[string][]string),
+		objects:       make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
@@ -1100,6 +1117,39 @@ func (c *fakeCloud) obj(typeName, id string, tags map[string]string) {
 // iam_role.html.markdown doc page, issue #302) and aws_route_table's vpc_id
 // ("The VPC ID.", per route_table.html.markdown, issue #332) - are the same
 // mechanism with a different attribute name, and this is it.
+// withListAttr makes a type's list config block accept one more optional
+// string argument, the way aws_iam_role_policy's list accepts "role". The
+// fake ignores its value when listing; matchesFilter only reads filter blocks.
+func (c *fakeCloud) withListAttr(typeName, attr string) {
+	if c.extraListAttr[typeName] == nil {
+		c.extraListAttr[typeName] = make(map[string]bool)
+	}
+	c.extraListAttr[typeName][attr] = true
+}
+
+// withRequiredAttr adds a required string argument to a type's resource
+// schema, the way aws_iam_role_policy requires role and name.
+func (c *fakeCloud) withRequiredAttr(typeName, attr string) {
+	if c.requiredAttr[typeName] == nil {
+		c.requiredAttr[typeName] = make(map[string]bool)
+	}
+	c.requiredAttr[typeName][attr] = true
+}
+
+// withIdentitySchema replaces a type's identity schema with the given
+// attributes, every one required for import - the shape the AWS provider
+// serves for aws_iam_role_policy ({role, name}, account_id aside).
+func (c *fakeCloud) withIdentitySchema(typeName string, attrs ...string) {
+	c.identityAttrs[typeName] = attrs
+}
+
+// objWithIdentity is [fakeCloud.obj] for an object whose listed identity is
+// an attribute map rather than the default {id, ...} - what a provider with
+// a composite identity schema returns.
+func (c *fakeCloud) objWithIdentity(typeName, id string, ident map[string]string) {
+	c.objects[typeName] = append(c.objects[typeName], &fakeObject{id: id, displayName: id, identity: ident})
+}
+
 func (c *fakeCloud) withAttr(typeName, attr string) {
 	if c.extraAttr[typeName] == nil {
 		c.extraAttr[typeName] = make(map[string]bool)
@@ -1210,6 +1260,9 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 		for attr := range c.extraAttr[name] {
 			attrs[attr] = &configschema.Attribute{Type: cty.String, Computed: true}
 		}
+		for attr := range c.requiredAttr[name] {
+			attrs[attr] = &configschema.Attribute{Type: cty.String, Required: true}
+		}
 		if c.untagged[name] {
 			delete(attrs, "tags")
 		}
@@ -1225,6 +1278,15 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 				},
 			},
 		}
+		if idAttrs := c.identityAttrs[name]; len(idAttrs) > 0 {
+			ident := make(map[string]*configschema.Attribute, len(idAttrs))
+			for _, a := range idAttrs {
+				ident[a] = &configschema.Attribute{Type: cty.String, Required: true}
+			}
+			schema := resp.ResourceTypes[name]
+			schema.IdentitySchema = &configschema.Object{Nesting: configschema.NestingSingle, Attributes: ident}
+			resp.ResourceTypes[name] = schema
+		}
 		if c.missing[name] {
 			continue
 		}
@@ -1233,6 +1295,9 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 				"region": {Type: cty.String, Optional: true},
 			},
 			BlockTypes: map[string]*configschema.NestedBlock{},
+		}
+		for attr := range c.extraListAttr[name] {
+			block.Attributes[attr] = &configschema.Attribute{Type: cty.String, Optional: true}
 		}
 		if !c.unfilter[name] {
 			block.BlockTypes["filter"] = &configschema.NestedBlock{
@@ -1282,6 +1347,13 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 				"region":     cty.StringVal("us-east-1"),
 				"account_id": cty.StringVal(c.accountID),
 			})
+			if len(o.identity) > 0 {
+				vals := make(map[string]cty.Value, len(o.identity))
+				for k, v := range o.identity {
+					vals[k] = cty.StringVal(v)
+				}
+				ev.Identity = cty.ObjectVal(vals)
+			}
 		}
 		if req.IncludeResourceObject && !o.noObject {
 			attrs := map[string]cty.Value{"id": cty.StringVal(o.id)}
