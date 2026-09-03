@@ -36,6 +36,7 @@ app = marimo.App(width="full", app_title="The live-mv workbench")
 def _():
     import os
     import pathlib
+    import re
     import shlex
 
     import marimo as mo
@@ -45,7 +46,7 @@ def _():
     # The verbs this build's tlmig knows, from its own --help. The page offers
     # a seed or a preview only when the CLI has it, and says so when it does not.
     PHASES = stage.available_phases()
-    return PHASES, carve, config, mo, os, pathlib, shlex, stage, tips, viz
+    return PHASES, carve, config, mo, os, pathlib, re, shlex, stage, tips, viz
 
 
 @app.cell
@@ -340,8 +341,8 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
                       "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
         "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
                   "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "move": ("Move", "retags the resources into their estates: one tag write each",
-                 "The boundary moves by tag: team-a's resources are retagged into team-b, one tag write per resource, and the untaggable children follow their parent without a write. Today Move makes the demo's retag directly; once the executor lands it runs exactly the plan Preview dry-ran, move by move."),
+        "move": ("Move", "executes carve.json: one live-mv per move, one tag write each",
+                 "The executor runs the plan Preview dry-ran: one live-mv per move in carve.json, one tag write per resource, and the untaggable children follow their parent without a write. In the demo it then dissolves team-a into team-b, moving that block into team-b's config first, to show a cross-team carve. No state file is split."),
         "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
                       "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
         "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
@@ -351,7 +352,7 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
         "receipt": ("The account's own record", "reads this run's own tag writes back from CloudTrail; writes nothing",
                     "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This phase reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so it waits. A state edit has no such record; no account logs a file changing."),
         "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
-                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Only the demo seed is torn down; an adopted estate is never destroyed from here."),
+                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Teardown refuses a non-demo run by design: an adopted estate is yours to manage, so its teardown button fails the cell on purpose rather than destroying resources you brought."),
     }
 
     def verb_block(name, button="own", label=True):
@@ -481,12 +482,12 @@ def _(VERBS, section, tick, verb_block):
 def _(mo):
     rules_ta = mo.ui.text_area(value="", rows=4, full_width=True, label="rules, one per line: `module|prefix|type|name <value> -> <estate>`; later rules win",
                                placeholder="module data -> team-data\nprefix aws_iam_ -> iam\ntype aws_cloudwatch_log_group -> logs\nname team_a -> team-b")
-    demo_move = mo.ui.checkbox(value=True, label="plan the demo's move: team-a into team-b")
+    demo_move = mo.ui.checkbox(value=True, label="plan the demo's move: split each team into its own estate")
     return demo_move, rules_ta
 
 
 @app.cell
-def _(bid, carve, demo_move, get_inventory, live, mo, rows_btn, rules_ta, run_dir, viz):
+def _(bid, carve, demo_move, get_inventory, live, mo, re, rows_btn, rules_ta, run_dir, viz):
     # The table rows: every taggable resource the run has seen, with the
     # estate its live tag names and the destination the rules give it. Rows
     # reload when the run's inventory changes (a seed landing, a move made)
@@ -509,9 +510,11 @@ def _(bid, carve, demo_move, get_inventory, live, mo, rows_btn, rules_ta, run_di
     # for a demo user: team-a's resources into team-b. Only added when the run
     # is the demo terralith (a monolith estate holding a team_a resource), so
     # on an adopted estate it matches nothing and changes nothing.
-    is_demo = any(r.estate and r.estate.endswith("-monolith") and ".team_a" in r.address for r in _state.resources.values())
+    is_demo = any(r.estate and r.estate.endswith("-monolith") and ".team_" in r.address for r in _state.resources.values())
     if demo_move.value and is_demo and run_prefix:
-        rules = rules + [carve.Rule("name", "team_a", f"{run_prefix}-team-b")]
+        _teams = sorted({m.group(1) for r in _state.resources.values() if (m := re.search(r"\.(team_[a-z])", r.address))})
+        for _tk in _teams:
+            rules = rules + [carve.Rule("name", _tk, f"{run_prefix}-team-{_tk.split('_')[1]}")]
     _children = {}
     for _r in _state.resources.values():
         if _r.parent:
@@ -540,7 +543,7 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _saved = f"on disk: `{carve.path(run_dir)}` with {len(_on_disk.get('moves', []))} moves" + ("" if _on_disk.get("moves") == plan_doc["moves"] else " (the table has changed since; save again)")
     elif not (live or bid):
         _saved = "replay: the plan is shown, not saved"
-    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs. Today the Move phase makes the demo's retag directly; once the executor lands (37's next change) it reads this plan. **In the demo you can leave this alone:** the box below is ticked, so the plan already holds the demo's move, team-a into team-b, and Move makes that move whether or not you touch this panel. Untick it, or add rules, to plan your own.")]
+    _parts = [mo.md("The plan decides which resource goes to which estate. It is saved as `carve.json`, which Preview dry-runs and the Move phase then runs through the executor, one `live-mv` per move. **In the demo you can leave this alone:** the box below is ticked, so the plan holds the demo's move, each team split into its own estate, which the demo seed already staged a config for, so Preview dry-runs it clean. Untick it, or add rules, to plan your own. (Dissolving one team into another, team-a into team-b, is the advanced case: the destination's config must first declare the incoming resources, so Preview reports it as a refusal until the block is moved.)")]
     if is_demo:
         _parts.append(demo_move)
     _parts += [
@@ -558,10 +561,10 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
         _hint = "*Every row keeps its estate, so `carve.json` has no moves. That is a fine place to stand: nothing will move. "
         if is_demo:
             _hint += f"To plan the demo's move, tick the box above, or add the rule `name team_a -> {run_prefix}-team-b`. "
-        _hint += "You can still go to Move: for the demo, the Move phase makes its own retag; the executor that reads this file is the next CLI change.*"
+        _hint += "You can still go to Move: the executor makes no move from an empty plan, and in the demo Move still runs its own team-a into team-b carve.*"
         _parts.append(mo.md(_hint))
     elif plan_rows:
-        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move. Today Move makes the demo's retag; once the executor lands it runs exactly these. You can go forward."))
+        _parts.append(mo.md(f"**{len(plan_doc['moves'])} move(s) planned.** Save writes `carve.json`; Preview dry-runs each move; Move runs exactly these through the executor, one `live-mv` each. You can go forward."))
     _parts.append(mo.hstack([save_btn, rows_btn, mo.md(_saved)], justify="start", gap=1))
     _parts.append(mo.accordion({"carve.json as it would be saved": mo.ui.code_editor(__import__("json").dumps(plan_doc, indent=2), language="json", disabled=True, max_height=300)}))
     section("plan", _parts)
@@ -569,27 +572,38 @@ def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rul
 
 
 @app.cell
-def _(PHASES, bid, live, mo, preview_btn, run_dir, section, st, tick, viz):
+def _(PHASES, bid, carve, live, mo, preview_btn, run_dir, section, st, tick, viz):
     # Preview: every planned move as a dry run, and the map as it would stand.
     tick.value
     _has_preview = "preview" in PHASES
     if _has_preview and (live or bid):
         st.click("preview", preview_btn.value)
-    _status = st.status("preview") if (live or bid) else ("recorded" if viz.load_run(run_dir).previews else "not in this recording")
+    _state = viz.load_run(run_dir)
+    _status = st.status("preview") if (live or bid) else ("recorded" if _state.previews else "not in this recording")
     if not _has_preview and (live or bid):
         _status = "this build's tlmig has no preview verb yet; the next CLI change adds it"
-    _state = viz.load_run(run_dir)
+    # Live progress: preview runs one dry-run per move, a few seconds each on a
+    # real account, so without a count it looks stopped. Show how many of the
+    # planned moves are back, and keep the log open while it runs.
+    _planned = len((carve.load(run_dir) or {}).get("moves", []))
+    _done = len(_state.previews)
+    _running = _status == "running"
+    if _running:
+        _status = f"running — {_done} of {_planned} moves dry-run so far" if _planned else f"running — {_done} dry-run so far"
     _table = viz.render_previews(_state)
     _parts = [
-        mo.md("Each row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. Below, the map as it stands and the map as it would stand once the passed moves are written."),
+        mo.md("Each row is one planned move as `live-mv -dry-run` judged it: the tag writes it would make, the untaggable children that follow the parent without a write, and the refusal if a check failed. A refusal is a finding, not a crash: the move is telling you the destination is not ready for it. Below, the map as it stands and the map as it would stand once the passed moves are written."),
         mo.hstack([preview_btn, mo.md(f"`preview` · {_status}")], justify="start", gap=1),
     ]
+    if _running:
+        _parts.append(mo.md(f"*Still running: each move is a separate `live-mv -dry-run`, a few seconds each on a real account. {_done} of {_planned} back; the rows below fill in as they arrive.*"))
     _tail = st.tail("preview")
     if _tail:
-        _parts.append(mo.accordion({"raw log": mo.ui.code_editor(_tail, language="text", disabled=True, max_height=220)}, lazy=False))
+        _parts.append(mo.accordion({"raw log": mo.ui.code_editor(_tail, language="text", disabled=True, max_height=220)}, lazy=False, multiple=False) if not _status.startswith("failed")
+                      else mo.vstack([mo.md("**Preview failed** (the phase itself, not a move refusing):"), mo.ui.code_editor(_tail, language="text", disabled=True, max_height=220)]))
     if _table:
         _parts += [mo.Html(_table), mo.Html(viz.render_projection(_state, map_width=560))]
-    else:
+    elif not _running:
         _parts.append(mo.md("*No previews yet. Save a plan, then run preview; in a recording, this shows what the recording holds.*"))
     section("preview", _parts)
     return
