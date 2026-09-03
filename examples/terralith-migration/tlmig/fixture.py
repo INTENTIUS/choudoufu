@@ -2,9 +2,11 @@
 
 Deliberately small but shaped like the real problem: a monolith estate that
 owns every team's resources, and a per-team config for each team that
-declares that team's own subset. Decomposition is choudoufu adopting each
-team's resources out of the monolith by retagging them — no state surgery —
-and the carve is one role moving from one team's estate to another's.
+declares that team's own subset. Decomposition retags each of a team's
+taggable resources out of the monolith into that team's estate with
+`live-mv -from-estate`, then a recording apply binds them - no state surgery,
+and the untaggable children follow their parent role. The carve is the same
+move applied to one dissolving team's resources into another's estate.
 
 The resources are chosen to be free and fast (IAM and CloudWatch log groups,
 no EC2, no NAT, nothing hourly) so a rehearsal costs nothing and tears down
@@ -98,21 +100,50 @@ resource "aws_iam_role_policy_attachment" "{t}" {{
     return "\n\n".join(blocks)
 
 
-def monolith_hcl(cfg: config.Config) -> str:
-    """The whole terralith under one estate: every team's resources in a
-    single config, the way an org's monolith actually looks before anyone
-    splits it."""
+def monolith_hcl(cfg: config.Config, teams: tuple[str, ...] | None = None) -> str:
+    """The terralith under one estate. With no `teams` it declares every team,
+    the state before anyone splits it. After a decompose the caller passes the
+    teams the monolith still owns (often none), so the monolith config stops
+    declaring the moved blocks and its own plan stays clean - the live tag
+    already decides ownership, but a config that no longer declares a moved
+    resource is what keeps a stray monolith plan honest."""
+    if teams is None:
+        teams = FIXTURE_TEAMS
     parts = [_HEADER.format(estate=cfg.monolith_estate, region=cfg.region)]
-    for team in FIXTURE_TEAMS:
+    for team in teams:
         parts.append(f"# ---- {team} ----\n" + _team_resources(cfg, team))
+    if not teams:
+        parts.append("# decomposed - every team split into its own estate")
     return "\n\n".join(parts) + "\n"
 
 
-def team_hcl(cfg: config.Config, team: str) -> str:
+def team_hcl(cfg: config.Config, team: str, also: tuple[str, ...] = ()) -> str:
     """One team's slice, under its own estate. Declares exactly the resources
     the monolith already holds for this team, so applying it adopts them by
-    retag rather than creating anything new."""
-    return _HEADER.format(estate=cfg.estate(team), region=cfg.region) + "\n" + _team_resources(cfg, team) + "\n"
+    retag rather than creating anything new. `also` names other teams whose
+    resources this estate ALSO declares - the carve uses it when a dissolving
+    team's resources move into this one's estate and configuration."""
+    body = _team_resources(cfg, team)
+    for other in also:
+        body += f"\n\n# ---- adopted from {other} ----\n" + _team_resources(cfg, other)
+    return _HEADER.format(estate=cfg.estate(team), region=cfg.region) + "\n" + body + "\n"
+
+
+def empty_hcl(cfg: config.Config, estate: str) -> str:
+    """A config with the live block and no resources: a dissolved estate after
+    its resources have been carved into another. Its next plan should propose
+    nothing, because it owns nothing any more."""
+    return _HEADER.format(estate=estate, region=cfg.region) + "\n# dissolved - every resource moved to another estate\n"
+
+
+def taggable_addresses(team: str) -> list[str]:
+    """The resource addresses that carry a marker and are moved by live-mv when
+    this team is decomposed or dissolved. The untaggable children (the inline
+    policy and the attachment) are not listed: they follow their parent role."""
+    t = team.replace("-", "_")
+    addrs = [f"aws_iam_role.{t}", f"aws_iam_policy.{t}"]
+    addrs += [f"aws_cloudwatch_log_group.{t}_{i}" for i in range(LOG_GROUPS_PER_TEAM)]
+    return addrs
 
 
 def role_name(cfg: config.Config, team: str) -> str:

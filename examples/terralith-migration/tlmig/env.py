@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import time
 
-from . import config, fixture, guard, ui
+from . import config, fixture, guard, sweep, ui
 
 
 # --------------------------------------------------------------------------
@@ -134,28 +134,12 @@ def teardown(cfg: config.Config) -> None:
 
 def _verify_gone(cfg: config.Config) -> None:
     """Refuse to call the run clean while anything carrying its prefix remains.
-    This is the minimal check — an IAM role listing by prefix; choudoufu-e9's
-    sweep.assert_torn_down, when present, replaces it with the fuller
-    list-by-tag-and-by-name refusal ad and the pricing page use."""
-    try:
-        from . import sweep  # provided separately; optional
-        sweep.assert_torn_down(cfg)
-        return
-    except ImportError:
-        pass
-    res = guard.aws(
-        cfg, "iam", "list-roles",
-        "--query", f"Roles[?starts_with(RoleName, `{cfg.prefix}`)].RoleName",
-        "--output", "text", check=False,
-    )
-    leftovers = res.stdout.split() if res.ok else []
-    if leftovers:
-        ui.err(f"teardown left roles behind: {' '.join(leftovers)}")
-        raise guard.GuardError(
-            f"{len(leftovers)} resource(s) with prefix {cfg.prefix} remain after teardown; "
-            f"not calling this run clean"
-        )
-    ui.ok("nothing with this run's prefix remains — clean")
+    Delegates to sweep.assert_torn_down, which lists by tag AND by name across
+    every type the fixture makes and raises rather than return on a leftover.
+    Imported at module load: a broken sweep must fail loudly, never silently
+    downgrade the check."""
+    sweep.assert_torn_down(cfg)
+    ui.ok("nothing with this run's prefix remains - clean")
 
 
 def status(cfg: config.Config) -> None:
@@ -179,6 +163,10 @@ def status(cfg: config.Config) -> None:
             from . import verify
             estate = verify.estate_of_role(tags.stdout) or "(untagged)"
         ui.kv(f"  {role}", f"tofu-estate={estate}")
+    # Refresh the visualization's ownership map on a status call too.
+    from . import govern
+    for entry in manifest.get("estates", []):
+        govern.read_inventory(cfg, entry["estate"])
 
 
 def reset(cfg: config.Config) -> None:
