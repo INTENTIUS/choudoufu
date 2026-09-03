@@ -188,10 +188,11 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 2, Code: 0,
 	},
 	"internal/live/identity/parent.go": {
-		Reason: "parentReadRemovable and foldParentTypes: two one-entry maps whose growth rule is written into their own doc " +
-			"comments as \"one provider-behavior verification at a time\". The fact recorded is what a live " +
-			"GetBucketPolicy-style read means when it finds nothing, which is provider behaviour and not schema.",
-		Data: 3, Code: 0,
+		Reason: "parentReadRemovable, parentListRecovered and foldParentTypes: hand-curated maps whose growth rule is written " +
+			"into their own doc comments as \"one provider-behavior verification at a time\". The fact recorded is what a " +
+			"live GetBucketPolicy- or GetRolePolicy-style read means when it finds nothing, which is provider behaviour " +
+			"and not schema.",
+		Data: 5, Code: 0,
 	},
 	"internal/live/lint/receipt_leaf.go": {
 		Reason: "receiptType: live/RECEIPTS.md defines a receipt AS an aws_ssm_parameter under /tofu-receipts/. This is a " +
@@ -497,7 +498,7 @@ const (
 	// it - one Code literal, no Data. Five Data literals added (1 devtools +
 	// 4 ecs-eks), two Code literals added (1 ecs-eks + 1 identity), nothing
 	// moved or removed.
-	typeLiteralDataTotal = 452
+	typeLiteralDataTotal = 454
 	typeLiteralCodeTotal = 129
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
