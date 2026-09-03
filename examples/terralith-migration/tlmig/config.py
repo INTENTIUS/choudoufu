@@ -131,5 +131,16 @@ def load(run_id: str | None = None) -> Config:
     run_dir = pathlib.Path(
         os.environ.get("TLMIG_RUN_DIR") or _default_run_dir(run_id)
     ).resolve()
-    binary = os.environ.get("CHOUDOUFU_BIN") or "choudoufu"
+    binary = os.environ.get("CHOUDOUFU_BIN") or _find_binary()
     return Config(run_id=run_id, run_dir=run_dir, binary=binary)
+
+
+def _find_binary() -> str:
+    """Where to find the pinned choudoufu. CHOUDOUFU_BIN wins; otherwise prefer
+    the exact release the smoke harness already cached (nothing has choudoufu on
+    PATH by default), and fall back to a bare name so a PATH install still
+    works. guard.preflight asserts the version regardless of which was found."""
+    cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / CHOUDOUFU_VERSION / "choudoufu"
+    if cached.exists():
+        return str(cached)
+    return "choudoufu"
