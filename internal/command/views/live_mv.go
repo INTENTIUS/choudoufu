@@ -18,8 +18,13 @@ import (
 // operator needs to be able to read and to grep them, not to be told a story
 // about them.
 type StatelessMvReport struct {
-	// Estate is the estate the rename happened within.
+	// Estate is the estate the rename happened within - the destination, for
+	// a cross-estate move.
 	Estate string
+
+	// FromEstate is the estate the resource left, for a cross-estate move,
+	// and empty for a rename.
+	FromEstate string
 
 	// TypeName, LiveID and DisplayName identify the live resource that was
 	// written to. DisplayName is empty for a type with no name to show.
@@ -71,12 +76,27 @@ func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
 	if rep.DryRun {
 		headline = "Would rewrite the ownership marker on one live resource. Nothing was written (-dry-run)."
 	}
+	if rep.FromEstate != "" {
+		headline = "Moved one live resource into this estate. This was a cloud write."
+		if rep.DryRun {
+			headline = "Would move one live resource into this estate. Nothing was written (-dry-run)."
+		}
+	}
 
 	rows := [][2]string{
 		{"estate", rep.Estate},
-		{"resource type", rep.TypeName},
-		{"live ID", rep.LiveID},
 	}
+	if rep.FromEstate != "" {
+		rows = [][2]string{
+			{"from estate", rep.FromEstate},
+			{"to estate", rep.Estate},
+			{"tofu-estate", fmt.Sprintf("%q -> %q", rep.FromEstate, rep.Estate)},
+		}
+	}
+	rows = append(rows,
+		[2]string{"resource type", rep.TypeName},
+		[2]string{"live ID", rep.LiveID},
+	)
 	if rep.DisplayName != "" {
 		rows = append(rows, [2]string{"live name", rep.DisplayName})
 	}
@@ -93,9 +113,12 @@ func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
 		fmt.Fprintf(&b, "  %-14s %s\n", row[0], row[1])
 	}
 	b.WriteString("\n")
-	if rep.DryRun {
+	switch {
+	case rep.DryRun:
 		b.WriteString("Rerun without -dry-run to write it. Everything above was read from the live system; nothing was changed.\n")
-	} else {
+	case rep.FromEstate != "":
+		b.WriteString("The live resource's tofu-estate tag now names this estate, and nothing else about it was changed. The source estate no longer sees it and this one binds it on the next plan; its record in the source's store stays behind, and the first apply here records it afresh.\n")
+	default:
 		b.WriteString("The live resource's tofu-address tag now names the new address, and nothing else about it was changed. There is no state file to update: the old address is gone from the only place it was ever recorded.\n")
 	}
 	v.view.streams.Print(b.String())

@@ -29,11 +29,30 @@ import (
 
 // Request is one rename.
 type Request struct {
-	// Estate is the estate that owns the resource, matching the tofu-estate
-	// marker grammar. A rename never crosses an estate boundary: the live
-	// resource must already carry this estate's tag, and one that carries
-	// another estate's is refused rather than taken over.
+	// Estate is the estate that owns the resource after this runs, matching
+	// the tofu-estate marker grammar. A rename never crosses an estate
+	// boundary: the live resource must already carry this estate's tag, and
+	// one that carries another estate's is refused rather than taken over.
+	// The one exception is the cross-estate move [Request.FromEstate] names.
 	Estate string
+
+	// FromEstate, when set, turns the rename into a cross-estate move: the
+	// live resource is found by FromEstate's tag and the old address, and
+	// rewritten to carry Estate's tag and the new address, which may be the
+	// same address. That is the transfer of ownership live/MARKERS.md
+	// describes under "Splitting an estate" - a tag write - performed
+	// through the same tags-only apply a rename makes, with the same
+	// refusals: the destination configuration must declare the address,
+	// nothing else in the destination estate may already claim it, and a
+	// plan that would touch anything beyond tags is never applied. Empty
+	// is an ordinary rename within Estate.
+	//
+	// What a cross-estate move does not carry is the record the source
+	// estate's store holds for the resource: that store belongs to another
+	// configuration this run cannot see. The destination's first apply
+	// records the instance afresh, and the plan before it names any
+	// attribute the record alone remembered.
+	FromEstate string
 
 	// Old is the address the live resource carries today.
 	Old addrs.AbsResourceInstance
@@ -139,8 +158,13 @@ const (
 
 // Result is what one rename found and did.
 type Result struct {
-	// Estate is the estate the rename ran against.
+	// Estate is the estate the rename ran against - the destination, for a
+	// cross-estate move.
 	Estate string
+
+	// FromEstate is the estate the resource was found under when this was a
+	// cross-estate move, and empty for an ordinary rename.
+	FromEstate string
 
 	// Old and New are the addresses, as given.
 	Old, New addrs.AbsResourceInstance
@@ -198,10 +222,11 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	res := &Result{
-		Estate: req.Estate,
-		Old:    req.Old,
-		New:    req.New,
-		DryRun: req.DryRun,
+		Estate:     req.Estate,
+		FromEstate: req.FromEstate,
+		Old:        req.Old,
+		New:        req.New,
+		DryRun:     req.DryRun,
 	}
 
 	switch {
@@ -210,6 +235,18 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			tfdiags.Error,
 			"Invalid estate name",
 			fmt.Sprintf("A rename needs the estate's name, matching the tofu-estate marker grammar in live/MARKERS.md (a lowercase letter followed by letters, digits or hyphens, at most 128 characters). Got %q.", req.Estate),
+		))
+	case req.FromEstate != "" && !discovery.ValidEstateName(req.FromEstate):
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Invalid source estate name",
+			fmt.Sprintf("A cross-estate move names the estate the resource leaves, matching the tofu-estate marker grammar in live/MARKERS.md. Got %q.", req.FromEstate),
+		))
+	case req.FromEstate != "" && req.FromEstate == req.Estate:
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Source and destination estates are the same",
+			fmt.Sprintf("-from-estate names %q, which is also this configuration's own estate, so there is no boundary to cross. A rename within one estate takes no -from-estate.", req.FromEstate),
 		))
 	case req.Config == nil || req.Config.Module == nil:
 		return res, diags.Append(tfdiags.Sourceless(
@@ -312,13 +349,24 @@ type mover struct {
 	schema   providers.Schema
 }
 
+// sourceEstate is the estate the live resource is looked for under: the
+// source of a cross-estate move, or the one estate an ordinary rename stays
+// within. The write always carries req.Estate, the destination.
+func (m *mover) sourceEstate() string {
+	if m.req.FromEstate != "" {
+		return m.req.FromEstate
+	}
+	return m.req.Estate
+}
+
 // ---------------------------------------------------------------------------
 // Checks that need no provider
 // ---------------------------------------------------------------------------
 
 // checkAddresses rejects the pairs of addresses that describe no move: the
-// same address twice, two different resource types, and anything that is
-// not a managed resource.
+// same address twice (unless the move crosses an estate, where keeping the
+// address is the ordinary case), two different resource types, and
+// anything that is not a managed resource.
 //
 // A root address, a static-module address, a for_each-keyed module address
 // (59c, issue #59 phase 3), and a count-keyed module address (issue #317)
@@ -345,11 +393,11 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 	newRes := req.New.Resource.Resource
 
 	switch {
-	case req.Old.String() == req.New.String():
+	case req.Old.String() == req.New.String() && req.FromEstate == "":
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Identical source and destination addresses",
-			fmt.Sprintf("%s is both the old and the new address, so there is nothing to rewrite.", req.Old),
+			fmt.Sprintf("%s is both the old and the new address, so there is nothing to rewrite. A resource keeps its address only when it moves to another estate, which -from-estate names.", req.Old),
 		))
 	case oldRes.Mode != addrs.ManagedResourceMode || newRes.Mode != addrs.ManagedResourceMode:
 		return diags.Append(tfdiags.Sourceless(
@@ -620,14 +668,16 @@ type listed struct {
 	identity cty.Value
 }
 
-// sweep enumerates every live resource of the type and keeps the ones this
-// estate owns, with their markers escaped for comparison.
+// sweep enumerates every live resource of the type and keeps the ones the
+// named estate owns, with their markers escaped for comparison. A rename
+// sweeps its one estate; a cross-estate move sweeps the source to find the
+// resource and the destination to check the address is free there.
 //
 // The list is unfiltered on purpose: see the package doc. Everything the
 // provider can see of this type crosses the wire once, and the estate and
 // address comparisons happen here, against escaped values, never by decoding
 // a tag back into an address.
-func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, int, tfdiags.Diagnostics) {
+func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate string) ([]listed, int, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	vals := make(map[string]cty.Value)
@@ -674,11 +724,11 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, 
 			// when the object's own tags say nothing at all - one that
 			// already answered honestly, even to say "not mine", needs no
 			// second opinion.
-			if joined, ok := discovery.JoinMarkerFromTagging(ctx, m.req.Tagging, m.req.Estate, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
+			if joined, ok := discovery.JoinMarkerFromTagging(ctx, m.req.Tagging, estate, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
 				tags = joined
 			}
 		}
-		if tags[discovery.TagEstate] != m.req.Estate {
+		if tags[discovery.TagEstate] != estate {
 			continue
 		}
 		raw, corrupt := discovery.GatherAddress(tags)
@@ -723,7 +773,7 @@ func claimants(mine []listed, declared string) []listed {
 // the sweep happens here purely to answer "is anything else already claiming
 // where this is going".
 func (m *mover) checkDestinationFree(ctx context.Context, ts listclient.TypeSchema) tfdiags.Diagnostics {
-	mine, _, diags := m.sweep(ctx, ts)
+	mine, _, diags := m.sweep(ctx, ts, m.req.Estate)
 	if diags.HasErrors() {
 		return diags
 	}
@@ -756,26 +806,37 @@ func (m *mover) destinationDiags(claimNew []listed) tfdiags.Diagnostics {
 // estate's tag and the old address. It is the marker admission path, for the
 // instances whose identity is nowhere in configuration.
 func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (string, cty.Value, tfdiags.Diagnostics) {
-	mine, listed, diags := m.sweep(ctx, ts)
+	mine, listed, diags := m.sweep(ctx, ts, m.sourceEstate())
 	if diags.HasErrors() {
 		return "", cty.NilVal, diags
 	}
 
 	claimOld := claimants(mine, m.res.Old.String())
 	claimNew := claimants(mine, m.res.New.String())
+	if m.req.FromEstate != "" {
+		// The destination address has to be free in the DESTINATION
+		// estate, which is not the estate just swept. One more sweep of the
+		// same type, filtered to the estate the write will carry.
+		dest, _, destDiags := m.sweep(ctx, ts, m.req.Estate)
+		diags = diags.Append(destDiags)
+		if destDiags.HasErrors() {
+			return "", cty.NilVal, diags
+		}
+		claimNew = claimants(dest, m.res.New.String())
+	}
 
 	switch len(claimOld) {
 	case 1:
 		// The one answer this whole function exists for.
 	case 0:
-		return "", cty.NilVal, diags.Append(notFoundDiag(m.res, listed, len(mine), len(claimNew) > 0))
+		return "", cty.NilVal, diags.Append(notFoundDiag(m.res, m.sourceEstate(), listed, len(mine), len(claimNew) > 0))
 	default:
 		return "", cty.NilVal, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Two live resources claiming one address",
 			fmt.Sprintf(
 				"%d live %s resources carry estate %q and address %q at once: %s. Retag or delete the wrong one before renaming either; see live/MARKERS.md, \"Ownership semantics\".",
-				len(claimOld), m.res.TypeName, m.req.Estate, m.res.OldMarker, strings.Join(liveIDs(claimOld), ", ")),
+				len(claimOld), m.res.TypeName, m.sourceEstate(), m.res.OldMarker, strings.Join(liveIDs(claimOld), ", ")),
 		))
 	}
 
@@ -801,14 +862,14 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 // produce: nothing of this estate carries the address, and something already
 // carries the new one - the second being what a rename that already ran looks
 // like from the outside.
-func notFoundDiag(res *Result, listed, inEstate int, newClaimed bool) tfdiags.Diagnostic {
+func notFoundDiag(res *Result, estate string, listed, inEstate int, newClaimed bool) tfdiags.Diagnostic {
 	if newClaimed {
 		return tfdiags.Sourceless(
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
 				"No live %s carries estate %q and address %q, but one already carries %q. This rename appears to have already run: there is nothing left to rewrite, and the resource is bound to the new address.",
-				res.TypeName, res.Estate, res.OldMarker, res.NewMarker),
+				res.TypeName, estate, res.OldMarker, res.NewMarker),
 		)
 	}
 	return tfdiags.Sourceless(
@@ -816,7 +877,7 @@ func notFoundDiag(res *Result, listed, inEstate int, newClaimed bool) tfdiags.Di
 		"No live resource at the old address",
 		fmt.Sprintf(
 			"The provider listed %d %s, %d of which carry estate %q, and none of those carries the tofu-address value %q. Nothing was written; the type was enumerated, so a resource with that marker does not exist.",
-			listed, res.TypeName, inEstate, res.Estate, res.OldMarker),
+			listed, res.TypeName, inEstate, estate, res.OldMarker),
 	)
 }
 
@@ -861,9 +922,25 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				"The live %s at %s carries a tofu-address marker whose continuation tags (tofu-address-2, tofu-address-3, ...) have a gap in them, so this run cannot tell what address it names. See live/MARKERS.md, \"tofu-address continuation tags\"; a human has to resolve this before it can be renamed.",
 				m.res.TypeName, m.res.LiveID),
 		))
-	case discovery.AddressMatches(marker, m.res.Old.String()) && estate == m.req.Estate:
+	case discovery.AddressMatches(marker, m.res.Old.String()) && estate == m.sourceEstate():
 		// Found it.
 		return obj, diags
+	case m.req.FromEstate != "" && estate == m.req.Estate && discovery.AddressMatches(marker, m.res.New.String()):
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No live resource at the old address",
+			fmt.Sprintf(
+				"The live %s at %s already carries tofu-estate = %q and the address %q. This move appears to have already run: there is nothing left to rewrite.",
+				m.res.TypeName, m.res.LiveID, estate, m.res.NewMarker),
+		))
+	case m.req.FromEstate != "" && estate != "" && estate != m.req.FromEstate:
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Live resource owned by another estate",
+			fmt.Sprintf(
+				"The live %s at %s carries tofu-estate = %q, and this move is from estate %q. Only the estate that owns a resource can move it out; name that estate in -from-estate, or adopt the resource instead. Nothing was written.",
+				m.res.TypeName, m.res.LiveID, estate, m.req.FromEstate),
+		))
 	case estate != "" && estate != m.req.Estate:
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -929,6 +1006,13 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 // (a stale record, a corrupt marker, a different owner) rather than
 // authorizing a write on the record's say-so alone.
 func (m *mover) locateByRecord(ctx context.Context) (*states.ResourceInstanceObject, tfdiags.Diagnostics, bool) {
+	if m.req.FromEstate != "" {
+		// The record store handed in is the destination estate's, keyed
+		// under its own prefix. The source's record for the old address
+		// lives in a store this run cannot see, so a cross-estate move has
+		// no record fallback and find raises its ordinary refusal.
+		return nil, nil, false
+	}
 	if m.req.RecordStore == nil {
 		return nil, nil, false
 	}
@@ -1119,6 +1203,13 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 // moved and finishes what did not.
 func (m *mover) propagateModuleRename(ctx context.Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	if m.req.FromEstate != "" {
+		// Every record this could move lives in the source estate's store,
+		// which this run cannot reach; see [Request.FromEstate]. The
+		// destination's first apply records the instance afresh.
+		return diags
+	}
 
 	store := m.req.RecordStore
 	if store == nil {

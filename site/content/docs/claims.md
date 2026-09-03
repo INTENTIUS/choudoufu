@@ -32,6 +32,7 @@ fail proves nothing, so every claim ships with its failure demonstrated.
 | Unchanged is free | `just smoke unchanged-is-free` | 3 min |
 | The cache serves the whole estate | `just smoke cache-serves-the-whole-estate` | 2 min |
 | A count pool is a fungible set | `just smoke count-is-a-fungible-set` | 2 min |
+| Carve by retag | `just smoke carve-by-retag` (needs Go) | 6 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
@@ -495,6 +496,29 @@ BREAK=1 just smoke count-is-a-fungible-set and report the "caught"
 line: it deletes the local record, strips the slot marker from one
 member, and the plan must refuse the half-slotted set by name rather
 than bind the odd member by a guess.
+
+## Claim 12: carve by retag
+
+In stock tooling every ownership boundary is a state file, so splitting a
+monolith into team estates is state surgery. Each resource is moved
+between files by hand, and for a moment it sits in two ledgers or in
+none. Here the boundary is
+a tag. A resource leaves one estate for another by having its
+`tofu-estate` tag rewritten. The tool refuses a write that would leave
+either side dirty, and afterwards each side plans clean and pays only
+for what it holds.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info), the AWS CLI is installed, and Go is installed (this
+scenario generates its estate with go run). From the repo root run:
+
+  just smoke carve-by-retag
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke carve-by-retag and report the "caught" line: it moves
+the six blocks but skips the retag, and the monolith must propose
+destroying the leavers while the new estate proposes building them.
 ```
 
 The steps as they print:
@@ -515,6 +539,48 @@ so the plan refuses the half-slotted set and names the slot disagreement
 rather than binding the odd member by position. Beside an intact record
 the same strip is a repair, not a guess: the record names the member and
 the plan re-stamps its slot.
+1. `stock stands the terralith up` - the pinned stock OpenTofu applies
+   the generated terralith the ordinary way. It is 79 resources. Most of
+   them are IAM. A small ECS layer and a Route 53 fan-out sit beside them.
+   The estate carries `count` and `for_each` expansion and one
+   module-nested pod. One state file, and not a marker anywhere.
+2. `one command adopts it, and the state file is deleted` - `live-import`
+   reads the file once and stamps 38 resources; the other 41 are
+   untaggable and compose their identity from a stamped parent. The file
+   goes, and the plan is clean. The request count of that plan is kept
+   for step 6.
+3. `carve a team out` - six blocks move to a new root with its own live
+   block, the git half any tool needs. Then `live-mv -from-estate` runs
+   three times in the destination, once for each resource that carries a
+   marker. The inline policy and the two attachments carry none and need
+   no write. The plain CLI reads the role's new estate tag and its inline
+   policy still attached.
+4. `both sides plan clean` - the monolith no longer declares or owns the
+   six; the team estate declares all six and owns the three. No state was
+   split, nothing was rebuilt.
+5. `carve across a reference` - the ECS execution role leaves for an IAM
+   estate. The task definition that stays reads the same ARN through a
+   data source, the cross-estate pattern the docs give, and all three
+   estates plan clean.
+6. `a plan costs what its estate holds` - the team estate's plan makes a
+   fraction of the requests the monolith's did.
+7. `teardown` - the monolith destroys its 71 resources. The IAM estate
+   destroys 2 and the team estate 6. Nothing is left.
+
+The `BREAK=1` run does the git half of the carve and never rewrites a
+tag. That is the two-ledger window stock lives in, manufactured: the
+monolith must name the leavers under owned and undeclared and propose
+destroying them, and the new estate must propose creating what it
+declares and does not own. Either side planning clean would show the
+tag write had changed nothing.
+
+The verb this claim rests on landed with it, and so did the rule it
+exposed. A move leaves the source's records for the resource behind, and
+the source's next plan found the moved role's untaggable children in
+those records and proposed destroying them. The live tag decides. A
+parent whose marker names another estate never anchors a child for this
+one, whatever a left-behind record says, and that rule is why step 4
+plans clean.
 
 ## Reading a run
 
