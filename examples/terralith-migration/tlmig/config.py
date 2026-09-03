@@ -58,6 +58,16 @@ class Config:
     account_id: str = ACCOUNT_ID
     version: str = CHOUDOUFU_VERSION
     region: str = REGION
+    # The build a run measured, for the manifest and the event feed: the
+    # release tag when pinned to one, else the checkout's git describe.
+    build: str = CHOUDOUFU_VERSION
+
+    @property
+    def local_build(self) -> bool:
+        """True when the pin is CHOUDOUFU_VERSION=local: preflight accepts
+        whatever this checkout built and records its describe instead of
+        asserting a release tag."""
+        return self.version == "local"
 
     @property
     def prefix(self) -> str:
@@ -131,16 +141,27 @@ def load(run_id: str | None = None) -> Config:
     run_dir = pathlib.Path(
         os.environ.get("TLMIG_RUN_DIR") or _default_run_dir(run_id)
     ).resolve()
-    binary = os.environ.get("CHOUDOUFU_BIN") or _find_binary()
-    return Config(run_id=run_id, run_dir=run_dir, binary=binary)
+    # CHOUDOUFU_VERSION=local pins the example to a build of this checkout
+    # while the engine moves; anything else is a release tag preflight
+    # asserts. See tlmig/localbuild.py.
+    version = os.environ.get("CHOUDOUFU_VERSION") or CHOUDOUFU_VERSION
+    build = version
+    binary = os.environ.get("CHOUDOUFU_BIN")
+    if version == "local":
+        from . import localbuild
+        root = localbuild.repo_root()
+        build = f"local {localbuild.describe(root)}" if root else "local"
+        binary = binary or localbuild.ensure(root)
+    binary = binary or _find_binary(version)
+    return Config(run_id=run_id, run_dir=run_dir, binary=binary, version=version, build=build)
 
 
-def _find_binary() -> str:
+def _find_binary(version: str = CHOUDOUFU_VERSION) -> str:
     """Where to find the pinned choudoufu. CHOUDOUFU_BIN wins; otherwise prefer
     the exact release the smoke harness already cached (nothing has choudoufu on
     PATH by default), and fall back to a bare name so a PATH install still
     works. guard.preflight asserts the version regardless of which was found."""
-    cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / CHOUDOUFU_VERSION / "choudoufu"
+    cached = pathlib.Path.home() / ".cache" / "choudoufu-smoke" / version / "choudoufu"
     if cached.exists():
         return str(cached)
     return "choudoufu"

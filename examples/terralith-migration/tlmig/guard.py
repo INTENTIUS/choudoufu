@@ -134,10 +134,19 @@ def preflight(cfg: config.Config) -> None:
     # ("v1.13.0-dev") tracks upstream's VERSION and changes under us when the
     # base is bumped, which is not this example's pin.
     tokens = first.split()
-    if len(tokens) < 2 or tokens[0] != "choudoufu" or tokens[1] != cfg.version:
+    if len(tokens) < 2 or tokens[0] != "choudoufu":
+        raise GuardError(f"`{cfg.binary} version` reports `{first.strip()}`, which is not a choudoufu binary.")
+    if cfg.local_build:
+        # Pinned to this checkout rather than a release: accept the build and
+        # record what it is, so the run's numbers carry the label they were
+        # measured against.
+        events.fact(cfg, "build", f"{first.strip()} ({cfg.build})")
+        ui.ok(f"account {account}, {first.strip()} ({cfg.build}; numbers are this build's, not the docs')")
+        return
+    if tokens[1] != cfg.version:
         raise GuardError(
             f"binary reports `{first.strip()}`, but this example is pinned to choudoufu {cfg.version}. "
-            f"A different build would change the measured numbers."
+            f"A different build would change the measured numbers. CHOUDOUFU_VERSION=local pins to this checkout instead."
         )
     ui.ok(f"account {account}, choudoufu {cfg.version}")
 

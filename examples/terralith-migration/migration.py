@@ -33,13 +33,14 @@ app = marimo.App(width="full", app_title="The migration, told")
 
 @app.cell
 def _():
+    import os
     import pathlib
 
     import marimo as mo
 
-    from tlmig import stage, viz
+    from tlmig import config, stage, viz
 
-    return mo, pathlib, stage, viz
+    return config, mo, os, pathlib, stage, viz
 
 
 @app.cell
@@ -67,21 +68,36 @@ def _(mo, pathlib, stage):
     _existing = [p.name for p in sorted(pathlib.Path("runs").glob("*")) if (p / "events.jsonl").exists()]
     _fixtures = {p.name: str(p) for p in sorted(pathlib.Path("tests/fixtures").glob("*-run")) if (p / "events.jsonl").exists()}
     run_id = mo.ui.text(value=stage.new_run_id(), label="run id")
-    binary = mo.ui.text(value=stage.find_binary(), label="choudoufu binary", full_width=True)
+    # The pin: the release config names, or a build of this checkout
+    # (CHOUDOUFU_VERSION=local), which the CLI builds on first use and caches
+    # beside the example, labelled by git describe.
+    pin = mo.ui.dropdown({f"release {config.CHOUDOUFU_VERSION}": "", "local build of this checkout": "local"}, value=f"release {config.CHOUDOUFU_VERSION}", label="pin")
     replay = mo.ui.dropdown({"(live run above)": "", **{f"replay {k}": v for k, v in _fixtures.items()}, **{f"replay runs/{k}": f"runs/{k}" for k in reversed(_existing)}}, value="(live run above)", label="or replay")
     # Durations only: marimo's refresh has no "off"; 10m is the quiet setting.
     tick = mo.ui.refresh(default_interval="2s", options=["1s", "2s", "5s", "10m"], label="redraw")
-    mo.vstack([mo.hstack([run_id, replay, tick], justify="start", gap=2), binary])
-    return binary, replay, run_id, tick
+    mo.hstack([run_id, pin, replay, tick], justify="start", gap=2)
+    return pin, replay, run_id, tick
 
 
 @app.cell
-def _(binary, replay, run_id, stage):
+def _(mo, os, pin, stage):
+    # The binary follows the pin: found for a release, built on demand for a
+    # local pin (empty here until the first phase builds it). Editable.
+    os.environ["CHOUDOUFU_VERSION"] = pin.value or ""
+    if not pin.value:
+        os.environ.pop("CHOUDOUFU_VERSION", None)
+    binary = mo.ui.text(value=stage.find_binary(), label="choudoufu binary" + (" (built from this checkout on the first phase when empty)" if pin.value else ""), full_width=True)
+    binary
+    return (binary,)
+
+
+@app.cell
+def _(binary, pin, replay, run_id, stage):
     # One Stage per run id: the buttons below start phases through it, with
-    # the chosen binary as CHOUDOUFU_BIN. A replay picks a recorded directory
-    # and disables the buttons.
+    # the chosen binary as CHOUDOUFU_BIN and the pin as CHOUDOUFU_VERSION. A
+    # replay picks a recorded directory and disables the buttons.
     run_dir = replay.value or f"runs/{run_id.value}"
-    st = stage.Stage(run_id.value, binary=binary.value)
+    st = stage.Stage(run_id.value, binary=binary.value, env={"CHOUDOUFU_VERSION": pin.value} if pin.value else {})
     return run_dir, st
 
 

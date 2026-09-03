@@ -4,3 +4,5 @@ runs/
 .venv/
 # Terraform/OpenTofu working files that end up under a run dir anyway.
 __pycache__/
+# Local builds of choudoufu (CHOUDOUFU_VERSION=local), cached by git describe.
+.local/

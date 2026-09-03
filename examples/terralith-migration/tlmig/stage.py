@@ -41,6 +41,10 @@ def find_binary() -> str:
     env = os.environ.get("CHOUDOUFU_BIN")
     if env:
         return env
+    if os.environ.get("CHOUDOUFU_VERSION") == "local":
+        from . import localbuild
+        built = localbuild.cached()
+        return str(built) if built else ""   # empty: the CLI builds on first use
     on_path = shutil.which("choudoufu")
     if on_path:
         return on_path
@@ -86,9 +90,12 @@ class Stage:
         self.run_id = run_id
         self.run_dir = runs / run_id
         self.cli = cli or CLI
-        self.binary = binary or find_binary()
         self.env = dict(env or {})
-        self.env.setdefault("CHOUDOUFU_BIN", self.binary)
+        self.binary = binary if binary is not None else find_binary()
+        if self.binary:
+            self.env.setdefault("CHOUDOUFU_BIN", self.binary)
+        # An empty binary with a local pin means the CLI builds it on first
+        # use and caches it beside the example.
         self.phases: dict[str, PhaseRun] = {}
         self.handled: dict[str, int] = {}
         self._lock = threading.Lock()

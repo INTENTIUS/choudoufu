@@ -80,6 +80,25 @@ that made the call. The emulator numbers beside the live ones come from
 rerunning the `carve-by-retag` claim smoke, so a stranger can reproduce them
 without an account.
 
+## Pinning to a local build
+
+While the engine moves, the release a reader can download is not the build
+a developer needs to demo against. `CHOUDOUFU_VERSION=local` pins the
+example to this checkout instead: the CLI builds `./cmd/choudoufu` from the
+repository the example lives in, caches it under `.local/build/<git
+describe>/`, and preflight accepts that binary and records its describe as
+the build the run measured, in the event feed and on the picture.
+
+```
+CHOUDOUFU_VERSION=local uv run tlmig preflight --auto        # builds once
+CHOUDOUFU_BIN=/path/to/choudoufu CHOUDOUFU_VERSION=local uv run tlmig setup
+```
+
+The notebook has the same switch as its `pin` control. A dirty tree
+rebuilds on every run so a change is never demoed stale; a run made this
+way says so in its preflight line, because its numbers are this build's,
+not the docs'.
+
 ## Rehearsing without an account
 
 Two recorded runs live under `tests/fixtures/`: `sample-run`, a synthetic
