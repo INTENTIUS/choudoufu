@@ -816,9 +816,9 @@ def render_delta(after: RunState, before: RunState | None, *, map_width: int = 6
     parts = [f"<style>{CSS}</style><div class='tlmig'>"]
     if before is None or map_signature(after) != map_signature(before):
         if any(not r.gone for r in after.resources.values()):
-            parts.append(f"<h2>who owns what, after this beat</h2><div class='wrap'>{render_map_svg(after, map_width)}</div>")
+            parts.append(f"<h2>who owns what, after this step</h2><div class='wrap'>{render_map_svg(after, map_width)}</div>")
         elif before is not None and any(not r.gone for r in before.resources.values()):
-            parts.append("<h2>who owns what, after this beat</h2><div class='empty'>nothing: every resource this run made is gone</div>")
+            parts.append("<h2>who owns what, after this step</h2><div class='empty'>nothing: every resource this run made is gone</div>")
     n_m = len(before.measures) if before else 0
     if len(after.measures) > n_m:
         sliced = dataclasses.replace(after, measures=after.measures[n_m:])

@@ -146,3 +146,17 @@ class KeysAndOnce(unittest.TestCase):
         self.assertTrue(st.once("carve.json", 1))
         self.assertFalse(st.once("carve.json", 1))
         self.assertTrue(st.once("carve.json", 2))
+
+
+class Workflow(unittest.TestCase):
+    def test_verbs_follow_the_installed_cli(self):
+        old = {"preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "receipt", "teardown"}
+        self.assertEqual([stage.verbs_for(p, old) for p in stage.WORKFLOW],
+                         [["preflight", "setup"], ["slow-plan"], [], [], ["decompose", "carve"], ["fast-plan", "guard"], ["receipt"], ["teardown"]])
+        new = {"preflight", "seed", "survey", "preview", "move", "verify", "receipt", "teardown"}
+        self.assertEqual([stage.verbs_for(p, new) for p in stage.WORKFLOW],
+                         [["preflight", "seed"], ["survey"], [], ["preview"], ["move"], ["verify"], ["receipt"], ["teardown"]])
+        self.assertEqual(stage.phase_of("carve", old), "move")
+        self.assertEqual(stage.phase_of("guard", old), "verify")
+        self.assertEqual(stage.phase_of("preview", old), None)
+        self.assertEqual(stage.phase_of("preview", new), "preview")

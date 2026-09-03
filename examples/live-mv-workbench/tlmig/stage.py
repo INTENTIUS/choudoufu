@@ -261,3 +261,42 @@ def available_phases(cli: list[str] | None = None) -> set[str]:
     # the braces is allowed and stripped from each name.
     m = re.search(r"\{([a-z0-9,\-\s]+)\}", out)
     return {n.strip() for n in m.group(1).split(",") if n.strip()} if m else set()
+
+
+# The workflow the page presents, in order. Each phase runs one or more CLI
+# verbs; which ones depends on the verbs the installed tlmig has, so the page
+# reads the same before and after the CLI's rename from the demo's beat names.
+WORKFLOW = ["seed", "survey", "plan", "preview", "move", "verify", "receipt", "teardown"]
+
+# Verbs that write to the cloud, under either naming.
+WRITES = {"setup", "seed", "decompose", "carve", "move", "teardown"}
+
+
+def verbs_for(phase: str, available: set[str] | None = None) -> list[str]:
+    """The CLI verbs a workflow phase runs, given the verbs the CLI has.
+    Preflight opens the seed under either naming; plan is the page's own
+    (it writes carve.json) and runs no verb; preview needs its verb."""
+    have = available or set()
+    if phase == "seed":
+        return ["preflight", "seed" if "seed" in have else "setup"]
+    if phase == "survey":
+        return ["survey"] if "survey" in have else ["slow-plan"]
+    if phase == "plan":
+        return []
+    if phase == "preview":
+        return ["preview"] if "preview" in have else []
+    if phase == "move":
+        return ["move"] if "move" in have else ["decompose", "carve"]
+    if phase == "verify":
+        return ["verify"] if "verify" in have else ["fast-plan", "guard"]
+    if phase in ("receipt", "teardown"):
+        return [phase]
+    return []
+
+
+def phase_of(verb: str, available: set[str] | None = None) -> str | None:
+    """The workflow phase a verb belongs to, under the current naming."""
+    for phase in WORKFLOW:
+        if verb in verbs_for(phase, available):
+            return phase
+    return None
