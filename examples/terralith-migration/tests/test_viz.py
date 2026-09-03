@@ -206,3 +206,22 @@ class DeltaPicture(unittest.TestCase):
         self.assertIn("<svg", viz.render_delta(viz.load_run(FIXTURE, upto=b["carve"]), viz.load_run(FIXTURE, upto=b["fast-plan"])))
         # a phase that changed nothing visible renders empty
         self.assertEqual(viz.render_delta(slow, slow), "")
+
+
+class Payoff(unittest.TestCase):
+    def test_each_beat_has_a_sentence_from_its_own_numbers(self):
+        b = viz.phase_boundaries(FIXTURE)
+        at = lambda n: viz.load_run(FIXTURE, upto=b[n])
+        self.assertIn("15 taggable resources", viz.payoff("setup", at("setup"), viz.load_run(FIXTURE, upto=0)))
+        self.assertIn("58 requests", viz.payoff("slow-plan", at("slow-plan"), at("setup")))
+        self.assertIn("3 team estates", viz.payoff("decompose", at("decompose"), at("slow-plan")))
+        self.assertIn("11.6x fewer", viz.payoff("fast-plan", at("fast-plan"), at("decompose")))
+        self.assertIn("changed owner into team-b", viz.payoff("carve", at("carve"), at("fast-plan")))
+        self.assertIn("Verdict holds", viz.payoff("guard", at("guard"), at("carve")))
+        self.assertIn("2 of them refused", viz.payoff("receipt", viz.load_run(FIXTURE), at("guard")))
+        self.assertEqual(viz.payoff("teardown", viz.load_run(FIXTURE), None), "")   # not run in the sample
+
+    def test_teardown_and_emitter_run(self):
+        state = viz.load_run(EMITTER)
+        self.assertIn("Nothing carrying this run's prefix remains", viz.payoff("teardown", state, None))
+        self.assertIn("nothing touched", viz.payoff("preflight", state, None))

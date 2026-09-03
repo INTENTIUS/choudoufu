@@ -59,8 +59,50 @@ def _(mo):
     resource, and a plan reads only its own estate. So the decomposition
     stops being a project and becomes a metadata edit, and every step of it
     is an API call the account can refuse and does record.
+
+    **Where this starts.** The stage assumes a terralith: one configuration
+    and one state own everything, applied by one principal whose permission
+    covers it all, the way a monolith is run before anyone splits it. The
+    IAM you will see on the map is the estate's own resources (a role, an
+    inline policy and a managed policy per team); the operator's permission
+    is the account's, all or nothing. If your org is not there, the first
+    step differs. Many states already: each one is adopted as its own estate
+    with `live-import` (the roundtrip claim), and you begin at the carve
+    beat. Per-team operator permissions already: the governance you have is
+    by state file, and the carve and guard beats show the tag-scoped grant
+    that replaces it. Centralizing first is not required; the boundary is a
+    tag, so it goes wherever the resources are today.
+
+    This page is an example and a tutorial at once. Read it top to bottom:
+    the index below tracks the nine beats, and every beat carries what it
+    does, a button that runs it, and the payoff it proved, computed from the
+    run's own log.
     """
     )
+    return
+
+
+@app.cell
+def _(config, mo):
+    mo.accordion({"Paste-and-go prompt: let an assistant walk you through this demo": mo.md(
+        f"""
+    ```text
+    Clone https://github.com/INTENTIUS/choudoufu and cd examples/terralith-migration.
+    Confirm uv is installed (uv --version). Run:
+
+      uv run --extra viz marimo run migration.py
+
+    A browser page opens on a recording in replay mode. Walk me through it
+    beat by beat: for each of the nine beats, read me its action line and
+    its payoff line, and explain what the map or the cost bars changed.
+    If I have AWS credentials for account {config.ACCOUNT_ID}, switch the
+    page to live and run the beats in order with the buttons, one at a
+    time, waiting for each to finish; explain each payoff as it appears,
+    and finish with teardown. If preflight refuses, tell me why from the
+    reason under its button and stay in replay.
+    ```
+    """
+    )})
     return
 
 
@@ -155,6 +197,40 @@ def _(live, mo, run_dir, tick, viz):
 
 
 @app.cell
+def _(boundaries, run_dir, viz):
+    ORDER = ["preflight", "setup", "slow-plan", "decompose", "fast-plan", "carve", "guard", "receipt", "teardown"]
+
+    def before_state(name):
+        """The run as it stood when the nearest recorded beat before this one
+        ended; the empty run when none did. A recording may skip beats."""
+        for prev in reversed(ORDER[:ORDER.index(name)]):
+            if prev in boundaries:
+                return viz.load_run(run_dir, upto=boundaries[prev])
+        return viz.load_run(run_dir, upto=0)
+
+    return ORDER, before_state
+
+
+@app.cell
+def _(ORDER, before_state, boundaries, live, mo, run_dir, st, viz):
+    # The index: every beat with its standing and, once it ran, its payoff.
+    _order = ORDER
+    _titles = {"preflight": "Which account, which binary", "setup": "Build the terralith", "slow-plan": "Measure the villain",
+               "decompose": "Split it, by retag", "fast-plan": "Measure the payoff", "carve": "Move the boundary",
+               "guard": "Four reads, one verdict", "receipt": "The account's own record", "teardown": "Nothing left behind"}
+    _rows = []
+    for _i, _n in enumerate(_order, start=1):
+        _status = st.status(_n) if live else ("recorded" if _n in boundaries else "not in this recording")
+        _mark = {"done": "✓", "recorded": "✓", "running": "▶"}.get(_status, "✗" if _status.startswith("failed") else "·")
+        _pay = viz.payoff(_n, viz.load_run(run_dir, upto=boundaries[_n]), before_state(_n)) if _n in boundaries else ""
+        _rows.append(f"<tr><td>{_mark}</td><td>{_i}</td><td><b>{_titles[_n]}</b> <code>{_n}</code></td><td>{_status}</td><td>{_pay}</td></tr>")
+    mo.vstack([mo.md("### The beats"), mo.Html(
+        "<style>.beats{border-collapse:collapse;width:100%;font-size:14px}.beats th{text-align:left;font-weight:600;opacity:.6;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px 6px 0;border-bottom:1px solid color-mix(in srgb, currentColor 20%, transparent)}.beats td{text-align:left;vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid color-mix(in srgb, currentColor 12%, transparent)}.beats td:first-child{width:1.4em}.beats td:nth-child(2){opacity:.6}.beats code{font-size:12px;opacity:.75}</style>"
+        "<table class='beats'><thead><tr><th></th><th>#</th><th>beat</th><th>status</th><th>payoff</th></tr></thead><tbody>" + "".join(_rows) + "</tbody></table>")])
+    return
+
+
+@app.cell
 def _(live, mo):
     # The buttons. Globals, created here where nothing depends on the timer,
     # so a redraw never rebuilds them. Each counts its clicks.
@@ -174,7 +250,7 @@ def _(live, mo):
 
 
 @app.cell
-def _(boundaries, live, mo, run_dir, st, viz):
+def _(before_state, boundaries, live, mo, run_dir, st, viz):
     STORY = {
         "preflight": ("Which account, which binary", "checks, writes nothing",
                       "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
@@ -228,11 +304,13 @@ def _(boundaries, live, mo, run_dir, st, viz):
             # The picture of what THIS beat changed: the map when ownership
             # moved, the cost bars when a plan was measured, the verdict when
             # the guard ran. The previous beat's end is the "before".
-            _order = list(STORY)
-            _prev = _order[_order.index(name) - 1] if _order.index(name) > 0 else None
-            _before = viz.load_run(run_dir, upto=boundaries[_prev]) if _prev in boundaries else viz.load_run(run_dir, upto=0)
-            picture = viz.render_delta(viz.load_run(run_dir, upto=upto), _before, map_width=760)
+            _before = before_state(name)
+            _after = viz.load_run(run_dir, upto=upto)
+            picture = viz.render_delta(_after, _before, map_width=760)
             parts.append(mo.Html(picture) if picture else mo.md("*Nothing on the map changed in this beat.*"))
+            _pay = viz.payoff(name, _after, _before)
+            if _pay:
+                parts.append(mo.md(f"**Payoff.** {_pay}"))
         # Each beat in its own box, tints alternating, so the sections read as
         # sections instead of running together. Colours mix from the page's
         # own text colour, so the boxes hold on the light and dark themes.

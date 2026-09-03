@@ -774,6 +774,84 @@ def render_delta(after: RunState, before: RunState | None, *, map_width: int = 6
     return "".join(parts) if len(parts) > 2 else ""
 
 
+def _counts(state: RunState) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for r in state.resources.values():
+        e = state.estate_of(r.key)
+        if e:
+            out[e] = out.get(e, 0) + 1
+    return out
+
+
+def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
+    """What one beat proved, in a sentence built from the run's own numbers,
+    so the presenter's payoff line is never a claim the log cannot back.
+    Empty when the beat left nothing to say yet."""
+    counts = _counts(after)
+    mono = next((e for e in after.estates if e.endswith("-monolith")), None)
+    teams = [e for e in after.estates if e != mono]
+    short = lambda e: _short_estate(after, e)
+    n_m = len(before.measures) if before else 0
+    new_measures = after.measures[n_m:]
+    if name == "preflight":
+        rows = [r for r in after.ledger if r.phase == "preflight"]
+        if rows and all(r.ok for r in rows):
+            build = next((t for p, t in after.notes if p == "preflight" and t.startswith("build")), None)
+            return "Account and binary verified; nothing touched." + (f" Build: {build.split(':', 1)[1].strip()}." if build else "")
+        return ""
+    if name == "setup":
+        if mono and counts.get(mono):
+            tagged = sum(1 for r in after.resources.values() if r.taggable and after.estate_of(r.key) == mono)
+            kids = counts[mono] - tagged
+            return (f"{tagged} taggable resources now carry tofu-estate={short(mono)}, stamped by the apply"
+                    + (f"; {kids} untaggable children follow their parents" if kids else "") + ". One estate, one boundary.")
+        return ""
+    if name in ("slow-plan", "fast-plan"):
+        if not new_measures:
+            return ""
+        m = new_measures[-1]
+        if name == "slow-plan":
+            return f"One plan of the monolith cost {m.requests} requests" + (f" in {m.seconds:.1f}s" if m.seconds else "") + ". Every plan of a terralith pays this."
+        slow = next((x for x in after.measures if x.refresh and x.estate == mono), None)
+        if slow and slow.requests:
+            ratio = slow.requests / max(m.requests, 1)
+            return f"{m.requests} requests against the monolith's {slow.requests}: {ratio:.1f}x fewer, with {m.cache_hits or 0} served from cache. Cost tracks the estate."
+        return f"{m.requests} requests with {m.cache_hits or 0} served from cache."
+    if name == "decompose":
+        held = [e for e in teams if counts.get(e)]
+        if held:
+            left = counts.get(mono, 0) if mono else 0
+            return f"{len(held)} team estates hold {sum(counts[e] for e in held)} resources; the monolith holds {left}. Nothing was re-created and no state file was split."
+        return ""
+    if name == "carve":
+        if before is None:
+            return ""
+        moved = [(r, before.estate_of(r.key), after.estate_of(r.key)) for r in after.resources.values()
+                 if before.estate_of(r.key) and after.estate_of(r.key) and before.estate_of(r.key) != after.estate_of(r.key)]
+        if moved:
+            dests = sorted({short(d) for _, _, d in moved})
+            return f"{len(moved)} resources changed owner into {', '.join(dests)} by tag write alone; their untaggable children followed the parent's tag without a write."
+        return ""
+    if name == "guard":
+        v = next((v for v in reversed(after.verdicts) if str(v.get("name", "")).startswith("carve")), None)
+        if v is None:
+            return ""
+        return "Verdict holds: the role's live tag names its new estate, its children stayed with it, and both estates plan clean." if v.get("ok") else "Verdict FAILS: read the lines above; the carve left something behind."
+    if name == "receipt":
+        rows = [r for r in after.ledger if r.action.startswith("CloudTrail")]
+        if rows:
+            refused = sum(1 for r in rows if r.ok is False)
+            return f"{len(rows)} governed writes in the account's own log, {refused} of them refused with the session named. No state file could produce that record."
+        return ""
+    if name == "teardown":
+        v = next((v for v in reversed(after.verdicts) if v.get("name") == "teardown"), None)
+        gone = sum(1 for r in after.resources.values() if r.gone)
+        if v is not None:
+            return f"Nothing carrying this run's prefix remains; {gone} resources destroyed, the account listed rather than trusted." if v.get("ok", v.get("clean")) else "Leftovers found: the account was listed and something remains. Read the verdict."
+        return ""
+    return ""
+
+
 def render_page(run_dir: str | pathlib.Path, *, refresh_seconds: int | None = 2, **kw) -> str:
     """A standalone HTML document for a browser tab, re-fetching itself on a
     timer so a projected page follows the run."""
