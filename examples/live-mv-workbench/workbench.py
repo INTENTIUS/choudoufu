@@ -625,9 +625,14 @@ def _(VERBS, section, tick, verb_block):
 
 
 @app.cell
-def _(VERBS, section, tick, verb_block):
+def _(VERBS, mo, run_dir, section, tick, verb_block, viz):
     tick.value
-    section("receipt", [verb_block(v) for v in VERBS["receipt"]])
+    _parts = [verb_block(v) for v in VERBS["receipt"]]
+    _store = viz.render_record_store(viz.load_run(run_dir))
+    if _store:
+        _parts.append(mo.md("**Two independent records of the same moves.** Above is the account's own log, from CloudTrail: AWS wrote it, not choudoufu. Below is choudoufu's own record store, `.tofu-records`: the tool's ledger of the identity facts the cloud cannot hand back. They name the same ownership moves from two sides, and a state-file edit would appear in neither. The store is shown per estate, not summed: a source estate can still list what it handed away until it is applied again."))
+        _parts.append(mo.Html(_store))
+    section("receipt", _parts)
     return
 
 

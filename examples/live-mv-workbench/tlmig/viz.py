@@ -138,6 +138,7 @@ class RunState:
     events_seen: int
     last_ts: datetime | None
     previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
+    record_store: dict = dataclasses.field(default_factory=dict)     # {estate: [address,...]} from .tofu-records, from the receipt event
 
     @property
     def active_phase(self) -> Phase | None:
@@ -291,6 +292,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     verdicts: list[dict] = []
     notes: list[tuple[str, str]] = []
     previews: list[dict] = []
+    record_store: dict = {}
     seen = 0
     last_ts = None
     current_phase = ""
@@ -440,6 +442,9 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                             r.estate = est
         elif kind == "receipt":
             rec = ev.get("receipt") or {}
+            _store = rec.get("record_store")
+            if isinstance(_store, dict):
+                record_store = _store
             ct = rec.get("cloudtrail") or {}
             for e in ct.get("events") or []:
                 _arn = e.get("role") or e.get("userIdentity.arn") or ""
@@ -481,7 +486,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         for e in (pv.get("from_estate"), pv.get("to_estate")):
             if e and e not in estates:
                 estates.append(e)
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store)
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
@@ -884,6 +889,23 @@ def render_previews(state: RunState) -> str:
     head = f"{len(state.previews)} planned moves, {refused} refused" if refused else f"{len(state.previews)} planned moves, every check passed"
     return (f"<style>{CSS}</style><div class='tlmig'><h2>what is about to happen · {_esc(head)}</h2>"
             "<table class='ledger'><thead><tr><th>resource</th><th>owner</th><th>tag writes</th><th>children that follow</th><th>dry run</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>")
+
+
+def render_record_store(state: RunState) -> str:
+    """choudoufu's own record, per estate: the addresses ``.tofu-records``
+    lists for each estate. Shown per estate, not summed, because a source
+    estate can still list what it handed away until it is applied again."""
+    if not state.record_store:
+        return ""
+    rows = []
+    for est in sorted(state.record_store):
+        addrs = state.record_store[est] or []
+        items = ", ".join(_esc(a) for a in addrs) if addrs else "<span class='muted'>none</span>"
+        rows.append(f"<tr><td>{_esc(_short_estate(state, est))}</td><td>{len(addrs)}</td><td class='tg'>{items}</td></tr>")
+    return (f"<style>{CSS}</style><div class='tlmig'>"
+            "<h2>the tool&rsquo;s own record · <span class='muted'>.tofu-records, per estate</span></h2>"
+            "<table class='ledger'><thead><tr><th>estate</th><th>records</th><th>addresses</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")
 
 
