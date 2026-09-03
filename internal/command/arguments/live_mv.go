@@ -26,6 +26,11 @@ type LiveMv struct {
 	// itself stamps. Unlike live-plan, this command cannot run without one.
 	Estate string
 
+	// FromEstate, when set, makes the rename a cross-estate move: the live
+	// resource is found under this estate's tag and rewritten to carry the
+	// configuration's own. Empty is an ordinary rename within one estate.
+	FromEstate string
+
 	// DryRun makes every check and reports what would be rewritten, without
 	// writing.
 	DryRun bool
@@ -56,6 +61,7 @@ func ParseLiveMv(args []string) (*LiveMv, tfdiags.Diagnostics) {
 
 	cmdFlags := defaultFlagSet("live-mv")
 	cmdFlags.StringVar(&liveMv.Estate, "estate", "", "estate")
+	cmdFlags.StringVar(&liveMv.FromEstate, "from-estate", "", "from estate")
 	cmdFlags.BoolVar(&liveMv.DryRun, "dry-run", false, "dry run")
 	cmdFlags.BoolVar(&liveMv.AllowMissingConfig, "allow-missing-config", false, "allow missing config")
 	cmdFlags.BoolVar(&input, "input", true, "input")
