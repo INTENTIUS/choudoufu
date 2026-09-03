@@ -122,8 +122,12 @@ def preflight(cfg: config.Config) -> None:
     if not ver.ok:
         raise GuardError(f"could not run `{cfg.binary} version`; is choudoufu {cfg.version} on PATH (or CHOUDOUFU_BIN)?")
     first = ver.stdout.splitlines()[0] if ver.stdout else ""
-    # e.g. "choudoufu v0.10.0 (based on OpenTofu v1.13.0-dev)"
-    if cfg.version not in first.split():
+    # e.g. "choudoufu v0.10.0 (based on OpenTofu v1.13.0-dev)". Assert on the
+    # "choudoufu <version>" pair only, never the whole line: the OpenTofu base
+    # ("v1.13.0-dev") tracks upstream's VERSION and changes under us when the
+    # base is bumped, which is not this example's pin.
+    tokens = first.split()
+    if len(tokens) < 2 or tokens[0] != "choudoufu" or tokens[1] != cfg.version:
         raise GuardError(
             f"binary reports `{first.strip()}`, but this example is pinned to choudoufu {cfg.version}. "
             f"A different build would change the measured numbers."
