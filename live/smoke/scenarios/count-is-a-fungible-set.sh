@@ -81,7 +81,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -iE "partial slot markers|disagree about slot" <<< "$BP" | head -1 | evidence
   proof "caught - with no record to vouch for it, a set that carries slots on some members and not others has two answers, and the run stops. Slots are what bind the set."
   awsl ec2 create-tags --resources "$VICTIM" --tags "Key=tofu-slot,Value=$VSLOT" >/dev/null 2>&1 || true
-  ( cd "$SMOKE_WORK" && sed -i '' 's/count  = 3/count  = 0/' pool.tf; chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
+  ( cd "$SMOKE_WORK" && sed_i pool.tf 's/count  = 3/count  = 0/'; chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
 fi
 
@@ -98,7 +98,7 @@ explain \
   "seat it already had. Expect exactly one destroy and zero creates - a" \
   "fungible shrink, not a renumber-and-rebuild."
 cmd "count = 2 ; choudoufu plan ; choudoufu apply -auto-approve"
-sed -i '' 's/count  = 3/count  = 2/' "$SMOKE_WORK/pool.tf"
+sed_i "$SMOKE_WORK/pool.tf" 's/count  = 3/count  = 2/'
 P="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "count" "scale-down plan failed: $P"
 D="$(grep -cE '^[[:space:]]*# .*will be destroyed' <<< "$P" || true)"
 C="$(grep -cE '^[[:space:]]*# .*will be created' <<< "$P" || true)"
