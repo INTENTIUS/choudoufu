@@ -40,12 +40,19 @@ UNTAGGABLE = {"aws_iam_role_policy", "aws_iam_role_policy_attachment"}
 # Column order inside a team row, by resource type. Unknown types append.
 COLUMNS = (
     "aws_iam_role",
+    "iam:role",
     "aws_iam_role_policy",
     "aws_iam_policy",
+    "iam:policy",
     "aws_iam_role_policy_attachment",
     "aws_cloudwatch_log_group",
+    "logs:log-group",
 )
 SHORT = {
+    "iam:role": "role",
+    "iam:policy": "policy",
+    "logs:log-group": "log",
+    "ec2:instance": "instance",
     "aws_iam_role": "role",
     "aws_iam_role_policy": "inline",
     "aws_iam_policy": "policy",
@@ -65,10 +72,15 @@ class Resource:
     estate: str | None = None   # estate the live tag names (None: unseen)
     parent: str | None = None   # address of the parent for untaggable types
     id: str | None = None       # ARN or name from the inventory
+    gone: bool = False          # listed once, absent from the latest listing
 
     @property
     def taggable(self) -> bool:
         return self.type not in UNTAGGABLE
+
+    @property
+    def key(self) -> str:
+        return self.id or self.address
 
 
 @dataclasses.dataclass
@@ -133,15 +145,27 @@ class RunState:
                 return p
         return None
 
-    def estate_of(self, address: str) -> str | None:
-        r = self.resources.get(address)
-        if r is None:
+    def estate_of(self, key: str) -> str | None:
+        """The estate a resource sits in right now, by key (id, else
+        address). Untaggable children take their parent's answer."""
+        r = self.resources.get(key) or self.by_address.get(key)
+        if r is None or r.gone:
             return None
         if r.taggable:
             return r.estate or r.declared_in
-        if r.parent and r.parent in self.resources:
-            return self.estate_of(r.parent)
+        parent = self.by_address.get(r.parent) if r.parent else None
+        if parent is not None:
+            return None if parent.gone else self.estate_of(parent.key)
         return r.estate or r.declared_in
+
+    @property
+    def by_address(self) -> dict[str, Resource]:
+        """Address -> resource; the first one wins when configs share an
+        address, which only the synthetic fixtures do."""
+        out: dict[str, Resource] = {}
+        for r in self.resources.values():
+            out.setdefault(r.address, r)
+        return out
 
 
 # ----------------------------------------------------------------------------
@@ -165,10 +189,17 @@ def _parse_ts(s: str | None) -> datetime | None:
     return dt
 
 
-def _team_of(name: str) -> str:
-    """team_a, team_a_inline, team_a_0 -> team-a. Falls back to the name."""
+def _team_of(name: str, ident: str | None = None) -> str:
+    """team_a, team_a_inline, team_a_0 -> team-a; else the team named in the
+    id (a role name or log-group path); else the name itself."""
     m = re.match(r"^(team_[a-z0-9]+?)(?:_inline|_[0-9]+)?$", name)
-    return m.group(1).replace("_", "-") if m else name
+    if m:
+        return m.group(1).replace("_", "-")
+    if ident:
+        m = re.search(r"(team-[a-z0-9]+)", ident)
+        if m:
+            return m.group(1)
+    return name
 
 
 def _declared(estate_dir: pathlib.Path, estate: str, into: dict[str, Resource]) -> None:
@@ -235,9 +266,10 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     manifest = {}
     if (run_dir / "manifest.json").exists():
         manifest = json.loads((run_dir / "manifest.json").read_text())
-    run_id = manifest.get("run_id", run_dir.name)
-    prefix = manifest.get("prefix", f"tlmig-{run_id}")
+    run_id = manifest.get("run_id")
+    prefix = manifest.get("prefix")
     region = manifest.get("region", "")
+    expected_phases = tuple(manifest.get("phases") or PHASES)
 
     resources: dict[str, Resource] = {}
     estates: list[str] = []
@@ -251,7 +283,8 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                     estates.append(estate)
                 _declared(d, estate, resources)
 
-    phases: dict[str, Phase] = {n: Phase(name=n) for n in PHASES}
+    phases: dict[str, Phase] = {n: Phase(name=n) for n in expected_phases}
+    seen_order: list[str] = []
     ledger: list[LedgerRow] = []
     measures: list[Measure] = []
     verdicts: list[dict] = []
@@ -277,12 +310,16 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         last_ts = ts or last_ts
         kind = ev.get("kind", "")
         phase_name = ev.get("phase") or current_phase or ""
+        if run_id is None and ev.get("run_id"):
+            run_id = str(ev["run_id"])
 
         if kind in ("phase", "phase_start", "phase_end"):
             name = ev.get("name") or ev.get("phase") or phase_name
             status = ev.get("status") or ("start" if kind == "phase_start" else "end")
             p = phases.setdefault(name, Phase(name=name))
             p.title = ev.get("title") or p.title
+            if name not in seen_order:
+                seen_order.append(name)
             if status == "start":
                 p.started = ts
                 current_phase = name
@@ -308,28 +345,53 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             estate = ev.get("estate", "")
             if estate and estate not in estates:
                 estates.append(estate)
+            if prefix is None and estate:
+                prefix = re.sub(r"-(monolith|team-[a-z0-9]+)$", "", estate)
+            listed: set[str] = set()
             for item in ev.get("items") or []:
-                addr = item.get("address")
+                addr = item.get("address") or ""
+                ident = item.get("id")
                 tags = item.get("tags") or {}
                 live_estate = tags.get("tofu-estate") or estate
-                if not addr:
+                if not addr and not ident:
                     continue
-                r = resources.get(addr)
+                key = ident or addr
+                r = resources.get(key)
+                if r is None and not ident:
+                    r = resources.get(addr)
                 if r is None:
-                    rtype, _, rname = addr.partition(".")
-                    r = Resource(address=addr, type=rtype, name=rname, team=_team_of(rname),
-                                 declared_in=live_estate)
-                    resources[addr] = r
+                    # A declared resource sighted for the first time keeps its
+                    # config-derived entry, re-keyed by id.
+                    declared = next((d for d in resources.values() if d.id is None and d.address == addr), None)
+                    if declared is not None:
+                        resources.pop(declared.key, None)
+                        r = declared
+                    else:
+                        rtype, _, rname = addr.partition(".") if addr else ("?", "", ident or "?")
+                        r = Resource(address=addr or (ident or "?"), type=rtype, name=rname,
+                                     team=_team_of(rname, ident), declared_in=live_estate)
+                    r.id = ident or r.id
+                    resources[r.key] = r
                 r.estate = live_estate
-                r.id = item.get("id") or r.id
+                r.gone = False
+                if r.team == r.name and ident:
+                    r.team = _team_of(r.name, ident)
+                listed.add(r.key)
                 if live_estate not in estates:
                     estates.append(live_estate)
+            # Anything this estate held that the listing no longer shows is
+            # gone from it: destroyed, or moved and about to be listed
+            # elsewhere in the same batch (which un-marks it).
+            for r in resources.values():
+                if r.taggable and r.id and r.estate == estate and r.key not in listed:
+                    r.gone = True
         elif kind == "fact":
             label, value = str(ev.get("label", "")), str(ev.get("value", ""))
             # "role <name> -> estate" facts move a role on the map.
             m = re.match(r"^(?:role\s+)?(\S+?)\s*(?:->|:)\s*(\S+)$", f"{label} -> {value}")
+            role = re.sub(r"^role[:\s]+", "", label)
             for r in resources.values():
-                if r.type == "aws_iam_role" and (label.endswith(r.name) or r.id == label or label.endswith(r.address)):
+                if r.type in ("aws_iam_role", "iam:role") and (role == r.id or (r.id or "").endswith("/" + role) or role.endswith(r.name) or role.endswith(r.address)):
                     r.estate = value
             notes.append((phase_name, f"{label}: {value}"))
         elif kind in ("measure", "measurement"):
@@ -359,7 +421,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             if isinstance(moved, dict):
                 for role, est in moved.items():
                     for r in resources.values():
-                        if r.type == "aws_iam_role" and (role.endswith(r.name) or role == r.id or role.endswith(r.address.split(".")[-1])):
+                        if r.type in ("aws_iam_role", "iam:role") and (role == r.id or (r.id or "").endswith("/" + role) or role.endswith(r.name) or role.endswith(r.address.split(".")[-1])):
                             r.estate = est
         elif kind == "receipt":
             rec = ev.get("receipt") or {}
@@ -376,7 +438,16 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         elif kind == "note":
             notes.append((phase_name, str(ev.get("text", ""))))
 
-    ordered = [phases[n] for n in PHASES if n in phases] + [p for n, p in phases.items() if n not in PHASES]
+    # The strip follows the run: phases in the order they started, then the
+    # expected ones not yet seen. When the run uses names outside the
+    # expected list, the unseen expected ones are dropped rather than shown
+    # as pending forever.
+    unexpected = any(n not in expected_phases for n in seen_order)
+    ordered = [phases[n] for n in seen_order]
+    if not unexpected:
+        ordered += [phases[n] for n in expected_phases if n not in seen_order]
+    run_id = run_id or run_dir.name
+    prefix = prefix or f"tlmig-{run_id}"
     return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts)
 
 
@@ -449,7 +520,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         run_start, run_estate = x, None
         boxes: list[tuple[int, int, str]] = []
         for i, r in enumerate(rs):
-            e = state.estate_of(r.address)
+            e = state.estate_of(r.key)
             if e != run_estate:
                 if run_estate is not None:
                     boxes.append((run_start, x - gap, run_estate))
@@ -463,12 +534,14 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         x = left
         positions: dict[str, int] = {}
         for r in rs:
-            e = state.estate_of(r.address)
-            c = colours.get(e or "", "#9ca3af")
+            e = state.estate_of(r.key)
+            gone = r.gone or e is None
+            c = "#9ca3af" if gone else colours.get(e or "", "#9ca3af")
             positions[r.address] = x
-            dash = ' stroke-dasharray="4 3"' if not r.taggable else ""
-            out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{0.35 if r.taggable else 0.18}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(r.address)} · {_esc(e or "unseen")}</title></rect>')
-            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="#111827">{_esc(SHORT.get(r.type, r.type.split("_")[-1]))}</text>')
+            dash = ' stroke-dasharray="4 3"' if (not r.taggable or gone) else ""
+            title = f"{r.address} · {'gone' if gone else e}"
+            out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{0.06 if gone else 0.35 if r.taggable else 0.18}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
+            out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="{"#9ca3af" if gone else "#111827"}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
             x += cell + gap
         for r in rs:
             if r.parent and r.parent in positions and r.address in positions:
@@ -479,7 +552,7 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
     lx = pad
     for e in state.estates:
         c = colours.get(e, "#9ca3af")
-        n = sum(1 for r in state.resources.values() if state.estate_of(r.address) == e)
+        n = sum(1 for r in state.resources.values() if state.estate_of(r.key) == e)
         out.append(f'<rect x="{lx}" y="{y + 6}" width="12" height="12" rx="3" fill="{c}"/>')
         label = f"{_short_estate(state, e)} · {n}"
         out.append(f'<text x="{lx + 18}" y="{y + 16}" font-size="12" fill="#374151">{_esc(label)}</text>')

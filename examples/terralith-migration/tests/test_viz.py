@@ -129,3 +129,39 @@ class Rendering(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+EMITTER = pathlib.Path(__file__).parent / "fixtures" / "emitter-run"
+
+
+class TheEmitterRun(unittest.TestCase):
+    """The run written by the real emitters (see its README): the map must
+    move on the inventory lines alone, with no configs on disk."""
+
+    def counts(self, state):
+        return {viz._short_estate(state, e): sum(1 for r in state.resources.values() if state.estate_of(r.key) == e) for e in state.estates}
+
+    def test_prefix_and_phases_come_from_the_events(self):
+        state = viz.load_run(EMITTER)
+        self.assertEqual(state.prefix, "tlmig-a1b2c3")
+        self.assertEqual([p.name for p in state.phases], ["preflight", "setup", "carve", "guard", "measure", "receipt", "teardown"])
+        self.assertTrue(all(p.status == "done" for p in state.phases))
+
+    def test_the_map_moves_on_inventory_alone(self):
+        b = viz.phase_boundaries(EMITTER)
+        self.assertEqual(self.counts(viz.load_run(EMITTER, upto=b["setup"])), {"monolith": 12, "team-a": 0, "team-b": 0})
+        self.assertEqual(self.counts(viz.load_run(EMITTER, upto=b["carve"])), {"monolith": 8, "team-a": 4, "team-b": 0})
+        final = viz.load_run(EMITTER)
+        self.assertEqual(self.counts(final), {"monolith": 0, "team-a": 0, "team-b": 0})
+        self.assertEqual(sum(1 for r in final.resources.values() if r.gone), 12)
+        self.assertEqual(sorted({r.team for r in final.resources.values()}), ["team-a", "team-b", "team-c"])
+
+    def test_ledger_measures_and_verdicts(self):
+        state = viz.load_run(EMITTER)
+        labels = [r.action for r in state.ledger]
+        self.assertIn("retag the role into team-a", labels)
+        self.assertEqual(sum(1 for r in state.ledger if r.answer == "Client.UnauthorizedOperation"), 2)
+        self.assertEqual([(m.requests, m.reference) for m in state.measures], [(41, {"emulator carved estate": 39}), (158, {"emulator monolith": 166})])
+        self.assertEqual([v["name"] for v in state.verdicts], ["carve:tlmig-a1b2c3-team-a-role", "teardown"])
+        page = viz.render_html(state)
+        self.assertIn("nothing left", page)

@@ -1,0 +1,78 @@
+{
+  "carve": {
+    "scenario": "carve-by-retag",
+    "passed": true,
+    "stamped": 38,
+    "declared": 79,
+    "monolith_plan_requests": 166,
+    "carved_plan_requests": 39,
+    "destroyed": {
+      "monolith": 71,
+      "iam": 2,
+      "team1": 6
+    },
+    "retags": [
+      [
+        "tl-terralith",
+        "tl-team-1"
+      ]
+    ],
+    "role_estates": {
+      "tl-team-0001-role": "tl-team-1",
+      "tl-svc-0000-exec-role": "tl-iam"
+    }
+  },
+  "cloudtrail": {
+    "account": "354867293429",
+    "region": "us-east-2",
+    "captured": "2026-09-03",
+    "events": [
+      {
+        "time": "2026-09-03T04:39:31Z",
+        "role": "chdf-boundary-alice",
+        "resource": "i-01e1006285c2b37b3",
+        "tags": {
+          "Name": "database-v2"
+        },
+        "error": null
+      },
+      {
+        "time": "2026-09-03T04:39:47Z",
+        "role": "chdf-boundary-alice",
+        "resource": "i-0d3d2031d0b946a23",
+        "tags": {
+          "Name": "gateway-v2"
+        },
+        "error": "Client.UnauthorizedOperation"
+      },
+      {
+        "time": "2026-09-03T04:40:02Z",
+        "role": "chdf-boundary-bob",
+        "resource": "i-0d3d2031d0b946a23",
+        "tags": {
+          "Name": "gateway-v2"
+        },
+        "error": null
+      },
+      {
+        "time": "2026-09-03T04:40:32Z",
+        "role": "chdf-boundary-bob",
+        "resource": "i-01e1006285c2b37b3",
+        "tags": {
+          "tofu-estate": "boundary-data"
+        },
+        "error": "Client.UnauthorizedOperation"
+      },
+      {
+        "time": "2026-09-03T04:40:40Z",
+        "role": "chdf-boundary-alice",
+        "resource": "i-01e1006285c2b37b3",
+        "tags": {
+          "tofu-estate": "boundary-data"
+        },
+        "error": null
+      }
+    ]
+  },
+  "source": "/private/tmp/claude-501/-Users-alex-Documents-checkouts-intentius-choudoufu/3deada79-3fde-427a-9cbb-373270bc4db2/scratchpad/carve-final.log"
+}
