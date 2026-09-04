@@ -6,6 +6,7 @@
 package views
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -312,5 +313,148 @@ func TestSourcelessSiteRendersAsNothingRatherThanABlankLine(t *testing.T) {
 	}
 	if !strings.Contains(out, "which no provider can import") {
 		t.Errorf("the remedy is what carries the content for a sourceless finding, and it is missing:\n%s", out)
+	}
+}
+
+// GitHub issue #790: "choudoufu live-check -json" prints the declared
+// roster instead of the prose above. These tests exercise [LiveCheckJSON]
+// directly, the same way the tests above exercise [LiveCheckHuman] - the
+// analysis package (internal/live/check) decides what is true, this
+// package only decides how it reads, in either format.
+
+func renderLiveCheckJSON(t *testing.T, rep LiveCheckReport) string {
+	t.Helper()
+	streams, done := terminal.StreamsForTesting(t)
+	NewLiveCheckJSON(NewView(streams)).Report(rep)
+	return done(t).Stdout()
+}
+
+func decodeLiveCheckDocument(t *testing.T, out string) liveCheckDocument {
+	t.Helper()
+	var doc liveCheckDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("output is not valid JSON: %s\n%s", err, out)
+	}
+	return doc
+}
+
+// TestJSONReportsTheDeclaredRoster is #790's own shape: every instance's
+// address, type and rung, and a refused one's rule and reason - the same
+// fields the issue's Ask names verbatim.
+func TestJSONReportsTheDeclaredRoster(t *testing.T) {
+	out := renderLiveCheckJSON(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Instances: 1, Sites: 1,
+		InstanceRoster: []LiveCheckInstance{
+			{Address: "aws_s3_bucket.data", Type: "aws_s3_bucket", Rung: "tag-governable"},
+			{Address: "aws_iam_role_policy.inline", Type: "aws_iam_role_policy", Rung: "declaration-carried",
+				Refused: true, Rule: "Non-static identity argument", Reason: "reads a value this run cannot prove statically"},
+		},
+		References: []LiveCheckReference{
+			{From: "data.aws_vpc.network", Estate: "network", Address: "aws_vpc.main", ReadBy: []string{"aws_subnet.app"}},
+		},
+		Checked:   []string{"lint", "identity"},
+		Unchecked: []string{"discovery"},
+	})
+
+	doc := decodeLiveCheckDocument(t, out)
+	if len(doc.Instances) != 2 {
+		t.Fatalf("got %d instances, want 2: %+v", len(doc.Instances), doc.Instances)
+	}
+	resolved, refused := doc.Instances[0], doc.Instances[1]
+	if resolved.Address != "aws_s3_bucket.data" || resolved.Rung != "tag-governable" || resolved.Refused {
+		t.Errorf("resolved instance = %+v, want the tag-governable bucket, unrefused", resolved)
+	}
+	if !refused.Refused || refused.Rule != "Non-static identity argument" || refused.Reason == "" {
+		t.Errorf("refused instance = %+v, want Refused with a rule and a reason", refused)
+	}
+
+	if len(doc.References) != 1 {
+		t.Fatalf("got %d references, want 1: %+v", len(doc.References), doc.References)
+	}
+	ref := doc.References[0]
+	if ref.From != "data.aws_vpc.network" || ref.Estate != "network" || ref.Address != "aws_vpc.main" {
+		t.Errorf("reference = %+v, want the network/aws_vpc.main edge", ref)
+	}
+	if len(ref.ReadBy) != 1 || ref.ReadBy[0] != "aws_subnet.app" {
+		t.Errorf("reference.ReadBy = %v, want [\"aws_subnet.app\"]", ref.ReadBy)
+	}
+}
+
+// TestJSONExitCodeMatchesBlocked: #790 asks for "the verdict and exit
+// code" in the document, and it has to be the same verdict Run() itself
+// acts on (report.Blocked()), not a second copy that could drift from it.
+func TestJSONExitCodeMatchesBlocked(t *testing.T) {
+	blocked := decodeLiveCheckDocument(t, renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Blocked: true}))
+	if !blocked.Blocked || blocked.ExitCode != 1 {
+		t.Errorf("blocked report: Blocked=%v ExitCode=%d, want true/1", blocked.Blocked, blocked.ExitCode)
+	}
+
+	clean := decodeLiveCheckDocument(t, renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Blocked: false}))
+	if clean.Blocked || clean.ExitCode != 0 {
+		t.Errorf("clean report: Blocked=%v ExitCode=%d, want false/0", clean.Blocked, clean.ExitCode)
+	}
+}
+
+// TestJSONInstancesAndReferencesAreNeverNull: encoding/json renders a nil
+// slice as `null`, and a roster reading "null" rather than "[]" for a
+// clean, reference-free directory would make a caller like behold check for
+// a case that is not actually different from zero entries.
+func TestJSONInstancesAndReferencesAreNeverNull(t *testing.T) {
+	out := renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Blocked: false})
+
+	if strings.Contains(out, `"instances": null`) {
+		t.Errorf("instances rendered as null instead of []:\n%s", out)
+	}
+	if strings.Contains(out, `"references": null`) {
+		t.Errorf("references rendered as null instead of []:\n%s", out)
+	}
+	doc := decodeLiveCheckDocument(t, out)
+	if doc.Instances == nil || doc.References == nil {
+		t.Errorf("decoded document has a nil slice: instances=%v references=%v", doc.Instances, doc.References)
+	}
+}
+
+// TestJSONEstateIsOmittedWhenUnset: most directories live-check runs
+// against declare no live block at all (it runs with no live block by
+// design), and the document must not print an empty estate name as though
+// one were declared.
+func TestJSONEstateIsOmittedWhenUnset(t *testing.T) {
+	out := renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Blocked: false})
+	if strings.Contains(out, `"estate"`) {
+		t.Errorf("estate key printed with no live block present:\n%s", out)
+	}
+}
+
+// TestJSONCarriesTheSameCheckedStagesAsText is #790's "Done when": "the
+// text and JSON agree on every count." Checked/Partial/Unchecked are
+// exactly the strings [LiveCheckHuman.Report] prints, including Partial's
+// own embedded refusal counts, because [liveCheckDocument] reuses the same
+// []string fields rather than re-deriving them - this test is what would
+// catch the two falling out of sync if that stopped being true.
+func TestJSONCarriesTheSameCheckedStagesAsText(t *testing.T) {
+	rep := LiveCheckReport{
+		Dir: ".", Blocked: false, Instances: 3,
+		Checked:   []string{"lint", "identity", "dataread", "stamp"},
+		Partial:   []string{"projection (2 of 27 refusals; the rest need a cloud)"},
+		Unchecked: []string{"discovery"},
+	}
+
+	text := renderLiveCheck(t, rep)
+	doc := decodeLiveCheckDocument(t, renderLiveCheckJSON(t, rep))
+
+	for _, stage := range doc.Checked {
+		if !strings.Contains(text, stage) {
+			t.Errorf("JSON names checked stage %q, which the text report does not mention:\n%s", stage, text)
+		}
+	}
+	for _, stage := range doc.Partial {
+		if !strings.Contains(text, stage) {
+			t.Errorf("JSON names partial stage %q verbatim, which the text report does not carry:\n%s", stage, text)
+		}
+	}
+	for _, stage := range doc.Unchecked {
+		if !strings.Contains(text, stage) {
+			t.Errorf("JSON names unchecked stage %q, which the text report does not mention:\n%s", stage, text)
+		}
 	}
 }
