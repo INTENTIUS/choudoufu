@@ -20,10 +20,23 @@ just up          # two containers, pinned floci, prints the URL
 ```
 
 `http://localhost:2718` opens a single-screen page: eight phases, one
-button, the ownership map redrawing as each finishes. `.claude/skills/
-live-mv-demo/SKILL.md` walks an AI assistant through the whole run. The
-rest of this page describes `workbench.py`, the fuller tool this demo's
-seed is drawn from, run against a real account.
+button, the ownership map redrawing as each finishes. The rest of this
+page describes `workbench.py`, the fuller tool this demo's seed is drawn
+from, run against a real account.
+
+### Paste-and-go
+
+Hand this to an assistant and let it walk you through the whole run:
+
+```text
+Read https://github.com/INTENTIUS/choudoufu/blob/main/.claude/skills/live-mv-demo/SKILL.md
+and follow it. Confirm with me before installing anything or starting a
+container.
+```
+
+That skill is the full walkthrough: cloning the repo if I don't have it,
+checking for Docker and `just`, starting the stack, and narrating each of
+the eight phases as you click through them.
 
 ## Where this starts
 
