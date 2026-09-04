@@ -1,14 +1,10 @@
-"""live-mv demo — a single-screen, no-scroll stage for the terralith split.
+"""live-mv demo — a single-screen stage for the terralith split.
 
-The workbench is a tool; this is the demo. One action panel where the estate
-renders, phase breadcrumbs across the top that show what is done and what is
-ready next, and a collapsible ledger at the bottom. It runs live against
-floci by default (no credentials, nothing to clean up) or real AWS when
-credentials are present. No prose on the screen: the picture and the cues
-carry it.
-
-This file is the LAYOUT SHELL only — static content, real map, no phase
-logic yet, so the look can be judged before the wiring goes in.
+Phase breadcrumbs across the top show what is done and what is ready next.
+One action panel where the estate renders. A collapsible ledger at the
+bottom. It runs live against floci (no credentials, nothing to clean up),
+the compose stack points it there; with real AWS credentials it runs there
+instead. No prose on the screen: the picture and the cues carry it.
 """
 import marimo
 
@@ -18,115 +14,206 @@ app = marimo.App(width="full", app_title="live-mv demo")
 
 @app.cell
 def _():
-    import pathlib
+    import os
 
     import marimo as mo
 
-    from tlmig import viz
+    from tlmig import stage, viz
 
-    return mo, pathlib, viz
+    # The run state lives on the imported module, minted once. marimo can
+    # re-execute a cell body, which would re-mint a local; a module attribute
+    # survives because the module is cached in sys.modules. Reset mutates it.
+    if not hasattr(stage, "_demo_run"):
+        stage._demo_run = {"id": os.environ.get("DEMO_RUN") or stage.new_run_id(), "reset_seen": 0}
+
+    return mo, os, stage, viz
 
 
 @app.cell
 def _(mo):
-    # Kill the page scroll and make the app a fixed, full-viewport column:
-    # breadcrumbs on top, the action panel filling the middle, the ledger
-    # drawer at the bottom. Only the action panel scrolls, and only if it
-    # must. Theme-aware: colours come from tokens defined for both grounds.
+    # Component styles. The fixed, full-viewport frame is applied by .style()
+    # on the shell's own container (below), lifted out of marimo's cell wrappers.
     mo.Html("""
     <style>
       :root { --bg: Canvas; --edge: color-mix(in srgb, currentColor 14%, transparent);
               --edge2: color-mix(in srgb, currentColor 22%, transparent);
               --panel: color-mix(in srgb, currentColor 4%, transparent);
-              --accent: #2563eb; --good: #3f9e57; --mut: color-mix(in srgb, currentColor 55%, transparent); }
+              --accent: #2563eb; --good: #3f9e57; --bad: #c0392b;
+              --mut: color-mix(in srgb, currentColor 55%, transparent); }
       html, body { height: 100%; margin: 0; overflow: hidden; }
-      /* The shell owns the whole viewport, lifted out of marimo's centered,
-         width-capped, bottom-padded cell wrappers so nothing collapses it. */
-      .lmd { position: fixed; inset: 0; background: var(--bg, Canvas); z-index: 5; }
-      .lmd { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
       .lmd-bar { display: flex; gap: 6px; align-items: center; padding: 10px 14px;
                  border-bottom: 1px solid var(--edge2); }
-      .lmd-spacer { flex: 1 1 auto; }
-      .lmd-reset { border: 1px solid var(--edge2); background: transparent; color: var(--mut);
-                   border-radius: 8px; padding: 8px 13px; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
-      .lmd-reset:hover { color: currentColor; border-color: currentColor; }
       .lmd-step { display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
                   padding: 7px 13px; border: 1px solid var(--edge); border-radius: 9px;
-                  background: var(--panel); white-space: nowrap; cursor: default; min-width: 84px; }
+                  background: var(--panel); white-space: nowrap; min-width: 84px; }
       .lmd-step .n { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--mut); }
       .lmd-step .t { font-size: 13px; font-weight: 600; }
       .lmd-step.done { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
       .lmd-step.done .n { color: var(--good); }
-      .lmd-step.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+      .lmd-step.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+                         background: color-mix(in srgb, var(--accent) 8%, transparent); }
       .lmd-step.active .n { color: var(--accent); }
       .lmd-step.ready { border-color: var(--accent); border-style: dashed; }
-      .lmd-step.locked { opacity: .45; }
+      .lmd-step.ready .n { color: var(--accent); }
+      .lmd-step.failed { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+      .lmd-step.failed .n { color: var(--bad); }
+      .lmd-step.locked { opacity: .42; }
       .lmd-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; background: var(--mut); }
       .lmd-step.done .lmd-dot { background: var(--good); }
-      .lmd-step.active .lmd-dot { background: var(--accent); }
-      .lmd-step.ready .lmd-dot { background: var(--accent); }
-      .lmd-action { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 22px 26px;
-                    display: flex; flex-direction: column; gap: 14px; }
-      .lmd-cue { display: flex; align-items: center; gap: 12px; }
-      .lmd-cue .go { background: var(--accent); color: #fff; border: none; border-radius: 8px;
-                     padding: 10px 18px; font-size: 14px; font-weight: 600; }
-      .lmd-cue .say { font-size: 15px; color: var(--mut); }
-      .lmd-stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
+      .lmd-step.active .lmd-dot, .lmd-step.ready .lmd-dot { background: var(--accent); }
+      .lmd-step.failed .lmd-dot { background: var(--bad); }
+      .lmd-spacer { flex: 1 1 auto; }
+      .lmd-say { font-size: 15px; color: var(--mut); }
+      .lmd-stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; }
       .lmd-stage svg { max-height: 100%; }
-      .lmd-ledger { border-top: 1px solid var(--edge2); background: var(--panel); }
-      .lmd-ledger > summary { padding: 9px 16px; font-size: 12px; letter-spacing: .05em;
-                              text-transform: uppercase; color: var(--mut); cursor: pointer; }
-      .lmd-ledger[open] { max-height: 34vh; overflow: auto; }
-      .lmd-ledger .body { padding: 4px 16px 14px; }
-      .lmd-ledger table { border-collapse: collapse; width: 100%; font-size: 12.5px;
-                          font-family: ui-monospace, Menlo, monospace; }
-      .lmd-ledger td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+      .lmd-note { font-size: 13px; color: var(--mut); }
+      .lmd-pay { font-size: 14px; }
     </style>
     """)
     return
 
 
 @app.cell
-def _(mo, pathlib, viz):
-    # A recorded run stands in for the live one so the shell shows real shapes.
-    RUN = "tests/fixtures/emitter-run"
-    _st = viz.load_run(RUN)
+def _():
+    # The eight phases, in order. Each runs one CLI verb (plan is the tool's
+    # own step: seed writes the carve plan, so plan is done once it exists).
+    PHASES = ["seed", "survey", "plan", "preview", "move", "verify", "receipt", "teardown"]
+    TITLE = {"seed": "Seed", "survey": "Survey", "plan": "Plan", "preview": "Preview",
+             "move": "Move", "verify": "Verify", "receipt": "Receipt", "teardown": "Teardown"}
+    # (verb, extra args). None verb = no run, resolved from the run's files.
+    VERB = {"seed": ("seed", ["--demo"]), "survey": ("survey", []), "plan": (None, []),
+            "preview": ("preview", []), "move": ("move", []), "verify": ("verify", []),
+            "receipt": ("receipt", []), "teardown": ("teardown", [])}
+    CUE = {
+        "seed": "Build the terralith: one estate, three teams, on floci. Click to stand it up and watch the map fill.",
+        "survey": "Measure the monolith. One plan of everything, and the number of requests it costs.",
+        "plan": "The split, planned: each team takes its own estate. Preview it next.",
+        "preview": "Dry-run every move. Nothing is written; see the tag writes each would make.",
+        "move": "Split it. Each team's resources take its own tag. No state file is touched.",
+        "verify": "Prove it. Each estate plans clean, on its own, at the same moment.",
+        "receipt": "The proof. The account's own log of every tag write, beside the tool's own record.",
+        "teardown": "Clean up. Destroy what this run made; the account is listed to confirm it is empty.",
+    }
+    return CUE, PHASES, TITLE, VERB
 
-    # A fresh run: Seed is the one ready move, everything after it is locked
-    # until its turn. (Live, these states come from the run's own events.)
-    STEPS = [
-        ("seed", "Seed", "ready"), ("survey", "Survey", "locked"),
-        ("plan", "Plan", "locked"), ("preview", "Preview", "locked"),
-        ("move", "Move", "locked"), ("verify", "Verify", "locked"),
-        ("receipt", "Receipt", "locked"), ("teardown", "Teardown", "locked"),
-    ]
-    _bar = "".join(
-        f'<div class="lmd-step {state}"><span class="n"><span class="lmd-dot"></span>{i+1}</span>'
-        f'<span class="t">{title}</span></div>'
-        for i, (key, title, state) in enumerate(STEPS)
+
+@app.cell
+def _(mo):
+    tick = mo.ui.refresh(default_interval="1s", options=["1s", "2s", "5s"], label="")
+    return (tick,)
+
+
+@app.cell
+def _(mo):
+    # Buttons are globals in a cell with no timer dependency, so a redraw never
+    # rebuilds them and a click is served once.
+    run_btn = mo.ui.button(label="Run ▸", value=0, on_click=lambda v: v + 1)
+    reset_btn = mo.ui.button(label="↺ Reset & clean up", value=0, on_click=lambda v: v + 1)
+    return reset_btn, run_btn
+
+
+@app.cell
+def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
+    tick.value  # redraw on every tick while a phase runs
+
+    _RUN = stage._demo_run
+    # -- Reset: tear down the current run, start a fresh one -----------------
+    if reset_btn.value > _RUN["reset_seen"]:
+        _RUN["reset_seen"] = reset_btn.value
+        stage.for_run(_RUN["id"]).start("teardown")   # clean the old run on floci, async
+        _RUN["id"] = stage.new_run_id()
+
+    st = stage.for_run(_RUN["id"])
+    _run_dir = f"runs/{_RUN['id']}"
+    _state = viz.load_run(_run_dir)
+
+    def _verb_done(ph):
+        verb = VERB[ph][0]
+        if verb is None:                       # plan: done once the carve plan exists
+            import pathlib
+            return (pathlib.Path(_run_dir) / "carve.json").exists()
+        return st.status(verb) in ("done", "recorded")
+
+    def _verb_failed(ph):
+        verb = VERB[ph][0]
+        return verb is not None and st.status(verb).startswith("failed")
+
+    _running = st.running()                    # the verb running right now, or None
+    _done = [ph for ph in PHASES if _verb_done(ph)]
+    _next = next((ph for ph in PHASES if ph not in _done), None)
+
+    # -- Run: the one button runs the next ready phase -----------------------
+    if _next is not None:
+        _verb, _extra = VERB[_next]
+        if _verb is not None:
+            st.click(_verb, run_btn.value, extra=_extra or None)
+        elif run_btn.value > st.handled.get("plan-skip", 0):
+            st.handled["plan-skip"] = run_btn.value   # plan has no run; the click moves on
+
+    # -- Breadcrumb states ---------------------------------------------------
+    def _step_state(ph):
+        if _verb_failed(ph):
+            return "failed"
+        if _running and _running == VERB[ph][0]:
+            return "active"
+        if ph in _done:
+            return "done"
+        if ph == _next:
+            return "ready"
+        return "locked"
+
+    _steps = "".join(
+        f'<div class="lmd-step {_step_state(ph)}"><span class="n"><span class="lmd-dot"></span>{i + 1}</span>'
+        f'<span class="t">{TITLE[ph]}</span></div>'
+        for i, ph in enumerate(PHASES)
+    )
+    _bar = mo.Html(f'<div class="lmd-bar">{_steps}<div class="lmd-spacer"></div></div>')
+
+    # -- The cue: what the ready (or running) phase is about -----------------
+    _focus = _running_phase = next((ph for ph in PHASES if VERB[ph][0] == _running), None) if _running else _next
+    if _focus is None:
+        _cue_text = "Every phase is done. Reset to run it again."
+    elif _running:
+        _cue_text = f"Running {TITLE[_focus]}… {CUE.get(_focus, '')}"
+    else:
+        _cue_text = CUE.get(_focus, "")
+    _button = run_btn if (_next is not None and VERB[_next][0] is not None and not _running) else mo.md("").style({"width": "0"})
+    _cue = mo.hstack([_button, mo.md(f'<span class="lmd-say">{_cue_text}</span>')], justify="start", align="center", gap=1)
+
+    # -- The action stage: the live map --------------------------------------
+    _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900)}</div>')
+
+    # payoff of the last done phase, if it left a number
+    _pay = ""
+    if _done:
+        _last = _done[-1]
+        _pv = VERB[_last][0]
+        _pay = viz.payoff(_pv, _state) if _pv else ""
+    _payline = mo.md(f'<span class="lmd-pay"><b>{_pay}</b></span>') if _pay else mo.md("")
+
+    # -- Ledger, collapsible, at the bottom ----------------------------------
+    _ledger = viz.render_ledger(_state, limit=20) if _state.ledger else "<div class='lmd-note' style='padding:10px 16px'>nothing written yet</div>"
+    _tail = (_running and st.tail(_running)) or ""
+    _ledger_body = _ledger + (f"<details style='padding:6px 16px'><summary class='lmd-note'>shell output</summary><pre style='font-size:12px;white-space:pre-wrap'>{mo.Html(_tail).text if _tail else ''}</pre></details>" if _tail else "")
+    _drawer = mo.Html(
+        "<details class='lmd-ledger' style='border-top:1px solid var(--edge2); background:var(--panel)'>"
+        "<summary style='padding:9px 16px; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--mut); cursor:pointer'>ledger</summary>"
+        f"<div style='max-height:32vh; overflow:auto'>{_ledger_body}</div></details>"
     )
 
-    _fresh = viz.load_run(RUN, upto=0)   # a fresh run: nothing stood up yet
-    _map = viz.render_map_svg(_fresh, width=900)
-    _ledger = viz.render_ledger(_st, limit=12)
+    _reset = mo.hstack([reset_btn], justify="end")
+    _top = mo.hstack([mo.Html(f'<div class="lmd-bar" style="flex:1;border:none;padding:0">{_steps}</div>'), reset_btn], justify="space-between", align="center").style({"padding": "8px 14px", "border-bottom": "1px solid var(--edge2)"})
 
-    _shell = f"""
-    <div class="lmd" style="display:flex;flex-direction:column">
-      <div class="lmd-bar">{_bar}<div class="lmd-spacer"></div><button class="lmd-reset" title="tear down this run and start clean">↺ Reset &amp; clean up</button></div>
-      <div class="lmd-action">
-        <div class="lmd-cue">
-          <button class="go">Run Seed ▸</button>
-          <span class="say">Build the terralith: one estate, three teams, on floci. Click to stand it up and watch the map fill.</span>
-        </div>
-        <div class="lmd-stage">{_map}</div>
-      </div>
-      <details class="lmd-ledger">
-        <summary>ledger</summary>
-        <div class="body">{_ledger}</div>
-      </details>
-    </div>
-    """
-    mo.Html(_shell)
+    _dbg = mo.Html(f'<div id="lmd-dbg" data-run="{_RUN["id"]}" data-clicks="{run_btn.value}" data-next="{_next}" data-running="{_running}" data-done="{",".join(_done)}" style="display:none"></div>')
+    mo.vstack([
+        _dbg,
+        _top,
+        mo.vstack([_cue, _map, _payline], gap=0.6).style({"flex": "1 1 auto", "min-height": "0", "padding": "16px 22px", "display": "flex", "flex-direction": "column"}),
+        _drawer,
+    ], gap=0).style({
+        "position": "fixed", "inset": "0", "background": "var(--bg)", "z-index": "5",
+        "display": "flex", "flex-direction": "column",
+    })
     return
 
 

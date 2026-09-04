@@ -38,9 +38,15 @@ def _():
     import pathlib
     import re
     import shlex
+    import sys
 
     import marimo as mo
 
+    # marimo --watch reloads THIS file but keeps imported modules cached, so a
+    # change to tlmig/viz.py (the map, the payoffs) would not show on refresh.
+    # Drop the package from the import cache so every reload reads it fresh.
+    for _m in [m for m in sys.modules if m == "tlmig" or m.startswith("tlmig.")]:
+        del sys.modules[_m]
     from tlmig import carve, config, stage, tips, viz
 
     # The verbs this build's tlmig knows, from its own --help. The page offers
@@ -55,33 +61,9 @@ def _(mo):
         """
     # The live-mv workbench
 
-    A phased workflow for moving ownership of cloud resources between
-    estates by retagging, on a real AWS account, with the account's own log
-    as the receipt. Eight phases, top to bottom: seed, survey, plan,
-    preview, move, verify, receipt, teardown. Each has a button, the words
-    the run says while it happens, and the picture as it leaves it. The demo
-    seed is a three-team terralith; the adopt form takes your own config.
-
-    Under choudoufu, ownership is two tags on the resource, and a plan reads
-    only its own estate. So splitting a terralith stops being a state-file
-    project and becomes a metadata edit, and every step of it is an API call
-    the account can refuse and does record.
-
-    **Where this starts.** The workbench assumes a terralith: one
-    configuration and one state own everything, applied by one principal
-    whose permission covers it all. The IAM on the map is the estate's own
-    resources (a role, an inline policy and a managed policy per team); the
-    operator's permission is the account's, all or nothing. If your org is
-    not there, the first step differs. Many states already: adopt each as its
-    own estate in the seed phase and begin at plan. Per-team operator
-    permissions already: the governance you have is by state file, and the
-    move and verify phases show the tag-scoped grant that replaces it.
-    Centralizing first is not required; the boundary is a tag, so it goes
-    wherever the resources are today.
-
-    This page is a tool and a tutorial at once. The index below tracks the
-    eight phases; each phase says what it does, in two registers, and shows
-    the payoff it proved, computed from the run's own log.
+    Split a terralith by retagging: ownership is two tags, so moving a
+    resource between estates is a metadata edit, not state surgery. Eight
+    phases below, top to bottom. Run each, watch the map.
     """
     )
     return
@@ -328,31 +310,29 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
     # demo's beat name, kept as the label of the verb's block.
     STORY = {
         "preflight": ("Which account, which binary", "checks, writes nothing",
-                      "Nothing has touched the cloud yet. The run names the one account it may use and the one release it was measured against, and refuses to go on if either is wrong."),
-        "setup": ("Build the terralith", "applies: creates 21 resources in one estate",
-                  "One config, one estate, three teams' worth of IAM and log groups. The account applies it and the map fills in: every taggable resource comes back carrying two tags, which estate owns it and which address it answers to. Nobody wrote a tag by hand."),
-        "seed": ("Seed", "applies the demo, or adopts your config",
-                 "The resources come to carry the two tags: with the apply for the demo, with live-import for a config that already exists."),
-        "slow-plan": ("Measure the villain", "plans the whole monolith, changes nothing, counts requests",
-                      "Nothing is built here. A plan of the monolith re-reads everything the estate owns, every time, and the number to watch is how many requests that costs. It is the number the split is meant to bring down."),
-        "survey": ("Survey", "plans the whole estate, changes nothing, counts requests",
-                   "A plan of the estate as it stands, and the number of requests it costs. It is the number the split is meant to bring down."),
-        "decompose": ("Split it, by retag", "applies three team configs: retags, creates nothing",
-                      "Three team configs, three estates. Each apply rewrites tofu-estate on the resources it declares, and the map recolours by team. Nothing is re-created and no state file is split: where there was one boundary there are now three, and each cost a tag write."),
-        "carve": ("Move the boundary", "retags: team-a's resources move to team-b, one tag write each",
-                  "Team-a dissolves into team-b: its resources move with one tag write each, and no state was split. The role's inline policy and attachment carry no tags of their own, so they follow the parent's live tag without a write, and the source estate stops seeing them the instant the parent leaves."),
-        "move": ("Move", "executes carve.json: one live-mv per move, one tag write each",
-                 "The executor runs the plan Preview dry-ran: one live-mv per move in carve.json, one tag write per resource, and the untaggable children follow their parent without a write. In the demo it then dissolves team-a into team-b, moving that block into team-b's config first, to show a cross-team carve. No state file is split."),
-        "fast-plan": ("Measure the payoff", "plans one team's estate from its cache, counts requests",
-                      "Nothing is built here either. One team's plan, served from its own cache, against the monolith's number from a minute ago. A steady-state plan costs what its estate costs, not what the account costs."),
-        "guard": ("Four reads, one verdict", "reads only: the role's tag, its children, then two plans, the source estate's and the destination's",
-                  "Four reads and no writes. First the role's live tag, which must name its new estate, and its inline policy and attachment, which must still be with it. Then two plans, one per estate, each targeted at its own resources, because a carve is only clean when both sides agree at the same moment: the source estate must not want to destroy or rebuild what left, and the destination must not want to create what arrived. Terraform's carve has a window where one side wants to destroy and the other to create; here both plan clean at once, because each estate reads only what carries its tag."),
-        "verify": ("Verify", "reads only: each moved resource's tag and children, then a plan per estate",
-                   "Every moved resource's live tag must name its new estate and its children must still be with it; then one plan per estate, each targeted at its own resources, and both must be clean at once."),
-        "receipt": ("The account's own record", "reads this run's own tag writes back from CloudTrail; writes nothing",
-                    "Every ownership move this run made was a tag write, and a tag write is an API call the account logs. This phase reads them back from CloudTrail: who wrote which tag on what, and when, for this run's own resources. Event history lags a minute or so, so it waits. A state edit has no such record; no account logs a file changing."),
-        "teardown": ("Nothing left behind", "destroys every estate this run made, then lists the account",
-                     "Each estate destroyed through its own configuration, then the account listed rather than trusted: nothing carrying this run's prefix remains. Teardown refuses a non-demo run by design: an adopted estate is yours to manage, so its teardown button fails the cell on purpose rather than destroying resources you brought."),
+                      "Names the one account and release this run may use, and refuses if either is wrong."),
+        "setup": ("Build the terralith", "applies: 21 resources in one estate",
+                  "One config, one estate, three teams. Every resource comes back carrying two tags."),
+        "seed": ("Seed", "the demo applies, or your config is adopted", ""),
+        "slow-plan": ("Measure the villain", "plans the whole monolith, counts requests",
+                      "The baseline: what one plan of the monolith costs. This is the number the split brings down."),
+        "survey": ("Survey", "plans the whole estate, counts requests",
+                   "The baseline: what one plan of the estate costs, the number the split brings down."),
+        "decompose": ("Split, by retag", "applies three team configs: retags, creates nothing",
+                      "Each team's resources take its estate tag. Nothing re-created, no state file split."),
+        "carve": ("Move the boundary", "retags team-a into team-b, one write each",
+                  "Team-a's resources move to team-b by one tag write each; children follow their parent."),
+        "move": ("Move", "runs the plan: one live-mv per move",
+                 "The executor runs the plan you previewed, one tag write per move; children follow."),
+        "fast-plan": ("Measure the payoff", "plans one estate from cache, counts requests",
+                      "One team's plan against the monolith's number: cost tracks the estate, not the account."),
+        "guard": ("Four reads, one verdict", "reads only: the tag, its children, two plans", ""),
+        "verify": ("Verify", "reads only: each moved tag, then a plan per estate",
+                   "Both estates plan clean at once: nothing left behind, nothing double-owned."),
+        "receipt": ("The account's own record", "reads this run's tag writes from CloudTrail",
+                    "Every move was a tag write, and the account logged each one. A state edit leaves no such record."),
+        "teardown": ("Nothing left behind", "destroys the demo estates, then lists the account",
+                     "Demo seeds only; an adopted estate is yours to manage."),
     }
 
     def verb_block(name, button="own", label=True):
@@ -394,24 +374,13 @@ def _(BTN, PHASE_DOES, PHASE_TITLES, VERBS, WORKFLOW, WRITES, before_state, bid,
                 parts.append(mo.md(f"**Payoff.** {_pay}"))
         return mo.vstack(parts)
 
-    def tip_for(phase, register):
-        own = tips.tip(phase, register)
-        if own:
-            return own
-        return "\n\n".join(t for t in (tips.tip(v, register) for v in VERBS[phase]) if t)
-
     def section(phase, body):
-        """One phase's box: number and title, what it does, the tips in two
-        registers, then the body (verb blocks, or the phase's own panel).
-        Tints alternate so the phases read as sections."""
+        """One phase's box: number, title, one-line what-it-does, then the body."""
         index = WORKFLOW.index(phase)
         tint = "color-mix(in srgb, currentColor 5%, transparent)" if index % 2 == 0 else "transparent"
-        parts = [mo.md(f"## {index + 1}. {PHASE_TITLES[phase]}\n\n<span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .75'>{phase} · {PHASE_DOES[phase]}</span>")]
-        b, e = tip_for(phase, "beginner"), tip_for(phase, "expert")
-        if b or e:
-            parts.append(mo.accordion({"for a beginner": mo.md(b), "for an OpenTofu hand": mo.md(e)}))
+        parts = [mo.md(f"## {index + 1}. {PHASE_TITLES[phase]}  <span style='font-family: ui-monospace, Menlo, monospace; font-size: 12px; opacity: .6'>{phase}</span>")]
         parts += body if isinstance(body, list) else [body]
-        return mo.vstack(parts).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "18px 22px 20px", "margin": "10px 0 18px", "background": tint})
+        return mo.vstack(parts).style({"border": "1px solid color-mix(in srgb, currentColor 18%, transparent)", "border-left": "4px solid color-mix(in srgb, currentColor 35%, transparent)", "border-radius": "10px", "padding": "16px 20px 18px", "margin": "10px 0 16px", "background": tint})
 
     return section, verb_block
 
