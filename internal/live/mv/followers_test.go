@@ -10,66 +10,137 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// TestFollowersOf is the pure-function half of GitHub issue #791's
-// followers field: [followersOf] over hand-built resolutions, the way
-// TestCheckAddresses (checkaddresses_test.go) tests checkAddresses without
-// a config tree or a provider - a follower is a fact about the identity
-// graph [identity.Resolve] already produced, and this package only walks
-// it, so nothing here needs to reproduce how [identity.ClassParentDerived]
-// resolutions come to exist in the first place.
+// followersFixture is the carve-by-retag smoke's own shape
+// (live/smoke/scenarios/carve-by-retag.sh, tools/terralith-gen/gen.go's
+// writeTeam), reduced to the pieces followersOf's own doc comment argues
+// about: a role whose "name" is a plain literal, an inline policy and an
+// attachment whose "role" argument is a BARE reference to it (the shape
+// identity.Resolve statically folds to ClassConcrete once the role's own
+// name is known - the exact fold followersOf is built to see past), a
+// second attachment whose OTHER argument needs a live read
+// (ClassParentDerived, parented on the policy rather than the role) so it
+// still has to be recognised as the role's own follower too, an
+// independent policy that is not a child of anything, and an instance
+// profile that also reads the role's name but is never a follower because
+// its OWN identity is self-sufficient (live/MARKERS.md's admitted table
+// gives it no "role" identity component at all).
+func followersFixture(t *testing.T) *fixtureConfig {
+	t.Helper()
+	dir := t.TempDir()
+	writeFile(t, dir, "main.tf", `
+resource "aws_iam_role" "team_role" {
+  name               = "tl-team-role"
+  assume_role_policy = "{}"
+}
+
+resource "aws_iam_role_policy" "team_inline" {
+  name   = "tl-team-inline"
+  role   = aws_iam_role.team_role.name
+  policy = "{}"
+}
+
+resource "aws_iam_policy" "team_policy" {
+  name   = "tl-team-policy"
+  policy = "{}"
+}
+
+resource "aws_iam_role_policy_attachment" "team_managed_attach" {
+  role       = aws_iam_role.team_role.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "team_custom_attach" {
+  role       = aws_iam_role.team_role.name
+  policy_arn = aws_iam_policy.team_policy.arn
+}
+
+resource "aws_iam_instance_profile" "team_profile" {
+  name = "tl-team-profile"
+  role = aws_iam_role.team_role.name
+}
+
+resource "aws_iam_role" "other_role" {
+  name               = "tl-other-role"
+  assume_role_policy = "{}"
+}
+
+resource "aws_iam_role_policy" "other_inline" {
+  name   = "tl-other-inline"
+  role   = aws_iam_role.other_role.name
+  policy = "{}"
+}
+`)
+	cfg := loadConfigDir(t, dir)
+	result, diags := identity.Resolve(t.Context(), cfg)
+	if diags.HasErrors() {
+		t.Fatalf("identity.Resolve on the followers fixture: %s", diags.Err())
+	}
+	return &fixtureConfig{cfg: cfg, resolutions: result.All()}
+}
+
+type fixtureConfig struct {
+	cfg         *configs.Config
+	resolutions []identity.Resolution
+}
+
+// TestFollowersOf is the real-configuration proof: followersOf reads past
+// identity.Resolve's own static fold (see followersFixture's doc comment
+// for exactly what that means and why a Formula.Parents-only
+// implementation missed it - the regression this test pins, caught by the
+// carve-by-retag smoke run rather than by a unit test the first time).
 func TestFollowersOf(t *testing.T) {
+	fx := followersFixture(t)
+
 	role := mustAddr(t, "aws_iam_role.team_role")
-	otherRole := mustAddr(t, "aws_iam_role.other_role")
 	inline := mustAddr(t, "aws_iam_role_policy.team_inline")
-	attach := mustAddr(t, "aws_iam_role_policy_attachment.team_attach")
-	unrelated := mustAddr(t, "aws_iam_role_policy.other_inline")
+	managedAttach := mustAddr(t, "aws_iam_role_policy_attachment.team_managed_attach")
+	customAttach := mustAddr(t, "aws_iam_role_policy_attachment.team_custom_attach")
 
-	resolutions := []identity.Resolution{
-		{Addr: role, Class: identity.ClassConcrete, ImportID: "team-role"},
-		{Addr: inline, Class: identity.ClassParentDerived, Formula: &identity.Formula{
-			Parents: []addrs.AbsResourceInstance{role},
-		}},
-		{Addr: attach, Class: identity.ClassParentDerived, Formula: &identity.Formula{
-			Parents: []addrs.AbsResourceInstance{role},
-		}},
-		// A parent-derived instance of a DIFFERENT parent must not show up as
-		// a follower of role - the whole point of matching on Formula.Parents
-		// rather than "any parent-derived resolution in the configuration".
-		{Addr: unrelated, Class: identity.ClassParentDerived, Formula: &identity.Formula{
-			Parents: []addrs.AbsResourceInstance{otherRole},
-		}},
-		// A concrete resolution that happens to reference nothing: never a
-		// follower, whatever its address looks like.
-		{Addr: otherRole, Class: identity.ClassConcrete, ImportID: "other-role"},
-		// A parent-derived resolution with no Formula at all must not panic
-		// - defensive, since every real one identity.Resolve produces has
-		// one, but a caller-assembled Request (this package's own tests
-		// among them) is not obligated to.
-		{Addr: mustAddr(t, "aws_iam_role_policy.no_formula"), Class: identity.ClassParentDerived},
+	got := followersOf(fx.cfg, role, fx.resolutions)
+	want := []string{inline.String(), managedAttach.String(), customAttach.String()}
+	if len(got) != len(want) {
+		t.Fatalf("followersOf(role, ...) = %v, want exactly %v", got, want)
+	}
+	// followersOf sorts by address; aws_iam_role_policy sorts before
+	// aws_iam_role_policy_attachment, and the two attachments sort by name.
+	gotAddrs := make([]string, len(got))
+	for i, f := range got {
+		gotAddrs[i] = f.Addr.String()
+	}
+	for i, w := range []string{inline.String(), customAttach.String(), managedAttach.String()} {
+		if gotAddrs[i] != w {
+			t.Errorf("followers[%d] = %s, want %s (got order %v)", i, gotAddrs[i], w, gotAddrs)
+		}
+	}
+	for _, f := range got {
+		if f.Addr.String() == customAttach.String() && f.TypeName != "aws_iam_role_policy_attachment" {
+			t.Errorf("customAttach follower TypeName = %q, want aws_iam_role_policy_attachment", f.TypeName)
+		}
 	}
 
-	got := followersOf(role, resolutions)
-	if len(got) != 2 {
-		t.Fatalf("followersOf(role, ...) = %v, want exactly the inline policy and the attachment", got)
-	}
-	// Sorted by address: aws_iam_role_policy sorts before
-	// aws_iam_role_policy_attachment.
-	if got[0].Addr.String() != inline.String() || got[0].TypeName != "aws_iam_role_policy" {
-		t.Errorf("first follower = %+v, want %s (aws_iam_role_policy)", got[0], inline)
-	}
-	if got[1].Addr.String() != attach.String() || got[1].TypeName != "aws_iam_role_policy_attachment" {
-		t.Errorf("second follower = %+v, want %s (aws_iam_role_policy_attachment)", got[1], attach)
+	// aws_iam_instance_profile also reads the role's name, but its OWN
+	// identity is self-sufficient - never a follower.
+	for _, f := range got {
+		if f.TypeName == "aws_iam_instance_profile" {
+			t.Errorf("aws_iam_instance_profile showed up as a follower of the role: %+v", f)
+		}
 	}
 
-	if got := followersOf(otherRole, resolutions); len(got) != 1 || got[0].Addr.String() != unrelated.String() {
-		t.Errorf("followersOf(otherRole, ...) = %v, want only %s", got, unrelated)
+	// The independent policy and the unrelated role's own inline policy
+	// never show up as the role's followers.
+	otherRole := mustAddr(t, "aws_iam_role.other_role")
+	otherInline := mustAddr(t, "aws_iam_role_policy.other_inline")
+	gotOther := followersOf(fx.cfg, otherRole, fx.resolutions)
+	if len(gotOther) != 1 || gotOther[0].Addr.String() != otherInline.String() {
+		t.Errorf("followersOf(otherRole, ...) = %v, want only %s", gotOther, otherInline)
 	}
 
-	if got := followersOf(mustAddr(t, "aws_iam_role.nobody"), resolutions); len(got) != 0 {
+	if got := followersOf(fx.cfg, mustAddr(t, "aws_iam_role.nobody"), fx.resolutions); len(got) != 0 {
 		t.Errorf("followersOf on a parent with no children = %v, want none", got)
 	}
 }
@@ -96,24 +167,18 @@ func (*noProviderError) Error() string { return "no provider configured in this 
 
 // TestMoveSetsFollowersBeforeAskingForAProvider is the integration half:
 // over a real loaded configuration and a Request whose Resolutions a caller
-// assembled by hand (exactly as internal/command/live_mv.go's statelessResolve
-// does for a real run, just skipped here), Move computes res.Anchor and
-// res.Followers before it ever reaches req.Providers - so a Request whose
-// provider can never be configured still reports the followers a reader
-// needs to draw the move, on the same refused Result a caller's -json flag
-// renders.
+// assembled exactly as identity.Resolve itself would (this test reuses
+// followersFixture's real resolve pass rather than hand-building
+// resolutions, precisely because hand-building them is what let the
+// original, wrong implementation of followersOf look correct), Move
+// computes res.Anchor and res.Followers before it ever reaches
+// req.Providers - so a Request whose provider can never be configured
+// still reports the followers a reader needs to draw the move, on the same
+// refused Result a caller's -json flag renders.
 func TestMoveSetsFollowersBeforeAskingForAProvider(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "main.tf", `
-resource "aws_iam_role" "team_role" {
-  name = "team-role"
-}
-`)
-	cfg := loadConfigDir(t, dir)
-
+	fx := followersFixture(t)
 	role := mustAddr(t, "aws_iam_role.team_role")
 	inline := mustAddr(t, "aws_iam_role_policy.team_inline")
-	attach := mustAddr(t, "aws_iam_role_policy_attachment.team_attach")
 
 	req := Request{
 		Estate: "followers-test",
@@ -121,18 +186,10 @@ resource "aws_iam_role" "team_role" {
 		New:    role,
 		// FromEstate makes this a same-address move, so checkAddresses does
 		// not refuse Old == New before anchorAddr and followersOf ever run.
-		FromEstate: "followers-test-source",
-		Config:     cfg,
-		Resolutions: []identity.Resolution{
-			{Addr: role, Class: identity.ClassConcrete, ImportID: "team-role"},
-			{Addr: inline, Class: identity.ClassParentDerived, Formula: &identity.Formula{
-				Parents: []addrs.AbsResourceInstance{role},
-			}},
-			{Addr: attach, Class: identity.ClassParentDerived, Formula: &identity.Formula{
-				Parents: []addrs.AbsResourceInstance{role},
-			}},
-		},
-		Providers: fakeNoProviders{},
+		FromEstate:  "followers-test-source",
+		Config:      fx.cfg,
+		Resolutions: fx.resolutions,
+		Providers:   fakeNoProviders{},
 	}
 
 	res, diags := Move(t.Context(), req)
@@ -145,10 +202,16 @@ resource "aws_iam_role" "team_role" {
 	if res.Anchor.String() != role.String() {
 		t.Errorf("res.Anchor = %s, want %s", res.Anchor, role)
 	}
-	if len(res.Followers) != 2 {
-		t.Fatalf("res.Followers = %v, want the inline policy and the attachment", res.Followers)
+	if len(res.Followers) != 3 {
+		t.Fatalf("res.Followers = %v, want the inline policy and the two attachments", res.Followers)
 	}
-	if res.Followers[0].Addr.String() != inline.String() || res.Followers[1].Addr.String() != attach.String() {
-		t.Errorf("res.Followers = %v, want [%s, %s] in address order", res.Followers, inline, attach)
+	found := false
+	for _, f := range res.Followers {
+		if f.Addr.String() == inline.String() {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("res.Followers = %v, does not include %s", res.Followers, inline)
 	}
 }

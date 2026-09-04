@@ -202,22 +202,67 @@ explain \
   "root with its own live block. The state half is three runs of" \
   "live-mv -from-estate, one tag write each, made in the destination" \
   "so the tool can check the address is declared there and free there." \
-  "The three children need no write at all; they follow their parent."
-cmd "choudoufu live-mv -from-estate=$MONO_ESTATE aws_iam_role.team_0001_role aws_iam_role.team_0001_role   # in team1/, and two more"
+  "The three children need no write at all; they follow their parent." \
+  "-json (issue #791) turns each run into a document instead of a" \
+  "sentence: the dry run previews exactly what the real run then does," \
+  "and the role's own document names the inline policy as a follower" \
+  "before either run writes anything."
+cmd "choudoufu live-mv -json -from-estate=$MONO_ESTATE aws_iam_role.team_0001_role aws_iam_role.team_0001_role   # in team1/, and two more"
 carve_team_config
+MVERR="$(mktemp)"
+ROLE_JSON=""
 for addr in $TEAM_TAGGABLE; do
-  MV="$(cd "$TEAM" && chdf live-mv -no-color -from-estate="$MONO_ESTATE" "$addr" "$addr" 2>&1)" \
-    || fail "carve" "live-mv refused $addr: $(tail -6 <<< "$MV")"
-  grep -q "Moved one live resource into this estate. This was a cloud write." <<< "$MV" \
-    || fail "carve" "live-mv did not report a cloud write for $addr: $MV"
+  DRYJSON="$(cd "$TEAM" && chdf live-mv -no-color -json -dry-run -from-estate="$MONO_ESTATE" "$addr" "$addr" 2>"$MVERR")" \
+    || fail "carve" "live-mv -json -dry-run refused $addr: $(tail -c 2000 "$MVERR")"
+  jq -e . >/dev/null 2>&1 <<< "$DRYJSON" || fail "carve" "$addr: -json -dry-run did not print valid JSON: $DRYJSON"
+
+  MV="$(cd "$TEAM" && chdf live-mv -no-color -json -from-estate="$MONO_ESTATE" "$addr" "$addr" 2>"$MVERR")" \
+    || fail "carve" "live-mv -json refused $addr: $(tail -c 2000 "$MVERR")"
+  jq -e . >/dev/null 2>&1 <<< "$MV" || fail "carve" "$addr: -json did not print valid JSON: $MV"
+
+  # The dry run previewed exactly the move the real run then made: same
+  # resource, same endpoints, same followers. dry_run/written/verified are
+  # the only fields the two documents are allowed to disagree on - the rest
+  # is the claim behold or the workbench would read from a -dry-run preview,
+  # asserted here against what actually landed.
+  for field in resource from to followers; do
+    d="$(jq -cS ".$field" <<< "$DRYJSON")"
+    r="$(jq -cS ".$field" <<< "$MV")"
+    [ "$d" = "$r" ] || fail "carve" "$addr: the dry run and the real run disagree on .$field: dry=$d real=$r"
+  done
+  [ "$(jq -r '.dry_run' <<< "$DRYJSON")" = "true" ]  || fail "carve" "$addr: the dry run's own document does not say dry_run: $DRYJSON"
+  [ "$(jq -r '.written' <<< "$DRYJSON")" = "false" ] || fail "carve" "$addr: the dry run's own document claims a write: $DRYJSON"
+  [ "$(jq -r '.dry_run' <<< "$MV")" = "false" ]      || fail "carve" "$addr: the real run's own document still claims dry_run: $MV"
+  [ "$(jq -r '.written' <<< "$MV")" = "true" ]       || fail "carve" "$addr: the real run's own document says nothing was written: $MV"
+  [ "$(jq -r '.refusal' <<< "$MV")" = "null" ]       || fail "carve" "$addr: the real run reports a refusal: $(jq -c '.refusal' <<< "$MV")"
+
+  if [ "$addr" = "aws_iam_role.team_0001_role" ]; then
+    # aws_iam_role_policy's identity composes from "role" alone - the
+    # admission table has no other component it could reference - so the
+    # inline policy is deterministically the role's follower, dry run or
+    # real, every time.
+    jq -e '.followers | map(.address) | index("aws_iam_role_policy.team_0001_inline")' <<< "$DRYJSON" >/dev/null \
+      || fail "carve" "the role's dry run does not list the inline policy as a follower: $(jq -c '.followers' <<< "$DRYJSON")"
+    jq -e '.followers | map(.address) | index("aws_iam_role_policy.team_0001_inline")' <<< "$MV" >/dev/null \
+      || fail "carve" "the role's real run does not list the inline policy as a follower: $(jq -c '.followers' <<< "$MV")"
+    ROLE_JSON="$MV"
+    echo "role's followers (-json, both runs agree): $(jq -c '.followers' <<< "$MV")" | evidence
+  fi
 done
-pick "tofu-estate|live ID" <<< "$MV" | head -2 | evidence
+JSON_TOESTATE="$(jq -r '.to.estate' <<< "$ROLE_JSON")"
+JSON_LIVEID="$(jq -r '.resource.live_id' <<< "$ROLE_JSON")"
+echo "-json (role): resource.live_id=$JSON_LIVEID  to.estate=$JSON_TOESTATE" | evidence
 TEAM_ROLE_ESTATE="$(role_estate tl-team-0001-role)"
 [ "$TEAM_ROLE_ESTATE" = "$TEAM_ESTATE" ] || fail "carve" "the role's live tofu-estate reads '$TEAM_ROLE_ESTATE', want $TEAM_ESTATE"
+# The document's own claim has to agree with the same fact read back
+# independently through the plain AWS CLI - a receipt that only ever
+# confirms itself proves nothing.
+[ "$JSON_TOESTATE" = "$TEAM_ROLE_ESTATE" ] \
+  || fail "carve" "the role's -json document claims to.estate=$JSON_TOESTATE, but the AWS CLI reads tofu-estate=$TEAM_ROLE_ESTATE"
 INLINE="$(awsl iam list-role-policies --role-name tl-team-0001-role --query 'PolicyNames' --output text 2>/dev/null || echo none)"
 echo "aws iam list-role-tags tl-team-0001-role: tofu-estate=$TEAM_ROLE_ESTATE; inline policies still attached: $INLINE" | evidence
 [ "$INLINE" = "tl-team-0001-inline" ] || fail "carve" "the inline policy did not stay attached across the move: '$INLINE'"
-proof "three tag writes, read back through the plain CLI. The children were never touched and never needed to be."
+proof "three tag writes, each one's dry run and real run agreeing on paper, both matched against the inventory read back through the plain CLI. The children were never touched and never needed to be."
 
 step "4. both sides plan clean"
 explain \
