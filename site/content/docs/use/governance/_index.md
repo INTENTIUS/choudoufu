@@ -1,6 +1,6 @@
 ---
 title: "Scoping a role"
-weight: 1
+weight: 12
 bookCollapseSection: true
 ---
 
@@ -17,7 +17,7 @@ it.
 
 So scoping a role is ordinary tag conditions, once the tags underneath them
 are guaranteed rather than hoped for.
-[How to scope a role to an estate]({{< relref "/docs/governance/scope-a-role" >}})
+[How to scope a role to an estate]({{< relref "/docs/use/governance/scope-a-role" >}})
 has the policies themselves.
 
 ## Three things a file cannot do
@@ -28,12 +28,12 @@ feature that applies to resources now applies to your infrastructure, and IAM
 has features a file has never had.
 
 - [How to stop a staging role reaching
-  production]({{< relref "/docs/governance/blast-radius" >}}). A staging role is denied on anything belonging to another
+  production]({{< relref "/docs/use/governance/blast-radius" >}}). A staging role is denied on anything belonging to another
   estate, so the mistake fails at the cloud rather than at review.
-- [How to cover every team with one policy]({{< relref "/docs/governance/abac" >}}). ABAC over the
+- [How to cover every team with one policy]({{< relref "/docs/use/governance/abac" >}}). ABAC over the
   estate tag, so onboarding a team costs a session tag rather than a
   policy.
-- [How to deny creating anything unowned]({{< relref "/docs/governance/unowned" >}}). Deny creates
+- [How to deny creating anything unowned]({{< relref "/docs/use/governance/unowned" >}}). Deny creates
   carrying no estate tag, and ownership becomes a precondition of existing.
 
 ## One configuration, many owners

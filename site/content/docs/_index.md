@@ -262,6 +262,6 @@ as designed, and the message it prints names the remedy.
 |---------|-----------------|
 | [What you pay, and when]({{< relref "/docs/what-you-pay" >}}) | The measured cost of running an estate here, which of three modes it is paid in, and what is still unmeasured |
 | [The model]({{< relref "/docs/model" >}}) | Identity, values and effects: the three things that have to survive between runs |
-| [Governance]({{< relref "/docs/governance" >}}) | The IAM policies a marker makes possible, and where AWS honours the condition they rest on |
+| [Governance]({{< relref "/docs/use/governance" >}}) | The IAM policies a marker makes possible, and where AWS honours the condition they rest on |
 | [Use it]({{< relref "/docs/use" >}}) | Bringing an existing estate in, starting a new one, day-2 operations, storage, and reference |
 | [How close AWS is]({{< relref "/docs/progress" >}}) | The gauntlet: every stage, every estate, and the two numbers read from the same artifact the test suite writes |

@@ -64,4 +64,4 @@ condition to read.
 
 The condition is only evaluated where AWS evaluates it, and a resource can only
 carry a marker if its type takes tags.
-[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has both bounds.
+[Where AWS honours the condition]({{< relref "/docs/use/governance/reach" >}}) has both bounds.

@@ -1,6 +1,6 @@
 ---
 title: "What you pay, and when"
-weight: 3
+weight: 4
 ---
 
 # What you pay, and when

@@ -62,7 +62,7 @@ afterwards by whoever ran the scanner.
 
 `aws:RequestTag` is a different key from `aws:ResourceTag` and services support
 them independently, so confirm this one specifically.
-[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) covers the reach of both.
+[Where AWS honours the condition]({{< relref "/docs/use/governance/reach" >}}) covers the reach of both.
 
 A service control policy has no effect on the organization's management
 account, or on any principal outside the organization.
