@@ -972,7 +972,7 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
     """What one beat proved, in a sentence built from the run's own numbers,
     so the presenter's payoff line is never a claim the log cannot back.
     Empty when the beat left nothing to say yet."""
-    name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve"}.get(name, name)
+    name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve", "seed": "setup"}.get(name, name)
     counts = _counts(after)
     mono = next((e for e in after.estates if e.endswith("-monolith")), None)
     teams = [e for e in after.estates if e != mono]
@@ -1009,6 +1009,13 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
             left = counts.get(mono, 0) if mono else 0
             return f"{len(held)} team estates hold {sum(counts[e] for e in held)} resources; the monolith holds {left}. Nothing was re-created and no state file was split."
         return ""
+    if name == "preview":
+        if not after.previews:
+            return ""
+        refused = sum(1 for pv in after.previews if pv.get("refusal"))
+        if refused:
+            return f"{len(after.previews)} moves previewed, {refused} refused: read them as findings, not failures. Nothing is written yet."
+        return f"{len(after.previews)} moves previewed, every check passed. Nothing is written yet."
     if name == "carve":
         if before is None:
             return ""
@@ -1016,7 +1023,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
                  if before.estate_of(r.key) and after.estate_of(r.key) and before.estate_of(r.key) != after.estate_of(r.key)]
         if moved:
             dests = sorted({short(d) for _, _, d in moved})
-            return f"{len(moved)} resources changed owner into {', '.join(dests)} by tag write alone; their untaggable children followed the parent's tag without a write."
+            return (f"{len(moved)} resources changed owner into {', '.join(dests)} by tag write alone; their untaggable children followed the parent's tag without a write. "
+                    "No state file was read, written or locked to do it -- there is no lock to contend for, because there is nothing a lock protects.")
         return ""
     if name == "guard":
         v = next((v for v in reversed(after.verdicts) if str(v.get("name", "")).startswith("carve")), None)

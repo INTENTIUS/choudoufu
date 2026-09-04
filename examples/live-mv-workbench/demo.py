@@ -107,8 +107,8 @@ def _():
         "seed": "The terralith: one estate, three teams, on floci. The map appears once every resource is up.",
         "survey": "Measure the monolith. One plan of everything, and the number of requests it costs.",
         "plan": "The split, planned: each team takes its own estate. Preview it next.",
-        "preview": "Dry-run every move. Nothing is written; see the tag writes each would make.",
-        "move": "Split it. Each team's resources take its own tag. No state file is touched.",
+        "preview": "Dry-run the three-way split. Nothing is written; see the tag writes each would make.",
+        "move": "Two moves, live: the three-way split, then team-a folds into team-b -- a second retag beyond what Preview showed. No state file is touched or locked either way.",
         "verify": "Prove it. Each estate plans clean, on its own, at the same moment.",
         "receipt": "The proof. The account's own log of every tag write, beside the tool's own record.",
         "teardown": "Clean up. Destroy what this run made; the account is listed to confirm it is empty.",
@@ -233,15 +233,40 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
         _map = mo.vstack([_map_label, mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(viz.project(_state), width=900, ghost=True)}</div>')], gap=0.3)
     elif _running == "move" and _RUN.get("move_before") is not None:
         _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900, before=_RUN["move_before"])}</div>')
+    elif _focus == "receipt":
+        # Receipt only reads; the ownership map never moves during it, so
+        # showing the unchanged map reads as nothing happening. Its own rows
+        # -- the CloudTrail lookup, the account's answer -- are the scene.
+        _rl = viz.render_phase_ledger(_state, "receipt")
+        _map = (mo.Html(f'<div class="lmd-stage" style="align-items:flex-start;justify-content:flex-start;overflow:auto;width:100%">{_rl}</div>')
+                if _rl else mo.Html('<div class="lmd-stage"><span class="lmd-note">nothing read yet</span></div>'))
     else:
         _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900)}</div>')
 
-    # payoff of the last done phase, if it left a number
+    # payoff of the last done phase, if it left a number. Seed and Plan
+    # finish together (plan is done the instant seed writes carve.json),
+    # so that moment shows both: what the apply proved, then what the plan
+    # says comes next -- otherwise seed's own payoff would never be seen,
+    # superseded by plan's in the very same render.
     _pay = ""
     if _done:
         _last = _done[-1]
-        _pv = VERB[_last][0]
-        _pay = viz.payoff(_pv, _state) if _pv else ""
+        if _last == "plan":
+            import json as _json
+            import pathlib as _pathlib
+            _seed_pay = viz.payoff("setup", _state)
+            try:
+                _plan_doc = _json.loads((_pathlib.Path(_run_dir) / "carve.json").read_text())
+                _moves = _plan_doc.get("moves", [])
+                _ests = sorted({m.get("to") for m in _moves if m.get("to")})
+                _plan_pay = f"{len(_moves)} moves planned across {len(_ests)} estates. Preview it next." if _moves else ""
+            except (OSError, ValueError):
+                _plan_pay = ""
+            _pay = " ".join(p for p in (_seed_pay, _plan_pay) if p)
+        else:
+            _pv = VERB[_last][0]
+            _before = _RUN.get("move_before") if _last == "move" else None
+            _pay = viz.payoff(_pv, _state, before=_before) if _pv else ""
     _payline = mo.md(f'<span class="lmd-pay"><b>{_pay}</b></span>') if _pay else mo.md("")
 
     # -- Ledger, collapsible, at the bottom ----------------------------------
