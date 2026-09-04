@@ -68,7 +68,7 @@ def _(mo):
       .lmd-step.active .lmd-dot, .lmd-step.ready .lmd-dot { background: var(--accent); }
       .lmd-step.failed .lmd-dot { background: var(--bad); }
       .lmd-spacer { flex: 1 1 auto; }
-      .lmd-say { font-size: 15px; color: var(--mut); }
+      .lmd-say { font-size: 18px; font-weight: 500; color: currentColor; }
       .lmd-stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; }
       .lmd-stage svg { max-height: 100%; }
       .lmd-note { font-size: 13px; color: var(--mut); }
@@ -90,9 +90,13 @@ def _(mo):
 
 @app.cell
 def _():
-    # The eight phases, in order. Each runs one CLI verb (plan is the tool's
-    # own step: seed writes the carve plan, so plan is done once it exists).
-    PHASES = ["seed", "survey", "plan", "preview", "move", "verify", "receipt", "teardown"]
+    # The eight phases, in the order they actually complete. Plan is not a
+    # CLI verb -- it's done the instant carve.json exists, which the demo
+    # seed writes as part of standing up, before Survey ever runs. Listing
+    # Plan after Survey (narrative order) let the breadcrumb show a later
+    # step done while an earlier one was still unstarted, which read as the
+    # page skipping a stage; this order is the true completion order instead.
+    PHASES = ["seed", "plan", "survey", "preview", "move", "verify", "receipt", "teardown"]
     TITLE = {"seed": "Seed", "survey": "Survey", "plan": "Plan", "preview": "Preview",
              "move": "Move", "verify": "Verify", "receipt": "Receipt", "teardown": "Teardown"}
     # (verb, extra args). None verb = no run, resolved from the run's files.
@@ -100,7 +104,7 @@ def _():
             "preview": ("preview", []), "move": ("move", []), "verify": ("verify", []),
             "receipt": ("receipt", []), "teardown": ("teardown", [])}
     CUE = {
-        "seed": "Build the terralith: one estate, three teams, on floci. Click to stand it up and watch the map fill.",
+        "seed": "The terralith: one estate, three teams, on floci. The map appears once every resource is up.",
         "survey": "Measure the monolith. One plan of everything, and the number of requests it costs.",
         "plan": "The split, planned: each team takes its own estate. Preview it next.",
         "preview": "Dry-run every move. Nothing is written; see the tag writes each would make.",
@@ -245,7 +249,7 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
     _tail = (_running and st.tail(_running)) or ""
     _ledger_body = _ledger + (f"<details style='padding:6px 16px'><summary class='lmd-note'>shell output</summary><pre style='font-size:12px;white-space:pre-wrap'>{mo.Html(_tail).text if _tail else ''}</pre></details>" if _tail else "")
     _drawer = mo.Html(
-        "<details class='lmd-ledger' style='border-top:1px solid var(--edge2); background:var(--panel)'>"
+        "<details class='lmd-ledger' open style='border-top:1px solid var(--edge2); background:var(--panel)'>"
         "<summary style='padding:9px 16px; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--mut); cursor:pointer'>ledger</summary>"
         f"<div style='max-height:32vh; overflow:auto'>{_ledger_body}</div></details>"
     )
