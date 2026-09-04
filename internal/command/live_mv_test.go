@@ -781,6 +781,38 @@ func TestLiveMv_jsonRefusalOutsideTheFiveCodes(t *testing.T) {
 	}
 }
 
+// TestLiveMv_jsonWarningsStayOffStdout is TestLiveMv_missingConfigOverride
+// read through -json: a successful move that ALSO raises a warning
+// ("Configuration still naming the old address") is exactly the case that
+// would otherwise interleave prose into -json's single document, because
+// View.Diagnostics sends warnings to Stdout by design. -json's document
+// must be the only thing on Stdout, and the warning still has to reach the
+// operator - just on Stderr, where the human report's own diagnostics
+// already go.
+func TestLiveMv_jsonWarningsStayOffStdout(t *testing.T) {
+	cloud := mvUnrenamedFixture(t)
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-json", "-allow-missing-config", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	// Stdout has to parse as exactly one JSON document - a trailing warning
+	// appended after it is exactly the corruption this test exists to catch.
+	rep := decodeMvJSON(t, output.Stdout())
+	if rep.To.Address != "aws_s3_bucket.archive" || !rep.Written {
+		t.Errorf("the move itself did not go through: %+v", rep)
+	}
+	if strings.Contains(output.Stdout(), "Configuration still naming the old address") {
+		t.Errorf("the warning leaked onto stdout, corrupting the JSON document:\n%s", output.Stdout())
+	}
+	if !strings.Contains(output.Stderr(), "Configuration still naming the old address") {
+		t.Errorf("the warning is missing entirely - it has to land on stderr instead of stdout, not vanish:\n%s", output.Stderr())
+	}
+}
+
 // decodeMvJSON parses -json's stdout as one views.StatelessMvJSONReport, the
 // same struct live_mv.go builds and views.StatelessMvJSONHuman prints -
 // decoding into it, rather than into a map, is what makes this test fail to
