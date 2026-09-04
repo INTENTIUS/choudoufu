@@ -99,7 +99,21 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 	})
 	diags = diags.Append(moveDiags)
 
-	if !diags.HasErrors() && res != nil {
+	switch {
+	case args.JSON:
+		// Unlike the human report below, this renders on every path past
+		// this point, not only a clean success: GitHub issue #791 asks for
+		// the move as one document "with and without -dry-run", and a
+		// refusal is exactly the other half of what a preview or a receipt
+		// reader needs to show - see views.StatelessMvJSONReport's own doc
+		// comment. res can be nil here (liveMv failed before mv.Move ever
+		// ran - a bad estate name, a lint refusal, an identity resolution
+		// that never settled), and liveMvJSONReport degrades to the two
+		// addresses this run was given and whatever diags says, exactly the
+		// way the case below already tolerates res == nil by skipping the
+		// human report entirely.
+		views.NewStatelessMvJSON(c.View).Report(liveMvJSONReport(res, diags, oldAddr, newAddr, args.DryRun))
+	case !diags.HasErrors() && res != nil:
 		views.NewStatelessMv(c.View).Report(liveMvReport(res))
 	}
 	c.View.Diagnostics(diags)
@@ -402,6 +416,84 @@ func liveMvFoundBy(res *mv.Result) string {
 	default:
 		return "(unknown)"
 	}
+}
+
+// liveMvJSONReport builds -json's single document (GitHub issue #791) from
+// whatever this run got: res may be nil (liveMv failed before mv.Move ran
+// at all), and diags may or may not carry one of mv.RefusalCode's five
+// stable shapes. old and new are the two addresses as parsed from the
+// command line, which is all this can report when res is nil - they are
+// what liveMv was called with, not what a live resource turned out to
+// carry.
+//
+// Unlike liveMvReport, this is called on every path once the two addresses
+// parse, refusal included: the whole point of a stable JSON document is
+// that a preview reads the same shape whether the rename it describes
+// happened or was refused, rather than a caller having to fall back to
+// stderr parsing the moment something goes wrong.
+func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.AbsResourceInstance, dryRun bool) views.StatelessMvJSONReport {
+	rep := views.StatelessMvJSONReport{
+		From:   views.StatelessMvJSONEndpoint{Address: old.String()},
+		To:     views.StatelessMvJSONEndpoint{Address: new.String()},
+		DryRun: dryRun,
+	}
+
+	if res != nil {
+		fromEstate := res.FromEstate
+		if fromEstate == "" {
+			fromEstate = res.Estate
+		}
+		rep.Resource = views.StatelessMvJSONResource{
+			TypeName:    res.TypeName,
+			LiveID:      res.LiveID,
+			DisplayName: res.DisplayName,
+		}
+		rep.From = views.StatelessMvJSONEndpoint{Estate: fromEstate, Address: res.Old.String(), Marker: res.OldMarker}
+		rep.To = views.StatelessMvJSONEndpoint{Estate: res.Estate, Address: res.New.String(), Marker: res.NewMarker}
+		rep.Followers = liveMvJSONFollowers(res.Followers)
+		rep.DryRun = res.DryRun
+		rep.Written = res.Written
+		rep.Verified = res.Verified
+		rep.FoundBy = string(res.Path)
+	}
+
+	if code, diag, ok := mv.CodedRefusal(diags); ok {
+		rep.Refusal = &views.StatelessMvJSONRefusal{
+			Code:    string(code),
+			Summary: diag.Description().Summary,
+			Detail:  diag.Description().Detail,
+		}
+	} else if diags.HasErrors() {
+		// A refusal outside the five stable shapes still gets a document:
+		// Code stays empty, but a JSON reader is never left to fall back to
+		// stderr just because this run's error was a lint failure or a
+		// provider hiccup rather than one of the five mv.RefusalCode names.
+		for _, d := range diags {
+			if d.Severity() != tfdiags.Error {
+				continue
+			}
+			rep.Refusal = &views.StatelessMvJSONRefusal{
+				Summary: d.Description().Summary,
+				Detail:  d.Description().Detail,
+			}
+			break
+		}
+	}
+
+	return rep
+}
+
+// liveMvJSONFollowers unpacks mv.Result.Followers into the JSON shape,
+// nil-safe so an anchor with none reports an omitted key rather than [].
+func liveMvJSONFollowers(followers []mv.Follower) []views.StatelessMvJSONFollower {
+	if len(followers) == 0 {
+		return nil
+	}
+	out := make([]views.StatelessMvJSONFollower, len(followers))
+	for i, f := range followers {
+		out[i] = views.StatelessMvJSONFollower{Address: f.Addr.String(), TypeName: f.TypeName}
+	}
+	return out
 }
 
 func (c *LiveMvCommand) Help() string {

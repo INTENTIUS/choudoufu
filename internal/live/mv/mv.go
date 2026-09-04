@@ -189,6 +189,14 @@ type Result struct {
 	// [Request.AllowMissingConfig].
 	Anchor addrs.AbsResourceInstance
 
+	// Followers are the declared instances that move along with this one
+	// without a marker write of their own - see [Follower]'s own doc
+	// comment. Computed from the configuration's identity map alone, the
+	// moment [Result.Anchor] is known, so it is populated even when the
+	// rename that follows refuses: a follower is a fact about the
+	// configuration, not an outcome of the write.
+	Followers []Follower
+
 	// Path is how the resource was found.
 	Path Path
 
@@ -290,6 +298,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 	res.Anchor = anchor
+	res.Followers = followersOf(anchor, req.Resolutions)
 
 	var rc *configs.Resource
 	var rcCfg *configs.Config
@@ -473,7 +482,8 @@ func anchorAddr(req Request) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
 		if !oldDeclared {
 			detail += fmt.Sprintf(" Note that %s is not declared either.", req.Old)
 		}
-		return addrs.AbsResourceInstance{}, diags.Append(tfdiags.Sourceless(
+		return addrs.AbsResourceInstance{}, diags.Append(refuse(
+			RefusalDestinationNotDeclared,
 			tfdiags.Error, "Destination address missing from the configuration", detail,
 		))
 	case oldDeclared:
@@ -516,6 +526,57 @@ func resolutionFor(req Request, addr addrs.AbsResourceInstance) (identity.Resolu
 		}
 	}
 	return identity.Resolution{}, false
+}
+
+// Follower is a declared instance whose identity composes from the resource
+// being renamed rather than carrying an ownership marker of its own - an
+// aws_iam_role_policy or aws_iam_role_policy_attachment beside the role the
+// carve-by-retag smoke moves (live/smoke/scenarios/carve-by-retag.sh, "The
+// three children need no write at all; they follow their parent."). This
+// rename never touches a follower: rewriting the parent's tag is the whole
+// move, because the follower's import identity is rendered fresh from the
+// parent's live ID on every read regardless of what address the parent
+// carries. Follower exists so a caller drawing the move - a preview, or the
+// receipt GitHub issue #791's -json flag prints - can show these instances
+// moving alongside the parent without re-deriving the same
+// [identity.ClassParentDerived] walk [declaredChildImportIDs] in
+// internal/live/discovery already makes for a different purpose (skipping a
+// declared child during a list read, rather than naming it for a reader).
+type Follower struct {
+	// Addr is the follower's own declared address.
+	Addr addrs.AbsResourceInstance
+
+	// TypeName is its resource type.
+	TypeName string
+}
+
+// followersOf finds every instance in resolutions whose identity is a
+// formula over anchor - [identity.ClassParentDerived] naming anchor among
+// its [identity.Formula.Parents]. resolutions is the whole configuration's
+// identity map ([Request.Resolutions]), not only the instance being
+// renamed, which is what lets one pass find every child anywhere in the
+// configuration rather than only the ones a caller already knew to look
+// for.
+//
+// This is a fact about the configuration's identity graph, not about
+// whether the live write anchor names succeeds - see [Result.Followers]'s
+// own doc comment for why it is computed before find or rewrite ever run.
+func followersOf(anchor addrs.AbsResourceInstance, resolutions []identity.Resolution) []Follower {
+	want := anchor.String()
+	var out []Follower
+	for _, r := range resolutions {
+		if r.Class != identity.ClassParentDerived || r.Formula == nil {
+			continue
+		}
+		for _, p := range r.Formula.Parents {
+			if p.String() == want {
+				out = append(out, Follower{Addr: r.Addr, TypeName: r.Addr.Resource.Resource.Type})
+				break
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Addr.String() < out[j].Addr.String() })
+	return out
 }
 
 func resourceSchema(ctx context.Context, provider providers.Interface, providerAddr addrs.AbsProviderConfig, typeName string) (providers.Schema, tfdiags.Diagnostics) {
@@ -793,7 +854,8 @@ func (m *mover) destinationDiags(claimNew []listed) tfdiags.Diagnostics {
 	if len(others) == 0 {
 		return diags
 	}
-	return diags.Append(tfdiags.Sourceless(
+	return diags.Append(refuse(
+		RefusalNewAddressClaimed,
 		tfdiags.Error,
 		"Destination address already claimed",
 		fmt.Sprintf(
@@ -831,7 +893,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 	case 0:
 		return "", cty.NilVal, diags.Append(notFoundDiag(m.res, m.sourceEstate(), listed, len(mine), len(claimNew) > 0))
 	default:
-		return "", cty.NilVal, diags.Append(tfdiags.Sourceless(
+		return "", cty.NilVal, diags.Append(refuse(
+			RefusalTwoAtOldAddress,
 			tfdiags.Error,
 			"Two live resources claiming one address",
 			fmt.Sprintf(
@@ -864,7 +927,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 // like from the outside.
 func notFoundDiag(res *Result, estate string, listed, inEstate int, newClaimed bool) tfdiags.Diagnostic {
 	if newClaimed {
-		return tfdiags.Sourceless(
+		return refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -872,7 +936,8 @@ func notFoundDiag(res *Result, estate string, listed, inEstate int, newClaimed b
 				res.TypeName, estate, res.OldMarker, res.NewMarker),
 		)
 	}
-	return tfdiags.Sourceless(
+	return refuse(
+		RefusalNothingAtOldAddress,
 		tfdiags.Error,
 		"No live resource at the old address",
 		fmt.Sprintf(
@@ -926,7 +991,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		// Found it.
 		return obj, diags
 	case m.req.FromEstate != "" && estate == m.req.Estate && discovery.AddressMatches(marker, m.res.New.String()):
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -950,7 +1016,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, estate, m.req.Estate),
 		))
 	case discovery.AddressMatches(marker, m.res.New.String()):
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -958,7 +1025,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, m.res.NewMarker, m.res.OldMarker),
 		))
 	case marker == "":
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNothingAtOldAddress,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -966,7 +1034,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, m.res.OldMarker),
 		))
 	default:
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNothingAtOldAddress,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(

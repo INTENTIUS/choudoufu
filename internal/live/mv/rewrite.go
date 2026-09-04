@@ -179,7 +179,8 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 			paths = append(paths, tfdiags.FormatCtyPath(p))
 		}
 		sort.Strings(paths)
-		return diags.Append(tfdiags.Sourceless(
+		return diags.Append(refuse(
+			RefusalPlanChangesMoreThanTags,
 			tfdiags.Error,
 			"Unexpected replacement in marker rewrite",
 			fmt.Sprintf(
@@ -209,7 +210,8 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 	}
 
 	if extra := changedOutsideTags(m.schema.Block, priorVal, planned); len(extra) > 0 {
-		return diags.Append(tfdiags.Sourceless(
+		return diags.Append(refuse(
+			RefusalPlanChangesMoreThanTags,
 			tfdiags.Error,
 			"Unexpected changes in the marker rewrite",
 			fmt.Sprintf(
