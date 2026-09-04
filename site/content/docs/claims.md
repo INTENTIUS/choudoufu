@@ -1,6 +1,6 @@
 ---
 title: "The claims"
-weight: 2
+weight: 1
 ---
 
 # Claims you can run

@@ -40,7 +40,7 @@ the [compatibility reference]({{< relref "/docs/use/compatibility" >}}) behind i
 [The model]({{< relref "/docs/model" >}}) explains what each hook stores and why
 the three kinds are kept apart.
 
-[Governance]({{< relref "/docs/governance" >}}) holds the IAM policies. They scope a
+[Governance]({{< relref "/docs/use/governance" >}}) holds the IAM policies. They scope a
 role to one estate and deny the creation of anything unowned.
 
 [Using it]({{< relref "/docs/use" >}}) covers day-2 work such as renaming or
