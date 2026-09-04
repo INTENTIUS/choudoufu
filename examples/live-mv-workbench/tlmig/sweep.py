@@ -140,7 +140,7 @@ def assert_torn_down(cfg: config.Config) -> None:
     """Raise Leftovers unless the account holds nothing of this run. Prints
     what was checked either way, so a clean result is a statement about
     named reads rather than an absence of errors."""
-    ui.rule(f"teardown check: run {cfg.run_id} in account {cfg.account_id}")
+    ui.rule(f"teardown check: run {cfg.run_id} in account {guard.caller_account(cfg)}")
     found = find_leftovers(cfg)
     events.verdict(
         cfg, "teardown",

@@ -82,11 +82,12 @@ def _(config, mo):
     A browser page opens on a recording in replay mode. Walk me through it
     phase by phase, seed to teardown: for each phase read me what it does
     and its payoff line, and explain what the map or the cost bars changed.
-    If I have AWS credentials for account {config.ACCOUNT_ID}, switch the
-    page to live and run the phases in order with the buttons, one at a
-    time, waiting for each to finish; explain each payoff as it appears,
-    and finish with teardown. If the account check refuses, tell me why
-    from the reason under its button and stay in replay.
+    If I have AWS credentials, switch the page to live and run the phases in
+    order with the buttons, one at a time, waiting for each to finish;
+    explain each payoff as it appears, and finish with teardown. It uses
+    whichever account those credentials resolve to - nothing to configure.
+    If the account check refuses, tell me why from the reason under its
+    button and stay in replay.
     ```
     """
     )})
@@ -95,7 +96,7 @@ def _(config, mo):
 
 @app.cell
 def _(config, mo):
-    _live = f"live: run each phase for real, against AWS account ...{config.ACCOUNT_ID[-4:]} (writes, then tears down)"
+    _live = "live: run each phase for real, against whatever AWS account your credentials resolve to (writes, then tears down)"
     _bid = "bid: preview only, nothing written; every planned move as a dry run, projected on the map"
     _replay = "replay: watch a recording of a past run; no account needed"
     mode = mo.ui.radio(options={_live: "live", _bid: "bid", _replay: "replay"}, value=_replay, label="")
@@ -141,7 +142,7 @@ def _(binary, mo, mode, pin, recording, run_id):
         ])
     elif live:
         _controls = mo.vstack([
-            mo.md("Press each phase's button below, in story order, and talk over it; one phase at a time. The picture follows the run as it writes its own event log. Live needs credentials for the pinned account; without them, preflight refuses and nothing else runs. To continue an earlier run after a restart, put its id in the run settings: finished phases are read back from its log."),
+            mo.md("Press each phase's button below, in story order, and talk over it; one phase at a time. The picture follows the run as it writes its own event log. Live needs AWS credentials; without them, preflight refuses and nothing else runs. To continue an earlier run after a restart, put its id in the run settings: finished phases are read back from its log."),
             mo.accordion({"run settings (run id, pin, binary)": mo.vstack([mo.hstack([run_id, pin], justify="start", gap=2), binary])}),
         ])
     else:
@@ -413,7 +414,7 @@ def _(BTN, PHASES, VERBS, bid, live, mo, section, seed_adopt_btn, seed_config, s
     if _adopt_ready and live:
         st.click("seed", seed_adopt_btn.value, extra=_adopt_args + ["--approve"], key="seed:adopt")
     _demo = mo.vstack([
-        mo.md("**The demo terralith.** One config, one estate, 21 IAM and log-group resources for three teams, applied into the pinned account under this run's prefix. It is the estate the demo words below were written against, and the only seed teardown removes."),
+        mo.md("**The demo terralith.** One config, one estate, 21 IAM and log-group resources for three teams, applied into your AWS account under this run's prefix. It is the estate the demo words below were written against, and the only seed teardown removes."),
         seed_demo_btn,
     ])
     _cmd = "tlmig seed --run " + st.run_id + " " + (shlex.join(_adopt_args) if _adopt_ready else "--config <dir> --estate <name> [--state <file>]")

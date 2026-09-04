@@ -38,17 +38,22 @@ class Lookup(unittest.TestCase):
                     return FakeRes(True, json.dumps({"Events": [trail("TagRole", cfg.prefix, {"tofu-estate": f"{cfg.prefix}-team-b"}),
                                                                 trail("TagRole", "tlmig-other", {"tofu-estate": "elsewhere"})]}))
                 return FakeRes(True, json.dumps({"Events": []}))
-            with mock.patch.object(receipt.guard, "aws", side_effect=fake_aws), mock.patch.object(receipt.ui, "kv"):
+            with mock.patch.object(receipt.guard, "aws", side_effect=fake_aws), \
+                 mock.patch.object(receipt.guard, "caller_account", return_value="354867293429"), \
+                 mock.patch.object(receipt.ui, "kv"):
                 ct = receipt.lookup_run_cloudtrail(cfg, since=datetime.datetime(2026, 9, 3, 6, 40, tzinfo=datetime.timezone.utc), max_wait=0)
             self.assertEqual(len(ct.events), 1)
             e = ct.events[0]
             self.assertEqual((e.role, e.resource, e.tags, e.error), ("x/y", "tlmig-abc123-team-a-role", {"tofu-estate": "tlmig-abc123-team-b"}, None))
-            self.assertEqual(ct.account, config.ACCOUNT_ID)
+            # The receipt's account comes from the live caller identity, not
+            # cfg.account_id (empty by default - see config.ACCOUNT_ID).
+            self.assertEqual(ct.account, "354867293429")
 
     def test_gives_up_empty_when_history_lags(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = self.cfg(d)
             with mock.patch.object(receipt.guard, "aws", return_value=FakeRes(True, json.dumps({"Events": []}))), \
+                 mock.patch.object(receipt.guard, "caller_account", return_value="354867293429"), \
                  mock.patch.object(receipt.ui, "kv"), mock.patch.object(receipt.time, "sleep") as slept:
                 ct = receipt.lookup_run_cloudtrail(cfg, since=datetime.datetime.now(datetime.timezone.utc), max_wait=1, poll=1)
             self.assertEqual(ct.events, ())

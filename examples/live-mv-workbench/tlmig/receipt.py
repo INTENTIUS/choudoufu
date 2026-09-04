@@ -318,7 +318,9 @@ def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None
         ui.kv("CloudTrail", f"{len(found)} of this run's writes visible so far; event history lags, waiting {poll}s", None)
         time.sleep(poll)
     ordered = sorted(found.values(), key=lambda e: e.time)
-    return CloudTrailReceipt(account=cfg.account_id, region=cfg.region,
+    # The real account, not the (usually empty) pin: a receipt records what
+    # actually happened, and cfg.account_id is unset on an unfenced run.
+    return CloudTrailReceipt(account=guard.caller_account(cfg), region=cfg.region,
                             captured=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                             events=tuple(ordered), available=not (emulator and not found))
 
