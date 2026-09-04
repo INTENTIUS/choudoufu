@@ -4,14 +4,57 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.12.0 (Unreleased)
-
-- **The example moves to `examples/live-mv-workbench`**, named for the tool it
-  is becoming: a phased live-mv workflow with the terralith as its demo seed.
-  The page is `workbench.py`; the package stays `tlmig` for now. Paths in
-  the v0.11.0 entry below are as shipped.
+## choudoufu v0.13.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.12.0 (2026-09-04)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.12.0.json`](live/history/v0.12.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.11.0.json live/history/v0.12.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board was not re-measured against this release's engine changes;
+the snapshot carries forward the last run's verdicts.
+
+ENGINE WORK:
+
+- **`live-ls`** (#789): a new verb, an inventory read for what an estate
+  holds under live markers -- no plan, no apply, just a listing.
+- **`live-check -json`** (#790) and **`live-plan -json`** (#788): both
+  offline/diagnostic commands gain a machine-readable document (the
+  declared roster and cross-estate references for check, the
+  bound/omissions/unowned breakdown for plan) beside their existing
+  human-readable report.
+
+FORK WORK:
+
+- **The example moves to `examples/live-mv-workbench`**, named for the tool
+  it is becoming: a phased live-mv workflow with the terralith as its demo
+  seed. The page is `workbench.py`; the package stays `tlmig` for now.
+  Paths in the v0.11.0 entry below are as shipped.
+
+- **A live, watchable demo** (`demo.py`, PR #796): a single-screen page and
+  a two-container compose stack (`just up`) that splits the terralith by
+  retagging against a pinned floci, live, with no credentials and nothing
+  to clean up. Picked up from an in-progress handoff and taken through a
+  full watched run: the container now defaults to the pinned choudoufu
+  release rather than always building from source (`just up source` opts
+  into a source build), receipt stops burning its full two-minute
+  CloudTrail-lag budget against an emulator that never logs it, and a run
+  of UX fixes made from actually watching it -- a pulsing "working"
+  indicator and a live elapsed-seconds counter, a ghosted preview of the
+  planned split before Move makes it real, a payoff line for every phase
+  (four of eight had none), a warning before Move's second, undocumented
+  act, and a real scene for the read-only receipt phase instead of a
+  static, unmoving map. `.claude/skills/live-mv-demo/SKILL.md` and updated
+  docs (the example's README and its docs-site page, whose CLI examples
+  had drifted onto verb names the CLI no longer answers to) point at it.
 
 ## choudoufu v0.11.0 (2026-09-03)
 

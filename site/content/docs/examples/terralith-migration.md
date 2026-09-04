@@ -37,8 +37,15 @@ AWS emulator, and prints `http://localhost:2718`. Open that page: eight
 numbered phases across the top, a Run button, the ownership map in the
 middle. Click through them in order and watch the map redraw. `just up
 source` builds choudoufu from this checkout's own code instead of the
-pinned release. `.claude/skills/live-mv-demo/SKILL.md` walks an AI
-assistant through the whole thing if you would rather hand it off.
+pinned release.
+
+Or hand the whole thing to an assistant:
+
+```text
+Read https://github.com/INTENTIUS/choudoufu/blob/main/.claude/skills/live-mv-demo/SKILL.md
+and follow it. Confirm with me before installing anything or starting a
+container.
+```
 
 The rest of this page runs the same split against a real account instead,
 one phase at a time from a terminal, for when you want the
