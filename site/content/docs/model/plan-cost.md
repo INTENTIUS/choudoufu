@@ -187,22 +187,14 @@ and the totals differ by a constant:
 | 301 | 558 | 556 |
 | 745 | 1374, not measured | 1372 |
 
-**An earlier version of this table read 148, 556 and 1372 in the stock column
-and called the two identical, call for call.** They are not identical; they
-are parallel. Every stock figure in that column came from a `terraform plan`
-run against a provider block setting `skip_requesting_account_id`, which
-suppresses the provider's own account resolution, one `GetCallerIdentity` and
-one `GetUser`. With the block corrected,
-`the stateful-equivalence measurement (#588)` measured stock at **150** and
-**558** at the two smaller scales. 745 was not re-run, and 1374 is what the
-shared slope implies rather than anything anyone counted.
-
-Those two calls are the whole of the difference, and the slope is untouched.
-The read pass fits `1.8378N + 2.8`, and stock's own two-point fit is
-`1.84N + 5`, the same line with two more calls of constant. The per-resource
-work is identical and the constant is not. That is the claim to carry, and it
-is the stronger one. The coincidence that made the old column look exact was a
-defect deleting from stock a constant the read-pass term never had.
+The two are not identical; they are parallel, a constant two calls apart.
+Stock's provider block resolves its own account with one `GetCallerIdentity`
+and one `GetUser`; the read pass has no equivalent, because nothing in it
+needs the account identity. The read pass fits `1.8378N + 2.8`, and stock's
+own two-point fit is `1.84N + 5` - the same line, two more calls of constant.
+The per-resource work is identical; the constant is not. 745 was not re-run
+on either side, and 1374 is what stock's shared slope implies rather than
+anything anyone counted.
 
 So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
@@ -210,10 +202,10 @@ refreshes, and **nothing in this fork adds to them or can subtract from
 them.** `live/plan-budget.json` says the same of its own figures: the shape
 "is a property of the AWS provider's own Read".
 
-**"Everything choudoufu spends above stock is the sweep" was this page's
-headline sentence, and it needs two bounds now.** It is a statement about API
-calls on a run that sweeps in full, and on that run it holds. It does not
-describe a steady-state plan, and it does not survive the move to seconds. At
+Above stock, everything choudoufu spends is the sweep - but that is a claim
+about API calls on a run that sweeps in full, and it holds only there. It
+does not describe a steady-state plan, and it does not survive the move to
+seconds. At
 745 resources on real AWS, counting the requests the AWS provider itself logs,
 stock issues 1392 and choudoufu 1399, seven apart, while the wall clock reads
 22–39 s against 123–124 s. Seven requests do not cost ninety seconds. That
@@ -256,28 +248,13 @@ types the configuration declares from the admission table, so a slice
 declaring five types has a sweep universe of 1022 to 1026 against the whole
 estate's 1021. A small slice pays slightly more than the whole estate does.
 
-The consequence for an already-sliced adopter is the sharp edge of this cost
-model. Summed across the estate at the smallest scale, stock costs 148 API
-calls whether it is one state or eight; the same estate through choudoufu
-costs 744 calls at one state, 1288 at two and **4530 at eight**, because each
-additional state pays the whole sweep again. Slicing redistributes stock's
-refresh. It multiplies choudoufu's sweep.
-
-> **Superseded on both sides, and the paragraph above should not be quoted.**
-> Every CLI-plan figure in it was taken with a provider block setting
-> `skip_requesting_account_id`, so every one of those choudoufu plans exited 1
-> on a refusal and its cost was written up as a clean plan's. Re-measured at
-> `5ff7f43f5b`, every plan exiting 0 with `No changes`: stock **150 / 152 /
-> 164** at k=1/2/8, choudoufu **157 / 163 / 198**. That is 1.05x, 1.07x and
-> **1.21x**, not 5.0x, 8.7x and 30.6x. Stock's "148 whether one state or
-> eight" was an artifact of the same block; stock is `148 + 2k`, two calls per
-> slice to resolve the account. The error was not uniform either - it was
-> `18 − 4k` calls and changed sign near k=4.5 - so no ratio built on those
-> numbers could be rescaled. The sentence that survives is the one about the
-> sweep: it is still **512 calls per slice**, 4096 summed at eight, for every
-> run that actually sweeps. Since `09d180f921` a steady-state plan is not one
-> of them. The full correction is
-> [`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634)).
+The consequence for an already-sliced estate is where the sweep actually
+hurts: because it does not shrink per slice, its cost multiplies with slice
+count even though a steady-state plan's does not - about 512 calls times the
+number of slices, 4096 summed at eight, on any run that sweeps in full.
+[What you pay]({{< relref "/docs/what-you-pay#splitting-an-estate-into-several-states" >}})
+has the steady-state ratio table (1.05x/1.07x/1.21x at k=1/2/8) and the
+choice this leaves an adopter with.
 
 ## On real AWS the sweep was nearly the whole plan
 

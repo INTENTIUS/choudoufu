@@ -313,21 +313,11 @@ None of that helps a directory running stock. Delete or archive the old state
 file as part of the migration, and treat any surviving stock directory
 pointing at the same estate as the hazard it now is.
 
-## Slicing: the 30.6x figure is withdrawn
+## Splitting an estate into several states
 
-The question this page was written to answer was whether it is still worth
-slicing a terralith into separate states under choudoufu, and the published
-answer was that slicing was catastrophic here: stock cost 148 calls whether it
-was one state or eight, and choudoufu cost 4530 at eight, a 30.6x ratio.
-
-**Do not quote that number.** It was measured on a configuration where
-`choudoufu plan` refused. The bench wrote its own provider block setting
-`skip_requesting_account_id`, which breaks ECS identity resolution, and every
-`choudoufu plan` in that matrix exited 1 while its call count was written up as
-a clean plan's cost.
-
-Re-measured at `5ff7f43f5b` against the same pin, scale 1, every plan exiting 0
-with `No changes`:
+Slicing a terralith into several smaller states, rather than planning it as
+one, costs almost nothing extra under choudoufu. Measured at `5ff7f43f5b`,
+same pin, scale 1, every plan exiting 0 with `No changes`:
 
 | Configuration | stock | choudoufu | Ratio |
 |---|---|---|---|
@@ -335,45 +325,34 @@ with `No changes`:
 | Two states, summed | 152 | 163 | **1.07x** |
 | Eight states, summed | 164 | 198 | **1.21x** |
 
-Two things in the old answer were wrong, and the second is the one worth
-carrying away.
+**Stock is not flat under slicing either.** Stock is `148 + 2k`, two calls per
+slice to resolve the account. choudoufu pays about six calls per slice, so an
+extra state costs roughly four calls more here than it costs stock - the 1.21x
+at eight states, not a multiple.
 
-**Stock is not cost-neutral under slicing.** Its "148 whether one state or
-eight" was itself an artifact of the same provider block. Stock is `148 + 2k`,
-two calls per slice to resolve the account. choudoufu pays about six
-per slice, so an extra state costs roughly four calls more here than it costs
-stock.
+> A 30.6x figure for this same comparison circulated earlier and should not be
+> quoted. It came from a benchmark whose own provider block broke ECS identity
+> resolution, so every `choudoufu plan` in that run actually refused, and its
+> exit-1 call count was written up as a clean plan's cost.
 
-**The broken configuration was not uniformly more expensive, and past k≈5 it
-was cheaper.** An A/B at one commit and pin, varying only the provider block,
-puts the overhead at +14, +10 and −14 calls at k=1, 2 and 8. Two constants of
-opposite sign make it: the refusal costs +18 in whichever single slice holds
-the ECS layer, however large k is, while failing to resolve the account saves 4
-in every slice. Net `18 − 4k`, zero near k=4.5. So the error depended on k and
-changed sign, which is why the old ratio could not be scaled or salvaged.
+### The sweep is the real cost of slicing, and it does not shrink per slice
 
-### But the sweep did not go away, and it is still per state
+Day-2 planning is cheap to slice; adopting or recovering an estate from
+markers alone is not. The estate-wide native sweep does not scale down with a
+slice's type count: **about 512 calls per slice at every scale measured**,
+4096 summed across eight states. A slice declaring five types still pays what
+the whole estate pays, because the sweep builds its universe by *subtracting*
+the types a configuration declares from the admission table, not by listing
+only what that slice has.
 
-The flat leg that made the old answer alarming is still there. The
-estate-wide native sweep still does not scale down with a slice's type count:
-**512 calls per slice at every k measured**, which is 4096 summed across eight
-states. A slice declaring five types pays what the whole estate pays, and
-fractionally more, because the sweep builds its universe by *subtracting* the
-types a configuration declares from the admission table.
+`09d180f921` took that leg off the steady-state plan path once an estate has
+a record store to narrow by, and left it everywhere else: a plan with no
+record store, a store that will not list, or an empty store still takes the
+full universe.
 
-What changed is who pays it. `09d180f921` took that leg off the steady-state
-plan path when the estate has its own evidence to narrow by, and left it
-everywhere else. A plan with no record store, a store that will not list, or an
-empty store still takes the full universe, because every gate fails toward
-doing the work.
-
-So the honest split, and it is a split rather than a verdict:
-
-- **As a claim about day-2 planning, "don't slice under choudoufu" is dead.**
-  A steady-state plan of a sliced estate costs 1.21x stock's at eight states.
-- **As a claim about adoption and recovery, it stands.** Every run that
-  actually sweeps pays about 512 calls per state, and eight states means eight
-  sweeps.
+So: slicing costs about 1.2x stock to plan day to day, and one full sweep per
+slice to adopt or recover - the number to weigh before splitting an estate you
+expect to adopt piecemeal.
 
 ## What this page does not claim
 
@@ -419,9 +398,9 @@ implementations happens to be.
 
 ## Wall clock: withdrawn, because the comparison was not like for like
 
-**Every wall-clock ratio this page published at 745 resources is withdrawn.**
-Three sessions had measured 2.95x, 3.53x and 2.05x on the median, and the page
-had begun offering a mechanism for them. The comparison underneath was invalid.
+Three real-AWS sessions measured wall-clock ratios of 2.95x, 3.53x and 2.05x
+on the median at 745 resources. **None of them is stated here as a ratio,
+because the comparison underneath was invalid.**
 
 The harness ran stock in one directory and choudoufu in another. Stock's
 directory holds `terraform.tfstate`. choudoufu's holds `.tofu-records` and **no
