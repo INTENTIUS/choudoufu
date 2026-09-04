@@ -307,6 +307,20 @@ func initCommands(
 			}, nil
 		},
 
+		// The inventory verb (GitHub issue #789): "what does this account
+		// hold under estate X", read straight off the live system - the
+		// question live-plan answers for a configuration's own declared
+		// addresses, and this answers for the cloud as it actually is, with
+		// no configuration required. Public from the start, the same
+		// reasoning live-check's doc comment above gives: a command nobody
+		// can find cannot answer the question an inheritor or an auditor
+		// asks first.
+		"live-ls": func() (cli.Command, error) {
+			return &command.LiveLsCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
