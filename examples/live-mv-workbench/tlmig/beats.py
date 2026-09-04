@@ -252,6 +252,12 @@ def receipt_phase(cfg: config.Config) -> None:
             for e in ct.events:
                 ui.kv(e.time, f"{e.role}  {e.resource}  {', '.join(f'{k}={v}' for k, v in e.tags.items())}" + (f"  {e.error}" if e.error else ""), not e.error)
             ui.ok(f"{len(ct.events)} of this run's writes are in the account's log, {len(retags)} of them ownership moves")
+        elif not ct.available:
+            warn = ("CloudTrail is not available against this account: it is a real-AWS service that floci "
+                    "(or any AWS emulator) does not implement, so no retry would find anything here. This "
+                    "record only exists against a real account.")
+            ui.warn(warn)
+            events.note(cfg, warn)
         else:
             warn = ("CloudTrail event history has not surfaced this run's writes yet (it can lag a few minutes); "
                     "run `tlmig receipt` again in a minute and the record appears")

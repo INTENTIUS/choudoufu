@@ -2,8 +2,11 @@
 #
 #   floci  — the AWS emulator the demo runs against, so no credentials and
 #            nothing to clean up. Pinned image by default; FLOCI_IMAGE overrides.
-#   demo   — marimo serving demo.py, pointed at floci. Built from the repo,
-#            so the choudoufu binary is compiled from this checkout's source.
+#   demo   — marimo serving demo.py, pointed at floci. By default its
+#            choudoufu binary is the pinned release the docs measure
+#            against, downloaded at build time, nothing else needed;
+#            `just up source` builds it from this checkout's own code
+#            instead. Both selected by the justfile through BUILD_MODE.
 #
 # Started by the justfile: `just up`. The demo is at http://localhost:2718.
 services:
@@ -17,8 +20,12 @@ services:
 
   demo:
     build:
-      context: ../../..            # repo root: the Dockerfile builds choudoufu from source
+      context: ../../..            # repo root: BUILD_MODE=source needs the whole checkout
       dockerfile: examples/live-mv-workbench/compose/Dockerfile
+      args:
+        BUILD_MODE: ${BUILD_MODE:-release}
+        CHOUDOUFU_VERSION: ${CHOUDOUFU_VERSION:-v0.10.1}   # the justfile reads this from tlmig/config.py
+        FORK_LABEL: ${FORK_LABEL:-dev}                     # the justfile sets this from `git describe`; source mode only
     depends_on:
       - floci
     environment:
@@ -29,6 +36,12 @@ services:
       TLMIG_ACCOUNT: "000000000000"     # floci's account: preflight fences to it
       TF_PLUGIN_CACHE_DIR: /plugins
       CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+      # release mode: the exact pinned tag, so preflight's normal check runs
+      # (the downloaded binary reports it). source mode: "local", so
+      # preflight accepts this checkout's own describe stamp instead of
+      # asserting an exact release tag it was never going to match. The
+      # justfile sets this to match whichever BUILD_MODE it built.
+      CHOUDOUFU_VERSION: ${RUNTIME_CHOUDOUFU_VERSION:-v0.10.1}
     volumes:
       - plugins:/plugins               # AWS provider cache, downloaded once, kept
     ports:

@@ -139,6 +139,7 @@ class RunState:
     last_ts: datetime | None
     previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
     record_store: dict = dataclasses.field(default_factory=dict)     # {estate: [address,...]} from .tofu-records, from the receipt event
+    cloudtrail_available: bool | None = None   # None = no receipt phase seen yet; False = ran against an emulator
 
     @property
     def active_phase(self) -> Phase | None:
@@ -307,6 +308,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     notes: list[tuple[str, str]] = []
     previews: list[dict] = []
     record_store: dict = {}
+    cloudtrail_available: bool | None = None
     seen = 0
     last_ts = None
     current_phase = ""
@@ -460,6 +462,8 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             if isinstance(_store, dict):
                 record_store = _store
             ct = rec.get("cloudtrail") or {}
+            if "available" in ct:
+                cloudtrail_available = bool(ct.get("available"))
             for e in ct.get("events") or []:
                 _arn = e.get("role") or e.get("userIdentity.arn") or ""
                 who = (_arn.split("assumed-role/")[-1].split("/")[0] if "assumed-role/" in _arn
@@ -500,7 +504,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         for e in (pv.get("from_estate"), pv.get("to_estate")):
             if e and e not in estates:
                 estates.append(e)
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available)
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
@@ -1006,6 +1010,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
             refused = sum(1 for r in rows if r.ok is False)
             return (f"{len(rows)} writes in the account's own log, each naming who made it"
                     + (f", {refused} refused with the session named" if refused else "") + ". No state file could produce that record.")
+        if after.cloudtrail_available is False:
+            return "CloudTrail is not available against floci; this record only exists against a real account."
         return ""
     if name == "teardown":
         v = next((v for v in reversed(after.verdicts) if v.get("name") == "teardown"), None)
