@@ -6,6 +6,7 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -19,10 +20,16 @@ import (
 // The three fields correspond to projection.Omission's Addr, Reason and
 // Detail: the address that was not read, a stable machine-readable reason
 // code, and a sentence for an operator.
+//
+// The json tags are GitHub issue #788's: [LivePlanDocument]'s own
+// "omissions[]" marshals this struct directly rather than through a mirror
+// type, per the issue's own text ("marshal these same structs...rather than
+// re-deriving the data") - it was already exactly the JSON-ready shape the
+// issue asks for, just without tags naming the keys.
 type StatelessOmission struct {
-	Addr   string
-	Reason string
-	Detail string
+	Addr   string `json:"addr"`
+	Reason string `json:"reason"`
+	Detail string `json:"detail"`
 }
 
 // StatelessForeign is the foreign classification of one discovery pass, in a
@@ -268,27 +275,42 @@ type StatelessTag struct {
 // sits at the identity a declared resource names and carries no ownership
 // marker for this estate. The fields correspond to projection.Unowned, plus
 // the two tag values that would adopt it, worked out by the caller.
+//
+// The json tags are GitHub issue #788's "unowned[]": Addr, TypeName and
+// LiveID are the declared address, the type and "the identity" the Ask
+// names; HeldBy is "the tofu-estate...it does carry (if any)"; MarkerEstate
+// and MarkerAddress together are "the exact tag write that would adopt it".
+// There is deliberately no field for a carried tofu-address: unlike
+// tofu-estate, nothing upstream of this struct (projection.Unowned,
+// internal/live/projection/ownership.go) reads or keeps whatever
+// tofu-address tag the live object happens to carry - the check that
+// produces an Unowned entry only ever asks "does this carry OUR marker",
+// never "what does its own tofu-address say" - so there is no value here
+// to marshal honestly. Adding one would mean teaching the ownership check
+// itself a new read, which is out of this issue's own file scope
+// (live_plan.go, live_plan_test.go, this file) and a bigger change than a
+// JSON tag.
 type StatelessUnowned struct {
 	// Addr is the declared instance whose identity found it.
-	Addr string
+	Addr string `json:"addr"`
 
 	// TypeName is the resource type and LiveID the identity the live
 	// resource was read with, which is the handle a human needs to go look
 	// at it.
-	TypeName string
-	LiveID   string
+	TypeName string `json:"type"`
+	LiveID   string `json:"identity"`
 
 	// HeldBy is the tofu-estate marker the live resource carries, empty when
 	// it carries none. A non-empty value means the resource is owned, just
 	// not by this run.
-	HeldBy string
+	HeldBy string `json:"tofu_estate,omitempty"`
 
 	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
 	// values that would adopt the resource, both empty when adoption is not
 	// this run's to offer: the resource belongs to another estate, or this
 	// run has no estate name to write.
-	MarkerEstate  string
-	MarkerAddress string
+	MarkerEstate  string `json:"adopt_tofu_estate,omitempty"`
+	MarkerAddress string `json:"adopt_tofu_address,omitempty"`
 }
 
 // StatelessPolicyDeclared is one declared instance whose admission or tag
@@ -409,6 +431,172 @@ type StatelessProgress struct {
 	ResourcesFound int
 }
 
+// LivePlanBoundSource is which of this fork's admission paths supplied a
+// [LivePlanBound] entry's identity - GitHub issue #788's own vocabulary for
+// "bound[]", independent of issue #790's rung vocabulary for live-check
+// (tag-governable / declaration-carried / record-only): the two issues were
+// worked in parallel over the same identity and discovery packages, and
+// #788's Ask defines these four values on its own terms rather than
+// borrowing #790's. A shared enum may make sense once both have landed and
+// someone can see both call sites at once; inventing one now, from one
+// side, would be guessing at the other issue's needs.
+type LivePlanBoundSource string
+
+const (
+	// LivePlanBoundMarker means this instance's identity came from the
+	// estate-wide marker sweep (internal/live/discovery): the live object
+	// carried this estate's tofu-estate/tofu-address tags, and that is how
+	// the plan found it. This is the tag-governed path IAM can condition on.
+	LivePlanBoundMarker LivePlanBoundSource = "marker"
+
+	// LivePlanBoundRecord means this instance's identity came from the
+	// estate's own record store rather than from a tag on the object
+	// itself (identity.ClassRecordBacked / identity.ClassRecordLocated -
+	// GitHub issues #73 and #270). Never produced by
+	// [statelessBoundReport in package command]'s own "-estate" form,
+	// which has no live block and therefore never opens a record store -
+	// see that function's own doc comment for why the value stays defined
+	// here anyway.
+	LivePlanBoundRecord LivePlanBoundSource = "record"
+
+	// LivePlanBoundDerived means this instance's identity was computed
+	// straight from configuration - a name already in the resource block,
+	// or a formula over parent resources' own live IDs
+	// (identity.ClassConcrete / identity.ClassParentDerived) - with no
+	// marker sweep and no record store involved at all.
+	LivePlanBoundDerived LivePlanBoundSource = "derived"
+
+	// LivePlanBoundCache means this instance's identity was answered from
+	// GitHub issue #685's local state cache
+	// (projection.Options.StateCache) instead of a live read this run
+	// made. Never produced by live-plan's own "-estate" form: that
+	// pipeline "neither reads nor writes the #685 state cache" by design
+	// (this fork's own doc comment on LivePlanCommand), so every bound
+	// entry this command emits reflects a read made THIS run, live. The
+	// value stays defined for the day plain "choudoufu plan"/"apply"
+	// under a live block (live_mode.go's own pipeline, which does open
+	// the cache) grows the same -json document.
+	LivePlanBoundCache LivePlanBoundSource = "cache"
+)
+
+// LivePlanBound is one declared instance the projection actually admitted
+// into prior state, and how - GitHub issue #788's "bound[]".
+type LivePlanBound struct {
+	// Addr is the declared instance's own address.
+	Addr string `json:"addr"`
+
+	// TypeName is the resource type.
+	TypeName string `json:"type"`
+
+	// Identity is the import ID this instance bound to - an ARN, a
+	// server-assigned ID, or whatever join the type's own identity
+	// convention produces (live/MARKERS.md and the identity table govern
+	// the shape; this is whatever [identity.Resolution.ImportID] holds).
+	// Empty only for a class this package does not expect to reach here
+	// (every path [LivePlanBoundSource] documents populates it).
+	Identity string `json:"identity,omitempty"`
+
+	// IdentityValues is the identity broken out one component at a time -
+	// [identity.Resolution.IdentityValues] - when the resolver kept that
+	// form; nil whenever it did not (a marker-bound instance carries only
+	// the joined Identity string, never this map - see
+	// [identity.Resolution.IdentityValues]'s own doc comment).
+	IdentityValues map[string]string `json:"identity_values,omitempty"`
+
+	// Source is which admission path supplied Identity.
+	Source LivePlanBoundSource `json:"source"`
+}
+
+// LivePlanDocument is live-plan -json's own structured snapshot (GitHub
+// issue #788): the three live sections a stock plan's "-json" has no
+// notion of at all, plus enough of a header that a reader can tell what
+// produced it. The concrete consumer the issue names, behold
+// (github.com/INTENTIUS/behold), reads exactly this: bound is the green
+// paint, unowned is the amber, omissions is the blue, and anything this
+// document does not cover is the "did not look" it renders honestly rather
+// than guessing at.
+//
+// Deliberately NOT the stock plan-representation JSON format ("choudoufu
+// show -json" of a saved plan, internal/command/jsonplan): this command
+// refuses -out (statelessRejections, live_mode.go) and so never has a
+// saved plan to represent that way, and the issue's own text says as much
+// - "the stock plan's -json...can stay separate. This is about the live
+// sections that stock has no equivalent of." This document is printed on
+// its own by [StatelessPlanJSON.Document], the same way
+// [VersionMixed.printJsonVersion] prints the version command's own single
+// JSON object rather than a line of [NewJSONView]'s general UI-message
+// stream - see that method's own doc comment for why mixing the two
+// protocols on one stdout would serve neither.
+type LivePlanDocument struct {
+	// Estate is this run's estate name, exactly as [LivePlanBound],
+	// omissions and unowned were all computed against - empty only when
+	// the run had none to search by, which every other section already
+	// degrades gracefully for (see statelessEstateFor's own callers).
+	Estate string `json:"estate"`
+
+	// ChoudoufuVersion is this fork's own release tag (tfversion.Fork),
+	// empty on a development build - the same value the version command's
+	// human-readable output names "choudoufu %s" and its own "-json"
+	// output does not carry at all (views/version.go's versionOutput has
+	// no field for it). A snapshot naming what produced it needs this even
+	// when the version command's own JSON does not yet.
+	ChoudoufuVersion string `json:"choudoufu_version"`
+
+	// UpstreamVersion is the pinned OpenTofu base version this build's
+	// engine is (tfversion.String(), the same value the version command's
+	// human output prints as "OpenTofu v%s" and its JSON output carries as
+	// "terraform_version") - the other half of "what produced it": a
+	// choudoufu release and the upstream OpenTofu release it forked its
+	// engine from are two different version numbers, and a renderer
+	// comparing behaviour across snapshots needs to know both.
+	UpstreamVersion string `json:"upstream_version"`
+
+	// Bound is every declared instance the plan admitted into prior state,
+	// and how - see [LivePlanBound].
+	Bound []LivePlanBound `json:"bound"`
+
+	// Omissions is every declared instance the plan could not read from
+	// the live system, and why - the same value the human-readable
+	// "Omissions" section already renders as prose ([StatelessOmission]).
+	Omissions []StatelessOmission `json:"omissions"`
+
+	// Unowned is every live resource found at a declared identity without
+	// this estate's marker - the same value the human-readable "Unowned"
+	// section already renders as prose ([StatelessUnowned]).
+	Unowned []StatelessUnowned `json:"unowned"`
+
+	// Diagnostics is every warning and error this run raised outside the
+	// three sections above - a state file present but not consulted, a
+	// provider version skew warning, and so on. It exists so that -json
+	// can be the ONLY thing printed on a successful run without silently
+	// dropping something [Run] would otherwise have told a human: see
+	// [StatelessPlanJSON.Document]'s own caller
+	// (LivePlanCommand.livePlan's jsonRequested branch) for why the
+	// ordinary human-readable diagnostic rendering is skipped precisely
+	// when this document exists to carry the same information instead.
+	// Empty on the common run: most of this fork's own findings already
+	// have a home in Omissions or Unowned above and never reach a bare
+	// diagnostic at all.
+	Diagnostics []LivePlanDiagnostic `json:"diagnostics,omitempty"`
+}
+
+// LivePlanDiagnostic is one warning or error a live-plan -json run raised,
+// in the minimal form [LivePlanDocument.Diagnostics] carries them in. Not
+// [jsonentities.Diagnostic] (the general UI-message stream's own
+// diagnostic shape, snippet and all) on purpose: that type's extra detail
+// - source ranges, config snippets - answers "where in the configuration"
+// for a diagnostic tied to one, and every diagnostic this specific field
+// carries is a run-level finding (a state file sitting in the working
+// directory, a provider version skew) with no configuration range to
+// point at in the first place.
+type LivePlanDiagnostic struct {
+	// Severity is "error" or "warning" (tfdiags.Diagnostic.Severity's own
+	// String()).
+	Severity string `json:"severity"`
+	Summary  string `json:"summary"`
+	Detail   string `json:"detail,omitempty"`
+}
+
 // StatelessPlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
@@ -469,11 +657,29 @@ type StatelessPlan interface {
 	// [StatelessAdoptionHuman] renders it, and that view renders nothing
 	// else. See live_adoption.go.
 	Adoption(rep StatelessAdoption)
+
+	// Document prints GitHub issue #788's live-plan "-json" output: one
+	// object carrying the estate name, this fork's and OpenTofu's own
+	// versions, and the bound/omissions/unowned sections as data instead
+	// of prose - see [LivePlanDocument]'s own doc comment for the whole
+	// shape and for why it does not reuse the fields above verbatim even
+	// though two of them (Omissions, Unowned) already carry exactly this
+	// data.
+	//
+	// Every implementation but [StatelessPlanJSON] no-ops here: a human or
+	// adoption-ledger run has nothing to marshal and nowhere in its own
+	// output this document would belong. It returns whether the print
+	// succeeded, the same convention [Version.PrintVersion] uses for the
+	// version command's own bespoke JSON output - the one other command in
+	// this package whose "-json" is a single marshaled object rather than
+	// a line in [NewJSONView]'s general UI-message stream.
+	Document(doc LivePlanDocument) bool
 }
 
-// NewStatelessPlan returns the human-readable implementation. There is no
-// JSON implementation yet, and the live-plan command rejects -json
-// rather than emitting output that omits this section.
+// NewStatelessPlan returns the human-readable implementation. GitHub issue
+// #788's document (LivePlanCommand.livePlan's own jsonRequested branch) uses
+// [NewStatelessPlanJSON] instead; this constructor's own Document method is
+// a no-op, since nothing about a human-readable run ever calls it.
 func NewStatelessPlan(view *View) StatelessPlan {
 	return &StatelessPlanHuman{view: view}
 }
@@ -486,6 +692,66 @@ type StatelessPlanHuman struct {
 }
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
+
+// NewStatelessPlanJSON returns live-plan -json's own renderer (GitHub issue
+// #788). Every method but Document is a no-op: the prose those other
+// methods print (Progress's heartbeat, Foreign, Policy, GuidedFallback,
+// Lookalikes, and Omissions/Unowned themselves - their DATA reaches a
+// reader through the one document instead) has no place beside a
+// machine-readable run, and printing some of it as text next to a JSON
+// document would leave stdout neither one thing nor the other - the same
+// reasoning [LivePlanCommand.livePlan]'s own jsonRequested doc comment
+// gives for skipping the ordinary resource-diff rendering too. A caller
+// that wants foreign/policy/lookalike detail as data does not have it from
+// this command yet; #788's own Ask is bound/omissions/unowned, and that is
+// everything Document carries.
+func NewStatelessPlanJSON(view *View) StatelessPlan {
+	return &StatelessPlanJSON{view: view}
+}
+
+// StatelessPlanJSON marshals and prints [LivePlanDocument] as one
+// indented JSON object, the same way [VersionMixed.printJsonVersion]
+// prints the version command's own single object - not through
+// [NewJSONView]'s hclog-based UI-message stream every OTHER "-json" view
+// in this package writes through. That stream's envelope (one line per
+// message, each tagged with a "type" - a resource diff, a diagnostic, a
+// hook) has no slot this document fits without inventing a new message
+// type for a document that is not a stream of anything; printing it
+// directly, once, is both simpler and matches what a renderer reading
+// exactly this document (behold, the issue's own named consumer) actually
+// wants: one parse, one object, done.
+type StatelessPlanJSON struct {
+	view *View
+}
+
+var _ StatelessPlan = (*StatelessPlanJSON)(nil)
+
+func (v *StatelessPlanJSON) Progress(StatelessProgress)      {}
+func (v *StatelessPlanJSON) Omissions([]StatelessOmission)   {}
+func (v *StatelessPlanJSON) Unowned([]StatelessUnowned)      {}
+func (v *StatelessPlanJSON) Foreign(StatelessForeign)        {}
+func (v *StatelessPlanJSON) Policy(StatelessPolicyReport)    {}
+func (v *StatelessPlanJSON) GuidedFallback(string)           {}
+func (v *StatelessPlanJSON) Lookalikes([]StatelessLookalike) {}
+func (v *StatelessPlanJSON) Adoption(StatelessAdoption)      {}
+
+// Document is this view's whole reason to exist: marshal doc and print it,
+// exactly once. Modeled on [VersionMixed.printJsonVersion] down to the
+// indent and the error handling - a marshal failure here would mean a
+// field in [LivePlanDocument] cannot round-trip through encoding/json at
+// all (every field is a plain string, map or slice of one of these
+// structs; there is no channel, func or cyclic pointer anywhere in this
+// type for MarshalIndent to choke on), so this is defensive rather than an
+// expected failure mode.
+func (v *StatelessPlanJSON) Document(doc LivePlanDocument) bool {
+	b, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		_, _ = v.view.streams.Eprintln(fmt.Sprintf("\nError marshalling JSON: %s", err))
+		return false
+	}
+	_, _ = v.view.streams.Println(string(b))
+	return true
+}
 
 // Progress writes one heartbeat line to stderr, dark-grey like the
 // horizontal rules elsewhere in this package (see format.HorizontalRule) so
@@ -1021,6 +1287,14 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 // long. [StatelessAdoptionHuman] is the view that renders it, and it renders
 // nothing else.
 func (v *StatelessPlanHuman) Adoption(StatelessAdoption) {}
+
+// Document renders nothing here: GitHub issue #788's document is
+// [StatelessPlanJSON]'s own output, printed instead of a human-readable
+// run's prose sections rather than beside them - see
+// [LivePlanCommand.livePlan]'s jsonRequested branch, which is the only
+// caller of this method and never holds a *StatelessPlanHuman when it
+// calls it.
+func (v *StatelessPlanHuman) Document(LivePlanDocument) bool { return true }
 
 func noun(n int, one, many string) string {
 	if n == 1 {

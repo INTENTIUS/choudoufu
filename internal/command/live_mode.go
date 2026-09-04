@@ -459,9 +459,27 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail))
 	}
 
-	if viewOpts.ViewType != arguments.ViewHuman || viewOpts.JSONInto != nil {
+	switch {
+	// GitHub issue #788 gave live-plan's own "-estate" form a JSON
+	// document (bound, omissions, unowned - [views.LivePlanDocument]),
+	// built and printed by LivePlanCommand.livePlan itself once this
+	// function lets -json through. surfaceLiveBlock is deliberately NOT
+	// included: plain "choudoufu plan"/"apply" under a live block run
+	// through statelessBegin/backend_local.go's StatelessRun seam
+	// (live_mode.go), which has no equivalent hook yet to build or print
+	// that document, and #788's Ask is this command's own "-estate" form
+	// - widening the exception to the other surface here would be
+	// promising something nothing renders. -json-into stays rejected on
+	// both surfaces below: it asks for the general JSON UI-message stream
+	// written to a second file, which is a different feature (and, per
+	// [arguments.ViewOptions.Parse], mutually exclusive with -json
+	// itself, so a run can never satisfy this case and the next one at
+	// once).
+	case surface == surfaceEstateFlag && viewOpts.ViewType == arguments.ViewJSON && viewOpts.JSONInto == nil:
+		// Nothing to reject.
+	case viewOpts.ViewType != arguments.ViewHuman || viewOpts.JSONInto != nil:
 		reject("Machine-readable output is not available under live resource markers yet",
-			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet. Rerun without -json or -json-into.")
+			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet under a live block. Rerun without -json or -json-into. live-plan's own \"-estate\" form is the one exception: \"choudoufu live-plan -estate=... -json\" is accepted, and prints GitHub issue #788's own document instead of the plan; -json-into still has no representation there either.")
 	}
 	if planOut != "" {
 		// The second half is guidance rather than a second reason, and it

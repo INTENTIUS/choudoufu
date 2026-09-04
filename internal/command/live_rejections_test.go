@@ -29,8 +29,8 @@ import (
 // file is what keeps it one.
 //
 // The claim these tests make is not "the two surfaces are identical". It is
-// stronger and more useful: the surfaces differ in exactly the two places
-// this file names, over the WHOLE input space of the function, so a third
+// stronger and more useful: the surfaces differ in exactly the three places
+// this file names, over the WHOLE input space of the function, so a fourth
 // divergence cannot be added without a failure here.
 
 // renderRejections renders one surface's refusals the way the CLI prints them
@@ -63,11 +63,12 @@ func sortedRejectionSummaries(m map[string]string) []string {
 	return keys
 }
 
-// The two summaries this file expects to see behave differently. Anything
+// The three summaries this file expects to see behave differently. Anything
 // else diverging is the failure these tests exist to report.
 const (
 	destroyOnlyOnEstateFlag = "Only the normal planning mode is available under live resource markers yet"
 	savedPlanFileSummary    = "Saved plan files are not available under live resource markers"
+	jsonOutputSummary       = "Machine-readable output is not available under live resource markers yet"
 )
 
 // TestStatelessRejections_surfacesAgree walks the function's entire input
@@ -75,7 +76,7 @@ const (
 // selection, both settings of each of the three path arguments, and each of
 // the three state paths - and asserts for all 384 combinations that the two
 // surfaces produce the same refusals with the same wording, except for the
-// two documented divergences.
+// three documented divergences.
 //
 // The cross product is exhaustive rather than a hand-picked table on purpose.
 // A hand-picked table only catches a new surface-conditional clause if
@@ -145,6 +146,32 @@ func TestStatelessRejections_surfacesAgree(t *testing.T) {
 							blockKeys := sortedRejectionSummaries(block)
 							estateKeys := sortedRejectionSummaries(estate)
 							estateKeys = withoutKey(estateKeys, destroyOnlyOnEstateFlag)
+
+							// Divergence 3 (GitHub issue #788): live-plan's
+							// -estate form accepts -json (ViewType: ViewJSON,
+							// no -json-into) and prints its own document
+							// instead of refusing; the live-block surface is
+							// unchanged and keeps refusing it. Opposite shape
+							// from divergence 1 above - here it is blockKeys,
+							// not estateKeys, that carries the extra entry,
+							// because #788 widened what the ESTATE surface
+							// accepts rather than adding a refusal the
+							// live-block surface alone raises.
+							wantJSONExemptOnEstate := view.opts.ViewType == arguments.ViewJSON && view.opts.JSONInto == nil
+							_, blockHasJSON := block[jsonOutputSummary]
+							_, estateHasJSON := estate[jsonOutputSummary]
+							switch {
+							case wantJSONExemptOnEstate && estateHasJSON:
+								t.Errorf("%s: live-plan's -estate surface still refused -json, which GitHub issue #788 exempts it from", name)
+							case wantJSONExemptOnEstate && !blockHasJSON:
+								t.Errorf("%s: the live-block surface stopped refusing -json - GitHub issue #788 does not widen that surface", name)
+							case !wantJSONExemptOnEstate && blockHasJSON != estateHasJSON:
+								t.Errorf("%s: -json's refusal is not symmetric outside the #788 exemption case (live block=%v -estate=%v)", name, blockHasJSON, estateHasJSON)
+							}
+							if wantJSONExemptOnEstate {
+								blockKeys = withoutKey(blockKeys, jsonOutputSummary)
+							}
+
 							if strings.Join(blockKeys, "|") != strings.Join(estateKeys, "|") {
 								t.Errorf("%s: the two surfaces refuse different things.\nlive block: %v\n-estate:    %v",
 									name, blockKeys, estateKeys)
@@ -224,6 +251,25 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 		}
 		if strings.Contains(block, guidance) {
 			t.Errorf("the live-block surface's -out refusal asserts %q over a configuration that has one:\n%s", guidance, block)
+		}
+	})
+
+	t.Run("-json's live-block refusal names its own -estate exception", func(t *testing.T) {
+		jsonView := arguments.ViewOptions{ViewType: arguments.ViewJSON}
+		block := unwrapped(renderRejections(surfaceLiveBlock, nil, nil, jsonView, "", "", "")[jsonOutputSummary])
+		if block == "" {
+			t.Fatalf("the live-block surface accepted -json - GitHub issue #788 only widens the -estate surface")
+		}
+		if _, estateRefused := renderRejections(surfaceEstateFlag, nil, nil, jsonView, "", "", "")[jsonOutputSummary]; estateRefused {
+			t.Fatalf("live-plan's -estate surface still refused -json under GitHub issue #788's own exemption")
+		}
+		for _, want := range []string{
+			`live-plan's own "-estate" form is the one exception`,
+			"GitHub issue #788",
+		} {
+			if !strings.Contains(block, want) {
+				t.Errorf("the live-block surface's -json refusal does not name its own exception:\n%s\nwant substring %q", block, want)
+			}
 		}
 	})
 }
