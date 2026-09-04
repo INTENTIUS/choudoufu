@@ -116,7 +116,21 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 	case !diags.HasErrors() && res != nil:
 		views.NewStatelessMv(c.View).Report(liveMvReport(res))
 	}
-	c.View.Diagnostics(diags)
+	if args.JSON {
+		// The ordinary Diagnostics call below sends warnings to Stdout by
+		// design, so that they read alongside the human report they
+		// annotate - but -json's Stdout is the one document above, and a
+		// warning landing there too (the "Configuration still naming the
+		// old address" -allow-missing-config warning, or mover.verify's
+		// "Unreadable marker after the rewrite" when a provider does not
+		// serve tags back on the read) would corrupt it. See
+		// [views.View.DiagnosticsToStderr]'s own doc comment; what the
+		// warning would have said is not lost, only moved - Verified in the
+		// document above says the same thing "Unreadable marker" would have.
+		c.View.DiagnosticsToStderr(diags)
+	} else {
+		c.View.Diagnostics(diags)
+	}
 	if diags.HasErrors() {
 		return 1
 	}
@@ -555,6 +569,15 @@ Options:
   -allow-missing-config   Permit a destination address that the configuration
                           does not declare, for a rename whose configuration
                           edit has not happened yet.
+
+  -json                   Print the move as one JSON document instead of the
+                          labelled report: the resource, both endpoints
+                          (unescaped address and escaped marker), the
+                          children that follow with no write of their own,
+                          and, on a refusal, a stable code alongside the
+                          text. Prints on -dry-run too, and on a refusal -
+                          the one case the labelled report never renders at
+                          all.
 
   -no-color               If specified, output won't contain any color.
 
