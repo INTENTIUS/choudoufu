@@ -1,0 +1,39 @@
+# The live-mv demo stack: two containers, one command.
+#
+#   floci  — the AWS emulator the demo runs against, so no credentials and
+#            nothing to clean up. Pinned image by default; FLOCI_IMAGE overrides.
+#   demo   — marimo serving demo.py, pointed at floci. Built from the repo,
+#            so the choudoufu binary is compiled from this checkout's source.
+#
+# Started by the justfile: `just up`. The demo is at http://localhost:2718.
+services:
+  floci:
+    image: ${FLOCI_IMAGE:-ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948}
+    ports:
+      - "127.0.0.1:4650:4566"
+    networks:
+      default:
+        aliases: ["000000000000.floci"]
+
+  demo:
+    build:
+      context: ../../..            # repo root: the Dockerfile builds choudoufu from source
+      dockerfile: examples/live-mv-workbench/compose/Dockerfile
+    depends_on:
+      - floci
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      TLMIG_ACCOUNT: "000000000000"     # floci's account: preflight fences to it
+      TF_PLUGIN_CACHE_DIR: /plugins
+      CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+    volumes:
+      - plugins:/plugins               # AWS provider cache, downloaded once, kept
+    ports:
+      - "127.0.0.1:2718:2718"
+
+volumes:
+  plugins:
+    name: live-mv-demo-plugins

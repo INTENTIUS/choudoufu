@@ -1,0 +1,7 @@
+.git
+**/.venv
+**/runs
+**/.terraform
+**/node_modules
+**/*.tfstate*
+site/public

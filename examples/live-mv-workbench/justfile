@@ -1,0 +1,31 @@
+# live-mv demo — two containers, one command. `just` lists everything.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+compose := "docker compose -f compose/docker-compose.yml"
+
+default:
+    @just --list
+
+# Start floci and the demo, wait until both answer, print the URL.
+up:
+    {{compose}} up -d --build
+    @echo "waiting for the demo to answer..."
+    @for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:2718/ && break || sleep 2; done
+    @echo "" && echo "  ✓ live-mv demo:  http://localhost:2718" && echo "  ✓ floci:         inside the stack, account 000000000000" && echo ""
+
+# Stop the stack, keep the provider cache.
+down:
+    {{compose}} down
+
+# Wipe everything (containers, the emulator's state, the cache) and start fresh.
+reset:
+    {{compose}} down -v
+    @just up
+
+# Follow the demo's logs.
+logs:
+    {{compose}} logs -f demo
+
+# Run the demo notebook on the host instead of in a container (for developing
+# the UI), pointed at a floci you start yourself. Needs uv and a choudoufu binary.
+dev:
+    uv run --extra viz marimo run demo.py
