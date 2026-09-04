@@ -15,8 +15,8 @@ pass is unconditional and costs what stock's refresh costs. The sweep is the
 adoption hook, which answers a question an operator needs during a migration
 or an audit and not on an ordinary plan of an estate that is already adopted.
 That it should not run on every plan was
-[`the stale-state ruling (#604)`](https://github.com/INTENTIUS/choudoufu/blob/main/the stale-state ruling (#604))'s
-ruling, and `09d180f921` implemented it. This page is the measurement that
+[the stale-state ruling](https://github.com/INTENTIUS/choudoufu/issues/604)
+(#604), and `09d180f921` implemented it. This page is the measurement that
 ruling rested on, and it is still the measurement of what the sweep costs when
 a run does take it.
 
@@ -136,7 +136,8 @@ actually plans. Generated terralith at three scales, applied with stock
 `terraform` and then migrated with `choudoufu live-import -approve` before
 anything was counted (commit `cfd0dc58d4`, floci pin `sha256:c55d74e1`,
 reported in
-[`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634))):
+[the slicing measurement](https://github.com/INTENTIUS/choudoufu/issues/584)
+(#584, corrected by #634):
 
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|---|---|
@@ -147,14 +148,12 @@ reported in
 **The three rows are not the same vintage, and only the first has been
 re-measured.** As published, the 79-instance row read `521 / 558 / 706 /
 21.0%`. Re-run at `5ff7f43f5b` its legs read tagging 1, native 512,
-configuration scan 26, boundary 9, post-sweep 0, so the sweep is 548 and the
-total 696. The read pass did not move. That nine-call drift in the native leg
-is unrelated to anything on this page. In particular it is *not* the `#628`
-provider-block defect, which corrupted CLI-plan counts elsewhere in the same
-document and cannot have touched these, because the in-process bench
-configures its provider from a literal three-flag body that never carried
-`skip_requesting_account_id`. The 301- and 745-instance rows have not been
-re-run and stand at their published values.
+configuration scan 26, boundary 9, post-sweep 0 - sweep 548, total 696. The
+read pass did not move. That nine-call drift in the native leg is unrelated
+to the `#628` provider-block defect that corrupted CLI-plan counts elsewhere
+on this page: the in-process bench configures its provider from a literal
+three-flag body that never carried `skip_requesting_account_id`. The 301- and
+745-instance rows have not been re-run and stand at their published values.
 
 The two legs do not add up to the sweep on their own. The rest of it is the
 configuration scan, 26, 58 and 124 calls at the three scales, plus a boundary
@@ -163,17 +162,15 @@ exactly at 79 instances and to within one call at the two larger scales, where
 a type whose scan records nothing fires no progress event and its calls fold
 into the next attribution interval.
 
-Both terms are linear, and fitted to the three rows as published the fit was
-exact to one call at every point: `sweep = 545.9 + 0.15315N`,
-`read pass = 1.8378N + 2.8`, crossing at **322 instances**, just past this
-fixture's scale 4. Take that crossover as the shape rather than as a current
-number. The line was fitted before the 79-instance row moved by ten calls, and
-re-fitting it across one re-measured row and two published ones would describe
-no run that ever happened. The shape has not changed: below the crossing a
-plan is mostly the fixed sweep and adding resources barely moves it; above it,
-cost tracks your estate. It is a crossover between choudoufu's *own* two terms
-on a full-sweep run, and says nothing about where choudoufu meets stock. There
-is no such crossing, as
+Both terms are linear; fitted to the three rows as published,
+`sweep = 545.9 + 0.15315N` and `read pass = 1.8378N + 2.8` cross at **322
+instances**, just past this fixture's scale 4. Take that as the shape rather
+than a current number - the line was fit before the 79-instance row moved by
+ten calls, and re-fitting across one re-measured row and two published ones
+would describe no run that ever happened. Below the crossing a plan is
+mostly the fixed sweep; above it, cost tracks your estate - the shape has not
+changed. This is a crossover between choudoufu's *own* two terms on a full-sweep run,
+not between choudoufu and stock - there is no such crossing, as
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
 
 ### The read pass is the number stock pays to read the same resources
@@ -187,14 +184,12 @@ and the totals differ by a constant:
 | 301 | 558 | 556 |
 | 745 | 1374, not measured | 1372 |
 
-The two are not identical; they are parallel, a constant two calls apart.
-Stock's provider block resolves its own account with one `GetCallerIdentity`
-and one `GetUser`; the read pass has no equivalent, because nothing in it
-needs the account identity. The read pass fits `1.8378N + 2.8`, and stock's
-own two-point fit is `1.84N + 5` - the same line, two more calls of constant.
-The per-resource work is identical; the constant is not. 745 was not re-run
-on either side, and 1374 is what stock's shared slope implies rather than
-anything anyone counted.
+A constant two calls separates the two. Stock's provider block resolves its
+own account with one `GetCallerIdentity` and one `GetUser`; the read pass has
+no equivalent, since nothing in it needs the account identity. The read pass
+fits `1.8378N + 2.8`, and stock's own two-point fit is `1.84N + 5` - the same
+line, two more calls of constant. 745 was not re-run on either side; 1374 is
+what stock's shared slope implies rather than anything anyone counted.
 
 So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
@@ -218,18 +213,16 @@ guess.
 The sweep is the term that is genuinely ours. Stock has no equivalent, because
 a state file already answers the question the sweep asks.
 
-So the honest difference is not the size of the read pass. On a default
-plan both tools refresh; the difference is what `-refresh=false` may
-skip. Stock skips everything and trusts its state file outright.
-Choudoufu skips only what the run can vouch for - an instance the sweep
-verified by marker, or one whose ownership the record store attests
-while the run's own listing proves it exists - and everything else still
-reads. The state cache supplies the attributes for what is vouched, the
-plan launcher never even plans those wire reads, and the estate-level
-`reads = "full"` setting turns the whole pass off. The
+Both tools refresh at the same size on a default plan. The honest difference
+shows up under `-refresh=false`, in what each side may skip. Stock
+skips everything and trusts its state file outright. Choudoufu skips only
+what the run can vouch for (an instance the sweep verified by marker, or one
+the record store attests while the run's own listing proves it exists);
+everything else still reads. The state cache supplies attributes for what is
+vouched, the plan launcher never plans those wire reads, and `reads = "full"`
+turns the whole pass off. The
 [unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
-measures it, and default plans are untouched: the read is drift
-detection; no cache freshness excuses skipping it there.
+measures it; default plans are untouched, since the read is drift detection.
 
 ### The native leg does not move
 
@@ -278,15 +271,15 @@ counted at that scale it is about 0.36s each, which is one network round trip
 apiece, and at the time of that run the sweep made them one after another.
 
 Three bounds on that paragraph. The seconds are real AWS and the call counts
-are the emulator, so 0.36s per call is an estimate built from two measurements
-rather than a measured quantity;
+are the emulator, so 0.36s per call is an estimate built from two
+measurements, not a measured quantity -
 [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
-sets out when two wall clocks may be combined and when they may not. The table
-predates the sweep becoming concurrent, which is the next section. **And it
-predates the narrowing, so a steady-state plan of this estate no longer looks
-like the second row at all.** The same pair now reads 3, 4, 3 s against 17, 18,
-17 s. Keep the 200s column as the record of what a full sweep cost
-sequentially on a real account; do not quote it as what a plan costs.
+sets out when two wall clocks may be combined. The table predates the sweep
+going concurrent (next section) and predates the narrowing, so a
+steady-state plan of this estate no longer looks like the second row at all:
+the same pair now reads 3, 4, 3s against 17, 18, 17s. The 200s column is what
+a full sweep cost sequentially on a real account; an ordinary plan costs far
+less.
 
 ### The sweep now overlaps its own waiting
 
@@ -392,7 +385,8 @@ deliberately: on the 79-instance fixture it is the difference between 157 and
 
 The same fixture and the same pin, measured before migration with no marker on
 any object (commit `f4611196e5`,
-[`the fast-projection ruling (#579)`](https://github.com/INTENTIUS/choudoufu/blob/main/the fast-projection ruling (#579))):
+[the fast-projection ruling](https://github.com/INTENTIUS/choudoufu/issues/579)
+(#579)):
 
 | Instances | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|

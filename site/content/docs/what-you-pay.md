@@ -61,7 +61,7 @@ unconditionally; they are enumerated in the ruling, and the one among them that
 can change a verdict changes it in the accepting direction, so a configuration
 stock refuses can succeed here and never the reverse. Method, per-guard
 reading and raw values:
-[`the stateful-equivalence measurement (#588)`](https://github.com/INTENTIUS/choudoufu/blob/main/the stateful-equivalence measurement (#588)).
+[the stateful-equivalence measurement](https://github.com/INTENTIUS/choudoufu/issues/588) (#588).
 
 ## Planning an adopted estate
 
@@ -118,9 +118,10 @@ fork's own structure and have nothing to do with the sweep.
 The 157 has now been produced three separate times on this fixture and pin: by
 [#627](https://github.com/INTENTIUS/choudoufu/pull/627), which landed the
 narrowing that produced it; by
-[`the slicing measurement (#584, corrected by #634)`](https://github.com/INTENTIUS/choudoufu/blob/main/the slicing measurement (#584, corrected by #634))'s
-re-measure at `5ff7f43f5b`, which reproduced its seven-call residual call for
-call; and by the run reported here, at `b20a144ab0`. Reproduce it with
+[the slicing measurement](https://github.com/INTENTIUS/choudoufu/issues/584)
+(#584, corrected by #634)'s re-measure at `5ff7f43f5b`, which reproduced its
+seven-call residual call for call; and by the run reported here, at
+`b20a144ab0`. Reproduce it with
 `TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/`, which is also where
 the no-live-block table above comes from.
 
@@ -156,30 +157,23 @@ this one counts only what the AWS provider itself logs - from different
 accounts, and from a comparison where the two sides plan different directories.
 Both are reported; neither is a correction of the other.
 
-The residual *shrinks in absolute terms* between the two scales, which is not
-what a fixed overhead does, and the reason is that the two sides are not
-merely one adding to the other. At 745 resources choudoufu makes **fewer** IAM
-calls than stock - `ListAttachedRolePolicies` 320 against 324, `GetRole` 210
-against 215, `GetRolePolicy` 200 against 204, `ListRolePolicies` 110 against
-114 - and more ECS calls, `DescribeTaskDefinition` 31 against 10 plus a
-`ListTaskDefinitions`, a `ListServices`, two `ListRoles` and one extra
-`GetCallerIdentity`. Route 53 is identical on both sides at both scales:
-`GetHostedZone` 101, `ListResourceRecordSets` 100, `ListTagsForResource` 1.
-Why the IAM side comes out lower is not explained by that run, and this page
-is not going to invent a reason for it.
+The residual shrinks between the two scales because the two sides move in
+opposite directions, not because one simply adds to the other: at 745
+resources choudoufu makes fewer IAM calls than stock and more ECS calls
+(`DescribeTaskDefinition` 31 against 10, plus extra `ListTaskDefinitions`,
+`ListServices` and `ListRoles` calls); Route 53 is identical on both sides at
+both scales. Why the IAM side comes out lower is not explained by this run,
+and this page will not guess.
 
 Two conditions travel with that table and change how it should be read.
 
 **It counts provider-mediated requests only.** The figures come from
-`terraform-provider-aws`'s own `HTTP Request Sent` log entries. choudoufu's
-Cloud Control and Tagging clients log no line per request, so their HTTP calls
-are *not* in the 1413. What is known about them is a type count rather than a
-call count: 0 types went via Cloud Control, and 31 went through the
-estate-filtered tagging sweep, which is one `GetResources` for all 31 plus
-pagination. That share is small and unmeasured, and the run says so itself.
-The emulator tables higher up the page count every request through a proxy,
-so the two instruments have different denominators and their numbers should
-not be subtracted from one another.
+`terraform-provider-aws`'s own request log; choudoufu's Cloud Control and
+Tagging clients log no line per request, so their calls are *not* in the
+1413 - only a type count is known (0 types via Cloud Control, 31 via one
+`GetResources` sweep call plus pagination). The emulator tables above count
+every request through a proxy instead, so the two instruments have different
+denominators and should not be subtracted from each other.
 
 **The two sides are not planning the same directory.** Stock plans its own
 converged state after the cold deploy and before anything migrates it;
@@ -250,17 +244,14 @@ provider's own schema and need no marker at all: their identity composes from
 an already-stamped parent, which is a role name plus an inline-policy name, or
 a zone ID plus a record name and type.
 
-This matters more than the same ratio measured earlier on the emulator,
-because that earlier run could not test its own predicted bottleneck. The
-documented hard limit is that a `count`/`for_each` instance is never offered
-for adoption by content matching, and the generator that
-[#566](https://github.com/INTENTIUS/choudoufu/issues/566) measured emitted no
-`count` and no `for_each` anywhere. It reported that scoping limit itself.
-[#574](https://github.com/INTENTIUS/choudoufu/issues/574) added root-level
-`count`, root-level `for_each` over a map, and a module call whose body also
-carries `count`, and the run above is that estate. `live-import` reads each
-instance's identity straight out of the state file, so it never reaches the
-content-matching wall that limit describes.
+This is a stronger result than an earlier emulator run of the same ratio,
+whose generator emitted no `count` or `for_each` anywhere
+([#566](https://github.com/INTENTIUS/choudoufu/issues/566)) - a real gap,
+since content matching never offers a `count`/`for_each` instance for
+adoption. [#574](https://github.com/INTENTIUS/choudoufu/issues/574) added
+root-level `count`, `for_each` over a map, and a `count`-carrying module
+call; the run above is that estate, and `live-import` reads each instance's
+identity from the state file directly, so it never reaches that wall at all.
 
 What that leaves is the day the state file is gone or wrong, which is the
 adoption path proper and the one place the expensive sweep is worth its price.
@@ -298,16 +289,14 @@ Applying that un-migrates the estate, and it reads as routine tag drift while
 it does so. 38 of 79 instances at this scale, 137 of 301 at the next one.
 
 **choudoufu refuses this run; stock cannot.** Since
-[#613](https://github.com/INTENTIUS/choudoufu/issues/613) a state-backed plan
-under this fork that would strip a migrated estate's markers is computed and
-rendered in full, so the operator sees exactly the drift stock would have
-shown, and then refused rather than applied. The refusal covers `apply`
-and `plan -out` followed by `apply` on the saved file, because the damaging
-form is an unattended `apply -auto-approve` where a warning would be correct
-and unread. `CHOUDOUFU_UNMIGRATE=<estate>` downgrades it to a warning when
-backing out is what you actually want, and it takes an estate name rather than
-an on/off value so that a setting left behind in CI cannot cover an estate
-migrated a year later.
+[#613](https://github.com/INTENTIUS/choudoufu/issues/613), a state-backed plan
+that would strip a migrated estate's markers is computed and rendered in
+full - so the operator sees the exact drift stock would show - and then
+refused rather than applied. The refusal covers `apply` and `plan -out` +
+`apply`, since the damaging form is an unattended `apply -auto-approve` where
+a warning would go unread. `CHOUDOUFU_UNMIGRATE=<estate>` downgrades it to a
+warning when backing out is intentional; it takes an estate name so a setting
+left in CI can't cover an estate migrated a year later.
 
 None of that helps a directory running stock. Delete or archive the old state
 file as part of the migration, and treat any surviving stock directory
@@ -326,9 +315,9 @@ same pin, scale 1, every plan exiting 0 with `No changes`:
 | Eight states, summed | 164 | 198 | **1.21x** |
 
 **Stock is not flat under slicing either.** Stock is `148 + 2k`, two calls per
-slice to resolve the account. choudoufu pays about six calls per slice, so an
-extra state costs roughly four calls more here than it costs stock - the 1.21x
-at eight states, not a multiple.
+slice to resolve the account; choudoufu pays about six calls per slice,
+roughly four more per state than stock. That difference is where the 1.21x
+at eight states comes from.
 
 > A 30.6x figure for this same comparison circulated earlier and should not be
 > quoted. It came from a benchmark whose own provider block broke ECS identity
@@ -350,7 +339,7 @@ a record store to narrow by, and left it everywhere else: a plan with no
 record store, a store that will not list, or an empty store still takes the
 full universe.
 
-So: slicing costs about 1.2x stock to plan day to day, and one full sweep per
+Slicing costs about 1.2x stock to plan day to day, and one full sweep per
 slice to adopt or recover - the number to weigh before splitting an estate you
 expect to adopt piecemeal.
 
