@@ -10,6 +10,21 @@ Pinned to one choudoufu release and one account, both named in
 every resource a run creates carries the run's prefix, and nothing
 destructive runs outside it.
 
+## The live demo (no account needed)
+
+For a live, watchable run against an emulator instead of a real account,
+use `demo.py` and its compose stack:
+
+```sh
+just up          # two containers, pinned floci, prints the URL
+```
+
+`http://localhost:2718` opens a single-screen page: eight phases, one
+button, the ownership map redrawing as each finishes. `.claude/skills/
+live-mv-demo/SKILL.md` walks an AI assistant through the whole run. The
+rest of this page describes `workbench.py`, the fuller tool this demo's
+seed is drawn from, run against a real account.
+
 ## Where this starts
 
 The stage assumes a terralith: one configuration and one state own
