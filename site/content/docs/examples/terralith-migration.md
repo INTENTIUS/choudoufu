@@ -22,6 +22,28 @@ end proving the handover left nothing behind.
 The code is a `uv` project under
 [`examples/live-mv-workbench/`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/live-mv-workbench).
 
+## Run it now, no account needed
+
+The fastest way to see this is `examples/live-mv-workbench`'s own demo:
+two Docker containers, one command, no credentials.
+
+```text
+cd examples/live-mv-workbench
+just up
+```
+
+This downloads the pinned choudoufu release and starts it beside floci, an
+AWS emulator, and prints `http://localhost:2718`. Open that page: eight
+numbered phases across the top, a Run button, the ownership map in the
+middle. Click through them in order and watch the map redraw. `just up
+source` builds choudoufu from this checkout's own code instead of the
+pinned release. `.claude/skills/live-mv-demo/SKILL.md` walks an AI
+assistant through the whole thing if you would rather hand it off.
+
+The rest of this page runs the same split against a real account instead,
+one phase at a time from a terminal, for when you want the
+numbers on your own infrastructure, not the emulator's.
+
 ## What it stands up
 
 A monolith estate owning three teams' worth of resources. Each team has an IAM
@@ -59,32 +81,38 @@ them one at a time and narrate between them:
 
 ```text
 cd examples/live-mv-workbench
-uv run tlmig setup                 # prints a new run id
-uv run tlmig slow-plan --run <id>
-uv run tlmig decompose --run <id>
-...
+uv run tlmig seed --demo            # prints a new run id
+uv run tlmig survey --run <id>
+uv run tlmig preview --run <id>
+uv run tlmig move --run <id>
+uv run tlmig verify --run <id>
+uv run tlmig receipt --run <id>
 uv run tlmig teardown --run <id>
 ```
 
 Add `--auto` to skip the keypress between steps and auto-confirm the
-destructive operations, for a rehearsal. `uv run tlmig all --auto` runs every phase in
-order and tears down after. `uv run tlmig status --run <id>` reads what
-is live at any point. `teardown` is always safe to run.
+destructive operations, for a rehearsal. `uv run tlmig status --run <id>`
+reads what is live at any point. `teardown` is always safe to run.
 
 ## The phases
 
 **preflight** asserts the account and the binary version before anything
 touches AWS. A mis-set profile or the wrong binary stops here.
 
-**setup** applies the monolith: one estate, `tlmig-<id>-monolith`, owning all
-three teams' resources.
+**seed** applies the monolith, one estate, `tlmig-<id>-monolith`, owning all
+three teams' resources. (`--config`/`--estate`/`--state` adopt an existing
+config instead of the built-in demo.)
 
-**slow-plan** plans the whole monolith with a full refresh. This is the cost a
+**survey** plans the whole monolith with a full refresh. This is the cost a
 terralith pays on every plan: one provider request per resource read, for every
 resource in the account. On the sample fixture it is around 56 requests.
 
-**decompose** is the migration. For each team it writes a per-team
-configuration under that team's estate, then moves each taggable resource with
+**preview** dry-runs every planned move (`live-mv -dry-run` per resource) and
+writes nothing; a refusal here is a finding, not a failure, and names what to
+fix by hand before **move** runs the same set for real.
+
+**move** is the migration. For each team it writes a per-team configuration
+under that team's estate, then moves each taggable resource with
 `live-mv -from-estate`:
 
 ```text
@@ -100,29 +128,30 @@ configuration by itself would not do this: choudoufu reads the resources as
 belonging to another estate and refuses to adopt them as a side effect. Moving
 a resource across an estate boundary is always a deliberate retag by its owner.
 
-**fast-plan** plans one team's estate with `-refresh=false`. Because that
+The demo's own `move` runs a second act after the split: team-a is being
+dissolved, and its resources have to live on under team-b with no downtime.
+The resource blocks move into team-b's configuration, and the same
+`live-mv -from-estate` retags each one from team-a's estate to team-b's.
+Team-a's configuration is left declaring nothing.
+
+**verify** plans one team's estate with `-refresh=false` -- because that
 estate's resources are recorded and unchanged, the plan serves them from the
 cache instead of reading each one, so it makes far fewer requests than the
-monolith did. On the sample fixture it is around 29, against the monolith's 56.
-The cache is a non-authoritative copy of what the account already holds: losing
-it costs reads, never results, and a default plan still refreshes.
-
-**carve** is the sharper case: team-a is being dissolved, and its resources
-have to live on under team-b with no downtime. The resource blocks move into
-team-b's configuration, and the same `live-mv -from-estate` retags each one
-from team-a's estate to team-b's. Team-a's configuration is left declaring
-nothing.
-
-**guard** proves the carve left nothing behind, and it reads that proof from
-neutral sources rather than from choudoufu's own report of itself:
+monolith did (around 29 against the monolith's 56 on the sample fixture, a
+cache that costs reads, never results, if it is ever lost) -- then proves the
+carve left nothing behind, reading from neutral sources rather than
+choudoufu's own report of itself:
 
 - `aws iam list-role-tags` shows the moved role now carries team-b's estate.
 - `aws iam list-role-policies` shows the inline policy still on the role.
 - A plan of team-a's estate says `No changes` with nothing to destroy.
 - A plan of team-b's estate says `No changes`.
 
-If any of those failed, the guard would say so. On a clean carve all four hold,
+If any of those failed, verify would say so. On a clean carve all four hold,
 and the handover is done.
+
+**receipt** reads the account's own CloudTrail for the tag writes verify just
+proved, each naming the session that made the call.
 
 **teardown** destroys everything the run applied, working from a manifest
 rather than a guess, then refuses to call the run clean until it has listed the

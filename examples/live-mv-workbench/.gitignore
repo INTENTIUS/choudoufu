@@ -6,3 +6,5 @@ runs/
 __pycache__/
 # Local builds of choudoufu (CHOUDOUFU_VERSION=local), cached by git describe.
 .local/
+# marimo's own editor/session cache -- local state, not source.
+__marimo__/
