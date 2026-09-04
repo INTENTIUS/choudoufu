@@ -81,6 +81,13 @@ class PhaseRun:
             return "running"
         return "done" if self.returncode == 0 else f"failed (exit {self.returncode})"
 
+    @property
+    def elapsed(self) -> float:
+        """Seconds since this phase started: counts up while it runs, freezes
+        once it ends. What a live 'Running X... Ns' cue counts."""
+        end = self.ended or datetime.now(timezone.utc)
+        return (end - self.started).total_seconds()
+
     def tail(self, lines: int = 12) -> str:
         try:
             text = self.log.read_text(errors="replace")

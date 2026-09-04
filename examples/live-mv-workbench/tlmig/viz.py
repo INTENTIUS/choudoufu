@@ -554,11 +554,23 @@ def _esc(s: object) -> str:
     return html.escape(str(s), quote=True)
 
 
-def render_map_svg(state: RunState, width: int = 640) -> str:
+def render_map_svg(state: RunState, width: int = 640, *, before: "RunState | None" = None, ghost: bool = False) -> str:
     """The estate-ownership map: one row per team, one cell per resource,
     colour by live estate, an outline around each run of cells one estate
-    holds, children drawn with a tie to their parent."""
+    holds, children drawn with a tie to their parent.
+
+    ``ghost`` renders a plan, not a fact: every cell dashed and dimmed
+    regardless of type, so a caller showing ``project(state)`` (the map as
+    it would stand after the previewed moves) can never be mistaken for the
+    live map, which stays the only place a solid colour means "this is
+    true now". ``before`` marks the moment-to-moment story of a phase
+    actually running: any resource whose live estate differs between
+    ``before`` and ``state`` gets a bright outline, so a cell that just
+    changed owner is the one thing the eye is drawn to."""
     colours = _colours(state)
+    changed: set[str] = set()
+    if before is not None:
+        changed = {r.key for r in state.resources.values() if before.live_estate_of(r.key) != state.live_estate_of(r.key)}
     teams = sorted({r.team for r in state.resources.values()})
     if not teams:
         return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="currentColor" fill-opacity="0.5" font-family="ui-monospace, monospace" font-size="13">the map fills in when setup runs</text></svg>'
@@ -596,10 +608,17 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
             unseen = e is None
             c = "#9ca3af" if (r.gone or unseen) else colours.get(e or "", "#9ca3af")
             positions[r.address] = x
-            dash = ' stroke-dasharray="4 3"' if (not r.taggable or r.gone) else ""
-            title = f"{r.address} · {'gone' if r.gone else (e or 'not yet placed')}"
+            dash = ' stroke-dasharray="4 3"' if (ghost or not r.taggable or r.gone) else ""
+            title = f"{r.address} · {'gone' if r.gone else (e or 'not yet placed')}" + (" · planned" if ghost else "")
             op = 0.06 if r.gone else 0.18 if (unseen or not r.taggable) else 0.35
+            if ghost:
+                op *= 0.6
             out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{op}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
+            if r.key in changed:
+                # A resource whose live estate just moved: an outer glow ring
+                # so the eye finds the thing that changed since the last poll,
+                # not just the cell's final colour.
+                out.append(f'<rect x="{x - 3}" y="{y + 9}" width="{cell - 2}" height="{cell - 8}" rx="8" fill="none" stroke="#22c55e" stroke-width="2.5" opacity="0.9"><title>{_esc(r.address)} just moved</title></rect>')
             out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="{0.4 if r.gone else 1}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
             x += cell + gap
         for r in rs:

@@ -51,8 +51,13 @@ def _(mo):
       .lmd-step.done { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
       .lmd-step.done .n { color: var(--good); }
       .lmd-step.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
-                         background: color-mix(in srgb, var(--accent) 8%, transparent); }
+                         background: color-mix(in srgb, var(--accent) 8%, transparent);
+                         animation: lmd-pulse 1.6s ease-in-out infinite; }
       .lmd-step.active .n { color: var(--accent); }
+      @keyframes lmd-pulse {
+        0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+        50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 10%, transparent); }
+      }
       .lmd-step.ready { border-color: var(--accent); border-style: dashed; }
       .lmd-step.ready .n { color: var(--accent); }
       .lmd-step.failed { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
@@ -68,6 +73,16 @@ def _(mo):
       .lmd-stage svg { max-height: 100%; }
       .lmd-note { font-size: 13px; color: var(--mut); }
       .lmd-pay { font-size: 14px; }
+      .lmd-elapsed { font-variant-numeric: tabular-nums; opacity: .75; }
+      .lmd-busy { display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+                  letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+      .lmd-busy .lmd-spin { width: 9px; height: 9px; border-radius: 50%;
+                             border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+                             border-top-color: var(--accent); animation: lmd-spin .8s linear infinite; }
+      @keyframes lmd-spin { to { transform: rotate(360deg); } }
+      .lmd-planned { display: inline-block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+                     color: var(--accent); border: 1px dashed var(--accent); border-radius: 6px; padding: 2px 8px;
+                     margin-bottom: 6px; }
     </style>
     """)
     return
@@ -158,6 +173,11 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
         _RUN["run_seen"] = run_btn.value
         if _next is not None and VERB[_next][0] is not None and not _running:
             _verb, _extra = VERB[_next]
+            if _verb == "move":
+                # A snapshot of the map the instant before Move writes a
+                # single tag, so the running map can show which cells have
+                # flipped owner so far, not just the settled end state.
+                _RUN["move_before"] = _state
             st.start(_verb, _extra or None)
             _running = _verb                   # this render already shows it active
 
@@ -182,15 +202,35 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
     _focus = next((ph for ph in PHASES if VERB[ph][0] == _running), None) if _running else _next
     if _focus is None:
         _cue_text = "Every phase is done. Reset to run it again."
+        _busy = mo.md("")
     elif _running:
-        _cue_text = f"Running {TITLE[_focus]}… {CUE.get(_focus, '')}"
+        # A live, ticking count of seconds, not a static "Running..." label
+        # that looks identical whether the phase is working or stuck.
+        _rec = st.phases.get(_running)
+        _secs = f" · {_rec.elapsed:.0f}s" if _rec is not None else ""
+        _cue_text = f"Running {TITLE[_focus]}…{_secs} {CUE.get(_focus, '')}"
+        _busy = mo.md('<span class="lmd-busy"><span class="lmd-spin"></span>working</span>')
     else:
         _cue_text = CUE.get(_focus, "")
+        _busy = mo.md("")
     _button = run_btn if (_next is not None and VERB[_next][0] is not None and not _running) else mo.md("").style({"width": "0"})
-    _cue = mo.hstack([_button, mo.md(f'<span class="lmd-say">{_cue_text}</span>')], justify="start", align="center", gap=1)
+    _cue = mo.hstack([_button, mo.md(f'<span class="lmd-say">{_cue_text}</span>'), _busy], justify="start", align="center", gap=1)
 
     # -- The action stage: the live map --------------------------------------
-    _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900)}</div>')
+    # Preview never writes a live tag (it stages, dry-runs, then restores),
+    # so the live map has nothing to show yet; project() computes the map as
+    # it would stand after the previewed moves, and ghost=True draws it
+    # dashed and dimmed so a plan can never read as a fact. Once Move starts,
+    # switch to the real map with just-changed cells ringed, so the split
+    # visibly happens instead of jumping from grey to settled between polls.
+    _plan_view = bool(_state.previews) and (_focus == "preview" or (_next == "move" and not _running))
+    if _plan_view:
+        _map_label = mo.Html('<span class="lmd-planned">planned, not yet written</span>')
+        _map = mo.vstack([_map_label, mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(viz.project(_state), width=900, ghost=True)}</div>')], gap=0.3)
+    elif _running == "move" and _RUN.get("move_before") is not None:
+        _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900, before=_RUN["move_before"])}</div>')
+    else:
+        _map = mo.Html(f'<div class="lmd-stage">{viz.render_map_svg(_state, width=900)}</div>')
 
     # payoff of the last done phase, if it left a number
     _pay = ""
