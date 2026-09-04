@@ -63,9 +63,12 @@ an ownership marker of its own and has to follow its parent role.
 ## Before you run it
 
 - [`uv`](https://docs.astral.sh/uv/) for the Python project.
-- The AWS CLI, with credentials for the account you intend to use. The example
-  is fenced to one account id in `tlmig/config.py` (`ACCOUNT_ID`); change it to
-  yours, or it will refuse to run rather than touch the wrong cloud.
+- The AWS CLI, with credentials for the account you intend to use. Nothing to
+  configure: `preflight` reads the account straight from
+  `aws sts get-caller-identity` and every confirmation prompt names it before
+  writing anything. If you want an extra fence against a mis-set
+  `AWS_PROFILE` - useful on a repeated run, not needed for a first one - set
+  `TLMIG_ACCOUNT=<account id>` and preflight refuses to run anywhere else.
 - The pinned `choudoufu` release. The version is set in `config.py`
   (`CHOUDOUFU_VERSION`) and `preflight` asserts the binary matches it. If you
   have run the smoke suite the example finds the cached binary automatically;
@@ -103,8 +106,10 @@ reads what is live at any point. `teardown` is always safe to run.
 
 ## The phases
 
-**preflight** asserts the account and the binary version before anything
-touches AWS. A mis-set profile or the wrong binary stops here.
+**preflight** reads the caller identity and the binary version before
+anything touches AWS: the run uses whichever account those credentials
+resolve to, and the wrong binary stops here. Set `TLMIG_ACCOUNT` to add an
+account fence too, so a mis-set profile stops here rather than elsewhere.
 
 **seed** applies the monolith, one estate, `tlmig-<id>-monolith`, owning all
 three teams' resources. (`--config`/`--estate`/`--state` adopt an existing
@@ -170,7 +175,9 @@ Every command the example issues goes through a single guarded executor with
 four checks, so it is safe to run against a real account and to improvise on
 top of:
 
-1. Preflight asserts the one allowed account and the pinned binary.
+1. Preflight reads the caller identity and the pinned binary; every
+   confirmation below names the account it read, and `TLMIG_ACCOUNT` turns
+   it into a fence for anyone who wants one.
 2. A destructive `choudoufu` command must run inside the run's own working
    tree; a raw `aws` delete must name a resource carrying the run's prefix. The
    check is on the target, so it holds whatever a command asks for.

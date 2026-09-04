@@ -7,7 +7,8 @@ describes the run.
 
 Three values are load-bearing for safety:
 
-* ACCOUNT_ID pins the one account this example may touch.
+* ACCOUNT_ID, empty by default, optionally pins the one account this example
+  may touch.
 * CHOUDOUFU_VERSION pins the release the numbers were measured against.
 * RESOURCE_PREFIX is stamped on every resource the run creates and is the
   fence every destructive call checks: teardown deletes only names that
@@ -21,10 +22,16 @@ import os
 import pathlib
 import secrets
 
-# The single AWS account this example is allowed to touch. guard.preflight
-# refuses to run if the caller's credentials resolve anywhere else, so a
-# mis-set AWS_PROFILE fails loud instead of mutating the wrong cloud.
-ACCOUNT_ID = "354867293429"
+# Empty by default: no account has to be entered anywhere to run this
+# example, and a run simply uses whatever account the caller's AWS
+# credentials resolve to (guard.preflight reads it via `aws sts
+# get-caller-identity`), exactly like the AWS CLI or plain OpenTofu would.
+# Set this (or export TLMIG_ACCOUNT) to pin a specific account instead: then
+# guard.preflight refuses to run if credentials resolve anywhere else, so a
+# mis-set AWS_PROFILE fails loud instead of mutating the wrong cloud - a
+# safety net worth having for someone re-running this often, not something a
+# first run needs.
+ACCOUNT_ID = ""
 
 # The choudoufu release this example is pinned to. guard.preflight asserts
 # `choudoufu version` reports exactly this fork tag: a drifted binary would
@@ -153,9 +160,10 @@ def load(run_id: str | None = None) -> Config:
         build = f"local {localbuild.describe(root)}" if root else "local"
         binary = binary or localbuild.ensure(root)
     binary = binary or _find_binary(version)
-    # The account and region a run is fenced to. Defaults are the demo's real
-    # account; a floci run sets TLMIG_ACCOUNT=000000000000 (floci's account)
-    # and AWS_REGION, so the same preflight fence passes against the emulator.
+    # Empty by default (no fence; see ACCOUNT_ID above). The Docker demo's
+    # compose file sets TLMIG_ACCOUNT=000000000000 (floci's fixed account) as
+    # an explicit, harmless pin against the emulator; a real-AWS run is
+    # unfenced unless this or ACCOUNT_ID is set.
     account_id = os.environ.get("TLMIG_ACCOUNT", ACCOUNT_ID)
     region = os.environ.get("AWS_REGION", REGION)
     return Config(run_id=run_id, run_dir=run_dir, binary=binary, version=version, build=build,
