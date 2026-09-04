@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -560,6 +562,269 @@ func TestLiveMv_readParallelism(t *testing.T) {
 			t.Errorf("a refused setting still rewrote the marker: tofu-address = %q", got)
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// -json (GitHub issue #791)
+// ---------------------------------------------------------------------------
+
+// TestLiveMv_jsonRenamesByMarker is TestLiveMv_renamesByMarker's report
+// read back as the document -json prints instead of the labelled rows: one
+// completed move, with the resource, both endpoints, and the two proofs
+// (Written, Verified) a receipt reader needs.
+func TestLiveMv_jsonRenamesByMarker(t *testing.T) {
+	cloud := mvRenamedFixture(t)
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-json", "aws_security_group.main", "aws_security_group.renamed"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	rep := decodeMvJSON(t, output.Stdout())
+	if rep.Resource.TypeName != "aws_security_group" || rep.Resource.LiveID != "sg-owned" {
+		t.Errorf("resource = %+v, want aws_security_group/sg-owned", rep.Resource)
+	}
+	if rep.From.Estate != "stateless-unit" || rep.From.Address != "aws_security_group.main" || rep.From.Marker != "aws_security_group.main" {
+		t.Errorf("from = %+v", rep.From)
+	}
+	if rep.To.Estate != "stateless-unit" || rep.To.Address != "aws_security_group.renamed" || rep.To.Marker != "aws_security_group.renamed" {
+		t.Errorf("to = %+v", rep.To)
+	}
+	if rep.DryRun {
+		t.Error("dry_run is true for a real write")
+	}
+	if !rep.Written {
+		t.Error("written is false after a completed apply")
+	}
+	if !rep.Verified {
+		t.Error("verified is false even though the mock provider serves tags back on the read")
+	}
+	if rep.FoundBy != "LIST" {
+		t.Errorf("found_by = %q, want LIST", rep.FoundBy)
+	}
+	if len(rep.Followers) != 0 {
+		t.Errorf("followers = %v, want none - this fixture declares no parent-derived children", rep.Followers)
+	}
+	if rep.Refusal != nil {
+		t.Errorf("refusal = %+v, want nil on a completed move", rep.Refusal)
+	}
+	if rep.RequestID != "" {
+		t.Errorf("request_id = %q, want empty - no plugin-protocol plumbing carries one yet", rep.RequestID)
+	}
+
+	// The write actually happened; -json is a different rendering of the
+	// same run, not a different code path that skips the cloud.
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.renamed" {
+		t.Errorf("the live security group carries tofu-address = %q, want aws_security_group.renamed", got)
+	}
+
+	// -json's document is the only thing on stdout: a machine reading it
+	// does not have to skip past the human report's prose first.
+	if strings.Contains(output.Stdout(), "This was a cloud write.") {
+		t.Errorf("the human report's prose leaked into -json's stdout:\n%s", output.Stdout())
+	}
+}
+
+// TestLiveMv_jsonDryRun proves -dry-run and -json compose: every field
+// -json reports on a real write is still reported on a rehearsal, with
+// DryRun true and Written/Verified false, which is what lets a preview
+// (the workbench's own use case, issue #791's "Why") read the same shape a
+// receipt does.
+func TestLiveMv_jsonDryRun(t *testing.T) {
+	cloud := mvRenamedFixture(t)
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-json", "-dry-run", "aws_security_group.main", "aws_security_group.renamed"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	rep := decodeMvJSON(t, output.Stdout())
+	if !rep.DryRun {
+		t.Error("dry_run is false under -dry-run")
+	}
+	if rep.Written {
+		t.Error("written is true under -dry-run")
+	}
+	if rep.Resource.LiveID != "sg-owned" {
+		t.Errorf("the dry run still has to name what it found: resource = %+v", rep.Resource)
+	}
+	if rep.To.Marker != "aws_security_group.renamed" {
+		t.Errorf("the dry run does not preview the marker it would write: to = %+v", rep.To)
+	}
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.main" {
+		t.Errorf("-json -dry-run rewrote the marker anyway: %q", got)
+	}
+}
+
+// TestLiveMv_jsonRefusals is the refusal half: for every one of
+// mv.RefusalCode's five named shapes this test can drive through the
+// command layer, -json still prints one document - Refusal set, Written
+// false - rather than leaving a caller with nothing but stderr prose to
+// parse. Each case reuses the fixture and the exact scenario an existing
+// human-report test above already covers, so the assertions here are only
+// about what -json adds: the stable code and the fact that a document was
+// printed at all.
+func TestLiveMv_jsonRefusals(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T) *mvCloud
+		args     []string
+		wantCode string
+	}{
+		{
+			name:     "nothing at the old address",
+			setup:    mvRenamedFixture,
+			args:     []string{"aws_security_group.absent", "aws_security_group.renamed"},
+			wantCode: "nothing_at_old_address",
+		},
+		{
+			name: "two resources claiming the old address",
+			setup: func(t *testing.T) *mvCloud {
+				cloud := mvRenamedFixture(t)
+				cloud.put("aws_security_group", "sg-twin", map[string]string{"id": "sg-twin", "name": "twin"},
+					map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.main"})
+				return cloud
+			},
+			args:     []string{"aws_security_group.main", "aws_security_group.renamed"},
+			wantCode: "two_at_old_address",
+		},
+		{
+			name: "the destination is already claimed",
+			setup: func(t *testing.T) *mvCloud {
+				cloud := mvRenamedFixture(t)
+				cloud.put("aws_security_group", "sg-squatter", map[string]string{"id": "sg-squatter", "name": "squatter"},
+					map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.renamed"})
+				return cloud
+			},
+			args:     []string{"aws_security_group.main", "aws_security_group.renamed"},
+			wantCode: "new_address_claimed",
+		},
+		{
+			name:     "the destination is not declared",
+			setup:    mvUnrenamedFixture,
+			args:     []string{"aws_s3_bucket.data", "aws_s3_bucket.archive"},
+			wantCode: "destination_not_declared",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cloud := tc.setup(t)
+			c, done := newLiveMvCommand(t, cloud)
+			code := c.Run(append([]string{"-no-color", "-json"}, tc.args...))
+			output := done(t)
+			if code != 1 {
+				t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+			}
+
+			rep := decodeMvJSON(t, output.Stdout())
+			if rep.Refusal == nil {
+				t.Fatalf("refusal is nil on a refused move")
+			}
+			if rep.Refusal.Code != tc.wantCode {
+				t.Errorf("refusal.code = %q, want %q (refusal = %+v)", rep.Refusal.Code, tc.wantCode, rep.Refusal)
+			}
+			if rep.Refusal.Summary == "" || rep.Refusal.Detail == "" {
+				t.Errorf("refusal is missing its text: %+v", rep.Refusal)
+			}
+			// The same text a human run would have seen on stderr, not a
+			// rephrasing invented for JSON - one diagnostic, two renderings.
+			if !strings.Contains(output.Stderr(), rep.Refusal.Summary) {
+				t.Errorf("refusal.summary %q does not appear in stderr:\n%s", rep.Refusal.Summary, output.Stderr())
+			}
+			if rep.Written {
+				t.Error("written is true on a refused move")
+			}
+		})
+	}
+}
+
+// TestLiveMv_jsonRefusalOutsideTheFiveCodes proves the fallback: a refusal
+// this package never gives a RefusalCode (TestLiveMv_lintFatal's own
+// scenario, raised in internal/command before mv.Move is even reached) still
+// gets a document, with Refusal set and an empty Code rather than a made-up
+// sixth value - and Resource, understandably, is the JSON zero value, since
+// nothing was ever found.
+func TestLiveMv_jsonRefusalOutsideTheFiveCodes(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-mv-lint"), td)
+	t.Chdir(td)
+
+	cloud := mvNewCloud()
+	c, done := newLiveMvCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-json", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	rep := decodeMvJSON(t, output.Stdout())
+	if rep.Refusal == nil {
+		t.Fatalf("refusal is nil on a refused move")
+	}
+	if rep.Refusal.Code != "" {
+		t.Errorf("refusal.code = %q, want empty - a lint refusal is outside the five named shapes", rep.Refusal.Code)
+	}
+	if !strings.Contains(rep.Refusal.Summary, "Logical resource is not admitted") {
+		t.Errorf("refusal.summary = %q, want the lint diagnostic's own summary", rep.Refusal.Summary)
+	}
+	if rep.Resource.TypeName != "" || rep.Resource.LiveID != "" {
+		t.Errorf("resource = %+v, want the zero value - lint refused before mv.Move ever ran", rep.Resource)
+	}
+	if rep.From.Address != "aws_s3_bucket.data" || rep.To.Address != "aws_s3_bucket.archive" {
+		t.Errorf("from/to still have to name the addresses this run was given: from=%+v to=%+v", rep.From, rep.To)
+	}
+}
+
+// TestLiveMv_jsonWarningsStayOffStdout is TestLiveMv_missingConfigOverride
+// read through -json: a successful move that ALSO raises a warning
+// ("Configuration still naming the old address") is exactly the case that
+// would otherwise interleave prose into -json's single document, because
+// View.Diagnostics sends warnings to Stdout by design. -json's document
+// must be the only thing on Stdout, and the warning still has to reach the
+// operator - just on Stderr, where the human report's own diagnostics
+// already go.
+func TestLiveMv_jsonWarningsStayOffStdout(t *testing.T) {
+	cloud := mvUnrenamedFixture(t)
+
+	c, done := newLiveMvCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-json", "-allow-missing-config", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	// Stdout has to parse as exactly one JSON document - a trailing warning
+	// appended after it is exactly the corruption this test exists to catch.
+	rep := decodeMvJSON(t, output.Stdout())
+	if rep.To.Address != "aws_s3_bucket.archive" || !rep.Written {
+		t.Errorf("the move itself did not go through: %+v", rep)
+	}
+	if strings.Contains(output.Stdout(), "Configuration still naming the old address") {
+		t.Errorf("the warning leaked onto stdout, corrupting the JSON document:\n%s", output.Stdout())
+	}
+	if !strings.Contains(output.Stderr(), "Configuration still naming the old address") {
+		t.Errorf("the warning is missing entirely - it has to land on stderr instead of stdout, not vanish:\n%s", output.Stderr())
+	}
+}
+
+// decodeMvJSON parses -json's stdout as one views.StatelessMvJSONReport, the
+// same struct live_mv.go builds and views.StatelessMvJSONHuman prints -
+// decoding into it, rather than into a map, is what makes this test fail to
+// compile the day a field is renamed instead of failing at runtime with a
+// silently missing key.
+func decodeMvJSON(t *testing.T, stdout string) views.StatelessMvJSONReport {
+	t.Helper()
+	var rep views.StatelessMvJSONReport
+	if err := json.Unmarshal([]byte(stdout), &rep); err != nil {
+		t.Fatalf("-json's stdout does not parse as JSON: %s\nstdout:\n%s", err, stdout)
+	}
+	return rep
 }
 
 // ---------------------------------------------------------------------------
