@@ -175,9 +175,22 @@ func staticFilter(body hcl.Body) (name string, values []string) {
 	}
 	for it := valuesVal.ElementIterator(); it.Next(); {
 		_, v := it.Element()
-		if v.Type() == cty.String && !v.IsNull() {
-			values = append(values, v.AsString())
+		// v is the VALUE half of the element, and internal/live/marksafe's
+		// own ProofIteratorKey note is explicit that a collection being
+		// proven unmarked (valuesVal came from Value(nil), so it is - see
+		// the two guards above) says nothing about its elements: only the
+		// KEY half is synthesized by cty and therefore never marked. So
+		// this is guarded here rather than relying on valuesVal's own
+		// proof to reach it, the same "never Unmark, always refuse" rule
+		// every other site in this repository follows for a marked value -
+		// a filter value naming a sensitive variable is exactly the shape
+		// this exists to catch, and skipping it silently is the correct
+		// refusal: a marked value must never become part of an emitted
+		// reference.
+		if v.IsNull() || v.IsMarked() || v.Type() != cty.String {
+			continue
 		}
+		values = append(values, v.AsString())
 	}
 	return name, values
 }
