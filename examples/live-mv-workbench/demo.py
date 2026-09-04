@@ -99,6 +99,8 @@ def _():
 
 @app.cell
 def _(mo):
+    # The redraw timer. Its value changes on the browser's clock, which runs
+    # only while the element is displayed (the top bar mounts it).
     tick = mo.ui.refresh(default_interval="1s", options=["1s", "2s", "5s"], label="")
     return (tick,)
 
@@ -117,8 +119,15 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
     tick.value  # redraw on every tick while a phase runs
 
     _RUN = stage._demo_run
+    # A button's count restarts at 0 when the page reloads while the kernel,
+    # and this dict, live on. A count below the one last seen is a reload,
+    # not a click: fall back to it, and serve only a count above it.
+    for _btn, _key in ((run_btn, "run_seen"), (reset_btn, "reset_seen")):
+        if _btn.value < _RUN.get(_key, 0):
+            _RUN[_key] = _btn.value
+
     # -- Reset: tear down the current run, start a fresh one -----------------
-    if reset_btn.value > _RUN["reset_seen"]:
+    if reset_btn.value > _RUN.get("reset_seen", 0):
         _RUN["reset_seen"] = reset_btn.value
         stage.for_run(_RUN["id"]).start("teardown")   # clean the old run on floci, async
         _RUN["id"] = stage.new_run_id()
@@ -142,13 +151,15 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
     _done = [ph for ph in PHASES if _verb_done(ph)]
     _next = next((ph for ph in PHASES if ph not in _done), None)
 
-    # -- Run: the one button runs the next ready phase -----------------------
-    if _next is not None:
-        _verb, _extra = VERB[_next]
-        if _verb is not None:
-            st.click(_verb, run_btn.value, extra=_extra or None)
-        elif run_btn.value > st.handled.get("plan-skip", 0):
-            st.handled["plan-skip"] = run_btn.value   # plan has no run; the click moves on
+    # -- Run: one click, one phase. The count is consumed here, once, not per
+    # phase: a per-phase check would let the count that started seed start
+    # survey the moment seed ended, and every phase after it, unclicked.
+    if run_btn.value > _RUN.get("run_seen", 0):
+        _RUN["run_seen"] = run_btn.value
+        if _next is not None and VERB[_next][0] is not None and not _running:
+            _verb, _extra = VERB[_next]
+            st.start(_verb, _extra or None)
+            _running = _verb                   # this render already shows it active
 
     # -- Breadcrumb states ---------------------------------------------------
     def _step_state(ph):
@@ -167,10 +178,8 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
         f'<span class="t">{TITLE[ph]}</span></div>'
         for i, ph in enumerate(PHASES)
     )
-    _bar = mo.Html(f'<div class="lmd-bar">{_steps}<div class="lmd-spacer"></div></div>')
-
     # -- The cue: what the ready (or running) phase is about -----------------
-    _focus = _running_phase = next((ph for ph in PHASES if VERB[ph][0] == _running), None) if _running else _next
+    _focus = next((ph for ph in PHASES if VERB[ph][0] == _running), None) if _running else _next
     if _focus is None:
         _cue_text = "Every phase is done. Reset to run it again."
     elif _running:
@@ -201,12 +210,15 @@ def _(CUE, PHASES, TITLE, VERB, mo, reset_btn, run_btn, stage, tick, viz):
         f"<div style='max-height:32vh; overflow:auto'>{_ledger_body}</div></details>"
     )
 
-    _reset = mo.hstack([reset_btn], justify="end")
-    _top = mo.hstack([mo.Html(f'<div class="lmd-bar" style="flex:1;border:none;padding:0">{_steps}</div>'), reset_btn], justify="space-between", align="center").style({"padding": "8px 14px", "border-bottom": "1px solid var(--edge2)"})
+    # The redraw timer must be on the page: a refresh element that is never
+    # displayed has no browser-side timer, so nothing would ever re-render
+    # while a phase runs. It sits beside Reset, small.
+    _top = mo.hstack([
+        mo.Html(f'<div class="lmd-bar" style="flex:1;border:none;padding:0">{_steps}</div>'),
+        mo.hstack([tick, reset_btn], gap=0.5, align="center"),
+    ], justify="space-between", align="center").style({"padding": "8px 14px", "border-bottom": "1px solid var(--edge2)"})
 
-    _dbg = mo.Html(f'<div id="lmd-dbg" data-run="{_RUN["id"]}" data-clicks="{run_btn.value}" data-next="{_next}" data-running="{_running}" data-done="{",".join(_done)}" style="display:none"></div>')
     mo.vstack([
-        _dbg,
         _top,
         mo.vstack([_cue, _map, _payline], gap=0.6).style({"flex": "1 1 auto", "min-height": "0", "padding": "16px 22px", "display": "flex", "flex-direction": "column"}),
         _drawer,
