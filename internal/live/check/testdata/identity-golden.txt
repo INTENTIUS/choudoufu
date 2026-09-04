@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=642 instances=1795
+# shape: dirs=643 instances=1796
 # shape: class CONCRETE=883
-# shape: class NEEDS_DISCOVERY=748
+# shape: class NEEDS_DISCOVERY=749
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=4863ca491fb1d200caad4f18f232a7b300a48011bc98b6776434ccdb03901a3f
+# shape: body-sha256=2b58807fada16adc669117ae269727d6585feb31dc4289a55c181f94c5be4e44
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1039,6 +1039,7 @@ live/e2e/estate-module-keyed	module.wrapped["a"].aws_eip.app	NEEDS_DISCOVERY
 live/e2e/estate-module-keyed	module.wrapped["b"].aws_eip.app	NEEDS_DISCOVERY		
 live/e2e/estate-module-keyed/wrapped	aws_eip.app	NEEDS_DISCOVERY		
 live/e2e/estate-module/wrapped	aws_eip.app	NEEDS_DISCOVERY		
+live/e2e/estate-references	aws_subnet.app	NEEDS_DISCOVERY		
 live/e2e/estates/ai-location	aws_bedrock_guardrail.app	NEEDS_DISCOVERY		
 live/e2e/estates/ai-location	aws_bedrock_inference_profile.app	NEEDS_DISCOVERY		
 live/e2e/estates/ai-location	aws_bedrockagent_agent.app	NEEDS_DISCOVERY		

@@ -46,7 +46,7 @@ func (c *LiveCheckCommand) Run(rawArgs []string) int {
 	common, rawArgs := arguments.ParseView(rawArgs)
 	c.View.Configure(common)
 
-	dir, diags := parseLiveCheckArgs(rawArgs)
+	dir, jsonOutput, diags := parseLiveCheckArgs(rawArgs)
 	if diags.HasErrors() {
 		c.View.Diagnostics(diags)
 		return 1
@@ -63,13 +63,24 @@ func (c *LiveCheckCommand) Run(rawArgs []string) int {
 	if !report.Readable() {
 		// A directory that will not parse has no findings either, and
 		// printing the clean verdict for it would be a lie of exactly the
-		// shape this command exists to stop telling.
+		// shape this command exists to stop telling. -json gets the same
+		// treatment: a document with an empty roster would read as "zero
+		// instances declared" rather than "could not be read", which is a
+		// worse lie than printing nothing at all.
 		diags = diags.Append(report.Load.Diags)
 		c.View.Diagnostics(diags)
 		return 1
 	}
 
-	views.NewLiveCheck(c.View).Report(liveCheckReport(dir, report))
+	rep := liveCheckReport(dir, report)
+	if jsonOutput {
+		// GitHub issue #790: the declared roster, for a caller like behold
+		// that parses no HCL of its own. See views.NewLiveCheckJSON's own
+		// doc comment for why this did not exist before #790.
+		views.NewLiveCheckJSON(c.View).Report(rep)
+	} else {
+		views.NewLiveCheck(c.View).Report(rep)
+	}
 	c.View.Diagnostics(diags)
 
 	// Non-zero on "cannot move", so this can gate CI. The verdict is the
@@ -80,13 +91,22 @@ func (c *LiveCheckCommand) Run(rawArgs []string) int {
 	return 0
 }
 
-func parseLiveCheckArgs(rawArgs []string) (string, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-
+// parseLiveCheckArgs reads live-check's own flag set: -json (GitHub issue
+// #790) and, unchanged since #114, at most one positional directory
+// argument. -json is special-cased rather than folded into the "no options"
+// refusal below it precedes, and every other flag still refuses exactly as
+// it always has - this command's whole premise is a verdict a human or a
+// machine can trust, and a silently-ignored typo'd flag would undermine
+// that for either reader.
+func parseLiveCheckArgs(rawArgs []string) (dir string, jsonOutput bool, diags tfdiags.Diagnostics) {
 	var positional []string
 	for _, arg := range rawArgs {
+		if arg == "-json" {
+			jsonOutput = true
+			continue
+		}
 		if strings.HasPrefix(arg, "-") {
-			diags = diags.Append(fmt.Errorf("live-check accepts no options; got %q", arg))
+			diags = diags.Append(fmt.Errorf("live-check accepts only -json; got %q", arg))
 			continue
 		}
 		positional = append(positional, arg)
@@ -94,12 +114,12 @@ func parseLiveCheckArgs(rawArgs []string) (string, tfdiags.Diagnostics) {
 
 	switch len(positional) {
 	case 0:
-		return ".", diags
+		return ".", jsonOutput, diags
 	case 1:
-		return positional[0], diags
+		return positional[0], jsonOutput, diags
 	default:
 		diags = diags.Append(fmt.Errorf("live-check takes at most one argument, the directory to check; got %d", len(positional)))
-		return ".", diags
+		return ".", jsonOutput, diags
 	}
 }
 
@@ -159,6 +179,9 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		Partial:        partialLayerNames(report.Partial),
 		Unchecked:      layerNames(report.Unchecked),
 		UnsetVariables: report.Load.UnsetVariables(),
+		Estate:         report.Estate,
+		InstanceRoster: liveCheckInstances(report.Roster),
+		References:     liveCheckReferences(report.References),
 	}
 	for _, finding := range report.Findings {
 		if finding.UnsetVarSites > 0 {
@@ -246,6 +269,39 @@ func liveCheckFinding(finding check.Finding) views.LiveCheckFinding {
 	return out
 }
 
+// liveCheckInstances converts GitHub issue #790's roster into what -json
+// prints. Presentational only, the same rule liveCheckReport's own doc
+// comment states for the rest of this conversion: what is true was decided
+// in internal/live/check, this only reshapes it.
+func liveCheckInstances(roster []check.Instance) []views.LiveCheckInstance {
+	out := make([]views.LiveCheckInstance, 0, len(roster))
+	for _, inst := range roster {
+		out = append(out, views.LiveCheckInstance{
+			Address: inst.Address,
+			Type:    inst.Type,
+			Rung:    string(inst.Rung),
+			Refused: inst.Refused,
+			Rule:    inst.Rule,
+			Reason:  inst.Reason,
+		})
+	}
+	return out
+}
+
+// liveCheckReferences converts #790's cross-estate edges the same way.
+func liveCheckReferences(refs []check.Reference) []views.LiveCheckReference {
+	out := make([]views.LiveCheckReference, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, views.LiveCheckReference{
+			From:    ref.From,
+			Estate:  ref.Estate,
+			Address: ref.Address,
+			ReadBy:  ref.ReadBy,
+		})
+	}
+	return out
+}
+
 // liveCheckMaxSites is how many positions are printed per refusal before the
 // rest are counted. The report is a work list, not a log.
 const liveCheckMaxSites = 5
@@ -290,7 +346,7 @@ func layerNames(layers []check.Layer) []string {
 
 func (c *LiveCheckCommand) Help() string {
 	helpText := `
-Usage: choudoufu [global options] live-check [DIR]
+Usage: choudoufu [global options] live-check [-json] [DIR]
 
   Reports whether the configuration in DIR (default ".") can move under live
   resource markers, and what stops it if it cannot.
@@ -311,6 +367,12 @@ Usage: choudoufu [global options] live-check [DIR]
   carry. Without them those types read as refused, and the report says so.
 
   Exits non-zero when anything refuses the configuration, so it can gate CI.
+
+  -json prints GitHub issue #790's declared roster instead of the prose
+  above: every instance's address, type and rung, every cross-estate
+  reference a data source's marker-tag filters make visible
+  (live/OUTPUTS.md), and what was and was not checked - for a reader that
+  parses no HCL of its own rather than for a terminal.
 `
 	return strings.TrimSpace(helpText)
 }
