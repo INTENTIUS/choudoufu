@@ -492,7 +492,19 @@ emulator_delta "$ORACLE_ROOT/vpc/examples/complete"
 GREEN_ORACLE="$ORACLE_ROOT/vpc/examples/complete"
 ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
-ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_APPLY_RC=$?
+# TF_LOG_PROVIDER=DEBUG (issue #672): the stock oracle's own apply is the leg
+# where the 18-vs-19 subnet discrepancy was seen, with no choudoufu anywhere
+# in it, so a provider-level debug log is the only way to see what actually
+# went out on the wire. This costs nothing on the pass path (the log goes to
+# $WORK, which the script's own cleanup trap removes on exit either way) and
+# on failure it answers the question #672 posed: a duplicate CreateSubnet
+# sharing one amz_sdk_invocation_id across two amz_sdk_request attempts is
+# the AWS SDK retrying one logical call (the emulator-defect shape #672
+# names); two CreateSubnet calls with two different invocation ids are two
+# distinct calls the provider issued on purpose, which points at the
+# example's own configuration instead.
+ORACLE_TF_LOG="$WORK/greenfield-oracle-tf-provider-debug.log"
+ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" TF_LOG_PROVIDER=DEBUG TF_LOG_PATH="$ORACLE_TF_LOG" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_APPLY_RC=$?
 [ "$ORACLE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE '^Apply complete!' <<< "$ORACLE_APPLY_OUT" || fail "the greenfield oracle apply produced no 'Apply complete!' line"
 log "  $(grep -E '^Apply complete!' <<< "$ORACLE_APPLY_OUT")"
@@ -518,6 +530,23 @@ if [ "$GSUBNETS" != "$OSUBNETS" ]; then
   # confirm it because this assertion only ever printed the two counts and
   # the containers are torn down on exit.
   #
+  # ROOT-CAUSED, 2026-09-05, issue #672: hit CreateSubnet directly with the
+  # AWS CLI against the pinned image, no terraform in the loop - two
+  # back-to-back calls with the identical VpcId/CidrBlock/AvailabilityZone
+  # both returned 200 with distinct subnet ids and the same CIDR. Real EC2
+  # refuses the second one (InvalidSubnet.Conflict - CreateSubnet's own docs:
+  # "A subnet CIDR block must not overlap the CIDR block of an existing
+  # subnet in the VPC"); floci enforced no such check. CreateSubnet carries
+  # no idempotency token, so that conflict check is the only thing standing
+  # between an SDK-level transport retry (aws-sdk-go-v2's standard retry mode
+  # retries I/O failures - connection reset, timeout - independent of
+  # idempotency) and a second, live, unrecorded subnet, which is exactly this
+  # shape: terraform's own state only ever sees the response it actually
+  # received, so a retried create that succeeds twice leaves one subnet
+  # tracked and one orphaned. Fixed in the floci fork (lex00/floci, see the
+  # linked issue there); this script's own diagnostic below stays regardless,
+  # since a maintainer has to repin the image before this stops firing here.
+  #
   # So print both sides before failing. It costs two describe calls on a
   # path that is already failing, and it turns "18 != 19" into a named
   # object the next occurrence can be root-caused from - which side has the
@@ -531,6 +560,24 @@ if [ "$GSUBNETS" != "$OSUBNETS" ]; then
   aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-subnets \
     --filters "Name=vpc-id,Values=$OVPC_ID" \
     --query 'sort_by(Subnets,&CidrBlock)[].[SubnetId,CidrBlock,AvailabilityZone]' --output text || true
+  # The oracle's own CreateSubnet calls, from the provider debug log captured
+  # in PART GREENFIELD:4 above (TF_LOG_PROVIDER=DEBUG): each call's
+  # amz_sdk_invocation_id is stable across SDK-level retries of the SAME
+  # logical request, while amz_sdk_request carries the attempt number - two
+  # CreateSubnet lines sharing one invocation id at attempt=1 and attempt=2
+  # is the SDK retrying a single call (the emulator-defect shape this issue
+  # named); two lines with two different invocation ids are two calls the
+  # provider issued on purpose, which points at the example's configuration
+  # instead. The response body's own <requestId> and subnetId name which
+  # object each attempt produced.
+  log "  stock oracle's CreateSubnet requests (from the provider debug log, invocation id / attempt / response request id + subnet id):"
+  if [ -s "$ORACLE_TF_LOG" ]; then
+    grep -E 'rpc\.method=EC2/CreateSubnet|amz_sdk_invocation_id=|amz_sdk_request="attempt=|<CreateSubnetResponse' "$ORACLE_TF_LOG" \
+      | grep -oE 'amz_sdk_invocation_id=[^ ]+|amz_sdk_request="[^"]+"|requestId>[a-f0-9-]+|subnetId>subnet-[a-zA-Z0-9]+' \
+      || log "    provider debug log has no CreateSubnet lines matching the expected fields - format may have moved"
+  else
+    log "    no provider debug log was captured at $ORACLE_TF_LOG"
+  fi
   fail "the subnet count differs: greenfield=$GSUBNETS oracle=$OSUBNETS - see the two lists above for which side carries the extra subnet and whether its CIDR duplicates a declared one"
 fi
 GEP="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" ec2 describe-vpc-endpoints --filters "Name=tag:Name,Values=s3-vpc-endpoint" --query 'length(VpcEndpoints)' --output text)"
