@@ -9,7 +9,16 @@
     {{< iamref field="named" >}}          full table, services AWS names the key for, by actions naming it desc
     {{< iamref field="unnamed" >}}        table of services the reference says nothing about, by action count desc
     {{< iamref field="named-count" >}}    count of rows in the "named" table
-    {{< iamref field="services-count" >}} total AWS services in the reference
+    {{< iamref field="unnamed-count" >}}  count of rows in the "unnamed" table
+    {{< iamref field="services-count" >}} total AWS services the admission table reaches, resolved or not
+    {{< iamref field="resolved-count" >}} services resolved to exactly one IAM name, checked or not
+    {{< iamref field="checked-count" >}}  size of $filtered, the population "named" and "unnamed" are
+                                          split from - so this always equals named-count + unnamed-count.
+                                          Use this, not services-count or resolved-count, as the
+                                          denominator for a "named-count of X" sentence: neither of
+                                          those was actually checked for the condition key, so both
+                                          overcount the population the fraction was computed over
+                                          (issue #843).
 
   Missing data renders one line rather than failing the build.
 */ -}}
@@ -54,5 +63,7 @@
 {{ $data.counts.services }}
   {{- else if eq $field "resolved-count" -}}
 {{ $data.counts.resolved }}
+  {{- else if eq $field "checked-count" -}}
+{{ len $filtered }}
   {{- end -}}
 {{- end -}}
