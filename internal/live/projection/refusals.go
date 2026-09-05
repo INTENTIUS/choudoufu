@@ -207,11 +207,11 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Record-backed instance with no record store",
-		What:    "An effect resource that keeps its whole state in a record was projected with no record_store configured, so there is nowhere to read its prior state from.",
+		What:    "An effect resource that keeps its whole state in a record was projected against an estate with no record store at all - possible only with no live block, since GitHub issue #364 every live block implies one - so there is nowhere to read its prior state from.",
 	},
 	{
 		Summary: SummaryLocatedNoStore,
-		What:    "A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.",
+		What:    "A resource whose live object can carry no ownership marker was projected against an estate with no record store at all - possible only with no live block, since GitHub issue #364 every live block implies one - so nothing can say which live object it is. Adding a live block is the fix, not declaring a record_store: one with no record_store block of its own already gets an implied local store.",
 	},
 	{
 		Summary: SummaryLocatedIdentityNotRecorded,

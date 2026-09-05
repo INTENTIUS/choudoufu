@@ -201,8 +201,9 @@ rules as a resource's own `for_each` key, because the key becomes part of every
 address inside the module.
 
 **`count` on a module call** is admitted when the count is statically
-evaluable and none of the call's own arguments read `count.index`, directly
-or by indexing a sibling's count-expanded collection
+evaluable and any `count.index` in the call's own arguments is provably
+injective - a bare `count.index`, a template such as `"n-${count.index}"`,
+or an arithmetic offset -
 ([#195](https://github.com/INTENTIUS/choudoufu/issues/195)). Resolution
 traverses each instance, and `module.app[0].aws_x.y` binds exactly as soundly
 as `module.app.aws_x.y` does. Shrinking a `count` retires the highest index
@@ -210,8 +211,14 @@ and never renumbers a survivor, which is what makes the address stable.
 
 Two shapes are still refused: a `count` this pass cannot evaluate at all, as
 non-static, and a statically-evaluable `count` whose own arguments read
-`count.index`, for the leak. That second one is the same rule as `count.index`
-reaching a resource's own identity.
+`count.index` in a shape this pass cannot prove injective - typically an
+index into a sibling's count-expanded collection, such as
+`var.names[count.index]`. Unlike the same shape inside a resource's own
+body, a module call's own arguments are never rendered against real
+instance values, so an index is refused here even when the values it would
+render happen to differ; a module has no identity schema of its own to
+narrow the check with, so any unprovable shape anywhere in the call's
+arguments refuses it.
 
 Stamping keeps up. A call with exactly one instance is stamped with that
 instance's key. Since
@@ -365,8 +372,9 @@ reading because each one is met by an ordinary estate.
   instances at distinct addresses can still collide on one path, and the
   `count.index` check keeps running over its arguments.
 - **`module { count = ... }`.** Admitted when the count is statically
-  evaluable and the call's own arguments do not read `count.index`. See [Your
-  modules](#your-modules) above.
+  evaluable and any `count.index` in the call's own arguments is provably
+  injective; an unprovable shape, typically an index into a sibling's
+  collection, is refused. See [Your modules](#your-modules) above.
 
 One construct in the same family genuinely is refused, and it has its own
 section below: a module call's child-side `providers` mapping,

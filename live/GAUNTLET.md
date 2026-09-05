@@ -273,10 +273,13 @@ to re-prove a type the board already has.
 Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
-manifest already exercises. Today it reports 26 estates exercising 161
-distinct types between them, of which 86 no cohort fixture covers yet
-(`totals.distinct_types`, `totals.types_in_no_cohort`; re-run the tool
-before quoting either figure, since the manifest grows). A new estate has
+manifest already exercises. As of that artifact's last run, it reports
+27 estates exercising 162 distinct types between them, of which 86 no
+cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
+`totals.types_in_no_cohort`; these figures are rendered from the
+artifact by `gauntlet render`, so they can only be as current as the
+artifact - re-run `tools/estate-types` and `gauntlet render` together
+before trusting either). A new estate has
 to name the behavior or topology missing from that list - a module shape,
 an ordering, a day-2 operation - not a type; a proposal that only points at
 a type is a proposal for a cohort.

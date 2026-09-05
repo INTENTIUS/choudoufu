@@ -1,0 +1,10 @@
+variable "suffix" {
+  type = string
+}
+
+resource "aws_vpc" "main" {
+  cidr_block = "10.44.0.0/16"
+  tags = {
+    Name = var.suffix
+  }
+}
