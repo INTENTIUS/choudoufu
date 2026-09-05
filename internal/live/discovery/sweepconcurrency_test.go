@@ -624,3 +624,416 @@ func TestSweepContinuesPastAFailedListingConcurrently(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 4. One slow list call (GitHub issue #839)
+// ---------------------------------------------------------------------------
+
+// sweepStallStuckAfter is the hang-breaker for the two tests below, never a
+// timing device. Every wait in their success path is satisfied by a channel a
+// list call closes; this exists so a sweep that cannot make those calls fails
+// naming the count it reached instead of hanging until the package timeout.
+const sweepStallStuckAfter = 30 * time.Second
+
+// sweepStartsBuffered is [stallingCloud.starts]'s depth. Comfortably more
+// than any fixture here sweeps, so a test that reads the channel late still
+// sees every start rather than a truncated count that would read as the
+// defect.
+const sweepStartsBuffered = 64
+
+// stallingCloud holds ONE type's list call inside the provider until the test
+// releases it - the straggler issue #839 is about, with the SDK's twenty-six
+// seconds of backoff replaced by a channel a test controls.
+//
+// It is [sweepGate]'s sibling and deliberately not the same fixture. The gate
+// reverses completion order and needs every gated call in flight at once,
+// which is the wrong shape here: these tests run at a parallelism the
+// universe is bigger than, so an arrival barrier over the whole universe
+// could never open. What this one guarantees instead is the single edge these
+// two tests need - while any other swept list call is inside the provider,
+// the straggler is inside it too, still holding its in-flight slot.
+//
+// That edge is not decoration. Asserting on peak concurrency alone passes on
+// eight processors and fails on CI's one: at GOMAXPROCS=1 the runtime runs
+// the most recently spawned goroutine first, so the launcher's FIRST worker -
+// the straggler - is scheduled LAST, and a fixture that merely hoped for
+// overlap would have its straggler make its call after every call it was
+// supposed to be overlapping. Same bet, same loss, as issue #597 on the
+// stamping path and [sweepGate]'s own opening comment.
+type stallingCloud struct {
+	*fakeCloud
+
+	// watch is the set of types these tests count and gate: the swept
+	// universe alone, never the config-driven scan's own declared types,
+	// which list before the sweep starts and are no part of this.
+	watch map[string]bool
+
+	// stalled is the type whose listing is held inside the provider, and
+	// release is what lets it out.
+	stalled string
+	release chan struct{}
+
+	// entered is closed by the stalled call once it is inside the provider,
+	// and every other watched call waits for it before listing anything.
+	entered chan struct{}
+
+	// abandon frees the rest once one call has given up waiting for entered,
+	// so a broken fixture costs one [sweepStallStuckAfter] for the whole run
+	// rather than one per type. Every test here asserts stuckOnEntry is
+	// empty; reaching the hang-breaker is never a pass.
+	abandon chan struct{}
+
+	// starts carries one type name per list call STARTED, which is the
+	// quantity issue #839 is about and the one peak concurrency cannot show:
+	// two calls outstanding reads two either way, and what the defect changes
+	// is whether a third is ever begun. Sends are non-blocking.
+	starts chan string
+
+	mu         sync.Mutex
+	started    []string
+	entryStuck string
+	inFlight   int
+	peak       int
+}
+
+// newStallingFixture builds a fake cloud that serves the whole estate plus
+// one owned, undeclared resource of every swept type - so each list call has
+// something to find and a scan row to file - with stalled's own call held
+// inside the provider until the returned cloud's release channel is closed.
+func newStallingFixture(t *testing.T, stalled string) *stallingCloud {
+	t.Helper()
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	watch := make(map[string]bool, len(gatedSweepTypes))
+	for i, typeName := range gatedSweepTypes {
+		cloud.listable(typeName)
+		cloud.own(typeName, fmt.Sprintf("id-%d", i), typeName+".deleted")
+		watch[typeName] = true
+	}
+	if !watch[stalled] {
+		t.Fatalf("newStallingFixture asked to stall %s, which is not one of the swept types %v", stalled, gatedSweepTypes)
+	}
+	return &stallingCloud{
+		fakeCloud: cloud,
+		watch:     watch,
+		stalled:   stalled,
+		release:   make(chan struct{}),
+		entered:   make(chan struct{}),
+		abandon:   make(chan struct{}),
+		starts:    make(chan string, sweepStartsBuffered),
+	}
+}
+
+func (c *stallingCloud) ListResourceStream(ctx context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
+	if !c.watch[req.TypeName] {
+		return c.fakeCloud.ListResourceStream(ctx, req, emit)
+	}
+
+	c.enter(req.TypeName)
+	defer c.leave()
+
+	if req.TypeName == c.stalled {
+		close(c.entered)
+		<-c.release
+	} else {
+		c.waitForStallEntry(req.TypeName)
+	}
+	return c.fakeCloud.ListResourceStream(ctx, req, emit)
+}
+
+// enter records a list call as started and in flight. A watched call is in
+// flight for the whole time it is gated, which is what makes the peak below
+// the in-flight bound reading its own setting.
+func (c *stallingCloud) enter(typeName string) {
+	c.mu.Lock()
+	c.started = append(c.started, typeName)
+	c.inFlight++
+	if c.inFlight > c.peak {
+		c.peak = c.inFlight
+	}
+	c.mu.Unlock()
+
+	select {
+	case c.starts <- typeName:
+	default:
+	}
+}
+
+func (c *stallingCloud) leave() {
+	c.mu.Lock()
+	c.inFlight--
+	c.mu.Unlock()
+}
+
+// waitForStallEntry parks a list call until the straggler is inside the
+// provider. Reaching [sweepStallStuckAfter] records the type that gave up
+// rather than letting the run hang - every caller asserts
+// [stallingCloud.stuckOnEntry] is empty, so it can never become a pass.
+func (c *stallingCloud) waitForStallEntry(typeName string) {
+	select {
+	case <-c.entered:
+		return
+	case <-c.abandon:
+		return
+	default:
+	}
+	timer := time.NewTimer(sweepStallStuckAfter)
+	defer timer.Stop()
+	select {
+	case <-c.entered:
+	case <-c.abandon:
+	case <-timer.C:
+		c.mu.Lock()
+		if c.entryStuck == "" {
+			c.entryStuck = typeName
+			close(c.abandon)
+		}
+		c.mu.Unlock()
+	}
+}
+
+// stuckOnEntry is the first type that gave up waiting for the straggler to
+// begin, and empty when the fixture did what it exists to do.
+func (c *stallingCloud) stuckOnEntry() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.entryStuck
+}
+
+// startedCount is how many watched list calls have been STARTED, whether or
+// not they have returned.
+func (c *stallingCloud) startedCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.started)
+}
+
+func (c *stallingCloud) peakInFlight() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.peak
+}
+
+// waitForStarts returns once n watched list calls have been started, or
+// everything it saw if they never are. The caller decides a short answer is a
+// failure, and every caller does.
+func (c *stallingCloud) waitForStarts(n int) []string {
+	return c.waitForStartsWithin(n, sweepStallStuckAfter)
+}
+
+// waitForStartsWithin is [stallingCloud.waitForStarts] with a budget of the
+// caller's own, for the one caller that is waiting for calls it hopes will
+// NOT be started.
+func (c *stallingCloud) waitForStartsWithin(n int, budget time.Duration) []string {
+	if n <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	seen := make([]string, 0, n)
+	for len(seen) < n {
+		select {
+		case typeName := <-c.starts:
+			seen = append(seen, typeName)
+		case <-timer.C:
+			return seen
+		}
+	}
+	return seen
+}
+
+// sweepRun is one Discover call's answer, written by the goroutine below and
+// read only after its finished channel is closed - the happens-before edge
+// that makes reading it safe.
+type sweepRun struct {
+	res   *Result
+	diags tfdiags.Diagnostics
+}
+
+// discoverStalledAsync runs Discover against a stalling fixture on its own
+// goroutine, because the two tests below have to observe the sweep while it
+// is still running: a stalled list call is not visible from the far side of
+// it.
+func discoverStalledAsync(t *testing.T, cloud *stallingCloud, parallelism, buffer int) (*sweepRun, <-chan struct{}) {
+	t.Helper()
+
+	cfg := loadConfig(t, estateDir(t))
+	req := Request{
+		Estate:           estateName,
+		Config:           cfg,
+		Resolutions:      resolveOrFail(t, cfg).All(),
+		Provider:         cloud,
+		Sweep:            true,
+		SweepTypes:       gatedSweepTypes,
+		SweepParallelism: parallelism,
+		SweepBuffer:      buffer,
+	}
+
+	run := &sweepRun{}
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		run.res, run.diags = Discover(context.Background(), req)
+	}()
+	return run, finished
+}
+
+// TestOneStalledListDoesNotStopTheSweepLaunchingTheRest is issue #839 itself.
+//
+// The sweep makes one list call per admitted type and consumes the answers in
+// universe order. Until this fix a worker took a slot before its call and the
+// CONSUMER gave it back, so a call that landed in SDK backoff held the width
+// down for every type behind it: the calls launched beside it had already
+// returned and their listings went on holding slots, and the launcher could
+// not start another. That is the read pass's #683 one phase over, and the
+// sweep's own comment said so in the same words.
+//
+// The fixture is that in miniature. The first swept type is held inside the
+// provider until this test releases it, and every other swept call waits
+// until that one has begun - see [stallingCloud], which is what makes the
+// overlap a property of the fixture rather than a bet on the scheduler. The
+// buffer is set to room for every listing but the straggler's own, so that
+// backpressure is not what stops the launcher: what is under test is whether
+// the stalled CALL stops it.
+//
+// The assertion is on calls STARTED, not on peak concurrency: peak reads 2
+// here whether or not the defect is present, which is exactly why a
+// concurrency statistic never showed this.
+func TestOneStalledListDoesNotStopTheSweepLaunchingTheRest(t *testing.T) {
+	const parallelism = 2
+
+	cloud := newStallingFixture(t, gatedSweepTypes[0])
+	run, finished := discoverStalledAsync(t, cloud, parallelism, len(gatedSweepTypes)-1)
+
+	started := cloud.waitForStarts(len(gatedSweepTypes))
+
+	// Release before any assertion, so that a failure reports rather than
+	// leaving the sweep wedged behind a call nobody ever answers.
+	close(cloud.release)
+	<-finished
+
+	if stuck := cloud.stuckOnEntry(); stuck != "" {
+		t.Fatalf("the listing of %s gave up waiting for the stalled call to begin, so this run never had a straggler to overlap and asserts nothing", stuck)
+	}
+	if len(started) != len(gatedSweepTypes) {
+		t.Fatalf("while one list call was stalled the sweep started %d of %d: %v\n"+
+			"the slot a fetched-but-unconsumed listing holds is still the slot the launcher needs, so one slow call stops the window sliding",
+			len(started), len(gatedSweepTypes), started)
+	}
+
+	// Two calls were inside the provider at once, by construction rather than
+	// by luck: every swept call but the straggler's waits for the straggler
+	// to be in, and the straggler does not leave until this test releases it.
+	// So this is the in-flight bound reading exactly its own setting -
+	// without it, a fix that deleted the bound outright would pass the
+	// assertion above.
+	if got := cloud.peakInFlight(); got != parallelism {
+		t.Errorf("peak concurrent list calls was %d, want %d: with one call held inside the provider and the others waiting on it, that is the SweepParallelism this sweep was given", got, parallelism)
+	}
+
+	// And the sweep is the sweep it always was: same rows, same order, same
+	// orphans, nothing fetched that nobody consumed.
+	assertNoErrors(t, run.diags)
+	if got := sweptScanOrder(run.res); strings.Join(got, ",") != strings.Join(gatedSweepTypes, ",") {
+		t.Errorf("sweep scan rows read %v\nwant %v (universe order)", got, gatedSweepTypes)
+	}
+	if len(run.res.Orphans) != len(gatedSweepTypes) {
+		t.Errorf("found %d orphans, want %d:\n%s", len(run.res.Orphans), len(gatedSweepTypes), run.res)
+	}
+	if len(run.res.sweepPrefetchWasted) != 0 || run.res.sweepPrefetchMismatched != 0 {
+		t.Errorf("wasted %v and refused %d prefetched listings, want none of either", run.res.sweepPrefetchWasted, run.res.sweepPrefetchMismatched)
+	}
+}
+
+// sweepBufferSettle is how long the test below waits for a list call the
+// bound forbids, before concluding the bound held.
+//
+// It is the one budget in this file spent on a success, and it is here
+// because no channel can carry the news that a launcher is BLOCKED: an absent
+// start looks exactly like a start that has not happened yet. What keeps it
+// from being a bet is the direction it can fail in. A loaded runner can only
+// make this guard miss a violation, never invent one, so it cannot turn a
+// correct sweep red - and the margin is not close either way, because the
+// list calls this fixture makes are in-process map walks.
+const sweepBufferSettle = 500 * time.Millisecond
+
+// TestTheSweepBoundsFetchedButUnconsumedListings is the other half of issue
+// #839, and it is what stops the test above being satisfied by deleting the
+// backpressure.
+//
+// The slot the launcher took was never only a concurrency bound: it was also
+// the promise that at most SweepParallelism types are ever fetched and not
+// yet consumed, so that a sweep over the whole admission table does not hold
+// every type's listed objects at once. Splitting the bound in two has to keep
+// that promise, and it matters more here than it did for the read pass: a
+// listing is every live object of its type, and [scanType] drops those
+// objects once it has filed its row, so an unconsumed listing is residency
+// the run would not otherwise pay at all.
+//
+// So: the scan loop is stopped on a stalled first type, the launcher is free,
+// and the calls it manages to start are held between two numbers that are
+// both the bound.
+//
+//   - It cannot stop before buffer listings are unconsumed, so at least
+//     1 + buffer calls are started. Below that the launcher is not running
+//     ahead of the scan loop at all and this test is holding nothing.
+//   - It cannot get past buffer + parallelism. The launcher clears the buffer
+//     gate and then waits for an in-flight slot, so it is admitted while
+//     buffered is at most buffer-1 and may then be joined by the calls
+//     already in flight.
+//
+// Which of the two it lands on is the scheduler's business, and asserting one
+// exact value there is how a guard passes on eight processors and fails on
+// CI's one.
+func TestTheSweepBoundsFetchedButUnconsumedListings(t *testing.T) {
+	const parallelism = 2
+	const buffer = 3
+	const minStarted = 1 + buffer
+	const maxStarted = buffer + parallelism
+
+	if len(gatedSweepTypes) <= maxStarted {
+		t.Fatalf("the swept universe is %d types and the bound allows %d calls, so an overrun could not happen and this test proves nothing", len(gatedSweepTypes), maxStarted)
+	}
+
+	cloud := newStallingFixture(t, gatedSweepTypes[0])
+	run, finished := discoverStalledAsync(t, cloud, parallelism, buffer)
+
+	started := cloud.waitForStarts(minStarted)
+	// However many the bound allows, one more than that is the violation, and
+	// waiting for it is what gives an unbounded launcher its chance to commit
+	// one. It returns the moment that call arrives; on a pass it costs the
+	// budget and nothing else.
+	started = append(started, cloud.waitForStartsWithin(maxStarted+1-len(started), sweepBufferSettle)...)
+	overrun := cloud.startedCount()
+
+	close(cloud.release)
+	<-finished
+
+	if stuck := cloud.stuckOnEntry(); stuck != "" {
+		t.Fatalf("the listing of %s gave up waiting for the stalled call to begin, so the scan loop was never held and this run asserts nothing", stuck)
+	}
+	if len(started) < minStarted {
+		t.Fatalf("with one list call stalled the sweep started %d calls, want at least %d: %v\n"+
+			"the launcher is not running ahead of the scan loop at all, so this test is not holding the bound it exists to hold",
+			len(started), minStarted, started)
+	}
+	if overrun > maxStarted {
+		t.Errorf("with the scan loop stopped on one stalled list call, %d calls had been started, want at most %d (one stalled, at most %d listings fetched and unconsumed).\n"+
+			"Fetched-but-unconsumed listings are unbounded, so a lagging scan loop now holds every type's listed objects at once - the regression the single slot existed to prevent",
+			overrun, maxStarted, buffer+parallelism-1)
+	}
+
+	// The bound is a pause, not a loss: every type still lists, in order,
+	// once the scan loop starts taking.
+	assertNoErrors(t, run.diags)
+	if got := sweptScanOrder(run.res); strings.Join(got, ",") != strings.Join(gatedSweepTypes, ",") {
+		t.Errorf("sweep scan rows read %v\nwant %v (universe order)", got, gatedSweepTypes)
+	}
+	if len(run.res.Orphans) != len(gatedSweepTypes) {
+		t.Errorf("found %d orphans, want %d:\n%s", len(run.res.Orphans), len(gatedSweepTypes), run.res)
+	}
+	if len(run.res.sweepPrefetchWasted) != 0 || run.res.sweepPrefetchMismatched != 0 {
+		t.Errorf("wasted %v and refused %d prefetched listings, want none of either", run.res.sweepPrefetchWasted, run.res.sweepPrefetchMismatched)
+	}
+}

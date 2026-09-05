@@ -342,15 +342,33 @@ page.
 | `TOFU_LIVE_SWEEP_PARALLELISM` | the sweep's per-type list calls | 10 | `live-plan`, and plain `plan`/`apply` of a configuration with a `live` block |
 | `TOFU_LIVE_READ_PARALLELISM` | the read pass's per-instance import and read | 10 | the same two, and `live-mv` |
 
-Each bounds the calls a phase has *in flight*. The read pass has a second
-bound behind that one, on the answers it has fetched and the consuming loop
-has not used yet: a hundred per in-flight slot, so a thousand at the default
-width. Until [#683](https://github.com/INTENTIUS/choudoufu/issues/683) one
-number was both, and an answer that had landed went on holding the width until
-the loop reached that instance in build order - so a single read in a provider
-backoff, 26 seconds of it on a 745-resource plan, stopped the pass from
-starting anything else at all. Peak memory is still a multiple of the two
-bounds and never of the estate, which is what the single number was protecting.
+Each bounds the calls a phase has *in flight*. Each also has a second bound
+behind that one, on the answers it has fetched and the consuming loop has not
+used yet, and neither of those has a variable of its own: turning a phase down
+is turning down what the account is asked for, which is the width, and the
+buffer follows it.
+
+For the read pass that is a hundred per in-flight slot, so a thousand at the
+default width. Until [#683](https://github.com/INTENTIUS/choudoufu/issues/683)
+one number was both, and an answer that had landed went on holding the width
+until the loop reached that instance in build order - so a single read in a
+provider backoff, 26 seconds of it on a 745-resource plan, stopped the pass
+from starting anything else at all.
+
+The sweep had the same shape and the same defect, one phase over
+([#839](https://github.com/INTENTIUS/choudoufu/issues/839)): its listings were
+released by the scan loop in universe order rather than when the call
+returned, so one throttled list call held the sweep's whole width behind it.
+Its buffer is ten per slot rather than a hundred, because an unconsumed
+listing here is every live object of its type and the scan drops those objects
+once it has filed its row - read-ahead the run would not otherwise pay for at
+all, where the read pass's answers duplicate objects prior state ends up
+holding anyway. Ten per slot is worth about thirty-six seconds of sweeping at
+the rate the timing table above measures, which is what the straggler it
+covers costs.
+
+Peak memory is still a multiple of the two bounds and never of the estate or
+of the admission table, which is what the single number was protecting.
 
 Set either to `1` for the sequential loop, one call at a time in the order the
 phase would have made them. A value below 1 is refused rather than read as "no
