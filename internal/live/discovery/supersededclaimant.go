@@ -112,14 +112,44 @@ import (
 // shadow ran before matchDeposedClaimant could ever see it, and the recovery
 // plan then proposed nothing at all.
 //
-// So a claimant is kept when it matches the current record OR any of the
-// address's recorded deposed objects, and pruned only when it matches
-// neither. The two populations do not overlap in practice for the reason
-// [diffDeposedForWrite] gives: a key present in the record but no longer
-// deposed in state "is gone: destroyed by this same apply's own crash-window
-// recovery ... deleted from the map", so an ORDINARY, uninterrupted replace
-// leaves no deposed entry for its shadow to match and the shadow is pruned
-// exactly as before.
+// So a claimant that matches the current record or any of the address's
+// recorded deposed objects is kept. The two populations do not overlap in
+// practice for the reason [diffDeposedForWrite] gives: a key present in the
+// record but no longer deposed in state "is gone: destroyed by this same
+// apply's own crash-window recovery ... deleted from the map", so an
+// ORDINARY, uninterrupted replace leaves no deposed entry for its shadow to
+// match.
+//
+// # Why a tombstone, and not merely a record that names someone else
+//
+// GitHub issue #670. Matching neither the record nor a deposed entry is not
+// evidence a claimant is dead; it is only evidence that the record does not
+// name it. Those are the same sentence for a terminated shadow and for a
+// SECOND, GENUINELY LIVE object wearing this address's marker, and the
+// second is the exact condition [collisionProblem] exists to refuse - two
+// live resources claiming one address, "Indistinguishable instances without
+// per-instance markers" on the count path. Pruning on "matches neither"
+// turned that refusal into a warning, measured on
+// corpus-ec2-instance-complete's BREAK=replace control, and the
+// marker-plus-record layer as it stood could not tell the two apart at all:
+// nothing in the record said the shadow was dead, only that it was not
+// current.
+//
+// So the write side says it. [projection.supersedeIdentity] records the
+// identity a replace overwrites as a tombstone - the same
+// [projection.tombstoneFields] entry a destroy already wrote for an address
+// that left the final state, now written for the object a replace destroyed
+// at an address that stayed - and a claimant is pruned here only when it
+// matches one. A claimant matching nothing is kept, and the entry refuses
+// through [collisionProblem] with the error it always had.
+//
+// A tombstone is evidence, never permission, which is what lets it sit
+// under the foundation ruling's "a record is never read as permission to
+// delete". It is read at exactly one place, this one, and the only thing it
+// can cause is a claimant leaving a collision set: no destroy, no create,
+// no adoption, no retag. An entry that is wrong therefore costs a refusal
+// this estate would otherwise have made, and can reach the live system
+// through nothing.
 //
 // Keeping a deposed claimant is also the conservative direction on its own
 // terms. It leaves the entry with two or more claimants, which is the input
@@ -140,9 +170,11 @@ import (
 
 // pruneSupersededClaimants is [bind]'s record-first pass over the declared
 // addresses more than one live resource claims. For each such address whose
-// current identity record matches EXACTLY one of its claimants, the others
-// are not this address's live claim: they are dropped from the entry before
-// any binding decision reads it, and reported as [ProblemDisplacedMarker].
+// current identity record matches EXACTLY one of its claimants, every other
+// claimant the record ALSO names as destroyed by this estate's own apply is
+// not a live claim on this address: it is dropped from the entry before any
+// binding decision reads it, and reported as [ProblemDisplacedMarker]. A
+// claimant the record names neither way is kept and refuses (issue #670).
 //
 // It runs before every other loop in [bind] on purpose. Dropping a claimant
 // here - rather than at each of the four refusal sites - is what makes the
@@ -153,7 +185,8 @@ import (
 //
 // Every way out is "no", deliberately, and each returns the entry untouched:
 // no record store on the request, no record for the address, a read error, a
-// record that matches no claimant, and a record that matches more than one.
+// record that matches no claimant, a record that matches more than one, and
+// - since issue #670 - a claimant the record does not name as destroyed.
 // [collisionProblem] is the correct, safe default for all of them.
 func pruneSupersededClaimants(ctx context.Context, req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
@@ -216,6 +249,14 @@ func pruneSupersededEntry(ctx context.Context, store *projection.RecordStore, re
 		return diags
 	}
 
+	tombstones, tombstonesReadable := tombstoneCandidates(ctx, store, entry.res.Addr)
+	if !tombstonesReadable {
+		// The tombstone half is now what a prune is licensed by, so a read
+		// that failed outright is the same "not entitled to a conclusion"
+		// exit the deposed half takes just above.
+		return diags
+	}
+
 	kept := make([]claimant, 0, len(entry.claimants))
 	superseded := make([]claimant, 0, len(entry.claimants)-1)
 	for i := range entry.claimants {
@@ -227,12 +268,26 @@ func pruneSupersededEntry(ctx context.Context, store *projection.RecordStore, re
 			kept = append(kept, entry.claimants[i])
 			continue
 		}
+		if !claimantMatchesAnyTombstone(tombstones, entry.claimants[i]) {
+			// GitHub issue #670: not the survivor, not deposed, and
+			// nothing this estate's own apply is recorded as having
+			// destroyed. "The record names someone else" is not evidence
+			// this object is dead - see this file's "Why a tombstone, and
+			// not merely a record that names someone else" - so it is kept,
+			// and the entry it is kept in refuses through
+			// [collisionProblem] exactly as it did before this pass
+			// existed.
+			kept = append(kept, entry.claimants[i])
+			continue
+		}
 		superseded = append(superseded, entry.claimants[i])
 	}
 	if len(superseded) == 0 {
-		// Every claimant is accounted for by the record. Nothing here is
-		// superseded, so the entry is not touched and nothing is reported:
-		// this is the crash window, and it is the deposed machinery's.
+		// Every claimant is accounted for by the record, or none of the
+		// unaccounted-for ones is provably dead. Either way the entry is not
+		// touched and nothing is reported: the first is the crash window,
+		// and it is the deposed machinery's; the second is a collision, and
+		// it is [collisionProblem]'s.
 		return diags
 	}
 	// The scan's own claimant order is not guaranteed stable across runs, so
@@ -283,6 +338,46 @@ func deposedCandidates(ctx context.Context, store *projection.RecordStore, req R
 	return recs, true
 }
 
+// tombstoneCandidates is every identity this estate's own apply is recorded
+// as having destroyed at addr - [projection.RecordStore.tombstone]'s
+// entries for an address that left the final state, and, since GitHub issue
+// #670, [projection.supersedeIdentity]'s entry for the object a replace
+// destroyed at an address that stayed.
+//
+// It is the store's answer alone, with no [Request] snapshot to union in:
+// unlike a deposed object, which the caller may have collected before
+// Discover ran, a destroyed identity exists nowhere but the record.
+//
+// ok is false only when the store read itself failed. An address with
+// nothing recorded is an ordinary empty result, not a failure - and, with
+// the prune now licensed BY an entry rather than merely unblocked by the
+// absence of one, an empty result simply prunes nothing.
+func tombstoneCandidates(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance) (recs []projection.TombstoneRecord, ok bool) {
+	fromStore, _, _, err := store.GetTombstones(ctx, addr)
+	if err != nil {
+		return nil, false
+	}
+	for _, rec := range fromStore {
+		recs = append(recs, rec)
+	}
+	return recs, true
+}
+
+// claimantMatchesAnyTombstone reports whether a live claimant is one of the
+// destroyed objects recs names. [orphanMatchesTombstone] for a [claimant]
+// rather than an [OwnedResource], over a set - and through the same
+// [recordIdentityMatches] every other matcher here uses, so the mark
+// discipline and the "by import ID or by every named component" genericity
+// are the shared ones rather than a fifth copy.
+func claimantMatchesAnyTombstone(recs []projection.TombstoneRecord, c claimant) bool {
+	for _, rec := range recs {
+		if recordIdentityMatches(rec.ImportID, rec.Components, c.importID, c.identity) {
+			return true
+		}
+	}
+	return false
+}
+
 // claimantMatchesAnyDeposed reports whether a live claimant is one of the
 // deposed objects recs names. [deposedClaimantMatches] over a set, and
 // through the same [recordIdentityMatches] every other matcher here uses -
@@ -309,7 +404,7 @@ func supersededClaimantProblem(req Request, typeName, escaped string, addr addrs
 		Marker:   escaped,
 		LiveIDs:  liveIDs(c.importID),
 		Detail: fmt.Sprintf(
-			"A live %s with identity %q carries estate %q and the address %q, but the estate's own record for %s names %s as the live resource that address owns right now, and one of the other resources carrying this marker is that resource. The ordinary cause is a replace: a destroyed object's tags stay readable for a time after the apply that destroyed it, so its marker outlives it. Nothing is proposed for this resource: it is not read, not changed and not destroyed, and it will disappear from this report on its own once the cloud stops listing it. If it is instead a second, genuinely live resource, remove its markers to disown it, or use choudoufu live-mv (or a moved block) to say which address it belongs to.",
+			"A %s with identity %q carries estate %q and the address %q, but the estate's own record for %s names %s as the live resource that address owns right now, and records this one as destroyed by an earlier apply of this estate. The ordinary cause is a replace: a destroyed object's tags stay readable for a time after the apply that destroyed it, so its marker outlives it. Nothing is proposed for this resource: it is not read, not changed and not destroyed, and it will disappear from this report on its own once the cloud stops listing it. A second, genuinely live resource wearing this marker is a different case and is refused rather than reported here, because the record would not name it as destroyed.",
 			typeName, c.displayID(), req.Estate, escaped, addr, recordIdentityDisplay(rec)),
 	}
 }
