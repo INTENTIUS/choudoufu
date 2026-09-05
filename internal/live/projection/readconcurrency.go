@@ -51,6 +51,52 @@ import (
 // on each instance in that same order.
 const DefaultReadParallelism = 10
 
+// GitHub issue #683. DefaultReadParallelism above bounds the calls; this
+// bounds the ANSWERS, and until #683 one number did both jobs.
+//
+// The consuming loop walks instances in build order and waits for each one's
+// answer in turn. When a single read is slow - one aws_route53_record in SDK
+// backoff, 26.20 seconds from first throttle to success, 25.93 of them spent
+// sleeping - every read behind it in the order had already landed and was
+// waiting to be consumed. Holding the same slot for "this call is in flight"
+// and for "this answer is fetched and unconsumed" meant those landed answers
+// went on holding the bound: the launcher blocked, and a plan with 745 reads
+// to make made one, intermittently, for 26 seconds. That is head-of-line
+// blocking, and no peak-concurrency statistic shows it, because ten reads
+// really are outstanding - they just cannot retire.
+//
+// So there are two bounds now. A read in flight holds one of
+// [readParallelism]; an answer fetched and not yet consumed holds one of
+// [readBuffer]; a slow read holds the first and none of the second, and the
+// launcher keeps starting reads behind it.
+//
+// The memory bound is the half that must survive, and it is why the fix is a
+// split rather than a release-on-completion: an unbounded read-ahead would
+// hold every one of an estate's answers at once whenever the consumer lags,
+// which is a far worse regression than the slowness it fixes.
+//
+// DefaultReadBufferFactor is how deep that buffer is per in-flight slot when
+// nothing else settles it: one hundred, so the default pass holds a thousand
+// unconsumed answers and the nine further ones its in-flight reads may land
+// behind the gate.
+//
+// A hundred rather than a round number picked for looking round. The bound
+// has to clear the estates this fork is measured on - the largest real-AWS
+// plan behind #683 is 745 instances - or the buffer, not the straggler,
+// becomes what stops the pass, and the defect returns wearing a different
+// number. It also has to stay a multiple of the WIDTH rather than of the
+// estate, so that a projection over ten thousand instances still holds a
+// thousand answers and not ten thousand. A hundred per slot is the smallest
+// round multiple that does both.
+//
+// What it costs is bounded and small: an unconsumed answer holds the same
+// object the consumer is about to write into prior state, which the
+// projection holds for every instance by the end of the pass either way. The
+// buffer bounds the DUPLICATION, not the residency.
+//
+// Set it per run with [Options.ReadBuffer].
+const DefaultReadBufferFactor = 100
+
 // readPrep is everything [builder.materialize] settles before it reads. See
 // [builder.prepareRead], which is the whole of materialize's former head and
 // the only thing that ever builds one.
@@ -131,21 +177,45 @@ type readPrefetch struct {
 	entries map[string]*readFetch
 	order   []string
 
-	// slots is the concurrency bound AND the backpressure. A worker acquires a
-	// slot before its call and never releases it; the CONSUMER releases one
-	// when it takes that instance's answer. So at most ReadParallelism reads
-	// are ever fetched-but-unconsumed, and the pass's peak memory stays a
-	// multiple of the parallelism rather than of the estate - which matters,
-	// because a projection over a thousand instances holding every read
-	// object at once is a far worse regression than the slowness this fixes.
-	slots chan struct{}
+	// inflight is the concurrency bound, and only that. A worker holds one
+	// from before its call until the moment that call returns - see
+	// [readPrefetch.publish], which releases it - so what it bounds is
+	// requests the cloud is answering right now, which is what
+	// [Options.ReadParallelism] has always meant.
+	//
+	// Until issue #683 this was one channel doing this job and the buffer's
+	// below, and a read that was slow therefore held the width down while
+	// every answer behind it sat waiting to be consumed.
+	inflight chan struct{}
 
 	wg sync.WaitGroup
 
-	// mu guards taken and mismatched. Every other field is written before any
-	// worker starts (entries, order, slots) or is per-entry and published
-	// through readFetch.done.
-	mu    sync.Mutex
+	// mu guards buffered, taken and mismatched, and is bufferFree's lock.
+	// Every other field is written before any worker starts (entries, order,
+	// inflight, buffer) or is per-entry and published through readFetch.done.
+	mu sync.Mutex
+
+	// buffer is the memory bound: how many answers may be fetched and not yet
+	// consumed before the launcher stops starting reads. buffered is how many
+	// there are, incremented by [readPrefetch.publish] when an answer lands
+	// and decremented by [readPrefetch.consumed] when the loop takes it.
+	//
+	// The launcher waits on bufferFree rather than on a channel receive
+	// because the token is produced by a CONSUMER and spent by the LAUNCHER,
+	// with the worker in between doing neither: a worker that blocked on a
+	// full buffer would be holding an answer the consumer might be waiting
+	// for, which is the head-of-line stall again one goroutine over.
+	//
+	// The peak this bounds is buffer + ReadParallelism - 1 answers. The
+	// launcher passes this gate and then waits for an in-flight slot, so it
+	// is admitted while buffered is at most buffer-1 and the reads already in
+	// flight may all land behind it. That is a multiple of the two bounds and
+	// never of the estate, which is the property the single slot channel used
+	// to carry.
+	buffer     int
+	buffered   int
+	bufferFree *sync.Cond
+
 	taken map[string]bool
 
 	// mismatched counts the answers a consumer declined because the instance
@@ -163,6 +233,20 @@ func readParallelism(opts Options) int {
 	return DefaultReadParallelism
 }
 
+// readBuffer is how many fetched answers this projection will hold ahead of
+// the consuming loop - [DefaultReadBufferFactor] per in-flight slot when
+// [Options.ReadBuffer] does not settle it.
+//
+// It is never below one: a zero buffer would be a launcher that may not start
+// a read until the previous answer has been consumed, which is the sequential
+// pass with extra goroutines.
+func readBuffer(opts Options) int {
+	if opts.ReadBuffer > 0 {
+		return opts.ReadBuffer
+	}
+	return readParallelism(opts) * DefaultReadBufferFactor
+}
+
 // startReadPrefetch plans every instance in ws and starts issuing their reads,
 // up to [readParallelism] at a time, in ws order.
 //
@@ -176,11 +260,13 @@ func (b *builder) startReadPrefetch(ctx context.Context, ws []wanted) *readPrefe
 
 	par := readParallelism(b.opts)
 	pf := &readPrefetch{
-		entries: make(map[string]*readFetch, len(ws)),
-		order:   make([]string, 0, len(ws)),
-		slots:   make(chan struct{}, par),
-		taken:   make(map[string]bool, len(ws)),
+		entries:  make(map[string]*readFetch, len(ws)),
+		order:    make([]string, 0, len(ws)),
+		inflight: make(chan struct{}, par),
+		buffer:   readBuffer(b.opts),
+		taken:    make(map[string]bool, len(ws)),
 	}
+	pf.bufferFree = sync.NewCond(&pf.mu)
 
 	// Plan first, synchronously, in ws order. Every read of the
 	// configuration, the provider cache and the record store that decides a
@@ -228,11 +314,17 @@ func (b *builder) startReadPrefetch(ctx context.Context, ws []wanted) *readPrefe
 				close(e.done)
 				continue
 			}
-			pf.slots <- struct{}{}
+			// Both bounds, in this order: the buffer says the consumer is
+			// not already holding all the answers it may hold, and the
+			// in-flight channel says the cloud is not already answering all
+			// the calls it may answer. A read that is slow keeps the second
+			// and never reaches the first, so the reads behind it launch.
+			pf.reserveBuffer()
+			pf.inflight <- struct{}{}
 			pf.wg.Add(1)
 			go func(e *readFetch) {
 				defer pf.wg.Done()
-				defer close(e.done)
+				defer pf.publish(e)
 				runReadFetch(ctx, e)
 			}(e)
 		}
@@ -476,10 +568,57 @@ func (b *builder) envelopeVouched(ctx context.Context, w wanted, prep readPrep) 
 	return rec.ImportID == prep.target.ID
 }
 
+// reserveBuffer blocks the launcher until there is room for one more
+// unconsumed answer. It is the memory half of issue #683's split.
+//
+// It cannot deadlock a consumer waiting on an instance the launcher has not
+// started yet. Reads are launched in order and answers are consumed in that
+// same order, so if the launcher is waiting here before instance i, every
+// answer that could be counted in buffered belongs to an instance before i -
+// and the consumer, to be waiting on i, has taken all of those. buffered is
+// therefore zero and the wait is over. The same argument covers
+// [readPrefetch.finish]'s drain, which consumes in that same order.
+func (pf *readPrefetch) reserveBuffer() {
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+	for pf.buffered >= pf.buffer {
+		pf.bufferFree.Wait()
+	}
+}
+
+// publish is what a worker does with an answer: count it against the buffer,
+// hand it to the consumer, and give the call's slot back.
+//
+// The order of the three is the whole of the accounting. Counting before the
+// close is what makes the count safe against a consumer that takes the answer
+// the instant it lands - [readPrefetch.consumed]'s decrement happens after a
+// receive from done, so it can never run before the increment it undoes.
+// Releasing the in-flight slot last is what makes the bound honest: the slot
+// is held for exactly as long as the provider was being asked.
+func (pf *readPrefetch) publish(e *readFetch) {
+	pf.mu.Lock()
+	pf.buffered++
+	pf.mu.Unlock()
+	close(e.done)
+	<-pf.inflight
+}
+
+// consumed gives back the buffer slot the answer for one instance held.
+func (pf *readPrefetch) consumed() {
+	pf.mu.Lock()
+	pf.buffered--
+	pf.mu.Unlock()
+	pf.bufferFree.Signal()
+}
+
 // take is the prefetched answer for w, or nil for a caller to read inline.
 //
 // It blocks until w's own call has landed, and marks it taken, releasing its
-// slot so the launcher can start another.
+// buffer slot so the launcher can start another read. The call's own slot -
+// [readPrefetch.inflight] - was released when the call returned, which is
+// issue #683: a consumer that is still working through the instances ahead of
+// this one is no longer what decides whether the cloud is being asked
+// anything.
 //
 // An entry planned for a different [wanted] than the caller is asking about is
 // refused rather than used: the plan and the loop are driven from the same
@@ -501,7 +640,7 @@ func (pf *readPrefetch) take(w wanted) *readFetch {
 	pf.mu.Unlock()
 	<-e.done
 	if !already && e.prep.terminal == nil {
-		<-pf.slots
+		pf.consumed()
 	}
 	if !sameWanted(e.want, w) {
 		pf.mu.Lock()
@@ -546,18 +685,24 @@ func (pf *readPrefetch) finish() []string {
 		if taken {
 			continue
 		}
-		// Drain in loop order. The launcher may be blocked acquiring a slot
-		// for a later instance, and the slot it needs is one of these; taking
-		// them in order is what guarantees the one it is waiting on is
-		// released before this loop reaches an instance whose worker has not
-		// started.
+		// Drain in loop order. Issue #585 needed that order to guarantee the
+		// launcher's awaited slot came back before this loop reached an
+		// instance whose worker had not started; issue #683 splits the slot
+		// in two and that argument has to be re-derived rather than
+		// inherited. It survives, in [readPrefetch.reserveBuffer]'s own
+		// terms: this drain consumes in the same order the launcher launches
+		// in, so a launcher waiting for buffer room before instance i is
+		// waiting on answers to instances before i, all of which this loop
+		// has already taken by the time it reaches i. The in-flight half
+		// needs no ordering argument at all - a worker gives that slot back
+		// when its call returns, with no consumer involved.
 		e := pf.entries[key]
 		pf.mu.Lock()
 		pf.taken[key] = true
 		pf.mu.Unlock()
 		<-e.done
 		if e.prep.terminal == nil {
-			<-pf.slots
+			pf.consumed()
 			wasted = append(wasted, key)
 		}
 	}

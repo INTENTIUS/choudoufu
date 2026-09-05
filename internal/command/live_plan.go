@@ -3893,6 +3893,15 @@ Environment variables:
                           limit". A variable rather than a flag for the same
                           reason as the sweep's.
 
+                          It bounds the calls in flight, not the answers
+                          waiting to be used. Those are bounded too - a
+                          hundred per slot, so a thousand at the default -
+                          because the pass reads ahead of the loop that
+                          consumes them in instance order. Before GitHub
+                          issue #683 one number did both jobs, and a single
+                          read in a provider backoff stopped the pass from
+                          starting anything at all until it answered.
+
   The three bounds are separate on purpose: -parallelism is the graph walk,
   TOFU_LIVE_SWEEP_PARALLELISM is the marker sweep, TOFU_LIVE_READ_PARALLELISM
   is the read pass that builds prior state. Setting one does not move the
