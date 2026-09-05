@@ -112,7 +112,12 @@ stages check by value rather than by argument.
 
 **A narrowed plan says so.** The "Foreign resources" section prints the count
 it skipped and the command that asks anyway, rather than letting silence read
-as "there is nothing out there":
+as "there is nothing out there". 987 below is the fixed sample
+`TestForeign_narrowedSweepSaysSo`
+(`internal/command/views/live_plan_nativesweep_test.go`) renders the message
+with, not a measured type count - it names the shape of the sentence, not a
+current value, so it is not the same quantity as the sweep universe (1027)
+above or the admission-table size elsewhere on this page:
 
 ```
 This run did not ask which live resources carry no ownership marker at all, so
@@ -243,8 +248,9 @@ estate's 1021. A small slice pays slightly more than the whole estate does.
 
 The consequence for an already-sliced estate is where the sweep actually
 hurts: because it does not shrink per slice, its cost multiplies with slice
-count even though a steady-state plan's does not - about 512 calls times the
-number of slices, 4096 summed at eight, on any run that sweeps in full.
+count even though a steady-state plan's does not - the same 512-calls-per-
+slice figure `5ff7f43f5b` measured above, times the number of slices, 4096
+summed at eight, on any run that sweeps in full.
 [What you pay]({{< relref "/docs/what-you-pay#splitting-an-estate-into-several-states" >}})
 has the steady-state ratio table (1.05x/1.07x/1.21x at k=1/2/8) and the
 choice this leaves an adopter with.
@@ -293,10 +299,10 @@ estate at. It covers the sweep's per-type listing and nothing else - the
 config-driven scan, the tagging leg's single `GetResources`, and the parent
 and record-orphan reads are untouched.
 
-**The call count does not move, which is the point.** Measured against the
-pinned emulator at four settings and both scales, 558 calls at 79 instances
-and 591 at 301, identical at parallelism 1, 2, 10 and 20, with the scan-row
-order and the diagnostic sequence identical too:
+**The call count does not move, which is the point.** Measured at `177a2579c1`
+against the pinned emulator at four settings and both scales, 558 calls at 79
+instances and 591 at 301, identical at parallelism 1, 2, 10 and 20, with the
+scan-row order and the diagnostic sequence identical too:
 
 | Scale | Instances | par 1 | par 2 | par 10 | par 20 |
 |---|---|---|---|---|---|
@@ -312,8 +318,10 @@ This prefetch pool is one of four things that bound a plan's seconds in
 ([#626](https://github.com/INTENTIUS/choudoufu/issues/626)), the narrowing
 that takes the native leg off a steady-state plan entirely
 ([#627](https://github.com/INTENTIUS/choudoufu/pull/627)), and the record
-store going from 377 round trips to one
-([#636](https://github.com/INTENTIUS/choudoufu/pull/636)). Overlapping a leg
+store's round trips falling to one per plan
+([#636](https://github.com/INTENTIUS/choudoufu/pull/636); [what you pay, and
+when]({{< relref "/docs/what-you-pay#the-record-store-which-no-call-count-used-to-see" >}})
+carries the figure and its own staleness note). Overlapping a leg
 and not running it are different mechanisms, and the narrowing does most of
 the work at 79 resources.
 
@@ -437,22 +445,24 @@ passes through once.
 - **AWS only** - nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
-  79-instance fixture's headline, 157 against 710, and the real-AWS pair at
-  745 resources. Where a figure here disagrees with a plan you actually ran,
-  the narrowing is the first thing to suspect.
+  79-instance fixture's headline, 157 against 710, and [the real-AWS pair
+  at 745 resources]({{< relref "/docs/what-you-pay#the-same-comparison-on-real-aws-at-79-and-745-resources" >}}).
+  Where a figure here disagrees with a plan you actually ran, the narrowing
+  is the first thing to suspect.
 
 ## Do not carry one resource type's slope to another
 
 This is the mistake most worth avoiding, and it has already been made once in
 an issue.
 
-`live/plan-budget.json` ratchets an `aws_s3_bucket` estate at **22 calls per
-instance**, fitting `calls_total = 22*N + 8` exactly at N=20, 200 and 1000
-(448, 4408, 22008). That number is not a property of choudoufu. `aws_s3_bucket`
-is an unusually chatty Read: a dozen subresource GETs for ACL, CORS,
-encryption, lifecycle, logging, object lock, policy, replication, request
-payment, versioning, website and acceleration, plus the parent-read children
-beside them.
+`live/plan-budget.json` (re-measured at `3690d38143`, checked every run by
+`TestPlanCallBudgetAgainstFloci`) ratchets an `aws_s3_bucket` estate at **22
+calls per instance**, fitting `calls_total = 22*N + 8` exactly at N=20, 200
+and 1000 (448, 4408, 22008). That number is not a property of choudoufu.
+`aws_s3_bucket` is an unusually chatty Read: a dozen subresource GETs for
+ACL, CORS, encryption, lifecycle, logging, object lock, policy, replication,
+request payment, versioning, website and acceleration, plus the parent-read
+children beside them.
 
 The generated estate in the tables above measures **1.84 calls per instance**
 migrated, and 1.15 unmigrated. Same tool, same code, twelve and nineteen times

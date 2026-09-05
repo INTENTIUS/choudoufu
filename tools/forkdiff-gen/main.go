@@ -89,6 +89,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -248,11 +249,18 @@ type mechanicalSummary struct {
 
 // forkSurface is live/fork-surface.json's shape.
 type forkSurface struct {
-	GeneratedBy            string                  `json:"generated_by"`
-	ForkPoint              string                  `json:"fork_point"`
-	ForkPointShort         string                  `json:"fork_point_short"`
-	ForkPointSubject       string                  `json:"fork_point_subject"`
-	MeasuredAtHead         string                  `json:"measured_at_head"`
+	GeneratedBy      string `json:"generated_by"`
+	ForkPoint        string `json:"fork_point"`
+	ForkPointShort   string `json:"fork_point_short"`
+	ForkPointSubject string `json:"fork_point_subject"`
+	MeasuredAtHead   string `json:"measured_at_head"`
+	// GeneratedAt is when this run wrote the artifact, UTC, RFC3339 - issue
+	// #679's fix: a published figure needs a commit AND a timestamp, since
+	// the same commit's tree does not say how long ago this ran. The
+	// rendered positioning page (render.go) quotes both this and
+	// MeasuredAtHead, the same two fields a docs/progress page's "Last run
+	// at commit ... on ..." line carries.
+	GeneratedAt            string                  `json:"generated_at"`
 	BaseOpenTofuVersion    string                  `json:"base_opentofu_version"`
 	Counts                 map[string]int          `json:"counts"`
 	Files                  map[string][]fileChange `json:"files"`
@@ -544,6 +552,7 @@ func buildSurface(g *git, changes []change, forkPointSHA, forkPointSubject, head
 		ForkPointShort:   forkPointCommit,
 		ForkPointSubject: forkPointSubject,
 		MeasuredAtHead:   head,
+		GeneratedAt:      time.Now().UTC().Format(time.RFC3339),
 		Counts:           counts,
 		Files:            buckets,
 		MechanicalModuleRename: mechanicalSummary{

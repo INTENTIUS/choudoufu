@@ -12,13 +12,14 @@ import (
 	"testing"
 )
 
-// TestSurveyMDRenderedSpans holds SURVEY.md's three rendered spans - the
-// raw-signals sentence, the Summary path-count table, and the Status
-// table's wired-count cell (issue #54) - byte-for-byte to what the
-// renderer produces from the committed live/survey.json, the doc's own
-// per-type table, and the compiled admission table. No provider, so it is
-// not gated; drift between the artifacts and the doc fails here with the
-// command that fixes it.
+// TestSurveyMDRenderedSpans holds SURVEY.md's four rendered spans - the
+// raw-signals sentence, the Summary path-count table, the Provider-wide
+// paragraph (issue #679), and the Status table's wired-count cell (issue
+// #54) - byte-for-byte to what the renderer produces from the committed
+// live/survey.json, live/survey-full.json, the doc's own per-type table,
+// and the compiled admission table. No provider, so it is not gated; drift
+// between the artifacts and the doc fails here with the command that fixes
+// it.
 func TestSurveyMDRenderedSpans(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -32,6 +33,15 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 	var survey Survey
 	if err := json.Unmarshal(data, &survey); err != nil {
 		t.Fatalf("decoding %s: %v", surveyJSONRel, err)
+	}
+
+	fullData, err := os.ReadFile(filepath.Join(root, surveyFullJSONRel))
+	if err != nil {
+		t.Fatalf("reading %s (regenerate with `go run ./tools/survey-gen -all`): %v", surveyFullJSONRel, err)
+	}
+	var full Survey
+	if err := json.Unmarshal(fullData, &full); err != nil {
+		t.Fatalf("decoding %s: %v", surveyFullJSONRel, err)
 	}
 
 	mdPath := filepath.Join(root, surveyMDRel)
@@ -50,6 +60,7 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 	}{
 		{spanRawSignals, renderRawSignals(survey.Counts)},
 		{spanSummary, renderSummary(rows)},
+		{spanProviderWide, renderProviderWide(full)},
 	} {
 		got, err := spanContent(surveyMDRel, md, span.name)
 		if err != nil {
@@ -73,7 +84,7 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 
 	// The whole-file check catches what the per-span one cannot: a marker
 	// pair going missing or duplicated.
-	if out, err := renderSpans(md, survey, rows); err != nil {
+	if out, err := renderSpans(md, survey, full, rows); err != nil {
 		t.Errorf("rendering %s's spans: %v", surveyMDRel, err)
 	} else if out != md {
 		t.Errorf("%s differs from its rendered form; run `go run ./tools/survey-gen -render` and commit the result", surveyMDRel)

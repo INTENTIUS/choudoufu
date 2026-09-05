@@ -99,6 +99,9 @@ func renderForkSurfaceSummary(a forkSurface) string {
 	fmt.Fprintf(&b, "A further %d files (not counted above) change only the Go module import path, `%s` to `%s`, with no other line touched - the mechanical cost of forking a Go module, not a fact about this fork's own surface.\n\n",
 		a.MechanicalModuleRename.ExcludedCount, modulePathOld, modulePathNew)
 
+	fmt.Fprintf(&b, "Counted at choudoufu commit `%s` on %s. Run `go run ./tools/forkdiff-gen` to recount against the current HEAD before trusting this against a newer commit.\n\n",
+		short(a.MeasuredAtHead), a.GeneratedAt)
+
 	b.WriteString("| Root | Files |\n|---|---|\n")
 	for _, r := range namedRoots {
 		fmt.Fprintf(&b, "| `%s` | %d |\n", r, a.Counts[r])
@@ -124,6 +127,16 @@ func runRender() error {
 	}
 	body := renderForkSurfaceSummary(artifact)
 	return renderSpan(root, PositioningMDRel, spanForkSurface, body)
+}
+
+// short truncates a full commit sha to the same 10-character width
+// forkPointCommit and tools/gauntlet/render.go's own short() use, so the
+// stamp line reads like every other commit citation on the site.
+func short(sha string) string {
+	if len(sha) > 10 {
+		return sha[:10]
+	}
+	return sha
 }
 
 // renderSpan rewrites one named span of one doc in place.

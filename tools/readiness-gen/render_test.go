@@ -21,11 +21,17 @@ type wantedSpan struct {
 }
 
 // wantedSpans lists every span this generator's -render mode writes,
-// computed once from the given (already-committed) artifact so
-// TestReadinessRenderedSpansAreCurrent and any other test that needs the
-// same list cannot drift from runRender's own list in render.go.
-func wantedSpans(a Artifact) []wantedSpan {
-	table := renderReadinessTable(a)
+// computed once from the given (already-committed) artifact and the same
+// git-derived stamp runRender uses, so TestReadinessRenderedSpansAreCurrent
+// and any other test that needs the same list cannot drift from runRender's
+// own list in render.go.
+func wantedSpans(t *testing.T, root string, a Artifact) []wantedSpan {
+	t.Helper()
+	stamp, err := readinessStamp(root)
+	if err != nil {
+		t.Fatalf("readinessStamp: %v", err)
+	}
+	table := renderReadinessTable(a, stamp)
 	types := renderReadinessTypesTable(a)
 	return []wantedSpan{
 		{CoverageMDRel, spanReadinessTable, table},
@@ -50,7 +56,7 @@ func TestReadinessRenderedSpansAreCurrent(t *testing.T) {
 	root := testRepoRoot(t)
 	artifact := readCommitted(t, root)
 
-	for _, w := range wantedSpans(artifact) {
+	for _, w := range wantedSpans(t, root, artifact) {
 		// Read fresh per case rather than once per Rel: ResourceTiersMDRel
 		// carries two spans, and each case's whole-file Replace check below
 		// needs the doc as committed, not as a previous case in this loop

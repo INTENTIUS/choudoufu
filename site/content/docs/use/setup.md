@@ -264,9 +264,21 @@ forms its impression.
 
 The estate-wide sweep walks every admitted type, not only the ones you
 declared. Against a fresh emulator account holding nothing but AWS-managed
-defaults, a two-resource estate's first plan scanned 761 types. The output
-ran to 1105 lines and carried 43 warnings. `Plan: 2 to add` sat at line 601
-with several hundred lines of sweep reporting after it.
+defaults, a two-resource estate's first plan scanned 761 types, with the
+output running to 1105 lines and 43 warnings, `Plan: 2 to add` sitting at
+line 601 with several hundred lines of sweep reporting after it - measured at
+commit `219f87fe3a` (2026-08-30, #548). **Stale**: the admission table has
+grown since. [What a plan
+costs]({{< relref "/docs/model/plan-cost#the-two-terms" >}}) holds the
+current, live-reproducible count instead of a captured sample - `go test
+./internal/live/discovery/ -run TestSweepUniversePartitionIsMostlyNative`
+prints `sweep universe=1027` today - and a fresh account's first plan takes
+that same full sweep (an empty record store is one of the cases [the
+narrowing]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})
+does not apply to), so 1027 is closer to what you will see than 761 is. The
+exact line and warning counts were never re-measured and are not claimed
+current; only the shape - most of the output is sweep reporting, not your
+two resources - is.
 
 Most of that volume is the emulator's, not your account's: a type the sweep
 cannot list produces a warning, and the emulator does not implement many of

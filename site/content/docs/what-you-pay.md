@@ -18,7 +18,7 @@ on which of three things the run is doing:
 | A configuration with no `live` block | Nothing. The same API calls, exactly. | emulator |
 | A plan of an estate already adopted, `live` block on | API calls at parity, or slightly fewer: **-3 on 1416**, then **-45 on 1449** | real AWS |
 | The same plan, in seconds | **withdrawn**, see below | — |
-| Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: **about 512 calls, per state file** | emulator |
+| Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: [**about 512 calls, per state file**](#the-sweep-is-the-real-cost-of-slicing-and-it-does-not-shrink-per-slice) | emulator |
 
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
 names its fixture, its commit, and whether it came from the pinned AWS
@@ -133,17 +133,18 @@ no longer exists.
 
 ### The same comparison on real AWS, at 79 and 745 resources
 
-Real AWS in account `...3429` and region `us-east-2` on a `main` containing
-all of the concurrency and narrowing work. Both sides no-change plans on every
-run:
+Real AWS in account `...3429` and region `us-east-2`. Both sides no-change
+plans on every run:
 
-| Resources | stock | choudoufu, steady state | Difference |
-|---|---|---|---|
-| 79 | 149 | 155 | +6 (+4.0%) |
-| 745, session 1 | 1416 | **1413** | **-3 (-0.2%)** |
-| 745, session 2 | 1449 | **1404** | **-45 (-3.1%)** |
+| Resources | stock | choudoufu, steady state | Difference | Commit |
+|---|---|---|---|---|
+| 79 | 149 | 155 | +6 (+4.0%) | `d359210978` |
+| 745, session 1 | 1416 | **1413** | **-3 (-0.2%)** | `d359210978` |
+| 745, session 2 | 1449 | **1404** | **-45 (-3.1%)** | `02885d2fd6` |
 
-Re-measured at `d359210978`. **At 745 resources choudoufu makes fewer provider
+79 and 745-session-1 were re-measured together at `d359210978`; session 2 is
+a separate run at `02885d2fd6`, added to widen the 745 sample rather than to
+replace session 1. **At 745 resources choudoufu makes fewer provider
 requests than stock**, in both sessions, which supersedes the +7 this table
 carried before. Per-operation the two are near-identical:
 `ListAttachedRolePolicies` 325 against 324, `GetRole` 215 against 211. The one
@@ -210,6 +211,16 @@ run 1: aws-calls 157, record-trips 1
 run 2: aws-calls 157, record-trips 1
 run 3: aws-calls 157, record-trips 1
 ```
+
+**Stale**: this is `b20a144ab0`'s number, not {{< version >}}'s. The record
+path it measured has moved since - the local cache going default-on and the
+cache-vouch listing pass (`8b1760f582`, `e15b23eb7b`, `2008d71be2`), plus the
+record-orphan leg reading the live tag first (`d15ce4456c`) - and none of
+that has been re-run through this same one-trip-vs-377-trip harness
+(`TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/`). The mechanism this
+page describes (decode once, serve every accessor from the same read) has
+not been reverted, but the exact "1" has not been re-measured against
+today's record path and is not claimed current.
 
 On SSM an estate of N records costs `ceil(N/10)` API calls rather than N,
 because the bulk path keeps the values the paged call already returned. S3
@@ -329,10 +340,13 @@ at eight states comes from.
 Day-2 planning is cheap to slice; adopting or recovering an estate from
 markers alone is not. The estate-wide native sweep does not scale down with a
 slice's type count: **about 512 calls per slice at every scale measured**,
-4096 summed across eight states. A slice declaring five types still pays what
-the whole estate pays, because the sweep builds its universe by *subtracting*
-the types a configuration declares from the admission table, not by listing
-only what that slice has.
+4096 summed across eight states, `native_sweep_calls` re-measured at
+`5ff7f43f5b` (the same figure [what a plan
+costs]({{< relref "/docs/model/plan-cost#the-native-leg-does-not-move" >}})
+stamps). A slice declaring five types still pays what the whole estate pays,
+because the sweep builds its universe by *subtracting* the types a
+configuration declares from the admission table, not by listing only what
+that slice has.
 
 `09d180f921` took that leg off the steady-state plan path once an estate has
 a record store to narrow by, and left it everywhere else: a plan with no
@@ -387,9 +401,9 @@ implementations happens to be.
 
 ## Wall clock: withdrawn, because the comparison was not like for like
 
-Three real-AWS sessions measured wall-clock ratios of 2.95x, 3.53x and 2.05x
-on the median at 745 resources. **None of them is stated here as a ratio,
-because the comparison underneath was invalid.**
+Withdrawn at `2989f9b073`. Three real-AWS sessions measured wall-clock ratios
+of 2.95x, 3.53x and 2.05x on the median at 745 resources. **None of them is
+stated here as a ratio, because the comparison underneath was invalid.**
 
 The harness ran stock in one directory and choudoufu in another. Stock's
 directory holds `terraform.tfstate`. choudoufu's holds `.tofu-records` and **no

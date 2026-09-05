@@ -105,6 +105,8 @@ says why for each type that carries it.
 | record-carried | 96 | 294 | 3 | 16 | 62 | 0 | 471 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | **Total** | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
+
+`live/readiness.json` last committed at commit `bb45512c9b` on 2026-08-31T22:36:30-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end readiness-tiers -->
 
 ## Look up your own resource type

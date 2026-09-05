@@ -26,12 +26,12 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 5 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1049 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1049 types | Nothing at lint. Runtime support varies by type; see the layers below. An overlay across them, not a fifth bucket - adding it to the four below double-counts. |
 | Pastable proposals (server-assigned 575, client-named 480, composite 152, assembled 33) | 1240 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 76 types | One one-character import-separator decision each. |
 | Evidence-only | 311 types | An identity-argument name no current evidence source states. |
 | Fold-children | 72 types | Nothing of their own; identity is the parent's. |
-| Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
+| Classified in total | 1699 of 1699 provider types | Pastable proposals, needs-a-hand-separator, evidence-only and fold-children partition this set; round-trip and Admitted above are overlays across it, not additional buckets, so summing all six rows does not equal the provider's type count. |
 | Of those, with no CloudFormation model | 310 cfn-unmodeled, 116 tf-only, 0 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
 ## Readiness tiers
@@ -61,6 +61,8 @@ rule above.
 | record-carried | 96 | 294 | 3 | 16 | 62 | 0 | 471 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | **Total** | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
+
+`live/readiness.json` last committed at commit `bb45512c9b` on 2026-08-31T22:36:30-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end readiness-tiers -->
 
 ## The admitted set
@@ -759,5 +761,10 @@ is always refused with a stated reason.
 
 ## Other providers
 
-AWS is the only provider today. Azure and Google Cloud are coming, and
-appear greyed out in the docs navigation until they land.
+AWS is the only provider today, and there is no second cloud on the
+roadmap: [#5](https://github.com/INTENTIUS/choudoufu/issues/5) closed
+without extending the admission model to Azure or GCP, the same answer
+the docs site's [Compatibility
+reference](https://github.com/INTENTIUS/choudoufu/blob/main/site/content/docs/use/compatibility.md#your-provider)
+gives. There is no Azure or Google Cloud entry, greyed out or otherwise,
+in the docs navigation.

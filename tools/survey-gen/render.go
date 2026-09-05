@@ -46,6 +46,15 @@ const (
 	// registry-ratified batches' account). Rendered so a batch that grows
 	// the admission table never has to hand-edit this digit.
 	spanWiredCount = "wired-count"
+
+	// spanProviderWide is the "Provider-wide" paragraph: the two substrate
+	// findings and the trajectory percentages, computed from the
+	// already-committed live/survey-full.json rather than typed by hand.
+	// Issue #679: three of these four figures (1,691 total / 468
+	// identity-schema / 183 list) had drifted from the committed artifact's
+	// 1699 / 479 / 195 by the time they were audited, because nothing
+	// recomputed them when the provider version moved.
+	spanProviderWide = "provider-wide"
 )
 
 // summaryOverrides pins the rows the Summary table counts under a different
@@ -91,8 +100,9 @@ func runRender() error {
 	return renderContractMDX(root)
 }
 
-// renderSurveyMD rewrites live/SURVEY.md's raw-signals and summary spans
-// from the committed live/survey.json and the doc's own per-type table.
+// renderSurveyMD rewrites live/SURVEY.md's raw-signals, summary and
+// provider-wide spans from the committed live/survey.json,
+// live/survey-full.json and the doc's own per-type table.
 func renderSurveyMD(root string) error {
 	data, err := os.ReadFile(filepath.Join(root, surveyJSONRel)) //nolint:gosec // a fixed path in the checkout
 	if err != nil {
@@ -113,7 +123,16 @@ func renderSurveyMD(root string) error {
 		return fmt.Errorf("parsing %s's per-type table: %w", surveyMDRel, err)
 	}
 
-	out, err := renderSpans(string(md), survey, rows)
+	fullData, err := os.ReadFile(filepath.Join(root, surveyFullJSONRel)) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		return fmt.Errorf("reading %s (regenerate with `go run ./tools/survey-gen -all`): %w", surveyFullJSONRel, err)
+	}
+	var full Survey
+	if err := json.Unmarshal(fullData, &full); err != nil {
+		return fmt.Errorf("decoding %s: %w", surveyFullJSONRel, err)
+	}
+
+	out, err := renderSpans(string(md), survey, full, rows)
 	if err != nil {
 		return err
 	}
@@ -124,13 +143,13 @@ func renderSurveyMD(root string) error {
 	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanWiredCount, surveyMDRel)
+	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanWiredCount, spanProviderWide, surveyMDRel)
 	return nil
 }
 
-// renderSpans returns the doc with all three marked spans replaced by their
+// renderSpans returns the doc with all four marked spans replaced by their
 // rendered bodies. The rest of the file passes through byte-for-byte.
-func renderSpans(md string, survey Survey, rows []HandRow) (string, error) {
+func renderSpans(md string, survey, full Survey, rows []HandRow) (string, error) {
 	md, err := replaceSpan(surveyMDRel, md, spanRawSignals, renderRawSignals(survey.Counts))
 	if err != nil {
 		return "", err
@@ -139,9 +158,61 @@ func renderSpans(md string, survey Survey, rows []HandRow) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	md, err = replaceSpan(surveyMDRel, md, spanProviderWide, renderProviderWide(full))
+	if err != nil {
+		return "", err
+	}
 	// Inline: the wired-count span sits inside a single Markdown table
 	// cell, where a literal newline would split the row.
 	return replaceSpanInline(surveyMDRel, md, spanWiredCount, renderWiredCount())
+}
+
+// renderProviderWide is the "Provider-wide" paragraph, computed from
+// live/survey-full.json's own per-type Signals rather than a hand count.
+// Percentages are floored (integer division), matching the convention the
+// hand-typed prose this replaces already used - re-deriving today's inputs
+// against a floor reproduces the figures that prose published before the
+// provider roster grew, which is the check that this is the same formula
+// and not a new one.
+func renderProviderWide(full Survey) string {
+	total := len(full.Types)
+	var taggable, listResource, identitySchema, tagsOrIdentity int
+	for _, r := range full.Types {
+		if r.Signals.Taggable {
+			taggable++
+		}
+		if r.Signals.ListResource {
+			listResource++
+		}
+		if r.Signals.IdentitySchema {
+			identitySchema++
+		}
+		if r.Signals.Taggable || r.Signals.IdentitySchema {
+			tagsOrIdentity++
+		}
+	}
+	pct := func(n int) int {
+		if total == 0 {
+			return 0
+		}
+		return n * 100 / total
+	}
+	return fmt.Sprintf(
+		"Provider-wide, two substrate findings. The provider now publishes\n"+
+			"`resource_identity_schemas` for %d types and growing: a per-type\n"+
+			"declaration of exactly what identifies the resource, which is the\n"+
+			"admission-rule metadata maintained upstream by the provider itself. And %d\n"+
+			"native list resources exist already (the query/search work), including\n"+
+			"nearly all high-traffic types.\n"+
+			"\n"+
+			"Global stats across all %d AWS resource types, for trajectory: %d%%\n"+
+			"taggable, %d%% identity-schema (mid-rollout), %d%% list (early rollout), %d%%\n"+
+			"tags-or-identity today. The long tail thins out, but usage concentrates in\n"+
+			"the head, and both identity and list coverage are actively expanding\n"+
+			"upstream.\n",
+		identitySchema, listResource, total,
+		pct(taggable), pct(identitySchema), pct(listResource), pct(tagsOrIdentity),
+	)
 }
 
 // renderWiredCount is the admission table's global size, straight off
