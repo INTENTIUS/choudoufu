@@ -120,6 +120,13 @@ var otherAllowlist = []otherAllowEntry{
 	// silently allowlisted away, and left for a separate cleanup - out of
 	// scope for issue #423.
 	{"tmp/admission-pipeline/", "a generator report that landed in a scratch directory and was committed; a housekeeping cleanup to do separately, not a stock edit"},
+
+	// examples/: docs-adjacent demo projects, wholly fork-authored (no
+	// upstream directory of this name exists), landed after issue #423's own
+	// allowlist was written. One entry covers the whole tree rather than one
+	// per file, the same way internal/command/'s entry above does for a
+	// fork-owned subtree sitting inside a stock-owned root.
+	{"examples/", "docs-adjacent demo projects: examples/live-mv-workbench (uv/Python, package tlmig) drives the terralith-migration demo and the live-mv workbench over a real or floci-emulated account - wholly new, no stock counterpart"},
 }
 
 // forkSurfaceFile mirrors tools/forkdiff-gen's fileChange.
