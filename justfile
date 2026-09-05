@@ -25,7 +25,7 @@ ci:
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
     echo "==> docs site build"
     cp live/iam-reference.json site/data/iamref.json
     (cd site && hugo --minify --quiet)
