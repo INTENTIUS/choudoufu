@@ -92,6 +92,43 @@ import (
 // lex00/floci#185. throttle_total is also zero at every tier, including the
 // 4817-call scale=80 run; floci applies no rate limiting in this range.
 //
+// # Stale as of #574, re-verified only at scale=1 (issue #708)
+//
+// terralith-gen has emitted a module-nested bucket ("modules/team_pod",
+// issue #574) since 2026-08-31, after the table above was recorded. That
+// changed the resource count AT EVERY TIER - the table's own scale/resource
+// pairing no longer holds for the current generator:
+//
+//	scale  table's resources (stale)  current resources (go run ./tools/terralith-gen -scale N)
+//	1      55                         79
+//	4      205                        301
+//	10     505                        745
+//	20     1005                       1485
+//	40     2005                       2965
+//	80     4005                       5925
+//
+// #708 fixed this file's own fixture loader (discovery_test.go's
+// loadConfig), which refused the module call outright and so could not run
+// this benchmark AT ALL against the current generator - not a resource-count
+// drift, a hard failure at every tier. Re-verified directly against floci
+// post-fix, scale=1 only (a maintainer scope note during #708 bounded that
+// worker's own testing to this one tier, to keep per-worker cost down across
+// a parallel batch):
+//
+//	scale=1 resources=79 types=13(needs-discovery=6) apply=31.656379583s discover=56.42925ms build=91.390542ms api_calls_total=113 pagination_total=0 throttle_total=0 peak_harness_rss_kb=234416 peak_floci_rss_kb=258764 materialized=44 bound=0 unbound=15 unclaimed=20 problems=11 [emulator=floci]
+//
+// resources and api_calls_total both grew (55->79, 77->113) by roughly the
+// same ~1.44x the module bucket adds at every tier, matching the table
+// above; apply, discover and build all stayed within the same order of
+// magnitude as the old scale=1 row, so nothing in this one tier suggests the
+// module shape is itself expensive. Scales 4/10/20/40/80 have NOT been
+// re-measured against the current generator - #838 tracks re-running all
+// six tiers and replacing this table for real, per this section's own
+// convention (date, floci pin, platform, per-tier table, per-unit-rate
+// commentary, restated ceiling). Until #838 lands, "The stated ceiling"
+// below is evidence from the stale, smaller-resource-count generator, not a
+// claim re-established against today's terralith-gen output.
+//
 // # The stated ceiling
 //
 // No wall was found, in the measured range (55-4005 resources / 77-4817 API
@@ -101,7 +138,9 @@ import (
 // measurements of THOSE components are trustworthy at least through
 // ~4000 resources / ~4800 API calls (this run's own top tier) - the epic's
 // "roughly N resources" framing does not apply to them because no ceiling
-// showed up to look for.
+// showed up to look for. See the section above: this paragraph's numbers
+// predate #574's module expansion and are unverified past scale=1 against
+// the current generator.
 //
 // Two components of #546's central claim are a DIFFERENT kind of ceiling,
 // though, and it has nothing to do with resource count: list pagination
@@ -179,6 +218,49 @@ func TestTerralithCeilingAgainstFloci(t *testing.T) {
 	t.Logf("%s", report)
 	logTerralithByAPI(t, report)
 	logTerralithScans(t, report)
+}
+
+// TestLoadConfigHandlesCurrentTerralithGenOutput is issue #708's guard
+// against a repeat of its own defect: TestTerralithCeilingAgainstFloci's
+// fixture loader (discovery_test.go's loadConfig) fell behind
+// tools/terralith-gen's own module-nested bucket (issue #574) with nothing
+// noticing until someone ran the floci-gated benchmark by hand - a plain
+// `go test ./...` never touches it, because TestTerralithCeilingAgainstFloci
+// itself skips unless TF_ACC or TF_FLOCI_TEST is set (flocitest.Gate).
+//
+// This test generates the CURRENT terralith-gen output - no docker, no
+// terraform apply, no floci, so it runs in an ordinary `go test` and cannot
+// rot silently the same way - and loads it through the exact same
+// loadConfig the benchmark calls, asserting the module call actually
+// resolved (a child config for "team_pod" exists and at least one
+// resolution comes back) rather than only that loadConfig returned without
+// a fatal.
+func TestLoadConfigHandlesCurrentTerralithGenOutput(t *testing.T) {
+	root := flocitest.RepoRoot(t)
+	dir := t.TempDir()
+
+	genCmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
+		"-scale", "1", "-prefix", "lc", "-out", dir)
+	genCmd.Dir = root
+	if out, err := genCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go run ./tools/terralith-gen -scale 1: %v\n%s", err, out)
+	}
+
+	cfg := loadConfig(t, dir)
+	if cfg == nil {
+		t.Fatal("loadConfig returned a nil config for terralith-gen's current output")
+	}
+	if _, ok := cfg.Children["team_pod"]; !ok {
+		t.Fatal(`loaded config has no "team_pod" child module - terralith-gen's own module-nested bucket (issue #574) is missing from the loaded tree, so this fixture is no longer exercising the module-call shape it exists to guard`)
+	}
+
+	res, diags := identity.Resolve(context.Background(), cfg)
+	if diags.HasErrors() {
+		t.Logf("identity resolution diagnostics (%d) - not fatal to this guard, which only asserts loadConfig itself resolves the module call, not that every instance resolves cleanly:\n%s", len(diags), renderDiags(diags))
+	}
+	if len(res.All()) == 0 {
+		t.Fatal("identity.Resolve produced zero resolutions from terralith-gen's current output loaded through loadConfig")
+	}
 }
 
 // terralithCeilingReport is one benchmark run's measurements, structured so

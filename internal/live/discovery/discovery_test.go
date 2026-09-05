@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -1514,14 +1515,44 @@ func loadConfig(t *testing.T, dir string) *configs.Config {
 	}
 	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
-			t.Fatalf("fixture %s unexpectedly calls module %q", dir, req.Name)
-			return nil, nil, nil
+			return loadLocalModule(t, parser, dir, req)
 		},
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
 	}
 	return cfg
+}
+
+// loadLocalModule resolves one module call from disk: a same-tree "./..."
+// source, read relative to the calling module's own SourceDir, exactly the
+// one case internal/live/check.LoadOverlay's own walker resolves without a
+// network (internal/live/check/load.go's resolveModuleDir). It is the whole
+// module-call shape tools/terralith-gen emits (issue #574,
+// "modules/team_pod"), and loadConfig only needs that shape - see issue
+// #708, which chose teaching this loader the real call over a flag that
+// would make terralith-gen stop generating it.
+//
+// Deliberately narrower than check.Load: a non-local source (registry, git)
+// is not a shape any fixture under this package uses, so a call to one
+// fails the test loudly rather than being silently skipped the way a
+// corpus-facing loader has to. Enumerating identity across an expanded
+// module CALL - repetition data for a for_each'd "module" block - is a
+// question for identity.Resolve on the tree this returns, not for this
+// loader; see internal/live/lint/module_instance_eval.go's own doc comment
+// for where that lives (identity.ChildModuleRepetitionData).
+func loadLocalModule(t *testing.T, parser *configs.Parser, rootDir string, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+	t.Helper()
+
+	local, ok := req.SourceAddr.(addrs.ModuleSourceLocal)
+	if !ok {
+		t.Fatalf("fixture %s calls module %q from a non-local source %q, which this minimal loader does not resolve", rootDir, req.Name, req.SourceAddr)
+		return nil, nil, nil
+	}
+
+	childDir := filepath.Join(req.Parent.Module.SourceDir, string(local))
+	mod, modDiags := parser.LoadConfigDir(childDir, req.Call)
+	return mod, nil, modDiags
 }
 
 func resolveOrFail(t *testing.T, cfg *configs.Config) *identity.Result {
