@@ -67,7 +67,18 @@ type Verdicts struct {
 	// projection's record-envelope arm. Produced only by the sandboxed
 	// vouch pass; nothing else writes it, and it feeds nothing but
 	// [projection.Options.CacheVouchSightings].
-	CacheVouchSightings map[string]map[string]bool
+	//
+	// It is partitioned by [Request.VouchProvider], the provider
+	// configuration this pass listed through (issue #745), and [Merge]
+	// keeps that partition rather than flattening it: a sighting is a fact
+	// about one account and region, and in a multi-region estate that
+	// mirrors one client-chosen name two objects answer to one import
+	// identity. A pass that names no VouchProvider files its sightings
+	// under the zero provider configuration, which no instance's own
+	// provider address can ever equal, so such a pass vouches nothing -
+	// the same fail-toward-reading direction every other leg of the arm
+	// takes.
+	CacheVouchSightings projection.VouchSightings
 
 	// Orphans lists live resources that carry this estate's tofu-estate tag
 	// and a well-formed tofu-address that no declared instance matches -

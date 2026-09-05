@@ -218,7 +218,12 @@ type Options struct {
 	// per-instance cost. It proves nothing about ownership; that is
 	// [EnvelopeVouchServes]'s half. Nil or empty means no listing pass
 	// ran, and the envelope arm never fires.
-	CacheVouchSightings map[string]map[string]bool
+	//
+	// It is partitioned by the provider configuration each listing pass ran
+	// through (issue #745): a sighting is evidence about the account and
+	// region that pass listed, and an instance is vouched only by its own
+	// provider configuration's pass. See [VouchSightings].
+	CacheVouchSightings VouchSightings
 
 	// EnvelopeVouchServes gates the cache-hit rule's second eligibility
 	// arm (issue #692 increment 2, maintainer ruling 2026-09-01 recorded

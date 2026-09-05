@@ -68,11 +68,12 @@ func TestCacheVouchPassIsHermetic(t *testing.T) {
 			},
 			Provider:        cloud,
 			CacheVouchTypes: []string{"aws_iam_role"},
+			VouchProvider:   testProviderAddr(t, ""),
 		})
 		if diags.HasErrors() {
 			t.Fatalf("unexpected errors: %s", diags.Err())
 		}
-		if !res.CacheVouchSightings["aws_iam_role"]["role-a"] {
+		if !res.CacheVouchSightings.Sighted(testProviderAddr(t, ""), "aws_iam_role", "role-a") {
 			t.Errorf("the listed identity is missing from CacheVouchSightings: %v", res.CacheVouchSightings)
 		}
 		// The hermetic half: the sighting must NOT ride through Unclaimed,

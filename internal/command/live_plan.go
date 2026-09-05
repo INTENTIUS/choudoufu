@@ -1427,7 +1427,13 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		// existence-and-identity evidence comes from this run rather than
 		// from trust. Nil on every path that is not serving from cache.
 		CacheVouchTypes: cacheVouchTypes,
-		Sweep:           true,
+		// Issue #745: which provider configuration this pass's sightings
+		// are evidence about. It is providerAddr, not scopeProvider,
+		// because the single-provider path leaves scopeProvider at its
+		// zero value and its sightings still have to name the one
+		// configuration that produced them.
+		VouchProvider: providerAddr,
+		Sweep:         true,
 		// GitHub issue #612. The estate-wide sweep's list calls run
 		// concurrently (issue #605), and this is the only place in the
 		// command layer that says how many at once: without this line the

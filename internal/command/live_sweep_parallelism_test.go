@@ -329,7 +329,7 @@ func requestFieldValue(t *testing.T, fn *ast.FuncDecl, field string) ast.Expr {
 		return false
 	})
 	if found == nil {
-		t.Fatalf("the discovery.Request built in %s does not set %s. That is precisely the defect GitHub issue #612 reports: the field exists, and nothing in internal/command references it, so the engine's default is the only setting a run can have.", fn.Name.Name, field)
+		t.Fatalf("the discovery.Request built in %s does not set %s. A request field internal/command never references leaves the engine's default as the only setting a run can have - the defect shape GitHub issues #612 and #745 both report.", fn.Name.Name, field)
 	}
 	return found
 }
