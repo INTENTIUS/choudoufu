@@ -38,17 +38,6 @@ func (c *UnlockCommand) Run(rawArgs []string) int {
 	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
 	c.View.DiagsWithNewline()
 
-	// Under a live block there is no lock to force open; refuse with the
-	// true reason before any backend machinery can produce stock's
-	// misleading "State locked by another local process" for a lock that
-	// never existed (found by the no-locks claim scenario's probe).
-	if guardDiags := c.statelessCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
-		c.View.Diagnostics(guardDiags)
-		if guardDiags.HasErrors() {
-			return 1
-		}
-	}
-
 	// Parse and validate flags
 	args, closer, diags := arguments.ParseUnlock(rawArgs)
 	defer closer()
@@ -65,6 +54,23 @@ func (c *UnlockCommand) Run(rawArgs []string) int {
 		return cli.RunResultHelp
 	}
 	c.Meta.variableArgs = args.Vars.All()
+
+	// Under a live block there is no lock to force open; refuse with the
+	// true reason before any backend machinery can produce stock's
+	// misleading "State locked by another local process" for a lock that
+	// never existed (found by the no-locks claim scenario's probe). This
+	// runs after variables are parsed, like every other guarded command
+	// (import.go, taint.go, refresh.go, untaint.go), because the guard's
+	// own config load statically evaluates the backend block and a -var
+	// this command was given is not visible to it otherwise - not just
+	// under a live block, but for any configuration whose backend depends
+	// on a variable, live or not.
+	if guardDiags := c.statelessCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
+		view.Diagnostics(guardDiags)
+		if guardDiags.HasErrors() {
+			return 1
+		}
+	}
 
 	lockID := args.LockID
 
