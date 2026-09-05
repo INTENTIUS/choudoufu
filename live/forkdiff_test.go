@@ -119,7 +119,6 @@ var otherAllowlist = []otherAllowEntry{
 	// A housekeeping finding, not a stock edit: flagged here rather than
 	// silently allowlisted away, and left for a separate cleanup - out of
 	// scope for issue #423.
-	{"tmp/admission-pipeline/", "a generator report that landed in a scratch directory and was committed; a housekeeping cleanup to do separately, not a stock edit"},
 
 	// examples/: docs-adjacent demo projects, wholly fork-authored (no
 	// upstream directory of this name exists), landed after issue #423's own
