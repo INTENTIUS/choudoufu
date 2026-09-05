@@ -53,6 +53,35 @@ hr "artifact (live/gauntlet.json)"
 art_commit=$(git log -1 --format=%h -- live/gauntlet.json)
 head_commit=$(git log -1 --format=%h)
 printf 'last written at %s (HEAD is %s)\n' "$art_commit" "$head_commit"
+# Issue #496: the nightly workflow was disabled 2026-09-02 after its PR-open
+# step failed for nine straight nights (org policy blocks GITHUB_TOKEN from
+# opening PRs, and GAUNTLET_PR_TOKEN's own failure was buried at the bottom
+# of a log nobody opened). Surface both halves here, in the one place every
+# session already reads: the workflow's enabled/disabled state (via `gh
+# api`, since a disabled workflow is not reliably found by name through `gh
+# workflow view`) and how long ago the artifact actually landed on this
+# branch - the last commit that touched it, not the schedule, which says
+# nothing once the workflow stops running.
+wf_state=""
+if have gh; then
+  wf_state=$(gh api "repos/$REPO/actions/workflows" -q '.workflows[] | select(.name=="Gauntlet") | .state' 2>/dev/null)
+fi
+art_epoch=$(git log -1 --format=%at -- live/gauntlet.json 2>/dev/null)
+if [ -n "$art_epoch" ]; then
+  art_date_only=$(git log -1 --format=%ad --date=short -- live/gauntlet.json)
+  days_ago=$(( ( $(date +%s) - art_epoch ) / 86400 ))
+  plural=""; [ "$days_ago" != "1" ] && plural="s"
+  when="$art_date_only ($days_ago day$plural ago)"
+else
+  when="unknown (live/gauntlet.json has no history on this branch)"
+fi
+case "$wf_state" in
+  active) wf_display="active" ;;
+  disabled_manually|disabled_inactivity) wf_display="DISABLED" ;;
+  "") wf_display="UNKNOWN (gh unavailable or the workflow-state query failed)" ;;
+  *) wf_display="$wf_state" ;;
+esac
+printf 'nightly: workflow %s; artifact last measured %s\n' "$wf_display" "$when"
 if have python3 && [ -f live/gauntlet.json ]; then
   python3 - <<'EOF'
 import json

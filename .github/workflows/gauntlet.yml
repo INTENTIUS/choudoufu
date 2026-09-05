@@ -90,6 +90,15 @@ jobs:
       - name: Build choudoufu
         run: go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
       - name: Run the gauntlet
+        # `|| true` here is deliberate, not a swallow of an infra failure:
+        # `gauntlet run` exits 1 whenever any estate script exits nonzero or
+        # an unacknowledged regression is found (tools/gauntlet/main.go), and
+        # that happens routinely - a still-failing estate is a row in the
+        # artifact, not a broken pipeline. Aborting the job here would drop
+        # Render and the PR step (and the log upload) on every night some
+        # estate does not clear, which is most nights. The signal this
+        # workflow actually needs loud is the "Open a pull request" step
+        # below, which is not supposed to fail routinely (issue #496).
         env:
           TOFU_BIN: ${{ runner.temp }}/choudoufu
         run: |
@@ -102,6 +111,11 @@ jobs:
       - name: Render
         run: go run ./tools/gauntlet render
       - name: Run the cohort acceptance pass
+        # Same reasoning as "Run the gauntlet" above: enforceRatchet reports
+        # a regression with t.Error, not t.Fatal, so the artifact is written
+        # even when the test run exits nonzero (main.go's cmdRun comment
+        # calls out the same choice) - a still-failing cohort is ground
+        # truth to record, not a reason to drop the rest of the job.
         env:
           TF_FLOCI_TEST: "1"
           TF_FLOCI_ACCEPTANCE_ARTIFACT: "1"
@@ -119,6 +133,14 @@ jobs:
             cohort-acceptance-run.log
           if-no-files-found: ignore
       - name: Open a pull request with the new verdicts
+        id: open_pr
+        # continue-on-error, not a silent `|| true`: this step's own outcome
+        # still has to reach the next step so it can fail the job loudly
+        # (issue #496 - nine days of nightly verdicts were discarded because
+        # this step's failure was the only signal, at the bottom of a log
+        # nobody opened). The step's actual work - computing and
+        # force-pushing gauntlet/nightly - is unaffected either way.
+        continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GAUNTLET_PR_TOKEN || secrets.GITHUB_TOKEN }}
@@ -143,3 +165,16 @@ jobs:
           delete-branch: true
       # The PR changes only the artifact and rendered docs, so
       # automerge-artifact.yml enables auto-merge on it once CI is green.
+      - name: Fail loudly if the verdicts PR did not open
+        # Turns a failure buried in the previous step's log into a one-line
+        # annotation at the top of the run, and fails the job (issue #496).
+        # The gauntlet ran and the artifact reached origin/gauntlet/nightly
+        # either way; only landing on main failed.
+        if: steps.open_pr.outcome == 'failure'
+        run: |
+          MSG="nightly gauntlet: the verdicts PR failed to open - artifact force-pushed to origin/gauntlet/nightly but nothing reached main; see issue #496 (GAUNTLET_PR_TOKEN unset/expired/mis-scoped, or org policy blocks PR creation)"
+          echo "::error title=Nightly verdicts PR did not open::$MSG"
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 1
