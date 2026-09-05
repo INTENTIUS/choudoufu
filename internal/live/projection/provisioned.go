@@ -40,10 +40,11 @@ import (
 //
 // # Why a record and not a receipt
 //
-// site/content/model-effects.md's own test: "A record is written by
-// choudoufu... A receipt is written by your configuration." Nothing in an
-// operator's configuration writes this, nothing outside this binary can
-// read it usefully, and its format is internal. It is a record.
+// site/content/docs/model/effects.md's own test: "A record is written by
+// choudoufu and its format is internal. A receipt is written by your
+// configuration." Nothing in an operator's configuration writes this,
+// nothing outside this binary can read it usefully, and its format is
+// internal. It is a record.
 //
 // # Why a fifth namespace root
 //
