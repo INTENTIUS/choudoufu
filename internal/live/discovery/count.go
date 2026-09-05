@@ -470,15 +470,16 @@ func bindOne(typeName string, addr addrs.AbsResourceInstance, escaped string, c 
 		return Binding{}, false
 	}
 	return Binding{
-		Addr:         addr,
-		TypeName:     typeName,
-		ImportID:     c.importID,
-		IdentityAttr: c.identityAttr,
-		Marker:       c.marker,
-		Normalized:   c.escaped != c.marker,
-		Slot:         c.slot,
-		DisplayName:  c.displayName,
-		Identity:     c.identity,
+		Addr:           addr,
+		TypeName:       typeName,
+		ImportID:       c.importID,
+		IdentityAttr:   c.identityAttr,
+		Marker:         c.marker,
+		Normalized:     c.escaped != c.marker,
+		Slot:           c.slot,
+		DisplayName:    c.displayName,
+		Identity:       c.identity,
+		IdentityValues: c.identityValues,
 	}, true
 }
 

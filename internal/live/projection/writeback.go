@@ -428,6 +428,14 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	// write-back: a silently absent record is indistinguishable from a
 	// forgotten one, and the read half (superseded-claimant recovery, the
 	// envelope-vouching arm) now does real work from records.
+	//
+	// The line it gates is one of TWO, split by GitHub issue #746's review
+	// finding B4: this branch is reached both when the identity is one this
+	// mechanism structurally cannot derive and when recording it is refused
+	// on purpose because it would put secret material in the record store,
+	// and printing one line for both is exactly the blur the branch's own
+	// comment says must never happen. [identity.SensitiveIdentityAttr] is
+	// which of the two, asked once per instance that reaches the branch.
 	unrecordableLogged := map[string]bool{}
 
 	if req.FinalState != nil {
@@ -515,18 +523,44 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 							),
 						))
 					default:
-						// Not recordable (no identity this mechanism can
-						// hold in full, or a sensitive identity attribute),
-						// and not this instance's only carrier: leave
-						// whatever is recorded alone rather than clearing
-						// it - a value written by an earlier apply or a
-						// live-import migration must not be erased just
-						// because THIS pass could not re-derive it. Said
-						// out loud once per type (issue #671): silent and
-						// deliberate must not look the same.
+						// Not recordable, and not this instance's only
+						// carrier: leave whatever is recorded alone rather
+						// than clearing it - a value written by an earlier
+						// apply or a live-import migration must not be
+						// erased just because THIS pass could not re-derive
+						// it.
+						//
+						// Two different things reach here and issue #671
+						// said they must not look the same: an identity
+						// this mechanism structurally cannot hold in full,
+						// and the deliberate refusal to write a sensitive
+						// attribute into the record store. Until GitHub
+						// issue #746's finding B4 they printed the
+						// identical line, which is that distinction blurred
+						// in the one place it was supposed to be visible.
+						// They are now two messages, each naming what an
+						// operator would do about it - nothing, for the
+						// first; nothing either, for the second, but for a
+						// reason they chose.
+						//
+						// Both stay log lines rather than becoming plan
+						// diagnostics. Nothing is lost in this branch: it
+						// is by construction the case where the record is
+						// NOT this instance's only identity carrier (the
+						// automatic and selected arms above raise a real
+						// error), so the marker still decides ownership and
+						// a per-apply warning would be about a redundant
+						// carrier. Whether the untaggable slice of this
+						// population deserves more than a log line is a
+						// real question and #746 leaves it open rather than
+						// answering it here.
 						if !unrecordableLogged[typeName] {
 							unrecordableLogged[typeName] = true
-							log.Printf("[INFO] projection: no identity record can be derived for %s (e.g. %s); ownership stays marker-carried and any existing record is left alone", typeName, addr)
+							if secret := identity.SensitiveIdentityAttr(typeName, schema); secret != "" {
+								log.Printf("[INFO] projection: no identity record is written for %s (e.g. %s) on purpose: the identity a record would hold is its %q attribute, which the provider marks sensitive, and the record store is not where this fork puts secret material. Ownership stays marker-carried and any existing record is left alone", typeName, addr, secret)
+							} else {
+								log.Printf("[INFO] projection: no identity record can be derived for %s (e.g. %s): this mechanism cannot hold its identity in full. Ownership stays marker-carried and any existing record is left alone", typeName, addr)
+							}
 						}
 					}
 				}

@@ -384,11 +384,28 @@ type Binding struct {
 
 	// Identity is the full identity object of the listed resource.
 	Identity cty.Value
+
+	// IdentityValues is a composite identity, one string per identity-schema
+	// attribute, for a binding whose source holds the components rather than
+	// a single import string. It becomes
+	// [identity.Resolution.IdentityValues], which internal/live/projection
+	// turns into a providers.ImportTarget through the type's own identity
+	// schema (importTarget / identityFromValues) - the same route
+	// [projection.LocatedRecord.Components] already takes on the
+	// record-first path, rather than a second rendering written here.
+	//
+	// It is not another spelling of ImportID and never replaces one. A
+	// binding sourced from a list call carries the string and leaves this
+	// nil; a binding sourced from a composite record carries this and leaves
+	// ImportID empty, because a wire-identity composite has no separator to
+	// join its components with and joining them anyway produces exactly the
+	// plausible-but-wrong import ID GitHub issue #105 is about.
+	IdentityValues map[string]string
 }
 
 // String renders a binding on one line, for logs and test failures.
 func (b Binding) String() string {
-	s := b.Addr.String() + " <- " + b.ImportID
+	s := b.Addr.String() + " <- " + b.identityDisplay()
 	if b.SlotBound {
 		s += " (slot " + b.Slot + ")"
 	}
@@ -402,6 +419,19 @@ func (b Binding) String() string {
 		s += " (marker " + b.Marker + " normalized)"
 	}
 	return s
+}
+
+// identityDisplay is what this binding says the live object is, for a log or
+// a test failure: the import ID for a type identified by one string, or the
+// named components for a composite one. [recordIdentityDisplay] is the
+// rendering, shared with the messages that name what a record holds, so a
+// composite never prints as the empty string the way it would if String()
+// read ImportID alone.
+func (b Binding) identityDisplay() string {
+	if b.ImportID == "" && len(b.IdentityValues) > 0 {
+		return recordIdentityDisplay(projection.LocatedRecord{Components: b.IdentityValues})
+	}
+	return b.ImportID
 }
 
 // SlotOrigin says where a declared count instance's slot came from.
