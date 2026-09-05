@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -53,6 +55,19 @@ func seedCurrentIdentity(t *testing.T, store *projection.RecordStore, addr strin
 	t.Helper()
 	if _, err := projection.SeedLocatedForInstance(t.Context(), store, mustAddr(t, addr), recordOrphanProviderAddr, rec); err != nil {
 		t.Fatalf("seeding the current-identity record for %s: %s", addr, err)
+	}
+}
+
+// seedTombstone writes the record a replace's own write-back leaves behind
+// alongside the current identity: this address's apply destroyed THIS
+// object. [projection.SeedTombstoneForInstance] round-trips the same
+// envelope member [projection.supersedeIdentity] writes on a replace and
+// [projection.RecordStore.tombstone] writes on a destroy, so what these
+// tests read back is the real wire shape rather than a stand-in.
+func seedTombstone(t *testing.T, store *projection.RecordStore, addr string, rec projection.TombstoneRecord) {
+	t.Helper()
+	if err := projection.SeedTombstoneForInstance(t.Context(), store, mustAddr(t, addr), rec); err != nil {
+		t.Fatalf("seeding the tombstone for %s: %s", addr, err)
 	}
 }
 
@@ -125,6 +140,7 @@ func TestDiscover_supersededScalarBindsTheRecordedObject(t *testing.T) {
 
 	rawStore, seedStore := supersededHintStore(t, estateName)
 	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+	seedTombstone(t, seedStore, `aws_vpc.main`, projection.TombstoneRecord{ImportID: "vpc-old"})
 
 	addr := mustAddr(t, `aws_vpc.main`)
 	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
@@ -174,6 +190,7 @@ func TestDiscover_supersededRecordBackedScalarStaysSilent(t *testing.T) {
 
 	rawStore, seedStore := supersededHintStore(t, estateName)
 	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+	seedTombstone(t, seedStore, `aws_vpc.main`, projection.TombstoneRecord{ImportID: "vpc-old"})
 
 	addr := mustAddr(t, `aws_vpc.main`)
 	res, diags := discoverFixture(t, cloud, Request{
@@ -193,6 +210,136 @@ func TestDiscover_supersededRecordBackedScalarStaysSilent(t *testing.T) {
 	if got := displacedIDs(res); len(got) != 1 || got[0] != "vpc-old" {
 		t.Errorf("the superseded object was not reported as displaced (got %v):\n%s", got, res)
 	}
+}
+
+// TestDiscover_supersededLiveDuplicateWithNoTombstoneRefuses is GitHub
+// issue #670's own headline, and the refusal the record-first prune took
+// away. The input is the one the prune cannot otherwise read: the record
+// names vpc-new and vpc-new is live, and a SECOND, genuinely live object
+// wears the same estate and address marker. Nothing in the record says that
+// second object is dead, because nothing destroyed it.
+//
+// "The record names someone else" is true of a terminated shadow and of a
+// live duplicate alike, so it cannot be what a prune turns on. This must
+// refuse, by the rendered summary and by the identities the refusal names -
+// binding past it would leave a live, marked object that nothing in the run
+// reads, changes, destroys or even mentions.
+func TestDiscover_supersededLiveDuplicateWithNoTombstoneRefuses(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-duplicate", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+
+	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
+	if !diags.HasErrors() {
+		t.Fatalf("a second LIVE resource wearing this address's marker was resolved away with nothing recording it as destroyed:\n%s", res)
+	}
+	// The rendered summary, not a kind constant: this is the string an
+	// operator reads, and it is the one #643's change replaced with a
+	// warning.
+	var summaries []string
+	for _, d := range diags {
+		if d.Severity() == tfdiags.Error {
+			summaries = append(summaries, d.Description().Summary)
+		}
+	}
+	if len(summaries) != 1 || summaries[0] != "Two live resources claiming one address" {
+		t.Fatalf("the run failed with %v, want exactly [Two live resources claiming one address]", summaries)
+	}
+
+	problems := res.ProblemsOfKind(ProblemCollision)
+	if len(problems) != 1 {
+		t.Fatalf("want exactly one collision problem for a live duplicate, got:\n%s", res)
+	}
+	// BY VALUE: the refusal must name both live objects, since the whole
+	// point is that this run cannot tell which of them the address owns.
+	if got := sortedStrings(problems[0].LiveIDs); fmt.Sprint(got) != fmt.Sprint([]string{"vpc-duplicate", "vpc-new"}) {
+		t.Errorf("the collision names %v, want both live objects [vpc-duplicate vpc-new]", got)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("something bound despite an unresolved live duplicate:\n%s", res)
+	}
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("a live duplicate was reported as a displaced marker (%v), which says nothing is proposed for it while it is live and marked:\n%s", got, res)
+	}
+}
+
+// TestDiscover_supersededCountLiveDuplicateWithNoTombstoneRefuses is the
+// test above on the count path, which is where corpus-ec2-instance-complete
+// measured the loss: a second live member carrying the same slot as the
+// recorded one. The prune runs before [bindCountBlock] classifies the set,
+// so a claimant dropped here changes which binder runs at all - which is
+// exactly why an un-tombstoned one must not be dropped.
+func TestDiscover_supersededCountLiveDuplicateWithNoTombstoneRefuses(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.slotted("eipalloc-duplicate", "0")
+	cloud.slotted("eipalloc-new", "0")
+
+	rawStore, seedStore := supersededHintStore(t, countEstate)
+	seedCurrentIdentity(t, seedStore, `aws_eip.pool[0]`, projection.LocatedRecord{ImportID: "eipalloc-new"})
+
+	res, diags := discoverCountWith(t, cloud, 1, Request{HintStore: rawStore})
+	if !diags.HasErrors() {
+		t.Fatalf("a second LIVE count member wearing the recorded member's slot was resolved away with nothing recording it as destroyed:\n%s", res)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a count member bound despite a live duplicate:\n%s", res)
+	}
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("a live duplicate count member was reported as a displaced marker (%v):\n%s", got, res)
+	}
+}
+
+// TestDiscover_supersededShadowIsPrunedOnlyWithATombstone is the pair to the
+// two above, and the reason the fix is a recording rather than a refusal:
+// the SAME two-claimant shape, with the estate's own record saying it
+// destroyed vpc-old, must still bind vpc-new and still report vpc-old - the
+// day2_replace behaviour issue #643 landed, unchanged.
+//
+// It differs from TestDiscover_supersededScalarBindsTheRecordedObject in
+// exactly one line, the tombstone seed, so the two together are the control
+// pair: same cloud, same record, opposite outcomes, and the tombstone is the
+// only difference between them.
+func TestDiscover_supersededShadowIsPrunedOnlyWithATombstone(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+	seedTombstone(t, seedStore, `aws_vpc.main`, projection.TombstoneRecord{ImportID: "vpc-old"})
+
+	addr := mustAddr(t, `aws_vpc.main`)
+	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
+	assertNoErrors(t, diags)
+
+	b, bound := res.BindingFor(addr)
+	if !bound {
+		t.Fatalf("%s did not bind at all:\n%s", addr, res)
+	}
+	if b.ImportID != "vpc-new" {
+		t.Errorf("%s bound to %q, want the object the record names, vpc-new", addr, b.ImportID)
+	}
+	if got := displacedIDs(res); len(got) != 1 || got[0] != "vpc-old" {
+		t.Fatalf("the tombstoned shadow was not reported as displaced (got %v):\n%s", got, res)
+	}
+	// The report must say WHY this one was dropped, not merely that it was:
+	// an operator reading it has to be able to tell a superseded object from
+	// a duplicate the run refused on.
+	problems := res.ProblemsOfKind(ProblemDisplacedMarker)
+	if !strings.Contains(problems[0].Detail, "destroyed by an earlier apply of this estate") {
+		t.Errorf("the displaced report does not say the object was recorded destroyed:\n%s", problems[0].Detail)
+	}
+}
+
+// sortedStrings is a copy of in, sorted, so a test asserts on a set the
+// scan does not promise an order for without mutating what it was given.
+func sortedStrings(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
 }
 
 // TestDiscover_supersededScalarRecordMatchingNeitherStillCollides is the
@@ -257,6 +404,7 @@ func TestDiscover_supersededCountMemberBindsTheRecordedObject(t *testing.T) {
 
 	rawStore, seedStore := supersededHintStore(t, countEstate)
 	seedCurrentIdentity(t, seedStore, `aws_eip.pool[0]`, projection.LocatedRecord{ImportID: "eipalloc-new"})
+	seedTombstone(t, seedStore, `aws_eip.pool[0]`, projection.TombstoneRecord{ImportID: "eipalloc-shadow"})
 
 	res, diags := discoverCountWith(t, cloud, 1, Request{HintStore: rawStore})
 	assertNoErrors(t, diags)
@@ -516,17 +664,49 @@ func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 		claimants []string
 		// deposed is what the crashed apply's own write-back recorded
 		// alongside rec, keyed by deposed key.
-		deposed     map[string]projection.DeposedRecord
+		deposed map[string]projection.DeposedRecord
+		// tombstones is what a replace's own write-back recorded
+		// alongside rec: the identities this estate's apply destroyed.
+		tombstones  []string
 		wantKept    []string
 		wantReports int
 	}{
-		{name: "exactly one match prunes the other", rec: projection.LocatedRecord{ImportID: "vpc-new"}, wantKept: []string{"vpc-new"}, wantReports: 1},
-		{name: "no match keeps both", rec: projection.LocatedRecord{ImportID: "vpc-elsewhere"}, wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0},
-		{name: "an empty record keeps both", rec: projection.LocatedRecord{}, wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0},
+		{
+			name: "one match and a tombstone for the other prunes it",
+			rec:  projection.LocatedRecord{ImportID: "vpc-new"}, tombstones: []string{"vpc-old"},
+			wantKept: []string{"vpc-new"}, wantReports: 1,
+		},
+		{
+			// Issue #670's whole point: the record naming someone else is
+			// not evidence this claimant is dead. A second, genuinely live
+			// object wearing this address's marker produces exactly this
+			// input, and it must reach collisionProblem.
+			name:     "one match but no tombstone keeps both",
+			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
+			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
+		{
+			// A tombstone naming an object neither claimant is settles
+			// nothing either - the same "evidence for nothing" the
+			// no-match record case below is.
+			name: "a tombstone matching neither claimant keeps both",
+			rec:  projection.LocatedRecord{ImportID: "vpc-new"}, tombstones: []string{"vpc-elsewhere"},
+			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
+		{
+			name: "no match keeps both", rec: projection.LocatedRecord{ImportID: "vpc-elsewhere"}, tombstones: []string{"vpc-old"},
+			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
+		{
+			name: "an empty record keeps both", rec: projection.LocatedRecord{}, tombstones: []string{"vpc-old"},
+			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
 		{
 			// The crash window: the other claimant is a LIVE deposed
 			// object, so nothing is pruned and nothing is reported - the
-			// set is left for matchDeposedClaimant.
+			// set is left for matchDeposedClaimant. Deposed WINS over a
+			// tombstone naming the same object, because a live object
+			// awaiting destruction is the one the next apply must act on.
 			name:     "a recorded deposed claimant is kept, not pruned",
 			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
 			deposed:  map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
@@ -535,21 +715,34 @@ func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 		{
 			// A deposed record naming an object neither claimant is
 			// settles nothing: the ordinary prune stands unchanged.
-			name:     "a deposed record matching neither claimant changes nothing",
-			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
-			deposed:  map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-elsewhere"}},
-			wantKept: []string{"vpc-new"}, wantReports: 1,
+			name:       "a deposed record matching neither claimant changes nothing",
+			rec:        projection.LocatedRecord{ImportID: "vpc-new"},
+			deposed:    map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-elsewhere"}},
+			tombstones: []string{"vpc-old"},
+			wantKept:   []string{"vpc-new"}, wantReports: 1,
 		},
 		{
-			// Both at once, which is what makes the rule "matches neither"
-			// rather than "is not the survivor": a crash window whose old
-			// object's own earlier shadow is still tag-visible. The shadow
-			// is pruned; the deposed object is kept.
-			name:      "a shadow is pruned while the deposed claimant is kept",
-			rec:       projection.LocatedRecord{ImportID: "vpc-new"},
-			claimants: []string{"vpc-dead", "vpc-old", "vpc-new"},
-			deposed:   map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
-			wantKept:  []string{"vpc-old", "vpc-new"}, wantReports: 1,
+			// Both at once, which is what makes the rule "is recorded
+			// destroyed" rather than "is not the survivor": a crash window
+			// whose old object's own earlier shadow is still tag-visible.
+			// The shadow is pruned; the deposed object is kept.
+			name:       "a shadow is pruned while the deposed claimant is kept",
+			rec:        projection.LocatedRecord{ImportID: "vpc-new"},
+			claimants:  []string{"vpc-dead", "vpc-old", "vpc-new"},
+			deposed:    map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
+			tombstones: []string{"vpc-dead"},
+			wantKept:   []string{"vpc-old", "vpc-new"}, wantReports: 1,
+		},
+		{
+			// And the mixture issue #670 exists for: one claimant this
+			// estate destroyed, one it did not. The dead one is pruned and
+			// reported; the unexplained one stays, so the entry still
+			// refuses rather than binding past a live duplicate.
+			name:       "a live duplicate survives beside a pruned shadow",
+			rec:        projection.LocatedRecord{ImportID: "vpc-new"},
+			claimants:  []string{"vpc-dead", "vpc-duplicate", "vpc-new"},
+			tombstones: []string{"vpc-dead"},
+			wantKept:   []string{"vpc-duplicate", "vpc-new"}, wantReports: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -557,6 +750,9 @@ func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 			rawStore, seedStore := supersededHintStore(t, estateName)
 			if !tt.rec.Empty() {
 				seedCurrentIdentity(t, seedStore, addr, tt.rec)
+			}
+			for _, id := range tt.tombstones {
+				seedTombstone(t, seedStore, addr, projection.TombstoneRecord{ImportID: id})
 			}
 			entry := entryWith(tt.claimants...)
 			res := &Result{}

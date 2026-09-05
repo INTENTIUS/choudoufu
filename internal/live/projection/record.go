@@ -1201,23 +1201,145 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 		// independent of the envelope's current one" reasoning
 		// [deposedFields.Provider] already uses.
 		env.Provider = ""
-		if identity.empty() {
-			return
-		}
-		tk := tombstoneKey(identity)
-		if tk == "" {
-			return
-		}
-		if env.Tombstone == nil {
-			env.Tombstone = make(map[string]*tombstoneFields, 1)
-		}
-		env.Tombstone[tk] = &tombstoneFields{
-			Identity: identity,
-			Provider: providerAddr,
-			Time:     tombstoneClock().UTC().Format(time.RFC3339),
-		}
+		addTombstoneEntry(env, identity, providerAddr)
 	})
 	return err
+}
+
+// supersedeIdentity is [RecordStore.tombstone]'s rule for the address that
+// does NOT leave the final state: a replace destroys the object the record
+// named and creates another at the SAME address, so the envelope's identity
+// is overwritten in place and the delete-and-tombstone path above never
+// runs for it at all. GitHub issue #670.
+//
+// The property, not a resource type and not a plan verb: an address's
+// record names the one live object that address owns right now (the
+// foundation-order ruling (#388) item 1), it is rewritten by [WriteBack]
+// out of the state a successful apply finished with, and this estate is its
+// only writer (every write is compare-and-swap on the version the plan
+// read). So an identity this envelope carried before the apply and does not
+// carry after it is an object this estate's own apply stopped owning -
+// which, for an address the final state still has, is a destroy this run
+// performed. That is what [tombstoneFields] records, and it is recorded
+// here for the same reason it is recorded there: the destroyed object's own
+// tags stay readable through the tagging API for a time after it is gone,
+// and the next plan cannot otherwise tell that lingering tag from a second,
+// genuinely live claimant.
+//
+// It is evidence, never permission. Nothing downstream of a tombstone
+// destroys, creates, adopts or retags anything: the only thing an entry
+// unlocks is dropping a claimant out of a collision set
+// (pruneSupersededEntry and tombstoneGhostIndices, both in
+// internal/live/discovery), which is a refusal becoming a warning. So a
+// tombstone written for an object that was in fact not destroyed - a
+// hand-edited record, an import that re-pointed an address at a different
+// live object - costs a refusal this estate would otherwise have made, and
+// can reach the live system through nothing. Writing no entry is the
+// strictly louder direction, and it is what every exit below does.
+//
+// The provider recorded is the envelope's own top-level Provider as it
+// stands BEFORE the caller overwrites it, which is "the managing provider
+// instance address at the moment this envelope was last written" - the
+// provider that managed the destroyed object. A caller must therefore call
+// this before assigning env.Provider, and [writeBackRecordEnvelopes] does.
+//
+// Reports whether an entry was added.
+func supersedeIdentity(env *recordEnvelope, next *identityPayload) bool {
+	if env == nil || env.Identity.empty() || next.empty() {
+		return false
+	}
+	prevKey := tombstoneKey(env.Identity)
+	if prevKey == "" || prevKey == tombstoneKey(next) {
+		// The same object, or an identity with nothing to key an entry by.
+		// Neither is a supersession.
+		return false
+	}
+	return addTombstoneEntry(env, env.Identity, env.Provider)
+}
+
+// addTombstoneEntry is the one writer of [recordEnvelope.Tombstone], shared
+// by [RecordStore.tombstone] (the address left the final state) and
+// [supersedeIdentity] (the address stayed, wearing a different object). An
+// identity with nothing to key an entry by adds nothing, which is what
+// makes tombstone's own "reduces to exactly the delete this replaced" case
+// work.
+func addTombstoneEntry(env *recordEnvelope, identity *identityPayload, providerAddr string) bool {
+	if identity.empty() {
+		return false
+	}
+	tk := tombstoneKey(identity)
+	if tk == "" {
+		return false
+	}
+	if env.Tombstone == nil {
+		env.Tombstone = make(map[string]*tombstoneFields, 1)
+	}
+	env.Tombstone[tk] = &tombstoneFields{
+		Identity: identity,
+		Provider: providerAddr,
+		Time:     tombstoneClock().UTC().Format(time.RFC3339),
+	}
+	capTombstones(env, tk)
+	return true
+}
+
+// maxTombstonesPerAddress bounds how many destroyed identities one
+// address's record carries.
+//
+// [tombstoneFields]'s own doc comment says entries are never actively
+// expired, and that stays true of TIME: nothing reads a Time back to decide
+// an entry is too old, because "too old" would have to be guessed against a
+// lag AWS documents no bound for, and guessing short is the wrong-marker
+// direction.
+//
+// What GitHub issue #670 changed is the arrival rate. Before it an entry
+// was written once per address, when that address's last occupant was
+// destroyed and the address went away with it, so the map held one or two
+// entries over an estate's whole life. Now a replace writes one too, and an
+// address can be replaced on every apply forever - a ForceNew `name`
+// derived from a changing input is an ordinary shape - so the list is
+// unbounded where it used to be effectively fixed, and it rides in the same
+// envelope every plan reads for that instance.
+//
+// Bounding it is safe because the window an entry is USEFUL in is bounded:
+// it exists only to explain a live object's tags outliving the object,
+// which the cloud stops listing on its own, so only the most recent
+// replaces can still have a shadow in the air. An entry evicted here names
+// an object AWS stopped listing several replaces ago; if one somehow has
+// not, the estate refuses loudly rather than binding wrongly, which is the
+// direction this mechanism is allowed to fail in.
+const maxTombstonesPerAddress = 8
+
+// capTombstones evicts the oldest entries until env.Tombstone holds at most
+// [maxTombstonesPerAddress] of them. keep is the key just written and is
+// never evicted, so a hand-written entry bearing a future Time cannot push
+// out the one this pass is recording.
+//
+// Oldest is by Time, then by key: RFC 3339 as written here has no
+// sub-second component, so entries written inside one clock second tie, and
+// an entry written before Time existed at all sorts first, which is correct
+// - no time is older than every time.
+func capTombstones(env *recordEnvelope, keep string) {
+	if len(env.Tombstone) <= maxTombstonesPerAddress {
+		return
+	}
+	keys := make([]string, 0, len(env.Tombstone))
+	for tk := range env.Tombstone {
+		if tk == keep {
+			continue
+		}
+		keys = append(keys, tk)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		ti, tj := env.Tombstone[keys[i]].Time, env.Tombstone[keys[j]].Time
+		if ti != tj {
+			return ti < tj
+		}
+		return keys[i] < keys[j]
+	})
+	for i := 0; len(env.Tombstone) > maxTombstonesPerAddress && i < len(keys); i++ {
+		delete(env.Tombstone, keys[i])
+	}
 }
 
 // tombstoneClock is [tombstone]'s own time source, a package variable so a

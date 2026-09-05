@@ -634,6 +634,24 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			}
 
 			_, err := req.Store.mergeEnvelope(ctx, addr, expected, func(env *recordEnvelope) {
+				// GitHub issue #670, before env.Provider is overwritten
+				// and before the identity is: a replace leaves this
+				// address in the final state wearing a DIFFERENT object,
+				// so the delete-side tombstone loop below never sees it,
+				// and without an entry here the object this apply
+				// destroyed is merely unrecorded rather than provably
+				// dead. See [supersedeIdentity] for why the identity
+				// changing is the evidence, and for why a wrong entry
+				// costs a refusal and nothing else.
+				//
+				// clearIdentity is deliberately not a supersession: it
+				// means this pass could not ask the schema whether the
+				// type carries a recordable identity at all, which is a
+				// fact about this run's provider access, not about the
+				// object.
+				if setIdentity != nil {
+					supersedeIdentity(env, setIdentity)
+				}
 				env.Provider = providerString(res.ProviderConfig)
 				switch {
 				case setIdentity != nil:
