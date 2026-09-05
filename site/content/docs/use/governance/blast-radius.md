@@ -57,7 +57,7 @@ the behaviour against your own policy before relying on it.
 
 The condition is only evaluated where AWS evaluates it, and a resource can only
 carry a marker if its type takes tags.
-[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has both bounds.
+[Where AWS honours the condition]({{< relref "/docs/use/governance/reach" >}}) has both bounds.
 
 This is a guardrail, not a substitute for separate accounts. It narrows what a
 mistake can reach inside an account. Production in its own account remains the

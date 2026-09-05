@@ -139,6 +139,7 @@ class RunState:
     last_ts: datetime | None
     previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
     record_store: dict = dataclasses.field(default_factory=dict)     # {estate: [address,...]} from .tofu-records, from the receipt event
+    cloudtrail_available: bool | None = None   # None = no receipt phase seen yet; False = ran against an emulator
 
     @property
     def active_phase(self) -> Phase | None:
@@ -148,11 +149,9 @@ class RunState:
         return None
 
     def live_estate_of(self, key: str) -> str | None:
-        """The estate a resource's LIVE tofu-estate tag names, with no
-        fallback to the config that declares it. None means no live tag has
-        placed it yet (a staged config, a resource before its inventory), so
-        the map draws it neutral instead of guessing its config's colour.
-        Untaggable children take their parent's live answer."""
+        """The estate a resource's LIVE tofu-estate tag names, no fallback to
+        the config that declares it. None = not yet placed, so the map draws
+        it neutral. Untaggable children take their parent's live answer."""
         r = self.resources.get(key) or self.by_address.get(key)
         if r is None or r.gone:
             return None
@@ -309,6 +308,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     notes: list[tuple[str, str]] = []
     previews: list[dict] = []
     record_store: dict = {}
+    cloudtrail_available: bool | None = None
     seen = 0
     last_ts = None
     current_phase = ""
@@ -462,6 +462,8 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
             if isinstance(_store, dict):
                 record_store = _store
             ct = rec.get("cloudtrail") or {}
+            if "available" in ct:
+                cloudtrail_available = bool(ct.get("available"))
             for e in ct.get("events") or []:
                 _arn = e.get("role") or e.get("userIdentity.arn") or ""
                 who = (_arn.split("assumed-role/")[-1].split("/")[0] if "assumed-role/" in _arn
@@ -502,7 +504,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         for e in (pv.get("from_estate"), pv.get("to_estate")):
             if e and e not in estates:
                 estates.append(e)
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available)
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
@@ -552,11 +554,23 @@ def _esc(s: object) -> str:
     return html.escape(str(s), quote=True)
 
 
-def render_map_svg(state: RunState, width: int = 640) -> str:
+def render_map_svg(state: RunState, width: int = 640, *, before: "RunState | None" = None, ghost: bool = False) -> str:
     """The estate-ownership map: one row per team, one cell per resource,
     colour by live estate, an outline around each run of cells one estate
-    holds, children drawn with a tie to their parent."""
+    holds, children drawn with a tie to their parent.
+
+    ``ghost`` renders a plan, not a fact: every cell dashed and dimmed
+    regardless of type, so a caller showing ``project(state)`` (the map as
+    it would stand after the previewed moves) can never be mistaken for the
+    live map, which stays the only place a solid colour means "this is
+    true now". ``before`` marks the moment-to-moment story of a phase
+    actually running: any resource whose live estate differs between
+    ``before`` and ``state`` gets a bright outline, so a cell that just
+    changed owner is the one thing the eye is drawn to."""
     colours = _colours(state)
+    changed: set[str] = set()
+    if before is not None:
+        changed = {r.key for r in state.resources.values() if before.live_estate_of(r.key) != state.live_estate_of(r.key)}
     teams = sorted({r.team for r in state.resources.values()})
     if not teams:
         return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="60"><text x="12" y="36" fill="currentColor" fill-opacity="0.5" font-family="ui-monospace, monospace" font-size="13">the map fills in when setup runs</text></svg>'
@@ -591,13 +605,20 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         positions: dict[str, int] = {}
         for r in rs:
             e = state.live_estate_of(r.key)
-            unseen = e is None            # no live tag yet: neutral, not gone
+            unseen = e is None
             c = "#9ca3af" if (r.gone or unseen) else colours.get(e or "", "#9ca3af")
             positions[r.address] = x
-            dash = ' stroke-dasharray="4 3"' if (not r.taggable or r.gone) else ""
-            title = f"{r.address} · {'gone' if r.gone else (e or 'not yet placed')}"
+            dash = ' stroke-dasharray="4 3"' if (ghost or not r.taggable or r.gone) else ""
+            title = f"{r.address} · {'gone' if r.gone else (e or 'not yet placed')}" + (" · planned" if ghost else "")
             op = 0.06 if r.gone else 0.18 if (unseen or not r.taggable) else 0.35
+            if ghost:
+                op *= 0.6
             out.append(f'<rect x="{x}" y="{y + 12}" width="{cell - 8}" height="{cell - 14}" rx="6" fill="{c}" fill-opacity="{op}" stroke="{c}" stroke-width="1.5"{dash}><title>{_esc(title)}</title></rect>')
+            if r.key in changed:
+                # A resource whose live estate just moved: an outer glow ring
+                # so the eye finds the thing that changed since the last poll,
+                # not just the cell's final colour.
+                out.append(f'<rect x="{x - 3}" y="{y + 9}" width="{cell - 2}" height="{cell - 8}" rx="8" fill="none" stroke="#22c55e" stroke-width="2.5" opacity="0.9"><title>{_esc(r.address)} just moved</title></rect>')
             out.append(f'<text x="{x + (cell - 8) / 2}" y="{y + 12 + (cell - 14) / 2 + 4}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="{0.4 if r.gone else 1}">{_esc(SHORT.get(r.type, r.type.split("_")[-1].split(":")[-1]))}</text>')
             x += cell + gap
         for r in rs:
@@ -607,8 +628,8 @@ def render_map_svg(state: RunState, width: int = 640) -> str:
         y += rowh
     # legend
     lx = pad
-    _live_estates = [e for e in state.estates if any(state.live_estate_of(r.key) == e for r in state.resources.values())]
-    for e in _live_estates:
+    _live = [e for e in state.estates if any(state.live_estate_of(r.key) == e for r in state.resources.values())]
+    for e in _live:
         c = colours.get(e, "#9ca3af")
         n = sum(1 for r in state.resources.values() if state.live_estate_of(r.key) == e)
         out.append(f'<rect x="{lx}" y="{y + 6}" width="12" height="12" rx="3" fill="{c}"/>')
@@ -953,8 +974,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
     Empty when the beat left nothing to say yet."""
     # The renamed workflow verbs measure the same work as the demo's beats,
     # so map them onto the beat whose payoff sentence fits: survey is the
-    # baseline plan, verify the fast plan, move the carve.
-    name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve"}.get(name, name)
+    # baseline plan, verify the fast plan, move the carve, seed the setup.
+    name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve", "seed": "setup"}.get(name, name)
     counts = _counts(after)
     mono = next((e for e in after.estates if e.endswith("-monolith")), None)
     teams = [e for e in after.estates if e != mono]
@@ -991,6 +1012,13 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
             left = counts.get(mono, 0) if mono else 0
             return f"{len(held)} team estates hold {sum(counts[e] for e in held)} resources; the monolith holds {left}. Nothing was re-created and no state file was split."
         return ""
+    if name == "preview":
+        if not after.previews:
+            return ""
+        refused = sum(1 for pv in after.previews if pv.get("refusal"))
+        if refused:
+            return f"{len(after.previews)} moves previewed, {refused} refused: read them as findings, not failures. Nothing is written yet."
+        return f"{len(after.previews)} moves previewed, every check passed. Nothing is written yet."
     if name == "carve":
         if before is None:
             return ""
@@ -998,7 +1026,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
                  if before.estate_of(r.key) and after.estate_of(r.key) and before.estate_of(r.key) != after.estate_of(r.key)]
         if moved:
             dests = sorted({short(d) for _, _, d in moved})
-            return f"{len(moved)} resources changed owner into {', '.join(dests)} by tag write alone; their untaggable children followed the parent's tag without a write."
+            return (f"{len(moved)} resources changed owner into {', '.join(dests)} by tag write alone; their untaggable children followed the parent's tag without a write. "
+                    "No state file was read, written or locked to do it -- there is no lock to contend for, because there is nothing a lock protects.")
         return ""
     if name == "guard":
         v = next((v for v in reversed(after.verdicts) if str(v.get("name", "")).startswith("carve")), None)
@@ -1011,6 +1040,8 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
             refused = sum(1 for r in rows if r.ok is False)
             return (f"{len(rows)} writes in the account's own log, each naming who made it"
                     + (f", {refused} refused with the session named" if refused else "") + ". No state file could produce that record.")
+        if after.cloudtrail_available is False:
+            return "CloudTrail is not available against floci; this record only exists against a real account."
         return ""
     if name == "teardown":
         v = next((v for v in reversed(after.verdicts) if v.get("name") == "teardown"), None)

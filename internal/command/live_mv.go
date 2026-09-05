@@ -99,10 +99,38 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 	})
 	diags = diags.Append(moveDiags)
 
-	if !diags.HasErrors() && res != nil {
+	switch {
+	case args.JSON:
+		// Unlike the human report below, this renders on every path past
+		// this point, not only a clean success: GitHub issue #791 asks for
+		// the move as one document "with and without -dry-run", and a
+		// refusal is exactly the other half of what a preview or a receipt
+		// reader needs to show - see views.StatelessMvJSONReport's own doc
+		// comment. res can be nil here (liveMv failed before mv.Move ever
+		// ran - a bad estate name, a lint refusal, an identity resolution
+		// that never settled), and liveMvJSONReport degrades to the two
+		// addresses this run was given and whatever diags says, exactly the
+		// way the case below already tolerates res == nil by skipping the
+		// human report entirely.
+		views.NewStatelessMvJSON(c.View).Report(liveMvJSONReport(res, diags, oldAddr, newAddr, args.DryRun))
+	case !diags.HasErrors() && res != nil:
 		views.NewStatelessMv(c.View).Report(liveMvReport(res))
 	}
-	c.View.Diagnostics(diags)
+	if args.JSON {
+		// The ordinary Diagnostics call below sends warnings to Stdout by
+		// design, so that they read alongside the human report they
+		// annotate - but -json's Stdout is the one document above, and a
+		// warning landing there too (the "Configuration still naming the
+		// old address" -allow-missing-config warning, or mover.verify's
+		// "Unreadable marker after the rewrite" when a provider does not
+		// serve tags back on the read) would corrupt it. See
+		// [views.View.DiagnosticsToStderr]'s own doc comment; what the
+		// warning would have said is not lost, only moved - Verified in the
+		// document above says the same thing "Unreadable marker" would have.
+		c.View.DiagnosticsToStderr(diags)
+	} else {
+		c.View.Diagnostics(diags)
+	}
 	if diags.HasErrors() {
 		return 1
 	}
@@ -404,6 +432,84 @@ func liveMvFoundBy(res *mv.Result) string {
 	}
 }
 
+// liveMvJSONReport builds -json's single document (GitHub issue #791) from
+// whatever this run got: res may be nil (liveMv failed before mv.Move ran
+// at all), and diags may or may not carry one of mv.RefusalCode's five
+// stable shapes. old and new are the two addresses as parsed from the
+// command line, which is all this can report when res is nil - they are
+// what liveMv was called with, not what a live resource turned out to
+// carry.
+//
+// Unlike liveMvReport, this is called on every path once the two addresses
+// parse, refusal included: the whole point of a stable JSON document is
+// that a preview reads the same shape whether the rename it describes
+// happened or was refused, rather than a caller having to fall back to
+// stderr parsing the moment something goes wrong.
+func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.AbsResourceInstance, dryRun bool) views.StatelessMvJSONReport {
+	rep := views.StatelessMvJSONReport{
+		From:   views.StatelessMvJSONEndpoint{Address: old.String()},
+		To:     views.StatelessMvJSONEndpoint{Address: new.String()},
+		DryRun: dryRun,
+	}
+
+	if res != nil {
+		fromEstate := res.FromEstate
+		if fromEstate == "" {
+			fromEstate = res.Estate
+		}
+		rep.Resource = views.StatelessMvJSONResource{
+			TypeName:    res.TypeName,
+			LiveID:      res.LiveID,
+			DisplayName: res.DisplayName,
+		}
+		rep.From = views.StatelessMvJSONEndpoint{Estate: fromEstate, Address: res.Old.String(), Marker: res.OldMarker}
+		rep.To = views.StatelessMvJSONEndpoint{Estate: res.Estate, Address: res.New.String(), Marker: res.NewMarker}
+		rep.Followers = liveMvJSONFollowers(res.Followers)
+		rep.DryRun = res.DryRun
+		rep.Written = res.Written
+		rep.Verified = res.Verified
+		rep.FoundBy = string(res.Path)
+	}
+
+	if code, diag, ok := mv.CodedRefusal(diags); ok {
+		rep.Refusal = &views.StatelessMvJSONRefusal{
+			Code:    string(code),
+			Summary: diag.Description().Summary,
+			Detail:  diag.Description().Detail,
+		}
+	} else if diags.HasErrors() {
+		// A refusal outside the five stable shapes still gets a document:
+		// Code stays empty, but a JSON reader is never left to fall back to
+		// stderr just because this run's error was a lint failure or a
+		// provider hiccup rather than one of the five mv.RefusalCode names.
+		for _, d := range diags {
+			if d.Severity() != tfdiags.Error {
+				continue
+			}
+			rep.Refusal = &views.StatelessMvJSONRefusal{
+				Summary: d.Description().Summary,
+				Detail:  d.Description().Detail,
+			}
+			break
+		}
+	}
+
+	return rep
+}
+
+// liveMvJSONFollowers unpacks mv.Result.Followers into the JSON shape,
+// nil-safe so an anchor with none reports an omitted key rather than [].
+func liveMvJSONFollowers(followers []mv.Follower) []views.StatelessMvJSONFollower {
+	if len(followers) == 0 {
+		return nil
+	}
+	out := make([]views.StatelessMvJSONFollower, len(followers))
+	for i, f := range followers {
+		out[i] = views.StatelessMvJSONFollower{Address: f.Addr.String(), TypeName: f.TypeName}
+	}
+	return out
+}
+
 func (c *LiveMvCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
@@ -463,6 +569,15 @@ Options:
   -allow-missing-config   Permit a destination address that the configuration
                           does not declare, for a rename whose configuration
                           edit has not happened yet.
+
+  -json                   Print the move as one JSON document instead of the
+                          labelled report: the resource, both endpoints
+                          (unescaped address and escaped marker), the
+                          children that follow with no write of their own,
+                          and, on a refusal, a stable code alongside the
+                          text. Prints on -dry-run too, and on a refusal -
+                          the one case the labelled report never renders at
+                          all.
 
   -no-color               If specified, output won't contain any color.
 

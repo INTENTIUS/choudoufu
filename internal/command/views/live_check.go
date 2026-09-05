@@ -6,6 +6,7 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -74,6 +75,51 @@ type LiveCheckReport struct {
 	// clean verdict it now describes is still worth calling out by name
 	// rather than folding into an unqualified "nothing is refused".
 	OnlyBackendRemains bool
+
+	// Estate is the name this configuration's own "live" block declares,
+	// when it declares one and sets the argument - [check.Report.Estate]
+	// passed straight through. Empty for most directories this command
+	// runs against, since it runs with no live block by design. Printed
+	// only by -json (see [LiveCheckJSON.Report]): the human report has
+	// never named the estate, and #790 does not ask it to start.
+	Estate string
+
+	// InstanceRoster and References are GitHub issue #790's declared
+	// roster: every instance this analysis named an address for
+	// ([check.Report.Roster]), and every cross-estate data-source edge
+	// live/OUTPUTS.md's pattern describes ([check.Report.References]).
+	// Both are empty in the human report - [LiveCheckJSON.Report] is their
+	// sole reader - because the text report already carries the same facts
+	// one summarized count at a time (Instances above, and the Findings a
+	// refused instance falls under) and #790 asks for a per-instance
+	// restatement in JSON, not a new paragraph in the prose.
+	InstanceRoster []LiveCheckInstance
+	References     []LiveCheckReference
+}
+
+// LiveCheckInstance is one declared address in #790's roster: an
+// [check.Instance] shaped for JSON, with the field names the issue's own
+// Ask fixes ("instances[]: address, type, rung ..., and for a refused
+// instance the rule and the reason").
+type LiveCheckInstance struct {
+	Address string `json:"address"`
+	Type    string `json:"type,omitempty"`
+	Rung    string `json:"rung,omitempty"`
+	Refused bool   `json:"refused,omitempty"`
+	Rule    string `json:"rule,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// LiveCheckReference is one cross-estate edge: a [check.Reference] shaped
+// for JSON, with the field names the issue's own Ask fixes ("references[]:
+// every data source whose filters name tag:tofu-estate ..., as {from,
+// estate, address}, plus the resources in this configuration that read
+// it").
+type LiveCheckReference struct {
+	From    string   `json:"from"`
+	Estate  string   `json:"estate"`
+	Address string   `json:"address,omitempty"`
+	ReadBy  []string `json:"read_by,omitempty"`
 }
 
 // LiveCheckFinding is one refusal and where it fired.
@@ -136,9 +182,16 @@ type LiveCheck interface {
 	Report(rep LiveCheckReport)
 }
 
-// NewLiveCheck returns the human-readable implementation. There is no JSON
-// implementation: the other consumer of this analysis, tools/corpus-gen,
-// calls internal/live/check directly rather than parsing command output.
+// NewLiveCheck returns the human-readable implementation.
+//
+// There was no JSON implementation before GitHub issue #790: the other
+// consumer of this analysis, tools/corpus-gen, calls internal/live/check
+// directly rather than parsing command output, and nothing outside this
+// repository had a reason to run the binary at all. #790 is that reason -
+// behold, named in the issue, draws an estate as boxes with cross-member
+// edges and parses no HCL of its own by design, so it needs the compiler's
+// own output the way a chant project's compiler already gives it one. See
+// [NewLiveCheckJSON].
 func NewLiveCheck(view *View) LiveCheck {
 	return &LiveCheckHuman{view: view}
 }
@@ -316,6 +369,94 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	}
 
 	v.view.streams.Print(b.String())
+}
+
+// liveCheckDocument is what -json actually prints: GitHub issue #790's
+// contract, not this package's. The field names and nesting are what a
+// caller outside this repository parses, so they are fixed by the issue's
+// own Ask ("instances[]: address, type, rung ..."; "references[]: ...
+// {from, estate, address}") rather than chosen for symmetry with
+// [LiveCheckReport]'s own field names, which the human report already
+// fixed for a different reason before #790 existed.
+type liveCheckDocument struct {
+	Dir      string `json:"dir"`
+	Estate   string `json:"estate,omitempty"`
+	Blocked  bool   `json:"blocked"`
+	ExitCode int    `json:"exit_code"`
+
+	Instances  []LiveCheckInstance  `json:"instances"`
+	References []LiveCheckReference `json:"references"`
+
+	// Checked, Partial and Unchecked are #790's own "what was not checked
+	// (stamping, discovery, projection) ... so a consumer cannot read a
+	// clean roster as a promise" - the identical strings [LiveCheckHuman.
+	// Report] prints under "Checked:"/"Partly checked:"/"Not checked:",
+	// including Partial's own embedded refusal counts ("projection (2 of
+	// 27 refusals; the rest need a cloud)"). Reusing them rather than
+	// re-deriving a JSON-shaped equivalent is what makes the "Done when"
+	// clause - "the text and JSON agree on every count" - true by
+	// construction instead of by two authors remembering to agree.
+	Checked   []string `json:"checked"`
+	Partial   []string `json:"partial,omitempty"`
+	Unchecked []string `json:"unchecked,omitempty"`
+}
+
+// LiveCheckJSON is the machine-readable implementation GitHub issue #790
+// adds. See [NewLiveCheckJSON].
+type LiveCheckJSON struct {
+	view *View
+}
+
+var _ LiveCheck = (*LiveCheckJSON)(nil)
+
+// NewLiveCheckJSON returns #790's roster writer: the same [LiveCheckReport]
+// [LiveCheckHuman] renders as prose, marshaled instead as the document
+// [liveCheckDocument] shapes. No cloud call happens here either - it
+// renders exactly the [check.Report] [LiveCheckCommand.liveCheck] already
+// computed, the same as the human path.
+func NewLiveCheckJSON(view *View) *LiveCheckJSON {
+	return &LiveCheckJSON{view: view}
+}
+
+// Report marshals rep as one JSON document and prints it, newline-
+// terminated. Instances and References are never nil in the printed
+// document even when empty - encoding/json renders a nil slice as `null`,
+// and a roster reading "null" rather than "[]" would make a caller check
+// for a case that is not actually different from zero entries.
+func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
+	exitCode := 0
+	if rep.Blocked {
+		exitCode = 1
+	}
+	doc := liveCheckDocument{
+		Dir:        rep.Dir,
+		Estate:     rep.Estate,
+		Blocked:    rep.Blocked,
+		ExitCode:   exitCode,
+		Instances:  rep.InstanceRoster,
+		References: rep.References,
+		Checked:    rep.Checked,
+		Partial:    rep.Partial,
+		Unchecked:  rep.Unchecked,
+	}
+	if doc.Instances == nil {
+		doc.Instances = []LiveCheckInstance{}
+	}
+	if doc.References == nil {
+		doc.References = []LiveCheckReference{}
+	}
+
+	encoded, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		// Every field above is a plain string, bool, int or slice of the
+		// same - nothing this package ever hands MarshalIndent can fail to
+		// encode, so this is defensive rather than a real path a test can
+		// drive. Printing what json/encoding says beats silently emitting
+		// nothing for a command whose whole contract is "prints a document".
+		v.view.streams.Print(fmt.Sprintf("{\"error\": %q}\n", err.Error()))
+		return
+	}
+	v.view.streams.Print(string(encoded) + "\n")
 }
 
 // varPhrase renders variable names as prose: "var.account_id", or

@@ -38,6 +38,15 @@ type LiveMv struct {
 	// AllowMissingConfig permits a destination address the configuration does
 	// not declare, for a rename whose configuration edit has not happened yet.
 	AllowMissingConfig bool
+
+	// JSON asks for the move as one document rather than the labelled-rows
+	// report - GitHub issue #791. Everything the human report already says
+	// is in it, plus what only this flag exposes: the followers that move
+	// with no write of their own, a refusal's stable code alongside its
+	// text, and (on a real write) whatever the provider handed back for a
+	// receipt to match against. See internal/command/views/live_mv.go's
+	// StatelessMvJSONReport.
+	JSON bool
 }
 
 // ParseLiveMv processes CLI arguments, returning a LiveMv value and errors.
@@ -64,6 +73,7 @@ func ParseLiveMv(args []string) (*LiveMv, tfdiags.Diagnostics) {
 	cmdFlags.StringVar(&liveMv.FromEstate, "from-estate", "", "from estate")
 	cmdFlags.BoolVar(&liveMv.DryRun, "dry-run", false, "dry run")
 	cmdFlags.BoolVar(&liveMv.AllowMissingConfig, "allow-missing-config", false, "allow missing config")
+	cmdFlags.BoolVar(&liveMv.JSON, "json", false, "json")
 	cmdFlags.BoolVar(&input, "input", true, "input")
 
 	// Neither refusal below repeats the usage line. The command answers an

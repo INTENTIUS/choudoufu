@@ -7,19 +7,22 @@ weight: 6
 
 ## Where the key is confirmed
 
-{{< iamref field="named-count" >}} of {{< iamref field="services-count" >}} services in AWS's Service
-Authorization Reference name `aws:ResourceTag` on their tagging
-action. That is a lower bound. The reference is authoritative about what it
-names and silent about what it omits, and AWS documents tag-based
-authorization for services it says nothing about, Lambda among them.
+AWS's own Service Authorization Reference is a floor here, not a ceiling: it
+is authoritative about the services it explicitly names and silent about
+the rest, and AWS documents tag-based authorization for services this
+reference says nothing about, Lambda among them.
+{{< iamref field="named-count" >}} of {{< iamref field="services-count" >}}
+services explicitly name `aws:ResourceTag` on their tagging action -
+the confirmed count, not the working count.
 
 {{< iamref field="named" >}}
 
 ### Services with no verdict
 
-The reference states nothing either way for these. Check them against AWS's
-own IAM documentation and test the policy. This is not a list of services where
-scoping fails.
+The reference states nothing either way for these - S3, IAM and RDS among
+them. Check them against AWS's own IAM documentation and test the policy
+directly; this is not a list of services where scoping fails, only a list
+this particular reference doesn't cover.
 
 {{< iamref field="unnamed" >}}
 

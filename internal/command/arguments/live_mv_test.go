@@ -35,6 +35,10 @@ func TestParseLiveMv_valid(t *testing.T) {
 			[]string{"-allow-missing-config", "aws_vpc.old", "aws_vpc.new"},
 			LiveMv{AllowMissingConfig: true, RawOldAddr: "aws_vpc.old", RawNewAddr: "aws_vpc.new"},
 		},
+		"json": {
+			[]string{"-json", "aws_vpc.old", "aws_vpc.new"},
+			LiveMv{JSON: true, RawOldAddr: "aws_vpc.old", RawNewAddr: "aws_vpc.new"},
+		},
 		"from estate, same address": {
 			[]string{"-from-estate=monolith", "aws_vpc.main", "aws_vpc.main"},
 			LiveMv{FromEstate: "monolith", RawOldAddr: "aws_vpc.main", RawNewAddr: "aws_vpc.main"},

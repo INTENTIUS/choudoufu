@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -439,7 +440,12 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 		{[]string{"-out=tfplan"}, "Saved plan files are not available under live resource markers"},
 		{[]string{"-state=other.tfstate"}, "State file options are not available under live resource markers"},
 		{[]string{"-destroy"}, "Only the normal planning mode is available under live resource markers yet"},
-		{[]string{"-json"}, "Machine-readable output is not available under live resource markers yet"},
+		// -json is deliberately absent from this table: GitHub issue #788
+		// gave it a document of its own instead of a refusal - see
+		// TestLivePlan_jsonDocument below, this table's opposite number.
+		// -json-into stays refused, and TestStatelessRejections_surfacesAgree
+		// (live_rejections_test.go) already covers that exhaustively at the
+		// statelessRejections level, so it is not repeated here.
 	} {
 		t.Run(tc.args[0], func(t *testing.T) {
 			cloud := newStatelessTestCloud()
@@ -454,6 +460,152 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 				t.Errorf("wrong diagnostic for %s:\n%s", tc.args[0], output.Stderr())
 			}
 		})
+	}
+}
+
+// TestLivePlan_jsonDocument is GitHub issue #788's "Done when": -json
+// produces one [views.LivePlanDocument] whose three sections - bound,
+// omissions, unowned - agree with the SAME run's own human-mode text, over
+// a plan that genuinely exercises all three at once rather than one at a
+// time the way the sibling tests above each do.
+//
+// This drives the existing "live-plan" fixture and mock cloud
+// (newLivePlanCommand/newStatelessTestCloud, this file's own harness -
+// TestLivePlan_unownedNameIsNotAdopted and
+// TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider are this test's
+// own two halves, combined into one run) rather than live/e2e/estate
+// directly: live/e2e/estate's ~30 real AWS resource types have no entry in
+// statelessTestIdentitySchemas/statelessTestSchemas (six types, hand-built
+// for the fixtures this package already uses), and building a plannable
+// mock schema for all of them - identity fields, nested blocks, every
+// attribute every one of that fixture's 20 files references - is a
+// disproportionate undertaking for one test, with a real risk of a subtly
+// wrong fake schema hiding a real bug rather than proving anything. That
+// fixture's own identity-resolution coverage is exercised directly,
+// without a mock cloud, by TestLivePlan_estateName's subtests
+// (statelessTestLoadConfig(t, "../../live/e2e/estate")). What this test
+// proves - the JSON document's three sections agree with the text's own
+// counts and content, over a run that exercises all three - is the same
+// claim regardless of which admitted fixture produces the data.
+func TestLivePlan_jsonDocument(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	// The bucket: somebody else's object at the name this configuration
+	// declares, no ownership marker at all - TestLivePlan_unownedNameIsNotAdopted's
+	// own setup. Client-named, so the projection reads it back directly
+	// with no sweep involved; being unowned keeps it out of prior state,
+	// so it is both this run's one "unowned" entry and (since nothing
+	// materialized it) its one "omission".
+	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+	// The VPC: this estate's own object, found and bound by the marker
+	// sweep - putMarked (for the later import/read) plus list (for the
+	// sweep itself to find it in the first place), the same pairing
+	// twoRegionNeedsDiscoveryCloud uses. This is the run's one "bound"
+	// entry, and its source has to be "marker": aws_vpc's identity is
+	// server-assigned, so nothing about it is derivable from configuration
+	// alone.
+	cloud.putMarked("aws_vpc", "vpc-42", "stateless-unit", "aws_vpc.main", map[string]string{
+		"id": "vpc-42", "cidr_block": "10.42.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-42", "the estate's own VPC",
+		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"cidr_block": "10.42.0.0/16"})
+
+	// The human-mode run first, so this test has the text's own counts to
+	// cross-check the document against rather than asserting a number
+	// against itself.
+	human, doneHuman := newLivePlanCommand(t, cloud)
+	humanCode := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	humanOut := doneHuman(t).Stdout()
+	if humanCode != 2 {
+		t.Fatalf("human-mode exit code %d, want 2 (the bucket create is a change)\nstdout:\n%s", humanCode, humanOut)
+	}
+	if !strings.Contains(humanOut, "Not read from the live system: 1 resource instance") {
+		t.Fatalf("the human run's own omissions count is not 1, so this test's cross-check proves nothing:\n%s", humanOut)
+	}
+	if !strings.Contains(humanOut, "Unowned: 1 live resource holds an identity this configuration declares (1 adoptable)") {
+		t.Fatalf("the human run's own Unowned section is not what this test expects:\n%s", humanOut)
+	}
+	// The human view has no "bound" section of its own to compare against -
+	// that is exactly #788's own point - but if the VPC were not actually
+	// bound by the marker sweep it would show up here as a create, and this
+	// test's "one bound entry" claim below would be proving nothing.
+	if strings.Contains(humanOut, "aws_vpc.main will be created") {
+		t.Fatalf("the VPC was not bound by the marker sweep, so this test's own setup is broken:\n%s", humanOut)
+	}
+
+	// -json against the identical cloud and estate.
+	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
+	jsonCode := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"})
+	jsonOut := doneJSON(t)
+	if jsonCode != 2 {
+		t.Fatalf("-json exit code %d, want 2\nstdout:\n%s\nstderr:\n%s", jsonCode, jsonOut.Stdout(), jsonOut.Stderr())
+	}
+	if strings.TrimSpace(jsonOut.Stderr()) != "" {
+		t.Errorf("-json wrote to stderr with nothing to report there:\n%s", jsonOut.Stderr())
+	}
+
+	var doc views.LivePlanDocument
+	if err := json.Unmarshal([]byte(jsonOut.Stdout()), &doc); err != nil {
+		t.Fatalf("-json's stdout does not parse as one JSON document: %s\nstdout:\n%s", err, jsonOut.Stdout())
+	}
+
+	if doc.Estate != "stateless-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	}
+	if doc.UpstreamVersion == "" {
+		t.Error("document's upstream_version is empty")
+	}
+
+	// The document's own counts against the text's own counts, read above -
+	// this test's whole claim.
+	if len(doc.Bound) != 1 {
+		t.Fatalf("bound has %d entries, want 1: %#v", len(doc.Bound), doc.Bound)
+	}
+	if len(doc.Omissions) != 1 {
+		t.Fatalf("omissions has %d entries, want 1 (matching the human run's \"1 resource instance\"): %#v", len(doc.Omissions), doc.Omissions)
+	}
+	if len(doc.Unowned) != 1 {
+		t.Fatalf("unowned has %d entries, want 1 (matching the human run's \"1 adoptable\"): %#v", len(doc.Unowned), doc.Unowned)
+	}
+
+	bound := doc.Bound[0]
+	if bound.Addr != "aws_vpc.main" || bound.TypeName != "aws_vpc" {
+		t.Errorf("bound[0] = %+v, want aws_vpc.main/aws_vpc", bound)
+	}
+	if bound.Identity != "vpc-42" {
+		t.Errorf("bound[0].identity = %q, want %q", bound.Identity, "vpc-42")
+	}
+	if bound.Source != views.LivePlanBoundMarker {
+		t.Errorf("bound[0].source = %q, want %q (a server-assigned VPC has no identity a plan could derive from configuration)", bound.Source, views.LivePlanBoundMarker)
+	}
+
+	om := doc.Omissions[0]
+	if om.Addr != "aws_s3_bucket.data" {
+		t.Errorf("omissions[0].addr = %q, want %q", om.Addr, "aws_s3_bucket.data")
+	}
+	if om.Reason != "UNOWNED" {
+		t.Errorf("omissions[0].reason = %q, want %q", om.Reason, "UNOWNED")
+	}
+	if om.Detail == "" {
+		t.Error("omissions[0].detail is empty - the operator sentence the text prints is missing from the document")
+	}
+
+	un := doc.Unowned[0]
+	if un.Addr != "aws_s3_bucket.data" || un.TypeName != "aws_s3_bucket" {
+		t.Errorf("unowned[0] = %+v, want aws_s3_bucket.data/aws_s3_bucket", un)
+	}
+	if un.LiveID != "tofu-stateless-unit-data" {
+		t.Errorf("unowned[0].identity = %q, want %q", un.LiveID, "tofu-stateless-unit-data")
+	}
+	if un.MarkerEstate != "stateless-unit" || un.MarkerAddress != "aws_s3_bucket.data" {
+		t.Errorf("unowned[0]'s exact tag write = (tofu_estate=%q, tofu_address=%q), want (%q, %q)",
+			un.MarkerEstate, un.MarkerAddress, "stateless-unit", "aws_s3_bucket.data")
 	}
 }
 
@@ -2346,6 +2498,7 @@ func (v *progressRecordingView) Policy(views.StatelessPolicyReport)    {}
 func (v *progressRecordingView) GuidedFallback(string)                 {}
 func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike) {}
 func (v *progressRecordingView) Adoption(views.StatelessAdoption)      {}
+func (v *progressRecordingView) Document(views.LivePlanDocument) bool  { return true }
 
 // TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
 // statelessProgress's whole job: discovery reports every type it scans,

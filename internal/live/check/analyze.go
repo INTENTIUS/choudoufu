@@ -521,6 +521,33 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	}
 	rank(report.Findings)
 	rank(report.Warnings)
+
+	// GitHub issue #790's declared roster and cross-estate edges, built
+	// last and from what is already final above: Report.Identities and the
+	// now-ranked Report.Findings for the roster (see [buildRoster]'s own
+	// doc comment for why that ordering is what keeps the roster and the
+	// text summary from ever disagreeing on a count), and the loaded
+	// configuration itself for the reference walk, which reads raw HCL
+	// filter blocks that neither pass above has any reason to look at.
+	report.Roster = buildRoster(actx.Schemas, report.Identities, report.Findings)
+	report.References = crossEstateReferences(cfg)
+
+	// Estate is read straight from the "live" block's own Estate argument
+	// - internal/configs/live.go's Live.EstateSet distinguishes "absent"
+	// from "set to empty string" - rather than through
+	// declaredEstateNames/estateForStamp above, which infer a name from
+	// the tofu-estate tags a configuration already stamps and fall back to
+	// a synthetic placeholder when none or several agree. Those two exist
+	// for the stamp pass, which needs an answer even when nothing declares
+	// one; #790's JSON roster asks for the opposite - the literal name this
+	// configuration's own live block states, or nothing, since live-check
+	// itself runs with no live block by design (see LiveCheckCommand's own
+	// doc comment in internal/command) and most directories this analysis
+	// sees will leave this empty.
+	if cfg.Module != nil && cfg.Module.Live != nil && cfg.Module.Live.EstateSet {
+		report.Estate = cfg.Module.Live.Estate
+	}
+
 	return report
 }
 
@@ -753,6 +780,25 @@ type Report struct {
 	Checked   []Layer
 	Partial   []PartialLayer
 	Unchecked []Layer
+
+	// Roster is GitHub issue #790's declared roster: every instance this
+	// analysis named an address for, resolved or refused, with the rung its
+	// type earns. See [buildRoster].
+	Roster []Instance
+
+	// References is #790's other half: every data source in this
+	// configuration whose filters name a producer estate's marker tags -
+	// live/OUTPUTS.md's documented pattern for a cross-estate reference -
+	// stated rather than left for a reader to infer from source. See
+	// [crossEstateReferences].
+	References []Reference
+
+	// Estate is the name this configuration's own "live" block declares,
+	// when it declares one and sets the argument. Empty for most
+	// directories live-check runs against, since it runs with no live
+	// block by design; see this field's assignment in [Analyze] for why it
+	// is read differently from [declaredEstateNames]/estateForStamp.
+	Estate string
 }
 
 // Readable reports whether the configuration could be loaded at all.

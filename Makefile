@@ -274,7 +274,7 @@ endef
 
 test-floci: ## Runs the stateless-mode tests against the floci AWS emulator.
 	@ $(info $(infoTestFloci))
-	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/live/... ./tools/estate-gen/... ./tools/survey-gen/... ./tools/terralith-gen/...
+	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/live/... ./internal/command/... ./tools/estate-gen/... ./tools/survey-gen/... ./tools/terralith-gen/...
 
 # issue #64's scale benchmark: an N-resource estate (tools/estate-gen -count),
 # planned against floci with every API call counted. ESTATE_BENCH_N overrides

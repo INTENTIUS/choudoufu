@@ -32,8 +32,16 @@ import time
 
 from . import config, events, ui, guard
 
-# tlmig/receipt.py -> tlmig -> live-mv-workbench -> examples -> repo root
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+# tlmig/receipt.py -> tlmig -> live-mv-workbench -> examples -> repo root,
+# the layout of a full checkout. A deployment that copies only this example
+# (the compose demo's Docker image) is three levels shallower, and indexing
+# past the filesystem root raised IndexError on import, before any beat
+# could run. Nothing the demo's own receipt beat calls (lookup_run_cloudtrail,
+# read_record_store) touches this; only capture()/load_cloudtrail(), the
+# separate claim-13 reproducible-receipt feature, need it, and both already
+# fail on a genuinely missing file rather than crashing at import.
+_HERE = pathlib.Path(__file__).resolve()
+REPO_ROOT = _HERE.parents[3] if len(_HERE.parents) > 3 else _HERE.parents[-1]
 CLOUDTRAIL_EVIDENCE = REPO_ROOT / "live" / "smoke" / "evidence" / "the-tag-is-the-boundary.cloudtrail.json"
 
 _STAMPED = re.compile(r"^\s*(\d+) of (\d+) resource instance\(s\) are eligible for stamping", re.M)
@@ -117,6 +125,12 @@ class CloudTrailReceipt:
     region: str
     captured: str
     events: tuple[CloudTrailEvent, ...]
+    # False only when the lookup ran against something that does not
+    # emulate CloudTrail at all (floci, or any other AWS_ENDPOINT_URL
+    # override): no amount of retrying would find events there, so the
+    # beat says that plainly instead of "not surfaced yet, try again",
+    # which is real advice only on a real account.
+    available: bool = True
 
     @property
     def denied(self) -> tuple[CloudTrailEvent, ...]:
@@ -253,7 +267,14 @@ def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None
     beat reads happened minutes earlier (decompose, then carve), so in
     practice the first lookup finds them; the cap is two minutes so a beat
     never holds a room, and a lookup that finds nothing in time returns an
-    empty receipt rather than failing, so the beat can say so."""
+    empty receipt rather than failing, so the beat can say so.
+
+    An AWS_ENDPOINT_URL override (floci, or any other emulator) means
+    nothing here is a real lookup: CloudTrail is a real-AWS service that no
+    emulator implements, so a first empty pass is answered immediately
+    rather than polled for the full two minutes with a message that would
+    tell the presenter to wait for something that will never arrive."""
+    emulator = bool(os.environ.get("AWS_ENDPOINT_URL"))
     since = since or run_started(cfg)
     start = (since - datetime.timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     deadline = time.monotonic() + max_wait
@@ -289,12 +310,19 @@ def lookup_run_cloudtrail(cfg: config.Config, *, since: datetime.datetime | None
         retags = [e for e in found.values() if "tofu-estate" in e.tags]
         if len(retags) >= min_events or time.monotonic() >= deadline:
             break
+        if emulator:
+            # One pass is the whole answer here: an emulator that has not
+            # logged a single tag write by now never will, so there is
+            # nothing a retry could find.
+            break
         ui.kv("CloudTrail", f"{len(found)} of this run's writes visible so far; event history lags, waiting {poll}s", None)
         time.sleep(poll)
     ordered = sorted(found.values(), key=lambda e: e.time)
-    return CloudTrailReceipt(account=cfg.account_id, region=cfg.region,
+    # The real account, not the (usually empty) pin: a receipt records what
+    # actually happened, and cfg.account_id is unset on an unfenced run.
+    return CloudTrailReceipt(account=guard.caller_account(cfg), region=cfg.region,
                             captured=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                            events=tuple(ordered))
+                            events=tuple(ordered), available=not (emulator and not found))
 
 
 def read_receipt(cfg: config.Config, log: pathlib.Path | None = None) -> Receipt:

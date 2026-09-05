@@ -17,16 +17,14 @@ passes - an active stage not marked "no" in the Headline column below.
 
 Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`, recorded at 2026-08-31T11:51:55Z.
 
-**Behaviors proven** (1 of 14) is a secondary, development-loop number, not
-a coverage claim: it counts how many of the 14 stages below have a FAST
-tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script that
-runs in minutes rather than an estate's own hours - whose representative
+The behaviors-proven line above counts how many of the 14 stages below have
+a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
+that runs in minutes rather than an estate's own hours - whose representative
 set (a real `count` block, a real `for_each` map, a module-nested case, and,
 for a stage touching identity resolution, one fixture per identity kind)
 all pass. **A stage with no tier-1 fixture is not unproven** - it is proven
 by the estates above, just slowly; this number says only how many stages
-have a fast signal for contributors, and it neither substitutes for the
-bars above nor gates anything on this page.
+have a fast signal for contributors.
 
 ## The stages
 

@@ -1,8 +1,17 @@
 {{- /*
-  Renders the gauntlet progress bars from site/data/gauntlet.json: behaviors
-  proven (issue #522's headline and gate) first, then the two estate bars
-  (core, all), which keep their prior meaning as breadth reporting. See
-  tools/gauntlet for the schema and the generator that writes the file.
+  Renders the gauntlet progress bars from site/data/gauntlet.json: the two
+  estate bars (core, all) first - the page's own prose calls these "the
+  headline" - then behaviors proven, a secondary development-loop number
+  (originally #522's own headline and gate, demoted by this page's later
+  text; the render order used to still put it first, which visually
+  contradicted what the prose beside it said). See tools/gauntlet for the
+  schema and the generator that writes the file.
+
+  Behaviors proven renders as a plain stat, not a filled progress bar: it
+  answers a different question than the estate bars (how many stages have
+  a fast dev-loop fixture, not how many estates pass), and a bar next to
+  two genuine coverage bars reads as a third coverage score whether the
+  caption says so or not.
 
   If the data file is missing, this prints one line and nothing else — a
   missing artifact must never look like a silent zero.
@@ -36,24 +45,11 @@
   color: var(--gray-500);
 }
 .gauntlet-bar-stages li { margin: var(--space-4) 0; }
+.gauntlet-secondary-stat { color: var(--gray-500); font-size: var(--font-size-smaller); margin: var(--space-16) 0 0; }
 .gauntlet-meta { color: var(--gray-500); font-size: var(--font-size-smallest); }
 </style>
 <div class="gauntlet-bars">
   {{- $activeStages := where $data.stages "status" "active" -}}
-  {{- if isset $data "behaviors_total" -}}
-    {{- $bp := 0 -}}
-    {{- $bt := $data.behaviors_total -}}
-    {{- if isset $data "behaviors_proven" -}}{{- $bp = $data.behaviors_proven -}}{{- end -}}
-    {{- $bpct := 0.0 -}}
-    {{- if gt $bt 0 -}}{{- $bpct = mul (div $bp $bt) 100 -}}{{- end -}}
-    <div class="gauntlet-bar-block">
-      <div class="gauntlet-bar-label">Behaviors proven</div>
-      <div class="gauntlet-bar-count">{{ $bp }} of {{ $bt }} stages have their representative-set fixtures passing against the tier-1 behavior matrix</div>
-      <div class="gauntlet-bar-track">
-        <div class="gauntlet-bar-fill" style="width:{{ printf "%.1f" $bpct }}%"></div>
-      </div>
-    </div>
-  {{- end -}}
   {{- range $setKey := slice "core" "growing" "all" -}}
     {{- with index $data.sets $setKey -}}
       {{- $set := . -}}
@@ -94,6 +90,14 @@
         </ul>
       </div>
     {{- end -}}
+  {{- end -}}
+  {{- if isset $data "behaviors_total" -}}
+    {{- $bp := 0 -}}
+    {{- $bt := $data.behaviors_total -}}
+    {{- if isset $data "behaviors_proven" -}}{{- $bp = $data.behaviors_proven -}}{{- end -}}
+    <p class="gauntlet-secondary-stat">
+      <strong>Behaviors proven:</strong> {{ $bp }} of {{ $bt }} stages have their representative-set fixtures passing against the tier-1 behavior matrix - a development-loop signal for contributors, not a coverage claim; it neither substitutes for the bars above nor gates anything on this page.
+    </p>
   {{- end -}}
   {{- /* There is no single "as of commit X" stamp any more (#414): no
          procedure ever produced that fact honestly, since a single-estate

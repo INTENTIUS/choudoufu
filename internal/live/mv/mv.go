@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -189,6 +190,14 @@ type Result struct {
 	// [Request.AllowMissingConfig].
 	Anchor addrs.AbsResourceInstance
 
+	// Followers are the declared instances that move along with this one
+	// without a marker write of their own - see [Follower]'s own doc
+	// comment. Computed from the configuration's identity map alone, the
+	// moment [Result.Anchor] is known, so it is populated even when the
+	// rename that follows refuses: a follower is a fact about the
+	// configuration, not an outcome of the write.
+	Followers []Follower
+
 	// Path is how the resource was found.
 	Path Path
 
@@ -290,6 +299,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 	res.Anchor = anchor
+	res.Followers = followersOf(req.Config, anchor, req.Resolutions)
 
 	var rc *configs.Resource
 	var rcCfg *configs.Config
@@ -473,7 +483,8 @@ func anchorAddr(req Request) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
 		if !oldDeclared {
 			detail += fmt.Sprintf(" Note that %s is not declared either.", req.Old)
 		}
-		return addrs.AbsResourceInstance{}, diags.Append(tfdiags.Sourceless(
+		return addrs.AbsResourceInstance{}, diags.Append(refuse(
+			RefusalDestinationNotDeclared,
 			tfdiags.Error, "Destination address missing from the configuration", detail,
 		))
 	case oldDeclared:
@@ -516,6 +527,161 @@ func resolutionFor(req Request, addr addrs.AbsResourceInstance) (identity.Resolu
 		}
 	}
 	return identity.Resolution{}, false
+}
+
+// Follower is a declared instance whose identity composes from the resource
+// being renamed rather than carrying an ownership marker of its own - an
+// aws_iam_role_policy or aws_iam_role_policy_attachment beside the role the
+// carve-by-retag smoke moves (live/smoke/scenarios/carve-by-retag.sh, "The
+// three children need no write at all; they follow their parent."). This
+// rename never touches a follower: rewriting the parent's tag is the whole
+// move, because the follower's import identity is rendered fresh from the
+// parent's live ID on every read regardless of what address the parent
+// carries. Follower exists so a caller drawing the move - a preview, or the
+// receipt GitHub issue #791's -json flag prints - can show these instances
+// moving alongside the parent.
+type Follower struct {
+	// Addr is the follower's own declared address.
+	Addr addrs.AbsResourceInstance
+
+	// TypeName is its resource type.
+	TypeName string
+}
+
+// followersOf finds every declared instance whose configuration sets the
+// argument [identity.ParentOf] names for its type - the one an admitted
+// composed-identity type's whole identity is built from - to a bare
+// reference to anchor.
+//
+// This is deliberately NOT built from [identity.Resolution.Class] or
+// [identity.Resolution.Formula]: identity.Resolve's static evaluator folds
+// a reference like `role = aws_iam_role.team_0001_role.name` into the
+// literal string "tl-team-0001-role" the moment the referenced argument is
+// itself a plain literal (aws_iam_role's own "name" is, in every fixture
+// this rename ever runs against), and once folded the reference is gone -
+// the resolution reads back [identity.ClassConcrete] with an IdentityValues
+// entry and no memory of which resource block supplied it
+// ([identity.Resolution]'s own doc comment: "a configuration carries
+// arguments, not identity objects"). Measured on the carve-by-retag smoke
+// (GitHub issue #791's own "Done when"): aws_iam_role_policy.team_0001_inline
+// and the aws_iam_role_policy_attachment beside it BOTH resolve
+// ClassConcrete this way, and a followers field built from Formula.Parents
+// alone reported none of the three children the scenario's own claim names.
+// Reading the raw configuration is what survives the fold.
+//
+// It is also why aws_iam_instance_profile - whose "role" argument ALSO
+// names the parent role, and which the smoke script itself carves alongside
+// the three real followers - never appears here: [identity.ParentOf] only
+// ever looks at a type's identity-composing [identity.Component]s
+// (DefaultTable's entries), and aws_iam_instance_profile's whole identity is
+// its OWN "name", never "role" (live/MARKERS.md's admitted table has no
+// component naming it). A resource whose "role" argument is one more
+// argument alongside a self-sufficient identity is not a follower; a
+// resource whose "role" argument (or the analogous one for its own type) IS
+// its identity, with nothing else, is.
+//
+// resolutions is the whole configuration's identity map
+// ([Request.Resolutions]), not only the instance being renamed - one pass
+// finds every child anywhere in the configuration. Nothing here reads or
+// writes the live system: [identity.ParentOf] is pure table lookup and the
+// reference check below reads the already-parsed HCL cfg carries, so this
+// is a fact about the configuration alone, computed before find or rewrite
+// ever run - see [Result.Followers]'s own doc comment for why that matters
+// on a refusal.
+//
+// The one thing it cannot see through is a non-literal index: a
+// count/for_each-keyed child whose linking argument reads
+// `aws_iam_role.pod_role[count.index].name` has no [hcl.AbsTraversalForExpr]
+// answer (the index is an expression, not a literal step), so
+// referencesAnchor answers false rather than guess which instance the
+// index would pick at apply time. Doing nothing is the same discipline
+// [moduleRenameBoundary] and [anchorAddr] already hold themselves to
+// elsewhere in this package: a follower list that misses an entry is
+// incomplete; one that names the wrong instance is wrong.
+func followersOf(cfg *configs.Config, anchor addrs.AbsResourceInstance, resolutions []identity.Resolution) []Follower {
+	anchorType := anchor.Resource.Resource.Type
+	eligibleParent := map[string]bool{anchorType: true}
+
+	linkAttr := map[string]string{}
+	var out []Follower
+	for _, r := range resolutions {
+		typeName := r.Type()
+		if typeName == anchorType {
+			continue
+		}
+		attr, computed := linkAttr[typeName]
+		if !computed {
+			if links := identity.ParentOf(typeName, eligibleParent, nil); len(links) == 1 {
+				attr = links[0].Attr
+			}
+			linkAttr[typeName] = attr
+		}
+		if attr == "" {
+			continue
+		}
+		if referencesAnchor(cfg, r.Addr, attr, anchor) {
+			out = append(out, Follower{Addr: r.Addr, TypeName: typeName})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Addr.String() < out[j].Addr.String() })
+	return out
+}
+
+// referencesAnchor reports whether addr's own resource block sets attrName
+// to a bare reference to anchor - schema-free, since followersOf runs
+// before any provider connects: [configs.Resource.Config]'s JustAttributes
+// needs no schema for a flat block (every admitted composed-identity type
+// this reaches is one), only a body with no nested blocks to enumerate,
+// which is what a body [JustAttributes] cannot handle answers false for
+// rather than a guess.
+//
+// [hcl.AbsTraversalForExpr] is what makes this schema-free AND precise at
+// once: it succeeds only for an expression that IS a traversal (a
+// reference, with a fixed, literal key at every index step), so a
+// function call, a ternary, a string interpolation embedding the
+// reference, or an index computed from another expression all answer
+// false here without this function ever having to enumerate what they
+// might mean. [addrs.ParseRef] turns the traversal into the same
+// [addrs.Reference] shape [resolver.resolveResourceRef] in
+// internal/live/identity/resolve.go already parses a bare resource
+// reference into, so this reads exactly like the reference itself, not
+// like a second, looser reference grammar risking a false match.
+func referencesAnchor(cfg *configs.Config, addr addrs.AbsResourceInstance, attrName string, anchor addrs.AbsResourceInstance) bool {
+	modCfg, ok := identity.ConfigForModule(cfg, addr.Module)
+	if !ok || modCfg.Module == nil {
+		return false
+	}
+	rc, ok := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	if !ok || rc.Config == nil {
+		return false
+	}
+	attrs, diags := rc.Config.JustAttributes()
+	if diags.HasErrors() {
+		return false
+	}
+	attr, ok := attrs[attrName]
+	if !ok {
+		return false
+	}
+	trav, diags := hcl.AbsTraversalForExpr(attr.Expr)
+	if diags.HasErrors() {
+		return false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		return false
+	}
+
+	var referenced addrs.AbsResourceInstance
+	switch subj := ref.Subject.(type) {
+	case addrs.Resource:
+		referenced = subj.Instance(addrs.NoKey).Absolute(addr.Module)
+	case addrs.ResourceInstance:
+		referenced = subj.Absolute(addr.Module)
+	default:
+		return false
+	}
+	return referenced.String() == anchor.String()
 }
 
 func resourceSchema(ctx context.Context, provider providers.Interface, providerAddr addrs.AbsProviderConfig, typeName string) (providers.Schema, tfdiags.Diagnostics) {
@@ -793,7 +959,8 @@ func (m *mover) destinationDiags(claimNew []listed) tfdiags.Diagnostics {
 	if len(others) == 0 {
 		return diags
 	}
-	return diags.Append(tfdiags.Sourceless(
+	return diags.Append(refuse(
+		RefusalNewAddressClaimed,
 		tfdiags.Error,
 		"Destination address already claimed",
 		fmt.Sprintf(
@@ -831,7 +998,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 	case 0:
 		return "", cty.NilVal, diags.Append(notFoundDiag(m.res, m.sourceEstate(), listed, len(mine), len(claimNew) > 0))
 	default:
-		return "", cty.NilVal, diags.Append(tfdiags.Sourceless(
+		return "", cty.NilVal, diags.Append(refuse(
+			RefusalTwoAtOldAddress,
 			tfdiags.Error,
 			"Two live resources claiming one address",
 			fmt.Sprintf(
@@ -864,7 +1032,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 // like from the outside.
 func notFoundDiag(res *Result, estate string, listed, inEstate int, newClaimed bool) tfdiags.Diagnostic {
 	if newClaimed {
-		return tfdiags.Sourceless(
+		return refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -872,7 +1041,8 @@ func notFoundDiag(res *Result, estate string, listed, inEstate int, newClaimed b
 				res.TypeName, estate, res.OldMarker, res.NewMarker),
 		)
 	}
-	return tfdiags.Sourceless(
+	return refuse(
+		RefusalNothingAtOldAddress,
 		tfdiags.Error,
 		"No live resource at the old address",
 		fmt.Sprintf(
@@ -926,7 +1096,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		// Found it.
 		return obj, diags
 	case m.req.FromEstate != "" && estate == m.req.Estate && discovery.AddressMatches(marker, m.res.New.String()):
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -950,7 +1121,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, estate, m.req.Estate),
 		))
 	case discovery.AddressMatches(marker, m.res.New.String()):
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNewAddressClaimed,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -958,7 +1130,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, m.res.NewMarker, m.res.OldMarker),
 		))
 	case marker == "":
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNothingAtOldAddress,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
@@ -966,7 +1139,8 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				m.res.TypeName, m.res.LiveID, m.res.OldMarker),
 		))
 	default:
-		return nil, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(refuse(
+			RefusalNothingAtOldAddress,
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(

@@ -3,14 +3,19 @@ here, and it is the reason this is safe to improvise on top of live.
 
 Four fences, in the order they catch a mistake:
 
-1. Preflight. Before any beat runs, assert the caller's credentials resolve
-   to the one allowed account and the binary is exactly the pinned release.
-   A mis-set profile or a drifted binary stops the run here, not halfway
-   through mutating a cloud.
+1. Preflight. Before any beat runs, read the caller's credentials (`aws sts
+   get-caller-identity`) and assert the binary is exactly the pinned release.
+   No account has to be typed in anywhere: the run simply uses whatever
+   account those credentials resolve to, the same way the AWS CLI or plain
+   OpenTofu would. Pinning `config.ACCOUNT_ID` (or `TLMIG_ACCOUNT`) turns
+   this into an opt-in fence instead - a mis-set profile then stops the run
+   here rather than mutating an unintended account - but it is a safety net
+   for someone running this repeatedly, not a setup step.
 
-2. Account, on every call. The credentials are process-wide, so preflight is
-   the account gate; nothing below re-checks it, but nothing below can reach
-   a different account either.
+2. Account, shown on every destructive call. There is no separate gate to
+   re-check below preflight; each confirmation prompt re-reads the caller
+   identity fresh and names the real account a write is about to reach, so
+   the human fence in step 4 is never confirming a guess.
 
 3. Run scope, on every destructive call. A choudoufu apply or destroy must
    run inside this run's own working tree, and a raw ``aws`` delete must name
@@ -111,18 +116,30 @@ def _run(
 # Fence 1: preflight
 # --------------------------------------------------------------------------
 
+def caller_account(cfg: config.Config) -> str:
+    """The AWS account the active credentials resolve to right now, straight
+    from `aws sts get-caller-identity`. Not cached: a demo run makes a
+    handful of destructive calls at most, so a few extra STS round trips cost
+    nothing, and re-reading it fresh at every confirmation is what lets that
+    prompt show the true account even on a run with no pinned fence."""
+    who = _run(cfg, ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"], capture=True)
+    if not who.ok:
+        raise GuardError(f"could not read the AWS caller identity; are credentials configured?\n{who.stderr.strip()}")
+    return who.stdout.strip()
+
+
 def preflight(cfg: config.Config) -> None:
     """Assert the account and the binary before a run touches anything. Raises
     GuardError on any mismatch so setup cannot proceed against the wrong cloud
     or a version whose numbers would not match the docs."""
-    who = _run(cfg, ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"], capture=True)
-    if not who.ok:
-        raise GuardError(f"could not read the AWS caller identity; are credentials configured?\n{who.stderr.strip()}")
-    account = who.stdout.strip()
-    # When config pins an account (the demo does), it is a fence. When it is
-    # empty (the workbench on a user's own estate), the account is whatever the
-    # seed's credentials resolve to - preflight reports it rather than fencing
-    # to a constant, and the carve plan is the fence instead.
+    account = caller_account(cfg)
+    # No manual account entry is required to run this example: by default
+    # cfg.account_id is empty and the account is simply whatever the caller's
+    # credentials resolve to, exactly like every other AWS CLI or OpenTofu
+    # invocation. Pinning ACCOUNT_ID (or TLMIG_ACCOUNT) is an opt-in extra
+    # fence for someone who wants a mis-set AWS_PROFILE to fail loud instead
+    # of silently touching a different account - useful for repeated runs,
+    # not a requirement for a first one.
     if cfg.account_id and account != cfg.account_id:
         raise GuardError(
             f"credentials resolve to account {account}, but this run is fenced to {cfg.account_id}. "
@@ -204,7 +221,7 @@ def chdf(
     if destructive:
         _assert_in_run(cfg, cwd)
         ui.cmd(f"choudoufu {' '.join(args)}")
-        if not ui.confirm(f"run this against account {cfg.account_id}?"):
+        if not ui.confirm(f"run this against account {caller_account(cfg)}?"):
             raise GuardError("declined at the confirmation prompt")
     else:
         ui.cmd(f"choudoufu {' '.join(args)}")
@@ -233,7 +250,7 @@ def aws(
             raise GuardError("a destructive aws call must pass owned_name for the run-scope fence")
         assert_owned_name(cfg, owned_name)
         ui.cmd(f"aws {' '.join(args)}")
-        if not ui.confirm(f"delete {owned_name} in account {cfg.account_id}?"):
+        if not ui.confirm(f"delete {owned_name} in account {caller_account(cfg)}?"):
             raise GuardError("declined at the confirmation prompt")
     res = _run(cfg, argv, capture=capture, label=label)
     if check and not res.ok:

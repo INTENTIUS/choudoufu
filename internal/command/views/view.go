@@ -157,6 +157,31 @@ func (v *View) SetModuleSourceAddrs(cb func(addrs.Module) addrs.ModuleSource) {
 // Diagnostics renders a set of warnings and errors in human-readable form.
 // Warnings are printed to stdout, and errors to stderr.
 func (v *View) Diagnostics(diags tfdiags.Diagnostics) {
+	v.diagnostics(diags, false)
+}
+
+// DiagnosticsToStderr is [View.Diagnostics] with one difference: every
+// diagnostic goes to Stderr, warnings included, rather than splitting
+// warnings onto Stdout. It exists for a command whose successful Stdout is
+// a single machine-parsed document - choudoufu live-mv -json (GitHub issue
+// #791) is the first caller - where a warning landing on Stdout by
+// Diagnostics' ordinary rule would interleave human prose into that
+// document. Formatting is identical; only the stream changes, and unlike
+// Diagnostics this ignores whatever [View.DiagsWithNewline] configured,
+// because that configuration is itself a per-severity stream split of the
+// same kind this method exists to turn off.
+func (v *View) DiagnosticsToStderr(diags tfdiags.Diagnostics) {
+	v.diagnostics(diags, true)
+}
+
+// diagnostics is [View.Diagnostics]' real body, shared with
+// [View.DiagnosticsToStderr]: forceStderr false reproduces Diagnostics'
+// long-standing behavior exactly (including compactWarnings' early return
+// and diagsPrinter, both of which stay severity-split even under
+// forceStderr's caller - a command asking for everything on Stderr has
+// already committed to that split not mattering to it); forceStderr true
+// sends every diagnostic to Stderr regardless of severity or diagsPrinter.
+func (v *View) diagnostics(diags tfdiags.Diagnostics, forceStderr bool) {
 	diags.Sort()
 
 	if len(diags) == 0 {
@@ -189,7 +214,7 @@ func (v *View) Diagnostics(diags tfdiags.Diagnostics) {
 	}
 
 	// Since warning messages are generally competing
-	if v.compactWarnings {
+	if v.compactWarnings && !forceStderr {
 		// If the user selected compact warnings and all of the diagnostics are
 		// warnings then we'll use a more compact representation of the warnings
 		// that only includes their summaries.
@@ -216,6 +241,11 @@ func (v *View) Diagnostics(diags tfdiags.Diagnostics) {
 			msg = format.DiagnosticPlain(diag, v.configSources(), v.streams.Stderr.Columns())
 		} else {
 			msg = format.Diagnostic(diag, v.configSources(), v.colorize, v.streams.Stderr.Columns())
+		}
+
+		if forceStderr {
+			v.streams.Eprint(msg)
+			continue
 		}
 
 		// TODO meta-refactor: once we are done with migrating all the commands to views, we should get rid

@@ -456,3 +456,11 @@ func (v *StatelessAdoptionHuman) Foreign(StatelessForeign)        {}
 func (v *StatelessAdoptionHuman) Policy(StatelessPolicyReport)    {}
 func (v *StatelessAdoptionHuman) GuidedFallback(string)           {}
 func (v *StatelessAdoptionHuman) Lookalikes([]StatelessLookalike) {}
+
+// Document renders nothing here either: GitHub issue #788's document and
+// issue #587's adoption ledger are two different reports over the same
+// run, and LivePlanCommand.Run refuses the two flags together rather than
+// picking one silently (live_plan.go's own jsonRequested-and-AdoptionOnly
+// check) - so this method exists only to satisfy [StatelessPlan] and is
+// never actually reached with anything to print.
+func (v *StatelessAdoptionHuman) Document(LivePlanDocument) bool { return true }

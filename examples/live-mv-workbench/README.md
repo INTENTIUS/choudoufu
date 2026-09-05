@@ -10,6 +10,34 @@ Pinned to one choudoufu release and one account, both named in
 every resource a run creates carries the run's prefix, and nothing
 destructive runs outside it.
 
+## The live demo (no account needed)
+
+For a live, watchable run against an emulator instead of a real account,
+use `demo.py` and its compose stack:
+
+```sh
+just up          # two containers, pinned floci, prints the URL
+```
+
+`http://localhost:2718` opens a single-screen page: eight phases, one
+button, the ownership map redrawing as each finishes. The rest of this
+page describes `workbench.py`, the fuller tool this demo's seed is drawn
+from, run against a real account.
+
+### Paste-and-go
+
+Hand this to an assistant and let it walk you through the whole run:
+
+```text
+Read https://github.com/INTENTIUS/choudoufu/blob/main/.claude/skills/live-mv-demo/SKILL.md
+and follow it. Confirm with me before installing anything or starting a
+container.
+```
+
+That skill is the full walkthrough: cloning the repo if I don't have it,
+checking for Docker and `just`, starting the stack, and narrating each of
+the eight phases as you click through them.
+
 ## Where this starts
 
 The stage assumes a terralith: one configuration and one state own

@@ -47,6 +47,7 @@ import (
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	tfversion "github.com/intentius/choudoufu/version"
 )
 
 // LivePlanCommand plans a configuration with no authoritative state: no
@@ -161,7 +162,27 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	c.View.SetShowSensitive(args.ShowSensitive)
 	c.View.SetVerbose(args.Verbose)
 
-	view := views.NewPlan(args.ViewOptions, c.View)
+	// jsonRequested is read before view is built, from the untouched
+	// args.ViewOptions, because view itself is never allowed to become
+	// [views.NewPlan]'s ViewJSON branch here: constructing a [views.PlanJSON]
+	// calls [views.NewJSONView], which prints an NDJSON "version" message
+	// the instant it exists - before this command even knows whether the
+	// run will reach a plan at all, let alone which surface it is on. That
+	// message belongs to the general UI-message stream every other "-json"
+	// command in this package speaks, and GitHub issue #788's document is
+	// deliberately not one more line of that stream: it is a single object,
+	// printed once, only for the "-estate" form and only once the run has
+	// something to say (see [views.LivePlanDocument]'s own doc comment).
+	// renderOpts is a copy for exactly that reason - forced Human whatever
+	// -json asked for, so this command's own diagnostics and (for a
+	// surface or an error this issue does not touch) its ordinary
+	// human-readable plan keep rendering exactly as they always have. The
+	// document itself is [StatelessPlanJSON.Document]'s job, called from
+	// [LivePlanCommand.livePlan] below.
+	jsonRequested := args.ViewOptions.ViewType == arguments.ViewJSON
+	renderOpts := args.ViewOptions
+	renderOpts.ViewType = arguments.ViewHuman
+	view := views.NewPlan(renderOpts, c.View)
 
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -226,8 +247,16 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// go away by asking after the surface is known, from the one list.
 	//
 	// Rendered through the base view rather than the plan view: one of the
-	// things rejected here is -json, and reporting "no JSON output" as JSON
-	// would be a strange way to say it.
+	// things this can still reject is -json-into, and reporting "no JSON
+	// output" as JSON-into would be a strange way to say it. -json itself
+	// is no longer on this list for the "-estate" form - GitHub issue #788
+	// gave it a document of its own (see [views.LivePlanDocument] and this
+	// function's own jsonRequested handling below) - but statelessRejections
+	// is the ONE shared list plain "choudoufu plan"/"apply" under a live
+	// block use too (surfaceLiveBlock, in plan.go and apply.go), and #788's
+	// Ask is this command's own "-estate" form only: it stays rejected
+	// there, so surfaceEstateFlag is what statelessRejections switches on
+	// to tell the two apart.
 	if moreDiags := statelessRejections(surfaceEstateFlag, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""); moreDiags.HasErrors() {
 		c.View.Diagnostics(moreDiags)
 		return 1
@@ -237,26 +266,83 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	diags = diags.Append(c.liveStateFileNote())
 	diags = diags.Append(c.checkAWSProviderVersionSkew())
 
+	// -adoption-only and -json are two different reports over the same
+	// run (GitHub issue #587's ledger versus #788's document), and nothing
+	// says how to render one inside the other: refusing the combination is
+	// this file's own rule for exactly this shape of conflict (see
+	// planRejectAdoptionOnly's doc comment, "ignoring it would be worse
+	// than refusing it") rather than letting one flag silently win.
+	if jsonRequested && args.AdoptionOnly {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"-adoption-only and -json cannot be combined",
+			"-adoption-only asks for the adoption ledger and -json asks for GitHub issue #788's bound/omissions/unowned document; this run cannot produce both reports at once. Rerun with only one of the two flags.",
+		))
+		view.Diagnostics(diags)
+		return 1
+	}
+
 	// GitHub issue #587. This is the "-estate" form, which by definition has
 	// no live block (a configuration that has one was delegated to
 	// PlanCommand above), so the flag is honoured here rather than refused:
 	// this pipeline IS a live-markers run. Both halves of the mode are
 	// picked here - the ledger renderer, and the wrapper that drops the
 	// resource diff.
-	statelessView := statelessPlanView(c.View, args.AdoptionOnly)
-	if args.AdoptionOnly {
-		view = views.NewAdoptionOnlyPlan(view, c.View)
+	//
+	// jsonRequested takes the same slot: [views.StatelessPlanJSON] is
+	// [statelessPlanView]'s own two renderers' sibling rather than a third
+	// thing bolted on beside them, because all three satisfy
+	// [views.StatelessPlan] and this command only ever holds one at a time.
+	// It is picked here rather than inside statelessPlanView (live_adoption.go)
+	// because that function is GitHub issue #587's own and this issue has no
+	// business teaching it a flag #587 never had.
+	var statelessView views.StatelessPlan
+	switch {
+	case jsonRequested:
+		statelessView = views.NewStatelessPlanJSON(c.View)
+	default:
+		statelessView = statelessPlanView(c.View, args.AdoptionOnly)
+		if args.AdoptionOnly {
+			view = views.NewAdoptionOnlyPlan(view, c.View)
+		}
 	}
 
-	code, nextStep, moreDiags := c.livePlan(ctx, args.Plan, estateFlag, view, statelessView)
+	// preDiags: everything accumulated so far (the three warnings above,
+	// plus a parse-time diagnostic from earlier still, if diags carries
+	// one that did not already return). livePlan takes it as a SEPARATE
+	// argument rather than folding it into its own internal diags, so
+	// that this function's own diags = diags.Append(moreDiags) below stays
+	// exactly what it always was - moreDiags does not also carry a second
+	// copy of preDiags - while [LivePlanDocument]'s own Diagnostics field
+	// (built from preDiags plus livePlan's internal diags together, see
+	// that function's own tail) still ends up naming everything this
+	// command would otherwise have printed as prose.
+	preDiags := diags
+	code, nextStep, moreDiags := c.livePlan(ctx, args.Plan, estateFlag, view, statelessView, preDiags, jsonRequested)
 	diags = diags.Append(moreDiags)
-	view.Diagnostics(diags)
+	// Skipped under -json on the success path only: [LivePlanDocument]'s
+	// own Diagnostics field (built inside livePlan from these same two
+	// pieces - preDiags and moreDiags) already told a JSON reader
+	// everything this call would otherwise print as human text, and
+	// printing both would mean either duplicating it or leaving stdout
+	// half prose and half document. On the error path there IS no
+	// document (every early return inside livePlan happens exactly when
+	// diags.HasErrors() is about to be true - see that function's own
+	// early returns), so the diagnostics below are the only account of
+	// the failure there is, and they print exactly as they always have.
+	if !(jsonRequested && !diags.HasErrors()) {
+		view.Diagnostics(diags)
+	}
 	if diags.HasErrors() {
 		return 1
 	}
 	// Ordered as a stock plan orders it: the plan, then the diagnostics
-	// gathered along the way, then the next-step hint.
-	if nextStep {
+	// gathered along the way, then the next-step hint. Skipped outright
+	// under -json: the hint is an interactive nudge toward -out, which
+	// this command already refuses (statelessRejections, above), and
+	// [LivePlanDocument] is what a script reads instead of a hint meant
+	// for a human's next keystroke.
+	if nextStep && !jsonRequested {
 		view.Operation().PlanNextStep("", "")
 	}
 	return code
@@ -268,7 +354,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 // rather than rendered, except for the plan itself, which is rendered here so
 // that it appears before the trailing diagnostics exactly as it does in a
 // stock plan.
-func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, statelessView views.StatelessPlan) (int, bool, tfdiags.Diagnostics) {
+func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, statelessView views.StatelessPlan, preDiags tfdiags.Diagnostics, jsonRequested bool) (int, bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #626's knob, resolved once here and used by both of this
@@ -630,8 +716,24 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	statelessView.Omissions(statelessOmissions(projResult))
-	statelessView.Unowned(statelessUnownedReport(projResult, estate))
+	oms := statelessOmissions(projResult)
+	unownedItems := statelessUnownedReport(projResult, estate)
+	statelessView.Omissions(oms)
+	statelessView.Unowned(unownedItems)
+
+	// GitHub issue #788: bound[] is worked out right here rather than at
+	// this function's tail alongside the document it feeds - everything it
+	// reports comes from projResult and the resolutions that fed it, both
+	// of which are fully settled by this point and never revisited, so
+	// there is nothing later in the run for it to wait on. The document
+	// ITSELF is still built and printed at the tail, alongside the plan -
+	// see this function's own jsonRequested branch there - because its
+	// Diagnostics field wants everything this run raised, including
+	// whatever the plan graph below still has left to say.
+	var boundReport []views.LivePlanBound
+	if jsonRequested {
+		boundReport = statelessBoundReport(projResult, merged, statelessNeedsDiscoverySet(resolutions))
+	}
 
 	// GitHub issue #388's plan-node seam: resolver's ownership guard
 	// (NodeResolver.Unowned, noderesolver.go step (c)'s own doc comment)
@@ -780,7 +882,50 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
-	view.Operation().Plan(plan, schemas)
+	// The ordinary resource-diff rendering is skipped under -json rather
+	// than switched to [views.PlanJSON]'s own general JSON representation:
+	// GitHub issue #788's document below already told a JSON reader
+	// everything this run promises it, and mixing this fork's one document
+	// with the stock plan-representation stream on the same stdout is
+	// exactly the ambiguity Run()'s own jsonRequested doc comment explains
+	// avoiding. Enabling that stock format for this command is future work,
+	// not this issue's Ask ("The stock plan's -json ... can stay
+	// separate").
+	//
+	// The document itself is built and printed here, at the very end,
+	// rather than earlier alongside bound/omissions/unowned themselves
+	// (boundReport's own doc comment, above): its Diagnostics field wants
+	// diags as it stands right NOW - preDiags plus everything this
+	// function has raised since, planDiags included - so that Run()'s own
+	// choice to skip printing this diags value as prose under -json (see
+	// its own doc comment on that skip) never means dropping something a
+	// human-mode run would have said. Nothing above this point ever
+	// returns while jsonRequested is true without diags.HasErrors() also
+	// being true (every early return here fires immediately after a
+	// .HasErrors() check), so a run that reaches this line ordinarily
+	// either has a document to print or is already on its way to Run()'s
+	// own diagnostics fallback for the error case. The one exception is
+	// structural rather than this issue's own: tfCtx.Plan can return a
+	// non-nil plan alongside error diagnostics (the "if plan == nil"
+	// check just above is the only gate stock's own Plan call has ever
+	// had here), and this branch does not re-check .HasErrors() before
+	// printing - it never did, for the human rendering this replaces
+	// either, so a document and Run()'s own error text can both appear in
+	// that narrow case. Neither one is wrong about what happened; nothing
+	// is silently dropped.
+	if jsonRequested {
+		statelessView.Document(views.LivePlanDocument{
+			Estate:           estate,
+			ChoudoufuVersion: tfversion.Fork,
+			UpstreamVersion:  tfversion.String(),
+			Bound:            boundReport,
+			Omissions:        oms,
+			Unowned:          unownedItems,
+			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
+		})
+	} else {
+		view.Operation().Plan(plan, schemas)
+	}
 
 	if diags.HasErrors() {
 		return 1, false, diags
@@ -1556,10 +1701,13 @@ const statelessProgressInterval = 500 * time.Millisecond
 // since that is a reader's first evidence the run has not hung, which
 // matters more than any timing rule.
 //
-// The view renders to stderr (see [views.StatelessPlanHuman.Progress]),
-// never stdout, so nothing this prints can end up in output a script reads
-// from this command - today that is everything live-plan writes on
-// success, since it has no -json mode yet.
+// The view renders to stderr (see [views.StatelessPlanHuman.Progress] and,
+// under -json, [views.StatelessPlanJSON.Progress], which is a no-op for the
+// same "never stdout" reason), never stdout, so nothing this prints can end
+// up in output a script reads from this command - GitHub issue #788's own
+// document included: [views.LivePlanDocument] carries no progress
+// heartbeat, on purpose, for the same reason it exists in the first place -
+// a heartbeat proves a run is alive, it is not a fact about the estate.
 func statelessProgress(statelessView views.StatelessPlan) discovery.ProgressFunc {
 	var last time.Time
 	return func(ev discovery.ProgressEvent) {
@@ -2352,6 +2500,133 @@ func statelessOmissions(res *projection.Result) []views.StatelessOmission {
 		})
 	}
 	return oms
+}
+
+// statelessBoundReport builds live-plan -json's "bound[]" section (GitHub
+// issue #788): one entry per DECLARED instance the projection actually
+// admitted into prior state (res.Materialized), naming the identity it
+// bound to and which of this fork's own admission paths supplied it.
+// Unowned and Omitted already have their own JSON-ready reports
+// (statelessUnownedReport, statelessOmissions, both marshaled straight
+// through by [views.LivePlanDocument]); this is the third section the
+// issue asks for, and the one with no existing report to reuse - see the
+// issue's own text for why: nothing before this recorded "bound" as its
+// own list, only "not bound, and here is why" (Omitted) and "in the way of
+// binding" (Unowned).
+//
+// merged is the resolutions [projection.BuildWith] actually consumed
+// (identical to res.Materialized/res.Omitted's own inputs - see
+// livePlan's own "merged" local), and preSweep is
+// [statelessNeedsDiscoverySet]'s pre-discovery address set: the only way
+// left, once discovery has run, to tell "the marker sweep is what bound
+// this address" apart from "this address was always concrete". Binding a
+// ClassNeedsDiscovery resolution REWRITES it to identity.ClassConcrete
+// (internal/live/discovery's declaredInstances and multiprovider.go bind
+// steps both construct the replacement with exactly that class), so by the
+// time this function runs, Class alone can no longer tell a marker-bound
+// aws_vpc apart from a client-named aws_s3_bucket that was concrete from
+// the moment identity.Resolve first saw it - both are ClassConcrete here.
+// preSweep is what still remembers the difference.
+//
+// Two of [views.LivePlanBoundSource]'s four values - record and cache -
+// are never produced by this function, not because the classification
+// logic is wrong but because this command's own "-estate" form never opens
+// what either one needs. A record source needs a live block's own
+// record_store, and the "-estate" form by definition has no live block at
+// all (a configuration that has one is delegated to PlanCommand - see this
+// file's own doc comment on LivePlanCommand.Run's alias); a cache source
+// needs [projection.Options.StateCache], which livePlan's own BuildWith
+// call above never sets, on purpose (this diagnostic command "neither
+// reads nor writes the #685 state cache", this file's top-of-file doc
+// comment). Both constants stay defined for the day a plain "choudoufu
+// plan"/"apply" under a live block (live_mode.go's own pipeline, which
+// DOES open a record store and DOES read the #685 cache) grows the same
+// -json document; a caller reading this command's own output should not
+// expect to see either value today.
+func statelessBoundReport(res *projection.Result, merged []identity.Resolution, preSweep map[string]bool) []views.LivePlanBound {
+	if res == nil {
+		return nil
+	}
+	byAddr := make(map[string]identity.Resolution, len(merged))
+	for _, r := range merged {
+		byAddr[r.Addr.String()] = r
+	}
+	items := make([]views.LivePlanBound, 0, len(res.Materialized))
+	for _, addr := range res.Materialized {
+		key := addr.String()
+		r, ok := byAddr[key]
+		if !ok || r.Undeclared {
+			// !ok should not happen - every materialized address came from
+			// a resolution in this same merged list - but skipping rather
+			// than panicking turns a future bug into a missing row instead
+			// of a crashed plan. Undeclared instances are the marker
+			// sweep's own orphans (no resource block of their own), never
+			// one of the "declared instance"s bound[] is defined over.
+			continue
+		}
+		item := views.LivePlanBound{
+			Addr:           key,
+			TypeName:       addr.Resource.Resource.Type,
+			Identity:       r.ImportID,
+			IdentityValues: r.IdentityValues,
+		}
+		switch {
+		case preSweep[key]:
+			item.Source = views.LivePlanBoundMarker
+		case r.Class == identity.ClassRecordBacked || r.Class == identity.ClassRecordLocated:
+			item.Source = views.LivePlanBoundRecord
+		default:
+			item.Source = views.LivePlanBoundDerived
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+// statelessNeedsDiscoverySet is [statelessBoundReport]'s own preSweep
+// argument: the address set of every instance identity.Resolve classified
+// ClassNeedsDiscovery BEFORE [statelessDiscover] ran, read from the same
+// *identity.Result livePlan's own "resolutions" local already holds at
+// that point (statelessDiscover takes it by value and returns a separate
+// []identity.Resolution in disco.Resolutions, so resolutions itself is
+// never mutated - reading NeedsDiscovery() off it after discovery has run
+// is exactly as safe as reading it before).
+func statelessNeedsDiscoverySet(resolutions *identity.Result) map[string]bool {
+	needs := resolutions.NeedsDiscovery()
+	if len(needs) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(needs))
+	for _, r := range needs {
+		set[r.Addr.String()] = true
+	}
+	return set
+}
+
+// livePlanDiagnostics converts a run's accumulated diagnostics into
+// [views.LivePlanDocument.Diagnostics]'s own wire format, sorted the same
+// way [View.Diagnostics] sorts before rendering them as prose - so that a
+// diff between a human-mode run's diagnostic order and this document's own
+// carries no meaning by itself.
+func livePlanDiagnostics(diags tfdiags.Diagnostics) []views.LivePlanDiagnostic {
+	if len(diags) == 0 {
+		return nil
+	}
+	diags.Sort()
+	out := make([]views.LivePlanDiagnostic, 0, len(diags))
+	for _, d := range diags {
+		severity := "error"
+		if d.Severity() == tfdiags.Warning {
+			severity = "warning"
+		}
+		desc := d.Description()
+		out = append(out, views.LivePlanDiagnostic{
+			Severity: severity,
+			Summary:  desc.Summary,
+			Detail:   desc.Detail,
+		})
+	}
+	return out
 }
 
 // liveStateFileNote reports a state file sitting in the working
@@ -3550,13 +3825,34 @@ Options:
                           which also runs before there is a graph; that is
                           TOFU_LIVE_READ_PARALLELISM below.
 
+  -json                   Print bound, omissions and unowned as one JSON
+                          document instead of the plan above (GitHub issue
+                          #788): which declared instances bound to a live
+                          resource and how (marker, record, derived or
+                          cache), which could not be read and why, and which
+                          live resources sit at a declared identity carrying
+                          another estate's marker or none, with the tag
+                          write that would adopt each one. This is NOT the
+                          stock plan-representation JSON format ("choudoufu
+                          show -json" of a saved plan) - this command has no
+                          saved plan to show, by design (-out is rejected
+                          below) - it is this fork's own live sections, the
+                          ones a stock plan has no notion of at all. Cannot
+                          be combined with -adoption-only.
+
   The following stock plan options are rejected rather than ignored, because
-  live resource markers remove what they operate on or have not built them yet:
-  -out, -state, -state-out, -backup, -refresh-only, -generate-config-out,
-  -json and -json-into. That list is the same one plain "choudoufu plan" and
-  "choudoufu apply" use under a live block; there is one list, not one per
-  command. -refresh is accepted and has no effect: the projection is already
-  fresh, so the plan never refreshes.
+  live resource markers remove what they operate on or have not built them
+  yet: -out, -state, -state-out, -backup, -refresh-only,
+  -generate-config-out and -json-into. That list is the same one plain
+  "choudoufu plan" and "choudoufu apply" use under a live block; there is
+  one list, not one per command. -refresh is accepted and has no effect: the
+  projection is already fresh, so the plan never refreshes.
+
+  -json is this command's own "-estate" form's one exception to that shared
+  list (see -json above): under a live block, plain "choudoufu plan -json"
+  and "choudoufu apply -json" still refuse it, because #788's document is
+  this command's own report and the shared list is what keeps every other
+  option answered identically on both entry points.
 
   -destroy is the single option the two entry points answer differently, and
   only this command's -estate form refuses it. Under a live block, "choudoufu
