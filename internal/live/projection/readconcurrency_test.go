@@ -90,6 +90,32 @@ type readProvider struct {
 	// [readProvider.leave] runs at the end of ReadResource, after the wait.
 	stalled map[string]chan struct{}
 
+	// entered is closed by the stalled read once it is inside the provider,
+	// and every OTHER read waits for it before answering. That is what makes
+	// the straggler's overlap a property of the fixture rather than of the
+	// scheduler: while any other read is inside this provider, the stalled
+	// one is inside it too, still holding its in-flight slot.
+	//
+	// It is not decoration. The first version of these tests asserted peak
+	// concurrency and passed on eight processors and failed on CI's one: at
+	// GOMAXPROCS=1 the runtime runs the most recently spawned goroutine
+	// first, so the launcher's FIRST worker - the stalled one - was scheduled
+	// LAST, and the fixture's straggler made its call after every read it was
+	// supposed to be overlapping. Same bet, same loss, as issue #597 on the
+	// stamping path and [readReverseGate]'s own opening comment.
+	//
+	// nil until a test registers a stall, so a provider with no straggler
+	// behaves exactly as it did.
+	entered chan struct{}
+
+	// entryStuck is the first read that gave up waiting for entered, and
+	// abandon frees the rest so a broken fixture costs one
+	// [readGateStuckAfter] for the whole run rather than one per read. Every
+	// test that registers a stall asserts entryStuck is empty; reaching the
+	// hang-breaker is never a pass.
+	entryStuck string
+	abandon    chan struct{}
+
 	// starts carries one import ID per read STARTED, which is the quantity
 	// issue #683 is about and the one peak concurrency cannot show: ten reads
 	// outstanding reads ten either way, and what the defect changes is
@@ -138,8 +164,11 @@ func (p *readProvider) ReadResource(_ context.Context, r providers.ReadResourceR
 	id := r.PriorState.GetAttr("id").AsString()
 	p.record("read " + r.TypeName + "/" + id)
 
-	if wait := p.stallFor(id); wait != nil {
+	if wait, entered := p.stallGate(id); wait != nil {
+		close(entered)
 		<-wait
+	} else if entered != nil {
+		p.waitForStallEntry(entered, id)
 	}
 
 	var resp providers.ReadResourceResponse
@@ -183,19 +212,60 @@ func (p *readProvider) enter(call string) {
 }
 
 // stallRead makes id's ReadResource block until the returned channel is
-// closed. Set before the pass starts; the map is not written after that.
+// closed, and makes every other read wait until id's has begun. Called before
+// the pass starts; neither field is written after that.
 func (p *readProvider) stallRead(id string) chan struct{} {
 	ch := make(chan struct{})
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.stalled[id] = ch
+	p.entered = make(chan struct{})
+	p.abandon = make(chan struct{})
 	return ch
 }
 
-func (p *readProvider) stallFor(id string) chan struct{} {
+// stallGate is what ReadResource does about a straggler: the release channel
+// when this read IS the straggler, and otherwise the channel saying the
+// straggler has begun - nil when no test registered one.
+func (p *readProvider) stallGate(id string) (release, entered chan struct{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.stalled[id]
+	return p.stalled[id], p.entered
+}
+
+// waitForStallEntry parks a read until the straggler is inside the provider.
+// [readGateStuckAfter] is the hang-breaker, and reaching it records the read
+// that gave up rather than letting the run hang - every caller asserts
+// [readProvider.stuckOnEntry] is empty, so it can never become a pass.
+func (p *readProvider) waitForStallEntry(entered chan struct{}, id string) {
+	timer := time.NewTimer(readGateStuckAfter)
+	defer timer.Stop()
+
+	p.mu.Lock()
+	abandon := p.abandon
+	p.mu.Unlock()
+
+	select {
+	case <-entered:
+		return
+	case <-abandon:
+	case <-timer.C:
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.entryStuck == "" {
+		p.entryStuck = id
+		close(p.abandon)
+	}
+}
+
+// stuckOnEntry is the first read that gave up waiting for the straggler to
+// begin, and empty when the fixture did what it exists to do.
+func (p *readProvider) stuckOnEntry() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.entryStuck
 }
 
 // importCount is how many reads have been STARTED - one ImportResourceState
@@ -218,7 +288,14 @@ func (p *readProvider) importCount() int {
 // hang-breaker [readReverseGate] uses, and reaching it is never a pass.
 func (p *readProvider) waitForStarts(t *testing.T, n int) []string {
 	t.Helper()
-	timer := time.NewTimer(readGateStuckAfter)
+	return p.waitForStartsWithin(n, readGateStuckAfter)
+}
+
+// waitForStartsWithin is [readProvider.waitForStarts] with a budget of the
+// caller's own, for the one caller that is waiting for reads it hopes will
+// NOT be started.
+func (p *readProvider) waitForStartsWithin(n int, budget time.Duration) []string {
+	timer := time.NewTimer(budget)
 	defer timer.Stop()
 	seen := make([]string, 0, n)
 	for len(seen) < n {
@@ -531,14 +608,16 @@ func runReadPassAsync(t *testing.T, p *readProvider, opts Options) (*builder, <-
 // instance. The launcher could not start a tenth.
 //
 // The fixture is that estate in miniature. g0 is the straggler, held inside
-// ReadResource until this test releases it, and the assertion is on reads
-// STARTED, not on peak concurrency: peak reads 2 here and 10 there whether or
-// not the defect is present, which is what let it hide through three rounds
-// of investigation.
+// ReadResource until this test releases it, and every other read waits until
+// g0's own call has begun - see [readProvider.entered], which is what makes
+// the overlap a property of the fixture rather than a bet on the scheduler.
+// The assertion is on reads STARTED, not on peak concurrency: peak reads 2
+// here and 10 there whether or not the defect is present, which is what let
+// this hide through three rounds of investigation.
 //
-// Nothing in the pass path here is timed. The wait is satisfied by the
-// launcher starting reads, and [readGateStuckAfter] exists so that a pass
-// that cannot start them fails in half a minute naming the count it reached
+// Nothing in the pass path here is timed. Every wait is satisfied by a
+// channel a call closes, and [readGateStuckAfter] exists so that a pass that
+// cannot start those calls fails in half a minute naming the count it reached
 // instead of hanging until the package's test timeout.
 func TestOneStalledReadDoesNotStopTheOthersFromLaunching(t *testing.T) {
 	p := newReadProvider()
@@ -559,16 +638,23 @@ func TestOneStalledReadDoesNotStopTheOthersFromLaunching(t *testing.T) {
 	close(release)
 	<-finished
 
+	if stuck := p.stuckOnEntry(); stuck != "" {
+		t.Fatalf("the read of %s gave up waiting for the stalled read to begin, so this run never had a straggler to overlap and asserts nothing", stuck)
+	}
 	if len(started) != readParallelN {
 		t.Fatalf("while one read was stalled the pass started %d of %d reads: %v\n"+
 			"the slot a fetched-but-unconsumed answer holds is still the slot the launcher needs, so one slow read stops the window sliding",
 			len(started), readParallelN, started)
 	}
 
-	// The in-flight bound is still a bound. Without this, a fix that simply
-	// deleted the semaphore would pass the assertion above.
+	// Two calls were inside the provider at once, by construction rather than
+	// by luck: every read but the straggler's waits for the straggler to be
+	// in, and the straggler does not leave until this test releases it. So
+	// this is the in-flight bound reading exactly its own setting - without
+	// it, a fix that deleted the bound outright would pass the assertion
+	// above.
 	if got, want := p.peakConcurrency(), 2; got != want {
-		t.Errorf("peak concurrency was %d, want %d: the reads are no longer bounded by ReadParallelism", got, want)
+		t.Errorf("peak concurrency was %d, want %d: with one read held inside the provider and the others waiting on it, that is the ReadParallelism this pass was given", got, want)
 	}
 
 	// And the pass is the pass it always was: same calls, same order, nothing
@@ -591,17 +677,18 @@ func TestOneStalledReadDoesNotStopTheOthersFromLaunching(t *testing.T) {
 	}
 }
 
-// readBufferSettle is how long the test below gives a launcher that ignores
-// the buffer bound to prove it ignores it.
+// readBufferSettle is how long the test below waits for a read the bound
+// forbids, before concluding the bound held.
 //
-// This is a clock in the success path, which nothing else in this file has,
-// and it is here because no channel can carry the news that a launcher is
-// blocked - the absence of a start looks the same as a start that has not
-// happened yet. The margin it rests on is not a close one: the reads this
-// fixture makes are in-process map lookups, so an unbounded launcher starts
-// the remaining instances within microseconds of the completions that free
-// it, and half a second is five orders of magnitude of headroom. The red run
-// in the pull request is what shows it crossing.
+// It is the one budget in this file that is spent on a success, and it is
+// here because no channel can carry the news that a launcher is BLOCKED: an
+// absent start looks exactly like a start that has not happened yet. What
+// keeps it from being a bet is the direction it can fail in. A loaded runner
+// can only make this guard miss a violation, never invent one, so it cannot
+// turn a correct pass red - and the margin is not close either way, because
+// the reads this fixture makes are in-process map lookups and the unbounded
+// launcher in the pull request's red run started the remaining instances
+// within microseconds of the completions that freed it.
 const readBufferSettle = 500 * time.Millisecond
 
 // TestTheReadPassBoundsFetchedButUnconsumedAnswers is the other half of issue
@@ -616,41 +703,56 @@ const readBufferSettle = 500 * time.Millisecond
 // slowness for exactly the memory regression the original design avoided.
 //
 // So: the consuming loop is stopped on a stalled g0, the launcher is free,
-// and the count it reaches is pinned by value rather than by an inequality.
+// and the reads it manages to start are held between two numbers that are
+// both the bound.
 //
-// That count is buffer + parallelism, and the arithmetic is worth writing
-// down because it is the bound itself. The launcher checks the buffer and
-// then waits for an in-flight slot, so it is admitted while buffered is at
-// most buffer-1 and may then be joined by the reads already in flight: at
-// most buffer + parallelism - 1 answers are ever fetched and unconsumed, and
-// one further read - the stalled one - is in flight holding no answer at all.
-// Here that is 3 + 2 = 5 reads started: g0 stalled, four launched behind it.
+//   - It cannot stop before buffer answers are unconsumed, so at least
+//     1 + buffer reads are started. Below that the launcher is not running
+//     ahead of the loop at all and this test is not holding anything.
+//   - It cannot get past buffer + parallelism. The launcher clears the buffer
+//     gate and then waits for an in-flight slot, so it is admitted while
+//     buffered is at most buffer-1 and may then be joined by the reads
+//     already in flight: at most buffer + parallelism - 1 answers are ever
+//     fetched and unconsumed, and one further read - the stalled one - is in
+//     flight holding no answer at all.
+//
+// Which of the two it lands on is the scheduler's business, and asserting one
+// exact value there is how a guard passes on eight processors and fails on
+// CI's one.
 func TestTheReadPassBoundsFetchedButUnconsumedAnswers(t *testing.T) {
 	const parallelism = 2
 	const buffer = 3
-	const wantStarted = buffer + parallelism
+	const minStarted = 1 + buffer
+	const maxStarted = buffer + parallelism
 
 	p := newReadProvider()
 	release := p.stallRead(readParallelID(0))
 
 	b, finished := runReadPassAsync(t, p, Options{ReadParallelism: parallelism, ReadBuffer: buffer})
 
-	started := p.waitForStarts(t, wantStarted)
-	time.Sleep(readBufferSettle)
+	started := p.waitForStarts(t, minStarted)
+	// However many the bound allows, one more than that is the violation, and
+	// waiting for it is what gives an unbounded launcher its chance to commit
+	// one. It returns the moment the read arrives; on a pass it costs the
+	// budget and nothing else.
+	started = append(started, p.waitForStartsWithin(maxStarted+1-len(started), readBufferSettle)...)
 	overrun := p.importCount()
 
 	close(release)
 	<-finished
 
-	if len(started) != wantStarted {
-		t.Fatalf("with one read stalled the pass started %d reads, want %d: %v\n"+
-			"the launcher is not running ahead of the consuming loop at all, so this test is not holding the bound it exists to hold",
-			len(started), wantStarted, started)
+	if stuck := p.stuckOnEntry(); stuck != "" {
+		t.Fatalf("the read of %s gave up waiting for the stalled read to begin, so the consuming loop was never held and this run asserts nothing", stuck)
 	}
-	if overrun != wantStarted {
-		t.Errorf("with the consuming loop stopped on one stalled read, %d reads had been started, want %d (one stalled, at most %d answers fetched and unconsumed).\n"+
+	if len(started) < minStarted {
+		t.Fatalf("with one read stalled the pass started %d reads, want at least %d: %v\n"+
+			"the launcher is not running ahead of the consuming loop at all, so this test is not holding the bound it exists to hold",
+			len(started), minStarted, started)
+	}
+	if overrun > maxStarted {
+		t.Errorf("with the consuming loop stopped on one stalled read, %d reads had been started, want at most %d (one stalled, at most %d answers fetched and unconsumed).\n"+
 			"Fetched-but-unconsumed answers are unbounded, so a lagging consumer now holds every answer of an estate at once - the regression the single slot existed to prevent",
-			overrun, wantStarted, buffer+parallelism-1)
+			overrun, maxStarted, buffer+parallelism-1)
 	}
 
 	// The bound is a pause, not a loss: everything still reads, in order,
