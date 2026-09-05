@@ -173,10 +173,15 @@ blind spot never fires, because nothing on this path matches content.
 
 Two bounds on that measurement, both worth knowing before you rely on it. The
 ratio was taken at one scale, against a generated estate rather than somebody's
-real one. And stamping is one tag-write round trip per resource, so it is
-linear at roughly 1.3 to 1.4 seconds per stamped resource against a local
-emulator (issue #566). Reading the state file and reporting what would be
-stamped is separate, read-only, and near flat at about 1.5 seconds either way.
+real one. And stamping is one tag-write round trip per resource, so its cost
+is linear in the resource count - the shape, not a seconds figure: [what a
+plan costs]({{< relref "/docs/model/plan-cost#emulator-wall-clock-is-not-on-this-page" >}})
+and [what you pay, and when]({{< relref "/docs/what-you-pay#and-an-emulator-cannot-answer-this-question" >}})
+both withhold an emulator-measured wall clock deliberately, since it grades
+the machine the test ran on rather than this repository's code; issue #566's
+own local-emulator seconds are dropped here for the same reason rather than
+republished as if they answered the question those two pages say a real-AWS
+run is needed for.
 
 ## The loop
 

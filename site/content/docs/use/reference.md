@@ -58,8 +58,12 @@ During a migration the question is which live resources this estate can
 claim. A plan answers it, but in pieces, spread across three sections that
 are each about something else and surrounded by a report whose size is set by
 the provider's type count rather than by the estate. Measured on a generated
-55-resource terralith, the sections carrying an adoption path were 5.6% of
-2,885 lines; at 205 resources they were 5.5% of 7,649.
+55-resource terralith at commit `e1dec69cef` (2026-08-30, #587), the sections
+carrying an adoption path were 5.6% of 2,885 lines; at 205 resources they were
+5.5% of 7,649. The admission table has grown since (see the [readiness
+tiers]({{< relref "/docs/use/compatibility#readiness-tiers" >}}) table for
+the current type count), so a fresh plan's line count will not match these
+two exactly; the ratio is the point, not the byte count.
 
 `choudoufu plan -adoption-only` (or `choudoufu live-plan -adoption-only`)
 prints that question and nothing else. Every declared instance lands in one
@@ -83,10 +87,18 @@ summary with a count when the same summary recurs. A heading says how many
 there were and that the same command without `-adoption-only` shows them in
 full. Errors are never touched. This is most of what the mode removes -
 against `live/e2e/estate-block` plus an IAM role and its inline policy on the
-pinned emulator, a plain plan is 926 lines, of which 470 are the bodies of 36
-"Incomplete sweep for undeclared resources" warnings, one per provider type
-the emulator cannot list. The adoption-only run of the same estate is 53
-lines.
+pinned emulator at commit `e1dec69cef` (2026-08-30, #587), a plain plan was
+926 lines, of which 470 were the bodies of 36 "Incomplete sweep for
+undeclared resources" warnings, one per provider type the emulator could not
+list. The adoption-only run of the same estate was 53 lines. **Stale on the
+warning count specifically**: `09d180f921` landed one day later and stopped
+an ordinary plan from enumerating the whole admission table, so a plan run
+today against an estate with its own evidence to narrow by prints far fewer
+of these warnings than it did when this was captured; `-adoption-only` still
+forces the full sweep regardless (see [what a plan
+costs]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})),
+so the *shape* this paragraph describes still holds, but the exact line
+counts have not been re-measured since.
 
 The mode changes what is printed, and since `09d180f921` it also changes what
 is done. The live reads and the plan are the same, and every verdict in the
