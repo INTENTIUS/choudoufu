@@ -77,6 +77,17 @@ jobs:
       # internal/command/e2etest, whose fork-relevant assertions skip
       # without TF_ACC.
       #
+      # internal/command/e2etest is named on its own, not swept in by the
+      # subtree cost above: issue #755 found a fork-authored regression in
+      # unlock.go (a stateless guard wired before variable parsing) that this
+      # package's TestStaticPlanVariables caught, entirely without TF_ACC -
+      # #691's exact shape, a test tier that exists but gates nothing. The
+      # package builds its own tofu binary in TestMain via e2e.GoBuild, so no
+      # extra setup step is needed here. Measured on 2026-09-05: ~41s wall
+      # (66.8s user + 34.7s system CPU) on its own via
+      # `env -u PWD go test ./internal/command/e2etest/ -count=1`; maintainer
+      # ruling on #755 was to fold it into this tier rather than a nightly one.
+      #
       # internal/backend/local, internal/configs, internal/plans,
       # internal/plugin and internal/plugin6 are the same shape, found by
       # #623 running that same recomputation over the whole tree rather
@@ -92,7 +103,7 @@ jobs:
       # spread - two paired runs on a loaded machine gave 380.3s/381.4s
       # wall before and 368.9s/374.7s after.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
