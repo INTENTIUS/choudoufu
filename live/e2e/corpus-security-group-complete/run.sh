@@ -406,7 +406,21 @@ set -uo pipefail
 #   BREAK        set to 1 to corrupt the expected stage-3 site counts and
 #                one expected unadmitted-type name, proving those
 #                assertions are load-bearing. Stages 1 and 2 are unaffected;
-#                stage 3 is the one that must fail.
+#                stage 3 is the one that must fail. Set to `replace` instead
+#                to run day2_replace's own break control (PART F, right
+#                after stage 5, before day2_rename) rather than its real
+#                assertion: manufacture a second, distinct live security
+#                group via the AWS CLI, carrying the SAME
+#                tofu-address/tofu-slot tags as the real, still-valid one
+#                (module.security_group.aws_security_group.this:0) - the
+#                coexistence live/GAUNTLET.md #9's own Break line names
+#                ("Skip the destroy half; the next plan must report a
+#                collision rather than proposing nothing") - and require the
+#                plan to refuse the collision loudly, naming both live
+#                security groups, rather than propose nothing. Independent
+#                of BREAK_GREENFIELD/BREAK_REMOVE/BREAK_COUNT, and only
+#                `replace` diverges PART F; every other stage runs its real
+#                assertions.
 #   BREAK_GREENFIELD  set to 1 to run the greenfield stage's own negative
 #                control instead of the real comparison: drop module.consul's
 #                security group from the expected inventory before the
@@ -1787,31 +1801,33 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # reduction-only convention, so this evidence pass exercises the default
   # destroy-then-create ordering instead.
   #
-  # NO BREAK=replace LEG (unlike corpus-ec2-instance-complete's/corpus-
-  # sqs-basic's/corpus-s3-bucket-complete's own day2_replace sections):
-  # tested empirically against this branch (a second live security group
-  # manufactured via the AWS CLI, carrying the SAME tofu-address/tofu-slot
-  # tags as module.security_group.aws_security_group.this:0, alongside the
-  # real, still-valid one) and found that the plan reports "No changes" -
-  # it does NOT warn or refuse. Re-tested corpus-ec2-instance-complete's
-  # OWN BREAK=replace leg the same way and found the SAME regression there
-  # (it now fails its own load-bearing check: "the plan succeeded with two
-  # live instances claiming the same tofu-address/tofu-slot"). Read as one
-  # class, not two: aws_s3_bucket's own BREAK=replace leg (name-derived
-  # identity, ProblemDisplacedMarker) still fires correctly, but the
-  # fungible-slot path (ProblemDuplicateSlot, internal/live/discovery/
-  # count.go) that aws_instance/aws_security_group both rely on appears to
-  # be bypassed whenever a valid record already resolves the declared
-  # address - plausibly a side effect of the record-primary plan ordering
-  # ruled 2026-08-23 (the foundation-order ruling (#388)), which
-  # started letting the record short-circuit before the count-set claimant
-  # matcher (slotProblem/ProblemDuplicateSlot) ever runs. A real,
-  # generalizable finding (a MISSING detection, not a wrong marker
-  # written - HANDOFF ranks that the lesser risk), not fixed here: a
-  # discovery-layer change, out of scope for this script-only unit. The
-  # real F1/F2 leg below (create, destroy, marker move, record move, empty
-  # replan) is independently verified end-to-end via the AWS CLI and does
-  # not depend on this control.
+  # BREAK=replace (live/GAUNTLET.md #9's own Break line, verbatim: "Skip
+  # the destroy half; the next plan must report a collision rather than
+  # proposing nothing") manufactures the exact coexistence a skipped
+  # destroy would leave behind - a second, distinct live security group
+  # carrying the SAME tofu-address/tofu-slot tags as the real, still-valid
+  # one, produced directly via the AWS CLI - matching corpus-ec2-instance-
+  # complete's own F1 (PART F there) and corpus-alb-complete's/corpus-sqs-
+  # basic's/corpus-s3-bucket-complete's day2_replace sections.
+  #
+  # This section previously carried a long comment here (#846) recording
+  # that this exact control, run empirically against an earlier branch,
+  # produced "No changes" - no warning, no refusal - and drew a conclusion
+  # from that stale symptom about the fungible-slot duplicate check
+  # (ProblemDuplicateSlot, internal/live/discovery/count.go) being bypassed
+  # whenever a valid record already resolves the declared address. That
+  # measurement predated internal/live/discovery/supersededclaimant.go: #670
+  # found the symptom had already moved from silence to a wrong WARNING
+  # ("Live resource displaced from the address it is marked for", exit 0)
+  # once that file existed, and #849 then restored the refusal for exactly
+  # this shape - a second genuinely live object wearing the address's
+  # marker, with nothing in the record naming it as destroyed, is never
+  # pruned as a shadow, so the count-set claimant matcher
+  # (slotProblem/ProblemDuplicateSlot) still runs and still refuses. Read as
+  # evidence rather than edited from #849's own body (HANDOFF's warning
+  # against "a check written from the implementation"): re-measured below,
+  # on the current emulator image, with BREAK=replace as a real leg rather
+  # than a comment.
   gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
@@ -1827,70 +1843,96 @@ if [ "$CHANGED_N" -eq 0 ]; then
     || fail "$MAIN_SG_ID does not carry tofu-address=module.security_group.aws_security_group.this:0 ahead of day2_replace"
   log "  $MAIN_SG_ID, record import_id=$F_OLD_IMPORT_ID, tofu-address=$F_OLD_ADDR_TAG"
 
-  log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
-  sed -i.bak 's/^  name        = local\.name$/  name        = "${local.name}-replaced"/' "$ADOPTED_EST/main.tf"
-  rm -f "$ADOPTED_EST/main.tf.bak"
-  grep -q 'name        = "${local.name}-replaced"' "$ADOPTED_EST/main.tf" || fail "changing module.security_group's name argument did not match - the corpus pin has moved"
+  if [ "${BREAK:-}" = "replace" ]; then
+    log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
+    # A second, distinct live security group carrying the SAME tofu-address
+    # and tofu-slot as the one a genuine replace would destroy - the state
+    # "skip the destroy half" of a create_before_destroy replace would
+    # leave, produced directly via the AWS CLI (day2_crash, stage 10, owns
+    # testing a real interrupted apply).
+    BREAK_VPC_ID="$(awsl ec2 describe-security-groups --group-ids "$MAIN_SG_ID" --query "SecurityGroups[0].VpcId" --output text)"
+    [ -n "$BREAK_VPC_ID" ] && [ "$BREAK_VPC_ID" != "None" ] || fail "BREAK=replace: could not read $MAIN_SG_ID's own VpcId to launch the collision security group in the same VPC"
+    BREAK_COLLISION_SG_ID="$(awsl ec2 create-security-group --group-name "sg-break-replace-collision-$$" --description "BREAK=replace collision control (#846)" --vpc-id "$BREAK_VPC_ID" \
+      --tag-specifications "ResourceType=security-group,Tags=[{Key=tofu-estate,Value=$ESTATE},{Key=tofu-address,Value=module.security_group.aws_security_group.this:0},{Key=tofu-slot,Value=0}]" \
+      --query 'GroupId' --output text)"
+    [ -n "$BREAK_COLLISION_SG_ID" ] && [ "$BREAK_COLLISION_SG_ID" != "None" ] || fail "BREAK=replace: could not create the collision security group"
+    BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
+    awsl ec2 delete-security-group --group-id "$BREAK_COLLISION_SG_ID" >/dev/null 2>&1 || true
+    [ "$BREAK_PLAN_RC" -ne 0 ] \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live security groups claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
+    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    grep -qF "$MAIN_SG_ID" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the real, still-valid security group ($MAIN_SG_ID)"; }
+    grep -qF "$BREAK_COLLISION_SG_ID" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the manufactured duplicate ($BREAK_COLLISION_SG_ID)"; }
+    log "  BREAK=replace: caught - choudoufu correctly refused with a named collision (\"Two live resources claiming one slot\", naming both $MAIN_SG_ID and $BREAK_COLLISION_SG_ID) rather than silently proposing nothing - the Break text's own outcome"
+  else
+    log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
+    sed -i.bak 's/^  name        = local\.name$/  name        = "${local.name}-replaced"/' "$ADOPTED_EST/main.tf"
+    rm -f "$ADOPTED_EST/main.tf.bak"
+    grep -q 'name        = "${local.name}-replaced"' "$ADOPTED_EST/main.tf" || fail "changing module.security_group's name argument did not match - the corpus pin has moved"
 
-  F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
-  [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
-  grep -qE '^  # module\.security_group\.aws_security_group\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
-    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.security_group's SG when its ForceNew name argument changes"; }
-  # The module maps its own `name` input into the resource's `name_prefix`
-  # argument by default (use_name_prefix defaults true), so the line that
-  # actually carries "# forces replacement" is name_prefix, not name
-  # itself (name reads "-> (known after apply)": AWS auto-generates it
-  # from the changed prefix).
-  grep -qE '~ +name_prefix +=.+forces replacement' <<< "$F_PLAN_OUT" \
-    || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name_prefix as forcing replacement"; }
-  F_REPLACED_COUNT="$(grep -cE '^  # module\.security_group\..+ must be replaced' <<< "$F_PLAN_OUT" || true)"
-  [ "$F_REPLACED_COUNT" = "10" ] \
-    || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu replaces $F_REPLACED_COUNT of module.security_group's own resources, not the header's own 10 (SG + 7 ingress + 1 egress + 1 rules_exclusive)"; }
-  grep -qF 'Plan: 10 to add, 0 to change, 10 to destroy.' <<< "$F_PLAN_OUT" \
-    || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own ten-resource cascade"; }
-  log "  choudoufu: exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer - matches F-ORACLE's own plan shape"
+    F_PLAN_OUT="$(plan_into 2>&1)"; F_PLAN_RC=$?
+    [ "$F_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_PLAN_OUT" | tail -40; fail "the day2_replace plan exited $F_PLAN_RC"; }
+    grep -qE '^  # module\.security_group\.aws_security_group\.this\[0\] must be replaced' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu does not propose replacing module.security_group's SG when its ForceNew name argument changes"; }
+    # The module maps its own `name` input into the resource's `name_prefix`
+    # argument by default (use_name_prefix defaults true), so the line that
+    # actually carries "# forces replacement" is name_prefix, not name
+    # itself (name reads "-> (known after apply)": AWS auto-generates it
+    # from the changed prefix).
+    grep -qE '~ +name_prefix +=.+forces replacement' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT"; fail "the plan does not mark name_prefix as forcing replacement"; }
+    F_REPLACED_COUNT="$(grep -cE '^  # module\.security_group\..+ must be replaced' <<< "$F_PLAN_OUT" || true)"
+    [ "$F_REPLACED_COUNT" = "10" ] \
+      || { printf '%s\n' "$F_PLAN_OUT" | grep -E '^  # .+ (will be|must be)'; fail "choudoufu replaces $F_REPLACED_COUNT of module.security_group's own resources, not the header's own 10 (SG + 7 ingress + 1 egress + 1 rules_exclusive)"; }
+    grep -qF 'Plan: 10 to add, 0 to change, 10 to destroy.' <<< "$F_PLAN_OUT" \
+      || { printf '%s\n' "$F_PLAN_OUT" | tail -10; fail "the day2_replace plan does not match F-ORACLE's own ten-resource cascade"; }
+    log "  choudoufu: exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer - matches F-ORACLE's own plan shape"
 
-  F_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
-  [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
-  grep -qE 'Resources: 10 added, 0 changed, 10 destroyed' <<< "$F_APPLY_OUT" \
-    || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 10 added, 10 destroyed"; }
+    F_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; F_APPLY_RC=$?
+    [ "$F_APPLY_RC" -eq 0 ] || { printf '%s\n' "$F_APPLY_OUT" | tail -40; fail "the day2_replace apply exited $F_APPLY_RC"; }
+    grep -qE 'Resources: 10 added, 0 changed, 10 destroyed' <<< "$F_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$F_APPLY_OUT"; fail "the day2_replace apply did not match the planned 10 added, 10 destroyed"; }
 
-  F_OLD_STILL_LIVE="$(awsl ec2 describe-security-groups --group-ids "$MAIN_SG_ID" 2>&1)"
-  ! grep -qF "$MAIN_SG_ID" <<< "$F_OLD_STILL_LIVE" \
-    || fail "$MAIN_SG_ID (the old security group) still exists after the replace - it was orphaned, not destroyed"
-  log "  $MAIN_SG_ID (the old security group) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
+    F_OLD_STILL_LIVE="$(awsl ec2 describe-security-groups --group-ids "$MAIN_SG_ID" 2>&1)"
+    ! grep -qF "$MAIN_SG_ID" <<< "$F_OLD_STILL_LIVE" \
+      || fail "$MAIN_SG_ID (the old security group) still exists after the replace - it was orphaned, not destroyed"
+    log "  $MAIN_SG_ID (the old security group) is gone - confirmed via the AWS CLI, not through choudoufu's own report"
 
-  F_NEW_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-address,Values=module.security_group.aws_security_group.this:0" --query "SecurityGroups[0].GroupId" --output text)"
-  [ -n "$F_NEW_SG_ID" ] && [ "$F_NEW_SG_ID" != "None" ] && [ "$F_NEW_SG_ID" != "$MAIN_SG_ID" ] \
-    || fail "could not find a new, different security group carrying module.security_group's tofu-address after the replace (got '$F_NEW_SG_ID')"
-  F_NEW_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-  [ "$F_NEW_ADDR_TAG" = "module.security_group.aws_security_group.this:0" ] \
-    || fail "$F_NEW_SG_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.security_group.aws_security_group.this:0 - the marker did not move onto the new object"
-  log "  $F_NEW_SG_ID (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
+    F_NEW_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-address,Values=module.security_group.aws_security_group.this:0" --query "SecurityGroups[0].GroupId" --output text)"
+    [ -n "$F_NEW_SG_ID" ] && [ "$F_NEW_SG_ID" != "None" ] && [ "$F_NEW_SG_ID" != "$MAIN_SG_ID" ] \
+      || fail "could not find a new, different security group carrying module.security_group's tofu-address after the replace (got '$F_NEW_SG_ID')"
+    F_NEW_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$F_NEW_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+    [ "$F_NEW_ADDR_TAG" = "module.security_group.aws_security_group.this:0" ] \
+      || fail "$F_NEW_SG_ID carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.security_group.aws_security_group.this:0 - the marker did not move onto the new object"
+    log "  $F_NEW_SG_ID (the new object) carries tofu-address=$F_NEW_ADDR_TAG - the marker moved onto the new object, read via the AWS CLI"
 
-  # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
-  # #398-guard shape: a stale record still naming the destroyed SG would
-  # be exactly the wrong-marker failure that outranks a missing one). The
-  # local record file at the SAME address must now hold the NEW SG's id,
-  # not the one captured in F0.
-  F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
-  [ "$F_NEW_IMPORT_ID" = "$F_NEW_SG_ID" ] \
-    || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_SG_ID - a stale record still claiming the destroyed SG, the #398-guard shape"
-  [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
-    || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
-  log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
+    # THE RECORD STORE, asserted by value (HANDOFF's safety rule; the
+    # #398-guard shape: a stale record still naming the destroyed SG would
+    # be exactly the wrong-marker failure that outranks a missing one). The
+    # local record file at the SAME address must now hold the NEW SG's id,
+    # not the one captured in F0.
+    F_NEW_IMPORT_ID="$(record_import_id "$F_RECORD")"
+    [ "$F_NEW_IMPORT_ID" = "$F_NEW_SG_ID" ] \
+      || fail "the record for $F_ADDR names $F_NEW_IMPORT_ID after the replace, not the new object $F_NEW_SG_ID - a stale record still claiming the destroyed SG, the #398-guard shape"
+    [ "$F_NEW_IMPORT_ID" != "$F_OLD_IMPORT_ID" ] \
+      || fail "sanity: the record's import_id at $F_ADDR did not change at all across the replace"
+    log "  record store: import_id $F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID at the same key ($F_ADDR) - read directly off the local record store file, not through choudoufu's own report"
 
-  log "=== F2. one more plan: config and reality agree, no marker collision ==="
-  F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
-  [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
-  if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$F_FINAL_PLAN_OUT"; then
-    grep -E '^  # .+ (will be|must be)' <<< "$F_FINAL_PLAN_OUT"
-    fail "the post-replace plan proposes a resource change"
+    log "=== F2. one more plan: config and reality agree, no marker collision ==="
+    F_FINAL_PLAN_OUT="$(plan_into 2>&1)"; F_FINAL_PLAN_RC=$?
+    [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
+    if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$F_FINAL_PLAN_OUT"; then
+      grep -E '^  # .+ (will be|must be)' <<< "$F_FINAL_PLAN_OUT"
+      fail "the post-replace plan proposes a resource change"
+    fi
+    log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
+
+    MAIN_SG_ID="$F_NEW_SG_ID"
+    gauntlet_stage day2_replace pass "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG ($F_OLD_IMPORT_ID) is confirmed gone and the new SG ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\", naming both live security groups) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
-  log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
-
-  MAIN_SG_ID="$F_NEW_SG_ID"
-  gauntlet_stage day2_replace pass "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG ($F_OLD_IMPORT_ID) is confirmed gone and the new SG ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment for the empirically-found regression in the fungible-slot duplicate check (ProblemDuplicateSlot), reproduced on corpus-ec2-instance-complete's own leg too, not fixed in this script-only unit. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   gauntlet_end_stage
 
   # ══════════════════════════════════════════════════════════════════════
