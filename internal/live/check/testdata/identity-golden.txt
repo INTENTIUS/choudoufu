@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=643 instances=1796
-# shape: class CONCRETE=883
-# shape: class NEEDS_DISCOVERY=749
+# shape: dirs=645 instances=1801
+# shape: class CONCRETE=887
+# shape: class NEEDS_DISCOVERY=750
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=2b58807fada16adc669117ae269727d6585feb31dc4289a55c181f94c5be4e44
+# shape: body-sha256=81a0a6ddc39dc6d10bdb3abf7b7452d73a8d830c50fdeac225a52303213a151c
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -127,6 +127,9 @@ internal/live/discovery/testdata/moved-rename	aws_subnet.renamed	NEEDS_DISCOVERY
 internal/live/discovery/testdata/moved-rename	aws_subnet.untouched	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/propagated-child-marker	aws_instance.main	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/tagging-e2e	aws_iam_role.demo	CONCRETE	tagging-e2e-demo	name=tagging-e2e-demo
+internal/live/discovery/testdata/vouch-two-region	aws_cloudwatch_log_group.east	CONCRETE	/app/logs	name=/app/logs
+internal/live/discovery/testdata/vouch-two-region	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
+internal/live/discovery/testdata/vouch-two-region	aws_kms_key.east	NEEDS_DISCOVERY		
 internal/live/identity/testdata/cloud-default-attr	aws_cloudfront_realtime_log_config.logs	NEEDS_DISCOVERY		
 internal/live/identity/testdata/cloud-default-attr	aws_glue_catalog_database.maybe	NEEDS_DISCOVERY		
 internal/live/identity/testdata/cloud-default-attr	aws_glue_catalog_database.own	NEEDS_DISCOVERY		
@@ -959,6 +962,8 @@ internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g4	CONC
 internal/live/projection/testdata/read-parallel	aws_cloudwatch_log_group.g5	CONCRETE	read-parallel-5	name=read-parallel-5
 internal/live/projection/testdata/record-parent-derived	aws_cloudwatch_log_group.app	CONCRETE	placeholder	name=placeholder
 internal/live/projection/testdata/record-parent-derived	null_resource.suffix	RECORD_BACKED		
+internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.east	CONCRETE	/app/logs	name=/app/logs
+internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
 internal/live/providerscope/testdata/aliased-parent	module.east.aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
 internal/live/providerscope/testdata/aliased-parent	module.west.aws_s3_bucket.data	CONCRETE	west-bucket	bucket=west-bucket
 internal/live/providerscope/testdata/aliased-parent/vpc	aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
