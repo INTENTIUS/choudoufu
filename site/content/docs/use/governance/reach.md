@@ -11,8 +11,8 @@ AWS's own Service Authorization Reference is a floor here, not a ceiling: it
 is authoritative about the services it explicitly names and silent about
 the rest, and AWS documents tag-based authorization for services this
 reference says nothing about, Lambda among them.
-{{< iamref field="named-count" >}} of {{< iamref field="services-count" >}}
-services explicitly name `aws:ResourceTag` on their tagging action -
+{{< iamref field="named-count" >}} of {{< iamref field="checked-count" >}}
+checked services explicitly name `aws:ResourceTag` on their tagging action -
 the confirmed count, not the working count.
 
 {{< iamref field="named" >}}
