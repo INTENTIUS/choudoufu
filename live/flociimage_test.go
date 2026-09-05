@@ -64,7 +64,34 @@ var flociImageFields = map[string]string{
 // image than the current pin, with the reason. An entry is a standing
 // decision that says what re-measuring would cost; empty is the intended
 // state.
-var staleFlociMeasurements = map[string]string{}
+//
+// 2026-09-05 repin (issue #672, lex00/floci#190 - CreateSubnet CIDR-conflict
+// check): the maintainer ruling that ordered this repin scoped the
+// re-measurement to corpus-vpc-complete, the estate the emulator defect was
+// found on (its greenfield stage's stock-oracle subnet count is the ratchet
+// this fix targets, and it re-ran clear against the new pin - see
+// live/gauntlet.json's own row). Re-measuring the three artifacts below is
+// each its own multi-estate sweep, not a rerun of the one estate this repin
+// was about, so each is recorded here rather than attempted in the same
+// pass:
+var staleFlociMeasurements = map[string]string{
+	// bench-estate (`make bench-estate`, internal/live/discovery's
+	// TestScaleAgainstFloci) plans a synthetic N=200 and N=1000 resource
+	// estate and counts every API call; re-measuring costs that benchmark's
+	// own run time (single-digit minutes per N, but it is a call-count
+	// ratchet unrelated to EC2 subnet allocation - this fix touches no path
+	// bench-estate's synthetic fixture exercises).
+	"plan-budget.json": "measured against the pre-#672 pin; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and the fix (EC2 CreateSubnet CIDR-conflict rejection) touches no call this benchmark's synthetic fixture makes",
+	// TestCohortAcceptance (internal/live/acceptance) applies, deletes the
+	// state of, and replans all 31 estate-gen cohorts under
+	// live/e2e/estates/ against a live floci container; re-measuring costs
+	// that whole sweep, not the one estate this repin's ruling named.
+	"cohort-acceptance.json": "measured against the pre-#672 pin; re-measuring costs a full `TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance` sweep across all 31 cohorts, out of scope for a repin ruling that named corpus-vpc-complete specifically",
+	// cohort-triage.json is hand triage reconciled against
+	// cohort-acceptance.json's own re-measurement (its own generated_by
+	// field says so); it cannot be re-measured independently of that file.
+	"cohort-triage.json": "reconciled by hand against cohort-acceptance.json (see this file's own generated_by field); re-measuring depends on that artifact's own re-measurement, which is the entry above",
+}
 
 // flociPinRef is live/floci-image's full ref.
 func flociPinRef(t *testing.T) string {

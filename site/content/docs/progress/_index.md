@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`, recorded at 2026-08-31T11:51:55Z.
+Estates below were last measured against different emulator pins: 26 against `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948`, 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (current pin) (last_run.date ranges from 2026-08-31T11:51:55Z to 2026-09-05T23:45:57Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -87,7 +87,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h34m22.8s at commit `fcb55698e7`.
+27 of 27 estates have a recorded run duration, totaling 2h34m34.1s, but not from one sweep: 4m48.1s across 1 estate(s) at commit `ebe5603818`; 2h29m46s across 26 estate(s) at commit `fcb55698e7`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -113,7 +113,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | 7m41.5s | cold_deploy 1m9s, migrate 39s, test_plan 5s, test_apply 15s, drift_reconverge 22s, day2_rename 16s, day2_remove 24s, day2_count 51s, day2_replace 1m8s, greenfield 2m32s |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | 10m20.4s | cold_deploy 57s, migrate 2m2s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 9s, day2_remove 48s, day2_count 1m55s, day2_replace 1m15s, greenfield 3m5s |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | 9m28s | cold_deploy 1m14s, migrate 3m16s, test_plan 11s, test_apply 11s, drift_reconverge 23s, day2_rename 39s, day2_remove 22s, day2_count 1m59s, day2_replace 1m11s, greenfield 2m21s |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m36.8s | cold_deploy 25s, migrate 1m31s, test_plan 4s, test_apply 4s, drift_reconverge 8s, day2_rename 13s, day2_remove 20s, day2_count 1m31s, day2_replace 20s, greenfield 52s |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m48.1s | cold_deploy 37s, migrate 1m34s, test_plan 4s, test_apply 3s, drift_reconverge 8s, day2_rename 13s, day2_remove 20s, day2_count 1m28s, day2_replace 20s, greenfield 57s |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m23.7s | cold_deploy 30s, migrate 56s, test_plan 3s, test_apply 3s, drift_reconverge 9s, day2_rename 10s, day2_remove 17s, day2_count 28s, day2_replace 8s, greenfield 37s |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m9.1s | cold_deploy 1m29s, migrate 52s, test_plan 2s, test_apply 2s, drift_reconverge 5s, day2_rename 8s, day2_remove 7s, day2_count 17s, day2_replace 26s, greenfield 4s, strict 1s |
 | [terralith-scale]({{< relref "terralith-scale" >}}) | 5m26.1s | cold_deploy 2m3s, migrate 43s, test_plan 4s, test_apply 6s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 17s, day2_replace 12s, greenfield 1m2s, strict - |
