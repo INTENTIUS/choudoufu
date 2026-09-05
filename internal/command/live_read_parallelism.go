@@ -21,6 +21,16 @@ import (
 // reproduces the sequential read loop exactly, one instance at a time in loop
 // order.
 //
+// In flight is exactly what it bounds, and issue #683 is why that sentence is
+// worth reading twice. The pass used to spend the same slot on a call it was
+// waiting for and on an answer it had already received, which meant the
+// number an operator set here was really a bound on how far the READING could
+// get ahead of the consuming loop - and one slow read spent the whole of it.
+// The answers now have their own bound, [projection.Options.ReadBuffer],
+// which follows this one at [projection.DefaultReadBufferFactor] per slot and
+// has no variable of its own: an operator turning the read pass down is
+// turning down what the account is asked for, which is this.
+//
 // GitHub issue #626, which is issue #612's defect one phase over. Issue #585
 // made the read pass concurrent and shipped Options.ReadParallelism as the
 // engine-side knob, and deliberately stopped at the command boundary because

@@ -598,7 +598,10 @@ Environment variables:
                           throttles those reads: 1 makes the pass sequential.
                           A value below 1 is refused rather than read as "no
                           limit", and the refusal lands before anything is
-                          read or written.
+                          read or written. It bounds the calls in flight; the
+                          answers read ahead of the consuming loop have their
+                          own bound of a hundred per slot (GitHub issue
+                          #683), so one slow read does not stop the rest.
 `
 	return strings.TrimSpace(helpText)
 }
