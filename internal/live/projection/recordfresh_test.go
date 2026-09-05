@@ -30,7 +30,16 @@ import (
 // switches itself off permanently at the first write, so a test that wrote
 // first would pass against a cache that had simply stopped existing. The
 // first assertion is what proves the cache was on at all.
+//
+// That switch is one atomic per process, so under `go test -count=N` this
+// test's own write at the end (mergeEnvelope) would otherwise disable the
+// cache for iterations 2..N and turn the premise check above into a
+// permanent, false failure - GitHub issue #848.
+// [staterecord.ResetRunCacheForTest] establishes this test's premise
+// itself instead of inheriting it from whatever ran earlier in the process.
 func TestWriteBackReadsAreNeverServedFromTheSnapshot(t *testing.T) {
+	staterecord.ResetRunCacheForTest(t)
+
 	ctx := context.Background()
 	counting := staterecord.NewCountingStore(localHintStore(t), nil)
 	prefix := RecordKeyPrefix("fresh-estate")

@@ -16,10 +16,13 @@ import (
 // resetRunCacheState clears the process-wide "something has been written"
 // switch, which is sticky by design and would otherwise let one test's write
 // silently turn every later test's cache off - a green run proving nothing.
+// It is this package's own tests' name for [ResetRunCacheForTest]; a
+// cross-package caller (internal/live/projection's premise check) uses the
+// exported name directly, since a _test.go helper is invisible outside its
+// own package.
 func resetRunCacheState(t *testing.T) {
 	t.Helper()
-	wroteSomething.Store(false)
-	t.Cleanup(func() { wroteSomething.Store(false) })
+	ResetRunCacheForTest(t)
 }
 
 const testPrefix = "tofu-records/estate"
