@@ -1822,12 +1822,16 @@ if [ "$CHANGED_N" -eq 0 ]; then
   # once that file existed, and #849 then restored the refusal for exactly
   # this shape - a second genuinely live object wearing the address's
   # marker, with nothing in the record naming it as destroyed, is never
-  # pruned as a shadow, so the count-set claimant matcher
-  # (slotProblem/ProblemDuplicateSlot) still runs and still refuses. Read as
-  # evidence rather than edited from #849's own body (HANDOFF's warning
-  # against "a check written from the implementation"): re-measured below,
-  # on the current emulator image, with BREAK=replace as a real leg rather
-  # than a comment.
+  # pruned as a shadow, so the count binder still sees two live claimants
+  # for one declared count member and still refuses - measured below as
+  # ProblemNeedsSlotMarkers ("Indistinguishable instances without
+  # per-instance markers"), the count path's own default-arm refusal
+  # (supersededclaimant.go's doc comment; both manufactured objects carry
+  # the SAME tofu-slot, so this is not the multi-member ProblemDuplicateSlot
+  # shape the stale comment guessed at). Read as evidence rather than edited
+  # from #849's own body (HANDOFF's warning against "a check written from
+  # the implementation"): re-measured below, on the current emulator image,
+  # with BREAK=replace as a real leg rather than a comment.
   gauntlet_begin_stage day2_replace
   record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
   record_import_id() { jq -r '.identity.import_id' "$1"; }
@@ -1860,13 +1864,13 @@ if [ "$CHANGED_N" -eq 0 ]; then
     awsl ec2 delete-security-group --group-id "$BREAK_COLLISION_SG_ID" >/dev/null 2>&1 || true
     [ "$BREAK_PLAN_RC" -ne 0 ] \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live security groups claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
-    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
+    grep -qF 'Indistinguishable instances without per-instance markers' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the fungible-slot collision - this stage's check is not load-bearing"; }
     grep -qF "$MAIN_SG_ID" <<< "$BREAK_PLAN_OUT" \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the real, still-valid security group ($MAIN_SG_ID)"; }
     grep -qF "$BREAK_COLLISION_SG_ID" <<< "$BREAK_PLAN_OUT" \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the manufactured duplicate ($BREAK_COLLISION_SG_ID)"; }
-    log "  BREAK=replace: caught - choudoufu correctly refused with a named collision (\"Two live resources claiming one slot\", naming both $MAIN_SG_ID and $BREAK_COLLISION_SG_ID) rather than silently proposing nothing - the Break text's own outcome"
+    log "  BREAK=replace: caught - choudoufu correctly refused with \"Indistinguishable instances without per-instance markers\", naming both $MAIN_SG_ID and $BREAK_COLLISION_SG_ID, rather than silently proposing nothing - the Break text's own outcome"
   else
     log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
     sed -i.bak 's/^  name        = local\.name$/  name        = "${local.name}-replaced"/' "$ADOPTED_EST/main.tf"
@@ -1931,7 +1935,7 @@ if [ "$CHANGED_N" -eq 0 ]; then
     log "  no resource action proposed. The replace is complete and invisible to the next plan - no marker collision."
 
     MAIN_SG_ID="$F_NEW_SG_ID"
-    gauntlet_stage day2_replace pass "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG ($F_OLD_IMPORT_ID) is confirmed gone and the new SG ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\", naming both live security groups) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG ($F_OLD_IMPORT_ID) is confirmed gone and the new SG ($F_NEW_IMPORT_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Indistinguishable instances without per-instance markers\", naming both live security groups) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
   fi
   gauntlet_end_stage
 
