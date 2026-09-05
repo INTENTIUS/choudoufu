@@ -72,8 +72,8 @@ func TestEnvelopeVouchIsPerProviderPass(t *testing.T) {
 		RecordStore:      store,
 		// The west pass's sighting, and only it: the east pass listed its
 		// own region and saw nothing.
-		CacheVouchSightings: map[string]map[string]bool{
-			"aws_cloudwatch_log_group": {id: true},
+		CacheVouchSightings: VouchSightings{
+			westProviderKey: {"aws_cloudwatch_log_group": {id: true}},
 		},
 		EnvelopeVouchServes: true,
 	})
@@ -117,8 +117,8 @@ func TestEnvelopeVouchServesItsOwnPassesSighting(t *testing.T) {
 		StateCache:       cachedStateFor(t, addr, id),
 		CacheServesReads: true,
 		RecordStore:      store,
-		CacheVouchSightings: map[string]map[string]bool{
-			"aws_cloudwatch_log_group": {id: true},
+		CacheVouchSightings: VouchSightings{
+			eastProviderKey: {"aws_cloudwatch_log_group": {id: true}},
 		},
 		EnvelopeVouchServes: true,
 	})

@@ -93,3 +93,59 @@ func TestCacheVouchPassListsOnlyItsOwnScopesTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestCacheVouchSightingsStayWithTheirPass is issue #745 at the layer that
+// produces the evidence. Two passes over one estate that mirrors a log
+// group name into two regions: the east object has been deleted out of
+// band, so the east pass lists its own region and sights nothing, while the
+// west pass sights the west object of the same name. Merge must keep those
+// two facts apart, because they are facts about two different accounts.
+//
+// The assertions are on the merged evidence by value - which provider
+// configuration vouched which identity - not on whether some flag is set.
+func TestCacheVouchSightingsStayWithTheirPass(t *testing.T) {
+	cfg := loadConfig(t, "testdata/vouch-two-region")
+	resolutions := twoRegionResolutions(t)
+	vouchTypes := []string{"aws_cloudwatch_log_group"}
+
+	east := testProviderAddr(t, "")
+	west := testProviderAddr(t, "west")
+
+	// The east region: the log group is gone. Nothing to list, nothing to
+	// sight.
+	eastCloud := newFakeCloud()
+	eastCloud.listable("aws_cloudwatch_log_group")
+	eastCloud.noFilter("aws_cloudwatch_log_group")
+
+	// The west region: the mirrored log group is still there, unmarked,
+	// answering to the same import identity the east instance uses.
+	westCloud := newFakeCloud()
+	westCloud.listable("aws_cloudwatch_log_group")
+	westCloud.noFilter("aws_cloudwatch_log_group")
+	westCloud.obj("aws_cloudwatch_log_group", "/app/logs", map[string]string{"Name": "app"})
+
+	pass := func(provider addrs.AbsProviderConfig, cloud *fakeCloud) Pass {
+		t.Helper()
+		res, diags := Discover(context.Background(), Request{
+			Estate:          estateName,
+			Config:          cfg,
+			Resolutions:     resolutions,
+			Provider:        cloud,
+			ScopeProvider:   provider,
+			VouchProvider:   provider,
+			CacheVouchTypes: vouchTypes,
+		})
+		assertNoErrors(t, diags)
+		return Pass{Provider: provider, Result: res}
+	}
+
+	merged, _, diags := Merge(estateName, []Pass{pass(east, eastCloud), pass(west, westCloud)})
+	assertNoErrors(t, diags)
+
+	if merged.CacheVouchSightings.Sighted(east, "aws_cloudwatch_log_group", "/app/logs") {
+		t.Errorf("the west region's object vouched existence for the east instance; merged sightings: %v", merged.CacheVouchSightings)
+	}
+	if !merged.CacheVouchSightings.Sighted(west, "aws_cloudwatch_log_group", "/app/logs") {
+		t.Errorf("the west pass's own sighting was lost in the merge; merged sightings: %v", merged.CacheVouchSightings)
+	}
+}

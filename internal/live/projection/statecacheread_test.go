@@ -11,6 +11,11 @@ import (
 	"github.com/intentius/choudoufu/internal/states"
 )
 
+// namedFixtureProvider is the provider configuration testdata/named's
+// resources resolve to, rendered the way [addrs.AbsProviderConfig.String]
+// renders it - the key [VouchSightings] partitions on (issue #745).
+const namedFixtureProvider = `provider["registry.opentofu.org/hashicorp/aws"]`
+
 // cachedStateFor builds a cache holding one object for addr, with a marker
 // attribute set so a hit is distinguishable from a fresh read.
 func cachedStateFor(t *testing.T, addrStr, id string) *states.State {
@@ -208,8 +213,8 @@ func TestEnvelopeVouchServesTheRead(t *testing.T) {
 		StateCache:       cachedStateFor(t, addr, id),
 		CacheServesReads: true,
 		RecordStore:      store,
-		CacheVouchSightings: map[string]map[string]bool{
-			"aws_cloudwatch_log_group": {id: true},
+		CacheVouchSightings: VouchSightings{
+			namedFixtureProvider: {"aws_cloudwatch_log_group": {id: true}},
 		},
 		EnvelopeVouchServes: true,
 	})
@@ -239,6 +244,14 @@ func TestEnvelopeVouchFailsTowardReading(t *testing.T) {
 		},
 		"no sighting, no existence evidence": func(t *testing.T, o *Options, store *RecordStore) {
 			o.CacheVouchSightings = nil
+		},
+		"a sighting from another provider configuration's pass": func(t *testing.T, o *Options, store *RecordStore) {
+			// Issue #745: the identity was listed live this run, but by
+			// the pass over a different account or region, where a
+			// same-named object is a different resource.
+			o.CacheVouchSightings = VouchSightings{
+				`provider["registry.opentofu.org/hashicorp/aws"].west`: {"aws_cloudwatch_log_group": {id: true}},
+			}
 		},
 		"no record, no ownership evidence": func(t *testing.T, o *Options, store *RecordStore) {
 			o.RecordStore = NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix(ownershipEstate))
@@ -278,8 +291,8 @@ func TestEnvelopeVouchFailsTowardReading(t *testing.T) {
 				StateCache:       cachedStateFor(t, addr, id),
 				CacheServesReads: true,
 				RecordStore:      store,
-				CacheVouchSightings: map[string]map[string]bool{
-					"aws_cloudwatch_log_group": {id: true},
+				CacheVouchSightings: VouchSightings{
+					namedFixtureProvider: {"aws_cloudwatch_log_group": {id: true}},
 				},
 				EnvelopeVouchServes: true,
 			}

@@ -1464,8 +1464,11 @@ func cacheVouchTypesFor(cache *states.State, resolutions []identity.Resolution) 
 // ([discovery.Result.CacheVouchSightings]) to the projection, nil-safely.
 // The pass is hermetic - the sightings never ride through Unclaimed, which
 // also holds a CollectUnclaimed account sweep's population and everything
-// the foreign report renders (review findings on #734/#737).
-func cacheVouchSightings(disco *discovery.Result) map[string]map[string]bool {
+// the foreign report renders (review findings on #734/#737) - and it is
+// partitioned by the provider configuration each pass listed through
+// (issue #745), which the projection matches against each instance's own
+// provider address.
+func cacheVouchSightings(disco *discovery.Result) projection.VouchSightings {
 	if disco == nil {
 		return nil
 	}

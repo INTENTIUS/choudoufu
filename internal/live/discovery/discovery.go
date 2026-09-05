@@ -234,6 +234,22 @@ type Request struct {
 	// single-provider Discover call exactly as it always was.
 	ScopeProvider addrs.AbsProviderConfig
 
+	// VouchProvider is the provider configuration this pass lists through,
+	// stamped onto every sighting the cache-vouch pass produces so that
+	// [Result.CacheVouchSightings] stays partitioned per pass through
+	// [Merge] and into [projection.Options.CacheVouchSightings] (issue
+	// #745).
+	//
+	// It is the pass's OWN provider configuration, not [ScopeProvider]:
+	// the single-provider path deliberately leaves ScopeProvider at its
+	// zero value (nothing to scope), and its sightings still have to be
+	// attributable to the one configuration that listed them, or the
+	// projection could never match them against an instance's own provider
+	// address. Every caller that serves reads from a cache sets this; a
+	// caller that leaves it zero produces sightings no instance can match,
+	// which costs reads and never correctness.
+	VouchProvider addrs.AbsProviderConfig
+
 	// ---------------------------------------------------------------------
 	// Guided discovery (issue #64's second leg)
 	// ---------------------------------------------------------------------
@@ -486,6 +502,19 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		if decl.types[typeName] != nil || decl.all[typeName] == nil {
 			continue
 		}
+		if !vouchTypeInScope(req, decl, typeName) {
+			// Declared, but by a provider configuration other than this
+			// pass's (issue #745). decl.all is populated from every
+			// resolution before the ScopeProvider filter - it has to be,
+			// because it is what keeps another pass's declared resource
+			// from being read as an orphan - so without this check every
+			// pass vouch-listed every vouch type, one duplicate list per
+			// type per extra provider configuration, against an account
+			// that declares none of it. There is nothing here for this
+			// pass to vouch: an instance is only ever vouched by its own
+			// provider configuration's sighting.
+			continue
+		}
 		// The vouch pass is HERMETIC (review findings on #734/#737): a run
 		// with a cache file must produce byte-identical output and verdicts
 		// to the same run without one, so this scan runs against a sandbox
@@ -513,13 +542,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			if u.TypeName == "" || u.ImportID == "" {
 				continue
 			}
-			if res.CacheVouchSightings == nil {
-				res.CacheVouchSightings = map[string]map[string]bool{}
-			}
-			if res.CacheVouchSightings[u.TypeName] == nil {
-				res.CacheVouchSightings[u.TypeName] = map[string]bool{}
-			}
-			res.CacheVouchSightings[u.TypeName][u.ImportID] = true
+			res.CacheVouchSightings = res.CacheVouchSightings.Add(req.VouchProvider, u.TypeName, u.ImportID)
 		}
 	}
 
@@ -1108,6 +1131,42 @@ func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modCfg *config
 	}
 	addr := providerscope.ResolveResource(modCfg, rc)
 	return addr.String() == scope.String()
+}
+
+// vouchTypeInScope reports whether this pass's provider configuration
+// declares any instance of typeName - the question the cache-vouch pass has
+// to ask before it pays for a list (issue #745).
+//
+// It cannot read [declared.types], which holds only the needs-discovery
+// population: every instance the vouch pass exists for is client-named and
+// already ClassConcrete, so it never joins the binding demand at all. What
+// it reads instead is [declared.all], which carries every declared instance
+// of every class, and resolves each one's block the same way [inScope] does
+// - [providerscope.ResolveResource] through the module tree, so a resource
+// inside a module called with a `providers = {...}` mapping scopes against
+// the configuration that mapping actually sends it to.
+//
+// An unscoped pass (the single-provider path's zero ScopeProvider) owns
+// everything, exactly as [inScope] says, so this is a no-op there.
+func vouchTypeInScope(req Request, decl *declared, typeName string) bool {
+	if req.ScopeProvider.Provider.Type == "" {
+		return true
+	}
+	for _, da := range decl.all[typeName] {
+		addr := da.res.Addr
+		modCfg, ok := identity.ConfigForModule(req.Config, addr.Module)
+		if !ok || modCfg.Module == nil {
+			continue
+		}
+		block := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+		if block == nil {
+			continue
+		}
+		if inScope(req.ScopeProvider, block, modCfg) {
+			return true
+		}
+	}
+	return false
 }
 
 // declaredInstances indexes the needs-discovery resolutions by type and

@@ -201,17 +201,13 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
 		res.Unbound = append(res.Unbound, p.Result.Unbound...)
 		res.Unclaimed = append(res.Unclaimed, p.Result.Unclaimed...)
-		for typeName, ids := range p.Result.CacheVouchSightings {
-			if res.CacheVouchSightings == nil {
-				res.CacheVouchSightings = map[string]map[string]bool{}
-			}
-			if res.CacheVouchSightings[typeName] == nil {
-				res.CacheVouchSightings[typeName] = map[string]bool{}
-			}
-			for id := range ids {
-				res.CacheVouchSightings[typeName][id] = true
-			}
-		}
+		// The union keeps each pass's own partition rather than collapsing
+		// the type/identity pairs into one set (issue #745): a sighting is
+		// evidence about the account and region that pass listed, and a
+		// multi-region estate mirroring one client-chosen name has two
+		// live objects answering to one import identity. Flattened, region
+		// B's object vouched existence for region A's instance.
+		res.CacheVouchSightings = res.CacheVouchSightings.Union(p.Result.CacheVouchSightings)
 		res.Orphans = append(res.Orphans, p.Result.Orphans...)
 		for _, g := range p.Result.SweepGaps {
 			key := g.TypeName + "\x00" + string(g.Reason)

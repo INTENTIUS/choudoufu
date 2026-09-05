@@ -442,7 +442,12 @@ func (b *builder) cacheWouldServe(ctx context.Context, w wanted, prep readPrep) 
 //   - Existence and identity: [Options.CacheVouchSightings] holds the
 //     identities this run's listing pass saw live. For a client-named
 //     type, the listed name is the import identity, so a sighting of
-//     prep's own target identity is a sighting of this instance.
+//     prep's own target identity is a sighting of this instance -
+//     provided the sighting came from THIS instance's own provider
+//     configuration's pass (issue #745). An estate that mirrors one
+//     client-chosen name into two regions has two live objects answering
+//     to one import identity, and the other region's listing says
+//     nothing about whether this one still exists.
 //   - Ownership: the record envelope, already bulk-loaded through
 //     [Options.RecordStore]'s run cache at zero additional calls, is
 //     authoritative for which object an address owns (issue #364). It
@@ -461,7 +466,7 @@ func (b *builder) envelopeVouched(ctx context.Context, w wanted, prep readPrep) 
 		return false
 	}
 	typeName := w.addr.Resource.Resource.Type
-	if !b.opts.CacheVouchSightings[typeName][prep.target.ID] {
+	if !b.opts.CacheVouchSightings.Sighted(prep.providerAddr, typeName, prep.target.ID) {
 		return false
 	}
 	rec, _, _, identityFound, _, err := b.locatedIdentityWithAliases(ctx, w.addr)
