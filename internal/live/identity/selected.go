@@ -178,6 +178,52 @@ func SelectedLocatedRefusal(resourceType string, schemas map[string]providers.Sc
 	return ""
 }
 
+// SensitiveIdentityAttr names the attribute whose sensitivity is why a
+// record for resourceType cannot be written, or "" when sensitivity is not
+// the reason - either because nothing a record would hold is sensitive, or
+// because the identity is unrecordable for a structural reason that comes
+// first.
+//
+// It exists for a caller that has already been told "not recordable" and
+// needs to know WHICH of the two answers that is: an identity this mechanism
+// structurally cannot derive, or the deliberate refusal to put secret
+// material in the record store. internal/live/projection's write-back is the
+// caller; before this, both printed the same line, which is the exact
+// distinction its own comment says must never blur (GitHub issue #746's
+// review finding B4).
+//
+// The branch order is [projection.LocatedRecordFrom]'s own, mirrored rather
+// than re-derived, because the two must agree about which route actually
+// refused:
+//
+//   - The wire-schema route is usable and holds nothing sensitive: any
+//     refusal past it is structural (the applied object was missing a
+//     component), so this answers "".
+//   - The wire-schema route is usable and one of the attributes it would
+//     write is sensitive: that is what sent LocatedRecordFrom to the
+//     ratified-components route, and it is the deliberate refusal.
+//   - The wire-schema route is not usable at all: the ratified-components
+//     route ran, and [SensitiveComponentsAttr] is its own version of the
+//     same question.
+//
+// A type with no schema, or one this run holds no table row for on the third
+// branch, answers "" - structural, which is the safe direction: reporting a
+// refusal as deliberate when it was not would tell an operator to change a
+// setting that would not help.
+func SensitiveIdentityAttr(resourceType string, schema providers.Schema) string {
+	if schema.Block == nil {
+		return ""
+	}
+	if plan, recordable := LocatedIdentityPlanFor(resourceType, schema); recordable {
+		return sensitiveIdentityAttr(plan, schema)
+	}
+	ti, ok := LookupType(resourceType)
+	if !ok {
+		return ""
+	}
+	return SensitiveComponentsAttr(ti, schema)
+}
+
 // sensitiveIdentityAttr names the first attribute a located record would
 // hold for this type that the provider marks Sensitive and does not mark
 // Deprecated, or "" when none is.
