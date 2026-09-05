@@ -6,6 +6,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -194,5 +195,88 @@ func TestCmdNextTypesFlagIsDocumented(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `-types T1,T2,...`) {
 		t.Error("usage() no longer documents -types")
+	}
+}
+
+// TestLoadTypeIndexTotalsShape confirms the totals loader reads
+// live/estate-types.json's "totals" object and nothing else, on a minimal
+// fixture, so a change to the artifact's other fields cannot silently
+// break it.
+func TestLoadTypeIndexTotalsShape(t *testing.T) {
+	dir := t.TempDir()
+	fixture := `{
+  "schema": 1,
+  "generated_by": "test",
+  "totals": {"estates": 3, "distinct_types": 5, "types_in_no_cohort": 2},
+  "estates": [
+    {"name": "fixture-a", "types": ["aws_instance"], "count": 1, "sources": ["config"]}
+  ]
+}`
+	if err := os.MkdirAll(filepath.Join(dir, "live"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, TypeIndexPath), []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tt, err := LoadTypeIndexTotals(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := TypeIndexTotals{Estates: 3, DistinctTypes: 5, TypesInNoCohort: 2}
+	if tt != want {
+		t.Errorf("LoadTypeIndexTotals = %+v, want %+v", tt, want)
+	}
+}
+
+// TestLoadTypeIndexTotalsMissingFileIsZero mirrors
+// TestLoadTypeIndexMissingFileIsEmpty: a checkout that predates #435 (or a
+// fixture root with no artifact) reads as the zero value rather than
+// erroring.
+func TestLoadTypeIndexTotalsMissingFileIsZero(t *testing.T) {
+	dir := t.TempDir()
+	tt, err := LoadTypeIndexTotals(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tt != (TypeIndexTotals{}) {
+		t.Errorf("expected the zero value for a root with no %s, got %+v", TypeIndexPath, tt)
+	}
+}
+
+// TestRenderedGauntletSpecMatchesEstateTypesArtifact is GitHub issue #658's
+// guard for the sharpest of its five sites: live/GAUNTLET.md's "Estate
+// admission" section quotes live/estate-types.json's totals in prose, and
+// they drifted (26/161/86 committed against an artifact that read
+// 27/162/86) with TestRenderedDocsAreCurrent green throughout, because that
+// test only checks the rendered file against what the generator currently
+// produces - never against the artifact the sentence claims to describe. A
+// stale literal retyped into renderSpec would still round-trip cleanly
+// through render-then-diff, so this test reads the artifact and the
+// committed doc independently and compares them by value instead.
+//
+// A prior run of this unit proved it red on purpose by reintroducing the
+// exact stale literal render.go used to carry (26/161/86, against an
+// artifact reading 27/162/86); see this PR's description for that output.
+func TestRenderedGauntletSpecMatchesEstateTypesArtifact(t *testing.T) {
+	root := testRoot(t)
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tt == (TypeIndexTotals{}) {
+		t.Fatal("live/estate-types.json's totals are all zero; this test measures nothing until the artifact is populated")
+	}
+	b, err := os.ReadFile(filepath.Join(root, SpecPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(b)
+	want := fmt.Sprintf("%d estates exercising %d distinct types between them, of which %d no",
+		tt.Estates, tt.DistinctTypes, tt.TypesInNoCohort)
+	if !strings.Contains(spec, want) {
+		t.Errorf("%s's estate-admission figures disagree with %s's totals (%+v); want a sentence containing %q. "+
+			"If the artifact changed, run `go run ./tools/gauntlet render` and commit the result; if the prose "+
+			"wording changed on purpose, update this test's expected substring too",
+			SpecPath, TypeIndexPath, tt, want)
 	}
 }

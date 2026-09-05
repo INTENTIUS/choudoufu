@@ -17,6 +17,48 @@ import (
 // as input rather than written: tools/estate-types owns generating it.
 const TypeIndexPath = "live/estate-types.json"
 
+// TypeIndexTotals is live/estate-types.json's "totals" object: the
+// board-wide figures the gauntlet spec's "Estate admission" section quotes
+// in prose. GitHub issue #658: those figures used to be typed as a literal
+// sentence inside renderSpec and drifted from the artifact that measures
+// them (26/161/86 committed against an artifact that read 27/162/86).
+// Reading them fresh here, at render time, is what TestRenderedFiguresMatchTypeIndex
+// (typeindex_test.go) holds to the artifact.
+type TypeIndexTotals struct {
+	Estates         int
+	DistinctTypes   int
+	TypesInNoCohort int
+}
+
+// LoadTypeIndexTotals reads live/estate-types.json's totals block. A
+// missing file returns the zero value, the same "not yet run" reading
+// LoadTypeIndex gives the per-estate index - a checkout that predates #435
+// renders a spec with no board-wide figures rather than failing.
+func LoadTypeIndexTotals(root string) (TypeIndexTotals, error) {
+	b, err := os.ReadFile(filepath.Join(root, TypeIndexPath))
+	if os.IsNotExist(err) {
+		return TypeIndexTotals{}, nil
+	}
+	if err != nil {
+		return TypeIndexTotals{}, err
+	}
+	var doc struct {
+		Totals struct {
+			Estates         int `json:"estates"`
+			DistinctTypes   int `json:"distinct_types"`
+			TypesInNoCohort int `json:"types_in_no_cohort"`
+		} `json:"totals"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return TypeIndexTotals{}, err
+	}
+	return TypeIndexTotals{
+		Estates:         doc.Totals.Estates,
+		DistinctTypes:   doc.Totals.DistinctTypes,
+		TypesInNoCohort: doc.Totals.TypesInNoCohort,
+	}, nil
+}
+
 // TypeIndex maps an estate name to the set of resource types its crossing
 // exercises, per live/estate-types.json.
 type TypeIndex map[string]map[string]bool

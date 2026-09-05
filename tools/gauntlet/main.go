@@ -222,7 +222,11 @@ func cmdRender(root string) error {
 	if err != nil {
 		return err
 	}
-	written, err := Render(root, m, a)
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	written, err := Render(root, m, a, tt)
 	if err != nil {
 		return err
 	}
@@ -282,7 +286,11 @@ func cmdRun(root string, args []string) error {
 	}
 	violations := UnacknowledgedViolations(RatchetViolations(committed.Estates, a.Estates), acks)
 
-	if _, err := Render(root, m, a); err != nil {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt); err != nil {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
@@ -351,7 +359,11 @@ func cmdBehaviors(root string, args []string) error {
 		return err
 	}
 	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
-	if _, err := Render(root, m, a); err != nil {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt); err != nil {
 		return err
 	}
 	selected := len(fs.Args())
@@ -429,7 +441,11 @@ func cmdLiveCert(root string, args []string) error {
 	if err := SaveArtifact(root, a); err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a); err != nil {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt); err != nil {
 		return err
 	}
 	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
@@ -459,7 +475,11 @@ func cmdMergeArtifact(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, merged); err != nil {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, merged, tt); err != nil {
 		return err
 	}
 	core, all := merged.Sets["core"], merged.Sets["all"]
@@ -568,7 +588,11 @@ func cmdImportLegacy(root string) error {
 		return err
 	}
 	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
-	if _, err := Render(root, m, a); err != nil {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt); err != nil {
 		return err
 	}
 	fmt.Printf("imported %d legacy verdict sets\n", imported)
@@ -611,6 +635,14 @@ func StaleFiles(root string) ([]string, error) {
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
 	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	// tt is read from the real checkout root, never from tmp below: tmp is
+	// a write-only scratch directory with no live/estate-types.json of its
+	// own, the same reason m, a and bi are all loaded from root rather than
+	// re-derived inside Render.
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return nil, err
+	}
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
 		return nil, err
@@ -618,7 +650,7 @@ func StaleFiles(root string) ([]string, error) {
 	defer os.RemoveAll(tmp)
 	// Estate pages are pruned by reading the target dir; mirror the committed
 	// one so pruning logic runs the same way.
-	written, err := Render(tmp, m, a)
+	written, err := Render(tmp, m, a, tt)
 	if err != nil {
 		return nil, err
 	}
