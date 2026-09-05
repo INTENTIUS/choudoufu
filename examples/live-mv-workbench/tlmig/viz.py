@@ -972,6 +972,9 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
     """What one beat proved, in a sentence built from the run's own numbers,
     so the presenter's payoff line is never a claim the log cannot back.
     Empty when the beat left nothing to say yet."""
+    # The renamed workflow verbs measure the same work as the demo's beats,
+    # so map them onto the beat whose payoff sentence fits: survey is the
+    # baseline plan, verify the fast plan, move the carve, seed the setup.
     name = {"survey": "slow-plan", "verify": "fast-plan", "move": "carve", "seed": "setup"}.get(name, name)
     counts = _counts(after)
     mono = next((e for e in after.estates if e.endswith("-monolith")), None)
@@ -997,7 +1000,7 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
             return ""
         m = new_measures[-1]
         if name == "slow-plan":
-            return f"One plan of the monolith cost {m.requests} requests" + (f" in {m.seconds:.1f}s" if m.seconds else "") + ". Every plan of a terralith pays this."
+            return f"One plan of the monolith cost {m.requests} requests" + (f" in {m.seconds:.1f}s" if m.seconds else "") + ". Every plan of a terralith pays this; this is the baseline the split brings down, measured again at Verify."
         slow = next((x for x in after.measures if x.refresh and x.estate == mono), None)
         if slow and slow.requests:
             ratio = slow.requests / max(m.requests, 1)
