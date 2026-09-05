@@ -132,15 +132,21 @@ type Row struct {
 	// that pair and no aws:ResourceTag).
 	//
 	// Read them with the same asymmetry as ListsResourceTag above, and with
-	// more care, because at this scale the sparseness dominates: 142 of 160
-	// resolved services list aws:ResourceTag on no action at all, and Lambda
-	// - which does support tag-based authorization - is among them. These
-	// counts measure what the reference states, and the reference does not
-	// set out to enumerate every global condition key per action.
+	// more care, because at this scale the sparseness dominates: most
+	// resolved services list aws:ResourceTag on no action at all (compare
+	// live/iam-reference.json's counts.resolved against
+	// counts.services_listing_resource_tag for the current figures - a
+	// number typed here instead goes stale exactly the way GitHub issue
+	// #658 found this comment had: 142 of 160 and 18, against an artifact
+	// that had moved to 163 resolved and 18 listing), and Lambda - which
+	// does support tag-based authorization - is among them. These counts
+	// measure what the reference states, and the reference does not set out
+	// to enumerate every global condition key per action.
 	//
-	// They are here because the count of services that DO name it (18) is a
-	// real lower bound and a usable starting roster for #142. The complement
-	// is not a roster of anything.
+	// They are here because the count of services that DO name it
+	// (counts.services_listing_resource_tag) is a real lower bound and a
+	// usable starting roster for #142. The complement is not a roster of
+	// anything.
 	ActionsTotal              int `json:"actions_total,omitempty"`
 	ActionsListingResourceTag int `json:"actions_listing_resource_tag,omitempty"`
 
