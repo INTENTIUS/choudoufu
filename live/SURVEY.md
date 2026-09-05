@@ -137,18 +137,25 @@ On the 68 curated types: 47 are taggable, 58 have native list resources, 61
 have provider identity schemas.
 <!-- survey-gen:end raw-signals -->
 
+The sentence between the markers below is rendered by `go run
+./tools/survey-gen -all -render` from `live/survey-full.json`'s counts
+(issue #679: these four figures had drifted from the committed artifact by
+the time they were last read).
+
+<!-- survey-gen:begin provider-wide -->
 Provider-wide, two substrate findings. The provider now publishes
-`resource_identity_schemas` for 468 types and growing: a per-type
+`resource_identity_schemas` for 479 types and growing: a per-type
 declaration of exactly what identifies the resource, which is the
-admission-rule metadata maintained upstream by the provider itself. And 183
+admission-rule metadata maintained upstream by the provider itself. And 195
 native list resources exist already (the query/search work), including
 nearly all high-traffic types.
 
-Global stats across all 1,691 AWS resource types, for trajectory: 49%
-taggable, 27% identity-schema (mid-rollout), 10% list (early rollout), 62%
+Global stats across all 1699 AWS resource types, for trajectory: 49%
+taggable, 28% identity-schema (mid-rollout), 11% list (early rollout), 62%
 tags-or-identity today. The long tail thins out, but usage concentrates in
 the head, and both identity and list coverage are actively expanding
 upstream.
+<!-- survey-gen:end provider-wide -->
 
 ## Per-type table
 

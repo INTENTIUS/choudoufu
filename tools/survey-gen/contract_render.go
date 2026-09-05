@@ -143,7 +143,7 @@ func renderCoverageLayers(root string) (string, error) {
 	b.WriteString("| ----- | ----- | ---------------------------------- |\n")
 	fmt.Fprintf(&b, "| Round-trip proven against the emulator | %d of %d cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |\n",
 		acceptance.Totals.Pass, acceptance.Totals.Cohorts)
-	fmt.Fprintf(&b, "| Admitted (the shipped table) | %d types | Nothing at lint. Runtime support varies by type; see the layers below. |\n",
+	fmt.Fprintf(&b, "| Admitted (the shipped table) | %d types | Nothing at lint. Runtime support varies by type; see the layers below. An overlay across them, not a fifth bucket - adding it to the four below double-counts. |\n",
 		len(identity.AdmittedTypes()))
 	fmt.Fprintf(&b, "| Pastable proposals (server-assigned %d, client-named %d, composite %d, assembled %d) | %d types | A ratification batch: paste, fixture, test. |\n",
 		buckets.ServerAssigned, buckets.ClientNamed, buckets.Composite, buckets.Assembled,
@@ -154,7 +154,7 @@ func renderCoverageLayers(root string) (string, error) {
 		buckets.EvidenceOnly)
 	fmt.Fprintf(&b, "| Fold-children | %d types | Nothing of their own; identity is the parent's. |\n",
 		buckets.FoldChild)
-	fmt.Fprintf(&b, "| Classified in total | %d of %d provider types | The layers above partition this set. |\n",
+	fmt.Fprintf(&b, "| Classified in total | %d of %d provider types | Pastable proposals, needs-a-hand-separator, evidence-only and fold-children partition this set; round-trip and Admitted above are overlays across it, not additional buckets, so summing all six rows does not equal the provider's type count. |\n",
 		buckets.Mapped, mapping.Counts.Types)
 	fmt.Fprintf(&b, "| Of those, with no CloudFormation model | %d cfn-unmodeled, %d tf-only, %d deprecated-service, %d unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |",
 		mapping.Counts.CFNUnmodeled, mapping.Counts.TFOnly, mapping.Counts.DeprecatedService, mapping.Counts.Unclassified)
