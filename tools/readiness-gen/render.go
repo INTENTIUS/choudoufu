@@ -18,6 +18,16 @@
 // silently passing because the render step re-derived the same numbers
 // itself. No provider, no network, no other generator's process.
 //
+// Issue #679 adds a provenance stamp under the rendered table: the commit
+// and UTC date live/readiness.json was last committed at, read with `git
+// log -1 -- live/readiness.json` (local history only, no network, and
+// deliberately not `git rev-parse HEAD`, which would stamp every commit
+// after the artifact last changed as if the table had been re-measured
+// then). That keeps Build() itself free of wall-clock or git state -
+// TestArtifactMatchesCommitted and TestBuildIsDeterministic (build_test.go)
+// both require Build() to be a pure function of the committed inputs - by
+// computing the stamp only here, from the file the artifact already is.
+//
 // Issue #420 adds a second span, readiness-types, written only into the
 // resource-tiers page: the full per-type table (every row of
 // live/readiness.json, not just the tier-by-status tally readiness-tiers
@@ -34,6 +44,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -142,10 +153,13 @@ func loadArtifact(root string) (Artifact, error) {
 // renderReadinessTable builds the span's body: every tier crossed with
 // every status, plus a total row and column so a reader can see both
 // marginals without cross-referencing live/readiness.json's own Counts
-// block. Built from readinessCrossTab alone, with no file I/O, so
-// render_test.go's drift guard renders the same bytes runRender would
-// write without touching the filesystem.
-func renderReadinessTable(a Artifact) string {
+// block, followed by the provenance stamp (issue #679). Built from
+// readinessCrossTab and the given stamp alone, with no file I/O or git
+// calls of its own, so render_test.go's drift guard renders the same bytes
+// runRender would write without touching the filesystem - the caller
+// (runRender, or a test using the same readinessStamp helper) supplies
+// stamp so this function stays a pure rendering of its two inputs.
+func renderReadinessTable(a Artifact, stamp string) string {
 	cross := readinessCrossTab(a)
 
 	var b strings.Builder
@@ -179,7 +193,34 @@ func renderReadinessTable(a Artifact) string {
 		fmt.Fprintf(&b, " | %d", colTotal[s])
 	}
 	fmt.Fprintf(&b, " | %d |\n", grand)
+	fmt.Fprintf(&b, "\n%s\n", stamp)
 	return b.String()
+}
+
+// readinessStamp reads the commit and UTC date live/readiness.json was
+// last committed at (`git log -1`, local history, no network) and renders
+// the one-line provenance stamp every readiness-tiers table carries below
+// it: issue #679's fix for a cross tab that was numerically checked
+// (TestReadinessFiguresInDocsAreCurrent, live/readiness_docs_pin_test.go)
+// but never told a reader when it was last measured.
+func readinessStamp(root string) (string, error) {
+	cmd := exec.Command("git", "log", "-1", "--format=%H%x1f%cI", "--", OutputJSONRel)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git log -1 -- %s: %w", OutputJSONRel, err)
+	}
+	fields := strings.SplitN(strings.TrimSpace(string(out)), "\x1f", 2)
+	if len(fields) != 2 || fields[0] == "" {
+		return "", fmt.Errorf("git log -1 -- %s produced no commit (has it ever been committed?): %q", OutputJSONRel, out)
+	}
+	sha, date := fields[0], fields[1]
+	short := sha
+	if len(short) > 10 {
+		short = short[:10]
+	}
+	return fmt.Sprintf("`%s` last committed at commit `%s` on %s. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+		OutputJSONRel, short, date), nil
 }
 
 // reasonFor is the readiness-types span's fourth column: a one-line,
@@ -290,7 +331,11 @@ func runRender() error {
 	if err != nil {
 		return fmt.Errorf("%w (run `go run ./tools/readiness-gen` and commit the result first)", err)
 	}
-	table := renderReadinessTable(artifact)
+	stamp, err := readinessStamp(root)
+	if err != nil {
+		return err
+	}
+	table := renderReadinessTable(artifact, stamp)
 	types := renderReadinessTypesTable(artifact)
 
 	for _, rel := range []string{CoverageMDRel, CompatibilityMDRel, ResourceTiersMDRel} {
