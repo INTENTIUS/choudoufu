@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=645 instances=1801
+# shape: dirs=649 instances=1807
 # shape: class CONCRETE=887
-# shape: class NEEDS_DISCOVERY=750
+# shape: class NEEDS_DISCOVERY=756
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=81a0a6ddc39dc6d10bdb3abf7b7452d73a8d830c50fdeac225a52303213a151c
+# shape: body-sha256=d018550c37e782444163cdbd33b6bbab016014a5d9485db1114be1b5c1d9ec18
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -684,6 +684,12 @@ internal/live/lint/testdata/count-index	aws_route53_record.heterogeneous_tuple[1
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[0]	CONCRETE	Z0123456789ABCDEFGHI_record-100.example.com_A	name=record-100.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[1]	CONCRETE	Z0123456789ABCDEFGHI_record-200.example.com_A	name=record-200.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index	aws_route53_record.list_index_in_template[2]	CONCRETE	Z0123456789ABCDEFGHI_record-100.example.com_A	name=record-100.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
+internal/live/lint/testdata/count-index-module-count-collision	module.counted[0].aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-module-count-collision	module.counted[1].aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-module-count-collision/counted	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-module-count-direct	module.counted[0].aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-module-count-direct	module.counted[1].aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-module-count-direct/counted	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[0]	CONCRETE	tl-pod-a-team-0000-role	name=tl-pod-a-team-0000-role
 internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[1]	CONCRETE	tl-pod-a-team-0001-role	name=tl-pod-a-team-0001-role
 internal/live/lint/testdata/count-index-module-foreach	module.m["pod-a"].aws_iam_role.pod_role[2]	CONCRETE	tl-pod-a-team-0002-role	name=tl-pod-a-team-0002-role
