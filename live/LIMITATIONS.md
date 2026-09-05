@@ -542,11 +542,14 @@ predicate, so lint cannot admit a shape discovery does not alias. Fixture at
 ### child-module
 
 **Construct.** A `module` block, at any depth, expanded with a `count` that
-is not statically evaluable or whose own arguments read `count.index`, or
+is not statically evaluable or whose own arguments read `count.index` in a
+shape that cannot be proven to render a distinct value per instance, or
 expanded with `for_each` whose keys cannot be enumerated from configuration
 alone. A static module call, a statically-evaluable `count` module call
-whose own arguments do not read `count.index`, and a `for_each` module call
-whose keys *can* be enumerated, are not this limitation: see below.
+whose own arguments read `count.index` only in a provably injective shape
+(a bare `count.index`, a template, an arithmetic offset), and a `for_each`
+module call whose keys *can* be enumerated, are not this limitation: see
+below.
 
 **Why banned.** `for_each` on a module block is refused only when this pass
 cannot compute its keys before anything is read from the cloud: an instance
@@ -556,11 +559,15 @@ a resource's own non-static `for_each` is refused (by identity resolution,
 not lint; see below). `count` on a module block is refused in two narrower
 cases (issue #195, which reversed the earlier unconditional ban): a count
 expression this pass cannot statically evaluate, and a statically-evaluable
-count whose own arguments still read `count.index` - the same hazard
-`RuleCountIndex` guards a resource's own body against (issue #192, see
-`count-index-in-tag` below), applied to a module call's arguments instead.
-A plain, static integer count that never leaks
-`count.index` into the call's own arguments is not positionally fragile:
+count whose own arguments read `count.index` in a shape this pass cannot
+prove injective - the same hazard `RuleCountIndex` guards a resource's own
+body against (issue #192, see `count-index-in-tag` below), applied to a
+module call's arguments instead, but without the value-level rendering
+`count-index-in-tag` can also consult: a module call's own arguments are
+never rendered against real instance values, so an index into a sibling's
+collection is refused here even where the values would in fact differ. A
+plain, static integer count that never leaks an unprovable `count.index`
+use into the call's own arguments is not positionally fragile:
 `module.name[i]` is exactly as stable an address as `resource.name[i]`, and
 shrinking count only ever retires the highest index, never renumbers a
 survivor, which is why that shape is admitted rather than refused
@@ -592,18 +599,19 @@ gets its own copy of the nodes stamping mutates
 still share is refused rather than stamped. Crossed against an emulator at
 `live/e2e/repeated-module/`.
 
-**A statically-evaluable `count` module call with no `count.index` leak is
-admitted.** As of issue #195, a module call's `count` is evaluated the same
-way a resource's own `count` is: a literal, or an expression built from
-variables, locals, `path` and `terraform` values. When the expression is
-statically evaluable and none of the call's own arguments read
-`count.index` (directly, or by indexing a sibling resource's own
-count-expanded collection), `RuleChildModule` reports nothing, and the five
+**A statically-evaluable `count` module call with no unprovable `count.index`
+use is admitted.** As of issue #195, a module call's `count` is evaluated
+the same way a resource's own `count` is: a literal, or an expression built
+from variables, locals, `path` and `terraform` values. When the expression
+is statically evaluable and every `count.index` read in the call's own
+arguments is provably injective - a bare `count.index`, a template, an
+arithmetic offset - `RuleChildModule` reports nothing, and the five
 packages traverse each instance - `module.app[0].aws_x.y` binds exactly as
 soundly as `module.app.aws_x.y` does. A `count` this pass cannot evaluate
 at all is refused as non-static; a statically-evaluable `count` whose own
-arguments do read `count.index` is refused for the leak, worded like a
-resource's own `count.index`-into-identity refusal.
+arguments read `count.index` in an unprovable shape - typically an index
+into a sibling resource's own count-expanded collection - is refused,
+worded like a resource's own `count.index`-into-identity refusal.
 
 **A statically-keyed `for_each` module call is admitted.** As of issue #59,
 phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
@@ -631,16 +639,17 @@ separation an expanded child module is standing in for. Rewriting the
 `count` or `for_each` expression to a literal or a value derived from
 variables, locals, `path` or `terraform` is the other way out, the same as
 it is for a resource's own `count` or `for_each`. For a statically-
-evaluable `count` whose own arguments leak `count.index`: replace
-`count.index` with a value that does not depend on the instance's
-position - a `for_each` key, or an argument that is the same for every
-instance.
+evaluable `count` whose own arguments read `count.index` in an unprovable
+shape: replace `count.index` with a value that does not depend on the
+instance's position, or move the collection lookup inside the module,
+where it is checked against real values.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
 (`checkChildModules`, detail text chosen by `childModuleDetail`, which
-reports nothing for a static call, a statically-evaluable non-leaking
-`count` call, or a statically-keyed `for_each` call). The `count.index`
-leak check is `moduleCallHasCountIndex`, the module-call analogue of
+reports nothing for a static call, a statically-evaluable `count` call with
+no unprovable `count.index` use, or a statically-keyed `for_each` call).
+The `count.index` check is `moduleCallHasCountIndex`, the module-call
+analogue of
 `checkCountIndex`'s own body walk. The `for_each` key evaluation itself is
 `identity.ChildModuleKeys` (`internal/live/identity/modulepath.go`), shared
 with `resolve.go`'s own module walk so that lint's admission verdict and
@@ -3832,7 +3841,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Record-backed instance with no record store
 
-**What.** An effect resource that keeps its whole state in a record was projected with no record_store configured, so there is nowhere to read its prior state from.
+**What.** An effect resource that keeps its whole state in a record was projected against an estate with no record store at all - possible only with no live block, since GitHub issue #364 every live block implies one - so there is nowhere to read its prior state from.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -3840,7 +3849,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Record-located instance with no record store
 
-**What.** A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.
+**What.** A resource whose live object can carry no ownership marker was projected against an estate with no record store at all - possible only with no live block, since GitHub issue #364 every live block implies one - so nothing can say which live object it is. Adding a live block is the fix, not declaring a record_store: one with no record_store block of its own already gets an implied local store.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4069,9 +4078,11 @@ refused when it has more.** `count` on a module block is answered
 differently from `for_each`, and the difference is not a preference: a
 `for_each`'d call has a supported hand-written idiom, and a `count`'d call
 does not. `RuleChildModule` refuses a module call whose own arguments read
-`count.index` (see "child-module" above), so no variable can carry an
-instance's index into the child module, so no hand-written marker inside it
-can vary per instance either. Nothing but the stamping pass can produce a
+`count.index` in a shape it cannot prove injective (see "child-module"
+above), and even where it admits one - a bare `count.index`, a template, an
+arithmetic offset - nothing downstream reads that value back out: stamping
+never looks for a hand-written marker inside a `count`'d call the way it
+does for a `for_each`'d one. Nothing but the stamping pass can produce a
 correct address there. So stamping resolves the call's `count` itself, with
 `identity.ChildModuleCountKeys` - the same evaluation identity resolution
 uses to decide the call's instances exist at all - and takes one of three

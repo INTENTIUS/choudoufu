@@ -29,27 +29,35 @@ import (
 //     same two-part test a resource's own count is already held to: the
 //     count expression itself has to be statically evaluable (the same
 //     var/local/path/terraform/tofu scope [staticCount] and
-//     [identity.ChildModuleKeys] hold for_each to), and count.index must not
-//     appear anywhere in the module call's own arguments. A plain integer
-//     count is not positionally fragile the way the old comment here
-//     claimed: module.name[i] is exactly as stable an address as
-//     resource.name[i], and shrinking count from N to N-1 only ever retires
-//     the highest index, never renumbers a survivor - see [childModuleDetail]
-//     for the corpus evidence (every static module count found there is the
-//     count = cond ? 1 : 0 optional-instance idiom, or a plain literal/var
-//     integer, never a filtered list count relies on to derive an index).
+//     [identity.ChildModuleKeys] hold for_each to), and any count.index in
+//     the module call's own arguments has to be provably injective - the
+//     same [analyzeCountIndexSafety] shape proof [checkCountIndex] applies
+//     to a resource's own body, not "count.index must not appear at all". A
+//     plain integer count is not positionally fragile the way the old
+//     comment here claimed: module.name[i] is exactly as stable an address
+//     as resource.name[i], and shrinking count from N to N-1 only ever
+//     retires the highest index, never renumbers a survivor - see
+//     [childModuleDetail] for the corpus evidence (every static module
+//     count found there is the count = cond ? 1 : 0 optional-instance
+//     idiom, or a plain literal/var integer, never a filtered list count
+//     relies on to derive an index).
 //     The real hazard is count.index reaching into an identity-bearing
-//     value - by indexing a sibling resource, or an argument passed into the
-//     module - the same hazard [checkCountIndex] (count_index.go, issue
-//     #192) already guards a resource's own body against; this check is
-//     that same guard applied to a module call's arguments, with no
-//     type-specific narrowing available (a module has no identity schema of
-//     its own), so any count.index reference anywhere in the call's body
-//     refuses it, matching [countIndexScope]'s walkAll default for an
-//     unreviewed resource type. A count expression this pass cannot
-//     statically evaluate is refused exactly as it always was, since a
-//     dynamic module count is exactly as unaddressable up front as a
-//     dynamic resource count (identity's countExpansion, resolve.go).
+//     value in a shape that cannot be shown to render a distinct value per
+//     instance - typically by indexing a sibling resource's own
+//     count-expanded collection - the same hazard [checkCountIndex]
+//     (count_index.go, issue #192) already guards a resource's own body
+//     against. This check applies that same shape-level proof to a module
+//     call's own arguments, but not the value-level one: a module call has
+//     no identity schema of its own to narrow the walk with, and its own
+//     arguments are never rendered against real instance values the way a
+//     resource's are, so a bare count.index, a template, or an arithmetic
+//     offset is admitted, and any shape the proof cannot clear - most often
+//     a collection index - refuses it, matching [countIndexScope]'s
+//     walkAll default for an unreviewed resource type. A count expression
+//     this pass cannot statically evaluate is refused exactly as it always
+//     was, since a dynamic module count is exactly as unaddressable up
+//     front as a dynamic resource count (identity's countExpansion,
+//     resolve.go).
 //   - for_each on a module block is admitted (59c, issue #59 phase 3) when
 //     its keys are statically evaluable - a literal collection, or one
 //     built from variables, locals, path and terraform values, exactly the
@@ -130,15 +138,19 @@ func childModuleDetail(ctx context.Context, cfg *configs.Config, call *configs.M
 		}
 		if moduleCallHasCountIndex(call) {
 			return fmt.Sprintf(
-				"module %q's own arguments read count.index: the lexical index of a count "+
-					"instance is not stable across scale-up, scale-down, or reordering, so a "+
-					"property built from it - directly, or by indexing a sibling resource's "+
-					"own count-expanded collection - cannot be recovered from the live "+
-					"system with no memory, the same reason a resource's own count.index is "+
-					`refused wherever it can reach identity (live/LIMITATIONS.md, `+
-					`"count-index-in-tag"). Replace count.index here with a value that does `+
-					"not depend on this instance's position - a for_each key, or an argument "+
-					"that is the same for every instance",
+				"module %q's own arguments read count.index in a shape that cannot be "+
+					"shown to render a distinct value for every instance - typically an "+
+					"index into a collection, such as var.names[count.index], where what "+
+					"sits at that position is controlled by the collection rather than by "+
+					"the index. A module call has no identity schema of its own, and its "+
+					"own arguments are never rendered against real instance values the way "+
+					"a resource's are, so unlike a resource's own count.index "+
+					`(live/LIMITATIONS.md, "count-index-in-tag"), an indexed lookup here `+
+					"is refused even when the values would in fact differ. A bare "+
+					`count.index, a template such as "n-${count.index}", or an arithmetic `+
+					"offset is admitted. Replace count.index here with a value that does "+
+					"not depend on this instance's position, or move the collection lookup "+
+					"inside the module, where it is checked against real values",
 				call.Name,
 			), true
 		}
@@ -163,13 +175,19 @@ func childModuleDetail(ctx context.Context, cfg *configs.Config, call *configs.M
 }
 
 // moduleCallHasCountIndex reports whether a count-carrying module call's own
-// arguments reference count.index anywhere - the module-call analogue of
-// [checkCountIndex]'s walk over a resource's own body. A module has no
-// identity schema of its own to narrow the walk with (identity.LookupType's
-// Components describe a resource type's arguments, not a module's), so this
-// always walks every attribute at every depth, the same [countIndexScope]
-// walkAll default [countIndexScopeForType] falls back to for a resource type
-// this pass has no table row for.
+// arguments reference count.index in a shape [unsafeCountIndexHits] cannot
+// prove injective - the module-call analogue of [checkCountIndex]'s walk
+// over a resource's own body, including the same shape-level
+// [analyzeCountIndexSafety] proof that admits a bare count.index, a
+// template, or an arithmetic offset there. It is not "references count.index
+// at all": the diagnostic this feeds ([childModuleDetail]) used to say so,
+// which is stale wording issue #658 corrected, not a description of this
+// function's own logic. A module has no identity schema of its own to
+// narrow the walk with (identity.LookupType's Components describe a
+// resource type's arguments, not a module's), so this always walks every
+// attribute at every depth, the same [countIndexScope] walkAll default
+// [countIndexScopeForType] falls back to for a resource type this pass has
+// no table row for.
 //
 // call.Config is the leftover body after decodeModuleBlock has already
 // extracted source, version, providers, count, for_each and depends_on
@@ -185,13 +203,21 @@ func moduleCallHasCountIndex(call *configs.ModuleCall) bool {
 		return true
 	}
 	// The empty countIndexDomain deliberately withholds the value-level
-	// check [unsafeCountIndexHits] would otherwise apply, leaving a
-	// module call exactly the syntactic rule it has always had. Proving a
-	// module call's own ARGUMENTS render distinct per instance would not
-	// prove what matters here: the identities of every resource inside the
-	// module, built from those arguments in ways this pass cannot see from
-	// the call site, and addressed by an instance key that becomes part of
-	// every one of them.
+	// check [unsafeCountIndexHits] would otherwise consult second: a module
+	// call's own arguments are never rendered against real instance values
+	// to check whether an unprovable shape happens to come out distinct
+	// anyway, the way a resource's own count.index reference can be.
+	// [analyzeCountIndexSafety]'s shape-level proof still runs first and
+	// still admits what it can show injective on its own - a bare
+	// count.index, a template, an arithmetic offset - so this is not the
+	// old purely syntactic "count.index anywhere" rule. What the empty
+	// domain skips is proving a shape SAFE from rendered values, never
+	// admitting a shape UNSAFE. Proving a module call's own ARGUMENTS
+	// render distinct per instance would not prove what matters here
+	// anyway: the identities of every resource inside the module, built
+	// from those arguments in ways this pass cannot see from the call
+	// site, and addressed by an instance key that becomes part of every
+	// one of them.
 	for _, hit := range countIndexCandidates(body, false, countIndexScope{walkAll: true}, countIndexDomain{}) {
 		ref, refDiags := addrs.ParseRef(hit.traversal)
 		if refDiags.HasErrors() || ref == nil {
