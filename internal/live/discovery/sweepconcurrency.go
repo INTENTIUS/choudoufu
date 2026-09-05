@@ -62,6 +62,59 @@ import (
 // consumer that waits on each type in that same order.
 const DefaultSweepParallelism = 10
 
+// GitHub issue #839. DefaultSweepParallelism above bounds the list CALLS;
+// this bounds the ANSWERS, and until #839 one number did both jobs.
+//
+// The consuming loop walks the universe in [sweepTypes] order and waits for
+// each type's listing in turn. A list call that lands in SDK backoff
+// therefore held the width down for every type behind it in that order: the
+// nine calls launched beside it had already returned, and their answers went
+// on holding slots because the slot a worker took was released by the
+// CONSUMER, not by the call. The launcher blocked, and a sweep with hundreds
+// of types left to list started none of them until the slow one answered.
+// That is head-of-line blocking, and no peak-concurrency statistic shows it,
+// because ten calls really are outstanding - they just cannot retire.
+//
+// So there are two bounds now. A list call in flight holds one of
+// [sweepParallelism]; a listing fetched and not yet consumed holds one of
+// [sweepBuffer]; a slow call holds the first and none of the second, and the
+// launcher keeps starting calls behind it.
+//
+// The memory bound is the half that must survive, and it is why the fix is a
+// split rather than a release-on-completion. An unconsumed answer here is a
+// whole type's listing - every live object of that type the account returned
+// - and it is NOT something the run holds anyway: [scanType] consumes a
+// listing, files its scan row, its claims and its gaps, and drops the
+// objects. So unlike the read pass's answers (issue #683, where an
+// unconsumed answer duplicates an object prior state ends up holding either
+// way), the sweep's buffer is residency the run would not otherwise pay, and
+// an unbounded read-ahead would hold the whole admission table's listings at
+// once.
+//
+// DefaultSweepBufferFactor is how deep that buffer is per in-flight slot when
+// nothing else settles it: ten, so the default sweep holds a hundred
+// unconsumed listings.
+//
+// The number is derived from the straggler it exists to cover rather than
+// from the universe. The buffer stops helping the moment the launcher blocks
+// on it, so what it has to be worth is the WORK the slow call is holding up.
+// #578's certification run puts the sweep at 0.36s per call - 201.3 seconds
+// over the whole sweep's 558 calls, the denominator this file's opening
+// comment insists on - and the backoff #683 measured on the read path was
+// 26.20 seconds. A hundred calls of read-ahead is about thirty-six seconds of
+// sweep, which clears that. Ten per slot rather than the read pass's hundred
+// because of the paragraph above: a listing is not one object, and buying
+// more read-ahead than the straggler costs would buy it in memory the sweep
+// does not otherwise spend.
+//
+// It stays a multiple of the WIDTH and never of the admission table, which is
+// the property the single slot channel used to carry: a sweep over a thousand
+// types still holds a hundred listings at the default width, and a sweep at
+// parallelism one holds ten.
+//
+// Set it per run with [Request.SweepBuffer].
+const DefaultSweepBufferFactor = 10
+
 // sweepFetchKind is which transport a swept type's listing goes over, decided
 // by [planSweepFetch] before any goroutine starts.
 type sweepFetchKind int
@@ -131,22 +184,47 @@ type sweepPrefetch struct {
 	entries map[string]*sweepFetch
 	order   []string
 
-	// slots is the concurrency bound AND the backpressure. A worker acquires
-	// a slot before its call and never releases it; the CONSUMER releases one
-	// when it takes that type's answer. So at most SweepParallelism types are
-	// ever fetched-but-unconsumed, and the sweep's peak memory stays a
-	// multiple of the parallelism rather than of the admission table - which
-	// matters, because a sweep over a thousand types buffering every type's
-	// listed objects at once is a far worse regression than the slowness this
-	// fixes.
-	slots chan struct{}
+	// inflight is the concurrency bound, and only that. A worker holds one
+	// from before its list call until the moment that call returns - see
+	// [sweepPrefetch.publish], which releases it - so what it bounds is
+	// listings the cloud is producing right now, which is what
+	// [Request.SweepParallelism] has always meant.
+	//
+	// Until issue #839 this was one channel doing this job and the buffer's
+	// below, and a list call that was slow therefore held the width down
+	// while every listing behind it sat waiting to be consumed.
+	inflight chan struct{}
 
 	wg sync.WaitGroup
 
-	// mu guards taken. Every other field is written before any worker starts
-	// (entries, order, slots) or is per-entry and published through
-	// sweepFetch.done.
-	mu    sync.Mutex
+	// mu guards buffered, taken and mismatched, and is bufferFree's lock.
+	// Every other field is written before any worker starts (entries, order,
+	// inflight, buffer) or is per-entry and published through sweepFetch.done.
+	mu sync.Mutex
+
+	// buffer is the memory bound: how many listings may be fetched and not
+	// yet consumed before the launcher stops starting calls. buffered is how
+	// many there are, incremented by [sweepPrefetch.publish] when a listing
+	// lands and decremented by [sweepPrefetch.consumed] when the scan loop
+	// takes it.
+	//
+	// The launcher waits on bufferFree rather than on a channel receive
+	// because the token is produced by the CONSUMER and spent by the
+	// LAUNCHER, with the worker in between doing neither: a worker that
+	// blocked on a full buffer would be holding a listing the scan loop might
+	// be waiting for, which is the head-of-line stall again one goroutine
+	// over.
+	//
+	// The peak this bounds is buffer + SweepParallelism - 1 listings. The
+	// launcher passes this gate and then waits for an in-flight slot, so it
+	// is admitted while buffered is at most buffer-1 and the calls already in
+	// flight may all land behind it. That is a multiple of the two bounds and
+	// never of the admission table, which is the property the single slot
+	// channel used to carry.
+	buffer     int
+	buffered   int
+	bufferFree *sync.Cond
+
 	taken map[string]bool
 
 	// mismatched counts the answers a consumer declined because the
@@ -163,6 +241,20 @@ func sweepParallelism(req Request) int {
 		return req.SweepParallelism
 	}
 	return DefaultSweepParallelism
+}
+
+// sweepBuffer is how many fetched listings this sweep will hold ahead of the
+// consuming loop - [DefaultSweepBufferFactor] per in-flight slot when
+// [Request.SweepBuffer] does not settle it.
+//
+// It is never below one: a zero buffer would be a launcher that may not start
+// a list call until the previous listing has been consumed, which is the
+// sequential sweep with extra goroutines.
+func sweepBuffer(req Request) int {
+	if req.SweepBuffer > 0 {
+		return req.SweepBuffer
+	}
+	return sweepParallelism(req) * DefaultSweepBufferFactor
 }
 
 // startSweepPrefetch plans every type in universe and starts issuing their
@@ -183,11 +275,13 @@ func startSweepPrefetch(ctx context.Context, req Request, schemas listclient.Sch
 
 	par := sweepParallelism(req)
 	pf := &sweepPrefetch{
-		entries: make(map[string]*sweepFetch, len(universe)),
-		order:   make([]string, 0, len(universe)),
-		slots:   make(chan struct{}, par),
-		taken:   make(map[string]bool, len(universe)),
+		entries:  make(map[string]*sweepFetch, len(universe)),
+		order:    make([]string, 0, len(universe)),
+		inflight: make(chan struct{}, par),
+		buffer:   sweepBuffer(req),
+		taken:    make(map[string]bool, len(universe)),
 	}
+	pf.bufferFree = sync.NewCond(&pf.mu)
 
 	// Plan first, synchronously, in universe order. Every read of decl,
 	// req and schemas that decides a call happens here, on this goroutine,
@@ -221,11 +315,18 @@ func startSweepPrefetch(ctx context.Context, req Request, schemas listclient.Sch
 				close(e.done)
 				continue
 			}
-			pf.slots <- struct{}{}
+			// Both bounds, in this order: the buffer says the scan loop is
+			// not already holding all the listings it may hold, and the
+			// in-flight channel says the cloud is not already producing all
+			// the listings it may produce. A call that is slow keeps the
+			// second and never reaches the first, so the calls behind it
+			// launch.
+			pf.reserveBuffer()
+			pf.inflight <- struct{}{}
 			pf.wg.Add(1)
 			go func(typeName string, e *sweepFetch) {
 				defer pf.wg.Done()
-				defer close(e.done)
+				defer pf.publish(e)
 				runSweepFetch(ctx, req, typeName, e)
 			}(typeName, e)
 		}
@@ -326,9 +427,58 @@ func runSweepFetch(ctx context.Context, req Request, typeName string, e *sweepFe
 	}
 }
 
+// reserveBuffer blocks the launcher until there is room for one more
+// unconsumed listing. It is the memory half of issue #839's split.
+//
+// It cannot deadlock a scan loop waiting on a type the launcher has not
+// started yet. Calls are launched in universe order and listings are consumed
+// in that same order, so if the launcher is waiting here before type i, every
+// listing that could be counted in buffered belongs to a type before i - and
+// the scan loop, to be waiting on i, has taken all of those. buffered is
+// therefore zero and the wait is over. The same argument covers
+// [sweepPrefetch.finish]'s drain, which consumes in that same order.
+func (pf *sweepPrefetch) reserveBuffer() {
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+	for pf.buffered >= pf.buffer {
+		pf.bufferFree.Wait()
+	}
+}
+
+// publish is what a worker does with a listing: count it against the buffer,
+// hand it to the scan loop, and give the call's slot back.
+//
+// The order of the three is the whole of the accounting. Counting before the
+// close is what makes the count safe against a consumer that takes the
+// listing the instant it lands - [sweepPrefetch.consumed]'s decrement happens
+// after a receive from done, so it can never run before the increment it
+// undoes. Releasing the in-flight slot last is what makes the bound honest:
+// the slot is held for exactly as long as the provider was listing.
+func (pf *sweepPrefetch) publish(e *sweepFetch) {
+	pf.mu.Lock()
+	pf.buffered++
+	pf.mu.Unlock()
+	close(e.done)
+	<-pf.inflight
+}
+
+// consumed gives back the buffer slot one type's listing held.
+func (pf *sweepPrefetch) consumed() {
+	pf.mu.Lock()
+	pf.buffered--
+	pf.mu.Unlock()
+	pf.bufferFree.Signal()
+}
+
 // wait blocks until typeName's call has landed and marks it taken, releasing
-// its slot so the launcher can start another. It returns nil for a type this
-// prefetch never planned, which is every type when the receiver is nil.
+// its buffer slot so the launcher can start another call. It returns nil for
+// a type this prefetch never planned, which is every type when the receiver
+// is nil.
+//
+// The call's own slot - [sweepPrefetch.inflight] - was released when the call
+// returned, which is issue #839: a scan loop still working through the types
+// ahead of this one is no longer what decides whether the cloud is being
+// asked for anything.
 func (pf *sweepPrefetch) wait(typeName string) *sweepFetch {
 	if pf == nil {
 		return nil
@@ -343,7 +493,7 @@ func (pf *sweepPrefetch) wait(typeName string) *sweepFetch {
 	pf.mu.Unlock()
 	<-e.done
 	if !already && e.kind != fetchNone {
-		<-pf.slots
+		pf.consumed()
 	}
 	return e
 }
@@ -420,11 +570,20 @@ func (pf *sweepPrefetch) finish() []string {
 		if taken {
 			continue
 		}
-		// Drain in universe order. The launcher may be blocked acquiring a
-		// slot for a later type, and the slot it needs is one of these; taking
-		// them in order is what guarantees the one it is waiting on is
-		// released before this loop reaches a type whose worker has not
-		// started.
+		// Drain in universe order. Issue #605 needed that order because the
+		// launcher's awaited slot was released by the consumer; issue #839
+		// splits that slot in two, so the argument is made again here rather
+		// than inherited from a design that no longer exists.
+		//
+		// What the launcher can still be blocked on is buffer room, in
+		// [sweepPrefetch.reserveBuffer], and the argument is that function's
+		// own: it is blocked before some type i, everything counted in
+		// buffered is a type before i, and this loop takes types in the order
+		// the launcher launches them - so by the time it reaches a type whose
+		// worker has not started, it has already released every listing the
+		// launcher is waiting for. The in-flight half needs no ordering
+		// argument at all: a worker gives that slot back when its own list
+		// call returns, with no consumer involved.
 		e := pf.wait(typeName)
 		if e != nil && e.kind != fetchNone {
 			wasted = append(wasted, typeName)

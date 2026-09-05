@@ -3880,6 +3880,15 @@ Environment variables:
                           "choudoufu apply" whenever the configuration has a
                           live block, and one name has to reach all three.
 
+                          It bounds the calls in flight, not the listings
+                          waiting to be used. Those are bounded too - ten per
+                          slot, so a hundred at the default - because the
+                          sweep lists ahead of the loop that consumes the
+                          answers in universe order. Before GitHub issue #839
+                          one number did both jobs, and a single list call in
+                          a provider backoff stopped the sweep from starting
+                          anything at all until it answered.
+
   TOFU_LIVE_READ_PARALLELISM=n
                           How many of the read pass's per-instance provider
                           round trips run at once. Defaults to 10. This is

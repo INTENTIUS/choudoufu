@@ -26,6 +26,16 @@ import (
 // throttling on a real account could not turn it down short of patching and
 // rebuilding. This variable is that knob.
 //
+// In flight is exactly what it bounds, and issue #839 is why that sentence is
+// worth reading twice. The sweep used to spend the same slot on a call it was
+// waiting for and on a listing it had already received, which meant the
+// number an operator set here was really a bound on how far the LISTING could
+// get ahead of the scan loop - and one slow call spent the whole of it. The
+// listings now have their own bound, [discovery.Request.SweepBuffer], which
+// follows this one at [discovery.DefaultSweepBufferFactor] per slot and has
+// no variable of its own: an operator turning the sweep down is turning down
+// what the account is asked for, which is this.
+//
 // # Why an environment variable and not a flag
 //
 // Because the code path that sweeps would have rejected the flag. A
@@ -94,8 +104,10 @@ const sweepParallelismEnvVar = "TOFU_LIVE_SWEEP_PARALLELISM"
 // still unmeasured:
 //
 //   - This number bounds the sweep's LIST calls and only those. The
-//     prefetch's slots channel (internal/live/discovery/sweepconcurrency.go)
-//     is acquired per swept type for its one list call; the per-object
+//     prefetch's inflight channel (internal/live/discovery/sweepconcurrency.go)
+//     is acquired per swept type for its one list call and released when that
+//     call returns (issue #839; before it, the scan loop released it); the
+//     per-object
 //     GetResource refinement issue #586 describes - one call per listed
 //     object arriving without Tags, which is what scales with the account's
 //     own population rather than with the estate - runs in the SEQUENTIAL

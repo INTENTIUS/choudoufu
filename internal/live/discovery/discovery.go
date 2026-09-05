@@ -367,6 +367,22 @@ type Request struct {
 	// record-orphan read legs are all unaffected.
 	SweepParallelism int
 
+	// SweepBuffer is how many fetched listings the sweep may hold ahead of
+	// the consuming loop (GitHub issue #839). Zero, the default, means
+	// [DefaultSweepBufferFactor] per in-flight slot.
+	//
+	// It is the memory half of the two bounds issue #839 split apart, and it
+	// is separate from SweepParallelism because the two constrain different
+	// things: SweepParallelism is what the cloud is being asked for right
+	// now, and this is what has already come back and is waiting its turn in
+	// universe order. One number doing both jobs is what let a single
+	// throttled list call stop the sweep starting anything else at all.
+	//
+	// Set it low to pin the bound in a test; there is no operator surface for
+	// it, because an operator turning the sweep down is turning down what the
+	// account is asked for, which is SweepParallelism - and this follows it.
+	SweepBuffer int
+
 	// markers is the estate-filtered Tagging API answer, fetched at most
 	// once per pass and shared between the config-driven scan's tag join
 	// (issue #266) and the estate-wide sweep, which used to make the call
