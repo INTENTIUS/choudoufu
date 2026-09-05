@@ -243,6 +243,23 @@ type Options struct {
 	// See readconcurrency.go (GitHub issue #585) for what is and is not
 	// overlapped, and why the default is what it is.
 	ReadParallelism int
+
+	// ReadBuffer is how many fetched answers the read pass may hold ahead of
+	// the consuming loop. Zero means [DefaultReadBufferFactor] per in-flight
+	// slot.
+	//
+	// It is the memory half of the two bounds issue #683 split apart, and it
+	// is separate from ReadParallelism because the two constrain different
+	// things: ReadParallelism is what the cloud is being asked right now, and
+	// this is what has already been answered and is waiting its turn in the
+	// build order. One number doing both jobs is what let a single throttled
+	// read stop a whole plan.
+	//
+	// Set it low to pin the bound in a test; there is no operator surface for
+	// it, because an operator turning the read pass down is turning down what
+	// the account is asked for, which is ReadParallelism - and this follows
+	// it.
+	ReadBuffer int
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].

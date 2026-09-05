@@ -83,6 +83,20 @@ type readProvider struct {
 	// non-fatal outcome the sequential loop had to keep walking past.
 	absent map[string]bool
 
+	// stalled holds one instance's ReadResource inside the provider until the
+	// test closes its channel - the straggler issue #683 is about, with the
+	// SDK's twenty-six seconds of backoff replaced by a channel a test
+	// controls. A stalled read is in flight the whole time it is stalled:
+	// [readProvider.leave] runs at the end of ReadResource, after the wait.
+	stalled map[string]chan struct{}
+
+	// starts carries one import ID per read STARTED, which is the quantity
+	// issue #683 is about and the one peak concurrency cannot show: ten reads
+	// outstanding reads ten either way, and what the defect changes is
+	// whether an eleventh is ever begun. Sends are non-blocking, so a test
+	// that never reads it costs nothing.
+	starts chan string
+
 	mu       sync.Mutex
 	calls    []string
 	inFlight int
@@ -90,8 +104,18 @@ type readProvider struct {
 }
 
 func newReadProvider() *readProvider {
-	return &readProvider{readErr: map[string]string{}, absent: map[string]bool{}}
+	return &readProvider{
+		readErr: map[string]string{},
+		absent:  map[string]bool{},
+		stalled: map[string]chan struct{}{},
+		starts:  make(chan string, readStartsBuffered),
+	}
 }
+
+// readStartsBuffered is [readProvider.starts]'s depth. Comfortably more than
+// any fixture below has instances, so a test that reads it late still sees
+// every start rather than a truncated count that would read as the defect.
+const readStartsBuffered = 64
 
 func (p *readProvider) GetProviderSchema(context.Context) providers.GetProviderSchemaResponse {
 	return providers.GetProviderSchemaResponse{ResourceTypes: fakeSchemas()}
@@ -113,6 +137,10 @@ func (p *readProvider) ReadResource(_ context.Context, r providers.ReadResourceR
 	schema := fakeSchemas()[r.TypeName]
 	id := r.PriorState.GetAttr("id").AsString()
 	p.record("read " + r.TypeName + "/" + id)
+
+	if wait := p.stallFor(id); wait != nil {
+		<-wait
+	}
 
 	var resp providers.ReadResourceResponse
 	switch {
@@ -140,12 +168,68 @@ func (p *readProvider) PlanResourceChange(_ context.Context, r providers.PlanRes
 // import+read pairs rather than individual RPCs.
 func (p *readProvider) enter(call string) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.calls = append(p.calls, call)
 	p.inFlight++
 	if p.inFlight > p.peak {
 		p.peak = p.inFlight
 	}
+	starts := p.starts
+	p.mu.Unlock()
+
+	select {
+	case starts <- call:
+	default:
+	}
+}
+
+// stallRead makes id's ReadResource block until the returned channel is
+// closed. Set before the pass starts; the map is not written after that.
+func (p *readProvider) stallRead(id string) chan struct{} {
+	ch := make(chan struct{})
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stalled[id] = ch
+	return ch
+}
+
+func (p *readProvider) stallFor(id string) chan struct{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stalled[id]
+}
+
+// importCount is how many reads have been STARTED - one ImportResourceState
+// apiece - whether or not they have landed.
+func (p *readProvider) importCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var n int
+	for _, c := range p.calls {
+		if strings.HasPrefix(c, "import ") {
+			n++
+		}
+	}
+	return n
+}
+
+// waitForStarts returns once n reads have been started, or everything it saw
+// if they never are. It is the caller that decides a short answer is a
+// failure, and every caller does; [readGateStuckAfter] is the same
+// hang-breaker [readReverseGate] uses, and reaching it is never a pass.
+func (p *readProvider) waitForStarts(t *testing.T, n int) []string {
+	t.Helper()
+	timer := time.NewTimer(readGateStuckAfter)
+	defer timer.Stop()
+	seen := make([]string, 0, n)
+	for len(seen) < n {
+		select {
+		case call := <-p.starts:
+			seen = append(seen, call)
+		case <-timer.C:
+			return seen
+		}
+	}
+	return seen
 }
 
 func (p *readProvider) leave() {
@@ -409,6 +493,179 @@ func TestReadPassContinuesPastAFailedRead(t *testing.T) {
 	}
 	if !hasDiag(b.diags, "Cannot read for projection", readParallelID(2)) {
 		t.Errorf("the read failure was not reported:\n%s", renderDiags(b.diags))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 5. One slow read (GitHub issue #683)
+// ---------------------------------------------------------------------------
+
+// runReadPassAsync is [runReadPass] with the consuming loop on its own
+// goroutine, because the two tests below have to observe the pass while it is
+// still running - a stalled read is not visible from the far side of it.
+//
+// The builder's fields are read only after the returned channel is closed,
+// which is the happens-before edge that makes that safe.
+func runReadPassAsync(t *testing.T, p *readProvider, opts Options) (*builder, <-chan struct{}) {
+	t.Helper()
+	cfg := loadConfig(t, "testdata/read-parallel")
+	b := newBuilder(context.Background(), cfg, SingleProvider(awsProvider, p), opts)
+	res := readParallelResolutions(t)
+
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		b.run(context.Background(), res)
+	}()
+	return b, finished
+}
+
+// TestOneStalledReadDoesNotStopTheOthersFromLaunching is issue #683 itself.
+//
+// One aws_route53_record throttled on a real-AWS plan of 745 resources, and
+// the SDK's backoff held that one read for 26.20 seconds. For 26 of those
+// seconds the whole plan had ZERO requests in flight except the four retries
+// themselves: the nine reads launched beside it had landed and were holding
+// their slots, because the one slot did double duty as the memory bound and
+// the consuming loop - which walks build order - was stopped on the stalled
+// instance. The launcher could not start a tenth.
+//
+// The fixture is that estate in miniature. g0 is the straggler, held inside
+// ReadResource until this test releases it, and the assertion is on reads
+// STARTED, not on peak concurrency: peak reads 2 here and 10 there whether or
+// not the defect is present, which is what let it hide through three rounds
+// of investigation.
+//
+// Nothing in the pass path here is timed. The wait is satisfied by the
+// launcher starting reads, and [readGateStuckAfter] exists so that a pass
+// that cannot start them fails in half a minute naming the count it reached
+// instead of hanging until the package's test timeout.
+func TestOneStalledReadDoesNotStopTheOthersFromLaunching(t *testing.T) {
+	p := newReadProvider()
+	release := p.stallRead(readParallelID(0))
+
+	b, finished := runReadPassAsync(t, p, Options{
+		ReadParallelism: 2,
+		// Room for every answer but the straggler's own, so that the buffer
+		// is not what stops the launcher: what is under test is whether the
+		// stalled read stops it.
+		ReadBuffer: readParallelN - 1,
+	})
+
+	started := p.waitForStarts(t, readParallelN)
+
+	// Release before any assertion, so that a failure reports rather than
+	// leaving the pass wedged behind a read nobody ever answers.
+	close(release)
+	<-finished
+
+	if len(started) != readParallelN {
+		t.Fatalf("while one read was stalled the pass started %d of %d reads: %v\n"+
+			"the slot a fetched-but-unconsumed answer holds is still the slot the launcher needs, so one slow read stops the window sliding",
+			len(started), readParallelN, started)
+	}
+
+	// The in-flight bound is still a bound. Without this, a fix that simply
+	// deleted the semaphore would pass the assertion above.
+	if got, want := p.peakConcurrency(), 2; got != want {
+		t.Errorf("peak concurrency was %d, want %d: the reads are no longer bounded by ReadParallelism", got, want)
+	}
+
+	// And the pass is the pass it always was: same calls, same order, nothing
+	// prefetched that nobody consumed.
+	if got, want := len(p.callLog()), 2*readParallelN; got != want {
+		t.Errorf("made %d calls, want %d: %v", got, want, p.callLog())
+	}
+	var wantMaterialized []string
+	for i := 0; i < readParallelN; i++ {
+		wantMaterialized = append(wantMaterialized, fmt.Sprintf("aws_cloudwatch_log_group.g%d", i))
+	}
+	if got := addrStrings(b.materialized); !slices.Equal(got, wantMaterialized) {
+		t.Errorf("materialized in order\n %v\nwant\n %v", got, wantMaterialized)
+	}
+	if b.diags.HasErrors() {
+		t.Errorf("unexpected diagnostics:\n%s", renderDiags(b.diags))
+	}
+	if len(b.readWasted) != 0 || b.readMismatched != 0 {
+		t.Errorf("wasted %v and refused %d prefetched answers, want none of either", b.readWasted, b.readMismatched)
+	}
+}
+
+// readBufferSettle is how long the test below gives a launcher that ignores
+// the buffer bound to prove it ignores it.
+//
+// This is a clock in the success path, which nothing else in this file has,
+// and it is here because no channel can carry the news that a launcher is
+// blocked - the absence of a start looks the same as a start that has not
+// happened yet. The margin it rests on is not a close one: the reads this
+// fixture makes are in-process map lookups, so an unbounded launcher starts
+// the remaining instances within microseconds of the completions that free
+// it, and half a second is five orders of magnitude of headroom. The red run
+// in the pull request is what shows it crossing.
+const readBufferSettle = 500 * time.Millisecond
+
+// TestTheReadPassBoundsFetchedButUnconsumedAnswers is the other half of issue
+// #683, and it is what stops the first test being satisfied by deleting the
+// backpressure.
+//
+// The slot the launcher takes was never only a concurrency bound: it was also
+// the promise that at most ReadParallelism answers are ever fetched and not
+// yet consumed, so that a projection over a thousand instances does not hold
+// a thousand read objects at once. Splitting the bound in two has to keep
+// that promise, and a read-ahead released on completion alone would trade the
+// slowness for exactly the memory regression the original design avoided.
+//
+// So: the consuming loop is stopped on a stalled g0, the launcher is free,
+// and the count it reaches is pinned by value rather than by an inequality.
+//
+// That count is buffer + parallelism, and the arithmetic is worth writing
+// down because it is the bound itself. The launcher checks the buffer and
+// then waits for an in-flight slot, so it is admitted while buffered is at
+// most buffer-1 and may then be joined by the reads already in flight: at
+// most buffer + parallelism - 1 answers are ever fetched and unconsumed, and
+// one further read - the stalled one - is in flight holding no answer at all.
+// Here that is 3 + 2 = 5 reads started: g0 stalled, four launched behind it.
+func TestTheReadPassBoundsFetchedButUnconsumedAnswers(t *testing.T) {
+	const parallelism = 2
+	const buffer = 3
+	const wantStarted = buffer + parallelism
+
+	p := newReadProvider()
+	release := p.stallRead(readParallelID(0))
+
+	b, finished := runReadPassAsync(t, p, Options{ReadParallelism: parallelism, ReadBuffer: buffer})
+
+	started := p.waitForStarts(t, wantStarted)
+	time.Sleep(readBufferSettle)
+	overrun := p.importCount()
+
+	close(release)
+	<-finished
+
+	if len(started) != wantStarted {
+		t.Fatalf("with one read stalled the pass started %d reads, want %d: %v\n"+
+			"the launcher is not running ahead of the consuming loop at all, so this test is not holding the bound it exists to hold",
+			len(started), wantStarted, started)
+	}
+	if overrun != wantStarted {
+		t.Errorf("with the consuming loop stopped on one stalled read, %d reads had been started, want %d (one stalled, at most %d answers fetched and unconsumed).\n"+
+			"Fetched-but-unconsumed answers are unbounded, so a lagging consumer now holds every answer of an estate at once - the regression the single slot existed to prevent",
+			overrun, wantStarted, buffer+parallelism-1)
+	}
+
+	// The bound is a pause, not a loss: everything still reads, in order,
+	// once the loop starts taking.
+	if got, want := len(p.callLog()), 2*readParallelN; got != want {
+		t.Errorf("made %d calls, want %d: %v", got, want, p.callLog())
+	}
+	if got, want := len(b.materialized), readParallelN; got != want {
+		t.Errorf("materialized %d instances, want %d: %v", got, want, addrStrings(b.materialized))
+	}
+	if b.diags.HasErrors() {
+		t.Errorf("unexpected diagnostics:\n%s", renderDiags(b.diags))
+	}
+	if len(b.readWasted) != 0 || b.readMismatched != 0 {
+		t.Errorf("wasted %v and refused %d prefetched answers, want none of either", b.readWasted, b.readMismatched)
 	}
 }
 
