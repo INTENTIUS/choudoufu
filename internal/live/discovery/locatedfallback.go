@@ -125,6 +125,23 @@ import (
 // that found this wall; the property it shares with the other 214 is what
 // this function fixes.
 //
+// A record for one of them holds its identity in one of two shapes, and this
+// function reads both. GitHub issue #746's re-measurement, against a real
+// hashicorp/aws 6.59.0 GetProviderSchema response rather than against the
+// survey artifact's looser taggable signal: of 1699 managed resource types,
+// 90 are recordable as a wire-identity COMPOSITE
+// ([identity.LocatedIdentityPlanFor] answering Composite, which is what
+// makes [projection.LocatedRecordFrom] write Components and no import ID at
+// all), 73 of those are markerless by [markers.Taggable], and 27 of those
+// are also unlistable by every route [scanType] tries before reaching here.
+// Twenty-four of the 27 are diverted to [identity.ClassRecordLocated] before
+// discovery ever runs, by [identity.LocatedType] or
+// [identity.RecordFallbackType]; three are not, and reach this function:
+// aws_datazone_glossary_term, aws_opensearchserverless_security_config and
+// aws_redshift_namespace_registration. Nothing in that join names a resource
+// type - the three names are the OUTPUT of it, recorded so a later reader
+// can re-run the same join and see whether the answer moved.
+//
 // # Never a guess
 //
 // ok is false only when there is nothing to consult at all: [Request.HintStore]
@@ -189,15 +206,58 @@ func scanTypeLocatedFallback(ctx context.Context, req Request, decl *declared, t
 			continue
 		}
 		if rec.ImportID == "" {
-			// A composite identity ([projection.LocatedRecord.Components]),
-			// which nothing in [identity.DefaultTable]'s ServerAssigned
-			// population needs today - every row this function is reached
-			// for composes its identity from one leading attribute (see
-			// [importIdentityFromResource]'s own doc comment, "only the
-			// LEADING identity attribute is tried"). Refusing to flatten an
-			// unexpected composite record into a guess, rather than reading
-			// one component arbitrarily, is the same discipline as an empty
-			// tag-index answer: left unbound, not misbound.
+			// A composite identity ([projection.LocatedRecord.Components]):
+			// the record holds one string per identity-schema attribute and
+			// no joined string at all, because a wire-identity composite has
+			// no documented separator to join them with. See
+			// [projection.LocatedRecordFrom]'s Composite branch, which is
+			// what writes this shape.
+			//
+			// This used to skip, on a measured claim that the population
+			// reaching this function never carries one. That claim is now
+			// false, and the re-measurement is on GitHub issue #746: against
+			// hashicorp/aws 6.59.0, 27 types are markerless
+			// ([markers.Taggable] false), unlistable (no list resource, no
+			// Cloud Control enumeration source, no content-match binding)
+			// AND write a Components-only record, and three of them
+			// (aws_datazone_glossary_term, aws_opensearchserverless_
+			// security_config, aws_redshift_namespace_registration) are not
+			// diverted to [identity.ClassRecordLocated] ahead of discovery
+			// by [identity.LocatedType] or [identity.RecordFallbackType], so
+			// they arrive here with a written record and used to leave
+			// unbound - which proposes CREATING a second copy of a live
+			// object the estate has already recorded.
+			//
+			// Binding by components rather than by a joined string is the
+			// whole point: [Binding.IdentityValues] reaches
+			// [identity.Resolution.IdentityValues] and from there
+			// internal/live/projection's importTarget, which builds a
+			// providers.ImportTarget from the type's own identity schema -
+			// the same route [projection.LocatedRecord.Components] already
+			// takes on the record-first path
+			// ([projection.recordFirstStubValues]), not a second rendering
+			// invented here.
+			//
+			// A record with neither an import ID nor components names
+			// nothing and must never claim an address. It cannot reach here
+			// today - [projection.RecordStore.GetIdentity] refuses an empty
+			// identity, and an empty component, with an error rather than
+			// returning one - so this is a guard rather than an assumption,
+			// the same shape as the claimants check at the top of the loop.
+			// A store that ever stopped refusing it would otherwise bind an
+			// instance to nothing at all.
+			if len(rec.Components) == 0 {
+				continue
+			}
+			entry.claimants = append(entry.claimants, claimant{
+				// No import ID and no single attribute one was read from:
+				// both empty rather than filled in with a guess.
+				identity:       cty.NilVal,
+				identityValues: rec.Components,
+				escaped:        escaped,
+				displayName:    recordIdentityDisplay(rec),
+			})
+			found++
 			continue
 		}
 

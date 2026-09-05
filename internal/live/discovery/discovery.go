@@ -812,13 +812,23 @@ type claimant struct {
 	importID     string
 	identityAttr string
 	identity     cty.Value
-	displayName  string
-	marker       string
-	escaped      string
-	normalized   bool
-	slot         string
-	tags         map[string]string
-	noIdentity   bool
+
+	// identityValues is a composite identity's components, one string per
+	// identity-schema attribute, for a source that holds them rather than a
+	// single import string - the record store's composite identity records
+	// ([scanTypeLocatedFallback]). It travels to [Binding.IdentityValues]
+	// and from there to [identity.Resolution.IdentityValues]; see the
+	// Binding field's own doc comment for why it is never joined into
+	// importID here.
+	identityValues map[string]string
+
+	displayName string
+	marker      string
+	escaped     string
+	normalized  bool
+	slot        string
+	tags        map[string]string
+	noIdentity  bool
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a
@@ -3791,10 +3801,11 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 				continue
 			}
 			res.Resolutions[i] = identity.Resolution{
-				Addr:     r.Addr,
-				Class:    identity.ClassConcrete,
-				ImportID: b.ImportID,
-				Identity: b.Identity,
+				Addr:           r.Addr,
+				Class:          identity.ClassConcrete,
+				ImportID:       b.ImportID,
+				Identity:       b.Identity,
+				IdentityValues: b.IdentityValues,
 			}
 		}
 	}
@@ -3925,15 +3936,16 @@ func bindClaimant(res *Result, bound map[string]Binding, typeName, escaped strin
 		}), true
 	}
 	b := Binding{
-		Addr:         addr,
-		TypeName:     typeName,
-		ImportID:     c.importID,
-		IdentityAttr: c.identityAttr,
-		Marker:       c.marker,
-		Normalized:   c.normalized,
-		Slot:         c.slot,
-		DisplayName:  c.displayName,
-		Identity:     c.identity,
+		Addr:           addr,
+		TypeName:       typeName,
+		ImportID:       c.importID,
+		IdentityAttr:   c.identityAttr,
+		Marker:         c.marker,
+		Normalized:     c.normalized,
+		Slot:           c.slot,
+		DisplayName:    c.displayName,
+		Identity:       c.identity,
+		IdentityValues: c.identityValues,
 	}
 	res.Bindings = append(res.Bindings, b)
 	bound[addr.String()] = b
