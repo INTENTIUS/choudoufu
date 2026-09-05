@@ -3,14 +3,15 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "6fc3983a27ef34fad1e6d366ee298e5ec9597d14",
+  "measured_at_head": "0e6703b26565d246ec79cd317991d13b35c8b70b",
+  "generated_at": "2026-09-05T22:11:08Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 28,
     "internal/live/": 1269,
     "live/": 482,
     "other": 983,
-    "site/": 91,
+    "site/": 92,
     "tools/": 404
   },
   "files": {
@@ -11393,6 +11394,10 @@
       },
       {
         "path": "site/layouts/_default/_markup/render-image.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/docs/inject/head.html",
         "status": "A"
       },
       {
