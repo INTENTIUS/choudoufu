@@ -2695,7 +2695,7 @@ func statelessBoundReport(res *projection.Result, merged []identity.Resolution, 
 		switch {
 		case preSweep[key]:
 			item.Source = views.LivePlanBoundMarker
-		case r.Class == identity.ClassRecordBacked || r.Class == identity.ClassRecordLocated:
+		case liveClassTable[r.Class].boundFromRecord:
 			item.Source = views.LivePlanBoundRecord
 		default:
 			item.Source = views.LivePlanBoundDerived
@@ -3129,10 +3129,10 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 		was[r.Addr.String()] = r.Class
 	}
 	for _, r := range second.All() {
-		if r.Class != identity.ClassNeedsDiscovery {
+		if !liveClassTable[r.Class].needsDiscovery {
 			continue
 		}
-		if prior, ok := was[r.Addr.String()]; ok && prior != identity.ClassNeedsDiscovery {
+		if prior, ok := was[r.Addr.String()]; ok && !liveClassTable[prior].needsDiscovery {
 			return r.Addr.String()
 		}
 	}
@@ -3319,7 +3319,7 @@ func expandFormulaParents(resolutions *identity.Result, instances []identity.Res
 		}
 		seen[key] = true
 		out = append(out, r)
-		if r.Class != identity.ClassParentDerived || r.Formula == nil {
+		if !liveClassTable[r.Class].formulaParents || r.Formula == nil {
 			return
 		}
 		for _, p := range r.Formula.Parents {
