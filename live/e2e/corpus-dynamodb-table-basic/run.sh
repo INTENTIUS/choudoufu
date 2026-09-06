@@ -146,6 +146,18 @@ set -uo pipefail
 #                was destroyed - the assertion must fail. Only reachable
 #                when BREAK is not 6 and BREAK_REMOVE is not 1, because
 #                PART G starts from PART E's real, completed removal.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P): after the
+#                table's Terraform tag has moved out of band, assert the
+#                saved plan file APPLIES cleanly - the Break text in
+#                tools/gauntlet/stages.go for plan_approval is literally
+#                "Apply the planfile after a mutation and expect success;
+#                the run must refuse", so this assertion has to fail.
+#                Independent of BREAK, BREAK_REMOVE and BREAK_COUNT, and
+#                the only one of them under which PART P runs at all - the
+#                others deliberately leave the estate somewhere PART P does
+#                not describe, and it reports no verdict there.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -776,6 +788,175 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   gauntlet_stage drift_reconverge pass "one object tampered ($TABLE_ARN's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
   log ""
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, #903)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # The pipeline shape CI has always run: plan on the pull request, a human
+  # approves, apply exactly what was approved. The artifact that crosses
+  # that gate is the plan file, and under live markers it is an APPROVAL
+  # rather than an instruction - "apply <planfile>" re-reads the live
+  # system, plans against what it finds now, and compares that fresh plan
+  # with the file's, refusing by name and with exit 3 when the two disagree
+  # (issue #878, internal/command/live_approval.go).
+  #
+  # Both arms run on every real run, because only the pair is evidence:
+  #
+  #   P2/P3  the world MOVES between the approval and the apply - the
+  #          table's Terraform tag is changed out of band through the AWS
+  #          CLI, the same mutation STAGE 5 above already proves this
+  #          estate's plan notices - and the apply must refuse: exit 3, the
+  #          named summary, the unapproved row printed by address AND by the
+  #          live identity it was computed against (aws_dynamodb_table's id
+  #          is the table name), and the reviewed change still not landed
+  #          when the live resource policy is read back through the CLI.
+  #   P4     nothing has moved (the tag is put back first) and the SAME file
+  #          must APPLY. This is the inverted control that
+  #          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+  #          comparison which refuses unconditionally is not a check, so
+  #          P3's refusal is only worth something if the identical artifact
+  #          goes through when the world is where the approval left it.
+  #
+  # This estate is the smallest in the set and that decides which object
+  # takes which role. It owns exactly two live objects the plan acts on -
+  # the table and its resource policy - so the change under review has to be
+  # the one the out-of-band move is NOT on, or the refusal would be a
+  # values-only disagreement about the same row rather than an EXTRA row it
+  # can name. The move is STAGE 5's own proven table-tag mutation, so the
+  # review is the resource policy's own statement Sid, one argument in the
+  # `resource_policy` heredoc reaching module.dynamodb_table.
+  # aws_dynamodb_resource_policy.this[0] and nothing else. Neither object is
+  # captured by id ahead of a later part: PART D re-reads $TABLE_ARN itself
+  # but only after PART P has reverted and reconverged, and the resource
+  # policy is the object PART D expects to show no diff at all.
+  #
+  # Runs only on a real run. Under this script's other BREAK controls the
+  # estate is deliberately left somewhere this part does not describe, so it
+  # reports no verdict at all and the runner records the stage as not_run,
+  # never as a pass.
+  if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+    gauntlet_begin_stage plan_approval
+    log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+    P_REVIEWED_ADDR="module.dynamodb_table.aws_dynamodb_resource_policy.this[0]"
+    P_MOVED_ADDR="module.dynamodb_table.aws_dynamodb_table.this[0]"
+    # aws_dynamodb_table's id is the table's NAME, and the refusal prints the
+    # id of the object each change was computed against, so the name - not
+    # the ARN - is what P3 asserts the refusal names.
+    P_TABLE_NAME="${TABLE_ARN##*/}"
+    [ -n "$P_TABLE_NAME" ] || fail "could not derive the table name from $TABLE_ARN"
+    P_POLICY_BEFORE="$(awsl dynamodb get-resource-policy --resource-arn "$TABLE_ARN" --query Policy --output text)"
+    grep -q 'AllowDummyRoleAccess' <<< "$P_POLICY_BEFORE" \
+      || { printf '%s\n' "$P_POLICY_BEFORE"; fail "the live resource policy does not carry the example's own AllowDummyRoleAccess statement"; }
+    grep -q 'AllowDummyRoleAccessReviewed' <<< "$P_POLICY_BEFORE" \
+      && { printf '%s\n' "$P_POLICY_BEFORE"; fail "the live resource policy already carries the reviewed Sid before PART P edits anything"; }
+    P_TABLE_TAG="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='Terraform'].Value | [0]" --output text)"
+    [ "$P_TABLE_TAG" = "true" ] || fail "the table's Terraform tag reads \"$P_TABLE_TAG\", not the configured \"true\", going into PART P"
+    log "  the change under review lands on the resource policy ($P_REVIEWED_ADDR); the out-of-band move lands on table $P_TABLE_NAME ($P_MOVED_ADDR, Terraform=\"$P_TABLE_TAG\")"
+
+    log "=== P1. the change under review: one argument, on one resource ==="
+    [ "$(grep -c '"Sid": "AllowDummyRoleAccess",' "$EX/main.tf")" = "1" ] \
+      || fail "main.tf no longer carries exactly one AllowDummyRoleAccess Sid - the corpus pin has moved"
+    perl -0pi -e 's/"Sid": "AllowDummyRoleAccess",/"Sid": "AllowDummyRoleAccessReviewed",/' "$EX/main.tf"
+    [ "$(grep -c '"Sid": "AllowDummyRoleAccessReviewed",' "$EX/main.tf")" = "1" ] \
+      || fail "the reviewed edit did not write exactly one AllowDummyRoleAccessReviewed Sid"
+    log "  edited one argument: the resource policy's statement Sid is now AllowDummyRoleAccessReviewed"
+
+    P_PLAN_OUT="$(cd "$EX" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+    [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -60; fail "plan -out exited $P_PLAN_RC"; }
+    [ -f "$EX/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+    P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+      || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+    if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+      grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+    fi
+    P_PLAN_BYTES="$(wc -c < "$EX/approved.tfplan" | tr -d ' ')"
+    log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+    log "=== P2. the world moves between the approval and the apply ==="
+    awsl dynamodb tag-resource --resource-arn "$TABLE_ARN" --tags Key=Terraform,Value=moved-after-approval
+    P_MOVED_VALUE="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='Terraform'].Value | [0]" --output text)"
+    [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: the table's Terraform tag reads \"$P_MOVED_VALUE\""
+    log "  $TABLE_ARN's Terraform tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+    log "=== P3. apply the approved plan against a world that moved ==="
+    P_GATE_RC=0
+    P_GATE_OUT="$(cd "$EX" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+    if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+      # stages.go's own Break line for plan_approval, executed literally:
+      # "Apply the planfile after a mutation and expect success; the run
+      # must refuse." Expecting success here is the defect this stage
+      # exists to catch, so this assertion has to fail.
+      [ "$P_GATE_RC" = "0" ] \
+        || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+      log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+    fi
+    [ "$P_GATE_RC" = "3" ] \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+    grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply stopped, but not with the named refusal"; }
+    # Everything from the refusal's own summary line onward. The fresh plan
+    # printed above it also names the moved table, so asserting over the
+    # whole output would pass on a refusal that named nothing at all.
+    P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+    grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+    grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+    grep -qF "$P_TABLE_NAME" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $P_TABLE_NAME, the live object the change was computed against"; }
+    grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+    if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+      printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+    fi
+    # Not "no Apply complete line" alone: read the live object the approval
+    # was about and confirm the reviewed change did not land.
+    P_POLICY_AFTER_REFUSAL="$(awsl dynamodb get-resource-policy --resource-arn "$TABLE_ARN" --query Policy --output text)"
+    grep -q 'AllowDummyRoleAccessReviewed' <<< "$P_POLICY_AFTER_REFUSAL" \
+      && { printf '%s\n' "$P_POLICY_AFTER_REFUSAL"; fail "the refused apply still wrote the reviewed change: the live resource policy carries the reviewed Sid"; }
+    printf '%s\n' "$P_REFUSAL" | head -12
+    log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+    log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+    awsl dynamodb tag-resource --resource-arn "$TABLE_ARN" --tags Key=Terraform,Value=true
+    P_RESTORED="$(awsl dynamodb list-tags-of-resource --resource-arn "$TABLE_ARN" --query "Tags[?Key=='Terraform'].Value | [0]" --output text)"
+    [ "$P_RESTORED" = "true" ] || fail "the out-of-band move was not undone: the table's Terraform tag reads \"$P_RESTORED\""
+    P_OK_RC=0
+    P_OK_OUT="$(cd "$EX" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+    [ "$P_OK_RC" = "0" ] \
+      || { printf '%s\n' "$P_OK_OUT" | tail -60; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+    P_POLICY_LANDED="$(awsl dynamodb get-resource-policy --resource-arn "$TABLE_ARN" --query Policy --output text)"
+    grep -q 'AllowDummyRoleAccessReviewed' <<< "$P_POLICY_LANDED" \
+      || { printf '%s\n' "$P_POLICY_LANDED"; fail "the approved change did not land: the live resource policy does not carry the reviewed Sid"; }
+    log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and the live resource policy now carries the reviewed Sid, read via the AWS CLI"
+
+    log "=== P5. put the estate back where the rest of this script expects it ==="
+    rm -f "$EX/approved.tfplan"
+    perl -0pi -e 's/"Sid": "AllowDummyRoleAccessReviewed",/"Sid": "AllowDummyRoleAccess",/' "$EX/main.tf"
+    [ "$(grep -c '"Sid": "AllowDummyRoleAccessReviewed",' "$EX/main.tf")" = "0" ] \
+      || fail "reverting the reviewed edit left the reviewed Sid in main.tf"
+    P_BACK_OUT="$(cd "$EX" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+    [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -60; fail "the revert apply failed"; }
+    P_POLICY_BACK="$(awsl dynamodb get-resource-policy --resource-arn "$TABLE_ARN" --query Policy --output text)"
+    grep -q 'AllowDummyRoleAccessReviewed' <<< "$P_POLICY_BACK" \
+      && { printf '%s\n' "$P_POLICY_BACK"; fail "the reviewed Sid is still on the live resource policy after the revert"; }
+    P_FINAL_OUT="$(cd "$EX" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+    [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -60; fail "the post-revert plan exited $P_FINAL_RC"; }
+    if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+      grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+    fi
+    log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+    log ""
+    log "PART P (plan, review, apply): PASS"
+    gauntlet_stage plan_approval pass "one argument edited (the resource_policy heredoc's statement Sid, AllowDummyRoleAccess -> AllowDummyRoleAccessReviewed, reaching only $P_REVIEWED_ADDR), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is that one update; the world then moved out of band ($TABLE_ARN's Terraform tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live table id $P_TABLE_NAME it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - dynamodb get-resource-policy still returned a policy without the reviewed Sid, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the table's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the live policy read back WITH the reviewed Sid, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. This estate owns only two objects the plan acts on, so the review deliberately sits on the resource policy and the move on the table: that is what makes the refusal an EXTRA row it can name rather than a values-only disagreement about one row. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    log ""
+  fi
 
   # ════════════════════════════════════════════════════════════════════════
   # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
