@@ -267,10 +267,19 @@ fi
 HITS_EAST="$(grep -c 'state cache hit for aws_vpc.east' "$LOGDIR/delete.log" || true)"
 [ "$HITS_EAST" -gt 0 ] \
   || fail "regions" "aws.east's converged instances stopped being served from the cache because something was deleted in aws.west's region: $(grep 'state cache hit' "$LOGDIR/delete.log" || echo 'no cache hits at all')"
+# aws_cloudwatch_log_group.east is CONCRETE (client-named, not
+# needs-discovery): its tag-index vouch rides discovery.Result's
+# VerifiedDeclared, which Merge did not carry into a two-pass estate until
+# issue #905 - so this instance's cache hit is the fix's own proof, in the
+# same two-pass estate #745's step already stands up, not a synthetic one.
+HITS_LG_EAST="$(grep -c 'state cache hit for aws_cloudwatch_log_group.east' "$LOGDIR/delete.log" || true)"
+[ "$HITS_LG_EAST" -gt 0 ] \
+  || fail "regions" "aws.east's CONCRETE log group stopped being served from the cache (issue #905) because something was deleted in aws.west's region: $(grep 'state cache hit' "$LOGDIR/delete.log" || echo 'no cache hits at all')"
 grep -E 'aws_cloudwatch_log_group.west will be created' <<< "$P_DEL" | head -1 | evidence
 grep -E 'Plan: 1 to add' <<< "$P_DEL" | head -1 | evidence
 grep 'state cache hit for aws_vpc.east' "$LOGDIR/delete.log" | sed 's/.*projection: //' | head -1 | evidence
-proof "aws.west (us-west-2) lost $LG_NAME and the plan named that instance, and only that instance; aws.east's identical name in us-east-1 never answered for it, and aws.east's own instances stayed served from the cache."
+grep 'state cache hit for aws_cloudwatch_log_group.east' "$LOGDIR/delete.log" | sed 's/.*projection: //' | head -1 | evidence
+proof "aws.west (us-west-2) lost $LG_NAME and the plan named that instance, and only that instance; aws.east's identical name in us-east-1 never answered for it, and aws.east's own instances - the needs-discovery vpc AND the CONCRETE log group alike - stayed served from the cache."
 
 explain \
   "One ordinary apply puts aws.west's half back. Nothing about the" \

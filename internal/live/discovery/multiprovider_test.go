@@ -496,3 +496,45 @@ func TestMergeDedupesSweepCoverage(t *testing.T) {
 		}
 	}
 }
+
+// TestMergeCarriesVerifiedDeclared is issue #905: VerifiedDeclared is the
+// tag-index vouch for a CONCRETE (client-named) declared instance - the
+// counterpart to Bindings' vouch for a needs-discovery one - and every
+// other per-pass field in Merge's loop is concatenated or unioned except
+// this one, which used to be silently absent from the merged Result. Two
+// hand-built Results are used rather than a real Discover call, the same
+// choice TestMergeDedupesSweepCoverage makes: Merge does not care where a
+// Result came from, only that its fields are internally consistent, and
+// VerifiedDeclared is address-keyed - each address is declared under
+// exactly one resource block, hence exactly one provider configuration in
+// the estate's own configuration - the same "purely from its own account
+// and region" property Merge's doc comment already gives Bindings, Unbound,
+// Slots and Surplus. So a straight concatenation is sound here for the same
+// reason it is sound for those fields, and MarkerVerified's consumer
+// (map[string]bool, built fresh from the whole slice on every call) makes a
+// duplicate entry across passes harmless besides.
+func TestMergeCarriesVerifiedDeclared(t *testing.T) {
+	addrA := mustAddr(t, `aws_cloudwatch_log_group.east`)
+	addrB := mustAddr(t, `aws_cloudwatch_log_group.west`)
+
+	resA := &Result{Verdicts: Verdicts{VerifiedDeclared: []addrs.AbsResourceInstance{addrA}}}
+	resB := &Result{Verdicts: Verdicts{VerifiedDeclared: []addrs.AbsResourceInstance{addrB}}}
+
+	merged, _, mergeDiags := Merge(estateName, []Pass{
+		{Provider: testProviderAddr(t, "east"), Result: resA},
+		{Provider: testProviderAddr(t, "west"), Result: resB},
+	})
+	assertNoErrors(t, mergeDiags)
+
+	if len(merged.VerifiedDeclared) != 2 {
+		t.Errorf("merged.VerifiedDeclared has %d entries, want 2 (one per pass):\n%s", len(merged.VerifiedDeclared), merged)
+	}
+
+	verified := merged.MarkerVerified()
+	if !verified[addrA.String()] {
+		t.Errorf("%s (pass 1's vouch) is missing from the merged MarkerVerified set - projection.Ownership.Verified is built straight from this, so the -refresh=false cache hit for it can never fire in a two-pass estate", addrA)
+	}
+	if !verified[addrB.String()] {
+		t.Errorf("%s (pass 2's vouch) is missing from the merged MarkerVerified set - projection.Ownership.Verified is built straight from this, so the -refresh=false cache hit for it can never fire in a two-pass estate", addrB)
+	}
+}

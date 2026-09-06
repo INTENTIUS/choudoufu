@@ -99,9 +99,30 @@ func (p Pass) label() string {
 // instance's resource block names exactly one provider configuration, so
 // at most one pass's Bindings or Unbound could ever name it, and the same
 // is true of a count block's Slots/Surplus and of which pass's
-// ParentReads leg processes a given declared parent. Scans, SweepGaps,
-// SweepCovered and each pass's own Problems are concatenated too, and
-// deliberately may repeat across passes - each entry is a true, distinct
+// ParentReads leg processes a given declared parent.
+//
+// VerifiedDeclared (issue #692's tag-index vouch for a CONCRETE instance -
+// Bindings' counterpart for one that needed no discovery) is concatenated
+// too, though for a narrower reason: it is not ScopeProvider-gated the way
+// Bindings is (a pass's estate-wide sweep vouches whatever declared address
+// its own marker sighting names, in or out of its own scope, which is what
+// lets a global-service marker - IAM chief among them - be vouched by
+// whichever pass's session happens to sweep it). More than one pass CAN
+// independently vouch the same address; that is harmless rather than a
+// duplicate to guard against, because [Result.MarkerVerified] folds this
+// slice into a map[string]bool keyed by address string, and every entry
+// already names one specific, already-disambiguated declared address (a
+// marker escaping to two different declared addresses is caught within a
+// single pass's own decl.all - built from the whole estate's resolutions,
+// per [Pass]'s own doc comment - and vouches neither, before Merge ever
+// sees it). It was simply absent from this loop (issue #905): the tag
+// index's own vouch came out empty for every CONCRETE instance the moment
+// an estate crossed a second provider configuration, and the
+// -refresh=false cache hit for one could never fire.
+//
+// Scans, SweepGaps, SweepCovered and each pass's own Problems are
+// concatenated too, and deliberately may repeat across passes - each entry
+// is a true, distinct
 // fact about that one pass's own account and region, not a duplicate to
 // collapse.
 //
@@ -201,6 +222,10 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
 		res.Unbound = append(res.Unbound, p.Result.Unbound...)
 		res.Unclaimed = append(res.Unclaimed, p.Result.Unclaimed...)
+		// VerifiedDeclared: see this func's own doc comment above (issue
+		// #905) for why a plain concatenation is sound despite this field
+		// not being ScopeProvider-gated the way Bindings is.
+		res.VerifiedDeclared = append(res.VerifiedDeclared, p.Result.VerifiedDeclared...)
 		// The union keeps each pass's own partition rather than collapsing
 		// the type/identity pairs into one set (issue #745): a sighting is
 		// evidence about the account and region that pass listed, and a
