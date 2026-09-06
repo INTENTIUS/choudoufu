@@ -6,70 +6,115 @@
 package flocitest
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 )
 
-// TestCohortDirsWalksEstatesDirectory is a mechanism test for #48's union
-// pin (table == union(estate, estates/*)): CohortDirs must return every
-// subdirectory of live/e2e/estates, and FixtureDirs must be the demo estate
-// followed by that same list. It reads the directory itself with
-// os.ReadDir, independent of CohortDirs, and hardcodes neither a cohort
-// name nor a count, so it stays true as cohorts are added or removed - the
-// same property TestAdmissionTableCoversEstate and TestTableCoversFixtureTypes
-// rely on in internal/live/lint and internal/live/identity.
-func TestCohortDirsWalksEstatesDirectory(t *testing.T) {
-	root := EstatesDir(t)
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatalf("reading %s directly: %v", root, err)
-	}
+// TestGenerateCohortsRendersTheWholeRoster is the mechanism test #48's union
+// pin used to get from TestCohortDirsWalksEstatesDirectory: whatever the
+// cohort consumers are handed must be every cohort, not a subset. The old
+// version read live/e2e/estates with os.ReadDir, independently of CohortDirs.
+// There is no committed directory to read any more (issue #699), so the
+// independent side is now the roster itself: GenerateCohorts must render one
+// tree per entry in internal/live/cohorts, in roster order, and each tree
+// must actually hold configuration - a directory that exists but is empty
+// would satisfy a path check and fail every caller.
+//
+// Gated: rendering runs `terraform init` and launches the provider plugin.
+func TestGenerateCohortsRendersTheWholeRoster(t *testing.T) {
+	Gate(t, "cohort rendering")
+	RequireBinary(t, "go")
+	RequireBinary(t, "terraform")
 
-	var want []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			want = append(want, filepath.Join(root, entry.Name()))
-		}
-	}
+	want := cohorts.Names()
 	if len(want) == 0 {
-		t.Fatalf("%s has no cohort subdirectories; the union mechanism has nothing to prove without at least one (see live/e2e/estates/example)", root)
+		t.Fatal("the cohort roster is empty; the union mechanism has nothing to prove")
 	}
 
-	got := CohortDirs(t)
+	got := GenerateCohorts(t)
 	if len(got) != len(want) {
-		t.Fatalf("CohortDirs returned %d entries, want %d:\ngot:  %v\nwant: %v", len(got), len(want), got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("CohortDirs[%d] = %s, want %s", i, got[i], want[i])
-		}
-	}
-
-	fixtureDirs := FixtureDirs(t)
-	if len(fixtureDirs) != len(got)+1 {
-		t.Fatalf("FixtureDirs returned %d entries, want the estate plus %d cohorts (%d)", len(fixtureDirs), len(got), len(got)+1)
-	}
-	if fixtureDirs[0] != EstateDir(t) {
-		t.Errorf("FixtureDirs[0] = %s, want the demo estate %s", fixtureDirs[0], EstateDir(t))
+		t.Fatalf("GenerateCohorts returned %d trees, want the roster's %d:\ngot: %v", len(got), len(want), got)
 	}
 	for i, dir := range got {
-		if fixtureDirs[i+1] != dir {
-			t.Errorf("FixtureDirs[%d] = %s, want cohort %s", i+1, fixtureDirs[i+1], dir)
+		if base := filepath.Base(dir); base != want[i] {
+			t.Errorf("GenerateCohorts[%d] is %s, want cohort %s", i, base, want[i])
+		}
+		matches, err := filepath.Glob(filepath.Join(dir, "*.tf"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) == 0 {
+			t.Errorf("%s: rendered no .tf files", dir)
 		}
 	}
 }
 
-// TestCohortDirsToleratesMissingEstatesDirectory pins the branch in
-// CohortDirs that a missing live/e2e/estates is not a fixture error: before
-// the first cohort ever lands, the union it contributes to is simply empty.
-// It cannot delete the checkout's real live/e2e/estates (the example
-// cohort under it stays byte-untouched for other tests), so it checks the
-// same os.IsNotExist path CohortDirs takes directly, against a scratch
-// directory that never had one.
-func TestCohortDirsToleratesMissingEstatesDirectory(t *testing.T) {
-	missing := filepath.Join(t.TempDir(), "estates")
-	if _, err := os.ReadDir(missing); !os.IsNotExist(err) {
-		t.Fatalf("expected os.IsNotExist for an absent directory, got %v", err)
+// TestEstatesHoldsNoConfiguration is the ratchet on the deletion. Issue #699
+// took the rendered cohorts out of git because they were generator output
+// that every working copy then filled with an ignored .terraform/; the
+// .gitignore exception block that hid it is gone too, so a re-committed tree
+// would come back with its install state visible rather than quietly.
+//
+// live/e2e/estates keeps the hand-written notes and nothing the loader would
+// read. The check is over every configuration form internal/configs accepts,
+// not ".tf" alone - the narrower filter is the one an audit already walked a
+// resource-declaring iam.tf.json past in tools/estate-gen.
+func TestEstatesHoldsNoConfiguration(t *testing.T) {
+	root := filepath.Join(RepoRoot(t), "live", "e2e", "estates")
+	var found []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if name == "estate.chdf.hcl" || strings.HasSuffix(name, ".tf") ||
+			strings.HasSuffix(name, ".tf.json") || strings.HasSuffix(name, ".tofu") ||
+			strings.HasSuffix(name, ".tofu.json") {
+			rel, rerr := filepath.Rel(root, path)
+			if rerr != nil {
+				return rerr
+			}
+			found = append(found, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(found)
+	if len(found) > 0 {
+		t.Errorf("live/e2e/estates holds %d configuration file(s) again: %s.\n"+
+			"Cohorts are rendered at run time (go run ./tools/estate-gen -all -out <dir>); this directory holds notes only - issue #699",
+			len(found), strings.Join(found, ", "))
+	}
+
+	// And the notes themselves are still here: a deletion that took the
+	// hand rulings with it would otherwise pass the check above.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, e.Name(), "README.md")); err == nil {
+			notes++
+		} else {
+			t.Errorf("%s has no README.md; a cohort directory here is its notes", e.Name())
+		}
+	}
+	if notes <= len(cohorts.Names()) {
+		t.Errorf("found %d cohort notes files, want more than the roster's %d (the roster's cohorts plus at least the example)", notes, len(cohorts.Names()))
 	}
 }
