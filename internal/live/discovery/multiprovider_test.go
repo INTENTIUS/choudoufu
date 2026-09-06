@@ -520,10 +520,17 @@ func TestMergeCarriesVerifiedDeclared(t *testing.T) {
 	resA := &Result{Verdicts: Verdicts{VerifiedDeclared: []addrs.AbsResourceInstance{addrA}}}
 	resB := &Result{Verdicts: Verdicts{VerifiedDeclared: []addrs.AbsResourceInstance{addrB}}}
 
+	// The default setting of GitHub issue #906's provider_change toggle
+	// ("refuse", which resolves to false here), because this test is about
+	// what an ordinary estate's merge carries. It changes nothing this test
+	// expects: the toggle governs only [strandedAcrossProviderConfigs],
+	// which reads [Result.DeclaredSightings], and these two hand-built
+	// Results have none - so neither setting produces a finding and both
+	// vouches come through either way.
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: testProviderAddr(t, "east"), Result: resA},
 		{Provider: testProviderAddr(t, "west"), Result: resB},
-	})
+	}, false)
 	assertNoErrors(t, mergeDiags)
 
 	if len(merged.VerifiedDeclared) != 2 {
