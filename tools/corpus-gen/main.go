@@ -9,7 +9,7 @@
 //
 // This is GitHub issue #102. The product promise is that people's existing
 // OpenTofu works under live markers with narrow exceptions, and until this
-// ran, nothing in the repository measured that: live/rowgen-convergence.json
+// ran, nothing in the repository measured that: live/rowgen-mismatches.json
 // measures whether a generator agrees with a human-ratified table row, which
 // is generator-autonomy debt rather than anything a user experiences. The
 // output here is meant to replace every row count in the tracker as the

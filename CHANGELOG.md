@@ -8,6 +8,19 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 FORK WORK:
 
+- **`live/rowgen-convergence.json` is retired** (#695). Its headline,
+  adopted-unchanged, is the metric on record as not predicting onboarding
+  success -- three sessions read it as coverage and planned work around
+  raising it -- and measured against its readers, one per-type fact and four
+  counts out of a 516KB artifact were load-bearing. Those are now
+  `live/rowgen-mismatches.json` (`row-gen -mismatches`), and the separate
+  #387 measurement it had absorbed is `live/schema-precedence.json`
+  (`row-gen -schema-precedence`); both are value-identical to what the old
+  artifact recorded. The ratio, the per-service breakdown of the same ratio,
+  and five per-row fields nothing read are gone. `live/artifact_readers_test.go`
+  is the new guard: no generator under `tools/` may write a committed
+  artifact nothing outside it reads.
+
 - **`live-plan -json` is reachable on a configuration that declares its own
   estate** (#894). `#788`'s document could be produced only through
   `live-plan -estate=NAME -json`, and that flag is refused beside a `live`
@@ -717,7 +730,7 @@ BUG FIXES:
 ENHANCEMENTS:
 
 - Record-primary identity (#364). Every managed instance now has one record - a single per-instance envelope holding identity, the arguments the provider never echoes back, sensitivity, provisioner taint and the managing provider - written by `live-import` and by every apply, and read first on the next plan, verified against the ownership marker, with a stale record falling back loudly rather than binding wrong. `terraform { live {} }` alone implies a local record store, the way stock implies local state.
-- Schema-first identity (#387). Where the provider's own resource identity schema reproduces a hand-ratified table row (134 of 161 rows with a schema at aws 6.59.0), the schema wins at runtime; `live/rowgen-convergence.json` carries the measurement.
+- Schema-first identity (#387). Where the provider's own resource identity schema reproduces a hand-ratified table row (134 of 161 rows with a schema at aws 6.59.0), the schema wins at runtime; `live/rowgen-convergence.json` carries the measurement (retired in #695; the measurement is `live/schema-precedence.json` now).
 - The plan-node seam (#388), experimental and off by default. Behind `CHOUDOUFU_NODE_RESOLVE=1`, identity is resolved during the plan walk - record, then marker index, then the identity table over the instance's real evaluated values - which resolves configuration shapes the static pass must refuse.
 - Strict toggles (#365). `strict { secrets }` governs `aws_iam_access_key` and `aws_iot_certificate` (stored by default, the way stock stores them; refused under the toggle), and the new `strict { no_source_create }` picks refuse-or-create for an instance with no record, no marker and no derivable identity (default: refuse).
 - Day-2 rename evidence (#357). The `day2_rename` stage passes on two estates: a `moved` block and `choudoufu live-mv` both rename with zero churn, the marker rewritten in place, stock's plan as the oracle.

@@ -23,7 +23,7 @@ import (
 const (
 	SurveyFullJSON  = "live/survey-full.json"
 	MappingJSON     = "live/mapping.json"
-	ConvergenceJSON = "live/rowgen-convergence.json"
+	MismatchesJSON  = "live/rowgen-mismatches.json"
 	AnnotationsJSON = "tools/row-gen/annotations.json"
 	RejectedJSON    = "tools/row-gen/rejected.json"
 	CorpusJSON      = "live/corpus-refusals.json"
@@ -118,18 +118,19 @@ type Mapping struct {
 // Mapping reads live/mapping.json.
 func (r *Repo) Mapping() (*Mapping, error) { return readJSON[Mapping](r, MappingJSON, "mapping") }
 
-// Convergence is live/rowgen-convergence.json's summary.
+// Mismatches is live/rowgen-mismatches.json: tools/row-gen's per-row
+// verdict on whether its own classifier reproduces each hand-ratified row.
 //
 // Named fields only: this reads the artifact as a consumer, and adding a
-// field to the artifact must not change what this package measures.
-type Convergence struct {
+// field to the artifact must not change what this package measures. Every
+// field here has a caller below - issue #695 deleted this artifact's
+// predecessor for growing fields nobody read, and a struct that reads a
+// field no entry measures is the same failure one layer up.
+type Mismatches struct {
 	Summary struct {
 		AdmittedTotal         int `json:"admitted_total"`
 		Compared              int `json:"compared"`
-		NotInMappedSet        int `json:"not_in_mapped_set"`
-		AdoptedUnchanged      int `json:"adopted_unchanged"`
 		GenuineMismatches     int `json:"genuine_mismatches"`
-		Annotated             int `json:"annotated"`
 		UnannotatedMismatches int `json:"unannotated_mismatches"`
 	} `json:"summary"`
 	Types []struct {
@@ -139,9 +140,9 @@ type Convergence struct {
 	} `json:"types"`
 }
 
-// Convergence reads live/rowgen-convergence.json.
-func (r *Repo) Convergence() (*Convergence, error) {
-	return readJSON[Convergence](r, ConvergenceJSON, "convergence")
+// Mismatches reads live/rowgen-mismatches.json.
+func (r *Repo) Mismatches() (*Mismatches, error) {
+	return readJSON[Mismatches](r, MismatchesJSON, "rowgen-mismatches")
 }
 
 // Annotations is tools/row-gen/annotations.json's ruling ledger.
