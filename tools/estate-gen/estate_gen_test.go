@@ -223,58 +223,22 @@ func TestValidateGeneratedCohorts(t *testing.T) {
 	}
 }
 
-// TestCloseToHandWrittenLambda regenerates the lambda cohort to a scratch
-// directory and diffs it against the checked-in, hand-written
-// live/e2e/estates/lambda - proving closeness without replacing the
-// hand-written cohort (issue #56's explicit non-goal). "Close" here means
-// the same set of resource addresses; the remaining textual differences
-// (comments, exact placeholder values, attribute order) are logged for the
-// record and are exactly what the final report documents.
-func TestCloseToHandWrittenLambda(t *testing.T) {
-	flocitest.Gate(t, "estate-gen closeness")
-	flocitest.RequireBinary(t, defaultInitBin)
-
-	root, err := repoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	handDir := filepath.Join(root, "live", "e2e", "estates", "lambda")
-
-	out := filepath.Join(t.TempDir(), "lambda-regen")
-	generateCohort(t, "lambda", lambdaTypes, out)
-
-	gotAddrs, err := resourceAddrsInDir(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantAddrs, err := resourceAddrsInDir(handDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(gotAddrs, wantAddrs) {
-		t.Errorf("generated resource addresses = %v, want (hand-written) %v", gotAddrs, wantAddrs)
-	}
-
-	for _, name := range []string{"lambda.tf", "supporting.tf"} {
-		handName := name
-		if handName == "supporting.tf" {
-			handName = "iam.tf" // the hand-written cohort's own name for the same role
-		}
-		handBytes, err := os.ReadFile(filepath.Join(handDir, handName)) //nolint:gosec // fixed checked-in path
-		if err != nil {
-			continue // not every generated file has a same-named hand-written counterpart
-		}
-		gotBytes, err := os.ReadFile(filepath.Join(out, name)) //nolint:gosec // fixed test-generated path
-		if err != nil {
-			continue
-		}
-		if string(handBytes) == string(gotBytes) {
-			t.Logf("%s: byte-identical to the hand-written cohort", name)
-			continue
-		}
-		t.Logf("%s: differs from the hand-written cohort (expected - see the issue #56 report for the catalogued diffs)", name)
-	}
-}
+// TestCloseToHandWrittenLambda retired with issue #699.
+//
+// It regenerated the lambda cohort and diffed it against
+// live/e2e/estates/lambda, "proving closeness without replacing the
+// hand-written cohort (issue #56's explicit non-goal)". That non-goal had
+// already lapsed: issue #294 regenerated the lambda cohort in place, iam.tf
+// - the hand-written cohort's own file, which the test still looked for -
+// went with it, and the drift check confirmed on 2026-09-06 that the
+// committed tree was byte-identical to the generator's own output. The test
+// was comparing the generator against itself. The committed tree is gone now
+// as well, so there is nothing left to be close to.
+//
+// What it was really guarding - that a regeneration is deterministic and
+// yields the addresses the roster asks for - is
+// TestGeneratedCohortsMatchTheRecordedRoster (drift_test.go) and
+// TestDeterministic above.
 
 // dirFiles lists the regular files directly inside dir, sorted.
 func dirFiles(dir string) ([]string, error) {
