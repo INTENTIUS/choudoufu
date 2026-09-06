@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -523,52 +522,23 @@ func ccPropertiesTags(props map[string]any) (map[string]string, bool) {
 	return out, true
 }
 
-// arnImportSyntaxRe matches an [identity.TypeIdentity.ImportSyntax]
-// placeholder that is a single token - letters and underscores only -
-// ending in ARN: TASKDEFINITIONARN, GRAPHARN, POLICYARN, the bare ARN
-// itself. tools/row-gen's tryOpaqueOverride (importprecedence.go) only ever
-// writes this shape when the provider's own documented "## Import" section
-// shows an arn:-prefixed example verbatim, with no other segment - never
-// guessed from the CFN registry's property naming alone. A composite
-// syntax carrying any separator (",", ":", "/", "#", "|") fails this
-// pattern by construction, so a multi-ARN join (DataSync's
-// "DataSync-ARN#FSx-ARN") is never mistaken for this shape.
-var arnImportSyntaxRe = regexp.MustCompile(`^[A-Z_]*ARN$`)
-
-// importsWholeARNString reports whether ti's type imports by its own bare
-// ARN whenever only an ID string - not the provider's own identity object -
-// is available for the legacy Terraform import path every admitted type
-// still answers to. Two independent signals both say so, and either is
-// enough:
+// importsWholeARNString is [identity.ImportsWholeARN], kept as a name this
+// package's own call sites read naturally. The predicate itself moved to
+// internal/live/identity for GitHub issue #879: internal/live/projection has
+// to ask the identical question when it records an object's identity, and
+// two copies of "does this type import by its whole ARN" that drift apart is
+// precisely the defect #879 measured (a record and a discovered claimant
+// naming one live object two different ways, with nothing able to compare
+// them).
 //
-//   - ti.IdentityAttrs names "arn" first: the newer Terraform 1.12+
-//     resource-identity convention, the IVS family.
-//   - ti.ImportSyntax is [arnImportSyntaxRe]-shaped, which row-gen only
-//     produces when the provider's OWN documented Import section shows an
-//     arn:-prefixed example.
-//
-// The second signal is issue #298's fix. aws_ecs_task_definition's identity
-// SCHEMA (used for the newer identity-object import, and consulted by
-// [importIdentity] on the native ListResource path) is family+revision, not
-// arn - so the first signal alone never catches it - but its ImportSyntax is
-// TASKDEFINITIONARN, confirmed against ecs_task_definition.html.markdown's
-// "## Import" section, which documents `terraform import
-// aws_ecs_task_definition.example arn:aws:ecs:...:task-definition/FAMILY:REVISION`
-// verbatim. Without this signal, a Cloud Control ListResources identifier
-// that is ALREADY that object's own ARN (AWS::ECS::TaskDefinition's
-// primaryIdentifier is TaskDefinitionArn) gets stripped down to its bare
-// resource-id segment ("sitemaps-generator:1"), which this type's
-// ImportResourceState implementation rejects outright - the provider wants
-// the ARN whole for the ID-string path even though it wants family+revision
-// for the identity-object path. GitHub issue #124's aws_prometheus_workspace
-// is why the first signal alone was never widened to "every ARN-shaped
-// identifier, always": that type's own ImportSyntax is WORKSPACEID, not
-// ARN-shaped, so it still strips to the bare workspace id.
+// The reasoning behind both of the predicate's signals - issue #298's
+// aws_ecs_task_definition, whose identity SCHEMA is family+revision while
+// its documented import string is the whole ARN, and issue #124's
+// aws_prometheus_workspace, which is why the arn-first signal was never
+// widened to "every ARN-shaped identifier" - is on [identity.ImportsWholeARN]
+// itself.
 func importsWholeARNString(ti identity.TypeIdentity) bool {
-	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
-		return true
-	}
-	return arnImportSyntaxRe.MatchString(ti.ImportSyntax)
+	return identity.ImportsWholeARN(ti)
 }
 
 // resolveCloudControlImportID turns a Cloud Control ListResources

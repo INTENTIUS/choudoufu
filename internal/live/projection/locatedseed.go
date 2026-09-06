@@ -74,7 +74,7 @@ func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.
 	}
 
 	if _, putErr := store.mergeEnvelope(ctx, addr, version, func(env *recordEnvelope) {
-		env.Identity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+		env.Identity = identityPayloadFrom(rec)
 		env.Provider = providerString(provider)
 	}); putErr != nil {
 		return SeedUnchanged, fmt.Errorf("writing the located record for %s: %w", addr, putErr)

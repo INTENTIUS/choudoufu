@@ -388,7 +388,7 @@ func tombstoneCandidates(ctx context.Context, store *projection.RecordStore, add
 // are the shared ones rather than a fifth copy.
 func claimantMatchesAnyTombstone(recs []projection.TombstoneRecord, c claimant) bool {
 	for _, rec := range recs {
-		if recordIdentityMatches(rec.ImportID, rec.Components, c.importID, c.identity) {
+		if recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), c.importID, c.identity) {
 			return true
 		}
 	}
@@ -454,14 +454,39 @@ func recordIdentityDisplay(rec projection.LocatedRecord) string {
 // than an [OwnedResource]; both go through [recordIdentityMatches], which is
 // where the mark discipline lives.
 func claimantMatchesRecord(rec projection.LocatedRecord, c claimant) bool {
-	return recordIdentityMatches(rec.ImportID, rec.Components, c.importID, c.identity)
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), c.importID, c.identity)
+}
+
+// recordIdentityNames is every name a stored record holds for the one live
+// object it describes: the import identity of a type identified by a single
+// server-minted string, the components of a composite one, and - since
+// GitHub issue #879 - the second, one-string name a type carrying BOTH also
+// records ([projection.LocatedRecord.SecondaryID]).
+//
+// It is a struct rather than three parameters for the reason
+// [projection.LocatedRecord]'s own doc comment gives: three same-typed
+// values passed by position is a merge git resolves silently and wrongly,
+// and this comparison is the one place a wrong answer is invisible.
+type recordIdentityNames struct {
+	importID    string
+	secondaryID string
+	components  map[string]string
+}
+
+// recordIdentity names one record's identity for [recordIdentityMatches].
+// The three record types this package compares against
+// ([projection.LocatedRecord], [projection.TombstoneRecord],
+// [projection.DeposedRecord]) are separate Go types carrying identically
+// named fields, so this is where they meet.
+func recordIdentity(importID, secondaryID string, components map[string]string) recordIdentityNames {
+	return recordIdentityNames{importID: importID, secondaryID: secondaryID, components: components}
 }
 
 // recordIdentityMatches is the one comparison behind
 // [claimantMatchesRecord], [orphanMatchesRecord], [orphanMatchesTombstone]
 // and [deposedClaimantMatches]: whether a live object, identified by
 // liveImportID and the identity object the provider served for it, is the
-// object a record naming importID/components describes.
+// object rec describes.
 //
 // It is by import ID for a type identified by one server-minted string, and
 // by every named identity-schema component for a composite type. Generic by
@@ -474,10 +499,27 @@ func claimantMatchesRecord(rec projection.LocatedRecord, c claimant) bool {
 // [projection.TombstoneRecord], [projection.DeposedRecord]) over two live
 // shapes; the comparison itself is shared so that the mark discipline below
 // exists in exactly one place rather than four.
-func recordIdentityMatches(importID string, components map[string]string, liveImportID string, liveIdentity cty.Value) bool {
-	if importID != "" {
-		return importID == liveImportID
+func recordIdentityMatches(rec recordIdentityNames, liveImportID string, liveIdentity cty.Value) bool {
+	// GitHub issue #879, before either of the two comparisons below: a
+	// record may carry a SECOND name for the same object, the one-string
+	// import identity a marker-driven discovery pass composes (see
+	// [projection.LocatedRecord.SecondaryID]). It is asked first because
+	// it is the only one of the three that can answer at all for the
+	// sighting #879 is about - a live object found by its marker alone,
+	// which carries an import ID and no identity object - and because a
+	// hit is unambiguous: liveImportID is the very string discovery uses
+	// to say which object this is, so two equal ones are one object.
+	//
+	// A miss falls through and changes nothing. Every record written
+	// before #879, and every record whose type has only one name, carries
+	// an empty SecondaryID and takes exactly the path it always took.
+	if rec.secondaryID != "" && rec.secondaryID == liveImportID {
+		return true
 	}
+	if rec.importID != "" {
+		return rec.importID == liveImportID
+	}
+	components := rec.components
 	if len(components) == 0 {
 		return false
 	}

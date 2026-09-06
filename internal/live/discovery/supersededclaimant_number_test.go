@@ -24,17 +24,17 @@ func TestRecordIdentityMatchesNumberComponent(t *testing.T) {
 		"family":   cty.StringVal("probe"),
 		"revision": cty.NumberIntVal(7),
 	})
-	if !recordIdentityMatches("", map[string]string{"family": "probe", "revision": "7"}, "", live) {
+	if !recordIdentityMatches(recordIdentity("", "", map[string]string{"family": "probe", "revision": "7"}), "", live) {
 		t.Error("a number identity attribute does not match its record's decimal rendering - #742's records are unmatchable again")
 	}
-	if recordIdentityMatches("", map[string]string{"family": "probe", "revision": "8"}, "", live) {
+	if recordIdentityMatches(recordIdentity("", "", map[string]string{"family": "probe", "revision": "8"}), "", live) {
 		t.Error("a wrong revision matched")
 	}
 	frac := cty.ObjectVal(map[string]cty.Value{
 		"family":   cty.StringVal("probe"),
 		"revision": cty.NumberFloatVal(7.5),
 	})
-	if recordIdentityMatches("", map[string]string{"family": "probe", "revision": "7"}, "", frac) {
+	if recordIdentityMatches(recordIdentity("", "", map[string]string{"family": "probe", "revision": "7"}), "", frac) {
 		t.Error("a fractional live value matched an integral record")
 	}
 }
