@@ -8,16 +8,15 @@ package lint
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // The for_each key rule.
@@ -136,7 +135,7 @@ func checkForEachKeys(ctx context.Context, cfg *configs.Config, path addrs.Modul
 		if resource.ForEach == nil {
 			continue
 		}
-		keys, ok := staticForEachKeys(ctx, mod, resource.ForEach)
+		keys, ok := staticeval.ForEachKeys(ctx, mod, resource.ForEach)
 		if !ok {
 			continue
 		}
@@ -204,104 +203,4 @@ func quotedRuneList(set string) string {
 		parts = append(parts, fmt.Sprintf("%q", string(r)))
 	}
 	return strings.Join(parts, " ")
-}
-
-// staticForEachKeys computes the instance keys a for_each expression produces,
-// or reports that they are not computable here.
-//
-// The traversal pre-filter is not an optimization: staticScopeData panics by
-// contract on repetition, resource, module, output and check references
-// ("Not Available in Static Context"), so an expression mentioning one must
-// not be handed to the static evaluator at all.
-func staticForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expression) ([]string, bool) {
-	if mod == nil || mod.StaticEvaluator == nil {
-		return nil, false
-	}
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return nil, false
-		}
-	}
-
-	val, ok := evalStatic(ctx, mod.StaticEvaluator, expr, "for_each")
-	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
-		return nil, false
-	}
-
-	ty := val.Type()
-	var keys []string
-	switch {
-	case ty.IsMapType(), ty.IsObjectType():
-		for it := val.ElementIterator(); it.Next(); {
-			k, _ := it.Element()
-			if k.Type() != cty.String || k.IsNull() {
-				return nil, false
-			}
-			keys = append(keys, k.AsString())
-		}
-	case ty.IsSetType(), ty.IsListType(), ty.IsTupleType():
-		for it := val.ElementIterator(); it.Next(); {
-			_, v := it.Element()
-			if v.Type() != cty.String || v.IsNull() {
-				// A non-string collection is not a legal for_each at all;
-				// identity resolution says so with its own message.
-				return nil, false
-			}
-			// The whole-value IsMarked test above is not enough here: cty
-			// hoists a marked element's mark to the containing SET, but a
-			// LIST or TUPLE keeps it on the element, so `for_each =
-			// [var.secret]` arrives as an unmarked tuple holding a marked
-			// string and AsString below panicked. Reported "cannot check",
-			// the same answer a marked whole value already gets - the
-			// for_each is refused by identity resolution either way.
-			if v.IsMarked() {
-				return nil, false
-			}
-			keys = append(keys, v.AsString())
-		}
-	default:
-		return nil, false
-	}
-
-	// Sorted so that two runs over one configuration report the same issues
-	// in the same order; cty iterates a map in key order already, but an
-	// object type's attribute order is not something to rely on here.
-	sort.Strings(keys)
-	return keys, true
-}
-
-// evalStatic evaluates an expression through the module's static evaluator,
-// degrading to "cannot check" instead of failing the run. subject names the
-// position being evaluated ("for_each", "count") in the identifier the
-// evaluator is handed; the diagnostics that would render it are dropped, so
-// it matters only in a debugger.
-//
-// Both halves of the degrade are deliberate. Diagnostics are dropped because
-// an expression this pass cannot evaluate is not its finding to report —
-// identity resolution evaluates the same expression in a richer scope and
-// reports what it finds there. The recover is because the static scope's
-// data source panics rather than erroring for the reference classes it does
-// not serve; the traversal pre-filters in [staticForEachKeys] and
-// [staticCount] keep those out, and this is the second line so that a lint
-// pass can never be the thing that crashes a run.
-func evalStatic(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, subject string) (val cty.Value, ok bool) {
-	defer func() {
-		if recover() != nil {
-			val, ok = cty.NilVal, false
-		}
-	}()
-
-	ident := configs.StaticIdentifier{
-		Module:    addrs.RootModule,
-		Subject:   subject,
-		DeclRange: expr.Range(),
-	}
-	v, diags := eval.Evaluate(ctx, expr, ident)
-	if diags.HasErrors() {
-		return cty.NilVal, false
-	}
-	return v, true
 }

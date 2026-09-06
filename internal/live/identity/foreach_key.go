@@ -11,6 +11,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // checkedForEachKeys refuses an expansion whose instance keys cannot survive
@@ -98,22 +99,16 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 // proven correct for: "a block ... whose keys this pass cannot read
 // statically at all".
 //
-// identity does not import lint or stamp, and does not need to for this:
-// the predicate is a few lines of HCL traversal inspection with no
-// dependency on either evaluator, so reproducing it here keeps the two
-// static-read boundaries in lockstep without adding a dependency between
-// packages that otherwise have none.
+// The predicate itself is [staticeval.AllowedExpr] (issue #826). It used to
+// be reproduced here, with a comment saying that keeping the two
+// static-read boundaries in lockstep was worth a few duplicated lines
+// rather than a dependency between packages that otherwise have none;
+// internal/live/staticeval is a leaf under both, so the lockstep is now
+// structural rather than a promise. The nil case stays here: "no for_each
+// at all" is this caller's question to answer, not the allowlist's.
 func stampCanReadStatically(expr hcl.Expression) bool {
 	if expr == nil {
 		return true
 	}
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return false
-		}
-	}
-	return true
+	return staticeval.AllowedExpr(expr)
 }

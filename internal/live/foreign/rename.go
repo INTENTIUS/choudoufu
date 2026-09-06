@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // renames pairs the live resources this estate owns at a for_each key the
@@ -357,7 +358,7 @@ func (c *classifier) contentVerdict(ctx context.Context, b *renameBlock, o renam
 
 	var matched []AttrMatch
 	for _, name := range attrs {
-		want, why := staticString(ctx, c.req.Config.Module, rc, name)
+		want, why := staticeval.Argument(ctx, c.req.Config.Module, rc, name)
 		if why != "" {
 			continue
 		}
@@ -425,7 +426,7 @@ func (b *renameBlock) contentMismatch(ctx context.Context, c *classifier, o rena
 	}
 	var parts []string
 	for _, name := range matchTable[b.typeName] {
-		want, why := staticString(ctx, c.req.Config.Module, rc, name)
+		want, why := staticeval.Argument(ctx, c.req.Config.Module, rc, name)
 		if why != "" {
 			continue
 		}

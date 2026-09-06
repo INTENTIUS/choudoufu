@@ -11,12 +11,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // The overlong-address rule.
@@ -76,7 +75,7 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst ad
 	for _, resource := range mod.ManagedResources {
 		switch {
 		case resource.ForEach != nil:
-			keys, ok := staticForEachKeys(ctx, mod, resource.ForEach)
+			keys, ok := staticeval.ForEachKeys(ctx, mod, resource.ForEach)
 			if !ok {
 				continue
 			}
@@ -85,7 +84,7 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst ad
 				reportOverlongAddress(inst, modInst, resource.ForEach.Range(), path, issues)
 			}
 		case resource.Count != nil:
-			n, ok := staticCount(ctx, mod, resource.Count)
+			n, ok := staticeval.Count(ctx, mod, resource.Count)
 			if !ok || n < 1 {
 				continue
 			}
@@ -129,35 +128,4 @@ func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInst
 		),
 		Subject: subject,
 	})
-}
-
-// staticCount computes the value of a count expression, or reports that it
-// is not computable here. It mirrors staticForEachKeys: the same traversal
-// pre-filter keeps the static scope's panic classes out of the evaluator,
-// and anything it cannot evaluate is skipped rather than guessed at.
-func staticCount(ctx context.Context, mod *configs.Module, expr hcl.Expression) (int, bool) {
-	if mod == nil || mod.StaticEvaluator == nil {
-		return 0, false
-	}
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return 0, false
-		}
-	}
-
-	val, ok := evalStatic(ctx, mod.StaticEvaluator, expr, "count")
-	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
-		return 0, false
-	}
-
-	var n int
-	if err := gocty.FromCtyValue(val, &n); err != nil {
-		// Not a whole number: not a legal count at all, and identity
-		// resolution says so with its own message.
-		return 0, false
-	}
-	return n, true
 }

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // TestPropertyPathValue pins the Cloud Control Properties walk against
@@ -126,21 +128,21 @@ func TestStaticArgumentValue(t *testing.T) {
 			if !ok {
 				t.Fatalf("fixture does not declare %s", tc.addr)
 			}
-			got, why := staticArgumentValue(t.Context(), cfg.Module, rc, "name")
+			got, why := staticeval.Argument(t.Context(), cfg.Module, rc, "name")
 			if tc.wantWhy != "" {
 				if why == "" {
-					t.Fatalf("staticArgumentValue succeeded with %q, want a refusal containing %q", got, tc.wantWhy)
+					t.Fatalf("staticeval.Argument succeeded with %q, want a refusal containing %q", got, tc.wantWhy)
 				}
 				if !strings.Contains(why, tc.wantWhy) {
-					t.Errorf("staticArgumentValue reason = %q, want it to contain %q", why, tc.wantWhy)
+					t.Errorf("staticeval.Argument reason = %q, want it to contain %q", why, tc.wantWhy)
 				}
 				return
 			}
 			if why != "" {
-				t.Fatalf("staticArgumentValue refused: %s", why)
+				t.Fatalf("staticeval.Argument refused: %s", why)
 			}
 			if got != tc.want {
-				t.Errorf("staticArgumentValue = %q, want %q", got, tc.want)
+				t.Errorf("staticeval.Argument = %q, want %q", got, tc.want)
 			}
 		})
 	}

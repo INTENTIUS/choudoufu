@@ -20,8 +20,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -3189,8 +3189,8 @@ func (r *resolver) siblingLiteralExpr(parent addrs.AbsResourceInstance, attrName
 // managed resource, or each.value when for_each iterates over a resource.
 func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "each":
+		switch {
+		case trav.RootName() == "each":
 			// each.value handled structurally rather than evaluated: the
 			// for_each parent's instance with the same key, or (#260) the
 			// element expression this key's each.value stands for. each.key
@@ -3200,9 +3200,12 @@ func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 				(scope.eachParent != nil || scope.eachValueExpr != nil) {
 				return true
 			}
-		case "count", "var", "local", "path", "terraform", "tofu", "module", "data", "self":
+		case staticeval.Evaluable(trav.RootName()):
 			// Not symbolic: either statically evaluable or a case
-			// evalStatic will reject with its own message.
+			// evalStatic will reject with its own message. [staticeval.Evaluable]
+			// is exactly this set - the five roots the static scope answers,
+			// plus count, module, data and self, each of which is either
+			// evaluated in a richer scope or rejected with a message of its own.
 		default:
 			if _, bound := scope.vars[trav.RootName()]; bound {
 				// A for-comprehension's own loop variable (see
@@ -3261,29 +3264,19 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 // naming signal (signal.go) discards them, because an argument it cannot
 // read is still an argument the configuration sets.
 //
-// The recover guards against a panic this package's own traversal filter
-// cannot see coming: a var.* reference inside a module reached through a
-// for_each'd ancestor call (59c, issue #59 phase 3) can resolve, several
-// layers down inside [configs.StaticEvaluator]'s own variable-resolution
-// machinery, to an expression that itself references the ancestor's own
-// each.key or each.value. That resolution runs through
-// cfg.Module.StaticEvaluator - built once by internal/configs when the
-// module tree is loaded, entirely independent of [resolver.eval]'s own
-// per-instance [configs.StaticEvaluator.WithRepetitionData] dup (see
-// [instScope.repetition]) - so it never receives repetition data at all and
-// panics ("Not Available in Static Context") rather than erroring. This
-// package never evaluates such an expression on purpose (see
-// [ChildModuleKeys]'s doc: a module call's own for_each is evaluated in its
-// parent's scope, never a child's variables), but nothing stops a resource
-// argument from referencing one anyway, and a crash here would take the
-// whole run down over one identity component this package was always going
-// to refuse. Degrading to a clean "cannot evaluate" is the same choice
-// [lint.evalStatic] already makes for the class of panic it guards against.
+// [staticeval.Scoped] is the evaluation, and carries the recover this
+// function used to hold plus the reason it is there: a reference that
+// resolves, several layers down inside [configs.StaticEvaluator]'s own
+// variable-resolution machinery, to an expression referencing an ancestor's
+// each.key or each.value panics rather than erroring, and a crash there
+// would take the whole run down over one identity component this package
+// was always going to refuse. What stays here is the wording of the
+// refusal, which names this package's own limitation.
 //
-// #213 closed the sibling gap this comment used to describe alongside this
+// #213 closed the sibling gap this comment used to describe alongside that
 // one: a local's own definition referencing each.value/each.key/count.index
 // directly, reached from an identity-bearing expression in the SAME
-// instance's own arguments. That case no longer reaches this recover at
+// instance's own arguments. That case no longer reaches the recover at
 // all - [instScope.repetition] carries the instance's repetition data on
 // [resolver.eval] itself, so every nested [configs.StaticEvaluator] scope
 // this instance's own evaluation builds (a local's own definition among
@@ -3291,66 +3284,25 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 // reference outside what is actually known refuses cleanly through
 // [configs.StaticIdentifier]'s ordinary diagnostics instead of panicking.
 func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (val cty.Value, diags tfdiags.Diagnostics) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			val = cty.NilVal
-			diags = tfdiags.Diagnostics{}.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Expression not evaluable here",
-				Detail: fmt.Sprintf(
-					"%s could not be evaluated: %v. This is most often a reference that, several layers down, depends on a for_each key this package does not propagate across a module boundary (issue #59, 59c) - see live/LIMITATIONS.md, \"child-module\".",
-					ident.Subject, rec),
-				Subject: expr.Range().Ptr(),
-			})
-		}
-	}()
-
-	var travs []hcl.Traversal
-	for _, trav := range expr.Variables() {
-		if _, bound := scope.vars[trav.RootName()]; bound {
-			// A for-comprehension's own loop variable, bound by
-			// forEachOverComprehension below - never "each" or "count",
-			// which are answered through [instScope.repetition] and
-			// [configs.StaticEvaluator.WithRepetitionData] below instead,
-			// at every depth a reference is resolved at, not only this top
-			// level. This is a local binding the static evaluator has no
-			// notion of, and would either panic on or misreport as an
-			// undeclared reference.
-			continue
-		}
-		travs = append(travs, trav)
-	}
-
-	refs, refDiags := lang.References(addrs.ParseRef, travs)
-	if refDiags.HasErrors() {
-		return cty.NilVal, diags.Append(refDiags)
-	}
-
 	// scope.repetition is exactly the each.key/each.value/count.index this
 	// resource instance's own arguments already see (built once, in
 	// [expansion.scope], from the same expansion that decided this
 	// instance exists) - never re-derived here, so a local value reached
 	// through this expression sees the identical values, not a
-	// recomputation of them. See [configs.StaticEvaluator.WithRepetitionData].
-	eval := r.eval.WithRepetitionData(scope.repetition)
-	hclCtx, ctxDiags := eval.EvalContext(r.ctx, ident, refs)
-	if ctxDiags.HasErrors() {
-		return cty.NilVal, diags.Append(ctxDiags)
+	// recomputation of them. scope.vars is a for-comprehension's own loop
+	// variables, which the static evaluator has no notion of.
+	val, evalDiags, recovered := staticeval.Scoped(r.ctx, r.eval, expr, ident, scope.repetition, scope.vars)
+	if recovered != nil {
+		return cty.NilVal, diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Expression not evaluable here",
+			Detail: fmt.Sprintf(
+				"%s could not be evaluated: %v. This is most often a reference that, several layers down, depends on a for_each key this package does not propagate across a module boundary (issue #59, 59c) - see live/LIMITATIONS.md, \"child-module\".",
+				ident.Subject, recovered),
+			Subject: expr.Range().Ptr(),
+		})
 	}
-	if hclCtx == nil {
-		hclCtx = &hcl.EvalContext{}
-	}
-	if len(scope.vars) > 0 {
-		child := hclCtx.NewChild()
-		child.Variables = scope.vars
-		hclCtx = child
-	}
-
-	val, valDiags := expr.Value(hclCtx)
-	if valDiags.HasErrors() {
-		return cty.NilVal, diags.Append(valDiags)
-	}
-	return val, diags
+	return val, diags.Append(evalDiags)
 }
 
 // onlyNullIdentityArgument reports whether every diagnostic in a batch is
