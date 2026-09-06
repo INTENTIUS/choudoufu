@@ -47,6 +47,23 @@ import (
 //     since the shadow carries the slot tag it was stamped with and
 //     MARKERS.md explicitly allows a retired slot to be handed out again.
 //
+// In practice this second branch (ProblemDuplicateSlot, "Two live resources
+// claiming one slot") is not reachable by manufacturing THIS shape: an
+// address that has ever been applied through choudoufu already has a record
+// ([bindCountBlock]'s own hasRecordBackedEntry check), and that alone routes
+// binding to bindCountByAddress unconditionally - [slots.Match] and its
+// DuplicateError live only on the bindCountBySlot arm hasRecordBackedEntry
+// short-circuits around. ProblemDuplicateSlot is reachable, but only at the
+// discovery-layer unit-test level with no record present at all
+// (TestCountDuplicateSlotIsNamed: 3+ live members, at least two already
+// carrying distinct, valid slots, and a third duplicating one of them) - not
+// by any AWS-CLI-manufactured gauntlet control on a converged estate. Every
+// BREAK=replace leg that manufactures this coexistence against a real,
+// migrated-and-applied address (corpus-ec2-instance-complete,
+// corpus-security-group-complete, #863/#864) measures ProblemNeedsSlotMarkers
+// for a count member, never ProblemDuplicateSlot; do not model a new leg on
+// the latter.
+//
 // Stock proceeds here (its state file names the new object outright), so
 // this is HANDOFF's row 1 - choudoufu refusing where stock does not - and
 // the block is total: the estate cannot be planned again until AWS forgets

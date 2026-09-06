@@ -1887,13 +1887,29 @@ EOF
       BREAK_COLLISION_ID="$(awsl ec2 run-instances --image-id ami-0abcdef1234567890 --instance-type t3.nano --subnet-id "$VPC_SUBNET" \
         --tag-specifications "ResourceType=instance,Tags=[{Key=tofu-estate,Value=$ESTATE},{Key=tofu-address,Value=aws_instance.this_renamed},{Key=tofu-slot,Value=0}]" \
         --query "Instances[0].InstanceId" --output text)"
+      [ -n "$BREAK_COLLISION_ID" ] && [ "$BREAK_COLLISION_ID" != "None" ] || fail "BREAK=replace: could not launch the collision instance"
       BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+      # Unlike a collision manufactured as a security group/queue/bucket
+      # (deleted outright by the other corpora's own BREAK=replace legs), a
+      # terminated EC2 instance is not gone from the account: AWS documents
+      # (and corpus-ec2-instance-complete's own F2 wall reproduces
+      # empirically) that a terminated instance keeps answering
+      # describe-instances/describe-tags/get-resources with its tags for a
+      # time after termination. Left alone, this manufactured ghost would
+      # still claim aws_instance.this_renamed's address on the very next
+      # stage's own tag sweep (day2_remove follows). Strip its markers
+      # explicitly so cleanup here is actually complete.
       awsl ec2 terminate-instances --instance-ids "$BREAK_COLLISION_ID" >/dev/null 2>&1 || true
+      awsl ec2 delete-tags --resources "$BREAK_COLLISION_ID" --tags Key=tofu-estate Key=tofu-address Key=tofu-slot >/dev/null 2>&1 || true
       [ "$BREAK_PLAN_RC" -ne 0 ] \
         || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
-      grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
-        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
-      log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+      grep -qF 'Two live resources claiming one address' <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the address collision - this stage's check is not load-bearing"; }
+      grep -qF "$INST_THIS_ID" <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the real, still-valid instance ($INST_THIS_ID)"; }
+      grep -qF "$BREAK_COLLISION_ID" <<< "$BREAK_PLAN_OUT" \
+        || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the manufactured duplicate ($BREAK_COLLISION_ID)"; }
+      log "  BREAK=replace: caught - choudoufu correctly refused with \"Two live resources claiming one address\", naming both $INST_THIS_ID and $BREAK_COLLISION_ID, rather than silently proposing nothing - the Break text's own outcome"
     else
       log "=== F1. choudoufu: change the ForceNew ami argument, forcing a replace at the same declared address ==="
       perl -0pi -e 's/resource "aws_instance" "this_renamed" \{\n  ami           = data\.aws_ssm_parameter\.al2\.value\n/resource "aws_instance" "this_renamed" {\n  ami           = "ami-0abcdef1234567891"\n/' "$ADOPTED_EST/main.tf"
@@ -1947,7 +1963,7 @@ EOF
       log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
       INST_THIS_ID="$F_NEW_ID"
-      gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old instance ($F_OLD_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+      gauntlet_stage day2_replace pass "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old instance ($F_OLD_ID) is confirmed terminated and the new instance ($F_NEW_ID) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one address\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
     fi
     gauntlet_end_stage
 
