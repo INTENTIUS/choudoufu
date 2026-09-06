@@ -572,7 +572,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// [Request.TaggingSweep]. It is one round trip rather than one
 			// per type, so it gets no progress events of its own - there is
 			// nothing to report between, only before and after.
-			taggingUniverse, nativeUniverse := partitionSweepTypes(req, decl)
+			taggingUniverse, nativeUniverse := partitionSweepTypes(req, schemas, decl)
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
 			// the stale-state ruling's (#604) CollectUnclaimed
 			// ruling. The tagging leg above is untouched by it - it is one
@@ -768,9 +768,12 @@ func sweepTypes(req Request, decl *declared) []string {
 	// #692), nothing arrives at all: a second marked object carrying a
 	// declared IAM address was invisible to every leg, and the state
 	// cache could never be vouched an IAM instance. Those types join the
-	// universe so the native per-type leg lists them - cost bounded by
-	// the estate's own declared types in unserved services, a handful,
-	// not the admission table.
+	// universe so a sweep leg lists them - the native per-type one where
+	// the provider offers a list resource for the type, and otherwise the
+	// tagging leg, which is the only enumeration left (see
+	// [arnJoinReaches]; issue #881). Cost bounded by the estate's own
+	// declared types in unserved services, a handful, not the admission
+	// table.
 	for t := range decl.types {
 		if cloudObservable(t) && taggingAPIUnservedType(t) {
 			out = append(out, t)
@@ -2757,6 +2760,13 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 // falls back to the native list call [scanType] already knows how to make
 // for it instead.
 //
+// schemas is the provider's own list-protocol surface, and it is read for
+// one question only: whether the native leg is a route for a type at all.
+// [arnJoinReaches] needs it because #692's unserved-service routing is a
+// preference between two legs rather than a fact about either, and
+// preferring a leg that cannot enumerate the type leaves the sweep with no
+// enumeration of it (issue #881).
+//
 // A type that is entirely record-backed (GitHub issue #388's edge 3) joins
 // native for a second, unrelated reason whenever req.CollectUnclaimed is
 // set: [sweepViaTagging]'s one GetResources call is server-side
@@ -2769,9 +2779,9 @@ func typeNeedsResourceObjectToRecompose(typeName string) bool {
 // ordinary apply or migrate, never a caller that also wants foreign-resource
 // coverage) is unaffected and still goes wherever
 // [typeNeedsResourceObjectToRecompose] alone would have sent it.
-func partitionSweepTypes(req Request, decl *declared) (tagging, native []string) {
+func partitionSweepTypes(req Request, schemas listclient.Schemas, decl *declared) (tagging, native []string) {
 	for _, t := range sweepTypes(req, decl) {
-		if typeNeedsResourceObjectToRecompose(t) || !arnJoinReaches(req, t) || (req.CollectUnclaimed && decl.recordBacked[t] != nil) {
+		if typeNeedsResourceObjectToRecompose(t) || !arnJoinReaches(req, schemas, t) || (req.CollectUnclaimed && decl.recordBacked[t] != nil) {
 			native = append(native, t)
 		} else {
 			tagging = append(tagging, t)

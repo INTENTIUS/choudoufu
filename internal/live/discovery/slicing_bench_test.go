@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/registry"
@@ -483,7 +484,8 @@ func measureLegs(t *testing.T, dir, estate string, proxy *flocitest.CountingProx
 	if declDiags.HasErrors() {
 		t.Fatalf("building the declared set: %s", renderDiags(declDiags))
 	}
-	tagging, native := partitionSweepTypes(req, decl)
+	listSchemas, _ := listclient.ListSchemas(context.Background(), provider)
+	tagging, native := partitionSweepTypes(req, listSchemas, decl)
 	out.SweepUniverse = len(sweepTypes(req, decl))
 	out.TaggingUniverse = len(tagging)
 	out.NativeUniverse = len(native)

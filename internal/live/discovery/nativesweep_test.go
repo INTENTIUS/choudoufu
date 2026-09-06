@@ -11,6 +11,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
@@ -70,7 +71,11 @@ func TestNativeSweepLegRoutesTheFixtureType(t *testing.T) {
 	if diags.HasErrors() {
 		t.Fatalf("building an empty declared set: %s", renderDiags(diags))
 	}
-	_, native := partitionSweepTypes(req, decl)
+	// An empty Schemas is the honest stand-in here: this test holds no
+	// provider handle, and nativeLegType's routing does not depend on one
+	// (SQS is outside arnJoinTable's coverage, so the join fails before
+	// the native-route question is ever asked).
+	_, native := partitionSweepTypes(req, listclient.Schemas{}, decl)
 	for _, typeName := range native {
 		if typeName == nativeLegType {
 			return
