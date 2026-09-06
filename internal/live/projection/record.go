@@ -173,10 +173,52 @@ type identityPayload struct {
 	// string per identity-schema attribute, named as the provider's own
 	// identity schema names them.
 	Attrs map[string]string `json:"attrs,omitempty"`
+
+	// SecondaryID is the SAME live object's other name (GitHub issue
+	// #879): the single import-identity string a marker-driven discovery
+	// pass composes for it, written alongside Attrs for a type that has
+	// both a composite identity object and a documented one-string import
+	// identity - aws_ecs_task_definition's family+revision and its whole
+	// task-definition ARN are one such pair, and
+	// [identity.SecondaryImportID] is what reads it.
+	//
+	// It exists because the two names are not derivable from each other
+	// and the two halves of this fork hold different ones: an apply
+	// records Attrs, while every live object found by its marker alone
+	// (the tag sweep, and the no-list-route marker fallback) is
+	// identified by the string and carries no identity object at all. A
+	// record holding only Attrs is therefore unmatchable against exactly
+	// the sightings a replace's own tombstone exists to explain, which is
+	// #879: a plain ForceNew replace refused on every following plan.
+	//
+	// It is never imported from and never handed to a provider - the two
+	// readers are internal/live/discovery's identity comparison and
+	// nothing else - so a value that names the wrong object, or a
+	// fragment, costs a comparison that fails and an estate that keeps
+	// refusing. That is the same "evidence, never permission" bound
+	// [tombstoneFields] carries, and it is why this is a field of its own
+	// rather than a second value crowded into ImportID, which
+	// [LocatedRecordFrom]'s Composite branch deliberately leaves empty
+	// and which locatedfallback.go binds real instances from.
+	SecondaryID string `json:"secondary_id,omitempty"`
 }
 
+// empty deliberately does not consult SecondaryID: that field is a second
+// name for an object the other two fields already name, never a name on its
+// own (nothing imports from it - see its own doc comment), so a payload
+// carrying only a SecondaryID says nothing usable and is exactly as empty as
+// it was before #879 added the field.
 func (p *identityPayload) empty() bool {
 	return p == nil || (p.ImportID == "" && len(p.Attrs) == 0)
+}
+
+// identityPayloadFrom is the one place a [LocatedRecord] becomes the stored
+// shape, shared by every writer of an Identity, Deposed or Tombstone member.
+// It is a function rather than five struct literals because a record grew a
+// third field (#879's SecondaryID) and four of those five literals would
+// have kept compiling while silently dropping it.
+func identityPayloadFrom(rec LocatedRecord) *identityPayload {
+	return &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components, SecondaryID: rec.SecondaryID}
 }
 
 // deposedFields is one entry of [recordEnvelope.Deposed]: GitHub issue
@@ -814,7 +856,7 @@ func (s *RecordStore) getIdentity(ctx context.Context, addr addrs.AbsResourceIns
 	if env.Identity == nil {
 		return LocatedRecord{}, version, true, false, nil
 	}
-	out := LocatedRecord{ImportID: env.Identity.ImportID, Components: env.Identity.Attrs}
+	out := LocatedRecord{ImportID: env.Identity.ImportID, Components: env.Identity.Attrs, SecondaryID: env.Identity.SecondaryID}
 	if out.Empty() {
 		return LocatedRecord{}, "", false, false, fmt.Errorf("the located record for %s carries an empty identity", addr)
 	}
@@ -832,7 +874,12 @@ func (s *RecordStore) getIdentity(ctx context.Context, addr addrs.AbsResourceIns
 type DeposedRecord struct {
 	ImportID   string
 	Components map[string]string
-	Provider   string
+	// SecondaryID is [identityPayload.SecondaryID] for this deposed
+	// object: the same second name for the same object, carried through
+	// so the comparison that reads a deposed entry is the one comparison
+	// every other record type gets (#879).
+	SecondaryID string
+	Provider    string
 }
 
 // Empty reports whether this record says nothing at all about the deposed
@@ -870,6 +917,7 @@ func (s *RecordStore) GetDeposed(ctx context.Context, addr addrs.AbsResourceInst
 		if df.Identity != nil {
 			rec.ImportID = df.Identity.ImportID
 			rec.Components = df.Identity.Attrs
+			rec.SecondaryID = df.Identity.SecondaryID
 		}
 		out[dk] = rec
 	}
@@ -884,13 +932,25 @@ func (s *RecordStore) GetDeposed(ctx context.Context, addr addrs.AbsResourceInst
 type TombstoneRecord struct {
 	ImportID   string
 	Components map[string]string
-	Provider   string
+	// SecondaryID is [identityPayload.SecondaryID] for the destroyed
+	// object: GitHub issue #879's whole subject, since the sighting a
+	// tombstone has to explain - a dead object's tag still listed by the
+	// tagging API - arrives carrying that string and no identity object.
+	SecondaryID string
+	Provider    string
 }
 
 // Empty reports whether this record says nothing at all about the
 // destroyed object it names.
 func (r TombstoneRecord) Empty() bool {
 	return r.ImportID == "" && len(r.Components) == 0 && r.Provider == ""
+}
+
+// located is this record's identity half in the one shape every writer
+// stores: the same three fields, minus the provider a tombstone carries of
+// its own.
+func (r TombstoneRecord) located() LocatedRecord {
+	return LocatedRecord{ImportID: r.ImportID, Components: r.Components, SecondaryID: r.SecondaryID}
 }
 
 // GetTombstones reads addr's Tombstone member: every identity this store
@@ -922,6 +982,7 @@ func (s *RecordStore) GetTombstones(ctx context.Context, addr addrs.AbsResourceI
 		if tf.Identity != nil {
 			rec.ImportID = tf.Identity.ImportID
 			rec.Components = tf.Identity.Attrs
+			rec.SecondaryID = tf.Identity.SecondaryID
 		}
 		out[tk] = rec
 	}

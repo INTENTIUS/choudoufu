@@ -276,6 +276,29 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// branch exists to close.
 			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
 			if recordable {
+				// GitHub issue #879. This branch records the object
+				// form of the identity and, until now, nothing else -
+				// but a live object of such a type found by its marker
+				// alone carries no identity object at all, only the
+				// one-string import identity discovery composes from
+				// its ARN, so nothing could ever compare the two. A
+				// plain ForceNew replace of aws_ecs_task_definition
+				// (identity object family+revision, documented import
+				// string a whole ARN) therefore left a tombstone that
+				// could not be matched to the dead object's own
+				// lingering tag, and every following plan refused
+				// "Indistinguishable instances without per-instance
+				// markers".
+				//
+				// Recording the second name costs one attribute read
+				// and changes nothing about which name is IMPORTED
+				// from: see [LocatedRecord.SecondaryID]. A type with no
+				// ratified row, or an object with no usable value under
+				// the attribute the row implies, records nothing extra
+				// and behaves exactly as it did.
+				if secondary, ok := identity.SecondaryImportID(resourceType, obj); ok {
+					rec.SecondaryID = secondary
+				}
 				// GitHub issue #397 sibling wall (corpus-alb-complete's
 				// aws_lb_target_group_attachment lambda-target ports): the
 				// required components alone already name the object per the
@@ -457,6 +480,15 @@ type LocatedRecord struct {
 	// Components is the identity of a type identified by several, one
 	// string per identity-schema attribute.
 	Components map[string]string
+
+	// SecondaryID is [identityPayload.SecondaryID]: the same live
+	// object's OTHER name, the one-string import identity a
+	// marker-driven discovery pass composes for it, recorded alongside
+	// Components for a type that has both. Empty for every other shape,
+	// including every record written before GitHub issue #879. Nothing
+	// imports from it; see the stored field's own doc comment for why it
+	// is not folded into ImportID.
+	SecondaryID string
 }
 
 // Empty reports whether this record says nothing about which object an

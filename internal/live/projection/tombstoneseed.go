@@ -40,7 +40,7 @@ func SeedTombstoneForInstance(ctx context.Context, store *RecordStore, addr addr
 	if rec.Empty() {
 		return fmt.Errorf("refusing to seed an empty tombstone for %s", addr)
 	}
-	identity := &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+	identity := identityPayloadFrom(rec.located())
 	tk := tombstoneKey(identity)
 	if tk == "" {
 		return fmt.Errorf("the tombstone for %s carries no identity to key it by", addr)

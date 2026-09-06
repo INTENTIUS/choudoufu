@@ -3509,7 +3509,7 @@ func recordCurrentClaimant(ctx context.Context, req Request, res *Result, addr a
 // [claimantMatchesRecord] so that the mark discipline it carries exists in
 // one place rather than four.
 func orphanMatchesRecord(rec projection.LocatedRecord, o *OwnedResource) bool {
-	return recordIdentityMatches(rec.ImportID, rec.Components, o.ImportID, o.Identity)
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), o.ImportID, o.Identity)
 }
 
 // tombstoneGhostIndices is [classifyOrphans]'s sibling check to
@@ -3561,7 +3561,7 @@ func tombstoneGhostIndices(ctx context.Context, req Request, res *Result, addr a
 // identically. The two record types stay separate; only the comparison is
 // shared, through [recordIdentityMatches].
 func orphanMatchesTombstone(rec projection.TombstoneRecord, o *OwnedResource) bool {
-	return recordIdentityMatches(rec.ImportID, rec.Components, o.ImportID, o.Identity)
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), o.ImportID, o.Identity)
 }
 
 // collisionOrphanProblem is the ownership collision of the undeclared: two
@@ -4109,7 +4109,7 @@ func matchDeposedClaimant(req Request, addr addrs.AbsResourceInstance, claimants
 // admitted type already has one of. The comparison is
 // [recordIdentityMatches], shared with the three sibling matchers.
 func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
-	return recordIdentityMatches(rec.ImportID, rec.Components, c.importID, c.identity)
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), c.importID, c.identity)
 }
 
 func collisionProblem(req Request, typeName string, entry *declaredEntry) Problem {

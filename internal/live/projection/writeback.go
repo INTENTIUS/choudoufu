@@ -282,7 +282,7 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 		if obj != nil && schema != nil && schema.Block != nil {
 			if decoded, err := obj.Decode(schema.Block.ImpliedType()); err == nil {
 				if rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value); ok {
-					df.Identity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+					df.Identity = identityPayloadFrom(rec)
 				}
 			}
 		}
@@ -513,7 +513,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					switch {
 					case recordable:
 						touched = true
-						setIdentity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+						setIdentity = identityPayloadFrom(rec)
 					case automatic || selected:
 						touched = true
 						diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
