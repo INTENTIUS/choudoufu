@@ -122,6 +122,24 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 	return nil
 }
 
+// backendKeyPrefix is what the "ssm" and "s3" backends' own KeyPrefix is
+// set to: nothing. The namespace a record lives under is carried by the
+// KEY - [RecordKey] builds every key from [recordStoreKeyPrefix]'s output,
+// [provisionStoreSentinel] puts the sentinel under it, [RecordAddr] reads
+// an address back out of it and [staterecord.NewRunCache] bulk-loads it -
+// so handing that same string to the backend as its own prefix made every
+// backend name carry it twice: measured against real AWS on 2026-09-06,
+// a record_store "ssm" with key_prefix = "chdf916probe/e1" wrote the
+// parameter "/chdf916probe/e1/chdf916probe/e1/aws_instance/<key>", and the
+// s3 backend wrote the object key "chdf916probe/e1/chdf916probe/e1/..." in
+// the same run. Nothing inside this package noticed, because both halves
+// of every round trip went through the doubled name; what broke was the
+// contract with everything OUTSIDE it - an operator's IAM policy, an
+// `aws ssm get-parameters-by-path --path /<key_prefix>` listing, and the
+// live-cert harness's own teardown - all of which name the prefix the
+// configuration set, once. Issue #916.
+const backendKeyPrefix = ""
+
 func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {
 	if rs == nil {
 		return nil, nil
@@ -148,8 +166,9 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 			return nil, fmt.Errorf("record_store \"ssm\": %w", err)
 		}
 		store, err := staterecord.NewSSMStore(staterecord.SSMConfig{
-			Client:    ssm.NewFromConfig(awsCfg),
-			KeyPrefix: recordStoreKeyPrefix(rs, estate),
+			Client: ssm.NewFromConfig(awsCfg),
+			// Empty on purpose: see backendKeyPrefix.
+			KeyPrefix: backendKeyPrefix,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"ssm\": %w", err)
@@ -162,9 +181,10 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
 		}
 		store, err := staterecord.NewS3Store(staterecord.S3Config{
-			Client:    s3.NewFromConfig(awsCfg),
-			Bucket:    rs.Bucket,
-			KeyPrefix: recordStoreKeyPrefix(rs, estate),
+			Client: s3.NewFromConfig(awsCfg),
+			Bucket: rs.Bucket,
+			// Empty on purpose: see backendKeyPrefix.
+			KeyPrefix: backendKeyPrefix,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
@@ -181,11 +201,16 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 	}
 }
 
-// RecordStoreKeyPrefix is the key namespace [NewRecordStore] builds an
-// "ssm" or "s3" store with: rs.KeyPrefix when the block set one, or
+// RecordStoreKeyPrefix is the key namespace every key [NewRecordStore]'s
+// store is asked for begins with: rs.KeyPrefix when the block set one, or
 // [RecordKeyPrefix](estate) otherwise. Exported so a caller that already
 // built the store (or is testing namespace safety) can compute the same
 // prefix without re-deriving it.
+//
+// It is a prefix of the KEY, not of the backend's own namespace - the
+// backends are built with no prefix of their own (see backendKeyPrefix),
+// so a record's SSM parameter name is "/" + this + "/..." and its S3
+// object key is this + "/...", each carrying the configured prefix once.
 func RecordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 	return recordStoreKeyPrefix(rs, estate)
 }

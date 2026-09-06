@@ -101,7 +101,12 @@ else
 fi
 case "$RECORD_STORE_BACKEND" in
   local) RECORD_STORE_ARGS='      path = ".tofu-records"' ;;
-  ssm)   RECORD_STORE_ARGS="      key_prefix = \"/choudoufu/livecert/$PREFIX\"
+  # key_prefix is a record KEY prefix, not an SSM parameter path, so it is
+  # store-relative and must not start with "/" (issue #688 refuses that
+  # shape loudly). The ssm backend renders it into the parameter name
+  # "/choudoufu/livecert/$PREFIX/...", which is what SSM_PREFIX below
+  # counts and tears down. Issue #916.
+  ssm)   RECORD_STORE_ARGS="      key_prefix = \"choudoufu/livecert/$PREFIX\"
       region     = \"$REGION\"" ;;
   s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
          RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
