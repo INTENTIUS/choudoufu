@@ -20,7 +20,7 @@ import (
 // The composite renderer had read that bullet since #241. The single-
 // argument sibling never did, and the difference is invisible in every
 // aggregate this repository keeps: the type is unadmitted either way, so no
-// refusal count moves, and rowgen-convergence compares proposals against
+// refusal count moves, and the mismatch ledger compares proposals against
 // ratified rows of which none has this shape. It shows up only when someone
 // pastes the proposal, and then only against a configuration that omits the
 // argument - which for a per-account or per-region singleton is the ordinary

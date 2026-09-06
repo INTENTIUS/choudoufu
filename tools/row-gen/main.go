@@ -31,14 +31,19 @@
 //	go run ./tools/row-gen              # every service batch, full report
 //	go run ./tools/row-gen -service Lambda
 //
-// -convergence switches to a second mode entirely (rowgen-convergence): for
-// every type -emit would admit, it diffs a
-// fresh proposal against the ratified entry and writes
-// live/rowgen-convergence.json, the one artifact this tool does write - a
-// measurement of its own proposals against ground truth, not a row for
-// live infrastructure. See convergence.go's own doc comment.
+// -mismatches switches to a second mode entirely: for every type -emit
+// would admit, it diffs a fresh proposal against the ratified entry and
+// writes live/rowgen-mismatches.json - a measurement of this tool's own
+// proposals against ground truth, not a row for live infrastructure. See
+// comparison.go and mismatches.go for the comparison and the artifact.
 //
-//	go run ./tools/row-gen -convergence
+//	go run ./tools/row-gen -mismatches
+//
+// -schema-precedence writes live/schema-precedence.json, issue #387's own
+// measurement over the same ratified rows: does the provider's identity
+// schema reproduce the row? See schemafirst.go.
+//
+//	go run ./tools/row-gen -schema-precedence
 //
 // -propose switches to a third mode (issue #65's PROPOSE stage): only the
 // proposals whose classification rule has a spotless, large-enough
@@ -51,7 +56,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -65,7 +69,7 @@ import (
 // Path literals, centralized on purpose (see tools/survey-gen/main.go's and
 // tools/mapping-gen/main.go's const blocks for why): every artifact this
 // tool reads, relative to the repository root. row-gen writes nothing
-// except, in -convergence mode, convergenceJSONRel itself.
+// except, in -mismatches and -schema-precedence mode, the artifact each writes.
 const (
 	registryJSONRel      = "live/registry.json"
 	mappingJSONRel       = "live/mapping.json"
@@ -73,13 +77,14 @@ const (
 	carveSeedJSONRel     = "tools/mapping-gen/carve-seed.json"
 	importGrammarJSONRel = "live/import-grammar.json"
 	annotationsJSONRel   = "tools/row-gen/annotations.json"
-	convergenceJSONRel   = "live/rowgen-convergence.json"
 	schemaFactsJSONRel   = "live/registry-schema-facts.json"
 )
 
 // Path literals continued: logicalSchemasJSONRel lives beside its own
 // generator in logicalschemas.go, since -logical-schemas is the only mode
-// that writes it and -emit the only one that reads it.
+// that writes it and -emit the only one that reads it. mismatchesJSONRel
+// and schemaPrecedenceJSONRel do the same, each beside the single mode that
+// writes it (mismatches.go, schemafirst.go).
 
 // repoRoot resolves the checkout's root from this file's own location, the
 // same trick survey-gen's, registry-gen's and mapping-gen's repoRoot use, so
@@ -95,7 +100,8 @@ func repoRoot() (string, error) {
 
 func main() {
 	service := flag.String("service", "", "restrict the report to one CFN service batch (e.g. Lambda); empty prints every batch")
-	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against tools/row-gen/ratified.json's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
+	mismatches := flag.Bool("mismatches", false, "measure row-gen's fresh proposals against tools/row-gen/ratified.json's ratified entries and write live/rowgen-mismatches.json, instead of printing the pastable-row report")
+	schemaPrecedence := flag.Bool("schema-precedence", false, "issue #387: measure whether the provider's own identity schema reproduces each config-identified ratified row, and write live/schema-precedence.json (see schemafirst.go)")
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
 	compositeImport := flag.Bool("composite-import", false, "issue #337: classify the markerless types whose documented import is composite and whose provider serves no wire identity schema, by whether the page's own Attribute Reference proves the exported `id` is the whole import string, and write live/composite-import-roster.json (see compositeimport.go)")
@@ -114,8 +120,16 @@ func main() {
 		return
 	}
 
-	if *convergence {
-		if err := runConvergence(os.Stdout, os.Stderr); err != nil {
+	if *mismatches {
+		if err := runMismatches(os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *schemaPrecedence {
+		if err := runSchemaPrecedence(os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}
@@ -192,8 +206,8 @@ func run(service string, out, errOut *os.File) error {
 // loadProposals reads the five committed artifacts (the four
 // classifyAll always needed, plus live/import-grammar.json which
 // classifyAll's own precedence pass reads too) and returns the full,
-// classified mapped set - the shared entry point run and runConvergence
-// both build on, so the two modes can never see a differently-classified
+// classified mapped set - the shared entry point run, runMismatches and
+// runPropose all build on, so no two modes can see a differently-classified
 // proposal for the same type.
 func loadProposals(root string) ([]proposal, error) {
 	registry, err := loadRegistry(filepath.Join(root, registryJSONRel))
@@ -219,111 +233,6 @@ func loadProposals(root string) ([]proposal, error) {
 	return classifyAll(mapping, registry, survey, carveSeed, importGrammar)
 }
 
-// runConvergence is -convergence's entry point: loads the same mapped set
-// run() classifies, plus tools/row-gen/annotations.json's own rulings,
-// builds the comparison (convergence.go's buildConvergence), writes
-// live/rowgen-convergence.json, and prints the headline numbers - adopted-
-// unchanged % and the unannotated mismatch count - to out, the two metrics
-// the rowgen-convergence task names as what this tool's report output
-// should surface.
-func runConvergence(out, errOut *os.File) error {
-	root, err := repoRoot()
-	if err != nil {
-		return err
-	}
-	proposals, err := loadProposals(root)
-	if err != nil {
-		return err
-	}
-	annotations, err := loadAnnotations(filepath.Join(root, annotationsJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", annotationsJSONRel, err)
-	}
-
-	emitted, err := loadEmittedTable(root, proposals)
-	if err != nil {
-		return err
-	}
-
-	// Ruling 2 (#387): named here too, so the written artifact records the
-	// measurement even though nothing ships differently yet - see
-	// schemafirst.go's own doc comment for why the ledger itself
-	// (tools/row-gen/ratified.json) is untouched in this pass and the
-	// runtime inversion (internal/live/identity/resolve.go's lookupType,
-	// internal/live/lint's admitted()) is what actually acts on it.
-	// ratified and grammar are loaded again rather than threaded out of
-	// loadEmittedTable, matching this file's own existing style of
-	// reloading an artifact at each call site that needs it rather than
-	// widening a helper's return.
-	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
-	}
-	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
-	}
-	// Reloaded rather than threaded out of loadProposals, matching this
-	// file's own established style (see the comment above ratified/grammar):
-	// evidence_only_schema (issue #428) reads the survey a second time to
-	// classify what proposals's own bucketEvidenceOnly remainder is still
-	// missing - see evidenceschema.go's own doc comment.
-	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", surveyJSONRel, err)
-	}
-	art := buildConvergence(emitted, proposals, annotations)
-	art.SchemaReproduces = buildSchemaReproducesBucket(ratified, grammar)
-	art.EvidenceOnlySchema = buildEvidenceOnlySchemaBucket(proposals, survey)
-
-	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
-		for _, p := range problems {
-			fmt.Fprintf(errOut, "row-gen: annotations.json: %s\n", p)
-		}
-		return fmt.Errorf("%d stale or invalid annotation(s) in %s", len(problems), annotationsJSONRel)
-	}
-
-	data, err := json.MarshalIndent(art, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encoding %s: %w", convergenceJSONRel, err)
-	}
-	data = append(data, '\n')
-	if err := os.WriteFile(filepath.Join(root, convergenceJSONRel), data, 0o644); err != nil { //nolint:gosec // a fixed path inside the checkout
-		return fmt.Errorf("writing %s: %w", convergenceJSONRel, err)
-	}
-
-	fmt.Fprintf(out, "wrote %s\n", convergenceJSONRel)
-	fmt.Fprintf(errOut, "row-gen -convergence: %d/%d admitted types compared (%d not in the mapped set), %.2f%% adopted-unchanged, %d genuine mismatches (%d annotated, %d unannotated, %d scrape-gap)\n",
-		art.Summary.Compared, art.Summary.AdmittedTotal, art.Summary.NotInMappedSet,
-		art.Summary.AdoptedUnchangedPct, art.Summary.GenuineMismatches, art.Summary.Annotated, art.Summary.UnannotatedMismatches, art.Summary.ScrapeGapMismatches)
-	fmt.Fprint(errOut, notACoverageMetric)
-	return nil
-}
-
-// notACoverageMetric is printed after every -convergence run, deliberately,
-// because three sessions in a row read adopted-unchanged as "how much of the
-// provider works" and planned months of work around raising it.
-//
-// The tool has to say this about itself. A document saying it is not enough:
-// this number appears on demand, in a repository full of machinery built to
-// move it, while the measurement that does predict onboarding success (issue
-// #102) does not exist yet and produces no number until it is finished. That
-// asymmetry is what the drift keeps following, so the warning belongs where
-// the number is, not only in a document somebody has to think to open.
-const notACoverageMetric = `
-  NOT A COVERAGE METRIC. This compares row-gen's fresh proposal against the
-  human-ratified row in tools/row-gen/ratified.json. The ratified row
-  is what ships - emit.go copies every field verbatim - so a mismatch is
-  generator-autonomy debt, not a failure any user experiences, and driving
-  adopted-unchanged to 100% would only mean the generator had memorised a
-  human's judgments.
-
-  The gate users actually hit is admission, and above that the config-language
-  subset (static evaluability). Do not use this number to size coverage, to
-  rank work, or to decide what is blocked. See issue #102 and live/corpus-
-  refusals.json, which measure what does.
-`
-
 // runPropose is -propose's entry point: buildProposeReport (propose.go) does
 // the whole computation, so this only has to print its two halves in the
 // same places every other mode uses - the pastable report to out, the
@@ -342,7 +251,7 @@ func runPropose(out, errOut *os.File) error {
 	return nil
 }
 
-// indexByType is the small lookup both convergence.go's buildConvergence and
+// indexByType is the small lookup both comparison.go's buildComparison and
 // the test suite (loadAllForTest's callers) need over a classified mapped
 // set: last TFType wins, but classifyAll never produces two proposals for
 // the same TF type, so that never matters in practice.
@@ -356,7 +265,7 @@ func indexByType(proposals []proposal) map[string]proposal {
 
 // classifyAll runs every mapped-set row through classifyMapped or
 // classifyFold, then applies the import-grammar demotion pass
-// (applyImportGrammarDemotions) and, since rowgen-convergence, the
+// (applyImportGrammarDemotions) and, since the mismatch ledger, the
 // precedence pass (applyImportGrammarPrecedence) that resolves what the
 // demotion pass only used to flag: composites live/import-grammar.json's
 // own evidence structures, and registry-primaryIdentifier disagreements the

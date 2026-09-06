@@ -17,7 +17,7 @@ import (
 )
 
 // loadEmittedTableForTest is the rows -emit would write, the population
-// buildConvergence measures against. It is loadEmittedTable's test spelling.
+// buildComparison measures against. It is loadEmittedTable's test spelling.
 func loadEmittedTableForTest(t *testing.T, proposals []proposal) map[string]identity.TypeIdentity {
 	t.Helper()
 	root, err := repoRoot()
@@ -287,7 +287,7 @@ func TestRatifiedRoundTripsEveryCommittedRow(t *testing.T) {
 // while exiting 0 - and requires -emit to produce all four files
 // byte-identically anyway. Measured against the generator as it stood at
 // ceb0795d66, emptying the table and re-emitting yielded a 14-row table
-// (recordBackedTypes' derived set) that every fixed-point and convergence
+// (recordBackedTypes' derived set) that every fixed-point and comparison
 // check in this repository accepted.
 //
 // Emptying rather than deleting a few rows is deliberate. A handful of

@@ -12,10 +12,18 @@ import (
 	"testing"
 )
 
-// unannotatedMismatchRatchetMax was rowgen-convergence's own downward
+// The two ratchet constants this file used to carry are entries in
+// internal/live/harness now; the provenance below is kept because it is the
+// evidence behind their bounds. Issue #695 renamed the artifact those bounds
+// are measured on from live/rowgen-convergence.json to
+// live/rowgen-mismatches.json and dropped the adopted-unchanged ratio the old
+// one led with, so a percentage quoted in the history below is a number that
+// was measured once and is no longer computed anywhere.
+
+// unannotatedMismatchRatchetMax was this measurement's own downward
 // ratchet, the "delete-me ratchet idiom" tools/mapping-gen's own
 // unclassified-count ratchet already used for live/mapping.json: the
-// highest live/rowgen-convergence.json's summary.unannotated_mismatches may
+// highest live/rowgen-mismatches.json's summary.unannotated_mismatches may
 // be. Both are now entries in internal/live/harness; what follows is the
 // provenance for this one's bound, kept because it is the evidence. This pass originally measured 170
 // genuine mismatches over 571 admitted types, after merging
@@ -24,7 +32,7 @@ import (
 // (ratify-data-movement, ratify-networking-advanced, ratify-databases,
 // ratify-security, ratify-ec2-networking, ratify-iot,
 // ratify-ai-location/stragglers/connect-euc among them) raised the admitted
-// count to 652, none of them ever having passed through this convergence
+// count to 652, none of them ever having passed through this
 // check before (it did not exist yet when they were ratified).
 //
 // Merging ratify-remainder (issue #65's REMAINDER batch, the long tail of
@@ -32,7 +40,7 @@ import (
 // count again, 652 to 836 (184 more - the exact count
 // live/e2e/estates/remainder/README.md's own "184 types admitted" gives),
 // and, the same as every prior batch above, never having passed through
-// this convergence check before, surfaces its own row-gen/DefaultTable
+// this check before, surfaces its own row-gen/DefaultTable
 // disagreements here for the first time too: 34 more unannotated mismatches
 // (241 total: 158 scrape-gap, up from 125; 83 non-scrape-gap, up from 82).
 // This lines up with REMAINDER's own README, whose "Corrections made (35
@@ -51,14 +59,14 @@ import (
 // table_recordbacked.go), that closed 26 of REMAINDER's mismatches
 // outright - 241 down to 215, of which 117 are scrape-gap, down from 158 -
 // and lifted adopted-unchanged from 70.79% to 73.94%. So 215 is a measured
-// floor read straight off live/rowgen-convergence.json's own committed
+// floor read straight off live/rowgen-mismatches.json's own committed
 // summary, not a bump: the three batches that contributed to it are
 // ratify-remainder (+184 admitted types), the eight concurrently-landed
 // batches named above, and importdocs-widen (-26 mismatches).
 //
 // See tools/row-gen/annotations.json's own doc comment for why none of the
 // 215 is annotated yet. Lower this constant to match
-// live/rowgen-convergence.json's own committed count whenever a future
+// live/rowgen-mismatches.json's own committed count whenever a future
 // change (a wider importdocs-gen scrape, a fold-child Components rule,
 // annotations.json gaining real rulings) closes some of the gap. Raising
 // it back up again needs its own reviewed reason, not a silent increase -
@@ -106,7 +114,7 @@ import (
 // needs its own reviewed reason - a newly admitted type the classifier
 // cannot reproduce - not a silent increase.
 //
-// The committed 128 is 107 genuine mismatches (live/rowgen-convergence.json's
+// The committed 128 is 107 genuine mismatches (the ledger's own
 // summary) plus the 21 not_in_mapped_set types, which never appear in the
 // artifact's rows at all (no proposal exists to compare) but are held to
 // the same bar by the -emit gate. Every ruling carries an exit naming what
@@ -190,7 +198,7 @@ import (
 // 105 - 10 = 95.
 // The bound moved into the burndown registry in internal/live/harness on
 // 2026-08-16, as the "rowgen-annotation-rulings" entry, and two things
-// surfaced in the move. It gained a denominator - the convergence
+// surfaced in the move. It gained a denominator - the ledger
 // artifact's admitted_total - because the cheapest way to delete a ruling
 // is to un-admit the type it names, which lowers the count while removing
 // support, and nothing recorded that. And the const was measured stale for
@@ -198,18 +206,18 @@ import (
 // against a ceiling of 95, so it had stopped bounding anything. The entry's
 // bound is 93, taken from the measurement rather than from this comment.
 
-// TestConvergenceArtifactMatchesCommitted is the drift half the ratchet
+// TestMismatchLedgerMatchesCommitted is the drift half the ratchet
 // test above deliberately does not do itself (mapping_gen_test.go's own
 // TestUnclassifiedCountRatchet keeps that same separation, for the same
 // reason its own doc comment gives: the ratchet stays a working, cheap
 // check on its own even if this drift test's shape changes later). This
 // test regenerates the comparison from the checked-out sources - the same
-// classifyAll pipeline -convergence uses - and requires it to match the
+// classifyAll pipeline -mismatches uses - and requires it to match the
 // committed artifact byte-for-byte modulo JSON formatting, so a change to
 // classify.go, importprecedence.go or annotations.json without a
-// regeneration of live/rowgen-convergence.json fails the build instead of
+// regeneration of live/rowgen-mismatches.json fails the build instead of
 // silently drifting.
-func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
+func TestMismatchLedgerMatchesCommitted(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatal(err)
@@ -222,27 +230,65 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadAnnotations: %v", err)
 	}
-	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
-	fresh.SchemaReproduces = buildSchemaReproducesBucket(loadRatifiedForTest(t), loadImportGrammarForTest(t))
-	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
-	if err != nil {
-		t.Fatalf("loadSurvey: %v", err)
-	}
-	fresh.EvidenceOnlySchema = buildEvidenceOnlySchemaBucket(proposals, survey)
+	fresh := buildMismatchLedger(buildComparison(loadEmittedTableForTest(t, proposals), proposals, annotations))
 
-	committed := loadCommittedConvergence(t)
+	committed := loadCommittedMismatchLedger(t)
 
 	freshJSON, err := json.MarshalIndent(fresh, "", "  ")
 	if err != nil {
-		t.Fatalf("marshaling the fresh comparison: %v", err)
+		t.Fatalf("marshaling the fresh ledger: %v", err)
 	}
 	committedJSON, err := json.MarshalIndent(committed, "", "  ")
 	if err != nil {
-		t.Fatalf("marshaling the committed comparison: %v", err)
+		t.Fatalf("marshaling the committed ledger: %v", err)
 	}
 	if string(freshJSON) != string(committedJSON) {
-		t.Errorf("%s has drifted from a fresh regeneration - regenerate with:\n  go run ./tools/row-gen -convergence\n\nSummary drift: committed=%+v fresh=%+v",
-			convergenceJSONRel, committed.Summary, fresh.Summary)
+		t.Errorf("%s has drifted from a fresh regeneration - regenerate with:\n  go run ./tools/row-gen -mismatches\n\nSummary drift: committed=%+v fresh=%+v",
+			mismatchesJSONRel, committed.Summary, fresh.Summary)
+	}
+}
+
+// TestSchemaPrecedenceArtifactMatchesCommitted is the same drift check for
+// live/schema-precedence.json, the other half of what
+// live/rowgen-convergence.json used to carry. It is a separate test because
+// it is a separate measurement with a separate regeneration command, and
+// because its inputs are different ones: tools/row-gen/ratified.json and
+// live/import-grammar.json, neither of which the mismatch ledger reads
+// directly.
+func TestSchemaPrecedenceArtifactMatchesCommitted(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := schemaPrecedenceArtifact{
+		GeneratedBy:            "",
+		schemaReproducesBucket: buildSchemaReproducesBucket(loadRatifiedForTest(t), loadImportGrammarForTest(t)),
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, schemaPrecedenceJSONRel))
+	if err != nil {
+		t.Fatalf("reading %s: %v (run: go run ./tools/row-gen -schema-precedence)", schemaPrecedenceJSONRel, err)
+	}
+	var committed schemaPrecedenceArtifact
+	if err := json.Unmarshal(data, &committed); err != nil {
+		t.Fatalf("decoding %s: %v", schemaPrecedenceJSONRel, err)
+	}
+	// The provenance fields are not part of the measurement; compare the
+	// bucket alone so a reworded note is not read as drift.
+	committed.GeneratedBy, committed.Note = "", ""
+	fresh.Note = ""
+
+	freshJSON, err := json.MarshalIndent(fresh, "", "  ")
+	if err != nil {
+		t.Fatalf("marshaling the fresh bucket: %v", err)
+	}
+	committedJSON, err := json.MarshalIndent(committed, "", "  ")
+	if err != nil {
+		t.Fatalf("marshaling the committed bucket: %v", err)
+	}
+	if string(freshJSON) != string(committedJSON) {
+		t.Errorf("%s has drifted from a fresh regeneration - regenerate with:\n  go run ./tools/row-gen -schema-precedence\n\nCounts: committed has_identity_schema=%d reproduced=%d; fresh has_identity_schema=%d reproduced=%d",
+			schemaPrecedenceJSONRel, committed.HasIdentitySchema, committed.ReproducedCount, fresh.HasIdentitySchema, fresh.ReproducedCount)
 	}
 }
 
@@ -250,8 +296,7 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 // annotations.json's rulings apply to real, current, admitted types with a
 // real, current mismatch - see validateAnnotations (annotations.go) and
 // annotations.json's own doc comment. Reads the committed artifact rather
-// than a fresh regeneration, the same choice TestUnannotatedMismatchRatchet
-// makes, so this stays a fast, independent check.
+// than a fresh regeneration, so this stays a fast, independent check.
 func TestAnnotationsAgreeWithMismatches(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -261,114 +306,31 @@ func TestAnnotationsAgreeWithMismatches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadAnnotations: %v", err)
 	}
-	art := loadCommittedConvergence(t)
+	ledger := loadCommittedMismatchLedger(t)
 
-	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
+	if problems := validateAnnotations(ledger.Rows, annotations); len(problems) > 0 {
 		for _, p := range problems {
 			t.Error(p)
 		}
 	}
 }
 
-// loadCommittedConvergence reads live/rowgen-convergence.json as committed,
-// the shared helper TestUnannotatedMismatchRatchet, TestAnnotationsAgree-
-// WithMismatches and TestConvergenceArtifactMatchesCommitted all need.
-func loadCommittedConvergence(t *testing.T) convergenceArtifact {
+// loadCommittedMismatchLedger reads live/rowgen-mismatches.json as
+// committed, the shared helper the drift test and
+// TestAnnotationsAgreeWithMismatches both need.
+func loadCommittedMismatchLedger(t *testing.T) mismatchLedger {
 	t.Helper()
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, convergenceJSONRel))
+	data, err := os.ReadFile(filepath.Join(root, mismatchesJSONRel))
 	if err != nil {
-		t.Fatalf("reading %s: %v (run: go run ./tools/row-gen -convergence)", convergenceJSONRel, err)
+		t.Fatalf("reading %s: %v (run: go run ./tools/row-gen -mismatches)", mismatchesJSONRel, err)
 	}
-	var art convergenceArtifact
-	if err := json.Unmarshal(data, &art); err != nil {
-		t.Fatalf("decoding %s: %v", convergenceJSONRel, err)
+	var l mismatchLedger
+	if err := json.Unmarshal(data, &l); err != nil {
+		t.Fatalf("decoding %s: %v", mismatchesJSONRel, err)
 	}
-	return art
-}
-
-// TestDeriveCompositeWithSeparator_OrderFromString pins
-// importprecedence.go's central safety property: argument order is always
-// recovered from the documented example string's own left-to-right shape,
-// never trusted from the candidate list's own order - the property that
-// keeps aws_api_gateway_method (registry/grammar argument order
-// alphabetical, string order reversed) from being proposed with the wrong
-// order, and resolves aws_networkmanager_link_association's separator and
-// order correctly even though the registry's own primaryIdentifier order
-// (GlobalNetworkId, DeviceId, LinkId) disagrees with the documented string
-// (global_network_id, link_id, device_id).
-func TestDeriveCompositeWithSeparator_OrderFromString(t *testing.T) {
-	tests := []struct {
-		name       string
-		example    string
-		sep        string
-		candidates []string
-		wantOK     bool
-		wantOrder  []string
-	}{
-		{
-			name:       "order recovered from the string, not the candidate list",
-			example:    "global-network-0d47f6t230mz46dy4,link-444555aaabbb11223,device-07f6fd08867abc123",
-			sep:        ",",
-			candidates: []string{"global_network_id", "device_id", "link_id"}, // registry order: device before link
-			wantOK:     true,
-			wantOrder:  []string{"global_network_id", "link_id", "device_id"}, // string order: link before device
-		},
-		{
-			name:       "arity mismatch fails closed (the aws_route trap)",
-			example:    "rtb-656C65616E6F72_10.42.0.0/16",
-			sep:        "_",
-			candidates: []string{"destination_cidr_block", "destination_ipv6_cidr_block", "destination_prefix_list_id", "route_table_id"},
-			wantOK:     false,
-		},
-		{
-			name:       "opaque placeholder values carry no name token: fails closed rather than guessing",
-			example:    "12345abcde/67890fghij/GET",
-			sep:        "/",
-			candidates: []string{"http_method", "resource_id", "rest_api_id"},
-			wantOK:     false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dc, ok := deriveCompositeWithSeparator(tt.example, tt.sep, tt.candidates)
-			if ok != tt.wantOK {
-				t.Fatalf("ok = %v, want %v (dc=%+v)", ok, tt.wantOK, dc)
-			}
-			if !ok {
-				return
-			}
-			if len(dc.ArgsInOrder) != len(tt.wantOrder) {
-				t.Fatalf("ArgsInOrder = %v, want %v", dc.ArgsInOrder, tt.wantOrder)
-			}
-			for i := range dc.ArgsInOrder {
-				if dc.ArgsInOrder[i] != tt.wantOrder[i] {
-					t.Errorf("ArgsInOrder[%d] = %q, want %q (full: %v)", i, dc.ArgsInOrder[i], tt.wantOrder[i], dc.ArgsInOrder)
-				}
-			}
-		})
-	}
-}
-
-// TestLabelForOpaqueValue pins the ARN-vs-short-id label rule
-// tryArnVsIDOverride and tryOpaqueOverride both share.
-func TestLabelForOpaqueValue(t *testing.T) {
-	tests := []struct {
-		example      string
-		wantSyntax   string
-		wantIdentity string
-	}{
-		{"arn:aws:networkmanager::123456789012:device/global-network-x/device-y", "ARN", "arn"},
-		{"svc-06728e2357ea55f8a", "ID", "id"},
-		{"s-12345678", "ID", "id"},
-	}
-	for _, tt := range tests {
-		syntax, attr := labelForOpaqueValue(tt.example)
-		if syntax != tt.wantSyntax || attr != tt.wantIdentity {
-			t.Errorf("labelForOpaqueValue(%q) = (%q, %q), want (%q, %q)", tt.example, syntax, attr, tt.wantSyntax, tt.wantIdentity)
-		}
-	}
+	return l
 }
