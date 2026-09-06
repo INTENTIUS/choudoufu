@@ -13,7 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// applyImportGrammarPrecedence is the rowgen-convergence upgrade: the
+// applyImportGrammarPrecedence is the classifier-versus-ratified upgrade: the
 // ratification batches' dominant correction class is the CFN registry's
 // primaryIdentifier disagreeing with the provider's own documented import
 // grammar (VPC Lattice's short ids over the registry's opaque Arn - 9 of 14
@@ -1084,7 +1084,7 @@ func tryArgumentReferenceConfirmedGuess(p *proposal, g importGrammarRow) bool {
 // (the attribution the ratifiers used lives in prose the scrape does not
 // carry, e.g. cloudfront's Attribute Reference sentence "which corresponds
 // to the `distribution_id`"). A positive-attribution bar would demote those
-// five ratified rows to evidence-only, which the convergence ratchet rightly
+// five ratified rows to evidence-only, which the mismatch ratchet rightly
 // forbids. What the clause therefore checks is that no pinned signal
 // attributes the documented ID to something OTHER than the claimed
 // argument, with the positive signals short-circuiting first:

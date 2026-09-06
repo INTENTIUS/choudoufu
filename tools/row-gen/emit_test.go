@@ -18,7 +18,7 @@ import (
 )
 
 // loadAnnotationsForTest reads tools/row-gen/annotations.json the same way
-// runConvergence and runEmit do.
+// runMismatches and runEmit do.
 func loadAnnotationsForTest(t *testing.T) map[string]annotation {
 	t.Helper()
 	root, err := repoRoot()
@@ -121,7 +121,7 @@ func loadSchemaFactsForTest(t *testing.T) map[string]schemaFactEntry {
 //   - TestNoRatifiedRowNamesAnUnknownArgument (sources_test.go) - checks
 //     every ratified row's arguments against the provider schema and the
 //     scraped docs, which are external to the table.
-//   - TestConvergenceArtifactMatchesCommitted (convergence_test.go)
+//   - TestMismatchLedgerMatchesCommitted (mismatches_test.go)
 //   - TestSourcesArtifactMatchesCommitted (sources_test.go)
 //
 // The general question worth asking of any drift test here: what external
@@ -247,9 +247,9 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	// itself runs. Every one of them must be ruled for -emit to work at
 	// all, so the first is as good as any.
 	emittedTable := loadEmittedTableForTest(t, proposals)
-	art := buildConvergence(emittedTable, proposals, annotations)
-	matched := make(map[string]bool, len(art.Types))
-	for _, row := range art.Types {
+	cmp := buildComparison(emittedTable, proposals, annotations)
+	matched := make(map[string]bool, len(cmp.Rows))
+	for _, row := range cmp.Rows {
 		matched[row.TFType] = row.Matched
 	}
 	// A RecordBacked row is exempt from the gate by derivation, so it is

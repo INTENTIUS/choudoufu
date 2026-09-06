@@ -44,7 +44,7 @@ import (
 // tools/row-gen/ratified.json holds those 878 rows as an input no generator
 // writes, proven byte-for-byte equal to what the committed table renders
 // (ratified.go, TestRatifiedRendersTheCommittedIdentityTable), and -emit now
-// reads it - along with [buildConvergence] and [markerlessRoster], the two
+// reads it - along with [buildComparison] and [markerlessRoster], the two
 // other reads that had to move with it. Deleting rows from
 // table_generated.go and re-emitting restores them.
 //

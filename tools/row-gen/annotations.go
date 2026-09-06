@@ -17,7 +17,7 @@ import (
 // annotations.json (this package's own tools/row-gen/annotations.json, not
 // a live/ pinned-evidence artifact - it is this tool's own ruling ledger,
 // the same relationship tools/mapping-gen/carve-seed.json has to that
-// package) is rowgen-convergence's Phase 3 ratchet mechanism, and since
+// package) is the mismatch ledger's Phase 3 ratchet mechanism, and since
 // issue #132's gate it is load-bearing: -emit refuses to run while any
 // admitted type is neither reproduced by the classifier nor ruled here
 // (buildEmitFiles). A ruling records one of three things, each with the
@@ -32,10 +32,10 @@ import (
 //     page but no current proposal shape or parse reaches it. Pre-gate
 //     these were kept OUT of this file so the scrape-gap count stayed pure
 //     extractor debt; under the gate they are ruled here too, and the
-//     ScrapeGap flag in live/rowgen-convergence.json remains the measure
+//     ScrapeGap flag comparison.go computes remains the measure
 //     of which rulings are of this kind.
 //   - No evidence path at all: the type has no fresh proposal to disagree
-//     with (rowgen-convergence's not_in_mapped_set - a cfn-unmodeled or
+//     with (comparison.go's NotInMappedSet - a cfn-unmodeled or
 //     tf-only mapping row, or a record-backed effects type outside the AWS
 //     evidence sources entirely).
 //
@@ -43,7 +43,7 @@ import (
 // fuller extraction would have to capture to retire the ruling (or the
 // issue that states it). The exit is what keeps this ledger a list of
 // named extractor gaps rather than a list of accepted losses. Machine
-// checks: TestAnnotationsAgreeWithMismatches (convergence_test.go) fails
+// checks: TestAnnotationsAgreeWithMismatches (mismatches_test.go) fails
 // the moment an annotated type's mismatch disappears (annotation gone
 // stale - the type should be dropped from this file) or a type here is
 // not admitted at all; TestAnnotationCountRatchet fails when the ledger
@@ -67,7 +67,7 @@ type annotationsArtifact struct {
 }
 
 // loadAnnotations reads tools/row-gen/annotations.json. A missing file is
-// not an error - convergence still runs, just with a wider unannotated
+// not an error - -mismatches still runs, just with a wider unannotated
 // count until the file exists.
 func loadAnnotations(path string) (map[string]annotation, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
@@ -93,17 +93,20 @@ func loadAnnotations(path string) (map[string]annotation, error) {
 }
 
 // validateAnnotations is TestAnnotationsAgreeWithMismatches's engine
-// (convergence_test.go): every annotated type must (a) actually be admitted
-// and (b) actually carry a genuine mismatch in art, OR have no fresh
-// proposal at all (rowgen-convergence's not_in_mapped_set: absent from
-// art.Types entirely, which is the gate's other unreproduced shape) - an
-// annotation for a type row-gen's fresh proposal now matches is stale and
-// must be deleted, not left to quietly exempt some future, unrelated
-// mismatch.
-func validateAnnotations(art convergenceArtifact, annotations map[string]annotation) []string {
-	compared := make(map[string]bool, len(art.Types))
-	mismatched := make(map[string]bool, len(art.Types))
-	for _, row := range art.Types {
+// (mismatches_test.go): every annotated type must (a) actually be admitted
+// and (b) actually carry a genuine mismatch in rows, OR have no fresh
+// proposal at all (absent from rows entirely, which is the gate's other
+// unreproduced shape) - an annotation for a type row-gen's fresh proposal
+// now matches is stale and must be deleted, not left to quietly exempt some
+// future, unrelated mismatch.
+//
+// It takes the LEDGER rows rather than a whole comparison so that the same
+// function checks a fresh regeneration (runMismatches, before it writes) and
+// the committed live/rowgen-mismatches.json (the test, without regenerating).
+func validateAnnotations(rows []mismatchRow, annotations map[string]annotation) []string {
+	compared := make(map[string]bool, len(rows))
+	mismatched := make(map[string]bool, len(rows))
+	for _, row := range rows {
 		compared[row.TFType] = true
 		if !row.Matched {
 			mismatched[row.TFType] = true

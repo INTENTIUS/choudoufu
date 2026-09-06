@@ -17,10 +17,9 @@ import (
 
 // This file is issue #428's remainder ledger:
 // tools/row-gen/evidence-schema-gap.json, written by -evidence-gap.
-// evidenceschema.go's own live/rowgen-convergence.json evidence_only_schema
-// bucket already names, per type, the 50-or-so bucketEvidenceOnly types a
-// provider identity schema exists for but does not cover (Class, from
-// [schemaGapClass]); this file is the OTHER half the issue's own "Do"
+// evidenceschema.go's own [schemaGapClass] already names, per type, why a
+// provider identity schema exists for a bucketEvidenceOnly type but does
+// not cover it; this file is the OTHER half the issue's own "Do"
 // section asks for - "the remainder (evidence-only types with NO identity
 // schema) stays ledgered ... with a per-family note on what source would
 // actually answer the gap" - grouped exactly the way #427's
@@ -43,11 +42,10 @@ import (
 //
 // Two populations, both covered:
 //
-//   - hasSchemaFamily buckets live/rowgen-convergence.json's own
-//     evidence_only_schema.not_covered entries (50 at commit
-//     1eeda7c026, this branch's base) by [schemaGapClass] - a provider
-//     identity schema exists, evidenceschema.go's own applySchemaFirstArgName
-//     still declined it.
+//   - hasSchemaFamily buckets, by [schemaGapClass], every
+//     bucketEvidenceOnly type a provider identity schema exists for that
+//     evidenceschema.go's own applySchemaFirstArgName still declined (50 at
+//     commit 1eeda7c026).
 //   - noSchemaFamily covers the other 261: no survey identity schema at
 //     all. [evidenceSchemaGapFamily] partitions it by the strongest signal
 //     available, checked in priority order: NotImportable (issue #331,
@@ -90,7 +88,7 @@ type evidenceGapFamily struct {
 // The evidence_only_schema.not_covered family notes, keyed by
 // [schemaGapClass]'s own tokens.
 var schemaGapFamilyNotes = map[string]string{
-	"multi-attribute":       "The provider's identity schema requires more than one attribute for import. row-gen's own client-named row shape (a single Components{Attrs:[name]} entry) cannot carry that; the real shape is identity.TypeIdentity.IdentityObjectOnly (issue #105, identity.SynthesizeTypeIdentity's own multi-attribute branch) - no import-string separator invented, resolution imports by identity object instead. render.go's renderClientNamedEntry and convergence.go's proposedFields build only the single-Attrs shape today. The source that closes this is not new evidence - the schema already names every attribute - it is #105's own row-gen rendering work: extend proposedFields' bucketClientNamed case (or a new bucket) to emit an IdentityObjectOnly row from more than one required attribute.",
+	"multi-attribute":       "The provider's identity schema requires more than one attribute for import. row-gen's own client-named row shape (a single Components{Attrs:[name]} entry) cannot carry that; the real shape is identity.TypeIdentity.IdentityObjectOnly (issue #105, identity.SynthesizeTypeIdentity's own multi-attribute branch) - no import-string separator invented, resolution imports by identity object instead. render.go's renderClientNamedEntry and comparison.go's proposedFields build only the single-Attrs shape today. The source that closes this is not new evidence - the schema already names every attribute - it is #105's own row-gen rendering work: extend proposedFields' bucketClientNamed case (or a new bucket) to emit an IdentityObjectOnly row from more than one required attribute.",
 	"taggable-marker-path":  "The type IS taggable (live/survey-full.json Path=marker): tag-based discovery already binds a live object of this type without a plan-time identity argument, so being evidence-only here is about a different question (does the schema name a CREATE-time argument) than binding, which already works. The Components row row-gen would still paste for CREATE/PLAN has no schema-only answer for these - the schema's own required-for-import set failed identity.DerivableWith's strict client-naming check (most commonly the Optional+Computed cohort: a settable argument the schema cannot prove is client-chosen rather than provider-defaulted, survey-gen's classify.go's own identityNote branch). Closing it needs a worked `terraform import` example in the provider's own docs (the source live/import-grammar.json's scrape already reads for other types) or a future provider release marking the attribute Required rather than Optional+Computed.",
 	"ops-excluded":          "live/survey-full.json Path=moves to Ops: either hand-excluded (tools/survey-gen/classify.go's opsExcluded, one entry today, aws_iam_access_key) or the identity schema's required-for-import set failed the strict client-naming check AND the type is untaggable with no enumeration path either. The schema exists but does not, by itself, prove the identity is client-supplied. Closing it needs either a maintainer ruling (for the hand-excluded case) or the same worked-Import-example source the taggable-marker-path family needs, plus issue #233 if enumeration turns out to be the real blocker once the identity question is settled.",
 	"account-derived":       "The identity is built from configuration plus a Cloud-valued component (account_id/region) that lives in internal/live/identity's own table as a hand-asserted fact (issue #218's own ruling: the schema cannot tell a client-chosen name from a server-generated one wrapped in an ARN template, so this is never inferred). identity.SynthesizeTypeIdentity and schemafirst.go's own comparison both structurally refuse to build a Cloud-valued Component from a schema alone - see synthesize.go's own doc comment. Closing it needs a human to read the provider's docs and hand-ratify the Cloud slot, the same way every other account-derived row in the table was ratified; no additional schema evidence would change that.",
@@ -170,9 +168,9 @@ func buildEvidenceSchemaGapArtifact(proposals []proposal, survey map[string]surv
 
 	art := evidenceSchemaGapArtifact{
 		Note: "Issue #428's remainder ledger. EvidenceOnlySchemaFamilies partitions " +
-			"live/rowgen-convergence.json's own evidence_only_schema.not_covered population " +
-			"(a provider identity schema exists; evidenceschema.go's applySchemaFirstArgName still " +
-			"declined the type) by schemaGapClass. NoIdentitySchemaFamilies partitions the rest of " +
+			"every bucketEvidenceOnly type a provider identity schema exists for that " +
+			"evidenceschema.go's applySchemaFirstArgName still declined, by schemaGapClass. " +
+			"NoIdentitySchemaFamilies partitions the rest of " +
 			"the bucketEvidenceOnly population (live/survey-full.json serves no identity schema for " +
 			"the type at all) by evidenceSchemaGapFamily. Every family's note names what source would " +
 			"actually answer the gap, per the issue's own instruction - not merely that one is missing. " +

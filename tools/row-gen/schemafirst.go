@@ -6,6 +6,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -75,7 +78,7 @@ import (
 // from Components, same population [identity.SynthesizeTypeIdentity] can
 // ever apply to), 161 have a live/import-grammar.json
 // identity_schema_required; this file's own rule reproduces 134 of them
-// (live/rowgen-convergence.json's schema_reproduces.reproduced_count).
+// (live/schema-precedence.json's reproduced_count).
 // The remaining 27 are the shapes GitHub issue #387 itself names, and
 // notReproducedClass below labels each by which one: an ARN-shaped identity
 // assembled from region/account/name (aws_sns_topic, aws_sqs_queue,
@@ -100,7 +103,7 @@ import (
 // same-name check on Attrs alone, but the component is a cloud-context
 // default, not a plain client-supplied argument, so a real synthesized
 // entry would require the caller to set it explicitly - a real behavioural
-// difference the stricter rule now catches). Re-run -convergence's own
+// difference the stricter rule now catches). Re-run -schema-precedence's own
 // summary whenever the true source of the remaining one-off gap against
 // the issue's 136 is found, rather than treating either number as fixed.
 // schemaFirstReproduced is every config-identified ratified type with a
@@ -229,9 +232,25 @@ type notReproducedEntry struct {
 	Class string `json:"class"`
 }
 
-// buildSchemaReproducesBucket is live/rowgen-convergence.json's
-// schema_reproduces bucket: the whole of issue #387's measurement, over
-// [schemaFirstCandidates].
+// schemaReproducesBucket is [schemaPrecedenceArtifact]'s body: every
+// config-identified ratified type with a provider identity schema
+// (HasIdentitySchema, live/import-grammar.json's identity_schema_required),
+// partitioned into Reproduced (this file's own same-name comparison agrees
+// with the row) and NotReproduced (it does not, labelled by shape - see
+// [notReproducedClass]). ReproducedCount + NotReproducedCount ==
+// HasIdentitySchema always.
+type schemaReproducesBucket struct {
+	HasIdentitySchema int `json:"has_identity_schema"`
+
+	Reproduced      []string `json:"reproduced"`
+	ReproducedCount int      `json:"reproduced_count"`
+
+	NotReproduced      []notReproducedEntry `json:"not_reproduced"`
+	NotReproducedCount int                  `json:"not_reproduced_count"`
+}
+
+// buildSchemaReproducesBucket is the whole of issue #387's measurement,
+// over [schemaFirstCandidates].
 func buildSchemaReproducesBucket(ratified map[string]identity.TypeIdentity, grammar map[string]importGrammarRow) schemaReproducesBucket {
 	candidates := schemaFirstCandidates(ratified, grammar)
 	reproduced := schemaFirstReproduced(ratified, grammar)
@@ -253,4 +272,63 @@ func buildSchemaReproducesBucket(ratified map[string]identity.TypeIdentity, gram
 		NotReproduced:      notReproduced,
 		NotReproducedCount: len(notReproduced),
 	}
+}
+
+// schemaPrecedenceJSONRel is live/schema-precedence.json's committed path.
+//
+// Issue #695 gave this measurement its own file. It used to be one bucket
+// inside live/rowgen-convergence.json, an artifact whose headline metric
+// (adopted-unchanged) is on record as not predicting onboarding success and
+// which #695 deleted. This measurement is a different claim and keeps its
+// reader: tools/provider-bump-report prints the before/after of exactly
+// these counts, because a provider release that changes which rows the
+// schema reproduces changes what internal/live/identity's preferSynthesized
+// does at resolution time. Nothing about the measurement itself moved - the
+// object below is the old schema_reproduces bucket, field for field.
+const schemaPrecedenceJSONRel = "live/schema-precedence.json"
+
+// schemaPrecedenceArtifact is live/schema-precedence.json's whole shape:
+// [schemaReproducesBucket] promoted to the top level, with provenance.
+type schemaPrecedenceArtifact struct {
+	GeneratedBy string `json:"generated_by"`
+	Note        string `json:"note"`
+
+	schemaReproducesBucket
+}
+
+// runSchemaPrecedence is -schema-precedence's entry point.
+func runSchemaPrecedence(out, errOut *os.File) error {
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
+
+	art := schemaPrecedenceArtifact{
+		GeneratedBy: "tools/row-gen -schema-precedence (go run ./tools/row-gen -schema-precedence)",
+		Note: "Issue #387, ruling 2 of the foundation-order ruling (#388): for every config-identified " +
+			"row in tools/row-gen/ratified.json that the provider also serves an identity schema for " +
+			"(live/import-grammar.json's identity_schema_required), does the schema say the same thing " +
+			"the row does? internal/live/identity's preferSynthesized makes the identical comparison at " +
+			"resolution time against the real provider schemas and prefers the synthesized entry when it " +
+			"holds, so a type moving between reproduced and not_reproduced is a change in what a live " +
+			"run does. Regenerate with `go run ./tools/row-gen -schema-precedence`.",
+		schemaReproducesBucket: buildSchemaReproducesBucket(ratified, grammar),
+	}
+
+	if err := writeJSONArtifact(filepath.Join(root, schemaPrecedenceJSONRel), art); err != nil {
+		return fmt.Errorf("writing %s: %w", schemaPrecedenceJSONRel, err)
+	}
+
+	fmt.Fprintf(out, "wrote %s\n", schemaPrecedenceJSONRel)
+	fmt.Fprintf(errOut, "row-gen -schema-precedence: %d candidates with a provider identity schema, %d reproduced, %d not\n",
+		art.HasIdentitySchema, art.ReproducedCount, art.NotReproducedCount)
+	return nil
 }
