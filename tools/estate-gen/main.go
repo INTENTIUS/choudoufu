@@ -3,9 +3,12 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// estate-gen generates live/e2e/estates/<cohort>/, the minimal-HCL
-// per-cohort verification estate internal/live/flocitest.FixtureDirs picks
-// up through the #48 union pin (issue #56).
+// estate-gen renders a minimal-HCL per-cohort verification estate into a
+// directory the caller names (issue #56). Since issue #699 nothing it writes
+// is committed: internal/live/flocitest.GenerateCohorts renders the whole
+// roster (internal/live/cohorts) into the run's own temporary directory, the
+// way live/e2e/terralith-scale/run.sh renders its estate with
+// tools/terralith-gen.
 //
 // Given a cohort name and a list of admitted provider-local resource types,
 // it emits one resource block per type: required arguments only, with
@@ -18,7 +21,7 @@
 // overrides.go, not a guess.
 //
 //	go run ./tools/estate-gen -cohort lambda -out /tmp/lambda-regen
-//	go run ./tools/estate-gen -cohort s3 -out live/e2e/estates/s3
+//	go run ./tools/estate-gen -all -out /tmp/estate-gen
 //	go run ./tools/estate-gen -cohort lambda -types aws_lambda_function,aws_lambda_layer_version -out /tmp/x
 //
 // With no -types, the cohort's types are read off live/mapping.json and
@@ -90,9 +93,9 @@ func repoRoot() (string, error) {
 }
 
 func main() {
-	cohort := flag.String("cohort", "", "cohort name (live/e2e/estates/<cohort>/); required")
+	cohort := flag.String("cohort", "", "cohort name, as internal/live/cohorts records it; required unless -all")
 	types := flag.String("types", "", "comma-separated provider-local types; empty reads the cohort's registry-ratified types off live/mapping.json and the identity table")
-	out := flag.String("out", "", "output directory; empty defaults to live/e2e/estates/<cohort>")
+	out := flag.String("out", "", "output directory; required (issue #699 - nothing is rendered into the checkout any more)")
 	count := flag.Int("count", 0, "generate N replicas of one resource type via HCL's count meta-argument instead of one resource per admitted type - a scale/benchmark estate (issue #64). Requires -types to name exactly one, schema-simple type (its identity argument the only required one, no required nested blocks, taggable).")
 	initBin := flag.String("init-bin", defaultInitBin, "binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary that formats the generated *.tf files (terraform, tofu or choudoufu)")
@@ -194,12 +197,18 @@ func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, modul
 	if len(moduleKeys) > 0 && !moduleWrap {
 		return fmt.Errorf("-module-keys requires -module-wrap")
 	}
+	if out == "" {
+		// No default any more. It used to be live/e2e/estates/<cohort>,
+		// which is the directory issue #699 emptied: a bare -cohort would
+		// re-create the committed tree this unit deleted, in a working copy,
+		// silently. internal/live/flocitest's TestEstatesHoldsNoConfiguration
+		// would catch it in CI, but a default that writes somewhere wrong is
+		// a trap whether or not a guard cleans up after it.
+		return fmt.Errorf("-out is required: cohorts are rendered into a scratch directory now, not committed (issue #699). Try -out /tmp/estate-gen/%s", cohort)
+	}
 	root, err := repoRoot()
 	if err != nil {
 		return err
-	}
-	if out == "" {
-		out = filepath.Join(root, "live", "e2e", "estates", cohort)
 	}
 
 	var requested []string
