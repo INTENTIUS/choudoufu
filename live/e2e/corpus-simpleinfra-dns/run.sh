@@ -158,6 +158,17 @@ set -uo pipefail
 #                 the real removal (see above).
 #   BREAK_COUNT   set to 1 to run day2_count's own break control instead of
 #                 the real scale (see above).
+#   BREAK_APPROVAL set to 1 to run plan_approval's own negative control
+#                 instead of the real refusal check (PART P, between STAGE 5
+#                 and PART F): after the world has moved out of band, assert
+#                 the saved plan file APPLIES cleanly - the Break text in
+#                 tools/gauntlet/stages.go for plan_approval is literally
+#                 "Apply the planfile after a mutation and expect success;
+#                 the run must refuse", so this assertion has to fail.
+#                 Independent of every BREAK above, and the only one of them
+#                 under which PART P runs at all - the others deliberately
+#                 leave the estate somewhere PART P does not describe, and
+#                 it reports no verdict there.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and the
 #                 WORK directory are left behind for inspection.
 
@@ -1187,6 +1198,198 @@ else
     || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
   log "  reconverged: TTL is back to $WANT_TTL, $RECORDS record sets still there, the parent zone's marker intact - all read via the AWS CLI"
   gauntlet_stage drift_reconverge pass "one untaggable record drifted, exactly $DRIFT_ADDR proposed and applied, TTL reconverged to $WANT_TTL, $RECORDS records and the parent marker intact"
+
+  # ════════════════════════════════════════════════════════════════════════
+  # PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12,
+  # issue #903)
+  # ════════════════════════════════════════════════════════════════════════
+  #
+  # The pipeline shape CI has always run: plan on the pull request, a human
+  # approves, apply exactly what was approved. The artifact that crosses
+  # that gate is the plan file, and under live markers it is an APPROVAL
+  # rather than an instruction - "apply <planfile>" re-reads the live
+  # system, plans against what it finds now, and compares that fresh plan
+  # with the file's, refusing by name and with exit 3 when the two disagree
+  # (issue #878, internal/command/live_approval.go).
+  #
+  # Both arms run on every real run, because only the pair is evidence:
+  #
+  #   P2/P3  the world MOVES between the approval and the apply - STAGE 5's
+  #          own proven mutation is lifted verbatim: 2016.rustconf.com's
+  #          TTL is set out of band through the AWS CLI - and the apply
+  #          must refuse: exit 3, the named summary, the unapproved row
+  #          printed by address AND by the live identity (zone id, record
+  #          name, type) it was computed against, and the reviewed change
+  #          still not landed when the reviewed record's TTL is read back
+  #          through the CLI.
+  #   P4     nothing has moved (2016.rustconf.com's TTL is put back first)
+  #          and the SAME file must APPLY. This is the inverted control
+  #          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+  #          comparison which refuses unconditionally is not a check, so
+  #          P3's refusal is only worth something if the identical artifact
+  #          goes through when the world is where the approval left it.
+  #
+  # The two instances are deliberately disjoint, and in two different
+  # hosted zones - the change under review is module.arewewebyet_org's own
+  # `ttl` module argument (that call declares exactly one record, the www
+  # CNAME, so one argument is one instance), the out-of-band move is
+  # module.rustconf_com.aws_route53_record.cname["2016"] - so the refusal
+  # has an EXTRA row to name, about a different object, rather than a
+  # values-only disagreement about the same row.
+  #
+  # WHY arewewebyet_org, against issue #903's own two traps: `ttl` is an
+  # in-place UPSERT on aws_route53_record (`name`, `type` and `zone_id` are
+  # the ForceNew ones, which is what PART F below uses to force a replace),
+  # and no later part of this script touches module.arewewebyet_org at all -
+  # PART F replaces module.areweasyncyet_rs, PART D renames module.
+  # rustaceans_org and module.cratesio_com, PART E removes the renamed
+  # cratesio zone, PART G scales module.rustconf_com's CNAME for_each set,
+  # and STAGE 5 above drifts a rustconf record. Nothing captured earlier
+  # is disturbed either way, and P5 reverts the edit and replans empty
+  # before any of them start.
+  #
+  # Runs only on a real run. Under any of this script's BREAK controls the
+  # estate is deliberately left somewhere this part does not describe, so
+  # it reports no verdict at all and the runner records the stage as
+  # not_run, never as a pass.
+  if [ -z "${BREAK:-}" ] && [ -z "${BREAK_STAGE5:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+    gauntlet_begin_stage plan_approval
+    log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+    P_REVIEWED_ADDR='module.arewewebyet_org.aws_route53_record.cname["www"]'
+    P_REVIEWED_ZONE_MARKER='module.arewewebyet_org.aws_route53_zone.zone'
+    P_REVIEWED_RECORD='www.arewewebyet.org.'
+    P_REVIEWED_TYPE='CNAME'
+    P_REVIEWED_TTL=600
+    P_MOVED_ADDR="$DRIFT_ADDR"
+    P_REVIEWED_ZONE_ID="$(zone_by_marker "$P_REVIEWED_ZONE_MARKER")" \
+      || fail "no hosted zone carries tofu-address=$P_REVIEWED_ZONE_MARKER"
+    [ "$P_REVIEWED_ZONE_ID" != "$DRIFT_ZONE_ID" ] \
+      || fail "the reviewed record and the moved record are in the same hosted zone ($P_REVIEWED_ZONE_ID); this leg would prove nothing"
+    P_TTL_BEFORE="$(live_record_ttl "$P_REVIEWED_ZONE_ID" "$P_REVIEWED_RECORD" "$P_REVIEWED_TYPE")"
+    [ "$P_TTL_BEFORE" = "$WANT_TTL" ] \
+      || fail "$P_REVIEWED_RECORD's TTL is $P_TTL_BEFORE before PART P edits anything, not the configuration's $WANT_TTL"
+    log "  reviewed record $P_REVIEWED_RECORD in zone $P_REVIEWED_ZONE_ID (TTL $P_TTL_BEFORE), moved record $DRIFT_RECORD_NAME in zone $DRIFT_ZONE_ID"
+
+    log "=== P1. the change under review: one argument, on one record ==="
+    # Each domain is its own file in this estate, so this anchor is scoped
+    # to arewewebyet.org.tf and reaches that module call and no other.
+    [ "$(grep -c '^  ttl     = 300$' "$ESTATE/arewewebyet.org.tf")" = "1" ] \
+      || fail "arewewebyet.org.tf no longer carries exactly one \"ttl     = 300\" argument - the corpus pin has moved"
+    perl -0pi -e "s/^  ttl     = 300\$/  ttl     = $P_REVIEWED_TTL/m" "$ESTATE/arewewebyet.org.tf"
+    [ "$(grep -c "^  ttl     = $P_REVIEWED_TTL\$" "$ESTATE/arewewebyet.org.tf")" = "1" ] \
+      || fail "the reviewed edit did not write exactly one \"ttl     = $P_REVIEWED_TTL\" argument"
+    log "  edited one argument: module \"arewewebyet_org\"'s ttl is now $P_REVIEWED_TTL (was $WANT_TTL)"
+
+    P_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+    [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+    [ -f "$ESTATE/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+    P_APPROVED_TOTALS="$(grep -oE '^Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' <<< "$P_PLAN_OUT" | tail -1)"
+    [ "$P_APPROVED_TOTALS" = "Plan: 0 to add, 1 to change, 0 to destroy" ] \
+      || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan's own totals are \"$P_APPROVED_TOTALS\", not \"Plan: 0 to add, 1 to change, 0 to destroy\""; }
+    P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+      || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+    P_PLAN_BYTES="$(wc -c < "$ESTATE/approved.tfplan" | tr -d ' ')"
+    log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+    log "=== P2. the world moves between the approval and the apply ==="
+    upsert_ttl "$DRIFT_ZONE_ID" "$DRIFT_RECORD_NAME" "$DRIFT_TTL" \
+      || fail "the out-of-band move did not take"
+    P_MOVED_TTL="$(live_record_ttl "$DRIFT_ZONE_ID" "$DRIFT_RECORD_NAME" "$DRIFT_RECORD_TYPE")"
+    [ "$P_MOVED_TTL" = "$DRIFT_TTL" ] \
+      || fail "the out-of-band move did not take: $DRIFT_RECORD_NAME's TTL is $P_MOVED_TTL, expected $DRIFT_TTL"
+    log "  $DRIFT_RECORD_NAME's TTL set to $DRIFT_TTL in zone $DRIFT_ZONE_ID out of band - after the approval, before the apply, through the AWS CLI"
+
+    log "=== P3. apply the approved plan against a world that moved ==="
+    P_GATE_RC=0
+    P_GATE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+    if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+      # stages.go's own Break line for plan_approval, executed literally:
+      # "Apply the planfile after a mutation and expect success; the run
+      # must refuse." Expecting success here is the defect this stage
+      # exists to catch, so this assertion has to fail.
+      [ "$P_GATE_RC" = "0" ] \
+        || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+      log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+    fi
+    [ "$P_GATE_RC" = "3" ] \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+    grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+    # Everything from the refusal's own summary line onward. The fresh plan
+    # printed above it also names the moved record, so asserting over the
+    # whole output would pass on a refusal that named nothing at all.
+    P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+    grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+    grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+    # The row is "<address>  <action>  <identity>", and this type's identity
+    # is ZONEID_NAME_TYPE (internal/live/identity's own row for
+    # aws_route53_record), so both halves of the live object are asserted
+    # here - not just the address, which the plan above already printed.
+    P_MOVED_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+    grep -qF "$DRIFT_ZONE_ID" <<< "$P_MOVED_ROW" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry the live hosted zone id $DRIFT_ZONE_ID it was computed against"; }
+    grep -qF "$DRIFT_RECORD_NAME" <<< "$P_MOVED_ROW" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry the live record name $DRIFT_RECORD_NAME it was computed against"; }
+    grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+    if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+      printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+    fi
+    # Not "no Apply complete line" alone: read the live record the approval
+    # was about and confirm the reviewed change did not land.
+    P_REVIEWED_TTL_NOW="$(live_record_ttl "$P_REVIEWED_ZONE_ID" "$P_REVIEWED_RECORD" "$P_REVIEWED_TYPE")"
+    [ "$P_REVIEWED_TTL_NOW" = "$WANT_TTL" ] \
+      || fail "the refused apply still wrote the reviewed change: $P_REVIEWED_RECORD's TTL is $P_REVIEWED_TTL_NOW, not the unchanged $WANT_TTL"
+    printf '%s\n' "$P_REFUSAL" | head -12
+    log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+    log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+    upsert_ttl "$DRIFT_ZONE_ID" "$DRIFT_RECORD_NAME" "$WANT_TTL" \
+      || fail "undoing the out-of-band move failed"
+    P_RESTORED_TTL="$(live_record_ttl "$DRIFT_ZONE_ID" "$DRIFT_RECORD_NAME" "$DRIFT_RECORD_TYPE")"
+    [ "$P_RESTORED_TTL" = "$WANT_TTL" ] \
+      || fail "the out-of-band move was not undone: $DRIFT_RECORD_NAME's TTL reads $P_RESTORED_TTL"
+    P_OK_RC=0
+    P_OK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+    [ "$P_OK_RC" = "0" ] \
+      || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+    P_LANDED_TTL="$(live_record_ttl "$P_REVIEWED_ZONE_ID" "$P_REVIEWED_RECORD" "$P_REVIEWED_TYPE")"
+    [ "$P_LANDED_TTL" = "$P_REVIEWED_TTL" ] \
+      || fail "the approved change did not land: $P_REVIEWED_RECORD's TTL is $P_LANDED_TTL, want $P_REVIEWED_TTL"
+    log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_REVIEWED_RECORD's TTL is now $P_LANDED_TTL, read via the AWS CLI"
+
+    log "=== P5. put the estate back where the rest of this script expects it ==="
+    rm -f "$ESTATE/approved.tfplan"
+    perl -0pi -e "s/^  ttl     = $P_REVIEWED_TTL\$/  ttl     = 300/m" "$ESTATE/arewewebyet.org.tf"
+    [ "$(grep -c '^  ttl     = 300$' "$ESTATE/arewewebyet.org.tf")" = "1" ] \
+      || fail "reverting the reviewed edit did not restore arewewebyet.org.tf's \"ttl     = 300\" argument"
+    P_BACK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+    [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+    P_GONE_TTL="$(live_record_ttl "$P_REVIEWED_ZONE_ID" "$P_REVIEWED_RECORD" "$P_REVIEWED_TYPE")"
+    [ "$P_GONE_TTL" = "$WANT_TTL" ] \
+      || fail "$P_REVIEWED_RECORD's TTL is $P_GONE_TTL after the revert, not the configuration's $WANT_TTL"
+    [ "$(record_count)" = "$RECORDS" ] \
+      || fail "the record set count is no longer $RECORDS after PART P"
+    P_FINAL_LOG="$WORK/plan-p-final.log"
+    plan_into > "$P_FINAL_LOG" 2>&1; P_FINAL_RC=$?
+    [ "$P_FINAL_RC" -eq 0 ] || { grep -E '^Error: |^│ Error' "$P_FINAL_LOG" | head -20; fail "the post-revert plan exited $P_FINAL_RC"; }
+    if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)$' "$P_FINAL_LOG"; then
+      grep -E '^  # .+ will be|^  # .+ must be replaced' "$P_FINAL_LOG"
+      fail "the estate is not converged again after PART P"
+    fi
+    log "  reverted; the estate is converged again, $RECORDS record sets intact, and PART F starts from where it would have"
+
+    log ""
+    log "PART P (plan, review, apply): PASS"
+    gauntlet_stage plan_approval pass "one argument edited (module.arewewebyet_org's ttl 300 -> $P_REVIEWED_TTL; that call declares exactly one record, the www CNAME, so one argument is one instance), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR (\"Plan: 0 to add, 1 to change, 0 to destroy\"); the world then moved out of band ($DRIFT_RECORD_NAME's TTL set to $DRIFT_TTL in zone $DRIFT_ZONE_ID through the AWS CLI, never through choudoufu - STAGE 5's own proven mutation, on a DIFFERENT instance in a DIFFERENT hosted zone from the one under review) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming $P_MOVED_ADDR together with the live identity it was computed against - both the hosted zone id $DRIFT_ZONE_ID and the record name $DRIFT_RECORD_NAME, this type's ZONEID_NAME_TYPE identity - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_REVIEWED_RECORD still read TTL $WANT_TTL through the AWS CLI, which is stronger evidence than the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the drifted TTL put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_REVIEWED_RECORD read back at TTL $P_REVIEWED_TTL, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied, the $RECORDS record sets re-counted and the estate replanned empty, so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    log ""
+  fi
 
   # ════════════════════════════════════════════════════════════════════════
   # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
