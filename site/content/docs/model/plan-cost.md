@@ -370,6 +370,70 @@ covers costs.
 Peak memory is still a multiple of the two bounds and never of the estate or
 of the admission table, which is what the single number was protecting.
 
+### What the split was worth, measured
+
+[#867](https://github.com/INTENTIUS/choudoufu/issues/867) re-took #683's trace
+on the same estate after both fixes landed - `us-east-2`, provider 6.59.0,
+choudoufu built from `d455a2fed4`, harness and instrument at `3889d2476c`,
+2026-09-06. Three steady-state `choudoufu plan` runs, and three stock
+`terraform plan` runs of the same estate in the same session, so that the
+account's own throttling is roughly the same on both sides of the comparison.
+An idle gap is a stretch of at least 0.8 seconds during which no AWS request
+is in flight at all; `live/live-cert/wallclock-gaps.py` is the instrument, and
+it is in the tree rather than on a branch this time.
+
+| plan, all at `d455a2fed4` | span | idle at or above 0.8s | largest stall | closed by an SDK retry | provider requests |
+|---|---|---|---|---|---|
+| `choudoufu plan` 1 | 56.0s | 8.1s (14%) | 4.68s | 4 of 4 | 1,735 requests |
+| `choudoufu plan` 2 | 50.0s | 3.1s (6%) | 1.63s | 2 of 2 | 1,734 requests |
+| `choudoufu plan` 3 | 57.1s | 11.5s (20%) | 4.30s | 5 of 5 | 1,732 requests |
+| stock 1 | 20.0s | 0.0s (0%) | - | 0 of 0 | 1,409 requests |
+| stock 2 | 38.2s | 15.9s (42%) | 8.04s | 6 of 6 | 1,418 requests |
+| stock 3 | 29.2s | 10.6s (36%) | 7.79s | 2 of 2 | 1,409 requests |
+
+The fork's extra three hundred are not the read pass, which still makes
+stock's calls call for call. They are the sweep's two client-side-filtered
+listings, `aws_iam_policy` and `aws_iam_role`, which enumerate the whole
+ACCOUNT rather than this estate: `GetPolicyVersion` 102 to 201,
+`ListRolePolicies` 113 to 226, `GetRolePolicy` 203 to 308 between the stock
+column and the fork's. That column is therefore not a property of this estate
+alone - the test account also held objects earlier runs had left behind - and
+it is why the fork's span here is longer than #683's on the same estate.
+
+The fork's idle share is not the number to read on its own. An account does
+not throttle the same way twice: stock's own share moved from 20% in #683's
+session to somewhere between 0% and 42% in this one. What compares is the
+fork's share against stock's *in the same session*. #683's captures, put
+through this same instrument (`3889d2476c`), read 49% and 56% idle against
+stock's 20% - about two and a half times stock. Here the fork is 6% to 20%
+against stock's 0% to 42%, which is below stock, and the worst single stall a
+`choudoufu plan` took, 4.68s, is shorter than the worst stock took on the same
+estate minutes earlier, 8.04s.
+
+Every stall on both sides, nineteen of them, ends in a `retrying request`
+line, so what is left of the idle at `d455a2fed4` is the provider's own
+backoff schedule rather than anything either binary decides. On the fork's side every
+read-pass stall falls in the last quarter of its run: while there are reads
+left to launch, a stalled one holds an in-flight slot and no buffer slot, so
+the launcher keeps going, and the residue is the tail, where fewer instances
+remain than the width and a slow one has nothing left to overlap with. #683's
+stalls were spread across the whole run, because back then any one of them
+stopped everything.
+
+**The sweep showed no straggler, and this estate cannot produce one.** Two
+throttled list calls across the three runs, costing 1.23s and 1.51s, measured
+at `d455a2fed4`. Thirty-two of this estate's swept types are answered by the
+single estate-filtered `GetResources` described above, which takes no per-type
+slot at all; only 3 types - `aws_ecs_service`, `aws_iam_policy` and
+`aws_iam_role` - take the per-type list path the sweep's bounds cover, on the
+first post-migration plan and on a steady-state one alike. Three outstanding
+calls against a width of ten means at most three listings are ever fetched and
+unconsumed, so the sweep's buffer is never reached and a factor of one would
+have produced the identical run. Ten per slot therefore still rests on the
+derivation above rather than on a measurement; testing it needs an estate
+whose types mostly lack a server-side tag filter, which is also the only shape
+in which #839's defect could have cost anything.
+
 Set either to `1` for the sequential loop, one call at a time in the order the
 phase would have made them. A value below 1 is refused rather than read as "no
 limit" - the read bound's refusal lands before the run reads anything at all,
@@ -387,8 +451,13 @@ Both defaults are 10 because stock plans an estate at `-parallelism 10`. That
 argument is the stronger of the two for the read pass, which makes call for
 call the same requests a stock refresh of the same estate makes - the
 stock-versus-choudoufu table earlier on this page - so ten asks an account for
-exactly what it already answers for OpenTofu. Read-side throttling has not been
-measured, and cannot be from an emulator, since floci does not throttle.
+exactly what it already answers for OpenTofu. Read-side throttling cannot be
+measured from an emulator, since floci does not throttle, and it has now been
+measured on a real account instead: at `d455a2fed4` a steady-state plan of the
+745 instances above was throttled 43 to 46 times per run at this width,
+every one of them retried and answered, with the section just above for what
+the waiting cost. That is the account tolerating ten concurrent reads, not
+refusing them.
 
 `live-mv` honours the read bound and has no sweep to bound: a rename lists one
 resource type rather than the estate. `live-import`'s own `-parallelism` flag

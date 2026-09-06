@@ -59,6 +59,14 @@ set -uo pipefail
 #                    operations) to a file under WORK, so this run can grep
 #                    it afterward for retry/throttle/pagination evidence
 #                    without holding the log in memory. 0 disables it.
+#   WALLCLOCK_TRACE  0 (default) or 1. 1 adds sections 2e, 4g and 4h: three
+#                    DEBUG-instrumented stock plans before migrate and three
+#                    after the steady state is reached on the choudoufu side,
+#                    then live/live-cert/wallclock-gaps.py over all six. This
+#                    is issue #867's measurement - the idle-gap trace of the
+#                    read and sweep passes that #683 took by hand on a branch
+#                    that no longer exists. Six extra plans, no extra objects
+#                    created, and nothing gates on it.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -914,6 +922,29 @@ log "=== 2d. API calls: one EXTRA stock plan with TF_LOG=DEBUG, outside every ti
 instrumented_plan "stock-terraform" "$COLD_DIR" "$TF_COLD"
 
 # ══════════════════════════════════════════════════════════════════════
+# WALLCLOCK_TRACE (issue #867): the stock half of the idle-gap comparison.
+#
+# #683 measured the read pass's head-of-line stall from ONE debug capture per
+# side, and #867 asks for three, on the same estate in the same session, so
+# that "the sweep showed no straggler" can be said about a sample rather than
+# about a single run. The stock side has to be taken HERE, before migrate, for
+# the reason 2c states: once live-import has stamped tags on 335 objects the
+# stock plan is no longer empty, and a plan that renders 335 changes is not
+# comparable to an empty one on wall clock or on request count.
+#
+# These are not timing measurements and nothing gates on them - TF_LOG=DEBUG
+# is on, which is the same rule 2c/2d/4d already state. What they are for is
+# live/live-cert/wallclock-gaps.py, which reads in-flight concurrency out of
+# the capture.
+# ══════════════════════════════════════════════════════════════════════
+if [ "${WALLCLOCK_TRACE:-0}" = "1" ]; then
+  log "=== 2e. wall-clock trace (#867): stock plan x3 with TF_LOG=DEBUG, pre-migrate, empty ==="
+  for i in 1 2 3; do
+    instrumented_plan "trace-stock-$i" "$COLD_DIR" "$TF_COLD"
+  done
+fi
+
+# ══════════════════════════════════════════════════════════════════════
 # migrate: choudoufu live-import -approve against the stock state file.
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
@@ -1140,6 +1171,50 @@ log "=== 4f. API calls: one EXTRA steady-state choudoufu plan with TF_LOG=DEBUG,
 instrumented_plan "choudoufu-steady" "$ADOPTED_DIR" "$TOFU"
 log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) ==="
 printf '%s\n' "$API_CALL_REPORT"
+
+# ══════════════════════════════════════════════════════════════════════
+# WALLCLOCK_TRACE (issue #867): the choudoufu half, and the analysis.
+#
+# Three steady-state plans, taken after 4d's three timed runs and 4f's, so the
+# hint store is warm and the sweep is the narrowed one (#627) rather than the
+# first plan's widest. Then wallclock-gaps.py over all six captures at once,
+# so the run log itself carries the comparison instead of it living only in a
+# directory someone has to still have.
+#
+# The gap threshold is 0.8s because that is the one #683 reported at, and a
+# re-measurement that moves its own threshold is not a re-measurement.
+# ══════════════════════════════════════════════════════════════════════
+if [ "${WALLCLOCK_TRACE:-0}" = "1" ]; then
+  log "=== 4g. wall-clock trace (#867): choudoufu plan x3 with TF_LOG=DEBUG, steady state ==="
+  for i in 1 2 3; do
+    instrumented_plan "trace-choudoufu-$i" "$ADOPTED_DIR" "$TOFU"
+  done
+
+  log "=== 4h. wall-clock trace (#867): idle gaps >= 0.8s, both sides, one instrument ==="
+  # The label=path list is built in the positional parameters rather than in
+  # an array: this script runs under `set -u`, and in bash 3.2 - the bash
+  # macOS ships, and the one a maintainer running this by hand is most likely
+  # to hit - expanding an EMPTY array under `set -u` is an unbound-variable
+  # error, so the "nothing to analyze" branch would abort the run instead of
+  # reporting.
+  set --
+  for i in 1 2 3; do
+    [ -f "$WORK/apicalls_trace-stock-$i.debug.log" ] \
+      && set -- "$@" "stock-$i=$WORK/apicalls_trace-stock-$i.debug.log"
+  done
+  for i in 1 2 3; do
+    [ -f "$WORK/apicalls_trace-choudoufu-$i.debug.log" ] \
+      && set -- "$@" "choudoufu-$i=$WORK/apicalls_trace-choudoufu-$i.debug.log"
+  done
+  if [ "$#" -eq 0 ]; then
+    log "  no trace captures on disk - nothing to analyze"
+  elif ! command -v python3 >/dev/null 2>&1; then
+    log "  python3 is not on PATH; the captures are under $WORK, run live/live-cert/wallclock-gaps.py over them by hand"
+  else
+    python3 "$ROOT/live/live-cert/wallclock-gaps.py" --min 0.8 "$@" \
+      | tee "$WORK/wallclock-gaps.txt" | sed 's/^/  /'
+  fi
+fi
 
 # ══════════════════════════════════════════════════════════════════════
 # test_apply: applying the empty plan is a genuine no-op.
