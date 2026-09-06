@@ -228,7 +228,7 @@ func (r *Ratification) instanceNeedsDiscovery(addr addrs.AbsResourceInstance) bo
 		return false
 	}
 	res, ok := r.resolved.Get(addr)
-	return ok && res.Class == identity.ClassNeedsDiscovery && causeStableWithoutManagedResults(res.Cause)
+	return ok && classTable[res.Class].needsDiscovery && causeStableWithoutManagedResults(res.Cause)
 }
 
 // causeStableWithoutManagedResults is the safeguard [Request.Config]'s doc
