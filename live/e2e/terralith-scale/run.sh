@@ -887,22 +887,32 @@ log "  the same six identities confirmed by value in the greenfield account"
 # F3 compares the record store against stock's own instance list per
 # resource type rather than against a hard-coded total, because the answer
 # is not "one per instance" and a bare number would hide which instance is
-# missing. Measured, not assumed (this script's own third run, and
-# reproduced standalone against a fresh emulator with no terraform in the
-# loop for the plan half): an apply of this estate persists a record for
-# every managed instance EXCEPT aws_ecs_task_definition, whose row in
-# internal/live/identity/table_generated.go is ServerAssigned with
-# IdentityAttrs family+revision - an identity ECS mints anew on every
-# register. Nothing warns about it, and nothing in this estate is observably
-# worse for it: the marker IS written on the task definition (confirmed
-# directly through `ecs list-tags-for-resource`), the plan is empty, and the
-# one thing that does move when the record store is deleted is
-# aws_ecs_service's residue, not the task definition (F5 below).
+# missing.
 #
-# So this is reported, not endorsed, and the assertion is written to fail
-# loudly if the gap ever changes shape - a different type joining it, or
-# this one leaving it - rather than to encode a total that would go on
-# passing either way.
+# Until commit 98b6101f5e (issue #671), an apply of this estate persisted a
+# record for every managed instance EXCEPT aws_ecs_task_definition: the AWS
+# provider's own wire identity schema types aws_ecs_task_definition's
+# "revision" component as a NUMBER, and
+# internal/live/identity/located.go's LocatedIdentityPlanFor's
+# required-component loop admitted only cty.String, refusing the whole
+# identity plan (and silently skipping the record) for any type whose
+# identity schema carried a numeric required component. #671 closed that:
+# required components now admit cty.Number on the same terms the
+# optional-component reader already did, an integral revision renders as
+# its plain decimal digits, and only a fractional value still refuses.
+# Re-measured directly against this script's own greenfield apply on the
+# current emulator, no tofu in the loop for the check itself:
+# aws_ecs_task_definition.svc_0000 now carries a record file whose
+# identity.attrs render family/region/revision, e.g.
+#   {"address":"aws_ecs_task_definition.svc_0000",...,
+#    "identity":{"attrs":{"family":"...-svc-0000","region":"us-east-1","revision":"2"}}}
+#
+# So the known gap is gone, and the assertion below is the stronger,
+# un-excluded form: the set of instances with no record must be EXACTLY
+# empty, per type against stock's own instance list, rather than a total
+# that would go on passing either way. It is still written to fail loudly
+# if any type ever goes missing a record again - a different type, or this
+# one returning - rather than to encode a number that tolerates it.
 log "=== F3. greenfield: the record store, compared per type against stock's own instance list ==="
 GF_REC_BASE="$GREENDIR/.tofu-records/tofu-records/$ESTATE"
 [ -d "$GF_REC_BASE" ] || fail "the greenfield apply left no record store at $GF_REC_BASE"
@@ -912,14 +922,12 @@ GF_UNRECORDED="$(comm -23 <(printf '%s\n' "$GF_EXP_TYPES") <(printf '%s\n' "$GF_
 GF_EXTRA="$(comm -13 <(printf '%s\n' "$GF_EXP_TYPES") <(printf '%s\n' "$GF_ACT_TYPES"))"
 [ -z "$GF_EXTRA" ] \
   || { printf '%s\n' "$GF_EXTRA"; fail "the record store holds records for a type or a count stock's own instance list does not name"; }
-GF_TD_N="$(awk '$1=="aws_ecs_task_definition"{print $2}' <<< "$GF_EXP_TYPES")"
-[ -n "$GF_TD_N" ] || fail "stock's instance list names no aws_ecs_task_definition - this estate's composition changed and F3's known gap needs re-measuring"
-[ "$GF_UNRECORDED" = "aws_ecs_task_definition $GF_TD_N" ] \
-  || { printf 'unrecorded types:\n%s\n' "$GF_UNRECORDED"; fail "the set of instances with no record is not exactly the ${GF_TD_N} aws_ecs_task_definition instance(s) this estate's known gap names - re-measure before trusting either side"; }
+[ -z "$GF_UNRECORDED" ] \
+  || { printf 'unrecorded types:\n%s\n' "$GF_UNRECORDED"; fail "the record store is missing records for these types after the greenfield apply, and no known gap excuses it any more (#671 closed the last one) - re-measure before trusting either side"; }
 GF_RECORDS="$(gauntlet_record_count "$GF_REC_BASE")"
-[ "$GF_RECORDS" = "$((EXPECTED - GF_TD_N))" ] \
-  || fail "the per-type comparison agreed but the record total is $GF_RECORDS, not $((EXPECTED - GF_TD_N))"
-log "  $GF_RECORDS records persisted, matching stock's instance list type for type in every type but one: aws_ecs_task_definition (${GF_TD_N} instance(s)) gets no record - reported, not endorsed"
+[ "$GF_RECORDS" = "$EXPECTED" ] \
+  || fail "the per-type comparison agreed but the record total is $GF_RECORDS, not $EXPECTED"
+log "  $GF_RECORDS records persisted, matching stock's instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition)"
 
 log "=== F4. greenfield: the next plan proposes nothing ==="
 GF_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GF_RC=$?
@@ -987,7 +995,7 @@ if [ "$GF_SHAPE" != "$COLD_SHAPE" ]; then
   fail "the greenfield cloud does not match stock's cold deploy, object by object"
 fi
 log "  object-by-object match across $GF_SHAPE_N structural facts: IAM role names and every role's inline policies and attachments, customer-managed policy names, instance-profile names and the role each holds, VPC cidr, subnet cidr and AZ, security-group egress rules, ECS cluster, service (name/desired/launch type) and task-definition family with its ACTIVE revision count, the hosted zone and all its records (name/type/ttl/value) - marker tags never read on either side"
-gauntlet_stage greenfield pass "choudoufu applied ${EXPECTED} resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across $GF_SHAPE_N structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted $GF_RECORDS records, matching stock's own instance list type for type except for the ${GF_TD_N} aws_ecs_task_definition instance(s), which get none (reported, not endorsed - the marker IS written on it and nothing here is observably worse for it); the next plan is empty; and with the local record store deleted outright every one of the ${EXPECTED} objects is still found - nothing created, destroyed or replaced, ${UNTAGGABLE} of them untaggable and composing from a stamped parent - with the only movement being ${GF_NOREC_N} residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
+gauntlet_stage greenfield pass "choudoufu applied ${EXPECTED} resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across $GF_SHAPE_N structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted $GF_RECORDS records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the ${EXPECTED} objects is still found - nothing created, destroyed or replaced, ${UNTAGGABLE} of them untaggable and composing from a stamped parent - with the only movement being ${GF_NOREC_N} residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G: day2_count's STOCK ORACLE, in the now-idle GREEN account
