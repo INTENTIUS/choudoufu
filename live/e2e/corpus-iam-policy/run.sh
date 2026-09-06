@@ -171,6 +171,17 @@ set -uo pipefail
 #                inventory; the comparison must fail"). Independent of
 #                BREAK, BREAK_RENAME and BREAK_REMOVE - greenfield runs
 #                before all three, right after STAGE 1's cold deploy.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P): after the world
+#                has moved out of band, assert the saved plan file APPLIES
+#                cleanly - the Break text in tools/gauntlet/stages.go for
+#                plan_approval is literally "Apply the planfile after a
+#                mutation and expect success; the run must refuse", so this
+#                assertion has to fail. Independent of every BREAK above,
+#                and the only one of them under which PART P runs at all -
+#                the others deliberately leave the estate somewhere PART P
+#                does not describe, and it reports no verdict there.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -734,6 +745,161 @@ else
   log ""
   log "STAGE 5 (drift and reconverge): PASS"
   gauntlet_stage drift_reconverge pass "one object tampered ($POLICY1_ARN's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
+  log ""
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #888)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the OTHER
+#          policy's Example tag is changed out of band through the AWS CLI,
+#          the same mutation STAGE 5 above already proves this estate's plan
+#          notices - and the apply must refuse: exit 3, the named summary,
+#          the unapproved row printed by address AND by the live ARN it was
+#          computed against, and the reviewed change still not landed when
+#          the live policy is read back through the CLI.
+#   P4     nothing has moved (the tag is put back first) and the SAME file
+#          must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is on
+# module.iam_policy's policy, the out-of-band move is on
+# module.iam_policy_from_data_source's - so the refusal has an EXTRA row to
+# name rather than a values-only disagreement about the same row.
+#
+# Runs only on a real run. Under any of this script's other BREAK controls
+# the estate is deliberately left somewhere this part does not describe, so
+# it reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_RENAME:-}" ] && [ -z "${BREAK_REMOVE:-}" ] \
+   && [ -z "${BREAK_COUNT:-}" ] && [ -z "${BREAK_GREEN:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="$WANT_POLICY2_ADDR_BRACKET"
+  P_MOVED_ADDR="module.iam_policy_from_data_source.aws_iam_policy.policy[0]"
+
+  log "=== P1. the change under review: one argument, on one of the two policies ==="
+  # The example passes the same local.tags map to both module calls. The
+  # FIRST of the two occurrences is module "iam_policy"'s (the name_prefix
+  # policy, $POLICY2_ARN) - module "iam_policy_from_data_source" keeps its
+  # own untouched, so the approval covers exactly one live object and the
+  # out-of-band move below lands on the other.
+  [ "$(grep -c '^  tags = local\.tags$' "$EST/main.tf")" = "2" ] \
+    || fail "main.tf no longer carries exactly two \"tags = local.tags\" module arguments - the corpus pin has moved"
+  perl -0pi -e 's/^  tags = local\.tags$/  tags = merge(local.tags, { Reviewed = "yes" })/m' "$EST/main.tf"
+  [ "$(grep -c 'Reviewed = "yes"' "$EST/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one merge(local.tags, ...) argument"
+  [ "$(grep -c '^  tags = local\.tags$' "$EST/main.tf")" = "1" ] \
+    || fail "the reviewed edit changed more than one of the two \"tags = local.tags\" module arguments"
+  log "  edited one argument: module \"iam_policy\"'s tags now merge in Reviewed = \"yes\""
+
+  P_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$EST/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl iam tag-policy --policy-arn "$POLICY1_ARN" --tags Key=Example,Value=moved-after-approval
+  P_MOVED_VALUE="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $POLICY1_ARN's Example tag reads \"$P_MOVED_VALUE\""
+  log "  $POLICY1_ARN's Example tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved policy, so asserting over the
+  # whole output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$POLICY1_ARN" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $POLICY1_ARN, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: $POLICY2_ARN carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl iam tag-policy --policy-arn "$POLICY1_ARN" --tags Key=Example,Value=ex-iam-policy
+  P_RESTORED="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
+  [ "$P_RESTORED" = "ex-iam-policy" ] || fail "the out-of-band move was not undone: $POLICY1_ARN's Example tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: $POLICY2_ARN carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $POLICY2_ARN now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$EST/approved.tfplan"
+  perl -0pi -e 's/^  tags = merge\(local\.tags, \{ Reviewed = "yes" \}\)$/  tags = local.tags/m' "$EST/main.tf"
+  [ "$(grep -c '^  tags = local\.tags$' "$EST/main.tf")" = "2" ] \
+    || fail "reverting the reviewed edit did not restore both \"tags = local.tags\" arguments"
+  P_BACK_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed tag is still on $POLICY2_ARN after the revert: \"$P_GONE\""
+  P_FINAL_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (module.iam_policy's tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($POLICY1_ARN's Example tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $POLICY1_ARN it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $POLICY2_ARN still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $POLICY2_ARN read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
   log ""
 fi
 
