@@ -18,7 +18,7 @@ import (
 // This file is issue #164's guard. CI's test step used to run
 // ./internal/live/... ./tools/survey-gen/, which left eight packages and 36
 // test files outside it - including tools/row-gen, whose
-// TestConvergenceArtifactMatchesCommitted and
+// TestMismatchLedgerMatchesCommitted and
 // TestNoRatifiedRowNamesAnUnknownArgument are the tests that catch a hand
 // edit to the generated identity table, and ./live itself, which holds the
 // provider-pin drift check next door in pins_drift_test.go.
