@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -636,6 +637,12 @@ func staticEvalExpr(ctx context.Context, module addrs.Module, subject, label str
 // reference exactly as a data source's own argument can, and that refusal
 // must reach [Analysis.ManagedRefusals] the same way.
 func staticEvalExprRefused(ctx context.Context, module addrs.Module, subject, label string, expr hcl.Expression, eval *configs.StaticEvaluator) (val cty.Value, detail string, refused *hcl.Diagnostic, ok bool) {
+	// Kept alongside [staticeval.Evaluate]'s own recover rather than
+	// replaced by it: that one covers the evaluation, this one covers the
+	// rest of this function (expr.Range() below, firstHCLError and
+	// hclDiags.Error() further down), which is the envelope this function
+	// has always promised its callers. Both render the same sentence, from
+	// the same label.
 	defer func() {
 		if rec := recover(); rec != nil {
 			val, detail, refused, ok = cty.NilVal, fmt.Sprintf("%s could not be evaluated: %v.", label, rec), nil, false
@@ -646,7 +653,10 @@ func staticEvalExprRefused(ctx context.Context, module addrs.Module, subject, la
 		Subject:   fmt.Sprintf("%s's %s", subject, label),
 		DeclRange: expr.Range(),
 	}
-	v, hclDiags := eval.Evaluate(ctx, expr, ident)
+	v, hclDiags, recovered := staticeval.Evaluate(ctx, eval, expr, ident)
+	if recovered != nil {
+		return cty.NilVal, fmt.Sprintf("%s could not be evaluated: %v.", label, recovered), nil, false
+	}
 	if hclDiags.HasErrors() {
 		_, _, raw := firstHCLError(hclDiags)
 		return cty.NilVal, fmt.Sprintf("%s is not statically evaluable: %s.", label, hclDiags.Error()), raw, false
