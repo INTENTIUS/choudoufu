@@ -2727,3 +2727,249 @@ func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// GitHub issue #894: the document on a configuration that names its estate
+// ---------------------------------------------------------------------------
+
+// TestLivePlan_jsonDocumentReachesADeclaredEstate is GitHub issue #894's
+// first half. Before it, GitHub issue #788's document was reachable only
+// through "live-plan -estate=NAME -json", and that flag is refused on a
+// configuration that names its own estate - so the shape the docs recommend
+// (the estate declared in the configuration, the estate.chdf.hcl sidecar
+// being the leading form) was the one shape the document could not be
+// produced for. Both commands and both declaration shapes are driven here,
+// because #894 was filed by a consumer (INTENTIUS/chant's terraform
+// lexicon, chant #2104) that has to pick one and get the same answer.
+//
+// The claim is not just "some JSON came out". It is that the document is
+// the SAME document the -estate form produces over the same cloud, compared
+// as bytes: chant's reader is written against #788's document as recorded,
+// and a route that produced a differently-shaped one would satisfy the
+// letter of the issue and break the reader anyway.
+func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
+	// The reference: the one route that already worked. The live-plan and
+	// live-block fixtures are identical apart from the live block (see
+	// testdata/live-block/main.tf's own comment), so the same cloud serves
+	// both and the two documents have to agree.
+	reference := func() string {
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-plan"), td)
+		t.Chdir(td)
+
+		c, done := newLivePlanCommand(t, liveBlockCloud())
+		code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-json"})
+		out := done(t)
+		if code != 0 {
+			t.Fatalf("the -estate form exited %d, want 0 - this test's reference is broken\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+		}
+		return out.Stdout()
+	}()
+	if !strings.HasPrefix(reference, "{") {
+		t.Fatalf("the -estate form's stdout does not start with the document:\n%s", reference)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		fixture string
+		// run is the command under test, taking the same arguments every
+		// route gets and returning its exit code.
+		run func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput)
+		// sameAsReference is false for the sidecar fixture, which declares
+		// only the bucket and so cannot produce the same document as a
+		// fixture declaring bucket and VPC.
+		sameAsReference bool
+	}{
+		{
+			name:    "live-plan over a live block",
+			fixture: "live-block",
+			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+				view, done := testView(t)
+				c := &LivePlanCommand{Meta: liveBlockMeta(view, cloud)}
+				return c.Run([]string{"-no-color", "-json"}), done(t)
+			},
+			sameAsReference: true,
+		},
+		{
+			name:    "plan over a live block",
+			fixture: "live-block",
+			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+				c, done := newLiveBlockPlanCommand(t, cloud)
+				return c.Run([]string{"-no-color", "-json"}), done(t)
+			},
+			sameAsReference: true,
+		},
+		{
+			name:    "live-plan over an estate.chdf.hcl sidecar",
+			fixture: "live-plan-sidecar",
+			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+				view, done := testView(t)
+				c := &LivePlanCommand{Meta: liveBlockMeta(view, cloud)}
+				return c.Run([]string{"-no-color", "-json"}), done(t)
+			},
+		},
+		{
+			name:    "plan over an estate.chdf.hcl sidecar",
+			fixture: "live-plan-sidecar",
+			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+				c, done := newLiveBlockPlanCommand(t, cloud)
+				return c.Run([]string{"-no-color", "-json"}), done(t)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			td := t.TempDir()
+			testCopyDir(t, testFixturePath(tc.fixture), td)
+			t.Chdir(td)
+
+			cloud := liveBlockCloud()
+			code, out := tc.run(t, cloud)
+			if code != 0 {
+				t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+			}
+
+			// What a consumer does: read stdout, parse it, use it. No
+			// skipping to the first bare "{".
+			stdout := out.Stdout()
+			var doc views.LivePlanDocument
+			if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+				t.Fatalf("stdout does not parse as one JSON document: %s\nstdout:\n%s", err, stdout)
+			}
+			if doc.Estate != "stateless-unit" {
+				t.Errorf("document estate = %q, want %q - the estate name did not come from the configuration", doc.Estate, "stateless-unit")
+			}
+			if doc.UpstreamVersion == "" {
+				t.Error("document's upstream_version is empty")
+			}
+			if len(doc.Bound) == 0 {
+				t.Errorf("bound is empty, so this route read nothing from the live system: %#v", doc)
+			}
+			if strings.Contains(out.Stderr(), "\"estate\"") {
+				t.Errorf("the document, or part of it, was written to stderr:\n%s", out.Stderr())
+			}
+
+			if tc.sameAsReference && stdout != reference {
+				t.Errorf("this route's document differs from the -estate form's over the same cloud.\n--- this route ---\n%s\n--- -estate ---\n%s", stdout, reference)
+			}
+		})
+	}
+}
+
+// TestLivePlan_jsonOnADeclaredEstateKeepsItsRefusals is the other side of
+// GitHub issue #894: the route it opens does not become a hole in the
+// refusals, and the one refusal the issue is NOT about stays exactly where
+// it was.
+//
+// -estate beside a live block is still the ambiguity the block exists to
+// remove, whatever the output format. -out and -destroy are refused because
+// LivePlanCommand.livePlan writes no plan file and calls the planner with
+// plans.NormalMode hardcoded, so either flag would be accepted and then
+// ignored - and each has to say so in wording that is true of a
+// configuration WITH a live block, which is the drift GitHub issue #619 was
+// about.
+func TestLivePlan_jsonOnADeclaredEstateKeepsItsRefusals(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+		// absent is wording that must NOT appear: the -estate surface's own
+		// -out refusal asserts "this configuration has no live block",
+		// which is exactly false here.
+		absent string
+	}{
+		{
+			name: "-estate beside the live block",
+			args: []string{"-no-color", "-json", "-estate=other-estate"},
+			want: "Estate named by both the live block and -estate",
+		},
+		{
+			name:   "-out",
+			args:   []string{"-no-color", "-json", "-out=tfplan"},
+			want:   "-out and -json cannot be combined",
+			absent: "this configuration has no live block",
+		},
+		{
+			name:   "-destroy",
+			args:   []string{"-no-color", "-json", "-destroy"},
+			want:   "-destroy and -json cannot be combined",
+			absent: "live-plan's -estate form",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			td := t.TempDir()
+			testCopyDir(t, testFixturePath("live-block"), td)
+			t.Chdir(td)
+
+			view, done := testView(t)
+			c := &LivePlanCommand{Meta: liveBlockMeta(view, liveBlockCloud())}
+			code := c.Run(tc.args)
+			out := done(t)
+			if code != 1 {
+				t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+			}
+			if !strings.Contains(out.Stderr(), tc.want) {
+				t.Errorf("stderr does not carry %q:\n%s", tc.want, out.Stderr())
+			}
+			if tc.absent != "" && strings.Contains(unwrapped(out.Stderr()), tc.absent) {
+				t.Errorf("the refusal still says %q, which is false of a configuration with a live block:\n%s", tc.absent, out.Stderr())
+			}
+			if got := out.Stdout(); got != "" {
+				t.Errorf("a refused -json run wrote to stdout, which a consumer parses:\n%s", got)
+			}
+		})
+	}
+}
+
+// TestLivePlan_jsonStdoutCarriesOnlyTheDocument is GitHub issue #894's
+// second half at the command level: the plan graph's own [views.UiHook]
+// lines land on stderr, and stdout holds exactly one JSON document.
+//
+// Before the fix those lines went through streams.Stdout (hook_ui.go's
+// println, which the -json run's forced-Human plan view still installed),
+// so against a live emulator a configuration with one data source printed
+//
+//	data.aws_caller_identity.current: Reading...
+//
+// ahead of the document and "choudoufu live-plan -json | jq ." died with
+// "Invalid numeric literal at line 1, column 33". The mechanism is pinned
+// in views (TestStdoutOnStderr_hooksAndWarningsLeaveStdoutAlone); this
+// pins that the command actually uses it.
+//
+// The cloud is EMPTY on purpose. Every other -json test here runs against
+// an estate that is already applied, where the plan binds everything from
+// the projection and the hooks never fire - so it could not tell a fixed
+// run from a broken one. An empty cloud makes the plan attempt the import
+// and the hooks speak, which is what the stderr assertion below checks
+// before the stdout assertion is allowed to mean anything.
+func TestLivePlan_jsonStdoutCarriesOnlyTheDocument(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	c, done := newLiveBlockPlanCommand(t, newStatelessTestCloud())
+	code := c.Run([]string{"-no-color", "-json"})
+	out := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+	}
+
+	const hookLine = "aws_s3_bucket.data: Preparing import..."
+	switch {
+	case strings.Contains(out.Stdout(), hookLine):
+		t.Fatalf("the plan graph's hook line %q went to stdout, ahead of the document a consumer parses - GitHub issue #894's own defect:\nstdout:\n%s", hookLine, out.Stdout())
+	case !strings.Contains(out.Stderr(), hookLine):
+		t.Fatalf("the plan graph's own hooks printed %q nowhere, so this test cannot tell a fixed run from a broken one:\nstdout:\n%s\nstderr:\n%s", hookLine, out.Stdout(), out.Stderr())
+	}
+
+	stdout := out.Stdout()
+	var doc views.LivePlanDocument
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("stdout does not parse as one JSON document - something printed beside it: %s\nstdout:\n%s", err, stdout)
+	}
+	if doc.Estate != "stateless-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	}
+	if len(doc.Omissions) != 2 {
+		t.Errorf("omissions has %d entries, want 2 (nothing exists in this cloud): %#v", len(doc.Omissions), doc.Omissions)
+	}
+}

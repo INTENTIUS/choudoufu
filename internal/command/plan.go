@@ -27,6 +27,13 @@ type PlanCommand struct {
 func (c *PlanCommand) Run(rawArgs []string) int {
 	ctx := c.CommandContext()
 
+	// Kept for the delegation below, which hands live-plan the arguments
+	// exactly as they arrived so that it can parse them itself. An
+	// independent copy for the reason LivePlanCommand.Run's own
+	// originalArgs documents: arguments.ParseView compacts recognized
+	// flags out of its argument slice IN PLACE.
+	originalArgs := append([]string(nil), rawArgs...)
+
 	// Parse and apply global view arguments
 	common, rawArgs := arguments.ParseView(rawArgs)
 	c.View.Configure(common)
@@ -37,6 +44,47 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 
 	c.View.SetShowSensitive(args.ShowSensitive)
 	c.View.SetVerbose(args.Verbose)
+
+	// GitHub issue #894's alias, pointing the opposite way from
+	// LivePlanCommand.Run's: a configuration that names its own estate,
+	// asked for -json, is asking for GitHub issue #788's document, and
+	// LivePlanCommand.livePlan is the only pipeline in the fork that
+	// builds one. Nothing below this point can - statelessBegin and
+	// backend_local.go's StatelessRun have no hook that renders it, which
+	// is what statelessRejections' "Machine-readable output is not
+	// available under live resource markers yet" has always been saying -
+	// so the choice is to delegate or to keep refusing, and #894 is the
+	// report of a consumer who could not get the document for the
+	// configuration shape the docs recommend.
+	//
+	// It runs BEFORE views.NewPlan below and it has to: with ViewType
+	// ViewJSON that constructor builds a [views.PlanJSON], and building
+	// one prints an NDJSON "version" message the instant it exists
+	// (views.NewJSONView). Deciding afterwards would leave that line on
+	// stdout ahead of a document this command had already decided not to
+	// print - the exact stream mixing #894's second half is about.
+	//
+	// No recursion: LivePlanCommand.Run delegates back here only when
+	// -json was NOT requested.
+	//
+	// -json-into is excluded rather than delegated. It asks for the
+	// general JSON UI-message stream written to a second file, which is a
+	// different feature with no representation on either pipeline, and it
+	// keeps its refusal from the one shared list below.
+	if !diags.HasErrors() && args.ViewOptions.ViewType == arguments.ViewJSON && args.ViewOptions.JSONInto == nil {
+		// statelessSettings resolves the root module call, which is cached
+		// and which needs the -var values; asking before they are set
+		// would answer the rest of the run's questions with the wrong
+		// variables. Same ordering, and the same tolerated load errors, as
+		// LivePlanCommand.Run's own alias. Both fields are assigned again
+		// below with the identical values.
+		c.Meta.input = args.ViewOptions.InputEnabled
+		c.Meta.variableArgs = args.Vars.All()
+		if settings, _ := c.statelessSettings(ctx, true); settings != nil {
+			live := &LivePlanCommand{Meta: c.Meta}
+			return live.Run(originalArgs)
+		}
+	}
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view

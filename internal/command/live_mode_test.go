@@ -775,6 +775,14 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 // positive case. It stays refused on live-plan's "-estate" form, where plain
 // apply in the same directory is a state-backed command - see
 // TestLivePlan_rejectsStateOptions.
+//
+// "-json" left it with GitHub issue #894: "choudoufu plan -json" over a
+// configuration that names its own estate is handed to live-plan's own
+// pipeline before this command builds a view, and prints GitHub issue
+// #788's document. TestLivePlan_jsonDocumentReachesADeclaredEstate
+// (live_plan_test.go) is the positive case. It stays refused for an APPLY,
+// which has no document, and the sibling table above still covers that.
+// "-json-into" is refused on both, and stays here.
 func TestStatelessMode_planRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -783,7 +791,7 @@ func TestStatelessMode_planRejections(t *testing.T) {
 	}{
 		{"state", []string{"-state=other.tfstate"}, "State file options are not available under live resource markers"},
 		{"refresh-only", []string{"-refresh-only"}, "Only the normal planning mode is available under live resource markers"},
-		{"json", []string{"-json"}, "Machine-readable output is not available under live resource markers yet"},
+		{"json-into", []string{"-json-into=ui.json"}, "Machine-readable output is not available under live resource markers yet"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			td := t.TempDir()

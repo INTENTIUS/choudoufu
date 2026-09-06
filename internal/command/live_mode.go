@@ -417,13 +417,30 @@ const (
 	// commands its operators already run.
 	surfaceLiveBlock statelessSurface = iota
 
-	// surfaceEstateFlag is "choudoufu live-plan -estate=name" over a
-	// configuration with no live block - the preview form, which can plan an
-	// estate but cannot apply one, since plain apply in such a directory is
-	// an ordinary state-backed apply. live-plan over a configuration that
-	// DOES carry a live block is not this surface: it delegates to
-	// PlanCommand and gets surfaceLiveBlock's answers, because there it is
-	// that command (see LivePlanCommand.Run's alias).
+	// surfaceEstateFlag is LivePlanCommand.livePlan's own pipeline: the
+	// planner called directly, with no operation, no backend and no plan
+	// file. It is named for the shape that has always reached it -
+	// "choudoufu live-plan -estate=name" over a configuration with no live
+	// block, the preview form, which can plan an estate but cannot apply
+	// one, since plain apply in such a directory is an ordinary
+	// state-backed apply - and its -out clause below is still written for
+	// that shape.
+	//
+	// GitHub issue #894 gave the same pipeline a second caller: "-json"
+	// over a configuration that DOES name its own estate, where the
+	// estate name comes from the live block or the estate.chdf.hcl
+	// sidecar instead of the flag. The surface is the same because what
+	// the pipeline can honour is the same - the estate name's source
+	// changes nothing about it - and LivePlanCommand.Run answers -out and
+	// -destroy on that route before this function ever sees them, so
+	// neither of the two clauses below that explain themselves by "this
+	// configuration has no live block" can be reached with a live block
+	// in hand. Everything else here is worded without reference to either
+	// shape and applies unchanged.
+	//
+	// A live-block run that is NOT asking for the document still delegates
+	// to PlanCommand and gets surfaceLiveBlock's answers, because there
+	// live-plan simply is that command (see LivePlanCommand.Run's alias).
 	surfaceEstateFlag
 )
 
@@ -461,26 +478,33 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 	}
 
 	switch {
-	// GitHub issue #788 gave live-plan's own "-estate" form a JSON
+	// GitHub issue #788 gave LivePlanCommand.livePlan's pipeline a JSON
 	// document (bound, omissions, unowned - [views.LivePlanDocument]),
-	// built and printed by LivePlanCommand.livePlan itself once this
-	// function lets -json through. surfaceLiveBlock is deliberately NOT
-	// included: plain "choudoufu plan"/"apply" under a live block run
-	// through statelessBegin/backend_local.go's StatelessRun seam
-	// (live_mode.go), which has no equivalent hook yet to build or print
-	// that document, and #788's Ask is this command's own "-estate" form
-	// - widening the exception to the other surface here would be
-	// promising something nothing renders. -json-into stays rejected on
-	// both surfaces below: it asks for the general JSON UI-message stream
-	// written to a second file, which is a different feature (and, per
-	// [arguments.ViewOptions.Parse], mutually exclusive with -json
+	// built and printed by that function itself once this function lets
+	// -json through. surfaceLiveBlock is still deliberately NOT included,
+	// and for the reason it always was rather than a stale one: plain
+	// "choudoufu plan"/"apply" under a live block run through
+	// statelessBegin/backend_local.go's StatelessRun seam, which has no
+	// hook that builds or prints that document, so accepting -json here
+	// would promise something nothing renders.
+	//
+	// What GitHub issue #894 changed is which runs arrive here at all.
+	// "choudoufu plan -json" and "choudoufu live-plan -json" over a
+	// configuration that names its own estate are now handed to livePlan's
+	// pipeline before either command builds a view (PlanCommand.Run's
+	// alias, and LivePlanCommand.Run's), so they reach this function as
+	// surfaceEstateFlag and are accepted by the case below. What still
+	// reaches the reject is what genuinely has nowhere to be rendered: an
+	// apply, and -json-into on either surface - the general JSON
+	// UI-message stream written to a second file, a different feature and,
+	// per [arguments.ViewOptions.Parse], mutually exclusive with -json
 	// itself, so a run can never satisfy this case and the next one at
-	// once).
+	// once.
 	case surface == surfaceEstateFlag && viewOpts.ViewType == arguments.ViewJSON && viewOpts.JSONInto == nil:
 		// Nothing to reject.
 	case viewOpts.ViewType != arguments.ViewHuman || viewOpts.JSONInto != nil:
 		reject("Machine-readable output is not available under live resource markers yet",
-			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet under a live block. Rerun without -json or -json-into. live-plan's own \"-estate\" form is the one exception: \"choudoufu live-plan -estate=... -json\" is accepted, and prints GitHub issue #788's own document instead of the plan; -json-into still has no representation there either.")
+			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and an apply has no JSON representation of them. Rerun without -json or -json-into. Planning is the one exception: \"choudoufu plan -json\" and \"choudoufu live-plan -json\" print GitHub issue #788's own document instead of the plan, both on a configuration that names its own estate in a live block or an estate.chdf.hcl sidecar (GitHub issue #894) and on \"choudoufu live-plan -estate=... -json\". -json-into has no representation on either pipeline.")
 	}
 	if planOut != "" && surface == surfaceEstateFlag {
 		// The one surface -out is still refused on. A configuration with a

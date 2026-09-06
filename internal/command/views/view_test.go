@@ -13,7 +13,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -493,4 +498,100 @@ func TestViewColorize(t *testing.T) {
 			t.Fatal("should be disabled")
 		}
 	})
+}
+
+// TestStdoutOnStderr_hooksAndWarningsLeaveStdoutAlone is GitHub issue
+// #894's second half at the level the defect actually lives: not in any
+// hook, but in the view the hooks were built over.
+//
+// "choudoufu live-plan -json" prints one [LivePlanDocument] to stdout, but
+// the plan it runs still drives [UiHook], and that hook writes through
+// streams.Stdout unconditionally (hook_ui.go's println). Against a live
+// emulator a configuration with one data source therefore put
+//
+//	data.aws_caller_identity.current: Reading...
+//
+// on stdout ahead of the document, and "choudoufu live-plan -json | jq ."
+// died with "Invalid numeric literal at line 1, column 33". Warnings had
+// the same problem by [View.Diagnostics]' own severity split.
+//
+// Both are checked here against the ONE thing the command changes -
+// [View.StdoutOnStderr] - rather than against a hook and a diagnostic
+// separately, because the next renderer added to that view has to inherit
+// the fix without being told about it.
+func TestStdoutOnStderr_hooksAndWarningsLeaveStdoutAlone(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	redirected := NewView(streams).StdoutOnStderr()
+
+	// A plan view's hooks are what the plan graph calls while it walks.
+	hooks := NewPlan(arguments.ViewOptions{ViewType: arguments.ViewHuman}, redirected).Hooks()
+	if len(hooks) != 1 {
+		t.Fatalf("a human plan view has %d hooks, want 1 - this test drives the wrong thing", len(hooks))
+	}
+	if _, err := hooks[0].PreRefresh(
+		addrs.RootModuleInstance.ResourceInstance(addrs.DataResourceMode, "aws_caller_identity", "current", addrs.NoKey),
+		states.CurrentGen, cty.NullVal(cty.EmptyObject),
+	); err != nil {
+		t.Fatalf("PreRefresh: %s", err)
+	}
+
+	// A warning is the other half: Diagnostics splits warnings onto stdout
+	// and errors onto stderr, and on this view both halves are stderr.
+	redirected.Diagnostics(tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(
+		tfdiags.Warning, "State file present but not consulted", "it was left untouched",
+	)))
+
+	out := done(t)
+	if got := out.Stdout(); got != "" {
+		t.Errorf("a redirected view wrote to stdout, which a -json run keeps for its document:\n%s", got)
+	}
+	stderr := out.Stderr()
+	for _, want := range []string{"data.aws_caller_identity.current: Refreshing state...", "State file present but not consulted"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr does not carry %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// TestStdoutOnStderr_forwardsTheLazyCallbacks pins the part of
+// [View.StdoutOnStderr] that a plain struct copy got wrong.
+//
+// Meta.configLoader installs configSources, isRemoteModuleSource and
+// moduleSourceAddrs on the view LAZILY - the first time a command reads the
+// configuration - which for live-plan is after the copy has been made. A
+// snapshotting copy therefore kept the no-op [NewView] installs, and every
+// source-ranged diagnostic rendered through it printed "(source code not
+// available)" where its snippet belongs. Caught on live-plan's own "Estate
+// named by both the live block and -estate" refusal (GitHub issue #894).
+func TestStdoutOnStderr_forwardsTheLazyCallbacks(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	original := NewView(streams)
+	redirected := original.StdoutOnStderr()
+
+	// Installed AFTER the copy exists, exactly as Meta.configLoader does.
+	const src = "terraform {\n  live {\n    estate = \"dev\"\n  }\n}\n"
+	f, hclDiags := hclsyntax.ParseConfig([]byte(src), "main.tf", hcl.InitialPos)
+	if hclDiags.HasErrors() {
+		t.Fatalf("parsing the fixture source: %s", hclDiags)
+	}
+	original.SetConfigSources(func() map[string]*hcl.File { return map[string]*hcl.File{"main.tf": f} })
+
+	redirected.Diagnostics(tfdiags.Diagnostics(nil).Append(&hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "Estate named by both the live block and -estate",
+		Detail:   "Remove the flag.",
+		Subject: &hcl.Range{
+			Filename: "main.tf",
+			Start:    hcl.Pos{Line: 2, Column: 3, Byte: 13},
+			End:      hcl.Pos{Line: 2, Column: 7, Byte: 17},
+		},
+	}))
+
+	stderr := done(t).Stderr()
+	if strings.Contains(stderr, "source code not available") {
+		t.Errorf("the copy did not see the config sources installed after it was made:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "live {") {
+		t.Errorf("the diagnostic lost its source snippet:\n%s", stderr)
+	}
 }
