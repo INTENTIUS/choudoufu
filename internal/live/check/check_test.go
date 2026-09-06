@@ -89,7 +89,16 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 	// and the two front ends' own homes. Adding to this list is the way to
 	// say "not a stage"; the point is that it has to be said.
 	notAStage := map[string]bool{
-		"acceptance":   true, // issue #108's cohort acceptance tier: a gated test harness, not a pass
+		"acceptance": true, // issue #108's cohort acceptance tier: a gated test harness, not a pass
+		// GitHub issue #878's approval gate: given the change set a human
+		// approved and the change set this run's fresh live plan produced,
+		// which rows disagree. It runs on the live path but it is not a
+		// pass a configuration has to survive - it exists only when an
+		// operator hands "choudoufu apply" a plan file - and it refuses
+		// nothing itself: it renders rows, and internal/command words the
+		// refusal beside the other command-invocation guards, exactly as
+		// "markerstrip" below does.
+		"approval":     true,
 		"check":        true, // this package: the instrument itself
 		"cloudcontrol": true, // a client for one AWS API
 		"docsref":      true, // parses the doc references refusals carry

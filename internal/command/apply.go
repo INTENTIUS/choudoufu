@@ -102,14 +102,41 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		view.Diagnostics(diags)
 		return 1
 	}
+	// GitHub issue #878's approval gate. Under a live block a saved plan
+	// file is an APPROVAL, not an instruction: it is read here for the
+	// change set a human said yes to, and then this run plans the live
+	// system for itself. Everything below therefore treats the operation as
+	// a plan file was never given - planFile stays nil, so the local backend
+	// takes its ordinary path through discovery, projection and stamping -
+	// and the comparison happens in a plan guard once the fresh plan exists.
+	// See internal/command/live_approval.go.
+	var approved *approvedPlan
+	approvalRefused := false
 	if statelessCfg != nil && args.PlanPath != "" {
-		diags = diags.Append(statelessRejectPlanFile(args.PlanPath))
-		view.Diagnostics(diags)
-		return 1
+		var approvalDiags tfdiags.Diagnostics
+		approved, approvalDiags = c.readApprovedPlan(ctx, args.PlanPath, statelessCfg, enc)
+		diags = diags.Append(approvalDiags)
+		if approvalDiags.HasErrors() {
+			view.Diagnostics(diags)
+			// A file for another estate is the same kind of answer as a
+			// mismatched change set - "this artifact does not cover this
+			// run" - so it earns the same exit status. A file that will not
+			// parse is an ordinary failure and keeps 1.
+			if diagsHaveSummary(approvalDiags, summaryApprovalWrongEstate) {
+				return ExitApprovalRefused
+			}
+			return 1
+		}
 	}
 
-	// Attempt to load the plan file, if specified
-	planFile, diags := c.LoadPlanFile(args.PlanPath, enc)
+	// Attempt to load the plan file, if specified. A live-markers run has
+	// already read everything it wants from the file and must not hand it to
+	// the operation, so this stays nil there.
+	planPath := args.PlanPath
+	if statelessCfg != nil {
+		planPath = ""
+	}
+	planFile, diags := c.LoadPlanFile(planPath, enc)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
@@ -142,8 +169,18 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		// question. arguments.Apply does not carry it and this passes false
 		// rather than plumbing one.
 		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
+			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", "")))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
+		if approved != nil {
+			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)
+			// Stock's "apply <planfile>" does not prompt: the file is the
+			// approval. Matching that is the whole point of admitting the
+			// stock form, and a pipeline that has already gated on the plan
+			// has nobody at a terminal to answer a second question. The
+			// guard above runs before this would matter, so a mismatched
+			// file is refused rather than auto-approved.
+			opReq.AutoApprove = true
+		}
 	} else if !diags.HasErrors() {
 		// GitHub issue #613. A state-backed run is the one that can propose
 		// stripping a migrated estate's ownership markers, because it is the
@@ -170,6 +207,9 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	}
 
 	if op.Result != backend.OperationSuccess {
+		if approvalRefused {
+			return ExitApprovalRefused
+		}
 		return op.Result.ExitStatus()
 	}
 

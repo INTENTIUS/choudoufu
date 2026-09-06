@@ -8,6 +8,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -147,6 +148,27 @@ func TestStatelessRejections_surfacesAgree(t *testing.T) {
 							estateKeys := sortedRejectionSummaries(estate)
 							estateKeys = withoutKey(estateKeys, destroyOnlyOnEstateFlag)
 
+							// Divergence 2 (GitHub issue #878, ruled
+							// 2026-09-05): a configuration with a live block
+							// accepts -out and writes stock's own plan file,
+							// which "choudoufu apply FILE" then re-plans
+							// against and compares. live-plan's -estate form
+							// keeps refusing it, because there plain apply in
+							// the same directory is an ORDINARY state-backed
+							// command: the file it wrote would be applied by
+							// something that has never heard of the estate.
+							// Same shape as divergence 1 - the estate surface
+							// carries the extra entry.
+							_, blockHasOut := block[savedPlanFileSummary]
+							_, estateHasOut := estate[savedPlanFileSummary]
+							if blockHasOut {
+								t.Errorf("%s: the live-block surface refused -out, which GitHub issue #878 admits", name)
+							}
+							if estateHasOut != (planOut != "") {
+								t.Errorf("%s: live-plan's -estate surface refused -out = %v, want %v", name, estateHasOut, planOut != "")
+							}
+							estateKeys = withoutKey(estateKeys, savedPlanFileSummary)
+
 							// Divergence 3 (GitHub issue #788): live-plan's
 							// -estate form accepts -json (ViewType: ViewJSON,
 							// no -json-into) and prints its own document
@@ -177,22 +199,14 @@ func TestStatelessRejections_surfacesAgree(t *testing.T) {
 									name, blockKeys, estateKeys)
 							}
 
-							// Divergence 2: -out is worded differently, and
-							// only -out. Every shared refusal must render
+							// Every shared refusal must render
 							// byte-identically on both surfaces.
 							for _, summary := range blockKeys {
-								same := block[summary] == estate[summary]
-								wantSame := !(summary == savedPlanFileSummary && planOut != "")
-								if same == wantSame {
+								if block[summary] == estate[summary] {
 									continue
 								}
-								if wantSame {
-									t.Errorf("%s: %q is worded differently on the two surfaces.\nlive block:\n%s\n-estate:\n%s",
-										name, summary, block[summary], estate[summary])
-								} else {
-									t.Errorf("%s: %q lost its surface-specific guidance - both surfaces now render:\n%s",
-										name, summary, block[summary])
-								}
+								t.Errorf("%s: %q is worded differently on the two surfaces.\nlive block:\n%s\n-estate:\n%s",
+									name, summary, block[summary], estate[summary])
 							}
 						}
 					}
@@ -215,10 +229,12 @@ func withoutKey(keys []string, drop string) []string {
 	return out
 }
 
-// TestStatelessRejections_divergencesSayWhy pins the CONTENT of the two
+// TestStatelessRejections_divergencesSayWhy pins the CONTENT of the three
 // divergences above, so that "the surfaces differ here" cannot decay into
 // differing for a reason nobody can read. The test above proves there are
-// exactly two; this one proves each still explains itself.
+// exactly three; this one proves each still explains itself, and that the
+// one thing GitHub issue #878 removed outright - the plan-file refusal - is
+// gone from both surfaces rather than moved.
 func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 	human := arguments.ViewOptions{ViewType: arguments.ViewHuman}
 
@@ -242,15 +258,38 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 		}
 	})
 
-	t.Run("-out guidance is on the surface it is true of", func(t *testing.T) {
-		const guidance = "this configuration has no live block"
+	t.Run("-out is refused only where plain apply is state-backed", func(t *testing.T) {
 		estate := unwrapped(renderRejections(surfaceEstateFlag, nil, nil, human, "tfplan", "", "")[savedPlanFileSummary])
-		block := unwrapped(renderRejections(surfaceLiveBlock, nil, nil, human, "tfplan", "", "")[savedPlanFileSummary])
-		if !strings.Contains(estate, guidance) {
-			t.Errorf("live-plan's -out refusal lost the warning that plain plan and apply here are state-backed:\n%s", estate)
+		if estate == "" {
+			t.Fatalf("live-plan's -estate surface stopped refusing -out; GitHub issue #878 admits it only under a live block")
 		}
-		if strings.Contains(block, guidance) {
-			t.Errorf("the live-block surface's -out refusal asserts %q over a configuration that has one:\n%s", guidance, block)
+		// The refusal survives only because plain plan and apply in a
+		// directory with no live block are state-backed commands. It has to
+		// say that, and it has to name what a live block gets instead, or a
+		// reader hitting it reads a product limitation that is not there.
+		for _, want := range []string{
+			"this configuration has no live block",
+			"Under a live block",
+			"GitHub issue #878",
+		} {
+			if !strings.Contains(estate, want) {
+				t.Errorf("live-plan's -out refusal no longer says %q:\n%s", want, estate)
+			}
+		}
+		if _, refused := renderRejections(surfaceLiveBlock, nil, nil, human, "tfplan", "", "")[savedPlanFileSummary]; refused {
+			t.Errorf("the live-block surface refused -out, which GitHub issue #878 admits")
+		}
+	})
+
+	t.Run("a plan file is refused on neither surface", func(t *testing.T) {
+		for _, surface := range []struct {
+			name string
+			s    statelessSurface
+		}{{"live block", surfaceLiveBlock}, {"-estate", surfaceEstateFlag}} {
+			got := renderRejections(surface.s, nil, nil, human, "", "", "saved.tfplan")
+			if len(got) != 0 {
+				t.Errorf("the %s surface still refuses something for a plan file: %v", surface.name, sortedRejectionSummaries(got))
+			}
 		}
 	})
 
@@ -330,7 +369,15 @@ func TestStatelessMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
 		}
 	})
 
-	t.Run("-out does not claim the configuration has no live block", func(t *testing.T) {
+	// The original form of this case asserted that live-plan's -out refusal
+	// did not claim the configuration has no live block, over one that does.
+	// GitHub issue #878 removed the refusal from that surface entirely, so
+	// the defect #619 was about is now visible as its opposite: the alias
+	// must WRITE the file, the way "choudoufu plan -out" in the same
+	// directory does. A refusal reappearing here would be live-plan's own
+	// surface leaking back in front of the alias, which is exactly what
+	// #619 fixed.
+	t.Run("-out writes the file the live-block surface writes", func(t *testing.T) {
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-block"), td)
 		t.Chdir(td)
@@ -339,15 +386,15 @@ func TestStatelessMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
 		c := &LivePlanCommand{Meta: liveBlockMeta(view, liveBlockCloud())}
 		code := c.Run([]string{"-no-color", "-out=tfplan"})
 		out := done(t)
-		if code != 1 {
-			t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
 		}
 		combined := unwrapped(out.Stderr() + "\n" + out.Stdout())
-		if !strings.Contains(combined, savedPlanFileSummary) {
-			t.Fatalf("-out was not refused at all:\n%s", combined)
+		if strings.Contains(combined, savedPlanFileSummary) {
+			t.Fatalf("the alias refused -out, which the command it delegates to accepts:\n%s", combined)
 		}
-		if strings.Contains(combined, "this configuration has no live block") {
-			t.Errorf("the refusal asserts the configuration has no live block, over one that does:\n%s", combined)
+		if _, err := os.Stat(filepath.Join(td, "tfplan")); err != nil {
+			t.Errorf("no plan file was written: %s\nstdout:\n%s", err, out.Stdout())
 		}
 	})
 }

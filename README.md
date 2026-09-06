@@ -62,10 +62,12 @@ standing record of which estates clear which stages against a real
 emulator, updated by running them, not by hand.
 
 Type coverage is rarely what stops a configuration. A `backend "s3"` block, a
-CI pipeline that saves a plan file (`-out` plus `apply <planfile>`), a
 non-default workspace, a `count.index` in a resource name, a `for_each` keyed
 by CIDRs, or an identity argument read from a data source will each stop one
-first. Run
+first. A CI pipeline that saves a plan file (`-out` plus `apply <planfile>`)
+runs: the apply re-reads the live system, and refuses by name if what it
+finds is not what the approved file describes
+([#878](https://github.com/INTENTIUS/choudoufu/issues/878)). Run
 
 ```
 choudoufu live-check

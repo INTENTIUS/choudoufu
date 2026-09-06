@@ -312,11 +312,22 @@ An acceptable configuration can still be refused by how it is invoked.
 - Every `tofu state` subcommand is refused, including read-only `state list`
   and `state show`.
 - Four commands are refused: `import`, `refresh`, `taint`, `untaint`.
-- A saved plan is refused: `-out`, and `apply <planfile>`. **This is how most
-  CI runs Terraform**, so check it first. Ordinary `apply` re-plans and
-  re-confirms. [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s
-  ruling settles the design for tying a reviewed plan to its apply. Not
-  implemented yet.
+- A saved plan works, in the stock form, with one difference that matters:
+  `plan -out=FILE` writes stock's own plan file, and `apply FILE` **re-reads
+  the live system and plans against it**, then compares that fresh plan with
+  the one the file describes. Same resources, same actions, same live
+  objects, same planned values - compared canonically, with unknown
+  ("known after apply") attributes skipped and sensitive values compared as
+  a stable digest rather than in plaintext - and it applies without
+  re-prompting, exactly as stock does.
+  Different, and it refuses - `The approved plan no longer matches the live
+  system` - and exits **3**, so a pipeline can route it back to review rather
+  than treat it as a broken run. **This is how most CI runs Terraform**, and
+  it is why the file is an approval rather than an instruction: it is never
+  prior state, and it is never consulted for ownership.
+  [#878](https://github.com/INTENTIUS/choudoufu/issues/878). `live-plan
+  -estate=NAME -out` stays refused: that directory has no live block, so
+  plain `apply` in it is an ordinary state-backed command.
 - The `-json` and `-json-into` flags are refused.
 - A `-refresh-only` run is refused: both sides of that comparison are the
   live system here, so there is nothing for it to do.

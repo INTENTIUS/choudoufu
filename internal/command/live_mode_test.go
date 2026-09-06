@@ -726,21 +726,22 @@ func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_applyRejections: the two saved-plan halves and the
-// options stateless mode v0 removes the ground for, refused rather than
-// ignored. "-destroy" is deliberately absent from this table since GitHub
-// issue #320 (ruled in #425): see TestStatelessMode_applyDestroy for the
-// positive case that mode now has. "refresh-only" stays here because it is
-// a genuinely different operation with no meaning under live markers - both
-// sides of its comparison are the live system - not a verification gap the
-// orphan-sweep generalization closes.
+// TestStatelessMode_applyRejections: the options stateless mode v0 removes
+// the ground for, refused rather than ignored. "-destroy" is deliberately
+// absent from this table since GitHub issue #320 (ruled in #425): see
+// TestStatelessMode_applyDestroy for the positive case that mode now has.
+// "refresh-only" stays here because it is a genuinely different operation
+// with no meaning under live markers - both sides of its comparison are the
+// live system - not a verification gap the orphan-sweep generalization
+// closes. A saved plan file left this table with GitHub issue #878, ruled
+// 2026-09-05: "apply <planfile>" is admitted under a live block, re-plans
+// live and compares - see live_approval_test.go for both halves of that.
 func TestStatelessMode_applyRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
 		want string
 	}{
-		{"planfile", []string{"saved.tfplan"}, "Applying a saved plan file is not available under live resource markers"},
 		{"refresh-only", []string{"-refresh-only", "-auto-approve"}, "Only the normal planning mode is available under live resource markers"},
 		{"state-out", []string{"-auto-approve", "-state-out=other.tfstate"}, "State file options are not available under live resource markers"},
 		{"json", []string{"-auto-approve", "-json"}, "Machine-readable output is not available under live resource markers yet"},
@@ -769,13 +770,17 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 }
 
 // TestStatelessMode_planRejections is the plan half of the same list.
+// "-out" left it with GitHub issue #878: under a live block it writes
+// stock's own plan file, and TestApproval_planOutWritesAnArtifact is the
+// positive case. It stays refused on live-plan's "-estate" form, where plain
+// apply in the same directory is a state-backed command - see
+// TestLivePlan_rejectsStateOptions.
 func TestStatelessMode_planRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
 		want string
 	}{
-		{"out", []string{"-out=tfplan"}, "Saved plan files are not available under live resource markers"},
 		{"state", []string{"-state=other.tfstate"}, "State file options are not available under live resource markers"},
 		{"refresh-only", []string{"-refresh-only"}, "Only the normal planning mode is available under live resource markers"},
 		{"json", []string{"-json"}, "Machine-readable output is not available under live resource markers yet"},
