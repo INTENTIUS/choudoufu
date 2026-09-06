@@ -1484,12 +1484,26 @@ COUNTEOF
       --query 'Instances[0].InstanceId' --output text)"
     [ -n "$BREAK_COLLISION_ID" ] && [ "$BREAK_COLLISION_ID" != "None" ] || fail "BREAK=replace: could not launch the collision instance"
     BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    # Unlike the security-group/SQS/S3 collision controls, a terminated EC2
+    # instance is not gone from the account: AWS documents (and the F2 wall
+    # below reproduces empirically) that a terminated instance keeps
+    # answering describe-instances/describe-tags/get-resources with its
+    # tags for a time after termination. Left alone, this manufactured
+    # ghost would still claim module.ec2_complete's address on every LATER
+    # stage's own tag sweep in this same script run (day2_rename is next).
+    # Strip its markers explicitly so cleanup here is actually complete,
+    # not merely "terminated and hoping the sweep does not notice".
     awsl ec2 terminate-instances --instance-ids "$BREAK_COLLISION_ID" >/dev/null 2>&1 || true
+    awsl ec2 delete-tags --resources "$BREAK_COLLISION_ID" --tags Key=tofu-estate Key=tofu-address Key=tofu-slot >/dev/null 2>&1 || true
     [ "$BREAK_PLAN_RC" -ne 0 ] \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live instances claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
-    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
-    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+    grep -qF 'Indistinguishable instances without per-instance markers' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the fungible-slot collision - this stage's check is not load-bearing"; }
+    grep -qF "$INSTANCE_ID" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the real, still-valid instance ($INSTANCE_ID)"; }
+    grep -qF "$BREAK_COLLISION_ID" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the manufactured duplicate ($BREAK_COLLISION_ID)"; }
+    log "  BREAK=replace: caught - choudoufu correctly refused with \"Indistinguishable instances without per-instance markers\", naming both $INSTANCE_ID and $BREAK_COLLISION_ID, rather than silently proposing nothing - the Break text's own outcome"
   else
     log "=== F1. choudoufu: change the ForceNew ami argument, forcing a replace at the same declared address ==="
     sed -i.bak 's/ami                    = data\.aws_ami\.amazon_linux\.id/ami                    = "ami-0abcdef1234567890"/' "$EST/main.tf"
@@ -1595,7 +1609,7 @@ COUNTEOF
     log "  No changes. The replace is complete and invisible to the next plan - no marker collision."
 
     INSTANCE_ID="$F_NEW_ID"
-    gauntlet_stage day2_replace pass "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one ($F_OLD_IMPORT_ID -> $F_NEW_IMPORT_ID); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Indistinguishable instances without per-instance markers\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
   fi
   gauntlet_end_stage
 
