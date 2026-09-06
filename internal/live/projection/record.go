@@ -1267,22 +1267,58 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 	return err
 }
 
+// identitySuperseded reports whether writing next over env.Identity would
+// put a DIFFERENT, nameable object in this envelope than the one already
+// recorded there.
+//
+// It is a fact about the record and nothing else, which is exactly its
+// limit: the same fact is produced by a replace, by an `import` block
+// re-pointing the address at a second live object, by a `live-mv` onto an
+// address that already held a record, and by a ForgetThenCreate that
+// deliberately leaves the old object running. Only the first destroyed
+// anything. That is GitHub issue #854, and it is why this predicate is
+// separated from [supersedeIdentity]: the predicate says the identity moved,
+// the caller's plan says whether a destroy is why.
+//
+// False for an envelope that named nothing (a first apply, or a key that
+// only ever held a residue/provisioned/deposed fact), for the same object
+// re-recorded (every ordinary update and every no-op apply), and for an
+// identity with nothing to key an entry by.
+func identitySuperseded(env *recordEnvelope, next *identityPayload) bool {
+	if env == nil || env.Identity.empty() || next.empty() {
+		return false
+	}
+	prevKey := tombstoneKey(env.Identity)
+	return prevKey != "" && prevKey != tombstoneKey(next)
+}
+
 // supersedeIdentity is [RecordStore.tombstone]'s rule for the address that
 // does NOT leave the final state: a replace destroys the object the record
 // named and creates another at the SAME address, so the envelope's identity
 // is overwritten in place and the delete-and-tombstone path above never
 // runs for it at all. GitHub issue #670.
 //
-// The property, not a resource type and not a plan verb: an address's
-// record names the one live object that address owns right now (the
-// foundation-order ruling (#388) item 1), it is rewritten by [WriteBack]
-// out of the state a successful apply finished with, and this estate is its
-// only writer (every write is compare-and-swap on the version the plan
-// read). So an identity this envelope carried before the apply and does not
-// carry after it is an object this estate's own apply stopped owning -
-// which, for an address the final state still has, is a destroy this run
-// performed. That is what [tombstoneFields] records, and it is recorded
-// here for the same reason it is recorded there: the destroyed object's own
+// # Two facts, and both are required
+//
+// The first is [identitySuperseded]: an address's record names the one live
+// object that address owns right now (the foundation-order ruling (#388)
+// item 1), it is rewritten by [WriteBack] out of the state a successful
+// apply finished with, and this estate is its only writer (every write is
+// compare-and-swap on the version the plan read), so an identity this
+// envelope carried before the apply and does not carry after it is an
+// object this estate's own apply stopped owning.
+//
+// The second is the caller's, and GitHub issue #854 is that it was missing:
+// STOPPED OWNING IS NOT DESTROYED. An `import` block, a `live-mv` onto an
+// occupied address and a ForgetThenCreate each stop the address owning what
+// it owned, with the previous object still running. The one shape that
+// destroys is a replace, and a replace is a plan verb - so
+// [writeBackRecordEnvelopes] calls this only for an address in
+// [WriteBackRequest.ReplacedAddrs], the addresses whose planned action is
+// DeleteThenCreate or CreateThenDelete. There is no fallback to the record
+// alone: an address the plan says nothing about records nothing.
+//
+// What the entry is for is unchanged from #670: the destroyed object's own
 // tags stay readable through the tagging API for a time after it is gone,
 // and the next plan cannot otherwise tell that lingering tag from a second,
 // genuinely live claimant.
@@ -1293,10 +1329,10 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 // (pruneSupersededEntry and tombstoneGhostIndices, both in
 // internal/live/discovery), which is a refusal becoming a warning. So a
 // tombstone written for an object that was in fact not destroyed - a
-// hand-edited record, an import that re-pointed an address at a different
-// live object - costs a refusal this estate would otherwise have made, and
-// can reach the live system through nothing. Writing no entry is the
-// strictly louder direction, and it is what every exit below does.
+// hand-edited record, say - costs a refusal this estate would otherwise
+// have made, and can reach the live system through nothing. Writing no
+// entry is the strictly louder direction, and it is what every exit below,
+// and every non-replace address, takes.
 //
 // The provider recorded is the envelope's own top-level Provider as it
 // stands BEFORE the caller overwrites it, which is "the managing provider
@@ -1306,13 +1342,7 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 //
 // Reports whether an entry was added.
 func supersedeIdentity(env *recordEnvelope, next *identityPayload) bool {
-	if env == nil || env.Identity.empty() || next.empty() {
-		return false
-	}
-	prevKey := tombstoneKey(env.Identity)
-	if prevKey == "" || prevKey == tombstoneKey(next) {
-		// The same object, or an identity with nothing to key an entry by.
-		// Neither is a supersession.
+	if !identitySuperseded(env, next) {
 		return false
 	}
 	return addTombstoneEntry(env, env.Identity, env.Provider)

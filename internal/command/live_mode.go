@@ -1232,7 +1232,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // record_store block (r.recordStore nil) is a no-op, the same "nothing
 // configured, nothing happens" contract every optional live-block feature
 // in this file follows.
-func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics {
+//
+// replaced is GitHub issue #854's plan-derived replace set, computed by the
+// caller from the plan this apply ran and passed through untouched. This
+// runner never sees the plan and must not reconstruct the signal from
+// anything it does see: the record-side evidence it holds ("the identity
+// changed") is exactly the evidence that cannot tell a replace from an
+// import or a live-mv, which is the defect #854 fixes.
+func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// Issue #275's residue classifier is the one write-back half that needs
@@ -1257,6 +1264,12 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		Providers:        provAccess,
 		FinalState:       finalState,
 		Schemas:          schemas,
+
+		// Issue #854's replace signal, derived by the caller from the
+		// plan this apply ran (backend/local's replacedInstances). It is
+		// passed straight through: this runner has no plan of its own and
+		// must not invent one.
+		ReplacedAddrs: replaced,
 
 		// Issues #270 and #353's halves both need Config: the located half
 		// asks the `markers "record"` selection, and the provisioned half

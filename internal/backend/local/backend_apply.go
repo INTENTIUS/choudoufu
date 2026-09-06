@@ -51,6 +51,40 @@ func getEnvAsInt(envName string, defaultValue int) (int, tfdiags.Diagnostics) {
 	return defaultValue, diags
 }
 
+// replacedInstances is every resource instance address plan scheduled a
+// REPLACE for: [plans.Action.IsReplace], which is DeleteThenCreate or
+// CreateThenDelete and nothing else.
+//
+// GitHub issue #854. It is [StatelessRun.WriteBack]'s replace signal, and
+// the plan is the only place that signal exists. The write side's own
+// evidence - "this address's recorded identity changed and the address is
+// still in the final state" - is true of a replace AND of every other way an
+// address comes to name a different object: an `import` block pointing it at
+// a second live object, a `live-mv` onto an address that already held a
+// record, a ForgetThenCreate that creates a replacement and deliberately
+// leaves the old object running (lifecycle.destroy = false). Only the first
+// of those destroyed anything, and only the plan knows which happened.
+//
+// Deposed-key changes are deliberately not filtered out here: a change
+// carrying a DeposedKey is a Delete of an already-deposed object, never a
+// replace, so [plans.Action.IsReplace] already excludes it.
+//
+// A nil plan yields nil, which the write side reads as "this run replaced
+// nothing" and records no destroyed identity for - the direction that
+// refuses rather than the direction that prunes.
+func replacedInstances(plan *plans.Plan) []addrs.AbsResourceInstance {
+	if plan == nil || plan.Changes == nil {
+		return nil
+	}
+	var out []addrs.AbsResourceInstance
+	for _, change := range plan.Changes.Resources {
+		if change != nil && change.Action.IsReplace() {
+			out = append(out, change.Addr)
+		}
+	}
+	return out
+}
+
 func (b *Local) opApply(
 	stopCtx context.Context,
 	cancelCtx context.Context,
@@ -369,7 +403,7 @@ func (b *Local) opApply(
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
 	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas)
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedInstances(plan))
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)

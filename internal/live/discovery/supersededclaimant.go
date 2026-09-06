@@ -160,6 +160,28 @@ import (
 // matches one. A claimant matching nothing is kept, and the entry refuses
 // through [collisionProblem] with the error it always had.
 //
+// # And why only a destroy writes one
+//
+// GitHub issue #854, the write side's own follow-up, and the reason this
+// message can say the word "destroyed" at all. "The record's identity
+// changed at an address the final state still has" is ALSO true of an
+// `import` block pointing an address at a second live object, of a
+// `live-mv` onto an address that already held a record, and of a
+// ForgetThenCreate whose whole purpose is to leave the old object running.
+// Written from that alone, an entry would eventually be read here and
+// rendered as "records this one as destroyed by an earlier apply" about
+// something nothing destroyed - never a wrong marker, since a tombstone is
+// evidence and not permission, but a diagnostic that lies.
+//
+// The write side now takes the replace set from the PLAN
+// ([projection.WriteBackRequest.ReplacedAddrs]) and writes an entry only for
+// an address whose planned action was DeleteThenCreate or CreateThenDelete.
+// An import or a live-mv writes none, so the object it displaced arrives
+// here unrecorded, is kept by the "matches nothing" arm below, and is
+// refused as a collision - which is the correct answer for an object that
+// may well still be alive, and the direction this whole mechanism is
+// allowed to fail in.
+//
 // A tombstone is evidence, never permission, which is what lets it sit
 // under the foundation ruling's "a record is never read as permission to
 // delete". It is read at exactly one place, this one, and the only thing it
@@ -359,7 +381,10 @@ func deposedCandidates(ctx context.Context, store *projection.RecordStore, req R
 // as having destroyed at addr - [projection.RecordStore.tombstone]'s
 // entries for an address that left the final state, and, since GitHub issue
 // #670, [projection.supersedeIdentity]'s entry for the object a replace
-// destroyed at an address that stayed.
+// destroyed at an address that stayed. Since GitHub issue #854 that second
+// writer fires only for an address this estate's own PLAN scheduled a
+// replace for, so every entry read here is a destroy and the prune's own
+// message can say so.
 //
 // It is the store's answer alone, with no [Request] snapshot to union in:
 // unlike a deposed object, which the caller may have collected before
@@ -421,7 +446,7 @@ func supersededClaimantProblem(req Request, typeName, escaped string, addr addrs
 		Marker:   escaped,
 		LiveIDs:  liveIDs(c.importID),
 		Detail: fmt.Sprintf(
-			"A %s with identity %q carries estate %q and the address %q, but the estate's own record for %s names %s as the live resource that address owns right now, and records this one as destroyed by an earlier apply of this estate. The ordinary cause is a replace: a destroyed object's tags stay readable for a time after the apply that destroyed it, so its marker outlives it. Nothing is proposed for this resource: it is not read, not changed and not destroyed, and it will disappear from this report on its own once the cloud stops listing it. A second, genuinely live resource wearing this marker is a different case and is refused rather than reported here, because the record would not name it as destroyed.",
+			"A %s with identity %q carries estate %q and the address %q, but the estate's own record for %s names %s as the live resource that address owns right now, and records this one as destroyed by an earlier apply of this estate. The ordinary cause is a replace: a destroyed object's tags stay readable for a time after the apply that destroyed it, so its marker outlives it. Nothing is proposed for this resource: it is not read, not changed and not destroyed, and it will disappear from this report on its own once the cloud stops listing it. Only a destroy this estate applied records an object this way - the address leaving the configuration, or a replace this estate's own plan scheduled. An import or a live-mv that re-points this address at a different object records nothing, and neither does a create that deliberately leaves the old object running, so an object displaced by one of those is refused as a live collision rather than described here as destroyed.",
 			typeName, c.displayID(), req.Estate, escaped, addr, recordIdentityDisplay(rec)),
 	}
 }

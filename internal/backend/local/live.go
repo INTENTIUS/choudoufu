@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
@@ -106,6 +107,25 @@ type StatelessRun interface {
 	// apply finished with; schemas is the run's own schema set, already in
 	// hand at the one call site (opApply).
 	//
+	// replaced is every resource instance address THIS RUN'S PLAN scheduled
+	// a replace for - [plans.Action.IsReplace], so DeleteThenCreate or
+	// CreateThenDelete and nothing else. GitHub issue #854: a replace is
+	// the only ordinary shape in which an apply destroys the object an
+	// address's record names and leaves the SAME address in the final state
+	// wearing a different one, and it is the plan, not the record, that
+	// knows a destroy was scheduled. Several other shapes also re-point an
+	// address's record at a different object without destroying anything -
+	// an `import` block, a `live-mv` onto an address that already held a
+	// record, a ForgetThenCreate under lifecycle.destroy = false - and the
+	// record alone cannot tell them apart from a replace. See
+	// [projection.WriteBackRequest.ReplacedAddrs].
+	//
+	// An empty or nil slice means "this run replaced nothing", which makes
+	// the write side record no destroyed identity at all: the safe
+	// direction, since a missing entry costs a refusal the next plan would
+	// otherwise have downgraded to a warning, and can reach the live system
+	// through nothing.
+	//
 	// Called exactly once per apply, after the ordinary state write has
 	// already succeeded - never mid-apply, and never for a plan-only run.
 	// A run with no record store configured (or no live block at all) does
@@ -115,7 +135,7 @@ type StatelessRun interface {
 	// what actually ran, and that must surface loudly rather than
 	// silently, the same philosophy live/MARKERS.md's marker-collision
 	// handling already uses.
-	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics
+	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance) tfdiags.Diagnostics
 
 	// AfterApply runs whatever this run still owes the live system once a
 	// real apply has finished changing it, and reports what it did as

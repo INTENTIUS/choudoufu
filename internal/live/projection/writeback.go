@@ -50,6 +50,37 @@ type WriteBackRequest struct {
 	// FinalState is the state an apply (or destroy) finished with.
 	FinalState *states.State
 
+	// ReplacedAddrs is every resource instance address this run's PLAN
+	// scheduled a replace for - the addresses whose change action is
+	// DeleteThenCreate or CreateThenDelete. GitHub issue #854.
+	//
+	// It is the licence to write a tombstone for an address that is STILL
+	// in the final state ([supersedeIdentity]). The rule that used to
+	// stand alone there - "the recorded identity changed at an address the
+	// final state still has" - is true of a replace and equally true of
+	// three shapes that destroy nothing:
+	//
+	//   - an `import` block pointing the address at a second, live object,
+	//     over a record still naming the first;
+	//   - a `live-mv` onto an address that already held a record, where the
+	//     record's previous occupant is alive and now unowned;
+	//   - a ForgetThenCreate under lifecycle.destroy = false, whose whole
+	//     purpose is to create a replacement and leave the old object
+	//     running.
+	//
+	// In all three the previous object is alive, so recording it as
+	// destroyed puts a false statement in the record and, downstream, in
+	// discovery's superseded-claimant diagnostic, which says "destroyed by
+	// an earlier apply of this estate" about something nothing destroyed.
+	// The plan is the only place the difference is written down.
+	//
+	// Nil or empty means "this run replaced nothing". That is deliberately
+	// the fail-toward-refusal direction and not a fallback to the old rule:
+	// with no entry written, discovery keeps the extra claimant and the
+	// address refuses, which is what it did before the tombstone mechanism
+	// existed. See [supersedeIdentity].
+	ReplacedAddrs []addrs.AbsResourceInstance
+
 	// Schemas resolves a resource type's current schema, needed to decode
 	// FinalState's stored objects before they can be re-encoded as a
 	// record payload.
@@ -416,6 +447,12 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	secrets := identity.SecretsFor(req.Config)
 	providerCache := map[string]providers.Interface{}
 
+	// Issue #854's plan-derived replace signal, indexed once per pass.
+	replaced := make(map[string]bool, len(req.ReplacedAddrs))
+	for _, a := range req.ReplacedAddrs {
+		replaced[a.String()] = true
+	}
+
 	// noProvidersWarned makes the "no provider access to classify residue
 	// with" warning fire once per write-back rather than once per instance
 	// that has a residue candidate - the same one-warning-per-run shape the
@@ -684,6 +721,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				}
 			}
 
+			wasReplaced := replaced[addr.String()]
 			_, err := req.Store.mergeEnvelope(ctx, addr, expected, func(env *recordEnvelope) {
 				// GitHub issue #670, before env.Provider is overwritten
 				// and before the identity is: a replace leaves this
@@ -691,17 +729,31 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// so the delete-side tombstone loop below never sees it,
 				// and without an entry here the object this apply
 				// destroyed is merely unrecorded rather than provably
-				// dead. See [supersedeIdentity] for why the identity
-				// changing is the evidence, and for why a wrong entry
-				// costs a refusal and nothing else.
+				// dead. See [supersedeIdentity].
+				//
+				// GitHub issue #854 added the first half of the
+				// condition. The record can say the identity CHANGED; it
+				// cannot say a destroy is why. An `import` block, a
+				// `live-mv` onto an occupied address and a
+				// ForgetThenCreate all leave exactly the same record
+				// evidence with the previous object still running, so the
+				// plan's own replace set is what licences the entry - see
+				// [WriteBackRequest.ReplacedAddrs]. An address the plan
+				// did not schedule a replace for records nothing, and the
+				// object the record used to name is left to refuse a
+				// collision the way it did before tombstones existed.
 				//
 				// clearIdentity is deliberately not a supersession: it
 				// means this pass could not ask the schema whether the
 				// type carries a recordable identity at all, which is a
 				// fact about this run's provider access, not about the
 				// object.
-				if setIdentity != nil {
-					supersedeIdentity(env, setIdentity)
+				if setIdentity != nil && identitySuperseded(env, setIdentity) {
+					if wasReplaced {
+						supersedeIdentity(env, setIdentity)
+					} else {
+						log.Printf("[INFO] projection: %s now records a different object (%s) than it did before this apply, and this run's plan scheduled no replace for it - an import, a live-mv onto an address that already held a record, or a create with the old object deliberately forgotten. The object the record named before is NOT recorded as destroyed, so a live resource still wearing this address's marker is refused as a collision rather than reported as a superseded one", addr, tombstoneKey(setIdentity))
+					}
 				}
 				env.Provider = providerString(res.ProviderConfig)
 				switch {
